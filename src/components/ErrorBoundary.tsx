@@ -102,4 +102,4 @@ function DefaultErrorFallback({
   );
 }
 
-export { DefaultErrorFallback, ErrorBoundary };
+export { ErrorBoundary };

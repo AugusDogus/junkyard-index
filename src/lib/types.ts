@@ -96,13 +96,6 @@ export interface SearchResult {
   locationsWithErrors: string[];
 }
 
-// API response structure from LKQ endpoints
-export interface LKQVehicleResponse {
-  success: boolean;
-  data?: string; // HTML content
-  error?: string;
-}
-
 // Parsed vehicle data from HTML
 export interface ParsedVehicleData {
   id: string;
@@ -122,14 +115,6 @@ export interface ParsedVehicleData {
   detailsUrl: string;
   partsUrl: string;
   pricesUrl: string;
-}
-
-// User preferences
-export interface UserPreferences {
-  favoriteLocations: string[];
-  recentSearches: string[];
-  defaultFilters: Partial<SearchFilters>;
-  location?: [number, number];
 }
 
 // Component props interfaces

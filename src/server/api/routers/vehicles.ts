@@ -1,7 +1,7 @@
 import { geolocation } from "@vercel/functions";
 import * as cheerio from "cheerio";
 import { backOff } from "exponential-backoff";
-import { revalidateTag, unstable_cache } from "next/cache";
+import { unstable_cache } from "next/cache";
 import pLimit from "p-limit";
 import { z } from "zod";
 import { API_ENDPOINTS, SEARCH_CONFIG } from "~/lib/constants";
@@ -172,13 +172,6 @@ const fetchVehicleInventory = unstable_cache(
     tags: ["vehicles"],
   },
 );
-
-/**
- * Helper function to clear vehicle cache when needed
- */
-export function clearVehicleCache(): void {
-  revalidateTag("vehicles");
-}
 
 /**
  * Helper function to extract text after a label
