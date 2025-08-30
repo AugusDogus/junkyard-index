@@ -37,7 +37,7 @@ function VehicleCardComponent({
   };
 
   return (
-    <Card className="group overflow-hidden py-0 transition-shadow hover:shadow-lg">
+    <Card className="group gap-0 overflow-hidden py-0 transition-shadow hover:shadow-lg">
       <CardHeader className="p-0">
         {/* Vehicle Image */}
         <div className="bg-muted relative aspect-video overflow-hidden">
