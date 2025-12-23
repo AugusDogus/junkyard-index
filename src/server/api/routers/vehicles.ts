@@ -87,6 +87,30 @@ async function fetchWithRetry(
 }
 
 /**
+ * Extract cookies from a Response's set-cookie header
+ */
+function extractCookies(response: Response): string {
+  const setCookieHeader = response.headers.get("set-cookie");
+  if (!setCookieHeader) return "";
+
+  // Parse the set-cookie header and extract cookie name=value pairs
+  // The header may contain multiple cookies separated by commas (for multiple Set-Cookie headers)
+  // Each cookie has the format: name=value; attributes...
+  const cookies: string[] = [];
+
+  // Split by comma but be careful about commas in expires dates
+  const parts = setCookieHeader.split(/,(?=\s*[^;=]+=[^;]+)/);
+  for (const part of parts) {
+    const cookiePart = part.trim().split(";")[0]; // Get just name=value
+    if (cookiePart) {
+      cookies.push(cookiePart);
+    }
+  }
+
+  return cookies.join("; ");
+}
+
+/**
  * Internal function to fetch vehicle inventory without caching
  */
 async function fetchVehicleInventoryInternal(
@@ -94,9 +118,33 @@ async function fetchVehicleInventoryInternal(
   searchQuery: string,
 ): Promise<ParsedVehicleData[]> {
   try {
-    // Use the AJAX endpoint that returns search results HTML
+    // Step 1: First visit the inventory page to establish a session and get cookies
+    const inventoryPageUrl = `${API_ENDPOINTS.PYP_BASE}${location.urls.inventory}`;
+
+    const sessionResponse = await fetch(inventoryPageUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        DNT: "1",
+        Connection: "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+      },
+    });
+
+    // Extract cookies from the session response
+    const cookies = extractCookies(sessionResponse);
+
+    // Step 2: Now make the AJAX request with the session cookies
     const url = new URL(
-      `${API_ENDPOINTS.LKQ_BASE}${API_ENDPOINTS.VEHICLE_INVENTORY}`,
+      `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.VEHICLE_INVENTORY}`,
     );
     url.searchParams.set("page", "1");
     url.searchParams.set("filter", searchQuery);
@@ -108,7 +156,7 @@ async function fetchVehicleInventoryInternal(
       SEARCH_CONFIG.REQUEST_TIMEOUT,
     );
 
-    // Realistic browser headers to simulate AJAX request from the inventory page
+    // Make AJAX request with the session cookies
     const response = await fetchWithRetry(url.toString(), {
       signal: controller.signal,
       headers: {
@@ -118,15 +166,16 @@ async function fetchVehicleInventoryInternal(
           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Encoding": "gzip, deflate, br",
-        "X-Requested-With": "XMLHttpRequest", // Important for AJAX requests
-        Referer: `${API_ENDPOINTS.LKQ_BASE}${location.urls.inventory}`,
-        Origin: API_ENDPOINTS.LKQ_BASE,
+        "X-Requested-With": "XMLHttpRequest",
+        Referer: inventoryPageUrl,
+        Origin: API_ENDPOINTS.PYP_BASE,
         DNT: "1",
         Connection: "keep-alive",
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
         "Cache-Control": "no-cache",
+        ...(cookies ? { Cookie: cookies } : {}),
       },
     });
 
@@ -155,12 +204,6 @@ async function fetchVehicleInventoryInternal(
 /**
  * Cached version of fetchVehicleInventoryInternal using Next.js cache
  *
- * ⚠️  LEGAL WARNING: This function performs web scraping of LKQ's website.
- * Before deploying to production, review LEGAL_CONSIDERATIONS.md and:
- * - Seek legal counsel
- * - Review LKQ's Terms of Service
- * - Consider requesting official API access
- * - Ensure compliance with applicable laws
  */
 const fetchVehicleInventory = unstable_cache(
   async (location: Location, searchQuery: string) => {
@@ -244,9 +287,9 @@ function generateVehicleUrls(
   const modelSlug = createSlug(model);
 
   return {
-    detailsUrl: `${API_ENDPOINTS.LKQ_BASE}${location.urls.inventory}${year}-${make.toLowerCase()}-${modelSlug}/`,
-    partsUrl: `${API_ENDPOINTS.LKQ_BASE}${location.urls.parts}?year=${year}&make=${make}&model=${model}`,
-    pricesUrl: `${API_ENDPOINTS.LKQ_BASE}${location.urls.prices}`,
+    detailsUrl: `${API_ENDPOINTS.PYP_BASE}${location.urls.inventory}${year}-${make.toLowerCase()}-${modelSlug}/`,
+    partsUrl: `${API_ENDPOINTS.PYP_BASE}${location.urls.parts}?year=${year}&make=${make}&model=${model}`,
+    pricesUrl: `${API_ENDPOINTS.PYP_BASE}${location.urls.prices}`,
   };
 }
 
@@ -261,7 +304,7 @@ function parseVehicleInventoryHTML(
 
   try {
     const $ = cheerio.load(html);
-    const base = new URL(API_ENDPOINTS.LKQ_BASE);
+    const base = new URL(API_ENDPOINTS.PYP_BASE);
 
     $(".pypvi_resultRow[id]").each((_, el) => {
       try {
@@ -464,7 +507,7 @@ function filterVehicles(
 
 export const vehiclesRouter = createTRPCRouter({
   /**
-   * Global search across all LKQ locations
+   * Global search across all PYP locations
    */
   search: publicProcedure
     .input(searchFiltersSchema)

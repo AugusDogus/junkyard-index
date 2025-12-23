@@ -4,19 +4,19 @@ import type { Location } from "~/lib/types";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 
 /**
- * Fetches location data from LKQ website with Next.js Data Cache
+ * Fetches location data from PYP website with Next.js Data Cache
  * - Uses 'force-cache' for persistent caching across requests
  * - Revalidates every hour to ensure fresh data
  * - Automatic request deduplication within render passes
  * In a real implementation, this would scrape the actual location page
  * For now, we'll use a mock implementation
  */
-async function fetchLocationsFromLKQ(): Promise<Location[]> {
+async function fetchLocationsFromPYP(): Promise<Location[]> {
   try {
-    // In production, this would fetch from the actual LKQ inventory page
+    // In production, this would fetch from the actual PYP inventory page
     // and parse the _locationList JavaScript variable
     const response = await fetch(
-      `${API_ENDPOINTS.LKQ_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
+      `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
       {
         cache: "force-cache", // Use Next.js Data Cache
         next: { revalidate: 3600 }, // Revalidate every hour
@@ -102,7 +102,7 @@ async function fetchLocationsFromLKQ(): Promise<Location[]> {
 
     return locations;
   } catch (error) {
-    console.error("Error fetching locations from LKQ:", error);
+    console.error("Error fetching locations from PYP:", error);
 
     // Fallback to hardcoded location data for development
     return getMockLocations();
@@ -117,8 +117,8 @@ function getMockLocations(): Location[] {
     {
       locationCode: "1223",
       locationPageURL:
-        "https://locations.lkqpickyourpart.com/en-us/al/huntsville/6942-stringfield-rd-nw/",
-      name: "LKQ Pick Your Part - Huntsville",
+        "https://www.pyp.com/inventory/huntsville-1223/",
+      name: "Pick Your Part - Huntsville",
       displayName: "Huntsville",
       address: "6942 Stringfield Rd.",
       city: "Huntsville",
@@ -133,7 +133,7 @@ function getMockLocations(): Location[] {
       primo: "",
       urls: {
         store:
-          "https://locations.lkqpickyourpart.com/en-us/al/huntsville/6942-stringfield-rd-nw/",
+          "https://www.pyp.com/inventory/huntsville-1223/",
         interchange: "/parts/huntsville-1223/",
         inventory: "/inventory/huntsville-1223/",
         prices: "/prices/huntsville-1223/",
@@ -153,11 +153,11 @@ function getMockLocations(): Location[] {
 
 export const locationsRouter = createTRPCRouter({
   /**
-   * Get all LKQ locations
+   * Get all PYP locations
    * Uses Next.js Data Cache for automatic caching and request deduplication
    */
   getAll: publicProcedure.query(async (): Promise<Location[]> => {
-    return await fetchLocationsFromLKQ();
+    return await fetchLocationsFromPYP();
   }),
 
   /**
@@ -170,7 +170,7 @@ export const locationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }): Promise<Location[]> => {
-      const allLocations = await fetchLocationsFromLKQ();
+      const allLocations = await fetchLocationsFromPYP();
       return allLocations.filter((location) =>
         input.states.includes(location.stateAbbr),
       );
@@ -186,7 +186,7 @@ export const locationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }): Promise<Location | null> => {
-      const allLocations = await fetchLocationsFromLKQ();
+      const allLocations = await fetchLocationsFromPYP();
       return (
         allLocations.find(
           (location) => location.locationCode === input.locationCode,
@@ -204,7 +204,7 @@ export const locationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }): Promise<Location[]> => {
-      const allLocations = await fetchLocationsFromLKQ();
+      const allLocations = await fetchLocationsFromPYP();
       const query = input.query.toLowerCase();
 
       return allLocations.filter(
@@ -216,11 +216,11 @@ export const locationsRouter = createTRPCRouter({
     }),
 
   /**
-   * Get unique states that have LKQ locations
+   * Get unique states that have PYP locations
    */
   getStates: publicProcedure.query(
     async (): Promise<Array<{ code: string; name: string; count: number }>> => {
-      const allLocations = await fetchLocationsFromLKQ();
+      const allLocations = await fetchLocationsFromPYP();
       const stateMap = new Map<string, { name: string; count: number }>();
 
       allLocations.forEach((location) => {

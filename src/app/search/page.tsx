@@ -357,7 +357,7 @@ function SearchPageContent() {
           <div className="flex h-16 items-center">
             <div className="flex items-center space-x-4">
               <h1 className="text-foreground text-xl font-bold">
-                LKQ Global Search
+                PYP Global Search
               </h1>
               <span className="text-muted-foreground hidden text-sm sm:block">
                 Search across all locations
@@ -545,7 +545,7 @@ function SearchPageContent() {
                 </h2>
                 <p className="text-muted-foreground mx-auto max-w-md">
                   Enter a year, make, model, or any combination to search across
-                  all LKQ Pick Your Part locations.
+                  all Pick Your Part locations.
                 </p>
               </div>
             )}

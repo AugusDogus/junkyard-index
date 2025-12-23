@@ -11,7 +11,7 @@ export const SEARCH_CONFIG = {
 
 // API endpoints
 export const API_ENDPOINTS = {
-  LKQ_BASE: "https://www.lkqpickyourpart.com",
+  PYP_BASE: "https://www.pyp.com",
   VEHICLE_INVENTORY:
     "/DesktopModules/pyp_vehicleInventory/getVehicleInventory.aspx",
   LOCATION_PAGE: "/inventory/",

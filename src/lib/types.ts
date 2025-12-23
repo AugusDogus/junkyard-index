@@ -1,4 +1,4 @@
-// Location types based on the LKQ _locationList structure
+// Location types based on the PYP _locationList structure
 export interface Location {
   locationCode: string;
   locationPageURL: string;

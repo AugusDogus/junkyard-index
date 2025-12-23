@@ -11,8 +11,8 @@ import { ThemeProvider } from "~/components/theme/theme-provider";
 import { TRPCReactProvider } from "~/trpc/react";
 
 export const metadata: Metadata = {
-  title: "LKQ Pick Your Part Search",
-  description: "Search across LKQ Pick Your Part inventory locations",
+  title: "PYP Global Search",
+  description: "Search across all Pick Your Part salvage yard inventory locations",
   icons: [{ rel: "icon", url: "/favicon.svg" }],
 };
 
