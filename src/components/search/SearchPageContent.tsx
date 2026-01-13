@@ -17,6 +17,8 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
+import { SaveSearchDialog } from "~/components/search/SaveSearchDialog";
+import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SearchInput } from "~/components/search/SearchInput";
 import {
   SearchResults,
@@ -39,7 +41,11 @@ import { ERROR_MESSAGES, SEARCH_CONFIG } from "~/lib/constants";
 import type { Vehicle } from "~/lib/types";
 import { api } from "~/trpc/react";
 
-export function SearchPageContent() {
+interface SearchPageContentProps {
+  isLoggedIn?: boolean;
+}
+
+export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   const [query, setQuery] = useQueryState("q", { defaultValue: "" });
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
@@ -417,7 +423,27 @@ export function SearchPageContent() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                  {/* Saved Searches (only for logged-in users) */}
+                  {isLoggedIn && (
+                    <>
+                      <SavedSearchesDropdown />
+                      <SaveSearchDialog
+                        query={query}
+                        filters={{
+                          makes,
+                          colors,
+                          states,
+                          salvageYards,
+                          minYear: yearRange[0],
+                          maxYear: yearRange[1],
+                          sortBy,
+                        }}
+                        disabled={!query}
+                      />
+                    </>
+                  )}
+
                   {/* Sort */}
                   <Select
                     value={sortBy}
