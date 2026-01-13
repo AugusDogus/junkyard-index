@@ -148,9 +148,8 @@ export function SearchResults({
                 <Skeleton className="h-4 w-32" />
               </div>
             </CardContent>
-            <CardFooter className="flex gap-2 p-4 pt-0">
-              <Skeleton className="h-9 flex-1" />
-              <Skeleton className="h-9 flex-1" />
+            <CardFooter className="p-4 pt-0">
+              <Skeleton className="h-9 w-full" />
             </CardFooter>
           </Card>
         ))}

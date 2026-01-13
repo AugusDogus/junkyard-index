@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ImageIcon, MapPin, Settings } from "lucide-react";
+import { Eye, ImageIcon, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { memo } from "react";
@@ -126,31 +126,17 @@ function VehicleCardComponent({
         </div>
       </CardContent>
 
-      <CardFooter className="flex flex-col gap-2 p-4 pt-0">
-        {/* Action Buttons */}
-        <div className="flex w-full gap-2">
-          <Button asChild className="flex-1" variant="default">
-            <Link
-              href={vehicle.detailsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Eye className="mr-1.5 h-4 w-4" />
-              View Details
-            </Link>
-          </Button>
-
-          <Button asChild className="flex-1" variant="outline">
-            <Link
-              href={vehicle.partsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Settings className="mr-1.5 h-4 w-4" />
-              Find Parts
-            </Link>
-          </Button>
-        </div>
+      <CardFooter className="p-4 pt-0">
+        <Button asChild className="w-full" variant="default">
+          <Link
+            href={vehicle.detailsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Eye className="mr-1.5 h-4 w-4" />
+            View Details
+          </Link>
+        </Button>
       </CardFooter>
     </Card>
   );
