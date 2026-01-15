@@ -19,8 +19,11 @@ export function HeaderContent({ user }: HeaderContentProps) {
             </Link>
           </div>
           <div className="flex-1" />
-          <div className="flex shrink-0 items-center gap-4">
-            <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+            {/* Theme toggle: always visible on desktop, only visible on mobile when logged out */}
+            <div className={user ? "hidden sm:block" : ""}>
+              <ThemeToggle />
+            </div>
             <HeaderAuthButtons user={user} />
           </div>
         </div>

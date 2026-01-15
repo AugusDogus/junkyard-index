@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { LogOut, Moon, Sun, Monitor } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -10,6 +11,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { signOut, useSession } from "~/lib/auth-client";
@@ -21,6 +25,7 @@ interface UserMenuProps {
 export function UserMenu({ user: initialUser }: UserMenuProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  const { setTheme } = useTheme();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Use session user if available (for real-time updates), otherwise fall back to initial user
@@ -74,7 +79,29 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
             </p>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        {/* Theme submenu - visible on mobile, hidden on desktop */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="gap-2 sm:hidden">
+            <Sun className="h-4 w-4 scale-100 rotate-0 dark:scale-0 dark:-rotate-90" />
+            <Moon className="absolute h-4 w-4 scale-0 rotate-90 dark:scale-100 dark:rotate-0" />
+            Theme
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              <Sun className="mr-2 h-4 w-4" />
+              Light
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <Moon className="mr-2 h-4 w-4" />
+              Dark
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("system")}>
+              <Monitor className="mr-2 h-4 w-4" />
+              System
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator className="sm:hidden" />
         <DropdownMenuItem disabled={isSigningOut} onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>{isSigningOut ? "Signing out..." : "Sign out"}</span>
