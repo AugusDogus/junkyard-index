@@ -13,6 +13,7 @@ import {
 import { BookmarkCheck, Trash2, FolderOpen } from "lucide-react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
+import { buildSearchUrl } from "~/lib/search-utils";
 
 export function SavedSearchesDropdown() {
   const router = useRouter();
@@ -31,36 +32,7 @@ export function SavedSearchesDropdown() {
   });
 
   const handleLoadSearch = (search: NonNullable<typeof savedSearches>[0]) => {
-    const params = new URLSearchParams();
-
-    if (search.query) {
-      params.set("q", search.query);
-    }
-
-    const filters = search.filters;
-    if (filters.makes && filters.makes.length > 0) {
-      params.set("makes", filters.makes.join(","));
-    }
-    if (filters.colors && filters.colors.length > 0) {
-      params.set("colors", filters.colors.join(","));
-    }
-    if (filters.states && filters.states.length > 0) {
-      params.set("states", filters.states.join(","));
-    }
-    if (filters.salvageYards && filters.salvageYards.length > 0) {
-      params.set("yards", filters.salvageYards.join(","));
-    }
-    if (filters.minYear) {
-      params.set("minYear", filters.minYear.toString());
-    }
-    if (filters.maxYear) {
-      params.set("maxYear", filters.maxYear.toString());
-    }
-    if (filters.sortBy) {
-      params.set("sort", filters.sortBy);
-    }
-
-    router.push(`/search?${params.toString()}`);
+    router.push(buildSearchUrl(search.query, search.filters));
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {

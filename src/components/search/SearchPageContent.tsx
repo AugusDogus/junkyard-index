@@ -22,6 +22,7 @@ import {
   SaveSearchDialog,
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
+import { SavedSearchesList } from "~/components/search/SavedSearchesList";
 import { SearchInput } from "~/components/search/SearchInput";
 import {
   SearchResults,
@@ -585,17 +586,20 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
           {/* Empty State */}
           {!debouncedQuery && !searchLoading && (
-            <div className="py-12 text-center">
-              <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-                <Search className="text-muted-foreground h-12 w-12" />
+            <div className="py-12">
+              <div className="text-center">
+                <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+                  <Search className="text-muted-foreground h-12 w-12" />
+                </div>
+                <h2 className="text-foreground mb-2 text-lg font-medium">
+                  Search for vehicles
+                </h2>
+                <p className="text-muted-foreground mx-auto max-w-md">
+                  Enter a year, make, model, or any combination to search across
+                  all available salvage yard locations.
+                </p>
               </div>
-              <h2 className="text-foreground mb-2 text-lg font-medium">
-                Search for vehicles
-              </h2>
-              <p className="text-muted-foreground mx-auto max-w-md">
-                Enter a year, make, model, or any combination to search across
-                all available salvage yard locations.
-              </p>
+              {isLoggedIn && <SavedSearchesList />}
             </div>
           )}
 
