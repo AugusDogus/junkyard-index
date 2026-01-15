@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, Search } from "lucide-react";
+import Link from "next/link";
 import {
   parseAsArrayOf,
   parseAsInteger,
@@ -390,7 +391,7 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   }, [searchResults, filteredVehicles, sortBy, sortVehicles]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
       {/* Search Input - sticky with scroll-linked scaling */}
       <MorphingSearchBar />
 
@@ -540,8 +541,40 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
           {/* Empty State */}
           {!debouncedQuery && !searchLoading && (
-            <div className="py-12">
-              <div className="text-center">
+            <div className="py-8 sm:py-12">
+              {/* Mobile: App-like layout */}
+              <div className="sm:hidden">
+                <h1 className="text-foreground mb-2 text-3xl font-bold tracking-tight">
+                  Find Your Parts
+                </h1>
+                <p className="text-muted-foreground mb-6 text-base">
+                  Search across all available salvage yard locations
+                </p>
+                <div className="mb-8 flex flex-wrap gap-3">
+                  <Link
+                    href="/search?q=Honda+Civic"
+                    className="bg-muted hover:bg-muted/80 text-foreground inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                  >
+                    Honda Civic
+                  </Link>
+                  <Link
+                    href="/search?q=2020+Toyota"
+                    className="bg-muted hover:bg-muted/80 text-foreground inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                  >
+                    2020 Toyota
+                  </Link>
+                  <Link
+                    href="/search?q=Ford+F-150"
+                    className="bg-muted hover:bg-muted/80 text-foreground inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                  >
+                    Ford F-150
+                  </Link>
+                </div>
+                {isLoggedIn && <SavedSearchesList />}
+              </div>
+
+              {/* Desktop: Centered layout */}
+              <div className="hidden text-center sm:block">
                 <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
                   <Search className="text-muted-foreground h-12 w-12" />
                 </div>
@@ -552,8 +585,8 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                   Enter a year, make, model, or any combination to search across
                   all available salvage yard locations.
                 </p>
+                {isLoggedIn && <SavedSearchesList />}
               </div>
-              {isLoggedIn && <SavedSearchesList />}
             </div>
           )}
 

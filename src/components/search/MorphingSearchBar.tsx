@@ -4,11 +4,13 @@ import { Search } from "lucide-react";
 import Link from "next/link";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
+import { useIsMobile } from "~/hooks/use-media-query";
 
 export const MorphingSearchBar = forwardRef<HTMLDivElement>(
   function MorphingSearchBar(_, ref) {
     const { searchStateRef } = useSearchVisibility();
     const placeholderRef = useRef<HTMLDivElement>(null);
+    const isMobile = useIsMobile();
     const [style, setStyle] = useState<{
       top: number;
       left: number;
@@ -19,6 +21,11 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
     const searchState = searchStateRef.current;
 
     useEffect(() => {
+      // On mobile, don't set up morphing - just render static
+      if (isMobile) {
+        return;
+      }
+
       const updatePosition = () => {
         const placeholder = placeholderRef.current;
         if (!placeholder) return;
@@ -71,7 +78,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         window.removeEventListener("scroll", updatePosition);
         window.removeEventListener("resize", updatePosition);
       };
-    }, []);
+    }, [isMobile]);
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,9 +107,48 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       [searchState],
     );
 
+    // Shared input component to avoid duplication
+    const searchInput = (
+      <div className="relative h-10 w-full text-sm">
+        <label className="sr-only" htmlFor="search">
+          Search for vehicles
+        </label>
+        <input
+          id="search"
+          type="text"
+          value={searchState?.query ?? ""}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Enter year, make, model (e.g., '2018 Honda Civic')"
+          className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm"
+        />
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
+      </div>
+    );
+
+    // Mobile: render static search bar (no morphing)
+    if (isMobile) {
+      return (
+        <div ref={ref} className="mb-6">
+          <form onSubmit={handleSubmit}>
+            {searchInput}
+          </form>
+        </div>
+      );
+    }
+
+    // Desktop: render morphing search bar
+    // Show static version until style is calculated to avoid flash of empty content
     return (
       <div ref={ref} className="mb-6">
-        <div ref={placeholderRef} className="h-10 w-full" />
+        <div ref={placeholderRef} className="h-10 w-full">
+          {/* Show static input in placeholder until morphing style is ready */}
+          {!style && (
+            <form onSubmit={handleSubmit}>
+              {searchInput}
+            </form>
+          )}
+        </div>
         {style && (
           <form
             onSubmit={handleSubmit}
@@ -132,7 +178,8 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
           </form>
         )}
         
-        <div className="text-muted-foreground mt-2 text-xs">
+        {/* Hidden on mobile - mobile has pill buttons in empty state instead */}
+        <div className="text-muted-foreground mt-2 hidden text-xs sm:block">
           <span>Try: </span>
           <Link
             href="/search?q=Honda+Civic"
