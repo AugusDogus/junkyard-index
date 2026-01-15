@@ -8,7 +8,7 @@ interface AuthCardProps {
 
 export function AuthCard({ title, description, children }: AuthCardProps) {
   return (
-    <Card className="w-full max-w-sm">
+    <Card className="w-sm">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
