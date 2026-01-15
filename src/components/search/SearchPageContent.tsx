@@ -594,7 +594,7 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
               </h2>
               <p className="text-muted-foreground mx-auto max-w-md">
                 Enter a year, make, model, or any combination to search across
-                all Pick Your Part locations.
+                all available salvage yard locations.
               </p>
             </div>
           )}

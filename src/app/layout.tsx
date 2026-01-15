@@ -11,9 +11,9 @@ import { ThemeProvider } from "~/components/theme/theme-provider";
 import { TRPCReactProvider } from "~/trpc/react";
 
 export const metadata: Metadata = {
-  title: "PYP Global Search",
+  title: "Junkyard Index",
   description:
-    "Search across all Pick Your Part salvage yard inventory locations",
+    "Search across salvage yard inventory locations nationwide",
   icons: [{ rel: "icon", url: "/favicon.svg" }],
 };
 

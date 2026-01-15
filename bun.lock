@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "lkqpickyourpart",
+      "name": "junkyard-index",
       "dependencies": {
         "@libsql/client": "^0.17.0",
         "@radix-ui/react-dialog": "^1.1.15",

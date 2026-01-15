@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import { auth } from "~/lib/auth";
 import { ThemeToggle } from "~/components/theme/theme-toggle";
+import { auth } from "~/lib/auth";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
 
 export async function Header() {
@@ -15,11 +15,8 @@ export async function Header() {
         <div className="flex h-16 items-center">
           <div className="flex items-center space-x-4">
             <Link href="/search" className="text-foreground text-xl font-bold">
-              PYP Global Search
+              Junkyard Index
             </Link>
-            <span className="text-muted-foreground hidden text-sm sm:block">
-              Search across all locations
-            </span>
           </div>
           <div className="ml-auto flex items-center gap-4">
             <HeaderAuthButtons user={session?.user ?? null} />

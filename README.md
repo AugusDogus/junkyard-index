@@ -1,14 +1,15 @@
-# PYP Global Search
+# Junkyard Index
 
-Search across all [Pick Your Part (PYP)](https://www.pyp.com) salvage yard inventory locations nationwide.
+Search across all salvage yard inventory locations nationwide. Currently indexes [LKQ Pick Your Part](https://www.pyp.com) and [Row52 / Pick-n-Pull](https://row52.com) yards.
 
 ## Features
 
-- **Multi-location Search**: Search across all PYP locations simultaneously
-- **Advanced Filtering**: Filter by make, color, year, state, and specific yards
+- **Multi-source Search**: Search across multiple salvage yard networks simultaneously
+- **Advanced Filtering**: Filter by make, color, year, state, data source, and specific yards
 - **Real-time Results**: Fast, concurrent searches with live result updates
 - **Vehicle Details**: Complete vehicle information with images and direct links
 - **Shareable URLs**: All filters and search state preserved in the URL
+- **Saved Searches**: Save and quickly reload your favorite searches
 
 ## Tech Stack
 
@@ -19,6 +20,7 @@ Search across all [Pick Your Part (PYP)](https://www.pyp.com) salvage yard inven
 - [tRPC](https://trpc.io) - End-to-end type-safe APIs
 - [Cheerio](https://cheerio.js.org) - Server-side HTML parsing
 - [nuqs](https://nuqs.47ng.com) - Type-safe URL search params
+- [better-auth](https://better-auth.com) - Authentication
 
 _This project was initially scaffolded using [create-t3-app](https://create.t3.gg/)._
 
