@@ -1,6 +1,9 @@
 "use client";
 
+import { Bookmark } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -13,30 +16,63 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Bookmark } from "lucide-react";
 import { api } from "~/trpc/react";
-import { toast } from "sonner";
+
+const PENDING_SAVE_KEY = "pendingSaveSearch";
+
+export interface SaveSearchFilters {
+  makes?: string[];
+  colors?: string[];
+  states?: string[];
+  salvageYards?: string[];
+  minYear?: number;
+  maxYear?: number;
+  sortBy?: string;
+}
 
 interface SaveSearchDialogProps {
   query: string;
-  filters: {
-    makes?: string[];
-    colors?: string[];
-    states?: string[];
-    salvageYards?: string[];
-    minYear?: number;
-    maxYear?: number;
-    sortBy?: string;
-  };
+  filters: SaveSearchFilters;
   disabled?: boolean;
+  isLoggedIn?: boolean;
+  autoOpen?: boolean;
+  onAutoOpenHandled?: () => void;
+}
+
+export function storePendingSaveSearch(query: string, filters: SaveSearchFilters) {
+  sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify({ query, filters }));
+}
+
+export function getPendingSaveSearch(): { query: string; filters: SaveSearchFilters } | null {
+  const stored = sessionStorage.getItem(PENDING_SAVE_KEY);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored) as { query: string; filters: SaveSearchFilters };
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingSaveSearch() {
+  sessionStorage.removeItem(PENDING_SAVE_KEY);
 }
 
 export function SaveSearchDialog({
   query,
   filters,
   disabled,
+  isLoggedIn,
+  autoOpen,
+  onAutoOpenHandled,
 }: SaveSearchDialogProps) {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const [open, setOpen] = useState(() => {
+    if (autoOpen && isLoggedIn) {
+      onAutoOpenHandled?.();
+      return true;
+    }
+    return false;
+  });
   const [name, setName] = useState("");
 
   const utils = api.useUtils();
@@ -61,10 +97,30 @@ export function SaveSearchDialog({
     });
   };
 
+  const handleButtonClick = () => {
+    if (isLoggedIn) {
+      setOpen(true);
+    } else {
+      storePendingSaveSearch(query, filters);
+      const returnTo = encodeURIComponent(window.location.pathname + window.location.search + "&saveSearch=1");
+      router.push(`/auth/sign-in?returnTo=${returnTo}`);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={disabled || !query}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={disabled || !query}
+          onClick={(e) => {
+            if (!isLoggedIn) {
+              e.preventDefault();
+              handleButtonClick();
+            }
+          }}
+        >
           <Bookmark className="mr-2 h-4 w-4" />
           Save Search
         </Button>

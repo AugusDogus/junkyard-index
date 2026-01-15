@@ -14,10 +14,13 @@ import {
   parseAsString,
   useQueryState,
 } from "nuqs";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDebounce } from "use-debounce";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
-import { SaveSearchDialog } from "~/components/search/SaveSearchDialog";
+import {
+  clearPendingSaveSearch,
+  SaveSearchDialog,
+} from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SearchInput } from "~/components/search/SearchInput";
 import {
@@ -53,6 +56,22 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
   // Sidebar state (local only - not in URL)
   const [showFilters, setShowFilters] = useState(false);
+
+  // Auto-open save search dialog after auth redirect
+  const [saveSearchParam, setSaveSearchParam] = useQueryState("saveSearch");
+  const [autoOpenSaveDialog, setAutoOpenSaveDialog] = useState(false);
+
+  useEffect(() => {
+    if (saveSearchParam && isLoggedIn) {
+      setAutoOpenSaveDialog(true);
+      void setSaveSearchParam(null);
+      clearPendingSaveSearch();
+    }
+  }, [saveSearchParam, isLoggedIn, setSaveSearchParam]);
+
+  const handleAutoOpenHandled = useCallback(() => {
+    setAutoOpenSaveDialog(false);
+  }, []);
 
   // Sort state - should be in URL for shareability
   const [sortBy, setSortBy] = useQueryState(
@@ -450,25 +469,23 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                  {/* Saved Searches (only for logged-in users) */}
-                  {isLoggedIn && (
-                    <>
-                      <SavedSearchesDropdown />
-                      <SaveSearchDialog
-                        query={query}
-                        filters={{
-                          makes,
-                          colors,
-                          states,
-                          salvageYards,
-                          minYear: yearRange[0],
-                          maxYear: yearRange[1],
-                          sortBy,
-                        }}
-                        disabled={!query}
-                      />
-                    </>
-                  )}
+                  {isLoggedIn && <SavedSearchesDropdown />}
+                  <SaveSearchDialog
+                    query={query}
+                    filters={{
+                      makes,
+                      colors,
+                      states,
+                      salvageYards,
+                      minYear: yearRange[0],
+                      maxYear: yearRange[1],
+                      sortBy,
+                    }}
+                    disabled={!query}
+                    isLoggedIn={isLoggedIn}
+                    autoOpen={autoOpenSaveDialog}
+                    onAutoOpenHandled={handleAutoOpenHandled}
+                  />
 
                   {/* Sort */}
                   <Select

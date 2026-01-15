@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signUp } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
@@ -12,6 +12,8 @@ import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +36,7 @@ export function SignUpForm() {
       if (result.error) {
         setError(result.error.message || "Failed to sign up");
       } else {
-        router.push("/search");
+        router.push(returnTo || "/search");
         router.refresh();
       }
     } catch (err) {
@@ -114,7 +116,10 @@ export function SignUpForm() {
 
       <div className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}
-        <Link href="/auth/sign-in" className="text-primary hover:underline">
+        <Link
+          href={returnTo ? `/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}` : "/auth/sign-in"}
+          className="text-primary hover:underline"
+        >
           Sign in
         </Link>
       </div>
