@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "~/lib/db";
@@ -13,10 +14,17 @@ export async function POST(request: NextRequest) {
     return new NextResponse(null, { status: 400 });
   }
 
-  await db
-    .update(savedSearch)
-    .set({ emailAlertsEnabled: false })
-    .where(eq(savedSearch.id, searchId));
+  try {
+    await db
+      .update(savedSearch)
+      .set({ emailAlertsEnabled: false })
+      .where(eq(savedSearch.id, searchId));
 
-  return new NextResponse(null, { status: 200 });
+    return new NextResponse(null, { status: 200 });
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { context: "unsubscribe", searchId },
+    });
+    return new NextResponse(null, { status: 500 });
+  }
 }

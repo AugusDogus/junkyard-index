@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { render } from "@react-email/components";
 import crypto from "crypto";
 import { Resend } from "resend";
@@ -84,12 +85,18 @@ export async function sendEmailAlert(
 
     if (error) {
       console.error("Failed to send email alert:", error);
+      Sentry.captureException(error, {
+        tags: { context: "email-alert", searchId: data.searchId },
+      });
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
     console.error("Error sending email alert:", error);
+    Sentry.captureException(error, {
+      tags: { context: "email-alert", searchId: data.searchId },
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

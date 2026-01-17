@@ -6,6 +6,7 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in. The pieces you will
  * need to use are documented accordingly near the end.
  */
+import * as Sentry from "@sentry/nextjs";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
@@ -50,6 +51,15 @@ export const createTRPCContext = async (opts: {
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    // Capture non-client errors to Sentry
+    if (
+      error.code === "INTERNAL_SERVER_ERROR" ||
+      error.code === "BAD_REQUEST" ||
+      !(error.cause instanceof ZodError)
+    ) {
+      Sentry.captureException(error.cause ?? error);
+    }
+
     return {
       ...shape,
       data: {

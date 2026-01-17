@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -222,6 +223,9 @@ export async function GET(request: NextRequest) {
             return await processSearch(search, userEmail);
           } catch (error) {
             console.error(`Error processing search ${search.id}:`, error);
+            Sentry.captureException(error, {
+              tags: { searchId: search.id, userId: search.userId },
+            });
             return {
               searchId: search.id,
               status: `error: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -240,6 +244,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Cron job failed:", error);
+    Sentry.captureException(error, { tags: { context: "cron-check-alerts" } });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
