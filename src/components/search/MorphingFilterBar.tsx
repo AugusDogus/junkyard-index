@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { useIsMediumScreen } from "~/hooks/use-media-query";
 import { SavedSearchesDropdown } from "./SavedSearchesDropdown";
 import { SaveSearchDialog } from "./SaveSearchDialog";
 
@@ -131,20 +132,24 @@ export const MorphingFilterBar = forwardRef<HTMLDivElement, MorphingFilterBarPro
     }, []);
 
     const SortIcon = getSortIcon(sortBy);
+    const isMediumScreen = useIsMediumScreen();
+    // Compact when scrolled to save space
     const isCompact = style ? style.progress > 0.5 : false;
+    // Icon-only mode on medium screens (768-1023px) to fit in header
+    const isIconOnly = isMediumScreen;
 
     const skeletonContent = (
-      <div className={`flex items-center ${isCompact ? "gap-1.5" : "gap-2 sm:gap-4"}`}>
-        {isLoggedIn && <Skeleton className={isCompact ? "h-8 w-[70px]" : "h-9 w-[88px]"} />}
-        <Skeleton className={isCompact ? "h-8 w-[90px]" : "h-9 w-[110px]"} />
-        <Skeleton className={isCompact ? "h-8 w-[100px]" : "h-9 w-[130px]"} />
-        <Skeleton className={isCompact ? "h-8 w-[70px]" : "h-9 w-[90px]"} />
+      <div className={`flex items-center ${isCompact || isIconOnly ? "gap-1.5" : "gap-2 sm:gap-4"}`}>
+        {isLoggedIn && <Skeleton className={isCompact || isIconOnly ? "h-8 w-8" : "h-9 w-[88px]"} />}
+        <Skeleton className={isCompact || isIconOnly ? "h-8 w-8" : "h-9 w-[110px]"} />
+        <Skeleton className={isCompact || isIconOnly ? "h-8 w-8" : "h-9 w-[130px]"} />
+        <Skeleton className={isCompact || isIconOnly ? "h-8 w-8" : "h-9 w-[90px]"} />
       </div>
     );
 
     const filterContent = (
-      <div className={`flex items-center whitespace-nowrap transition-all duration-100 ${isCompact ? "gap-1.5" : "gap-2 sm:gap-4"}`}>
-        {isLoggedIn && <SavedSearchesDropdown compact={isCompact} />}
+      <div className={`flex items-center whitespace-nowrap transition-all duration-100 ${isCompact || isIconOnly ? "gap-1.5" : "gap-2 sm:gap-4"}`}>
+        {isLoggedIn && <SavedSearchesDropdown compact={isCompact} iconOnly={isIconOnly} />}
         <SaveSearchDialog
           query={query}
           filters={filters}
@@ -153,13 +158,14 @@ export const MorphingFilterBar = forwardRef<HTMLDivElement, MorphingFilterBarPro
           autoOpen={autoOpenSaveDialog}
           onAutoOpenHandled={onAutoOpenHandled}
           compact={isCompact}
+          iconOnly={isIconOnly}
         />
 
         <Select value={sortBy} onValueChange={onSortChange}>
-          <SelectTrigger size={isCompact ? "sm" : "default"} className={`w-fit transition-all duration-100 ${isCompact ? "text-xs" : ""}`}>
+          <SelectTrigger size={isCompact || isIconOnly ? "sm" : "default"} className={`w-fit transition-all duration-100 ${isCompact || isIconOnly ? "text-xs" : ""}`}>
             <div className="flex items-center gap-2">
-              <SortIcon className={`text-muted-foreground ${isCompact ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
-              <SelectValue />
+              <SortIcon className={`text-muted-foreground ${isCompact || isIconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
+              {!isIconOnly && <SelectValue />}
             </div>
           </SelectTrigger>
           <SelectContent>
@@ -173,14 +179,14 @@ export const MorphingFilterBar = forwardRef<HTMLDivElement, MorphingFilterBarPro
 
         <Button
           variant="outline"
-          size={isCompact ? "sm" : "default"}
-          className={`flex items-center gap-2 bg-transparent transition-all duration-100 ${isCompact ? "h-8 text-xs" : ""}`}
+          size={isCompact || isIconOnly ? "sm" : "default"}
+          className={`flex items-center gap-2 bg-transparent transition-all duration-100 ${isCompact || isIconOnly ? "h-8 text-xs" : ""}`}
           onClick={onToggleFilters}
         >
-          <Filter className={isCompact ? "h-3.5 w-3.5" : "h-4 w-4"} />
-          Filters
+          <Filter className={isCompact || isIconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          {!isIconOnly && "Filters"}
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className={isCompact ? "text-[10px]" : "text-xs"}>
+            <Badge variant="secondary" className={isCompact || isIconOnly ? "text-[10px]" : "text-xs"}>
               {activeFilterCount}
             </Badge>
           )}
@@ -198,6 +204,7 @@ export const MorphingFilterBar = forwardRef<HTMLDivElement, MorphingFilterBarPro
         {style && (
           <div
             className="fixed z-[60]"
+            data-morphing-filter-bar
             style={{
               top: style.top,
               right: style.right,

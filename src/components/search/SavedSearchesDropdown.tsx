@@ -17,9 +17,10 @@ import { api } from "~/trpc/react";
 
 interface SavedSearchesDropdownProps {
   compact?: boolean;
+  iconOnly?: boolean;
 }
 
-export function SavedSearchesDropdown({ compact }: SavedSearchesDropdownProps = {}) {
+export function SavedSearchesDropdown({ compact, iconOnly }: SavedSearchesDropdownProps = {}) {
   const router = useRouter();
   const utils = api.useUtils();
 
@@ -67,9 +68,9 @@ export function SavedSearchesDropdown({ compact }: SavedSearchesDropdownProps = 
 
   if (isLoading) {
     return (
-      <Button variant="outline" size={compact ? "sm" : "default"} className={compact ? "h-8 text-xs" : ""} disabled>
-        <FolderOpen className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
-        Saved
+      <Button variant="outline" size={compact || iconOnly ? "sm" : "default"} className={compact || iconOnly ? "h-8 text-xs" : ""} disabled>
+        <FolderOpen className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        {!iconOnly && "Saved"}
       </Button>
     );
   }
@@ -81,9 +82,9 @@ export function SavedSearchesDropdown({ compact }: SavedSearchesDropdownProps = 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size={compact ? "sm" : "default"} className={compact ? "h-8 text-xs" : ""}>
-          <BookmarkCheck className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
-          Saved ({savedSearches.length})
+        <Button variant="outline" size={compact || iconOnly ? "sm" : "default"} className={compact || iconOnly ? "h-8 text-xs" : ""}>
+          <BookmarkCheck className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          {iconOnly ? savedSearches.length : `Saved (${savedSearches.length})`}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">

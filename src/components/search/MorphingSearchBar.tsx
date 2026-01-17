@@ -36,10 +36,21 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         const logo = document.querySelector('header a[href="/search"]');
         const logoRect = logo?.getBoundingClientRect();
         
+        // Find the filter bar to calculate available space
+        const filterBar = document.querySelector('[data-morphing-filter-bar]');
+        const filterBarRect = filterBar?.getBoundingClientRect();
+        
         // Target position in header
         const headerTop = logoRect ? logoRect.top + (logoRect.height - 32) / 2 : 16;
         const headerLeft = logoRect ? logoRect.right + 16 : 200;
-        const headerWidth = 350;
+        
+        // Calculate max width based on available space (leave 24px gap before filter bar)
+        const maxHeaderWidth = filterBarRect 
+          ? filterBarRect.left - headerLeft - 24
+          : window.innerWidth - headerLeft - 200; // Fallback: leave space for buttons
+        
+        // Use responsive width: min of 350px or available space, but at least 150px
+        const headerWidth = Math.max(150, Math.min(350, maxHeaderWidth));
         const headerHeight = 32;
         
         const startTop = rect.top + scrollY;
