@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { polarClient } from "~/lib/auth";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { savedSearch } from "~/schema";
+import { savedSearch, user } from "~/schema";
 
 export const filtersSchema = z.object({
   makes: z.array(z.string()).optional(),
@@ -36,6 +36,7 @@ export const savedSearchesRouter = createTRPCRouter({
         query: z.string(),
         filters: filtersSchema,
         emailAlertsEnabled: z.boolean().optional(),
+        discordAlertsEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -49,6 +50,7 @@ export const savedSearchesRouter = createTRPCRouter({
         query: input.query,
         filters: JSON.stringify(input.filters),
         emailAlertsEnabled: input.emailAlertsEnabled ?? false,
+        discordAlertsEnabled: input.discordAlertsEnabled ?? false,
         createdAt: now,
         updatedAt: now,
       });
@@ -102,6 +104,69 @@ export const savedSearchesRouter = createTRPCRouter({
       await ctx.db
         .update(savedSearch)
         .set({ emailAlertsEnabled: input.enabled })
+        .where(
+          and(
+            eq(savedSearch.id, input.id),
+            eq(savedSearch.userId, ctx.user.id),
+          ),
+        );
+
+      return { success: true };
+    }),
+
+  toggleDiscordAlerts: protectedProcedure
+    .input(z.object({ id: z.string(), enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      // If enabling alerts, verify user has an active subscription and Discord setup
+      if (input.enabled) {
+        // Check subscription
+        try {
+          const customerState = await polarClient.customers.getStateExternal({
+            externalId: ctx.user.id,
+          });
+          if (customerState.activeSubscriptions.length === 0) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "An active subscription is required to enable Discord alerts",
+            });
+          }
+        } catch (error) {
+          if (error instanceof TRPCError) {
+            throw error;
+          }
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "An active subscription is required to enable Discord alerts",
+          });
+        }
+
+        // Check Discord setup
+        const [userData] = await ctx.db
+          .select({
+            discordId: user.discordId,
+            discordAppInstalled: user.discordAppInstalled,
+          })
+          .from(user)
+          .where(eq(user.id, ctx.user.id))
+          .limit(1);
+
+        if (!userData?.discordId) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Please sign in with Discord first to link your account",
+          });
+        }
+        if (!userData.discordAppInstalled) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Please install the Discord app from Settings to receive DMs",
+          });
+        }
+      }
+
+      await ctx.db
+        .update(savedSearch)
+        .set({ discordAlertsEnabled: input.enabled })
         .where(
           and(
             eq(savedSearch.id, input.id),

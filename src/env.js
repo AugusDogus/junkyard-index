@@ -14,8 +14,8 @@ export const env = createEnv({
     POLAR_ACCESS_TOKEN: z.string(),
     POLAR_PRODUCT_ID: z.string().uuid(),
     POLAR_WEBHOOK_SECRET: z.string(),
-    DISCORD_CLIENT_ID: z.string(),
     DISCORD_CLIENT_SECRET: z.string(),
+    DISCORD_BOT_TOKEN: z.string(),
     RESEND_API_KEY: z.string(),
     RESEND_FROM_EMAIL: z.string().email(),
     CONTACT_EMAIL: z.string().email(),
@@ -30,6 +30,7 @@ export const env = createEnv({
    */
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
+    NEXT_PUBLIC_DISCORD_CLIENT_ID: z.string(),
   },
 
   /**
@@ -42,11 +43,12 @@ export const env = createEnv({
     TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_DISCORD_CLIENT_ID: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
     POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
     POLAR_PRODUCT_ID: process.env.POLAR_PRODUCT_ID,
     POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
-    DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
+    DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     CONTACT_EMAIL: process.env.CONTACT_EMAIL,

@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, LogOut, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { CreditCard, LogOut, Monitor, Moon, Settings, Sun, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -149,6 +149,11 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator className="sm:hidden" />
+          {/* Settings */}
+          <DropdownMenuItem onClick={() => router.push("/settings")}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Settings</span>
+          </DropdownMenuItem>
           {/* Subscription management */}
           {hasActiveSubscription ? (
             <DropdownMenuItem onClick={handleManageSubscription}>
@@ -158,7 +163,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
           ) : (
             <DropdownMenuItem onClick={handleSubscribe}>
               <CreditCard className="mr-2 h-4 w-4" />
-              <span>Subscribe to Email Alerts</span>
+              <span>Subscribe to Alerts</span>
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />

@@ -40,8 +40,24 @@ export const auth = betterAuth({
   },
   socialProviders: {
     discord: {
-      clientId: env.DISCORD_CLIENT_ID,
+      clientId: env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
       clientSecret: env.DISCORD_CLIENT_SECRET,
+    },
+  },
+  databaseHooks: {
+    account: {
+      create: {
+        after: async (account) => {
+          // When a user signs in with Discord OAuth, capture their Discord user ID
+          // The accountId from Discord is the user's Discord ID
+          if (account.providerId === "discord" && account.accountId) {
+            await db
+              .update(schema.user)
+              .set({ discordId: account.accountId })
+              .where(eq(schema.user.id, account.userId));
+          }
+        },
+      },
     },
   },
   secret: env.BETTER_AUTH_SECRET,

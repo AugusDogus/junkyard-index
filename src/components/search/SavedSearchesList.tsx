@@ -1,9 +1,16 @@
 "use client";
 
-import { ArrowRight, Bell, BellOff, Bookmark, Search, Trash2 } from "lucide-react";
+import { ArrowRight, Bookmark, Mail, Search, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
+import { DiscordIcon } from "~/components/ui/icons";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import { authClient } from "~/lib/auth-client";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
@@ -13,26 +20,21 @@ export function SavedSearchesList() {
 
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
   const { data: subscriptionData } = api.subscription.getCustomerState.useQuery();
+  const { data: notificationSettings } = api.user.getNotificationSettings.useQuery();
 
   const hasActiveSubscription = subscriptionData?.hasActiveSubscription ?? false;
+  const canUseDiscord = notificationSettings?.hasDiscordLinked && notificationSettings?.discordAppInstalled;
 
   const deleteMutation = api.savedSearches.delete.useMutation({
     onMutate: async ({ id }) => {
-      // Cancel outgoing refetches
       await utils.savedSearches.list.cancel();
-
-      // Snapshot current data
       const previousSearches = utils.savedSearches.list.getData();
-
-      // Optimistically remove the item
       utils.savedSearches.list.setData(undefined, (old) =>
         old?.filter((search) => search.id !== id)
       );
-
       return { previousSearches };
     },
     onError: (error, _variables, context) => {
-      // Rollback on error
       if (context?.previousSearches) {
         utils.savedSearches.list.setData(undefined, context.previousSearches);
       }
@@ -42,22 +44,19 @@ export function SavedSearchesList() {
       toast.success("Search deleted");
     },
     onSettled: () => {
-      // Refetch to ensure consistency
       void utils.savedSearches.list.invalidate();
     },
   });
 
-  const toggleAlertsMutation = api.savedSearches.toggleEmailAlerts.useMutation({
+  const toggleEmailAlertsMutation = api.savedSearches.toggleEmailAlerts.useMutation({
     onMutate: async ({ id, enabled }) => {
       await utils.savedSearches.list.cancel();
       const previousSearches = utils.savedSearches.list.getData();
-
       utils.savedSearches.list.setData(undefined, (old) =>
         old?.map((search) =>
           search.id === id ? { ...search, emailAlertsEnabled: enabled } : search,
         ),
       );
-
       return { previousSearches };
     },
     onError: (error, _variables, context) => {
@@ -78,13 +77,42 @@ export function SavedSearchesList() {
     },
   });
 
+  const toggleDiscordAlertsMutation = api.savedSearches.toggleDiscordAlerts.useMutation({
+    onMutate: async ({ id, enabled }) => {
+      await utils.savedSearches.list.cancel();
+      const previousSearches = utils.savedSearches.list.getData();
+      utils.savedSearches.list.setData(undefined, (old) =>
+        old?.map((search) =>
+          search.id === id ? { ...search, discordAlertsEnabled: enabled } : search,
+        ),
+      );
+      return { previousSearches };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousSearches) {
+        utils.savedSearches.list.setData(undefined, context.previousSearches);
+      }
+      toast.error(error.message || "Failed to toggle Discord alerts");
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.enabled
+          ? "Discord alerts enabled for this search"
+          : "Discord alerts disabled for this search",
+      );
+    },
+    onSettled: () => {
+      void utils.savedSearches.list.invalidate();
+    },
+  });
+
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
     deleteMutation.mutate({ id });
   };
 
-  const handleToggleAlerts = async (e: React.MouseEvent, searchId: string, currentState: boolean) => {
+  const handleToggleEmailAlerts = async (e: React.MouseEvent, searchId: string, currentState: boolean) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -101,7 +129,36 @@ export function SavedSearchesList() {
       return;
     }
 
-    toggleAlertsMutation.mutate({
+    toggleEmailAlertsMutation.mutate({
+      id: searchId,
+      enabled: !currentState,
+    });
+  };
+
+  const handleToggleDiscordAlerts = async (e: React.MouseEvent, searchId: string, currentState: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // If trying to enable but no subscription, redirect to checkout
+    if (!currentState && !hasActiveSubscription) {
+      try {
+        await authClient.checkout({
+          slug: "Email-Notifications",
+        });
+      } catch (error) {
+        toast.error("Failed to open checkout. Please try again.");
+        console.error("Checkout error:", error);
+      }
+      return;
+    }
+
+    // If trying to enable but Discord not set up, redirect to settings
+    if (!currentState && !canUseDiscord) {
+      toast.error("Please set up Discord notifications in Settings first");
+      return;
+    }
+
+    toggleDiscordAlertsMutation.mutate({
       id: searchId,
       enabled: !currentState,
     });
@@ -125,6 +182,13 @@ export function SavedSearchesList() {
       parts.push(yearStr);
     }
     return parts.join(" · ");
+  };
+
+  // Get notification status indicators
+  const getNotificationStatus = (search: NonNullable<typeof savedSearches>[0]) => {
+    const hasEmail = search.emailAlertsEnabled;
+    const hasDiscord = search.discordAlertsEnabled;
+    return { hasEmail, hasDiscord, hasAny: hasEmail || hasDiscord };
   };
 
   if (isLoading) {
@@ -154,72 +218,132 @@ export function SavedSearchesList() {
   }
 
   return (
-    <div className="mt-8 sm:mt-10">
-      <div className="mb-4 flex items-center gap-2">
-        <Bookmark className="text-muted-foreground h-4 w-4" />
-        <h3 className="text-foreground text-sm font-semibold">Saved Searches</h3>
-      </div>
-      <div className="space-y-2">
-        {savedSearches.map((search) => {
-          const filterSummary = getFilterSummary(search);
-          return (
-            <Link
-              key={search.id}
-              href={buildSearchUrl(search.query, search.filters)}
-              className="group bg-muted/50 hover:bg-muted flex w-full items-center gap-3 rounded-lg p-4 text-left transition-colors"
-            >
-              <div className="bg-background flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                <Search className="text-muted-foreground h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-foreground truncate font-medium">
-                  {search.name}
+    <TooltipProvider>
+      <div className="mt-8 sm:mt-10">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bookmark className="text-muted-foreground h-4 w-4" />
+            <h3 className="text-foreground text-sm font-semibold">Saved Searches</h3>
+          </div>
+          <Link href="/settings">
+            <Button variant="ghost" size="sm" className="h-7 text-xs">
+              <Settings className="mr-1 h-3 w-3" />
+              Settings
+            </Button>
+          </Link>
+        </div>
+        <div className="space-y-2">
+          {savedSearches.map((search) => {
+            const filterSummary = getFilterSummary(search);
+            const { hasEmail, hasDiscord, hasAny } = getNotificationStatus(search);
+            const isMutating = toggleEmailAlertsMutation.isPending || toggleDiscordAlertsMutation.isPending;
+
+            return (
+              <Link
+                key={search.id}
+                href={buildSearchUrl(search.query, search.filters)}
+                className="group bg-muted/50 hover:bg-muted flex w-full items-center gap-3 rounded-lg p-4 text-left transition-colors"
+              >
+                <div className="bg-background flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                  <Search className="text-muted-foreground h-4 w-4" />
                 </div>
-                <div className="text-muted-foreground truncate text-sm">
-                  {search.query || "All vehicles"}
-                  {filterSummary && ` · ${filterSummary}`}
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`h-8 w-8 p-0 transition-opacity ${
-                    search.emailAlertsEnabled
-                      ? "text-primary opacity-100"
-                      : "sm:opacity-0 sm:group-hover:opacity-100"
-                  }`}
-                  onClick={(e) => handleToggleAlerts(e, search.id, search.emailAlertsEnabled ?? false)}
-                  disabled={toggleAlertsMutation.isPending}
-                  title={
-                    search.emailAlertsEnabled
-                      ? "Email alerts enabled - click to disable"
-                      : hasActiveSubscription
-                      ? "Click to enable email alerts"
-                      : "Subscribe to enable email alerts"
-                  }
-                >
-                  {search.emailAlertsEnabled ? (
-                    <Bell className="h-4 w-4" />
-                  ) : (
-                    <BellOff className="h-4 w-4" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-foreground truncate font-medium">
+                    {search.name}
+                  </div>
+                  <div className="text-muted-foreground truncate text-sm">
+                    {search.query || "All vehicles"}
+                    {filterSummary && ` · ${filterSummary}`}
+                  </div>
+                  {/* Notification indicators */}
+                  {hasAny && (
+                    <div className="mt-1 flex items-center gap-2">
+                      {hasEmail && (
+                        <span className="flex items-center gap-1 text-xs text-blue-500">
+                          <Mail className="h-3 w-3" />
+                          Email
+                        </span>
+                      )}
+                      {hasDiscord && (
+                        <span className="flex items-center gap-1 text-xs text-[#5865F2]">
+                          <DiscordIcon className="h-3 w-3" />
+                          Discord
+                        </span>
+                      )}
+                    </div>
                   )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground sm:opacity-0 sm:group-hover:opacity-100"
-                  onClick={(e) => handleDelete(e, search.id)}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <ArrowRight className="text-muted-foreground hidden h-4 w-4 transition-transform group-hover:translate-x-0.5 sm:block" />
-              </div>
-            </Link>
-          );
-        })}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {/* Email notification toggle */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 w-8 p-0 transition-opacity ${
+                          hasEmail
+                            ? "text-blue-500 opacity-100"
+                            : "sm:opacity-0 sm:group-hover:opacity-100"
+                        }`}
+                        onClick={(e) => handleToggleEmailAlerts(e, search.id, hasEmail)}
+                        disabled={isMutating}
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {hasEmail
+                        ? "Email alerts enabled - click to disable"
+                        : hasActiveSubscription
+                        ? "Click to enable email alerts"
+                        : "Subscribe to enable email alerts"}
+                    </TooltipContent>
+                  </Tooltip>
+
+                  {/* Discord notification toggle */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 w-8 p-0 transition-opacity ${
+                          hasDiscord
+                            ? "text-[#5865F2] opacity-100"
+                            : "sm:opacity-0 sm:group-hover:opacity-100"
+                        }`}
+                        onClick={(e) => handleToggleDiscordAlerts(e, search.id, hasDiscord)}
+                        disabled={isMutating}
+                      >
+                        <DiscordIcon className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {hasDiscord
+                        ? "Discord alerts enabled - click to disable"
+                        : !hasActiveSubscription
+                        ? "Subscribe to enable Discord alerts"
+                        : !canUseDiscord
+                        ? "Set up Discord in Settings first"
+                        : "Click to enable Discord alerts"}
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground sm:opacity-0 sm:group-hover:opacity-100"
+                    onClick={(e) => handleDelete(e, search.id)}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <ArrowRight className="text-muted-foreground hidden h-4 w-4 transition-transform group-hover:translate-x-0.5 sm:block" />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

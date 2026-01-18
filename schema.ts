@@ -9,6 +9,11 @@ export const user = sqliteTable("user", {
     .default(false)
     .notNull(),
   image: text("image"),
+  // Discord integration fields
+  discordId: text("discord_id"),
+  discordAppInstalled: integer("discord_app_installed", { mode: "boolean" })
+    .default(false)
+    .notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),
@@ -115,6 +120,9 @@ export const savedSearch = sqliteTable(
     emailAlertsEnabled: integer("email_alerts_enabled", { mode: "boolean" })
       .default(false)
       .notNull(),
+    discordAlertsEnabled: integer("discord_alerts_enabled", { mode: "boolean" })
+      .default(false)
+      .notNull(),
     lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" }),
     lastVehicleIds: text("last_vehicle_ids"),
     // Processing lock to prevent race conditions between cron job and webhooks
@@ -130,6 +138,7 @@ export const savedSearch = sqliteTable(
   (table) => [
     index("saved_search_userId_idx").on(table.userId),
     index("saved_search_emailAlertsEnabled_idx").on(table.emailAlertsEnabled),
+    index("saved_search_discordAlertsEnabled_idx").on(table.discordAlertsEnabled),
   ]
 );
 

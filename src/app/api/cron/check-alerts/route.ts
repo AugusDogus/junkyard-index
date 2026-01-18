@@ -5,8 +5,10 @@ import { z } from "zod";
 import { env } from "~/env";
 import { polarClient } from "~/lib/auth";
 import { db } from "~/lib/db";
+import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailAlert } from "~/lib/email";
 import { buildSearchUrl } from "~/lib/search-utils";
+import type { Vehicle } from "~/lib/types";
 import { savedSearch, user } from "~/schema";
 import { appRouter } from "~/server/api/root";
 import { filtersSchema } from "~/server/api/routers/savedSearches";
@@ -28,19 +30,78 @@ interface SearchResult {
   searchId: string;
   status: string;
   newVehicles?: number;
+  emailSent?: boolean;
+  discordSent?: boolean;
+}
+
+interface UserInfo {
+  email: string;
+  discordId: string | null;
+  discordAppInstalled: boolean;
+}
+
+interface SearchWithAlerts {
+  id: string;
+  userId: string;
+  name: string;
+  query: string;
+  filters: string;
+  lastCheckedAt: Date | null;
+  lastVehicleIds: string | null;
+  emailAlertsEnabled: boolean;
+  discordAlertsEnabled: boolean;
+}
+
+async function sendNotifications(
+  search: SearchWithAlerts,
+  userInfo: UserInfo,
+  newVehicles: Vehicle[],
+  searchUrl: string
+): Promise<{ emailSent: boolean; discordSent: boolean; errors: string[] }> {
+  const errors: string[] = [];
+  let emailSent = false;
+  let discordSent = false;
+
+  const alertData = {
+    searchName: search.name,
+    query: search.query,
+    newVehicles,
+    searchUrl,
+    searchId: search.id,
+  };
+
+  // Send email notification if enabled
+  if (search.emailAlertsEnabled) {
+    const emailResult = await sendEmailAlert(userInfo.email, alertData);
+    if (emailResult.success) {
+      emailSent = true;
+    } else {
+      errors.push(`Email failed: ${emailResult.error}`);
+    }
+  }
+
+  // Send Discord notification if enabled and user has Discord set up
+  if (search.discordAlertsEnabled) {
+    if (!userInfo.discordId) {
+      errors.push("Discord alerts enabled but user has no Discord ID linked");
+    } else if (!userInfo.discordAppInstalled) {
+      errors.push("Discord alerts enabled but user has not installed the Discord app");
+    } else {
+      const discordResult = await sendDiscordAlert(userInfo.discordId, alertData);
+      if (discordResult.success) {
+        discordSent = true;
+      } else {
+        errors.push(`Discord failed: ${discordResult.error}`);
+      }
+    }
+  }
+
+  return { emailSent, discordSent, errors };
 }
 
 async function processSearch(
-  search: {
-    id: string;
-    userId: string;
-    name: string;
-    query: string;
-    filters: string;
-    lastCheckedAt: Date | null;
-    lastVehicleIds: string | null;
-  },
-  userEmail: string
+  search: SearchWithAlerts,
+  userInfo: UserInfo
 ): Promise<SearchResult> {
   // Parse and validate filters
   const filtersParseResult = filtersSchema.safeParse(JSON.parse(search.filters));
@@ -88,7 +149,7 @@ async function processSearch(
   const newVehicleIds = currentVehicleIds.filter((id) => !previousIdsSet.has(id));
   const newVehicles = filteredVehicles.filter((v) => newVehicleIds.includes(v.id));
 
-  // If this is the first check, just store the IDs without sending email
+  // If this is the first check, just store the IDs without sending notifications
   if (previousVehicleIds.length === 0) {
     await db
       .update(savedSearch)
@@ -117,16 +178,15 @@ async function processSearch(
   // Build the search URL
   const searchUrl = `${env.NEXT_PUBLIC_APP_URL}${buildSearchUrl(search.query, filters)}`;
 
-  // Send email alert with only the NEW vehicles
-  const emailResult = await sendEmailAlert(userEmail, {
-    searchName: search.name,
-    query: search.query,
+  // Send notifications (email and/or Discord)
+  const { emailSent, discordSent, errors } = await sendNotifications(
+    search,
+    userInfo,
     newVehicles,
-    searchUrl,
-    searchId: search.id,
-  });
+    searchUrl
+  );
 
-  // Update the stored vehicle IDs regardless of email success
+  // Update the stored vehicle IDs regardless of notification success
   await db
     .update(savedSearch)
     .set({
@@ -135,19 +195,20 @@ async function processSearch(
     })
     .where(eq(savedSearch.id, search.id));
 
-  if (emailResult.success) {
-    return {
-      searchId: search.id,
-      status: "email_sent",
-      newVehicles: newVehicles.length,
-    };
-  } else {
-    return {
-      searchId: search.id,
-      status: `email_failed: ${emailResult.error}`,
-      newVehicles: newVehicles.length,
-    };
-  }
+  // Build status message
+  const statusParts: string[] = [];
+  if (emailSent) statusParts.push("email_sent");
+  if (discordSent) statusParts.push("discord_sent");
+  if (errors.length > 0) statusParts.push(`errors: ${errors.join("; ")}`);
+  if (statusParts.length === 0) statusParts.push("no_notifications_sent");
+
+  return {
+    searchId: search.id,
+    status: statusParts.join(", "),
+    newVehicles: newVehicles.length,
+    emailSent,
+    discordSent,
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -161,7 +222,7 @@ export async function GET(request: NextRequest) {
     // Calculate stale lock threshold (locks older than 5 minutes are considered stale)
     const staleLockThreshold = new Date(Date.now() - LOCK_TIMEOUT_MS);
 
-    // Get all saved searches with email alerts enabled that are not currently being processed
+    // Get all saved searches with any alerts enabled that are not currently being processed
     // (processingLock is null OR processingLock is older than 5 minutes)
     const searchesWithAlerts = await db
       .select({
@@ -172,11 +233,18 @@ export async function GET(request: NextRequest) {
         filters: savedSearch.filters,
         lastCheckedAt: savedSearch.lastCheckedAt,
         lastVehicleIds: savedSearch.lastVehicleIds,
+        emailAlertsEnabled: savedSearch.emailAlertsEnabled,
+        discordAlertsEnabled: savedSearch.discordAlertsEnabled,
       })
       .from(savedSearch)
       .where(
         and(
-          eq(savedSearch.emailAlertsEnabled, true),
+          // Either email or discord alerts must be enabled
+          or(
+            eq(savedSearch.emailAlertsEnabled, true),
+            eq(savedSearch.discordAlertsEnabled, true)
+          ),
+          // Not currently being processed (or lock is stale)
           or(
             isNull(savedSearch.processingLock),
             lt(savedSearch.processingLock, staleLockThreshold)
@@ -197,31 +265,29 @@ export async function GET(request: NextRequest) {
       const batch = searchesWithAlerts.slice(i, i + BATCH_SIZE);
 
       // Acquire locks for this batch
-      await db
-        .update(savedSearch)
-        .set({ processingLock: new Date() })
-        .where(
-          and(
-            eq(savedSearch.emailAlertsEnabled, true),
-            or(
-              isNull(savedSearch.processingLock),
-              lt(savedSearch.processingLock, staleLockThreshold)
-            )
-          )
-        );
+      const batchIds = batch.map((s) => s.id);
+      for (const id of batchIds) {
+        await db
+          .update(savedSearch)
+          .set({ processingLock: new Date() })
+          .where(eq(savedSearch.id, id));
+      }
 
       const batchResults = await Promise.all(
         batch.map(async (search) => {
           try {
-            // Get user email
-            const userRecord = await db
-              .select({ email: user.email })
+            // Get user info including Discord details
+            const [userInfo] = await db
+              .select({
+                email: user.email,
+                discordId: user.discordId,
+                discordAppInstalled: user.discordAppInstalled,
+              })
               .from(user)
               .where(eq(user.id, search.userId))
               .limit(1);
 
-            const userEmail = userRecord[0]?.email;
-            if (!userEmail) {
+            if (!userInfo?.email) {
               console.warn(`No email found for user ${search.userId}, search ${search.id}`);
               // Release lock
               await db
@@ -231,7 +297,7 @@ export async function GET(request: NextRequest) {
               return { searchId: search.id, status: "no_user_email" };
             }
 
-            // Verify user still has an active subscription
+            // Verify user still has an active subscription (required for notifications)
             // (Webhook should disable alerts on cancellation, but double-check)
             try {
               const customerState = await polarClient.customers.getStateExternal({
@@ -241,7 +307,11 @@ export async function GET(request: NextRequest) {
                 // Auto-disable alerts for this user and release lock
                 await db
                   .update(savedSearch)
-                  .set({ emailAlertsEnabled: false, processingLock: null })
+                  .set({
+                    emailAlertsEnabled: false,
+                    discordAlertsEnabled: false,
+                    processingLock: null,
+                  })
                   .where(eq(savedSearch.id, search.id));
                 return { searchId: search.id, status: "subscription_expired_disabled" };
               }
@@ -249,12 +319,20 @@ export async function GET(request: NextRequest) {
               // Customer not found in Polar - disable alerts and release lock
               await db
                 .update(savedSearch)
-                .set({ emailAlertsEnabled: false, processingLock: null })
+                .set({
+                  emailAlertsEnabled: false,
+                  discordAlertsEnabled: false,
+                  processingLock: null,
+                })
                 .where(eq(savedSearch.id, search.id));
               return { searchId: search.id, status: "no_subscription_disabled" };
             }
 
-            const result = await processSearch(search, userEmail);
+            const result = await processSearch(search, {
+              email: userInfo.email,
+              discordId: userInfo.discordId,
+              discordAppInstalled: userInfo.discordAppInstalled,
+            });
 
             // Release lock after successful processing
             await db
