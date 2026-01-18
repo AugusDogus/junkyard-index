@@ -1,30 +1,30 @@
 "use client";
 
-import { CreditCard, LogOut, Moon, Sun, Monitor, Trash2 } from "lucide-react";
+import { CreditCard, LogOut, Monitor, Moon, Sun, Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "~/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { signOut, useSession, authClient } from "~/lib/auth-client";
+import { authClient, signOut, useSession } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
 
 interface UserMenuProps {

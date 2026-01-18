@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, Send, CheckCircle, AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Mail, Send } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
