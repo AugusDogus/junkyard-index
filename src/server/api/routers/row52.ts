@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import buildQuery from "odata-query";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type {
   Location,
@@ -9,22 +10,15 @@ import type {
   VehicleImage,
 } from "~/lib/types";
 
-function buildODataUrl(
-  endpoint: string,
-  params: Record<string, string>,
-): string {
-  const url = new URL(`${API_ENDPOINTS.ROW52_BASE}${endpoint}`);
-  Object.entries(params).forEach(([key, value]) => {
-    url.searchParams.set(key, value);
-  });
-  return url.toString();
+function buildODataUrl(endpoint: string, queryString: string): string {
+  return `${API_ENDPOINTS.ROW52_BASE}${endpoint}${queryString}`;
 }
 
 async function fetchRow52<T>(
   endpoint: string,
-  params: Record<string, string> = {},
+  queryString: string = "",
 ): Promise<Row52ODataResponse<T>> {
-  const url = buildODataUrl(endpoint, params);
+  const url = buildODataUrl(endpoint, queryString);
 
   const response = await fetch(url, {
     headers: {
@@ -123,14 +117,34 @@ function transformRow52Vehicle(
 
 async function fetchLocationsFromRow52Internal(): Promise<Location[]> {
   try {
+    const queryString = buildQuery({
+      orderBy: "state/name",
+      select: [
+        "id",
+        "name",
+        "code",
+        "address1",
+        "city",
+        "zipCode",
+        "phone",
+        "hours",
+        "latitude",
+        "longitude",
+        "isActive",
+        "isVisible",
+        "isParticipating",
+        "webUrl",
+        "logoUrl",
+        "partsPricingUrl",
+        "stateId",
+      ],
+      expand: "state($select=id,name,abbreviation,countryId)",
+      filter: { isParticipating: true },
+    });
+
     const response = await fetchRow52<Row52Location>(
       API_ENDPOINTS.ROW52_LOCATIONS,
-      {
-        $orderby: "state/name",
-        $select: "id,name,code,address1,city,zipCode,phone,hours,latitude,longitude,isActive,isVisible,isParticipating,webUrl,logoUrl,partsPricingUrl,stateId",
-        $expand: "state($select=id,name,abbreviation,countryId)",
-        $filter: "isParticipating eq true",
-      },
+      queryString,
     );
 
     return response.value.map(transformRow52Location);
@@ -149,17 +163,25 @@ export const fetchLocationsFromRow52 = unstable_cache(
   },
 );
 
-function buildVehicleFilter(query: string): string {
-  const filters: string[] = ["isActive eq true"];
+/**
+ * Build the OData filter for vehicle search.
+ * Uses odata-query library which automatically escapes string values.
+ */
+function buildVehicleFilter(query: string): Record<string, unknown> {
+  const searchTerm = query.trim().toLowerCase();
 
-  if (query.trim()) {
-    const searchTerm = query.trim().toLowerCase();
-    filters.push(
-      `(contains(tolower(model/name),'${searchTerm}') or contains(tolower(model/make/name),'${searchTerm}'))`,
-    );
+  if (!searchTerm) {
+    return { isActive: true };
   }
 
-  return filters.join(" and ");
+  // Use odata-query object syntax for automatic escaping
+  return {
+    isActive: true,
+    or: [
+      { "tolower(model/name)": { contains: searchTerm } },
+      { "tolower(model/make/name)": { contains: searchTerm } },
+    ],
+  };
 }
 
 async function fetchVehiclesFromRow52Internal(
@@ -167,16 +189,16 @@ async function fetchVehiclesFromRow52Internal(
   locationMap: Map<number, Location>,
 ): Promise<Vehicle[]> {
   try {
-    const filter = buildVehicleFilter(query);
+    const queryString = buildQuery({
+      filter: buildVehicleFilter(query),
+      expand: ["model($expand=make)", "location($expand=state)", "images"],
+      orderBy: "dateAdded desc",
+      top: 1000,
+    });
 
     const response = await fetchRow52<Row52Vehicle>(
       API_ENDPOINTS.ROW52_VEHICLES,
-      {
-        $filter: filter,
-        $expand: "model($expand=make),location($expand=state),images",
-        $orderby: "dateAdded desc",
-        $top: "1000",
-      },
+      queryString,
     );
 
     return response.value
@@ -218,11 +240,13 @@ export async function fetchMakesFromRow52(): Promise<
   Array<{ id: number; name: string }>
 > {
   try {
+    const queryString = buildQuery({
+      orderBy: "name asc",
+    });
+
     const response = await fetchRow52<{ id: number; name: string }>(
       API_ENDPOINTS.ROW52_MAKES,
-      {
-        $orderby: "name asc",
-      },
+      queryString,
     );
     return response.value;
   } catch (error) {
