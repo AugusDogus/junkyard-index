@@ -116,7 +116,6 @@ export interface ParsedVehicleData {
 
 export interface VehicleCardProps {
   vehicle: Vehicle;
-  onImageClick?: (images: VehicleImage[], index: number) => void;
 }
 
 export interface Row52ODataResponse<T> {

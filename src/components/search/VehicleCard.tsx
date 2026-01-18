@@ -15,10 +15,7 @@ import {
 import type { VehicleCardProps } from "~/lib/types";
 import wsrvLoader from "~/lib/wsrvLoader";
 
-function VehicleCardComponent({
-  vehicle,
-  onImageClick: _onImageClick,
-}: VehicleCardProps) {
+function VehicleCardComponent({ vehicle }: VehicleCardProps) {
   const primaryImage = vehicle.images[0];
   const hasMultipleImages = vehicle.images.length > 1;
 
