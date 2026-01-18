@@ -32,7 +32,7 @@ interface SearchSummaryProps {
 
 export function SearchSummary({ searchResult }: SearchSummaryProps) {
   return (
-    <div className="text-muted-foreground mt-6 border-t pt-6 text-center text-sm">
+    <div className="text-muted-foreground text-center text-sm">
       <p>
         Showing {searchResult.vehicles.length} of{" "}
         {searchResult.totalCount.toLocaleString()} vehicles
