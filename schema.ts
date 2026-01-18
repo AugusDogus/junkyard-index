@@ -87,11 +87,6 @@ export const verification = sqliteTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
-export const userRelations = relations(user, ({ many }) => ({
-  sessions: many(session),
-  accounts: many(account),
-}));
-
 export const sessionRelations = relations(session, ({ one }) => ({
   user: one(user, {
     fields: [session.userId],
@@ -143,8 +138,7 @@ export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
   }),
 }));
 
-// Update user relations to include saved searches
-export const extendedUserRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   savedSearches: many(savedSearch),
