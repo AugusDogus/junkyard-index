@@ -10,10 +10,56 @@ import { TailwindIndicator } from "~/components/tailwind-indicator";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { TRPCReactProvider } from "~/trpc/react";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://junkyardindex.com";
+
 export const metadata: Metadata = {
-  title: "Junkyard Index",
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
+    template: "%s | Junkyard Index",
+  },
   description:
-    "Search across salvage yard inventory locations nationwide",
+    "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Row52, and more. Save searches and get email alerts when new vehicles arrive.",
+  keywords: [
+    "junkyard",
+    "salvage yard",
+    "auto parts",
+    "used car parts",
+    "pick your part",
+    "LKQ",
+    "Row52",
+    "self-service auto parts",
+    "car parts search",
+    "junkyard inventory",
+  ],
+  authors: [{ name: "Junkyard Index" }],
+  creator: "Junkyard Index",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: APP_URL,
+    siteName: "Junkyard Index",
+    title: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
+    description:
+      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Row52, and more.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
+    description:
+      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Row52, and more.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: [{ rel: "icon", url: "/favicon.svg" }],
 };
 
