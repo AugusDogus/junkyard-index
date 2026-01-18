@@ -1,11 +1,16 @@
 import { checkout, polar, portal, usage, webhooks } from "@polar-sh/better-auth";
 import { Polar } from "@polar-sh/sdk";
+import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
+import { Resend } from "resend";
+import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
 import { db } from "~/lib/db";
 import * as schema from "~/schema";
+
+const resend = new Resend(env.RESEND_API_KEY);
 
 export const polarClient = new Polar({
   accessToken: env.POLAR_ACCESS_TOKEN,
@@ -20,6 +25,18 @@ export const auth = betterAuth({
   trustedOrigins: [env.NEXT_PUBLIC_APP_URL],
   emailAndPassword: {
     enabled: true,
+    sendResetPassword: async ({ user, url }) => {
+      const emailHtml = await render(PasswordReset({ resetUrl: url }));
+      const emailText = await render(PasswordReset({ resetUrl: url }), { plainText: true });
+
+      await resend.emails.send({
+        from: `Junkyard Index <${env.RESEND_FROM_EMAIL}>`,
+        to: user.email,
+        subject: "Reset your password",
+        html: emailHtml,
+        text: emailText,
+      });
+    },
   },
   socialProviders: {
     discord: {
