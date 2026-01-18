@@ -75,6 +75,7 @@ export function SignInForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           disabled={isLoading}
+          tabIndex={1}
         />
       </div>
 
@@ -84,6 +85,7 @@ export function SignInForm() {
           <Link
             href="/auth/forgot-password"
             className="text-muted-foreground text-sm hover:underline"
+            tabIndex={5}
           >
             Forgot password?
           </Link>
@@ -98,6 +100,7 @@ export function SignInForm() {
             required
             disabled={isLoading}
             className="pr-10"
+            tabIndex={2}
           />
           <button
             type="button"
@@ -121,7 +124,7 @@ export function SignInForm() {
         </Alert>
       )}
 
-      <Button type="submit" className="w-full" disabled={isLoading || isDiscordLoading}>
+      <Button type="submit" className="w-full" disabled={isLoading || isDiscordLoading} tabIndex={3}>
         {isLoading ? "Signing in..." : "Sign In"}
       </Button>
 
@@ -140,6 +143,7 @@ export function SignInForm() {
         className="w-full"
         onClick={handleDiscordSignIn}
         disabled={isLoading || isDiscordLoading}
+        tabIndex={4}
       >
         <DiscordIcon className="mr-2 h-4 w-4" />
         {isDiscordLoading ? "Connecting..." : "Discord"}
@@ -150,6 +154,7 @@ export function SignInForm() {
         <Link
           href={returnTo ? `/auth/sign-up?returnTo=${encodeURIComponent(returnTo)}` : "/auth/sign-up"}
           className="text-primary hover:underline"
+          tabIndex={6}
         >
           Sign up
         </Link>
