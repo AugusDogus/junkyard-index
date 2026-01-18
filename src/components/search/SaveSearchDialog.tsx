@@ -82,6 +82,7 @@ export function SaveSearchDialog({
   const [name, setName] = useState("");
   const [notifyMe, setNotifyMe] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isNavigatingToAuth, setIsNavigatingToAuth] = useState(false);
 
   const utils = api.useUtils();
   const { data: subscriptionData } = api.subscription.getCustomerState.useQuery(
@@ -180,6 +181,7 @@ export function SaveSearchDialog({
     if (isLoggedIn) {
       setOpen(true);
     } else {
+      setIsNavigatingToAuth(true);
       storePendingSaveSearch(query, filters);
       const returnTo = encodeURIComponent(window.location.pathname + window.location.search + "&saveSearch=1");
       router.push(`/auth/sign-in?returnTo=${returnTo}`);
@@ -193,7 +195,7 @@ export function SaveSearchDialog({
           variant="outline"
           size={compact || iconOnly ? "sm" : "default"}
           className={compact || iconOnly ? "h-8 text-xs" : ""}
-          disabled={disabled || !query}
+          disabled={disabled || !query || isNavigatingToAuth}
           onClick={(e) => {
             if (!isLoggedIn) {
               e.preventDefault();
@@ -202,7 +204,7 @@ export function SaveSearchDialog({
           }}
         >
           <Bookmark className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
-          {!iconOnly && "Save Search"}
+          {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
