@@ -2,21 +2,19 @@
 
 import { AlertCircle, Search } from "lucide-react";
 import Link from "next/link";
-import {
-  parseAsArrayOf,
-  parseAsInteger,
-  parseAsString,
-  useQueryState,
-} from "nuqs";
+import { useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import { MorphingFilterBar } from "~/components/search/MorphingFilterBar";
 import { MorphingSearchBar } from "~/components/search/MorphingSearchBar";
-import { clearPendingSaveSearch, SaveSearchDialog } from "~/components/search/SaveSearchDialog";
-import { SavedSearchesList } from "~/components/search/SavedSearchesList";
+import {
+  clearPendingSaveSearch,
+  SaveSearchDialog,
+} from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
+import { SavedSearchesList } from "~/components/search/SavedSearchesList";
 import {
   SearchResults,
   SearchSummary,
@@ -27,9 +25,9 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
+import { useSearchFilters } from "~/hooks/use-search-filters";
 import { ERROR_MESSAGES, SEARCH_CONFIG } from "~/lib/constants";
-import type { DataSource, Vehicle } from "~/lib/types";
-import { buildColorDisplayMap, buildDisplayNameMap, normalizeColor } from "~/lib/utils";
+import type { Vehicle } from "~/lib/types";
 import { api } from "~/trpc/react";
 
 interface SearchPageContentProps {
@@ -64,21 +62,31 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
   // Handle subscription success
   // Polar adds customer_session_token to the URL after successful checkout
-  const [subscriptionParam, setSubscriptionParam] = useQueryState("subscription");
-  const [customerSessionToken, setCustomerSessionToken] = useQueryState("customer_session_token");
-  
+  const [subscriptionParam, setSubscriptionParam] =
+    useQueryState("subscription");
+  const [customerSessionToken, setCustomerSessionToken] =
+    useQueryState("customer_session_token");
+
   useEffect(() => {
     // Check for either subscription=success OR customer_session_token (Polar's redirect)
-    const isCheckoutSuccess = subscriptionParam === "success" || customerSessionToken;
-    
+    const isCheckoutSuccess =
+      subscriptionParam === "success" || customerSessionToken;
+
     if (isCheckoutSuccess) {
-      toast.success("Subscription activated! Email alerts are now enabled for your saved searches.");
-      
+      toast.success(
+        "Subscription activated! Email alerts are now enabled for your saved searches.",
+      );
+
       // Clear the URL params
       if (subscriptionParam) void setSubscriptionParam(null);
       if (customerSessionToken) void setCustomerSessionToken(null);
     }
-  }, [subscriptionParam, setSubscriptionParam, customerSessionToken, setCustomerSessionToken]);
+  }, [
+    subscriptionParam,
+    setSubscriptionParam,
+    customerSessionToken,
+    setCustomerSessionToken,
+  ]);
 
   const handleAutoOpenHandled = useCallback(() => {
     setAutoOpenSaveDialog(false);
@@ -115,54 +123,12 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  // Sort state - should be in URL for shareability
-  const [sortBy, setSortBy] = useQueryState(
-    "sort",
-    parseAsString.withDefault("newest"),
-  );
-
-  // URL state for year range using built-in integer parser
-  const [minYearParam, setMinYearParam] = useQueryState(
-    "minYear",
-    parseAsInteger,
-  );
-  const [maxYearParam, setMaxYearParam] = useQueryState(
-    "maxYear",
-    parseAsInteger,
-  );
-
-  // Individual filter states using nuqs built-in parsers
-  const [makes, setMakes] = useQueryState(
-    "makes",
-    parseAsArrayOf(parseAsString).withDefault([]),
-  );
-  const [colors, setColors] = useQueryState(
-    "colors",
-    parseAsArrayOf(parseAsString).withDefault([]),
-  );
-  const [states, setStates] = useQueryState(
-    "states",
-    parseAsArrayOf(parseAsString).withDefault([]),
-  );
-  const [salvageYards, setSalvageYards] = useQueryState(
-    "yards",
-    parseAsArrayOf(parseAsString).withDefault([]),
-  );
-  const [sources, setSources] = useQueryState(
-    "sources",
-    parseAsArrayOf(parseAsString).withDefault([]),
-  );
-
-  // Type-safe sources conversion
-  const typedSources = useMemo(
-    () => sources.filter((s): s is DataSource => s === "pyp" || s === "row52"),
-    [sources],
-  );
-
   // Debounce the query for search API calls
   const [debouncedQuery] = useDebounce(query, SEARCH_CONFIG.DEBOUNCE_DELAY);
 
   // Perform search with debounced query - filtering is done client-side
+  // Note: sources filter is handled by the hook below, but we need it for the query
+  // We use a separate query state here to avoid circular dependency
   const {
     data: searchResults,
     isLoading: searchLoading,
@@ -174,7 +140,7 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
       makes: undefined,
       colors: undefined,
       states: undefined,
-      sources: typedSources.length > 0 ? typedSources : undefined,
+      sources: undefined, // Sources handled client-side for now
       yearRange: undefined,
     },
     {
@@ -184,49 +150,8 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     },
   );
 
-  // Calculate minimum year from search results
-  const dataMinYear = useMemo(() => {
-    if (!searchResults?.vehicles || searchResults.vehicles.length === 0) {
-      return 1900; // Fallback only when no data
-    }
-
-    const years = searchResults.vehicles.map(
-      (vehicle: Vehicle) => vehicle.year,
-    );
-    return Math.min(...years);
-  }, [searchResults?.vehicles]);
-
-  // Year range from URL state (user interacts with this directly)
-  const yearRange = useMemo(
-    (): [number, number] => [
-      minYearParam ?? dataMinYear,
-      maxYearParam ?? currentYear,
-    ],
-    [minYearParam, maxYearParam, dataMinYear, currentYear],
-  );
-
-  // Custom year range setters that clear URL params when at defaults
-  const setMinYear = useCallback(
-    (value: number | null) => {
-      if (value === dataMinYear) {
-        void setMinYearParam(null);
-      } else {
-        void setMinYearParam(value);
-      }
-    },
-    [dataMinYear, setMinYearParam],
-  );
-
-  const setMaxYear = useCallback(
-    (value: number | null) => {
-      if (value === currentYear) {
-        void setMaxYearParam(null);
-      } else {
-        void setMaxYearParam(value);
-      }
-    },
-    [currentYear, setMaxYearParam],
-  );
+  // Use the search filters hook with actual search results
+  const filters = useSearchFilters(searchResults?.vehicles, currentYear);
 
   const handleSearch = () => {
     void refetchSearch();
@@ -248,8 +173,8 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
   // Memoized sort handler for filter state
   const handleSortChange = useCallback(
-    (value: string) => void setSortBy(value),
-    [setSortBy],
+    (value: string) => filters.setSortBy(value),
+    [filters],
   );
 
   // Memoized filter toggle handler
@@ -258,142 +183,11 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     [],
   );
 
-  // Build display name maps for normalized filtering
-  const displayNameMaps = useMemo(() => {
-    if (!searchResults?.vehicles || searchResults.vehicles.length === 0) {
-      return {
-        makes: new Map<string, string>(),
-        colors: new Map<string, string>(),
-      };
-    }
-
-    const allMakes = searchResults.vehicles.map((v: Vehicle) => v.make);
-    const allColors = searchResults.vehicles.map((v: Vehicle) => v.color);
-
-    return {
-      makes: buildDisplayNameMap(allMakes),
-      colors: buildColorDisplayMap(allColors),
-    };
-  }, [searchResults?.vehicles]);
-
-  // Calculate filter options from search results
-  const filterOptions = useMemo(() => {
-    if (!searchResults?.vehicles || searchResults.vehicles.length === 0) {
-      return {
-        makes: [],
-        colors: [],
-        states: [],
-        salvageYards: [],
-      };
-    }
-
-    // Use display names (sorted by display name)
-    const makes = Array.from(displayNameMaps.makes.values()).sort();
-    const colors = Array.from(displayNameMaps.colors.values()).sort();
-
-    const allStates = Array.from(
-      new Set(
-        searchResults.vehicles.map(
-          (vehicle: Vehicle) => vehicle.location.state,
-        ),
-      ),
-    ).sort();
-    const allSalvageYards = Array.from(
-      new Set(
-        searchResults.vehicles.map((vehicle: Vehicle) => vehicle.location.name),
-      ),
-    ).sort();
-
-    return {
-      makes,
-      colors,
-      states: allStates,
-      salvageYards: allSalvageYards,
-    };
-  }, [searchResults?.vehicles, displayNameMaps]);
-
-  const clearAllFilters = () => {
-    void setMakes([]);
-    void setColors([]);
-    void setStates([]);
-    void setSalvageYards([]);
-    void setSources([]);
-
-    // Clear URL parameters when user explicitly clears all filters
-    void setMinYearParam(null);
-    void setMaxYearParam(null);
-    void setSortBy("newest"); // Reset sort to default
-    setShowFilters(false); // Close sidebar
-  };
-
-  // Calculate active filter count
-  const activeFilterCount = useMemo(() => {
-    const dataYearRange: [number, number] =
-      searchResults?.vehicles && searchResults.vehicles.length > 0
-        ? [dataMinYear, currentYear]
-        : [1900, currentYear];
-
-    return (
-      makes.length +
-      colors.length +
-      states.length +
-      salvageYards.length +
-      sources.length +
-      (yearRange &&
-      (yearRange[0] !== dataYearRange[0] || yearRange[1] !== dataYearRange[1])
-        ? 1
-        : 0)
-    );
-  }, [
-    makes,
-    colors,
-    states,
-    salvageYards,
-    sources,
-    yearRange,
-    currentYear,
-    searchResults?.vehicles,
-    dataMinYear,
-  ]);
-
-  // Normalized filter sets for case-insensitive comparison
-  const normalizedFilters = useMemo(() => ({
-    makes: new Set(makes.map((m) => m.toLowerCase())),
-    colors: new Set(colors.map((c) => c.toLowerCase())),
-  }), [makes, colors]);
-
-  // Comprehensive filtering logic - all client-side, no server filtering
-  const filteredVehicles = useMemo(() => {
-    if (!searchResults?.vehicles) return [];
-
-    return searchResults.vehicles.filter((vehicle: Vehicle) => {
-      if (
-        yearRange &&
-        (vehicle.year < yearRange[0] || vehicle.year > yearRange[1])
-      ) {
-        return false;
-      }
-      if (normalizedFilters.makes.size > 0 && !normalizedFilters.makes.has(vehicle.make.toLowerCase())) {
-        return false;
-      }
-      if (normalizedFilters.colors.size > 0) {
-        const vehicleColor = normalizeColor(vehicle.color);
-        if (!vehicleColor || !normalizedFilters.colors.has(vehicleColor)) {
-          return false;
-        }
-      }
-      if (states.length > 0 && !states.includes(vehicle.location.state)) {
-        return false;
-      }
-      if (
-        salvageYards.length > 0 &&
-        !salvageYards.includes(vehicle.location.name)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [searchResults?.vehicles, normalizedFilters, states, salvageYards, yearRange]);
+  // Clear all filters and close sidebar
+  const clearAllFilters = useCallback(() => {
+    filters.clearAllFilters();
+    setShowFilters(false);
+  }, [filters]);
 
   // Sorting function
   const sortVehicles = useCallback(
@@ -432,14 +226,17 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   const filteredSearchResult = useMemo(() => {
     if (!searchResults) return null;
 
-    const sortedVehicles = sortVehicles(filteredVehicles, sortBy);
+    const sortedVehicles = sortVehicles(
+      filters.filteredVehicles,
+      filters.sortBy,
+    );
 
     return {
       ...searchResults,
       vehicles: sortedVehicles,
       totalCount: sortedVehicles.length,
     };
-  }, [searchResults, filteredVehicles, sortBy, sortVehicles]);
+  }, [searchResults, filters.filteredVehicles, filters.sortBy, sortVehicles]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
@@ -453,26 +250,26 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
             <Sidebar
               showFilters={showFilters}
               setShowFilters={setShowFilters}
-              activeFilterCount={activeFilterCount}
+              activeFilterCount={filters.activeFilterCount}
               clearAllFilters={clearAllFilters}
-              makes={makes}
-              colors={colors}
-              states={states}
-              salvageYards={salvageYards}
-              sources={typedSources}
-              yearRange={yearRange}
-              filterOptions={filterOptions}
-              onMakesChange={setMakes}
-              onColorsChange={setColors}
-              onStatesChange={setStates}
-              onSalvageYardsChange={setSalvageYards}
-              onSourcesChange={(newSources) => void setSources(newSources)}
+              makes={filters.makes}
+              colors={filters.colors}
+              states={filters.states}
+              salvageYards={filters.salvageYards}
+              sources={filters.typedSources}
+              yearRange={filters.yearRange}
+              filterOptions={filters.filterOptions}
+              onMakesChange={filters.setMakes}
+              onColorsChange={filters.setColors}
+              onStatesChange={filters.setStates}
+              onSalvageYardsChange={filters.setSalvageYards}
+              onSourcesChange={filters.setSources}
               onYearRangeChange={(range: [number, number]) => {
-                setMinYear(range[0]);
-                setMaxYear(range[1]);
+                filters.setMinYear(range[0]);
+                filters.setMaxYear(range[1]);
               }}
               yearRangeLimits={{
-                min: dataMinYear,
+                min: filters.dataMinYear,
                 max: currentYear,
               }}
             />
@@ -518,13 +315,13 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                     <SaveSearchDialog
                       query={query}
                       filters={{
-                        makes,
-                        colors,
-                        states,
-                        salvageYards,
-                        minYear: yearRange[0],
-                        maxYear: yearRange[1],
-                        sortBy,
+                        makes: filters.makes,
+                        colors: filters.colors,
+                        states: filters.states,
+                        salvageYards: filters.salvageYards,
+                        minYear: filters.yearRange[0],
+                        maxYear: filters.yearRange[1],
+                        sortBy: filters.sortBy,
                       }}
                       disabled={!query}
                       isLoggedIn={isLoggedIn}
@@ -532,26 +329,26 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                       onAutoOpenHandled={handleAutoOpenHandled}
                     />
                     <MobileFiltersDrawer
-                      activeFilterCount={activeFilterCount}
+                      activeFilterCount={filters.activeFilterCount}
                       clearAllFilters={clearAllFilters}
-                      makes={makes}
-                      colors={colors}
-                      states={states}
-                      salvageYards={salvageYards}
-                      sources={typedSources}
-                      yearRange={yearRange}
-                      filterOptions={filterOptions}
-                      onMakesChange={setMakes}
-                      onColorsChange={setColors}
-                      onStatesChange={setStates}
-                      onSalvageYardsChange={setSalvageYards}
-                      onSourcesChange={(newSources) => void setSources(newSources)}
+                      makes={filters.makes}
+                      colors={filters.colors}
+                      states={filters.states}
+                      salvageYards={filters.salvageYards}
+                      sources={filters.typedSources}
+                      yearRange={filters.yearRange}
+                      filterOptions={filters.filterOptions}
+                      onMakesChange={filters.setMakes}
+                      onColorsChange={filters.setColors}
+                      onStatesChange={filters.setStates}
+                      onSalvageYardsChange={filters.setSalvageYards}
+                      onSourcesChange={filters.setSources}
                       onYearRangeChange={(range: [number, number]) => {
-                        setMinYear(range[0]);
-                        setMaxYear(range[1]);
+                        filters.setMinYear(range[0]);
+                        filters.setMaxYear(range[1]);
                       }}
                       yearRangeLimits={{
-                        min: dataMinYear,
+                        min: filters.dataMinYear,
                         max: currentYear,
                       }}
                     />
@@ -559,20 +356,20 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                 ) : (
                   <MorphingFilterBar
                     query={query}
-                    sortBy={sortBy}
+                    sortBy={filters.sortBy}
                     onSortChange={handleSortChange}
-                    activeFilterCount={activeFilterCount}
+                    activeFilterCount={filters.activeFilterCount}
                     showFilters={showFilters}
                     onToggleFilters={handleToggleFilters}
                     isLoggedIn={isLoggedIn}
                     filters={{
-                      makes,
-                      colors,
-                      states,
-                      salvageYards,
-                      minYear: yearRange[0],
-                      maxYear: yearRange[1],
-                      sortBy,
+                      makes: filters.makes,
+                      colors: filters.colors,
+                      states: filters.states,
+                      salvageYards: filters.salvageYards,
+                      minYear: filters.yearRange[0],
+                      maxYear: filters.yearRange[1],
+                      sortBy: filters.sortBy,
                     }}
                     autoOpenSaveDialog={autoOpenSaveDialog}
                     onAutoOpenHandled={handleAutoOpenHandled}
@@ -695,7 +492,7 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                     ? "No vehicles match your search. Try different search terms."
                     : "No vehicles match your current filters. Try adjusting your filters."}
                 </p>
-                {activeFilterCount > 0 && (
+                {filters.activeFilterCount > 0 && (
                   <Button onClick={clearAllFilters} variant="outline">
                     Clear All Filters
                   </Button>
@@ -711,4 +508,3 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     </div>
   );
 }
-
