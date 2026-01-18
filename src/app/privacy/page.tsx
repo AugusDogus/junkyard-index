@@ -50,6 +50,21 @@ export default function PrivacyPage() {
               <li>Profile picture (if you sign in with a social provider)</li>
             </ul>
 
+            <h3 className="mb-2 mt-4 text-lg font-medium">Social Login (Discord)</h3>
+            <p className="text-muted-foreground">
+              If you choose to sign in with Discord, we receive the following information from your Discord account:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6 text-muted-foreground">
+              <li>Your Discord user ID</li>
+              <li>Email address associated with your Discord account</li>
+              <li>Username and display name</li>
+              <li>Profile picture (avatar)</li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              We do not gain access to your Discord servers, messages, or friends list. We cannot post 
+              to Discord on your behalf or perform any actions on your Discord account.
+            </p>
+
             <h3 className="mb-2 mt-4 text-lg font-medium">Usage Information</h3>
             <p className="text-muted-foreground">
               We automatically collect certain information when you use our service:
@@ -81,6 +96,7 @@ export default function PrivacyPage() {
               We use the following third-party services to operate Junkyard Index:
             </p>
             <ul className="mt-2 list-disc space-y-1 pl-6 text-muted-foreground">
+              <li><strong>Discord</strong> - Social login authentication (if you choose to sign in with Discord)</li>
               <li><strong>Polar</strong> - Payment processing and subscription management</li>
               <li><strong>Vercel</strong> - Website hosting and analytics</li>
               <li><strong>Turso</strong> - Database hosting</li>

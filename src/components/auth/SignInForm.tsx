@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Alert, AlertDescription } from "~/components/ui/alert";
+import { DiscordIcon } from "~/components/ui/icons";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export function SignInForm() {
@@ -19,6 +20,7 @@ export function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDiscordLoading, setIsDiscordLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +44,22 @@ export function SignInForm() {
       setError("An unexpected error occurred");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDiscordSignIn = async () => {
+    setError(null);
+    setIsDiscordLoading(true);
+
+    try {
+      await signIn.social({
+        provider: "discord",
+        callbackURL: returnTo || "/search",
+      });
+    } catch (err) {
+      console.error("Discord sign in error:", err);
+      setError("An unexpected error occurred");
+      setIsDiscordLoading(false);
     }
   };
 
@@ -103,8 +121,28 @@ export function SignInForm() {
         </Alert>
       )}
 
-      <Button type="submit" className="w-full" disabled={isLoading}>
+      <Button type="submit" className="w-full" disabled={isLoading || isDiscordLoading}>
         {isLoading ? "Signing in..." : "Sign In"}
+      </Button>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={handleDiscordSignIn}
+        disabled={isLoading || isDiscordLoading}
+      >
+        <DiscordIcon className="mr-2 h-4 w-4" />
+        {isDiscordLoading ? "Connecting..." : "Discord"}
       </Button>
 
       <div className="text-muted-foreground text-center text-sm">
