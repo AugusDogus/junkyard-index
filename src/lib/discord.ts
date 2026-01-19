@@ -163,22 +163,3 @@ export async function sendDiscordAlert(
 
   return sendDM(discordUserId, message);
 }
-
-/**
- * Build the Discord app installation OAuth URL.
- * This URL allows users to install the app to their profile for DM notifications.
- */
-export function getDiscordInstallUrl(state?: string): string {
-  const params = new URLSearchParams({
-    client_id: env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
-    // For user-installable apps, we need integration_type=1 (user install)
-    integration_type: "1",
-    scope: "applications.commands",
-  });
-
-  if (state) {
-    params.set("state", state);
-  }
-
-  return `https://discord.com/oauth2/authorize?${params.toString()}`;
-}
