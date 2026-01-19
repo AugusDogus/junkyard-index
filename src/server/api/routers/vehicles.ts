@@ -117,6 +117,14 @@ function extractCookies(response: Response): string {
   return cookies.join("; ");
 }
 
+// Custom error class for abort signals - thrown to prevent caching empty results
+class AbortError extends Error {
+  constructor() {
+    super("Request was aborted");
+    this.name = "AbortError";
+  }
+}
+
 /**
  * Internal function to fetch vehicle inventory without caching
  */
@@ -126,9 +134,9 @@ async function fetchVehicleInventoryInternal(
   signal?: AbortSignal,
 ): Promise<ParsedVehicleData[]> {
   try {
-    // Check if already aborted before starting
+    // Check if already aborted before starting - throw to prevent caching empty results
     if (signal?.aborted) {
-      return [];
+      throw new AbortError();
     }
 
     // Step 1: First visit the inventory page to establish a session and get cookies
@@ -153,9 +161,9 @@ async function fetchVehicleInventoryInternal(
       },
     });
 
-    // Check if aborted after session fetch
+    // Check if aborted after session fetch - throw to prevent caching empty results
     if (signal?.aborted) {
-      return [];
+      throw new AbortError();
     }
 
     // Extract cookies from the session response
@@ -218,9 +226,9 @@ async function fetchVehicleInventoryInternal(
       signal?.removeEventListener("abort", abortHandler);
     }
   } catch (error) {
-    // Don't log abort errors
+    // Re-throw abort errors to prevent caching empty results
     if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
-      return [];
+      throw error instanceof AbortError ? error : new AbortError();
     }
 
     console.error(
@@ -262,7 +270,15 @@ async function fetchVehicleInventory(
     },
   );
 
-  return cachedFetch(location, searchQuery);
+  try {
+    return await cachedFetch(location, searchQuery);
+  } catch (error) {
+    // Catch AbortError thrown from inside the cache - return empty without caching
+    if (error instanceof Error && error.name === "AbortError") {
+      return [];
+    }
+    throw error;
+  }
 }
 
 /**
