@@ -11,7 +11,6 @@ import {
   LogIn,
   Mail,
   Search,
-  Settings,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,7 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { DiscordIcon } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { env } from "~/env";
-import { authClient, useSession, signIn } from "~/lib/auth-client";
+import { authClient, signIn, useSession } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
 
 // Discord app installation URL
