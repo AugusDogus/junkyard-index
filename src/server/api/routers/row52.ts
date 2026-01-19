@@ -186,15 +186,23 @@ function buildVehicleFilter(query: string): Record<string, unknown> {
   };
 }
 
+// Custom error class for abort signals - thrown to prevent caching empty results
+class AbortError extends Error {
+  constructor() {
+    super("Request was aborted");
+    this.name = "AbortError";
+  }
+}
+
 async function fetchVehiclesFromRow52Internal(
   query: string,
   locationMap: Map<number, Location>,
   signal?: AbortSignal,
 ): Promise<Vehicle[]> {
   try {
-    // Check if already aborted
+    // Check if already aborted - throw to prevent caching empty results
     if (signal?.aborted) {
-      return [];
+      throw new AbortError();
     }
 
     const queryString = buildQuery({
@@ -210,9 +218,9 @@ async function fetchVehiclesFromRow52Internal(
       signal,
     );
 
-    // Check if aborted after fetch
+    // Check if aborted after fetch - throw to prevent caching empty results
     if (signal?.aborted) {
-      return [];
+      throw new AbortError();
     }
 
     return response.value
@@ -228,9 +236,9 @@ async function fetchVehiclesFromRow52Internal(
       })
       .filter((v): v is Vehicle => v !== null);
   } catch (error) {
-    // Don't log abort errors
+    // Re-throw abort errors to prevent caching empty results
     if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
-      return [];
+      throw error instanceof AbortError ? error : new AbortError();
     }
     console.error("Error fetching vehicles from Row52:", error);
     return [];
@@ -275,7 +283,15 @@ export async function fetchVehiclesFromRow52(
     },
   );
 
-  return cachedFetch(query);
+  try {
+    return await cachedFetch(query);
+  } catch (error) {
+    // Catch AbortError thrown from inside the cache - return empty without caching
+    if (error instanceof Error && error.name === "AbortError") {
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function fetchMakesFromRow52(): Promise<
