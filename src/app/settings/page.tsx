@@ -294,7 +294,7 @@ function SettingsContent() {
               {/* Step 2: Install Discord app */}
               <div className="flex items-center justify-between">
                 <p className={`text-sm ${notificationSettings?.discordAppInstalled ? "text-green-600 dark:text-green-400" : notificationSettings?.hasDiscordLinked ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                  Step 2: {notificationSettings?.discordAppInstalled ? "Discord app installed" : "Install the Discord app to receive DMs"}
+                  Step 2: {notificationSettings?.discordAppInstalled ? "Discord app installed" : "Authorize Junkyard Index to send you DMs"}
                 </p>
                 {notificationSettings?.hasDiscordLinked && !notificationSettings?.discordAppInstalled && (
                   <div className="flex items-center gap-2">
@@ -307,7 +307,7 @@ function SettingsContent() {
                       >
                         <Button variant="outline" size="sm">
                           <ExternalLink className="mr-2 h-4 w-4" />
-                          Install App
+                          Authorize
                         </Button>
                       </a>
                     ) : (
@@ -319,7 +319,7 @@ function SettingsContent() {
                         >
                           <Button variant="ghost" size="sm">
                             <ExternalLink className="mr-2 h-4 w-4" />
-                            Install App
+                            Authorize
                           </Button>
                         </a>
                         <Button
