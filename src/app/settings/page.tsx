@@ -408,6 +408,7 @@ function SettingsContent() {
                       onClick={() => handleToggleEmailAlerts(search.id, search.emailAlertsEnabled)}
                       disabled={isMutating}
                       title={search.emailAlertsEnabled ? "Email alerts on" : "Email alerts off"}
+                      aria-label={search.emailAlertsEnabled ? "Turn off email alerts" : hasActiveSubscription ? "Turn on email alerts" : "Subscribe to enable email alerts"}
                     >
                       {search.emailAlertsEnabled ? <Mail className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
                     </Button>
@@ -419,6 +420,7 @@ function SettingsContent() {
                       onClick={() => handleToggleDiscordAlerts(search.id, search.discordAlertsEnabled)}
                       disabled={isMutating}
                       title={search.discordAlertsEnabled ? "Discord alerts on" : "Discord alerts off"}
+                      aria-label={search.discordAlertsEnabled ? "Turn off Discord alerts" : !hasActiveSubscription ? "Subscribe to enable Discord alerts" : !canUseDiscord ? "Set up Discord to enable alerts" : "Turn on Discord alerts"}
                     >
                       <DiscordIcon className="h-4 w-4" />
                     </Button>
@@ -430,6 +432,7 @@ function SettingsContent() {
                       onClick={() => handleDeleteSearch(search.id)}
                       disabled={isMutating}
                       title="Delete search"
+                      aria-label={`Delete saved search "${search.name}"`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

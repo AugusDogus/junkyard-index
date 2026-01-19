@@ -70,12 +70,16 @@ export async function sendTestDM(
     ? "You've successfully connected Discord to Junkyard Index. You'll receive DMs here when new vehicles match your saved searches with Discord alerts enabled."
     : "You've successfully connected Discord to Junkyard Index. Once you have an active subscription and enable Discord alerts on a saved search, you'll receive DMs here when new vehicles are found.";
 
+  // Build settings URL from environment
+  const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://junkyardindex.com";
+  const settingsUrl = `${baseUrl}/settings`;
+
   const message: DiscordMessage = {
     embeds: [{
       title: "Discord Connected",
       description,
       color: 0x57f287, // Green
-      footer: { text: "Manage your notifications at junkyardindex.com/settings" },
+      footer: { text: `Manage your notifications at ${settingsUrl}` },
     }],
   };
 
@@ -134,8 +138,8 @@ export async function sendDiscordAlert(
   discordUserId: string,
   data: DiscordAlertData
 ): Promise<{ success: boolean; error?: string }> {
-  // Limit to first 10 vehicles (Discord has embed limits)
-  const vehiclesToShow = data.newVehicles.slice(0, 10);
+  // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
+  const vehiclesToShow = data.newVehicles.slice(0, 9);
   const remainingCount = data.newVehicles.length - vehiclesToShow.length;
 
   // Create the main message embed
@@ -152,7 +156,7 @@ export async function sendDiscordAlert(
   // Create embeds for each vehicle
   const vehicleEmbeds = vehiclesToShow.map(formatVehicleEmbed);
 
-  // Discord allows max 10 embeds per message
+  // Discord allows max 10 embeds per message (1 main + 9 vehicles = 10 max)
   const message: DiscordMessage = {
     embeds: [mainEmbed, ...vehicleEmbeds],
   };

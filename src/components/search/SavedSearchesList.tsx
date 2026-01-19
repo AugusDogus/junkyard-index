@@ -287,6 +287,7 @@ export function SavedSearchesList() {
                         }`}
                         onClick={(e) => handleToggleEmailAlerts(e, search.id, hasEmail)}
                         disabled={isMutating}
+                        aria-label={hasEmail ? "Disable email alerts for this search" : hasActiveSubscription ? "Enable email alerts for this search" : "Subscribe to enable email alerts"}
                       >
                         <Mail className="h-4 w-4" />
                       </Button>
@@ -313,6 +314,7 @@ export function SavedSearchesList() {
                         }`}
                         onClick={(e) => handleToggleDiscordAlerts(e, search.id, hasDiscord)}
                         disabled={isMutating}
+                        aria-label={hasDiscord ? "Disable Discord alerts for this search" : !hasActiveSubscription ? "Subscribe to enable Discord alerts" : !canUseDiscord ? "Set up Discord to enable alerts" : "Enable Discord alerts for this search"}
                       >
                         <DiscordIcon className="h-4 w-4" />
                       </Button>
@@ -328,15 +330,21 @@ export function SavedSearchesList() {
                     </TooltipContent>
                   </Tooltip>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground sm:opacity-0 sm:group-hover:opacity-100"
-                    onClick={(e) => handleDelete(e, search.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground sm:opacity-0 sm:group-hover:opacity-100"
+                        onClick={(e) => handleDelete(e, search.id)}
+                        disabled={deleteMutation.isPending}
+                        aria-label={`Delete saved search "${search.name}"`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete saved search</TooltipContent>
+                  </Tooltip>
                   <ArrowRight className="text-muted-foreground hidden h-4 w-4 transition-transform group-hover:translate-x-0.5 sm:block" />
                 </div>
               </Link>

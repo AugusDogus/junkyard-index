@@ -222,6 +222,8 @@ export function SaveSearchDialog({
     setNotificationsEnabled(enabled);
     if (enabled) {
       setNotificationsExpanded(true);
+    } else {
+      setNotificationsExpanded(false);
     }
   };
 
