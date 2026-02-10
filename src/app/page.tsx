@@ -2,8 +2,36 @@ import { Bell, MapPin, Search, Zap } from "lucide-react";
 import Link from "next/link";
 import { Footer } from "~/components/Footer";
 import { Button } from "~/components/ui/button";
+import { api } from "~/trpc/server";
 
-export default function Home() {
+const numberFormatter = new Intl.NumberFormat("en-US");
+const compactFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function formatVehicleBadgeCount(count: number): string {
+  if (count < 1000) {
+    return `${numberFormatter.format(count)}+`;
+  }
+
+  return `${compactFormatter.format(count).toLowerCase()}+`;
+}
+
+function formatYardBadgeCount(count: number): string {
+  if (count < 100) {
+    return `${numberFormatter.format(count)}+`;
+  }
+
+  const roundedDownToNearestTen = Math.floor(count / 10) * 10;
+  return `${numberFormatter.format(roundedDownToNearestTen)}+`;
+}
+
+export default async function Home() {
+  const liveStats = await api.stats.live();
+
+  const badgeText = `Tracking ${formatVehicleBadgeCount(liveStats.vehicleCount)} vehicles across ${formatYardBadgeCount(liveStats.yardCount)} yards`;
+
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-background via-background to-muted/30">
       {/* Hero Section */}
@@ -15,7 +43,7 @@ export default function Home() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
             </span>
-            Tracking 100k+ vehicles across 300+ yards
+            {badgeText}
           </div>
 
           {/* Headline */}

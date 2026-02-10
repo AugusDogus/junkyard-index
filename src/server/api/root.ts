@@ -1,5 +1,6 @@
 import { locationsRouter } from "~/server/api/routers/locations";
 import { savedSearchesRouter } from "~/server/api/routers/savedSearches";
+import { statsRouter } from "~/server/api/routers/stats";
 import { subscriptionRouter } from "~/server/api/routers/subscription";
 import { userRouter } from "~/server/api/routers/user";
 import { vehiclesRouter } from "~/server/api/routers/vehicles";
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   savedSearches: savedSearchesRouter,
   subscription: subscriptionRouter,
   user: userRouter,
+  stats: statsRouter,
 });
 
 // export type definition of API
