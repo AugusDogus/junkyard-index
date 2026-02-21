@@ -61,6 +61,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.7.0",
+    "sentry-ignores": "^1.1.1",
     "server-only": "^0.0.1",
     "sonner": "^2.0.6",
     "superjson": "^2.2.1",

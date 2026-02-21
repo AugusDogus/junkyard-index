@@ -8,10 +8,18 @@ import {
   replayIntegration,
 } from "@sentry/nextjs";
 import posthog from "posthog-js";
+import {
+  denyUrls,
+  ignoreErrors,
+} from "sentry-ignores";
 import { env } from "~/env";
 
 Sentry.init({
   dsn: "https://33d625a367d4c7e056ec4b7541212efc@o4510218619322368.ingest.us.sentry.io/4510723310485504",
+
+  // Ignore errors originating from third-party scripts we can't fix.
+  denyUrls,
+  ignoreErrors,
 
   // Add optional integrations for additional features
   integrations: [replayIntegration()],

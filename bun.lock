@@ -46,6 +46,7 @@
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "resend": "^6.7.0",
+        "sentry-ignores": "^1.1.1",
         "server-only": "^0.0.1",
         "sonner": "^2.0.6",
         "superjson": "^2.2.1",
@@ -1394,6 +1395,8 @@
     "selderee": ["selderee@0.11.0", "", { "dependencies": { "parseley": "^0.12.0" } }, "sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA=="],
 
     "semver": ["semver@7.7.3", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q=="],
+
+    "sentry-ignores": ["sentry-ignores@1.1.1", "", {}, "sha512-HTALMOZM/kon6Fe5rEeYtdgQoca1umrropfa0Ovvu1Q51M/ee81Q2Lc2j1TRdQe7nl++6cSTw9+PZEkXLOsE5g=="],
 
     "serialize-javascript": ["serialize-javascript@6.0.2", "", { "dependencies": { "randombytes": "^2.1.0" } }, "sha512-Saa1xPByTTq2gdeFZYLLo+RFE35NHZkAbqZeWNd3BpzppeVisAqpDjcp8dyf6uIvEqJRd46jemmyA4iFIeVk8g=="],
 
