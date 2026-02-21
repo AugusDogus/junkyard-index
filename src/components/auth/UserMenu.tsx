@@ -1,29 +1,39 @@
 "use client";
 
-import { CreditCard, LogOut, Monitor, Moon, Settings, Sun, Trash2 } from "lucide-react";
+import {
+  CreditCard,
+  LogOut,
+  Monitor,
+  Moon,
+  Settings,
+  Sun,
+  Trash2,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "~/components/ui/dialog";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuSub,
-    DropdownMenuSubContent,
-    DropdownMenuSubTrigger,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import posthog from "posthog-js";
+import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient, signOut, useSession } from "~/lib/auth-client";
 import { api } from "~/trpc/react";
 
@@ -42,7 +52,8 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
   const user = session?.user ?? initialUser;
 
   // Check subscription status using tRPC
-  const { data: subscriptionData } = api.subscription.getCustomerState.useQuery();
+  const { data: subscriptionData } =
+    api.subscription.getCustomerState.useQuery();
 
   const deleteAccountMutation = api.user.deleteAccount.useMutation({
     onSuccess: async () => {
@@ -52,9 +63,13 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
     },
   });
 
-  const hasActiveSubscription = subscriptionData?.hasActiveSubscription ?? false;
+  const hasActiveSubscription =
+    subscriptionData?.hasActiveSubscription ?? false;
 
   const handleManageSubscription = async () => {
+    posthog.capture(AnalyticsEvents.SUBSCRIPTION_PORTAL_OPENED, {
+      source: "user_menu",
+    });
     try {
       await authClient.customer?.portal();
     } catch (error) {
@@ -63,6 +78,9 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
   };
 
   const handleSubscribe = async () => {
+    posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
+      source: "user_menu",
+    });
     try {
       await authClient.checkout({
         slug: "Email-Notifications",
@@ -77,21 +95,27 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
   }
 
   const handleSignOut = async () => {
+    posthog.capture(AnalyticsEvents.SIGN_OUT_CLICKED);
+    posthog.reset();
     setIsSigningOut(true);
     await signOut();
     router.refresh();
   };
 
   const handleDeleteAccount = () => {
+    posthog.capture(AnalyticsEvents.ACCOUNT_DELETED, { source: "user_menu" });
     deleteAccountMutation.mutate();
   };
 
-  const initials = user.name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || user.email[0]?.toUpperCase() || "U";
+  const initials =
+    user.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ||
+    user.email[0]?.toUpperCase() ||
+    "U";
 
   return (
     <>
@@ -109,9 +133,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
                 className="h-8 w-8 rounded-full"
               />
             ) : (
-              <span className="text-xs font-medium">
-                {initials}
-              </span>
+              <span className="text-xs font-medium">{initials}</span>
             )}
           </Button>
         </DropdownMenuTrigger>
@@ -119,7 +141,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
           <DropdownMenuLabel>
             <div className="flex flex-col space-y-1">
               {user.name && (
-                <p className="text-sm font-medium leading-none">{user.name}</p>
+                <p className="text-sm leading-none font-medium">{user.name}</p>
               )}
               <p className="text-muted-foreground text-xs leading-none">
                 {user.email}
@@ -134,15 +156,36 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
               Theme
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => setTheme("light")}>
+              <DropdownMenuItem
+                onClick={() => {
+                  posthog.capture(AnalyticsEvents.THEME_CHANGED, {
+                    theme: "light",
+                  });
+                  setTheme("light");
+                }}
+              >
                 <Sun className="mr-2 h-4 w-4" />
                 Light
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <DropdownMenuItem
+                onClick={() => {
+                  posthog.capture(AnalyticsEvents.THEME_CHANGED, {
+                    theme: "dark",
+                  });
+                  setTheme("dark");
+                }}
+              >
                 <Moon className="mr-2 h-4 w-4" />
                 Dark
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("system")}>
+              <DropdownMenuItem
+                onClick={() => {
+                  posthog.capture(AnalyticsEvents.THEME_CHANGED, {
+                    theme: "system",
+                  });
+                  setTheme("system");
+                }}
+              >
                 <Monitor className="mr-2 h-4 w-4" />
                 System
               </DropdownMenuItem>
@@ -187,8 +230,9 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
           <DialogHeader>
             <DialogTitle>Delete Account</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete your account? This action cannot be undone.
-              All your data, including saved searches and email alerts, will be permanently deleted.
+              Are you sure you want to delete your account? This action cannot
+              be undone. All your data, including saved searches and email
+              alerts, will be permanently deleted.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -204,7 +248,9 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
               onClick={handleDeleteAccount}
               disabled={deleteAccountMutation.isPending}
             >
-              {deleteAccountMutation.isPending ? "Deleting..." : "Delete Account"}
+              {deleteAccountMutation.isPending
+                ? "Deleting..."
+                : "Delete Account"}
             </Button>
           </DialogFooter>
         </DialogContent>

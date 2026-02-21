@@ -55,6 +55,8 @@
     "nuqs": "^2.4.3",
     "odata-query": "^8.0.7",
     "p-limit": "^6.2.0",
+    "posthog-js": "^1.352.0",
+    "posthog-node": "^5.24.17",
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

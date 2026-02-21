@@ -12,6 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import posthog from "posthog-js";
+import { AnalyticsEvents } from "~/lib/analytics-events";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
 
@@ -20,7 +22,10 @@ interface SavedSearchesDropdownProps {
   iconOnly?: boolean;
 }
 
-export function SavedSearchesDropdown({ compact, iconOnly }: SavedSearchesDropdownProps = {}) {
+export function SavedSearchesDropdown({
+  compact,
+  iconOnly,
+}: SavedSearchesDropdownProps = {}) {
   const router = useRouter();
   const utils = api.useUtils();
 
@@ -36,7 +41,7 @@ export function SavedSearchesDropdown({ compact, iconOnly }: SavedSearchesDropdo
 
       // Optimistically remove the item
       utils.savedSearches.list.setData(undefined, (old) =>
-        old?.filter((search) => search.id !== id)
+        old?.filter((search) => search.id !== id),
       );
 
       return { previousSearches };
@@ -58,18 +63,35 @@ export function SavedSearchesDropdown({ compact, iconOnly }: SavedSearchesDropdo
   });
 
   const handleLoadSearch = (search: NonNullable<typeof savedSearches>[0]) => {
+    posthog.capture(AnalyticsEvents.SAVED_SEARCH_LOADED, {
+      search_id: search.id,
+      search_name: search.name,
+      query: search.query,
+      source: "dropdown",
+    });
     router.push(buildSearchUrl(search.query, search.filters));
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    posthog.capture(AnalyticsEvents.SAVED_SEARCH_DELETED, {
+      search_id: id,
+      source: "dropdown",
+    });
     deleteMutation.mutate({ id });
   };
 
   if (isLoading) {
     return (
-      <Button variant="outline" size={compact || iconOnly ? "sm" : "default"} className={compact || iconOnly ? "h-8 text-xs" : ""} disabled>
-        <FolderOpen className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      <Button
+        variant="outline"
+        size={compact || iconOnly ? "sm" : "default"}
+        className={compact || iconOnly ? "h-8 text-xs" : ""}
+        disabled
+      >
+        <FolderOpen
+          className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
+        />
         {!iconOnly && "Saved"}
       </Button>
     );
@@ -82,8 +104,14 @@ export function SavedSearchesDropdown({ compact, iconOnly }: SavedSearchesDropdo
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size={compact || iconOnly ? "sm" : "default"} className={compact || iconOnly ? "h-8 text-xs" : ""}>
-          <BookmarkCheck className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        <Button
+          variant="outline"
+          size={compact || iconOnly ? "sm" : "default"}
+          className={compact || iconOnly ? "h-8 text-xs" : ""}
+        >
+          <BookmarkCheck
+            className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
+          />
           {iconOnly ? savedSearches.length : `Saved (${savedSearches.length})`}
         </Button>
       </DropdownMenuTrigger>
@@ -105,7 +133,7 @@ export function SavedSearchesDropdown({ compact, iconOnly }: SavedSearchesDropdo
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+              className="hover:bg-destructive hover:text-destructive-foreground h-6 w-6 p-0"
               onClick={(e) => handleDelete(e, search.id)}
               disabled={deleteMutation.isPending}
             >

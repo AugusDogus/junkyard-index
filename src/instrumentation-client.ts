@@ -3,8 +3,12 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
-import { replayIntegration } from "@sentry/nextjs";
-import { captureRouterTransitionStart } from "@sentry/nextjs";
+import {
+  captureRouterTransitionStart,
+  replayIntegration,
+} from "@sentry/nextjs";
+import posthog from "posthog-js";
+import { env } from "~/env";
 
 Sentry.init({
   dsn: "https://33d625a367d4c7e056ec4b7541212efc@o4510218619322368.ingest.us.sentry.io/4510723310485504",
@@ -28,6 +32,11 @@ Sentry.init({
   // Enable sending user PII (Personally Identifiable Information)
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
+});
+
+posthog.init(env.NEXT_PUBLIC_POSTHOG_KEY, {
+  api_host: env.NEXT_PUBLIC_POSTHOG_HOST,
+  defaults: "2026-01-30",
 });
 
 export const onRouterTransitionStart = captureRouterTransitionStart;

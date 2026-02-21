@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import * as schema from "~/schema";
+import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { sendTestDM } from "~/lib/discord";
 import { polarClient } from "~/lib/auth";
@@ -34,10 +35,12 @@ export const userRouter = createTRPCRouter({
       const [discordAccount] = await ctx.db
         .select({ accountId: schema.account.accountId })
         .from(schema.account)
-        .where(and(
-          eq(schema.account.userId, ctx.user.id),
-          eq(schema.account.providerId, "discord")
-        ))
+        .where(
+          and(
+            eq(schema.account.userId, ctx.user.id),
+            eq(schema.account.providerId, "discord"),
+          ),
+        )
         .limit(1);
 
       if (discordAccount?.accountId) {
@@ -55,7 +58,9 @@ export const userRouter = createTRPCRouter({
 
     return {
       hasDiscordLinked: isValidDiscordId,
-      discordAppInstalled: isValidDiscordId ? userRecord.discordAppInstalled : false,
+      discordAppInstalled: isValidDiscordId
+        ? userRecord.discordAppInstalled
+        : false,
     };
   }),
 
@@ -73,6 +78,11 @@ export const userRouter = createTRPCRouter({
       .update(schema.savedSearch)
       .set({ discordAlertsEnabled: false })
       .where(eq(schema.savedSearch.userId, ctx.user.id));
+
+    posthog.capture({
+      distinctId: ctx.user.id,
+      event: "discord_app_disconnected",
+    });
 
     return { success: true };
   }),
@@ -96,10 +106,12 @@ export const userRouter = createTRPCRouter({
       const [discordAccount] = await ctx.db
         .select({ accountId: schema.account.accountId })
         .from(schema.account)
-        .where(and(
-          eq(schema.account.userId, ctx.user.id),
-          eq(schema.account.providerId, "discord")
-        ))
+        .where(
+          and(
+            eq(schema.account.userId, ctx.user.id),
+            eq(schema.account.providerId, "discord"),
+          ),
+        )
         .limit(1);
 
       if (discordAccount?.accountId) {
@@ -115,7 +127,8 @@ export const userRouter = createTRPCRouter({
     if (!discordId) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "Please link your Discord account first by signing in with Discord.",
+        message:
+          "Please link your Discord account first by signing in with Discord.",
       });
     }
 
@@ -134,9 +147,15 @@ export const userRouter = createTRPCRouter({
     const result = await sendTestDM(discordId, hasActiveSubscription);
 
     if (!result.success) {
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "discord_app_verify_failed",
+        properties: { reason: "dm_failed" },
+      });
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: "Could not send you a DM. Please make sure you've installed the Junkyard Index app on Discord.",
+        message:
+          "Could not send you a DM. Please make sure you've installed the Junkyard Index app on Discord.",
       });
     }
 
@@ -146,10 +165,20 @@ export const userRouter = createTRPCRouter({
       .set({ discordAppInstalled: true })
       .where(eq(schema.user.id, ctx.user.id));
 
+    posthog.capture({
+      distinctId: ctx.user.id,
+      event: "discord_app_verified",
+    });
+
     return { success: true };
   }),
 
   deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+    posthog.capture({
+      distinctId: ctx.user.id,
+      event: "account_deleted",
+    });
+
     // Delete the user - cascade delete will handle sessions, accounts, and saved searches
     await ctx.db.delete(schema.user).where(eq(schema.user.id, ctx.user.id));
 

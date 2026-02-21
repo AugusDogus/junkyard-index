@@ -7,6 +7,7 @@ import { polarClient } from "~/lib/auth";
 import { db } from "~/lib/db";
 import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailAlert } from "~/lib/email";
+import posthog from "~/lib/posthog-server";
 import { buildSearchUrl } from "~/lib/search-utils";
 import type { Vehicle } from "~/lib/types";
 import { savedSearch, user } from "~/schema";
@@ -95,7 +96,7 @@ async function sendNotifications(
   search: SearchWithAlerts,
   userInfo: UserInfo,
   newVehicles: Vehicle[],
-  searchUrl: string
+  searchUrl: string,
 ): Promise<{ emailSent: boolean; discordSent: boolean; errors: string[] }> {
   const errors: string[] = [];
   let emailSent = false;
@@ -124,9 +125,14 @@ async function sendNotifications(
     if (!userInfo.discordId) {
       errors.push("Discord alerts enabled but user has no Discord ID linked");
     } else if (!userInfo.discordAppInstalled) {
-      errors.push("Discord alerts enabled but user has not installed the Discord app");
+      errors.push(
+        "Discord alerts enabled but user has not installed the Discord app",
+      );
     } else {
-      const discordResult = await sendDiscordAlert(userInfo.discordId, alertData);
+      const discordResult = await sendDiscordAlert(
+        userInfo.discordId,
+        alertData,
+      );
       if (discordResult.success) {
         discordSent = true;
       } else {
@@ -140,12 +146,17 @@ async function sendNotifications(
 
 async function processSearch(
   search: SearchWithAlerts,
-  userInfo: UserInfo
+  userInfo: UserInfo,
 ): Promise<SearchResult> {
   // Parse and validate filters
-  const filtersParseResult = filtersSchema.safeParse(JSON.parse(search.filters));
+  const filtersParseResult = filtersSchema.safeParse(
+    JSON.parse(search.filters),
+  );
   if (!filtersParseResult.success) {
-    console.error(`Invalid filters for search ${search.id}:`, filtersParseResult.error);
+    console.error(
+      `Invalid filters for search ${search.id}:`,
+      filtersParseResult.error,
+    );
     return { searchId: search.id, status: "invalid_filters" };
   }
   const filters = filtersParseResult.data;
@@ -161,21 +172,29 @@ async function processSearch(
     colors: filters.colors,
     states: filters.states,
     yearRange:
-      filters.minYear && filters.maxYear ? [filters.minYear, filters.maxYear] : undefined,
+      filters.minYear && filters.maxYear
+        ? [filters.minYear, filters.maxYear]
+        : undefined,
   });
 
   // Apply salvageYards filter client-side (filters by location.name)
   const filteredVehicles = filters.salvageYards?.length
-    ? searchResult.vehicles.filter((v) => filters.salvageYards!.includes(v.location.name))
+    ? searchResult.vehicles.filter((v) =>
+        filters.salvageYards!.includes(v.location.name),
+      )
     : searchResult.vehicles;
 
   // Build stable fingerprints so provider-side ID churn doesn't retrigger old inventory as "new"
-  const currentVehicleFingerprints = filteredVehicles.map((v) => getVehicleFingerprint(v));
+  const currentVehicleFingerprints = filteredVehicles.map((v) =>
+    getVehicleFingerprint(v),
+  );
 
   // Parse and validate previously stored vehicle IDs
   let previousVehicleFingerprints: string[] = [];
   if (search.lastVehicleIds) {
-    const idsParseResult = vehicleIdsSchema.safeParse(JSON.parse(search.lastVehicleIds));
+    const idsParseResult = vehicleIdsSchema.safeParse(
+      JSON.parse(search.lastVehicleIds),
+    );
     if (idsParseResult.success) {
       previousVehicleFingerprints = idsParseResult.data;
     }
@@ -204,11 +223,11 @@ async function processSearch(
 
   // Find fingerprints in current results that weren't in previous results
   const newVehicleFingerprints = currentVehicleFingerprints.filter(
-    (fingerprint) => !previousFingerprintsSet.has(fingerprint)
+    (fingerprint) => !previousFingerprintsSet.has(fingerprint),
   );
   const newVehicleFingerprintsSet = new Set(newVehicleFingerprints);
   const newVehicles = filteredVehicles.filter((v) =>
-    newVehicleFingerprintsSet.has(getVehicleFingerprint(v))
+    newVehicleFingerprintsSet.has(getVehicleFingerprint(v)),
   );
 
   // If this is the first check, just store the IDs without sending notifications
@@ -245,7 +264,7 @@ async function processSearch(
     search,
     userInfo,
     newVehicles,
-    searchUrl
+    searchUrl,
   );
 
   // Update the stored vehicle IDs regardless of notification success
@@ -256,6 +275,19 @@ async function processSearch(
       lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
     })
     .where(eq(savedSearch.id, search.id));
+
+  if (emailSent || discordSent) {
+    posthog.capture({
+      distinctId: search.userId,
+      event: "alert_notification_sent",
+      properties: {
+        search_id: search.id,
+        new_vehicle_count: newVehicles.length,
+        email_sent: emailSent,
+        discord_sent: discordSent,
+      },
+    });
+  }
 
   // Build status message
   const statusParts: string[] = [];
@@ -304,21 +336,25 @@ export async function GET(request: NextRequest) {
           // Either email or discord alerts must be enabled
           or(
             eq(savedSearch.emailAlertsEnabled, true),
-            eq(savedSearch.discordAlertsEnabled, true)
+            eq(savedSearch.discordAlertsEnabled, true),
           ),
           // Not currently being processed (or lock is stale)
           or(
             isNull(savedSearch.processingLock),
-            lt(savedSearch.processingLock, staleLockThreshold)
-          )
-        )
+            lt(savedSearch.processingLock, staleLockThreshold),
+          ),
+        ),
       );
 
     if (searchesWithAlerts.length === 0) {
-      return NextResponse.json({ message: "No searches with alerts enabled (or all are locked)" });
+      return NextResponse.json({
+        message: "No searches with alerts enabled (or all are locked)",
+      });
     }
 
-    console.log(`Processing ${searchesWithAlerts.length} searches with alerts enabled`);
+    console.log(
+      `Processing ${searchesWithAlerts.length} searches with alerts enabled`,
+    );
 
     const results: SearchResult[] = [];
 
@@ -350,7 +386,9 @@ export async function GET(request: NextRequest) {
               .limit(1);
 
             if (!userInfo?.email) {
-              console.warn(`No email found for user ${search.userId}, search ${search.id}`);
+              console.warn(
+                `No email found for user ${search.userId}, search ${search.id}`,
+              );
               // Release lock
               await db
                 .update(savedSearch)
@@ -362,9 +400,10 @@ export async function GET(request: NextRequest) {
             // Verify user still has an active subscription (required for notifications)
             // (Webhook should disable alerts on cancellation, but double-check)
             try {
-              const customerState = await polarClient.customers.getStateExternal({
-                externalId: search.userId,
-              });
+              const customerState =
+                await polarClient.customers.getStateExternal({
+                  externalId: search.userId,
+                });
               if (customerState.activeSubscriptions.length === 0) {
                 // Auto-disable alerts for this user and release lock
                 await db
@@ -375,7 +414,15 @@ export async function GET(request: NextRequest) {
                     processingLock: null,
                   })
                   .where(eq(savedSearch.id, search.id));
-                return { searchId: search.id, status: "subscription_expired_disabled" };
+                posthog.capture({
+                  distinctId: search.userId,
+                  event: "alert_subscription_expired",
+                  properties: { search_id: search.id },
+                });
+                return {
+                  searchId: search.id,
+                  status: "subscription_expired_disabled",
+                };
               }
             } catch {
               // Customer not found in Polar - disable alerts and release lock
@@ -387,7 +434,10 @@ export async function GET(request: NextRequest) {
                   processingLock: null,
                 })
                 .where(eq(savedSearch.id, search.id));
-              return { searchId: search.id, status: "no_subscription_disabled" };
+              return {
+                searchId: search.id,
+                status: "no_subscription_disabled",
+              };
             }
 
             const result = await processSearch(search, {
@@ -420,11 +470,25 @@ export async function GET(request: NextRequest) {
               status: `error: ${error instanceof Error ? error.message : "Unknown error"}`,
             };
           }
-        })
+        }),
       );
 
       results.push(...batchResults);
     }
+
+    const notificationsSent = results.filter(
+      (r) => r.emailSent || r.discordSent,
+    ).length;
+    const errored = results.filter((r) => r.status.startsWith("error")).length;
+    posthog.capture({
+      distinctId: "system",
+      event: "alert_cron_completed",
+      properties: {
+        total_processed: searchesWithAlerts.length,
+        notifications_sent: notificationsSent,
+        errors: errored,
+      },
+    });
 
     return NextResponse.json({
       message: "Cron job completed",
@@ -436,7 +500,7 @@ export async function GET(request: NextRequest) {
     Sentry.captureException(error, { tags: { context: "cron-check-alerts" } });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

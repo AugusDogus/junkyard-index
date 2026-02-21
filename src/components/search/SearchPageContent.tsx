@@ -3,7 +3,8 @@
 import { AlertCircle, Search } from "lucide-react";
 import Link from "next/link";
 import { useQueryState } from "nuqs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import posthog from "posthog-js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
@@ -27,6 +28,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { useSearchFilters } from "~/hooks/use-search-filters";
+import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { ERROR_MESSAGES, SEARCH_CONFIG } from "~/lib/constants";
 import type { Vehicle } from "~/lib/types";
 import { api } from "~/trpc/react";
@@ -40,6 +42,7 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
   const { searchStateRef } = useSearchVisibility();
+  const lastTrackedQuery = useRef("");
 
   // Prefetch saved searches early to avoid waterfall
   api.savedSearches.list.useQuery(undefined, {
@@ -65,8 +68,9 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   // Polar adds customer_session_token to the URL after successful checkout
   const [subscriptionParam, setSubscriptionParam] =
     useQueryState("subscription");
-  const [customerSessionToken, setCustomerSessionToken] =
-    useQueryState("customer_session_token");
+  const [customerSessionToken, setCustomerSessionToken] = useQueryState(
+    "customer_session_token",
+  );
 
   useEffect(() => {
     // Check for either subscription=success OR customer_session_token (Polar's redirect)
@@ -74,6 +78,9 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
       subscriptionParam === "success" || customerSessionToken;
 
     if (isCheckoutSuccess) {
+      posthog.capture(AnalyticsEvents.SUBSCRIPTION_ACTIVATED, {
+        source: "checkout_redirect",
+      });
       toast.success(
         "Subscription activated! Email alerts are now enabled for your saved searches.",
       );
@@ -151,6 +158,35 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     },
   );
 
+  // Track search outcomes
+  useEffect(() => {
+    if (!debouncedQuery || searchLoading || !searchResults) return;
+    if (lastTrackedQuery.current === debouncedQuery) return;
+    lastTrackedQuery.current = debouncedQuery;
+
+    const ctx = buildSearchContext(
+      debouncedQuery,
+      searchResults.totalCount,
+      searchResults.searchTime,
+      searchResults.locationsCovered,
+    );
+
+    if (searchResults.totalCount === 0) {
+      posthog.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
+    } else {
+      posthog.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
+    }
+  }, [debouncedQuery, searchLoading, searchResults]);
+
+  useEffect(() => {
+    if (searchError && debouncedQuery) {
+      posthog.capture(AnalyticsEvents.SEARCH_FAILED, {
+        query: debouncedQuery,
+        error: searchError.message,
+      });
+    }
+  }, [searchError, debouncedQuery]);
+
   // Use the search filters hook with actual search results
   const filters = useSearchFilters(searchResults?.vehicles, currentYear);
 
@@ -174,7 +210,10 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
   // Memoized sort handler for filter state
   const handleSortChange = useCallback(
-    (value: string) => filters.setSortBy(value),
+    (value: string) => {
+      posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
+      filters.setSortBy(value);
+    },
     [filters],
   );
 
@@ -186,6 +225,9 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
 
   // Clear all filters and close sidebar
   const clearAllFilters = useCallback(() => {
+    posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
+      previous_filter_count: filters.activeFilterCount,
+    });
     filters.clearAllFilters();
     setShowFilters(false);
   }, [filters]);

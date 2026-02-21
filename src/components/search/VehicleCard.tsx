@@ -3,7 +3,8 @@
 import { Eye, ImageIcon, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { memo } from "react";
+import posthog from "posthog-js";
+import { memo, useCallback } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -12,12 +13,25 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
+import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 import wsrvLoader from "~/lib/wsrvLoader";
 
 function VehicleCardComponent({ vehicle }: VehicleCardProps) {
   const primaryImage = vehicle.images[0];
   const hasMultipleImages = vehicle.images.length > 1;
+
+  const handleDetailsClick = useCallback(() => {
+    posthog.capture(AnalyticsEvents.VEHICLE_DETAILS_CLICKED, {
+      vehicle_id: vehicle.id,
+      year: vehicle.year,
+      make: vehicle.make,
+      model: vehicle.model,
+      source: vehicle.source,
+      location_code: vehicle.location.locationCode,
+      has_image: vehicle.images.length > 0,
+    });
+  }, [vehicle]);
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -129,6 +143,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
             href={vehicle.detailsUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleDetailsClick}
           >
             <Eye className="mr-1.5 h-4 w-4" />
             View Details

@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { polarClient } from "~/lib/auth";
+import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { savedSearch, user } from "~/schema";
 
@@ -55,6 +56,24 @@ export const savedSearchesRouter = createTRPCRouter({
         updatedAt: now,
       });
 
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "saved_search_created",
+        properties: {
+          search_id: id,
+          search_name: input.name,
+          query: input.query,
+          has_query: input.query.trim().length > 0,
+          query_length: input.query.trim().length,
+          email_alerts_enabled: input.emailAlertsEnabled ?? false,
+          discord_alerts_enabled: input.discordAlertsEnabled ?? false,
+          has_makes_filter: (input.filters.makes?.length ?? 0) > 0,
+          has_colors_filter: (input.filters.colors?.length ?? 0) > 0,
+          has_states_filter: (input.filters.states?.length ?? 0) > 0,
+          has_yards_filter: (input.filters.salvageYards?.length ?? 0) > 0,
+        },
+      });
+
       return { id };
     }),
 
@@ -69,6 +88,14 @@ export const savedSearchesRouter = createTRPCRouter({
             eq(savedSearch.userId, ctx.user.id),
           ),
         );
+
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "saved_search_deleted",
+        properties: {
+          search_id: input.id,
+        },
+      });
 
       return { success: true };
     }),
@@ -85,7 +112,8 @@ export const savedSearchesRouter = createTRPCRouter({
           if (customerState.activeSubscriptions.length === 0) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: "An active subscription is required to enable email alerts",
+              message:
+                "An active subscription is required to enable email alerts",
             });
           }
         } catch (error) {
@@ -96,7 +124,8 @@ export const savedSearchesRouter = createTRPCRouter({
           // Otherwise, treat as no subscription (customer not found, etc.)
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "An active subscription is required to enable email alerts",
+            message:
+              "An active subscription is required to enable email alerts",
           });
         }
       }
@@ -110,6 +139,15 @@ export const savedSearchesRouter = createTRPCRouter({
             eq(savedSearch.userId, ctx.user.id),
           ),
         );
+
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "saved_search_email_alerts_toggled",
+        properties: {
+          search_id: input.id,
+          enabled: input.enabled,
+        },
+      });
 
       return { success: true };
     }),
@@ -127,7 +165,8 @@ export const savedSearchesRouter = createTRPCRouter({
           if (customerState.activeSubscriptions.length === 0) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: "An active subscription is required to enable Discord alerts",
+              message:
+                "An active subscription is required to enable Discord alerts",
             });
           }
         } catch (error) {
@@ -136,7 +175,8 @@ export const savedSearchesRouter = createTRPCRouter({
           }
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "An active subscription is required to enable Discord alerts",
+            message:
+              "An active subscription is required to enable Discord alerts",
           });
         }
 
@@ -159,7 +199,8 @@ export const savedSearchesRouter = createTRPCRouter({
         if (!userData.discordAppInstalled) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: "Please install the Discord app from Settings to receive DMs",
+            message:
+              "Please install the Discord app from Settings to receive DMs",
           });
         }
       }
@@ -173,6 +214,15 @@ export const savedSearchesRouter = createTRPCRouter({
             eq(savedSearch.userId, ctx.user.id),
           ),
         );
+
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "saved_search_discord_alerts_toggled",
+        properties: {
+          search_id: input.id,
+          enabled: input.enabled,
+        },
+      });
 
       return { success: true };
     }),

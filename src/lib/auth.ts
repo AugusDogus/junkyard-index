@@ -1,4 +1,10 @@
-import { checkout, polar, portal, usage, webhooks } from "@polar-sh/better-auth";
+import {
+  checkout,
+  polar,
+  portal,
+  usage,
+  webhooks,
+} from "@polar-sh/better-auth";
 import { Polar } from "@polar-sh/sdk";
 import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
@@ -8,6 +14,7 @@ import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
 import { db } from "~/lib/db";
+import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
 
 const resend = new Resend(env.RESEND_API_KEY);
@@ -27,7 +34,9 @@ export const auth = betterAuth({
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
       const emailHtml = await render(PasswordReset({ resetUrl: url }));
-      const emailText = await render(PasswordReset({ resetUrl: url }), { plainText: true });
+      const emailText = await render(PasswordReset({ resetUrl: url }), {
+        plainText: true,
+      });
 
       await resend.emails.send({
         from: `Junkyard Index <${env.RESEND_FROM_EMAIL}>`,
@@ -80,14 +89,27 @@ export const auth = betterAuth({
         usage(),
         webhooks({
           secret: env.POLAR_WEBHOOK_SECRET,
-          onSubscriptionCreated: async () => {
-            // Track Google Ads conversion when a new subscription is created
-            if (env.GOOGLE_ADS_CONVERSION_ID && env.GOOGLE_ADS_CONVERSION_LABEL) {
+          onSubscriptionCreated: async (payload) => {
+            const externalId = payload.data.customer?.externalId;
+            if (externalId) {
+              posthog.capture({
+                distinctId: externalId,
+                event: "subscription_created",
+              });
+            }
+
+            if (
+              env.GOOGLE_ADS_CONVERSION_ID &&
+              env.GOOGLE_ADS_CONVERSION_LABEL
+            ) {
               try {
                 const conversionUrl = new URL(
-                  `https://www.googleadservices.com/pagead/conversion/${env.GOOGLE_ADS_CONVERSION_ID}/`
+                  `https://www.googleadservices.com/pagead/conversion/${env.GOOGLE_ADS_CONVERSION_ID}/`,
                 );
-                conversionUrl.searchParams.set("label", env.GOOGLE_ADS_CONVERSION_LABEL);
+                conversionUrl.searchParams.set(
+                  "label",
+                  env.GOOGLE_ADS_CONVERSION_LABEL,
+                );
                 conversionUrl.searchParams.set("value", "1.0");
                 conversionUrl.searchParams.set("currency", "USD");
 
@@ -98,12 +120,22 @@ export const auth = betterAuth({
             }
           },
           onCustomerStateChanged: async (payload) => {
-            // Triggered when anything regarding a customer changes (subscription status, etc.)
-            // Check if customer has any active subscriptions
             const customerState = payload.data;
-            const hasActiveSubscription = customerState.activeSubscriptions.length > 0;
+            const hasActiveSubscription =
+              customerState.activeSubscriptions.length > 0;
 
-            // If no active subscriptions, disable email alerts for this customer
+            if (customerState.externalId) {
+              posthog.capture({
+                distinctId: customerState.externalId,
+                event: "subscription_state_changed",
+                properties: {
+                  has_active_subscription: hasActiveSubscription,
+                  active_subscription_count:
+                    customerState.activeSubscriptions.length,
+                },
+              });
+            }
+
             if (!hasActiveSubscription && customerState.externalId) {
               await db
                 .update(schema.savedSearch)

@@ -1,8 +1,10 @@
 "use client";
 
+import posthog from "posthog-js";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, signUp } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -27,6 +29,7 @@ export function SignUpForm() {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+    posthog.capture(AnalyticsEvents.SIGN_UP_SUBMITTED, { method: "email" });
 
     try {
       const result = await signUp.email({
@@ -36,13 +39,26 @@ export function SignUpForm() {
       });
 
       if (result.error) {
+        posthog.capture(AnalyticsEvents.SIGN_UP_FAILED, {
+          method: "email",
+          error: result.error.message ?? "unknown",
+        });
         setError(result.error.message || "Failed to sign up");
       } else {
+        posthog.identify(result.data?.user?.id, {
+          email: result.data?.user?.email,
+          name: result.data?.user?.name,
+        });
+        posthog.capture(AnalyticsEvents.SIGN_UP_SUCCEEDED, { method: "email" });
         router.push(returnTo || "/search");
         router.refresh();
       }
     } catch (err) {
       console.error("Sign up error:", err);
+      posthog.capture(AnalyticsEvents.SIGN_UP_FAILED, {
+        method: "email",
+        error: "unexpected",
+      });
       setError("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -52,6 +68,9 @@ export function SignUpForm() {
   const handleDiscordSignUp = async () => {
     setError(null);
     setIsDiscordLoading(true);
+    posthog.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
+      context: "sign_up",
+    });
 
     try {
       await signIn.social({
@@ -109,7 +128,7 @@ export function SignUpForm() {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
             tabIndex={-1}
           >
             {showPassword ? (
@@ -128,7 +147,11 @@ export function SignUpForm() {
         </Alert>
       )}
 
-      <Button type="submit" className="w-full" disabled={isLoading || isDiscordLoading}>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isLoading || isDiscordLoading}
+      >
         {isLoading ? "Creating account..." : "Sign Up"}
       </Button>
 
@@ -137,7 +160,9 @@ export function SignUpForm() {
           <span className="w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+          <span className="bg-background text-muted-foreground px-2">
+            Or continue with
+          </span>
         </div>
       </div>
 
@@ -155,7 +180,11 @@ export function SignUpForm() {
       <div className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}
         <Link
-          href={returnTo ? `/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}` : "/auth/sign-in"}
+          href={
+            returnTo
+              ? `/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`
+              : "/auth/sign-in"
+          }
           className="text-primary hover:underline"
         >
           Sign in

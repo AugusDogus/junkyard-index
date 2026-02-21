@@ -25,6 +25,8 @@ import { DiscordIcon } from "~/components/ui/icons";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
+import posthog from "posthog-js";
+import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
@@ -52,11 +54,17 @@ interface SaveSearchDialogProps {
   iconOnly?: boolean;
 }
 
-export function storePendingSaveSearch(query: string, filters: SaveSearchFilters) {
+export function storePendingSaveSearch(
+  query: string,
+  filters: SaveSearchFilters,
+) {
   sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify({ query, filters }));
 }
 
-export function getPendingSaveSearch(): { query: string; filters: SaveSearchFilters } | null {
+export function getPendingSaveSearch(): {
+  query: string;
+  filters: SaveSearchFilters;
+} | null {
   const stored = sessionStorage.getItem(PENDING_SAVE_KEY);
   if (!stored) return null;
   try {
@@ -97,21 +105,25 @@ export function SaveSearchDialog({
   const [isNavigatingToAuth, setIsNavigatingToAuth] = useState(false);
 
   const utils = api.useUtils();
-  
+
   const { data: subscriptionData } = api.subscription.getCustomerState.useQuery(
     undefined,
-    { enabled: isLoggedIn }
+    { enabled: isLoggedIn },
   );
-  const hasActiveSubscription = subscriptionData?.hasActiveSubscription ?? false;
+  const hasActiveSubscription =
+    subscriptionData?.hasActiveSubscription ?? false;
 
-  const { data: notificationSettings } = api.user.getNotificationSettings.useQuery(
-    undefined,
-    { enabled: isLoggedIn }
-  );
-  const hasDiscordSetup = notificationSettings?.hasDiscordLinked && notificationSettings?.discordAppInstalled;
+  const { data: notificationSettings } =
+    api.user.getNotificationSettings.useQuery(undefined, {
+      enabled: isLoggedIn,
+    });
+  const hasDiscordSetup =
+    notificationSettings?.hasDiscordLinked &&
+    notificationSettings?.discordAppInstalled;
 
   // Determine if this save will require checkout
-  const wantsNotifications = notificationsEnabled && (emailEnabled || discordEnabled);
+  const wantsNotifications =
+    notificationsEnabled && (emailEnabled || discordEnabled);
   const needsCheckout = wantsNotifications && !hasActiveSubscription;
 
   const createMutation = api.savedSearches.create.useMutation({
@@ -137,7 +149,7 @@ export function SaveSearchDialog({
         };
 
         utils.savedSearches.list.setData(undefined, (old) =>
-          old ? [...old, optimisticSearch] : [optimisticSearch]
+          old ? [...old, optimisticSearch] : [optimisticSearch],
         );
 
         setOpen(false);
@@ -158,20 +170,36 @@ export function SaveSearchDialog({
       }
     },
     onSuccess: async (_data, variables) => {
-      // If user wanted notifications but doesn't have subscription, redirect to checkout
-      if ((variables.emailAlertsEnabled || variables.discordAlertsEnabled) && !hasActiveSubscription) {
+      posthog.capture(AnalyticsEvents.SAVED_SEARCH_CREATED, {
+        query,
+        search_name: variables.name,
+        email_alerts_enabled: variables.emailAlertsEnabled ?? false,
+        discord_alerts_enabled: variables.discordAlertsEnabled ?? false,
+      });
+
+      if (
+        (variables.emailAlertsEnabled || variables.discordAlertsEnabled) &&
+        !hasActiveSubscription
+      ) {
         setIsRedirecting(true);
+        posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
+          source: "save_search_dialog",
+        });
         try {
-          await authClient.checkout({ 
+          await authClient.checkout({
             slug: "Email-Notifications",
           });
         } catch (error) {
           console.error("Failed to redirect to checkout:", error);
-          toast.error("Failed to open checkout. Please try again from your saved searches.");
+          toast.error(
+            "Failed to open checkout. Please try again from your saved searches.",
+          );
           setIsRedirecting(false);
           setOpen(false);
           resetForm();
-          toast.success("Search saved! Enable notifications from your saved searches.");
+          toast.success(
+            "Search saved! Enable notifications from your saved searches.",
+          );
         }
       } else {
         toast.success("Search saved!");
@@ -192,10 +220,11 @@ export function SaveSearchDialog({
 
   const handleSave = () => {
     if (!name.trim()) return;
-    
+
     const enableEmail = notificationsEnabled && emailEnabled;
-    const enableDiscord = notificationsEnabled && discordEnabled && !!hasDiscordSetup;
-    
+    const enableDiscord =
+      notificationsEnabled && discordEnabled && !!hasDiscordSetup;
+
     createMutation.mutate({
       name: name.trim(),
       query,
@@ -209,11 +238,15 @@ export function SaveSearchDialog({
 
   const handleButtonClick = () => {
     if (isLoggedIn) {
+      posthog.capture(AnalyticsEvents.SAVE_SEARCH_DIALOG_OPENED, { query });
       setOpen(true);
     } else {
+      posthog.capture(AnalyticsEvents.SAVED_SEARCH_AUTH_REQUIRED, { query });
       setIsNavigatingToAuth(true);
       storePendingSaveSearch(query, filters);
-      const returnTo = encodeURIComponent(window.location.pathname + window.location.search + "&saveSearch=1");
+      const returnTo = encodeURIComponent(
+        window.location.pathname + window.location.search + "&saveSearch=1",
+      );
       router.push(`/auth/sign-in?returnTo=${returnTo}`);
     }
   };
@@ -228,7 +261,10 @@ export function SaveSearchDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => !isSaving && setOpen(newOpen)}>
+    <Dialog
+      open={open}
+      onOpenChange={(newOpen) => !isSaving && setOpen(newOpen)}
+    >
       <DialogTrigger asChild>
         <Button
           variant="outline"
@@ -242,7 +278,9 @@ export function SaveSearchDialog({
             }
           }}
         >
-          <Bookmark className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          <Bookmark
+            className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
+          />
           {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
         </Button>
       </DialogTrigger>
@@ -304,10 +342,13 @@ export function SaveSearchDialog({
                   onCheckedChange={handleNotificationsToggle}
                 />
                 <div>
-                  <Label htmlFor="notifications" className="cursor-pointer font-medium">
+                  <Label
+                    htmlFor="notifications"
+                    className="cursor-pointer font-medium"
+                  >
                     Enable notifications
                     {!hasActiveSubscription && (
-                      <span className="text-muted-foreground ml-1.5 font-normal text-sm">
+                      <span className="text-muted-foreground ml-1.5 text-sm font-normal">
                         ($3/mo)
                       </span>
                     )}
@@ -327,7 +368,7 @@ export function SaveSearchDialog({
                   <ChevronDown
                     className={cn(
                       "h-4 w-4 transition-transform",
-                      notificationsExpanded && "rotate-180"
+                      notificationsExpanded && "rotate-180",
                     )}
                   />
                   <span className="sr-only">Toggle notification options</span>
@@ -336,25 +377,29 @@ export function SaveSearchDialog({
             </div>
 
             <CollapsibleContent>
-              <div className="border-t px-4 pb-4 pt-3 space-y-3">
+              <div className="space-y-3 border-t px-4 pt-3 pb-4">
                 {/* Email Option */}
                 <div className="flex items-center gap-3">
                   <Checkbox
                     id="email-alerts"
                     checked={emailEnabled}
-                    onCheckedChange={(checked) => setEmailEnabled(checked === true)}
+                    onCheckedChange={(checked) =>
+                      setEmailEnabled(checked === true)
+                    }
                     disabled={!notificationsEnabled}
                   />
                   <div className="flex items-center gap-2">
-                    <Mail className={cn(
-                      "h-4 w-4",
-                      !notificationsEnabled && "text-muted-foreground"
-                    )} />
+                    <Mail
+                      className={cn(
+                        "h-4 w-4",
+                        !notificationsEnabled && "text-muted-foreground",
+                      )}
+                    />
                     <Label
                       htmlFor="email-alerts"
                       className={cn(
                         "cursor-pointer text-sm",
-                        !notificationsEnabled && "text-muted-foreground"
+                        !notificationsEnabled && "text-muted-foreground",
                       )}
                     >
                       Email
@@ -368,19 +413,25 @@ export function SaveSearchDialog({
                     <Checkbox
                       id="discord-alerts"
                       checked={discordEnabled}
-                      onCheckedChange={(checked) => setDiscordEnabled(checked === true)}
+                      onCheckedChange={(checked) =>
+                        setDiscordEnabled(checked === true)
+                      }
                       disabled={!notificationsEnabled || !hasDiscordSetup}
                     />
                     <div className="flex items-center gap-2">
-                      <DiscordIcon className={cn(
-                        "h-4 w-4",
-                        (!notificationsEnabled || !hasDiscordSetup) && "text-muted-foreground"
-                      )} />
+                      <DiscordIcon
+                        className={cn(
+                          "h-4 w-4",
+                          (!notificationsEnabled || !hasDiscordSetup) &&
+                            "text-muted-foreground",
+                        )}
+                      />
                       <Label
                         htmlFor="discord-alerts"
                         className={cn(
                           "cursor-pointer text-sm",
-                          (!notificationsEnabled || !hasDiscordSetup) && "text-muted-foreground"
+                          (!notificationsEnabled || !hasDiscordSetup) &&
+                            "text-muted-foreground",
                         )}
                       >
                         Discord
@@ -390,7 +441,7 @@ export function SaveSearchDialog({
                   {!hasDiscordSetup && (
                     <Link
                       href="/settings"
-                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
                     >
                       Setup
                       <ExternalLink className="h-3 w-3" />
@@ -399,9 +450,12 @@ export function SaveSearchDialog({
                 </div>
 
                 {!hasDiscordSetup && (
-                  <p className="text-xs text-muted-foreground pl-6">
+                  <p className="text-muted-foreground pl-6 text-xs">
                     Connect Discord in{" "}
-                    <Link href="/settings" className="underline hover:text-foreground">
+                    <Link
+                      href="/settings"
+                      className="hover:text-foreground underline"
+                    >
                       Settings
                     </Link>{" "}
                     to enable Discord notifications.
@@ -412,10 +466,7 @@ export function SaveSearchDialog({
           </Collapsible>
         </div>
         <DialogFooter>
-          <Button
-            onClick={handleSave}
-            disabled={!name.trim() || isSaving}
-          >
+          <Button onClick={handleSave} disabled={!name.trim() || isSaving}>
             {isRedirecting
               ? "Redirecting to checkout..."
               : createMutation.isPending
