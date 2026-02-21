@@ -272,11 +272,11 @@ function AlgoliaSearchInner({ isLoggedIn }: SearchPageContentProps) {
     [locationItems],
   );
 
-  const yearMin = yearBounds.min ?? 1900;
-  const yearMax = yearBounds.max ?? currentYear;
+  const yearMin = (yearBounds.min ?? 1900) as number;
+  const yearMax = (yearBounds.max ?? currentYear) as number;
   const yearRange: [number, number] = [
-    yearStart[0] !== -Infinity ? yearStart[0] : yearMin,
-    yearStart[1] !== Infinity ? yearStart[1] : yearMax,
+    (yearStart[0] != null && yearStart[0] !== -Infinity) ? yearStart[0] as number : yearMin,
+    (yearStart[1] != null && yearStart[1] !== Infinity) ? yearStart[1] as number : yearMax,
   ];
   const isYearFiltered =
     yearRange[0] !== yearMin || yearRange[1] !== yearMax;
