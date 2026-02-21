@@ -2,11 +2,19 @@
 
 import { AlertCircle, Search } from "lucide-react";
 import Link from "next/link";
-import { useQueryState } from "nuqs";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useDebounce } from "use-debounce";
+import {
+  Configure,
+  InstantSearch,
+  useInfiniteHits,
+  useRange,
+  useRefinementList,
+  useSearchBox,
+  useStats,
+} from "react-instantsearch";
+import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import { MorphingFilterBar } from "~/components/search/MorphingFilterBar";
@@ -27,29 +35,96 @@ import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
-import { useSearchFilters } from "~/hooks/use-search-filters";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import { ERROR_MESSAGES, SEARCH_CONFIG } from "~/lib/constants";
-import type { Vehicle } from "~/lib/types";
+import {
+  searchClient,
+  ALGOLIA_INDEX_NAME,
+} from "~/lib/algolia-search";
+import type { Vehicle, DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { api } from "~/trpc/react";
+
+/**
+ * Map an Algolia hit to the Vehicle type expected by VehicleCard and other components.
+ */
+function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
+  return {
+    id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
+    year: (hit.year as number) ?? 0,
+    make: (hit.make as string) ?? "",
+    model: (hit.model as string) ?? "",
+    color: (hit.color as string) ?? "",
+    vin: (hit.objectID as string) ?? "",
+    stockNumber: (hit.stockNumber as string) ?? "",
+    availableDate: (hit.availableDate as string) ?? "",
+    source: (hit.source as DataSource) ?? "pyp",
+    location: {
+      locationCode: (hit.locationCode as string) ?? "",
+      locationPageURL: "",
+      name: (hit.locationName as string) ?? "",
+      displayName: ((hit.locationName as string) ?? "").replace(
+        /^Pick Your Part - /,
+        "",
+      ),
+      address: "",
+      city: "",
+      state: (hit.state as string) ?? "",
+      stateAbbr: (hit.stateAbbr as string) ?? "",
+      zip: "",
+      phone: "",
+      lat: (hit._geoloc as { lat: number; lng: number })?.lat ?? 0,
+      lng: (hit._geoloc as { lat: number; lng: number })?.lng ?? 0,
+      distance: 0,
+      legacyCode: "",
+      primo: "",
+      source: (hit.source as DataSource) ?? "pyp",
+      urls: {
+        store: "",
+        interchange: "",
+        inventory: "",
+        prices: (hit.pricesUrl as string) ?? "",
+        directions: "",
+        sellACar: "",
+        contact: "",
+        customerServiceChat: null,
+        carbuyChat: null,
+        deals: "",
+        parts: (hit.partsUrl as string) ?? "",
+      },
+    },
+    yardLocation: {
+      section: (hit.section as string) ?? "",
+      row: (hit.row as string) ?? "",
+      space: (hit.space as string) ?? "",
+    },
+    images: (hit.imageUrl as string)
+      ? [{ url: hit.imageUrl as string }]
+      : [],
+    detailsUrl: (hit.detailsUrl as string) ?? "",
+    partsUrl: (hit.partsUrl as string) ?? "",
+    pricesUrl: (hit.pricesUrl as string) ?? "",
+    engine: (hit.engine as string) ?? undefined,
+    trim: (hit.trim as string) ?? undefined,
+    transmission: (hit.transmission as string) ?? undefined,
+  };
+}
 
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
 }
 
-export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
-  const [query, setQuery] = useQueryState("q", { defaultValue: "" });
+/**
+ * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
+ */
+function AlgoliaSearchInner({ isLoggedIn }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
   const { searchStateRef } = useSearchVisibility();
   const lastTrackedQuery = useRef("");
 
-  // Prefetch saved searches early to avoid waterfall
-  api.savedSearches.list.useQuery(undefined, {
-    enabled: isLoggedIn,
-  });
+  // Prefetch saved searches
+  api.savedSearches.list.useQuery(undefined, { enabled: isLoggedIn });
 
-  // Sidebar state (local only - not in URL)
+  // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
 
   // Auto-open save search dialog after auth redirect
@@ -65,7 +140,6 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   }, [saveSearchParam, isLoggedIn, setSaveSearchParam]);
 
   // Handle subscription success
-  // Polar adds customer_session_token to the URL after successful checkout
   const [subscriptionParam, setSubscriptionParam] =
     useQueryState("subscription");
   const [customerSessionToken, setCustomerSessionToken] = useQueryState(
@@ -73,10 +147,8 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
   );
 
   useEffect(() => {
-    // Check for either subscription=success OR customer_session_token (Polar's redirect)
     const isCheckoutSuccess =
       subscriptionParam === "success" || customerSessionToken;
-
     if (isCheckoutSuccess) {
       posthog.capture(AnalyticsEvents.SUBSCRIPTION_ACTIVATED, {
         source: "checkout_redirect",
@@ -84,8 +156,6 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
       toast.success(
         "Subscription activated! Email alerts are now enabled for your saved searches.",
       );
-
-      // Clear the URL params
       if (subscriptionParam) void setSubscriptionParam(null);
       if (customerSessionToken) void setCustomerSessionToken(null);
     }
@@ -100,106 +170,152 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     setAutoOpenSaveDialog(false);
   }, []);
 
-  // Keyboard shortcut: Cmd/Ctrl+K to focus search
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        document.getElementById("search")?.focus();
-      }
-    };
+  // ── Algolia hooks ──────────────────────────────────────────────────────
 
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, []);
+  const { query, refine: setQuery } = useSearchBox();
+  const { hits, showMore, isLastPage } = useInfiniteHits();
+  const { nbHits, processingTimeMS } = useStats();
 
-  // Keyboard shortcut: F to toggle filters (when not in input)
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-        return;
-      }
-
-      if (e.key === "f" && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        setShowFilters((prev) => !prev);
-      }
-    };
-
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, []);
-
-  // Debounce the query for search API calls
-  const [debouncedQuery] = useDebounce(query, SEARCH_CONFIG.DEBOUNCE_DELAY);
-
-  // Perform search with debounced query - filtering is done client-side
-  // Note: sources filter is handled by the hook below, but we need it for the query
-  // We use a separate query state here to avoid circular dependency
+  // Facets
   const {
-    data: searchResults,
-    isLoading: searchLoading,
-    error: searchError,
-    refetch: refetchSearch,
-  } = api.vehicles.search.useQuery(
-    {
-      query: debouncedQuery,
-      makes: undefined,
-      colors: undefined,
-      states: undefined,
-      sources: undefined, // Sources handled client-side for now
-      yearRange: undefined,
-    },
-    {
-      enabled: debouncedQuery.length > 0,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
+    items: makeItems,
+    refine: refineMake,
+  } = useRefinementList({ attribute: "make", limit: 100, sortBy: ["name:asc"] });
+  const {
+    items: colorItems,
+    refine: refineColor,
+  } = useRefinementList({ attribute: "color", limit: 50, sortBy: ["name:asc"] });
+  const {
+    items: stateItems,
+    refine: refineState,
+  } = useRefinementList({ attribute: "state", limit: 60, sortBy: ["name:asc"] });
+  const {
+    items: locationItems,
+    refine: refineLocation,
+  } = useRefinementList({
+    attribute: "locationName",
+    limit: 100,
+    sortBy: ["name:asc"],
+  });
+
+  // Year range
+  const { range: yearBounds, start: yearStart, refine: refineYear } = useRange({
+    attribute: "year",
+  });
+
+  // Sort state (client-side since we don't have replicas)
+  const [sortBy, setSortBy] = useState("newest");
+
+  // ── Derived state ──────────────────────────────────────────────────────
+
+  // Map Algolia hits to Vehicle[]
+  const vehicles = useMemo(
+    () => hits.map((hit) => algoliaHitToVehicle(hit as Record<string, unknown>)),
+    [hits],
   );
 
-  // Track search outcomes
-  useEffect(() => {
-    if (!debouncedQuery || searchLoading || !searchResults) return;
-    if (lastTrackedQuery.current === debouncedQuery) return;
-    lastTrackedQuery.current = debouncedQuery;
-
-    const ctx = buildSearchContext(
-      debouncedQuery,
-      searchResults.totalCount,
-      searchResults.searchTime,
-      searchResults.locationsCovered,
-    );
-
-    if (searchResults.totalCount === 0) {
-      posthog.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
-    } else {
-      posthog.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
+  // Client-side sort
+  const sortedVehicles = useMemo(() => {
+    const sorted = [...vehicles];
+    switch (sortBy) {
+      case "newest":
+        return sorted.sort(
+          (a, b) =>
+            new Date(b.availableDate).getTime() -
+            new Date(a.availableDate).getTime(),
+        );
+      case "oldest":
+        return sorted.sort(
+          (a, b) =>
+            new Date(a.availableDate).getTime() -
+            new Date(b.availableDate).getTime(),
+        );
+      case "year-desc":
+        return sorted.sort((a, b) => b.year - a.year);
+      case "year-asc":
+        return sorted.sort((a, b) => a.year - b.year);
+      case "distance":
+        return sorted.sort(
+          (a, b) => a.location.distance - b.location.distance,
+        );
+      default:
+        return sorted;
     }
-  }, [debouncedQuery, searchLoading, searchResults]);
+  }, [vehicles, sortBy]);
 
-  useEffect(() => {
-    if (searchError && debouncedQuery) {
-      posthog.capture(AnalyticsEvents.SEARCH_FAILED, {
-        query: debouncedQuery,
-        error: searchError.message,
-      });
-    }
-  }, [searchError, debouncedQuery]);
+  // Build filter options from Algolia facets
+  const filterOptions = useMemo(
+    () => ({
+      makes: makeItems.map((i) => i.value).sort(),
+      colors: colorItems.map((i) => i.value).sort(),
+      states: stateItems.map((i) => i.value).sort(),
+      salvageYards: locationItems.map((i) => i.value).sort(),
+    }),
+    [makeItems, colorItems, stateItems, locationItems],
+  );
 
-  // Use the search filters hook with actual search results
-  const filters = useSearchFilters(searchResults?.vehicles, currentYear);
+  // Selected filters
+  const selectedMakes = useMemo(
+    () => makeItems.filter((i) => i.isRefined).map((i) => i.value),
+    [makeItems],
+  );
+  const selectedColors = useMemo(
+    () => colorItems.filter((i) => i.isRefined).map((i) => i.value),
+    [colorItems],
+  );
+  const selectedStates = useMemo(
+    () => stateItems.filter((i) => i.isRefined).map((i) => i.value),
+    [stateItems],
+  );
+  const selectedLocations = useMemo(
+    () => locationItems.filter((i) => i.isRefined).map((i) => i.value),
+    [locationItems],
+  );
 
-  const handleSearch = () => {
-    void refetchSearch();
-  };
+  const yearMin = yearBounds.min ?? 1900;
+  const yearMax = yearBounds.max ?? currentYear;
+  const yearRange: [number, number] = [
+    yearStart[0] !== -Infinity ? yearStart[0] : yearMin,
+    yearStart[1] !== Infinity ? yearStart[1] : yearMax,
+  ];
+  const isYearFiltered =
+    yearRange[0] !== yearMin || yearRange[1] !== yearMax;
+
+  const activeFilterCount =
+    selectedMakes.length +
+    selectedColors.length +
+    selectedStates.length +
+    selectedLocations.length +
+    (isYearFiltered ? 1 : 0);
+
+  // Build search result object for SearchResults/SearchSummary components
+  const searchResult: SearchResultType | null = useMemo(() => {
+    if (!query && hits.length === 0) return null;
+    return {
+      vehicles: sortedVehicles,
+      totalCount: nbHits,
+      page: 1,
+      hasMore: !isLastPage,
+      searchTime: processingTimeMS,
+      locationsCovered: 0,
+      locationsWithErrors: [],
+    };
+  }, [sortedVehicles, nbHits, isLastPage, processingTimeMS, query, hits.length]);
+
+  const isSearching = query.length > 0 && hits.length === 0 && nbHits === 0;
+
+  // ── Handlers ───────────────────────────────────────────────────────────
 
   const handleQueryChange = useCallback(
     (newQuery: string) => {
-      void setQuery(newQuery);
+      setQuery(newQuery);
     },
     [setQuery],
   );
+
+  const handleSearch = useCallback(() => {
+    // InstantSearch searches as you type, but this satisfies the interface
+  }, []);
 
   // Update search state ref for docked search bar
   searchStateRef.current = {
@@ -208,115 +324,216 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
     onSearch: handleSearch,
   };
 
-  // Memoized sort handler for filter state
   const handleSortChange = useCallback(
     (value: string) => {
       posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
-      filters.setSortBy(value);
+      setSortBy(value);
     },
-    [filters],
+    [],
   );
 
-  // Memoized filter toggle handler
   const handleToggleFilters = useCallback(
     () => setShowFilters((prev) => !prev),
     [],
   );
 
-  // Clear all filters and close sidebar
   const clearAllFilters = useCallback(() => {
     posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
-      previous_filter_count: filters.activeFilterCount,
+      previous_filter_count: activeFilterCount,
     });
-    filters.clearAllFilters();
+    // Clear all refinements
+    for (const item of makeItems.filter((i) => i.isRefined)) {
+      refineMake(item.value);
+    }
+    for (const item of colorItems.filter((i) => i.isRefined)) {
+      refineColor(item.value);
+    }
+    for (const item of stateItems.filter((i) => i.isRefined)) {
+      refineState(item.value);
+    }
+    for (const item of locationItems.filter((i) => i.isRefined)) {
+      refineLocation(item.value);
+    }
+    refineYear([yearMin, yearMax]);
+    setSortBy("newest");
     setShowFilters(false);
-  }, [filters]);
+  }, [
+    activeFilterCount,
+    makeItems,
+    colorItems,
+    stateItems,
+    locationItems,
+    refineMake,
+    refineColor,
+    refineState,
+    refineLocation,
+    refineYear,
+    yearMin,
+    yearMax,
+  ]);
 
-  // Sorting function
-  const sortVehicles = useCallback(
-    (vehicles: Vehicle[], sortOption: string) => {
-      const sorted = [...vehicles];
-
-      switch (sortOption) {
-        case "newest":
-          return sorted.sort(
-            (a, b) =>
-              new Date(b.availableDate).getTime() -
-              new Date(a.availableDate).getTime(),
-          );
-        case "oldest":
-          return sorted.sort(
-            (a, b) =>
-              new Date(a.availableDate).getTime() -
-              new Date(b.availableDate).getTime(),
-          );
-        case "year-desc":
-          return sorted.sort((a, b) => b.year - a.year);
-        case "year-asc":
-          return sorted.sort((a, b) => a.year - b.year);
-        case "distance":
-          return sorted.sort(
-            (a, b) => a.location.distance - b.location.distance,
-          );
-        default:
-          return sorted;
+  // Filter change handlers that toggle individual values
+  const handleMakesChange = useCallback(
+    (newMakes: string[]) => {
+      const current = new Set(selectedMakes);
+      const next = new Set(newMakes);
+      // Find what was added or removed
+      for (const m of current) {
+        if (!next.has(m)) refineMake(m); // uncheck
+      }
+      for (const m of next) {
+        if (!current.has(m)) refineMake(m); // check
       }
     },
-    [],
+    [selectedMakes, refineMake],
   );
 
-  // Create filtered and sorted search result
-  const filteredSearchResult = useMemo(() => {
-    if (!searchResults) return null;
+  const handleColorsChange = useCallback(
+    (newColors: string[]) => {
+      const current = new Set(selectedColors);
+      const next = new Set(newColors);
+      for (const c of current) {
+        if (!next.has(c)) refineColor(c);
+      }
+      for (const c of next) {
+        if (!current.has(c)) refineColor(c);
+      }
+    },
+    [selectedColors, refineColor],
+  );
 
-    const sortedVehicles = sortVehicles(
-      filters.filteredVehicles,
-      filters.sortBy,
+  const handleStatesChange = useCallback(
+    (newStates: string[]) => {
+      const current = new Set(selectedStates);
+      const next = new Set(newStates);
+      for (const s of current) {
+        if (!next.has(s)) refineState(s);
+      }
+      for (const s of next) {
+        if (!current.has(s)) refineState(s);
+      }
+    },
+    [selectedStates, refineState],
+  );
+
+  const handleLocationsChange = useCallback(
+    (newLocations: string[]) => {
+      const current = new Set(selectedLocations);
+      const next = new Set(newLocations);
+      for (const l of current) {
+        if (!next.has(l)) refineLocation(l);
+      }
+      for (const l of next) {
+        if (!current.has(l)) refineLocation(l);
+      }
+    },
+    [selectedLocations, refineLocation],
+  );
+
+  const handleSourcesChange = useCallback((_sources: DataSource[]) => {
+    // Source filtering is handled via Algolia facet if needed;
+    // for now, both sources are in the single index
+  }, []);
+
+  const handleYearRangeChange = useCallback(
+    (range: [number, number]) => {
+      refineYear(range);
+    },
+    [refineYear],
+  );
+
+  // Track search outcomes
+  useEffect(() => {
+    if (!query || isSearching) return;
+    if (lastTrackedQuery.current === query) return;
+    lastTrackedQuery.current = query;
+
+    const ctx = buildSearchContext(
+      query,
+      nbHits,
+      processingTimeMS,
+      0,
     );
 
-    return {
-      ...searchResults,
-      vehicles: sortedVehicles,
-      totalCount: sortedVehicles.length,
+    if (nbHits === 0) {
+      posthog.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
+    } else {
+      posthog.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
+    }
+  }, [query, isSearching, nbHits, processingTimeMS]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        document.getElementById("search")?.focus();
+      }
     };
-  }, [searchResults, filters.filteredVehicles, filters.sortBy, sortVehicles]);
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.key === "f" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowFilters((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
+  // Load more when scrolling near bottom
+  useEffect(() => {
+    if (isLastPage) return;
+
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const docHeight = document.documentElement.scrollHeight;
+
+      if (docHeight - scrollTop - windowHeight < 800) {
+        showMore();
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isLastPage, showMore]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
-      {/* Search Input - sticky with scroll-linked scaling */}
       <ErrorBoundary>
         <MorphingSearchBar />
       </ErrorBoundary>
 
       <div className="relative flex w-full gap-6">
-        {/* Desktop Sidebar - only render when filters are shown and not on mobile */}
+        {/* Desktop Sidebar */}
         {!isMobile && showFilters && (
           <div className="sticky top-24 h-fit max-h-[calc(100vh-112px)] overflow-y-auto">
             <Sidebar
               showFilters={showFilters}
               setShowFilters={setShowFilters}
-              activeFilterCount={filters.activeFilterCount}
+              activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
-              makes={filters.makes}
-              colors={filters.colors}
-              states={filters.states}
-              salvageYards={filters.salvageYards}
-              sources={filters.typedSources}
-              yearRange={filters.yearRange}
-              filterOptions={filters.filterOptions}
-              onMakesChange={filters.setMakes}
-              onColorsChange={filters.setColors}
-              onStatesChange={filters.setStates}
-              onSalvageYardsChange={filters.setSalvageYards}
-              onSourcesChange={filters.setSources}
-              onYearRangeChange={(range: [number, number]) => {
-                filters.setMinYear(range[0]);
-                filters.setMaxYear(range[1]);
-              }}
-              yearRangeLimits={{
-                min: filters.dataMinYear,
-                max: currentYear,
-              }}
+              makes={selectedMakes}
+              colors={selectedColors}
+              states={selectedStates}
+              salvageYards={selectedLocations}
+              sources={[]}
+              yearRange={yearRange}
+              filterOptions={filterOptions}
+              onMakesChange={handleMakesChange}
+              onColorsChange={handleColorsChange}
+              onStatesChange={handleStatesChange}
+              onSalvageYardsChange={handleLocationsChange}
+              onSourcesChange={handleSourcesChange}
+              onYearRangeChange={handleYearRangeChange}
+              yearRangeLimits={{ min: yearMin, max: yearMax }}
             />
           </div>
         )}
@@ -324,49 +541,39 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
         {/* Main Content */}
         <div className="w-full flex-1">
           {/* Search Results Header */}
-          {(searchLoading || filteredSearchResult) && (
+          {(isSearching || searchResult) && (
             <div className="mb-6">
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                {/* Title and count - show skeleton when loading */}
-                {searchLoading && !filteredSearchResult ? (
+                {isSearching ? (
                   <div>
                     <Skeleton className="mb-2 h-8 w-48" />
                     <Skeleton className="h-4 w-32" />
                   </div>
-                ) : filteredSearchResult ? (
+                ) : searchResult ? (
                   <div>
                     <h2 className="text-foreground text-2xl font-black">
                       Search Results
                     </h2>
                     <p className="text-muted-foreground">
-                      {filteredSearchResult.totalCount.toLocaleString()}{" "}
-                      vehicles found
-                      {filteredSearchResult.totalCount !==
-                        searchResults?.totalCount && (
-                        <span className="text-muted-foreground text-sm">
-                          {" "}
-                          (filtered from{" "}
-                          {searchResults?.totalCount.toLocaleString()})
-                        </span>
-                      )}
+                      {searchResult.totalCount.toLocaleString()} vehicles found
                     </p>
                   </div>
                 ) : null}
 
-                {/* Filter buttons - always rendered so morphing position is consistent */}
+                {/* Filter buttons */}
                 {isMobile ? (
                   <div className="flex items-center gap-2">
                     {isLoggedIn && <SavedSearchesDropdown />}
                     <SaveSearchDialog
                       query={query}
                       filters={{
-                        makes: filters.makes,
-                        colors: filters.colors,
-                        states: filters.states,
-                        salvageYards: filters.salvageYards,
-                        minYear: filters.yearRange[0],
-                        maxYear: filters.yearRange[1],
-                        sortBy: filters.sortBy,
+                        makes: selectedMakes,
+                        colors: selectedColors,
+                        states: selectedStates,
+                        salvageYards: selectedLocations,
+                        minYear: yearRange[0],
+                        maxYear: yearRange[1],
+                        sortBy,
                       }}
                       disabled={!query}
                       isLoggedIn={isLoggedIn}
@@ -374,87 +581,68 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                       onAutoOpenHandled={handleAutoOpenHandled}
                     />
                     <MobileFiltersDrawer
-                      activeFilterCount={filters.activeFilterCount}
+                      activeFilterCount={activeFilterCount}
                       clearAllFilters={clearAllFilters}
-                      makes={filters.makes}
-                      colors={filters.colors}
-                      states={filters.states}
-                      salvageYards={filters.salvageYards}
-                      sources={filters.typedSources}
-                      yearRange={filters.yearRange}
-                      filterOptions={filters.filterOptions}
-                      onMakesChange={filters.setMakes}
-                      onColorsChange={filters.setColors}
-                      onStatesChange={filters.setStates}
-                      onSalvageYardsChange={filters.setSalvageYards}
-                      onSourcesChange={filters.setSources}
-                      onYearRangeChange={(range: [number, number]) => {
-                        filters.setMinYear(range[0]);
-                        filters.setMaxYear(range[1]);
-                      }}
-                      yearRangeLimits={{
-                        min: filters.dataMinYear,
-                        max: currentYear,
-                      }}
+                      makes={selectedMakes}
+                      colors={selectedColors}
+                      states={selectedStates}
+                      salvageYards={selectedLocations}
+                      sources={[]}
+                      yearRange={yearRange}
+                      filterOptions={filterOptions}
+                      onMakesChange={handleMakesChange}
+                      onColorsChange={handleColorsChange}
+                      onStatesChange={handleStatesChange}
+                      onSalvageYardsChange={handleLocationsChange}
+                      onSourcesChange={handleSourcesChange}
+                      onYearRangeChange={handleYearRangeChange}
+                      yearRangeLimits={{ min: yearMin, max: yearMax }}
                     />
                   </div>
                 ) : (
                   <MorphingFilterBar
                     query={query}
-                    sortBy={filters.sortBy}
+                    sortBy={sortBy}
                     onSortChange={handleSortChange}
-                    activeFilterCount={filters.activeFilterCount}
+                    activeFilterCount={activeFilterCount}
                     showFilters={showFilters}
                     onToggleFilters={handleToggleFilters}
                     isLoggedIn={isLoggedIn}
                     filters={{
-                      makes: filters.makes,
-                      colors: filters.colors,
-                      states: filters.states,
-                      salvageYards: filters.salvageYards,
-                      minYear: filters.yearRange[0],
-                      maxYear: filters.yearRange[1],
-                      sortBy: filters.sortBy,
+                      makes: selectedMakes,
+                      colors: selectedColors,
+                      states: selectedStates,
+                      salvageYards: selectedLocations,
+                      minYear: yearRange[0],
+                      maxYear: yearRange[1],
+                      sortBy,
                     }}
                     autoOpenSaveDialog={autoOpenSaveDialog}
                     onAutoOpenHandled={handleAutoOpenHandled}
                     disabled={!query}
-                    loading={searchLoading && !filteredSearchResult}
+                    loading={isSearching}
                   />
                 )}
               </div>
 
-              {/* Search Stats - show skeleton when loading */}
-              {searchLoading && !filteredSearchResult ? (
+              {/* Search Stats */}
+              {isSearching ? (
                 <div className="mb-6 flex items-center justify-between text-sm">
                   <Skeleton className="h-4 w-48" />
                 </div>
-              ) : filteredSearchResult ? (
+              ) : searchResult ? (
                 <div className="text-muted-foreground mb-6 flex items-center justify-between text-sm">
                   <span>
-                    Searched {searchResults?.locationsCovered} locations in{" "}
-                    {searchResults?.searchTime}ms
+                    Results in {processingTimeMS}ms
                   </span>
                 </div>
               ) : null}
             </div>
           )}
 
-          {/* Error Message */}
-          {searchError && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Search Error</AlertTitle>
-              <AlertDescription>
-                {searchError.message || ERROR_MESSAGES.SEARCH_FAILED}
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Empty State */}
-          {!debouncedQuery && !searchLoading && (
+          {!query && !isSearching && (
             <div className="py-8 sm:py-12">
-              {/* Mobile: App-like layout */}
               <div className="sm:hidden">
                 <h1 className="text-foreground mb-2 text-3xl font-bold tracking-tight">
                   Find Your Parts
@@ -485,7 +673,6 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                 {isLoggedIn && <SavedSearchesList />}
               </div>
 
-              {/* Desktop: Centered layout */}
               <div className="hidden text-center sm:block">
                 <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
                   <Search className="text-muted-foreground h-12 w-12" />
@@ -503,10 +690,10 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
           )}
 
           {/* Search Results */}
-          {(filteredSearchResult ?? searchLoading) && (
+          {(searchResult ?? isSearching) && (
             <SearchResults
               searchResult={
-                filteredSearchResult ?? {
+                searchResult ?? {
                   vehicles: [],
                   totalCount: 0,
                   page: 1,
@@ -516,15 +703,15 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                   locationsWithErrors: [],
                 }
               }
-              isLoading={searchLoading}
+              isLoading={isSearching}
               sidebarOpen={!isMobile && showFilters}
             />
           )}
 
           {/* No Results */}
-          {debouncedQuery &&
-            filteredSearchResult?.totalCount === 0 &&
-            !searchLoading && (
+          {query &&
+            searchResult?.totalCount === 0 &&
+            !isSearching && (
               <div className="py-12 text-center">
                 <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
                   <AlertCircle className="text-muted-foreground h-12 w-12" />
@@ -533,11 +720,11 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
                   No vehicles found
                 </h2>
                 <p className="text-muted-foreground mx-auto mb-6 max-w-md">
-                  {searchResults?.totalCount === 0
-                    ? "No vehicles match your search. Try different search terms."
-                    : "No vehicles match your current filters. Try adjusting your filters."}
+                  {activeFilterCount > 0
+                    ? "No vehicles match your current filters. Try adjusting your filters."
+                    : "No vehicles match your search. Try different search terms."}
                 </p>
-                {filters.activeFilterCount > 0 && (
+                {activeFilterCount > 0 && (
                   <Button onClick={clearAllFilters} variant="outline">
                     Clear All Filters
                   </Button>
@@ -547,9 +734,23 @@ export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
         </div>
       </div>
 
-      {filteredSearchResult && (
-        <SearchSummary searchResult={filteredSearchResult} />
-      )}
+      {searchResult && <SearchSummary searchResult={searchResult} />}
     </div>
+  );
+}
+
+/**
+ * Main SearchPageContent — wraps everything in InstantSearch provider.
+ */
+export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
+  return (
+    <InstantSearch
+      searchClient={searchClient}
+      indexName={ALGOLIA_INDEX_NAME}
+      future={{ preserveSharedStateOnUnmount: true }}
+    >
+      <Configure hitsPerPage={60} />
+      <AlgoliaSearchInner isLoggedIn={isLoggedIn} />
+    </InstantSearch>
   );
 }
