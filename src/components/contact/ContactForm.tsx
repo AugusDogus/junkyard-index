@@ -9,12 +9,12 @@ import { Textarea } from "~/components/ui/textarea";
 
 type FormState = "idle" | "submitting" | "success" | "error";
 
-export function ContactForm() {
+export function ContactForm({ initialEmail = "" }: { initialEmail?: string }) {
   const [formState, setFormState] = useState<FormState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
+    email: initialEmail,
     message: "",
   });
 
@@ -27,7 +27,9 @@ export function ContactForm() {
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+        }),
       });
 
       const data = await response.json();
@@ -41,7 +43,11 @@ export function ContactForm() {
       }
 
       setFormState("success");
-      setFormData({ name: "", email: "", message: "" });
+      setFormData({
+        name: "",
+        email: initialEmail,
+        message: "",
+      });
     } catch {
       setFormState("error");
       setErrorMessage("Failed to send message. Please try again.");
