@@ -156,3 +156,58 @@ export const userRelations = relations(user, ({ many }) => ({
   accounts: many(account),
   savedSearches: many(savedSearch),
 }));
+
+// ── Ingestion Pipeline Tables ───────────────────────────────────────────────
+
+export const vehicle = sqliteTable(
+  "vehicle",
+  {
+    vin: text("vin").primaryKey(),
+    source: text("source").notNull(), // "pyp" | "row52"
+    year: integer("year").notNull(),
+    make: text("make").notNull(),
+    model: text("model").notNull(),
+    color: text("color"),
+    stockNumber: text("stock_number"),
+    imageUrl: text("image_url"),
+    availableDate: text("available_date"),
+    locationCode: text("location_code").notNull(),
+    locationName: text("location_name").notNull(),
+    state: text("state").notNull(),
+    stateAbbr: text("state_abbr").notNull(),
+    lat: integer("lat", { mode: "number" }).notNull(), // stored as float via REAL affinity
+    lng: integer("lng", { mode: "number" }).notNull(),
+    section: text("section"),
+    row: text("row"),
+    space: text("space"),
+    detailsUrl: text("details_url"),
+    partsUrl: text("parts_url"),
+    pricesUrl: text("prices_url"),
+    engine: text("engine"),
+    trim: text("trim"),
+    transmission: text("transmission"),
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" })
+      .notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" })
+      .notNull(),
+  },
+  (table) => [
+    index("vehicle_source_idx").on(table.source),
+    index("vehicle_make_model_idx").on(table.make, table.model),
+    index("vehicle_first_seen_at_idx").on(table.firstSeenAt),
+    index("vehicle_last_seen_at_idx").on(table.lastSeenAt),
+    index("vehicle_location_code_idx").on(table.locationCode),
+    index("vehicle_state_abbr_idx").on(table.stateAbbr),
+  ],
+);
+
+export const ingestionRun = sqliteTable("ingestion_run", {
+  id: text("id").primaryKey(),
+  source: text("source").notNull(), // "pyp" | "row52" | "all"
+  status: text("status").notNull(), // "running" | "success" | "error"
+  vehiclesUpserted: integer("vehicles_upserted").default(0),
+  vehiclesDeleted: integer("vehicles_deleted").default(0),
+  errors: text("errors"), // JSON array of error strings
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+});
