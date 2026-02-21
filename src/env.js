@@ -26,6 +26,9 @@ export const env = createEnv({
     // Google Ads conversion tracking (optional)
     GOOGLE_ADS_CONVERSION_ID: z.string().optional(),
     GOOGLE_ADS_CONVERSION_LABEL: z.string().optional(),
+    // Algolia
+    ALGOLIA_APP_ID: z.string(),
+    ALGOLIA_ADMIN_KEY: z.string(),
   },
 
   /**
@@ -38,6 +41,9 @@ export const env = createEnv({
     NEXT_PUBLIC_DISCORD_CLIENT_ID: z.string(),
     NEXT_PUBLIC_POSTHOG_KEY: z.string(),
     NEXT_PUBLIC_POSTHOG_HOST: z.string().url(),
+    // Algolia (public search-only key, safe to expose)
+    NEXT_PUBLIC_ALGOLIA_APP_ID: z.string(),
+    NEXT_PUBLIC_ALGOLIA_SEARCH_KEY: z.string(),
   },
 
   /**
@@ -65,6 +71,10 @@ export const env = createEnv({
     GOOGLE_ADS_CONVERSION_LABEL: process.env.GOOGLE_ADS_CONVERSION_LABEL,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+    ALGOLIA_APP_ID: process.env.ALGOLIA_APP_ID,
+    ALGOLIA_ADMIN_KEY: process.env.ALGOLIA_ADMIN_KEY,
+    NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
+    NEXT_PUBLIC_ALGOLIA_SEARCH_KEY: process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
