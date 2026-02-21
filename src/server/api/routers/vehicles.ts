@@ -568,11 +568,14 @@ export const vehiclesRouter = createTRPCRouter({
     .input(searchFiltersSchema)
     .query(async ({ input, ctx, signal }): Promise<SearchResult> => {
       const startTime = Date.now();
+      const isAbortError = (error: unknown): boolean =>
+        error instanceof AbortError ||
+        (error instanceof Error && error.name === "AbortError");
 
       // Helper to check if request was aborted
       const checkAborted = () => {
         if (signal?.aborted) {
-          throw new Error("Search request was cancelled");
+          throw new AbortError();
         }
       };
 
@@ -712,8 +715,24 @@ export const vehiclesRouter = createTRPCRouter({
         );
       }
 
-      await Promise.all(sourcePromises);
-      checkAborted();
+      const wasAborted = await Promise.all(sourcePromises)
+        .then(() => signal?.aborted === true)
+        .catch((error: unknown) => {
+          if (isAbortError(error)) return true;
+          throw error;
+        });
+
+      if (wasAborted) {
+        return {
+          vehicles: [],
+          totalCount: 0,
+          page: 1,
+          hasMore: false,
+          searchTime: Date.now() - startTime,
+          locationsCovered: 0,
+          locationsWithErrors: [],
+        };
+      }
 
       const deduplicatedVehicles = deduplicateVehicles(allVehicles);
       const filteredVehicles = filterVehicles(deduplicatedVehicles, input);
