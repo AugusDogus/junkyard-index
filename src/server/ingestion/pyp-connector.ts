@@ -1,34 +1,77 @@
-import * as cheerio from "cheerio";
 import pLimit from "p-limit";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
 import { fetchLocationsFromPYP } from "~/server/api/routers/locations";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
-const PYP_PAGE_SIZE = 25; // PYP returns 25 vehicles per page
-const MAX_CONCURRENT_LOCATIONS = 5;
-const MAX_CONCURRENT_PAGES = 3;
-const REQUEST_DELAY_MS = 300;
+/**
+ * PYP JSON API connector.
+ *
+ * Uses the `/DesktopModules/pyp_api/api/Inventory/Filter` endpoint with an empty
+ * filter and all store codes to page through the complete inventory as JSON.
+ * No HTML parsing or Cheerio — pure JSON.
+ *
+ * Auth requirements: session cookies + RequestVerificationToken from a prior page visit.
+ */
+
+const PAGE_SIZE = 500;
+const MAX_PAGES = 200; // Safety limit (~100k vehicles max)
 
 interface PypSession {
   cookies: string;
+  token: string;
   createdAt: number;
 }
 
 let cachedSession: PypSession | null = null;
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * PYP /api/Inventory/Filter response shape.
+ */
+interface PypFilterResponse {
+  Success: boolean;
+  Errors: string[];
+  ResponseData: {
+    Request: {
+      YardCode: string[];
+      Filter: string;
+      PageSize: number;
+      PageNumber: number;
+      FilterDeals: boolean;
+    };
+    Vehicles: PypVehicleJson[];
+  };
+  Messages: string[];
+}
+
+interface PypVehicleJson {
+  YardCode: string;
+  Section: string;
+  Row: string;
+  SpaceNumber: string;
+  Color: string;
+  Year: string;
+  Make: string;
+  Model: string;
+  InYardDate: string;
+  StockNumber: string;
+  Vin: string;
+  Photos: Array<{
+    PhotoPath: string;
+    IsPrimary: boolean;
+    IsInternal: boolean;
+    InventoryPhoto: boolean;
+  }>;
 }
 
 /**
- * Get a PYP session by visiting a store inventory page to establish cookies.
- * Caches the session for 10 minutes.
+ * Establish a PYP session by visiting the inventory page.
+ * Extracts cookies and the CSRF RequestVerificationToken.
  */
-async function getPypSession(): Promise<string> {
+async function getPypSession(): Promise<PypSession> {
   if (cachedSession && Date.now() - cachedSession.createdAt < SESSION_TTL_MS) {
-    return cachedSession.cookies;
+    return cachedSession;
   }
 
   const response = await fetch(
@@ -47,310 +90,218 @@ async function getPypSession(): Promise<string> {
     throw new Error(`Failed to get PYP session: ${response.status}`);
   }
 
-  const setCookies = response.headers.getSetCookie?.() ?? [];
-  const cookieStr = setCookies.map((c) => c.split(";")[0]).join("; ");
+  const html = await response.text();
 
-  cachedSession = { cookies: cookieStr, createdAt: Date.now() };
-  return cookieStr;
+  // Extract cookies
+  const setCookies = response.headers.getSetCookie?.() ?? [];
+  const cookies = setCookies.map((c) => c.split(";")[0]).join("; ");
+
+  // Extract CSRF token from HTML
+  const tokenMatch = html.match(
+    /name="__RequestVerificationToken"[^>]*value="([^"]+)"/,
+  );
+  if (!tokenMatch?.[1]) {
+    throw new Error("Could not extract RequestVerificationToken from PYP page");
+  }
+
+  cachedSession = { cookies, token: tokenMatch[1], createdAt: Date.now() };
+  return cachedSession;
 }
 
 /**
- * Fetch a single page of vehicle inventory HTML from PYP for a specific location.
+ * Build HTTP headers for PYP API requests.
  */
-async function fetchPypPage(
-  locationCode: string,
-  page: number,
-  cookies: string,
-): Promise<string> {
-  const url = `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.VEHICLE_INVENTORY}?page=${page}&filter=&store=${locationCode}`;
+function buildPypHeaders(session: PypSession): Record<string, string> {
+  return {
+    Cookie: session.cookies,
+    RequestVerificationToken: session.token,
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "X-Requested-With": "XMLHttpRequest",
+    Referer: `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
+    Accept: "application/json, text/plain, */*",
+  };
+}
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "X-Requested-With": "XMLHttpRequest",
-      Referer: `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-      Cookie: cookies,
-    },
+/**
+ * Fetch a single page from the PYP Filter API.
+ * On 401/403, refreshes the session and retries once.
+ */
+async function fetchPypFilterPage(
+  storeCodes: string,
+  page: number,
+  session: PypSession,
+): Promise<PypFilterResponse> {
+  const url = `${API_ENDPOINTS.PYP_BASE}/DesktopModules/pyp_api/api/Inventory/Filter?store=${storeCodes}&filter=&page=${page}&pageSize=${PAGE_SIZE}`;
+
+  let response = await fetch(url, {
+    headers: buildPypHeaders(session),
   });
 
-  if (response.status === 403 || response.status === 401) {
-    // Session expired, clear cache and retry once
+  // Retry on auth failure
+  if (response.status === 401 || response.status === 403) {
+    console.log("[PYP] Session expired, refreshing...");
     cachedSession = null;
-    const newCookies = await getPypSession();
-    const retryResponse = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "X-Requested-With": "XMLHttpRequest",
-        Referer: `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-        Cookie: newCookies,
-      },
+    const newSession = await getPypSession();
+    response = await fetch(url, {
+      headers: buildPypHeaders(newSession),
     });
-    if (!retryResponse.ok) {
-      throw new Error(
-        `PYP page fetch failed after session refresh: ${retryResponse.status}`,
-      );
-    }
-    return retryResponse.text();
   }
 
   if (!response.ok) {
-    throw new Error(`PYP page fetch failed: ${response.status}`);
+    throw new Error(`PYP Filter API returned ${response.status}`);
   }
 
-  return response.text();
+  return (await response.json()) as PypFilterResponse;
 }
 
 /**
- * Remove crop parameters from image URL.
+ * Transform a PYP JSON vehicle to our canonical format.
  */
-function removeCropParameters(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    urlObj.searchParams.delete("w");
-    urlObj.searchParams.delete("h");
-    urlObj.searchParams.delete("mode");
-    return urlObj.toString();
-  } catch {
-    return url;
+function transformPypVehicle(
+  v: PypVehicleJson,
+  locationMap: Map<string, Location>,
+): CanonicalVehicle | null {
+  if (!v.Vin) return null;
+
+  const location = locationMap.get(v.YardCode);
+
+  // Get primary image URL (first photo, or first non-internal one)
+  let imageUrl: string | null = null;
+  if (v.Photos && v.Photos.length > 0) {
+    const primary = v.Photos.find((p) => p.IsPrimary);
+    imageUrl = primary?.PhotoPath ?? v.Photos[0]?.PhotoPath ?? null;
   }
-}
 
-function extractAfterLabel(text: string, label: string): string {
-  const index = text.indexOf(label);
-  if (index === -1) return "";
-  return text
-    .substring(index + label.length)
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function extractWordAfterLabel(text: string, label: string): string {
-  const afterLabel = extractAfterLabel(text, label);
-  const firstWord = afterLabel.split(" ")[0] ?? "";
-  if (firstWord.endsWith(":")) return "";
-  return firstWord;
-}
-
-function createSlug(text: string): string {
-  return text.toLowerCase().split(" ").join("-");
-}
-
-/**
- * Parse vehicle inventory HTML into CanonicalVehicle objects.
- */
-function parsePypHtml(
-  html: string,
-  location: Location,
-): CanonicalVehicle[] {
-  const vehicles: CanonicalVehicle[] = [];
-  const $ = cheerio.load(html);
-  const base = new URL(API_ENDPOINTS.PYP_BASE);
-
-  $(".pypvi_resultRow[id]").each((_, el) => {
+  // Parse available date
+  let availableDate: string | null = null;
+  if (v.InYardDate) {
     try {
-      // Main image
-      const mainImageHref =
-        $(el).find("a.fancybox-thumb.pypvi_image").attr("href") ?? "";
-      const mainImageUrl = mainImageHref
-        ? removeCropParameters(new URL(mainImageHref, base).toString())
-        : null;
-
-      const ymmText = $(el).find(".pypvi_ymm").text().trim();
-      const normalizedYmm = ymmText.replace(/\s+/g, " ").trim();
-      const [yearStr = "", make = "", ...modelParts] =
-        normalizedYmm.split(" ");
-      const model = modelParts.join(" ");
-      const year = parseInt(yearStr) || 0;
-
-      const colorText = $(el)
-        .find(".pypvi_detailItem:contains('Color:')")
-        .text();
-      const color = extractAfterLabel(colorText, "Color:") || null;
-
-      const vinText = $(el).find(".pypvi_detailItem:contains('VIN:')").text();
-      const vin = extractAfterLabel(vinText, "VIN:");
-
-      if (!vin) return; // Skip vehicles without VIN
-
-      const sectionText = $(el)
-        .find(".pypvi_detailItem:contains('Section:')")
-        .text();
-      const section = extractWordAfterLabel(sectionText, "Section:") || null;
-
-      const rowText = $(el).find(".pypvi_detailItem:contains('Row:')").text();
-      const row = extractWordAfterLabel(rowText, "Row:") || null;
-
-      const spaceText = $(el)
-        .find(".pypvi_detailItem:contains('Space:')")
-        .text();
-      const space = extractWordAfterLabel(spaceText, "Space:") || null;
-
-      const stockText = $(el)
-        .find(".pypvi_detailItem:contains('Stock #:')")
-        .text();
-      const stockNumber = extractAfterLabel(stockText, "Stock #:") || null;
-
-      // Available date
-      let availableDate: string | null = null;
-      const datetimeAttr = $(el).find("time[datetime]").attr("datetime");
-      if (datetimeAttr) {
-        const parsedDate = new Date(datetimeAttr);
-        if (!isNaN(parsedDate.getTime())) {
-          availableDate = parsedDate.toISOString();
-        }
-      } else {
-        const availableText = $(el)
-          .find(".pypvi_detailItem:contains('Available:')")
-          .text();
-        const availableRaw = extractAfterLabel(availableText, "Available:");
-        if (availableRaw) {
-          const dateMatch = /(\d{1,2}\/\d{1,2}\/\d{4})/.exec(availableRaw);
-          if (dateMatch?.[1]) {
-            const parsedDate = new Date(dateMatch[1]);
-            if (!isNaN(parsedDate.getTime())) {
-              availableDate = parsedDate.toISOString();
-            }
-          }
-        }
-      }
-
-      // Generate URLs
-      const modelSlug = createSlug(model);
-      const detailsUrl = `${API_ENDPOINTS.PYP_BASE}${location.urls.inventory}${year}-${make.toLowerCase()}-${modelSlug}/`;
-      const partsUrl = `${API_ENDPOINTS.PYP_BASE}${location.urls.parts}?year=${year}&make=${make}&model=${model}`;
-      const pricesUrl = `${API_ENDPOINTS.PYP_BASE}${location.urls.prices}`;
-
-      vehicles.push({
-        vin,
-        source: "pyp",
-        year,
-        make,
-        model,
-        color,
-        stockNumber,
-        imageUrl: mainImageUrl,
-        availableDate,
-        locationCode: location.locationCode,
-        locationName: location.name,
-        state: location.state,
-        stateAbbr: location.stateAbbr,
-        lat: location.lat,
-        lng: location.lng,
-        section,
-        row,
-        space,
-        detailsUrl,
-        partsUrl,
-        pricesUrl,
-        engine: null,
-        trim: null,
-        transmission: null,
-      });
-    } catch (error) {
-      // Skip individual vehicle parse errors
-      console.error("Error parsing PYP vehicle element:", error);
-    }
-  });
-
-  return vehicles;
-}
-
-/**
- * Fetch ALL pages of inventory for a single PYP location.
- */
-async function fetchLocationInventory(
-  location: Location,
-  cookies: string,
-): Promise<{ vehicles: CanonicalVehicle[]; errors: string[] }> {
-  const vehicles: CanonicalVehicle[] = [];
-  const errors: string[] = [];
-  const pageLimit = pLimit(MAX_CONCURRENT_PAGES);
-
-  // Fetch page 1 first to establish the pattern
-  let page = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    const currentPage = page;
-    try {
-      const html = await fetchPypPage(location.locationCode, currentPage, cookies);
-      const pageVehicles = parsePypHtml(html, location);
-
-      if (pageVehicles.length === 0) {
-        // No more vehicles on this page, we've reached the end
-        hasMore = false;
-      } else {
-        vehicles.push(...pageVehicles);
-        page++;
-
-        // Safety: don't fetch more than 100 pages (2500 vehicles per location max)
-        if (page > 100) {
-          hasMore = false;
-        }
-
-        // Small delay between pages to be polite
-        await delay(REQUEST_DELAY_MS);
-      }
-    } catch (error) {
-      const msg = `PYP location ${location.locationCode} page ${currentPage}: ${error instanceof Error ? error.message : String(error)}`;
-      console.error(msg);
-      errors.push(msg);
-      hasMore = false; // Stop on error for this location
+      const d = new Date(v.InYardDate);
+      if (!isNaN(d.getTime())) availableDate = d.toISOString();
+    } catch {
+      // skip
     }
   }
 
-  return { vehicles, errors };
+  const year = parseInt(v.Year) || 0;
+
+  // Build URLs
+  const modelSlug = v.Model.toLowerCase().split(" ").join("-");
+  const inventoryPath = location?.urls?.inventory ?? `/inventory/`;
+  const detailsUrl = `${API_ENDPOINTS.PYP_BASE}${inventoryPath}${year}-${v.Make.toLowerCase()}-${modelSlug}/`;
+  const partsUrl = location?.urls?.parts
+    ? `${API_ENDPOINTS.PYP_BASE}${location.urls.parts}?year=${year}&make=${v.Make}&model=${v.Model}`
+    : null;
+  const pricesUrl = location?.urls?.prices
+    ? `${API_ENDPOINTS.PYP_BASE}${location.urls.prices}`
+    : null;
+
+  return {
+    vin: v.Vin,
+    source: "pyp",
+    year,
+    make: v.Make,
+    model: v.Model,
+    color: v.Color || null,
+    stockNumber: v.StockNumber || null,
+    imageUrl,
+    availableDate,
+    locationCode: v.YardCode,
+    locationName: location?.name ?? `PYP ${v.YardCode}`,
+    state: location?.state ?? "",
+    stateAbbr: location?.stateAbbr ?? "",
+    lat: location?.lat ?? 0,
+    lng: location?.lng ?? 0,
+    section: v.Section || null,
+    row: v.Row || null,
+    space: v.SpaceNumber || null,
+    detailsUrl,
+    partsUrl,
+    pricesUrl,
+    engine: null,
+    trim: null,
+    transmission: null,
+  };
 }
 
 /**
- * Fetch all PYP inventory across all locations.
- * Returns CanonicalVehicle[] with deduplication by VIN.
+ * Fetch ALL PYP inventory using the Filter API with empty filter.
+ * Pages through all results across all stores.
  */
 export async function fetchPypInventory(): Promise<IngestionResult> {
   const allVehicles: CanonicalVehicle[] = [];
   const allErrors: string[] = [];
 
   try {
+    // Get locations for metadata (lat/lng, names, URLs)
     const locations = await fetchLocationsFromPYP();
-    console.log(`[PYP] Fetching inventory from ${locations.length} locations`);
+    const locationMap = new Map<string, Location>();
+    for (const loc of locations) {
+      locationMap.set(loc.locationCode, loc);
+    }
 
-    const cookies = await getPypSession();
-    const locationLimit = pLimit(MAX_CONCURRENT_LOCATIONS);
-
-    const results = await Promise.all(
-      locations.map((location) =>
-        locationLimit(async () => {
-          try {
-            const { vehicles, errors } = await fetchLocationInventory(
-              location,
-              cookies,
-            );
-            console.log(
-              `[PYP] ${location.locationCode} (${location.displayName}): ${vehicles.length} vehicles`,
-            );
-            return { vehicles, errors };
-          } catch (error) {
-            const msg = `PYP location ${location.locationCode} failed: ${error instanceof Error ? error.message : String(error)}`;
-            console.error(msg);
-            return { vehicles: [] as CanonicalVehicle[], errors: [msg] };
-          }
-        }),
-      ),
+    const storeCodes = locations.map((l) => l.locationCode).join(",");
+    console.log(
+      `[PYP] Fetching inventory from ${locations.length} locations via JSON API`,
     );
 
-    for (const result of results) {
-      allVehicles.push(...result.vehicles);
-      allErrors.push(...result.errors);
+    // Get session
+    const session = await getPypSession();
+
+    // Page through all results
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore && page <= MAX_PAGES) {
+      try {
+        const data = await fetchPypFilterPage(storeCodes, page, session);
+
+        if (!data.Success) {
+          allErrors.push(
+            `PYP Filter API error on page ${page}: ${data.Errors.join(", ")}`,
+          );
+          hasMore = false;
+          continue;
+        }
+
+        const pageVehicles = data.ResponseData?.Vehicles ?? [];
+
+        if (pageVehicles.length === 0) {
+          hasMore = false;
+          continue;
+        }
+
+        // Transform vehicles
+        for (const v of pageVehicles) {
+          const canonical = transformPypVehicle(v, locationMap);
+          if (canonical) {
+            allVehicles.push(canonical);
+          }
+        }
+
+        if (page % 10 === 0) {
+          console.log(
+            `[PYP] Page ${page}: ${allVehicles.length} vehicles so far`,
+          );
+        }
+
+        // If we got fewer than PAGE_SIZE, we've reached the end
+        if (pageVehicles.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } catch (error) {
+        const msg = `PYP page ${page}: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(msg);
+        allErrors.push(msg);
+        hasMore = false;
+      }
     }
 
     console.log(
-      `[PYP] Total: ${allVehicles.length} vehicles, ${allErrors.length} errors`,
+      `[PYP] Total: ${allVehicles.length} vehicles across ${page} pages, ${allErrors.length} errors`,
     );
   } catch (error) {
     const msg = `PYP connector failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -364,3 +315,7 @@ export async function fetchPypInventory(): Promise<IngestionResult> {
     errors: allErrors,
   };
 }
+
+// Export transform function for testing
+export { transformPypVehicle };
+export type { PypVehicleJson };
