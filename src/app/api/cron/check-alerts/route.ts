@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "~/env";
@@ -9,20 +9,12 @@ import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailAlert } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
 import { buildSearchUrl } from "~/lib/search-utils";
-import type { Vehicle } from "~/lib/types";
-import { savedSearch, user } from "~/schema";
-import { appRouter } from "~/server/api/root";
+import type { Vehicle, DataSource } from "~/lib/types";
+import { savedSearch, user, vehicle } from "~/schema";
 import { filtersSchema } from "~/server/api/routers/savedSearches";
-import { createCallerFactory, createTRPCContext } from "~/server/api/trpc";
 
 // Lock timeout in milliseconds (5 minutes)
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
-
-// Create a tRPC caller for server-side use
-const createCaller = createCallerFactory(appRouter);
-
-// Validation schema for stored vehicle IDs
-const vehicleIdsSchema = z.array(z.string());
 
 // Process searches in batches for efficient parallel execution
 const BATCH_SIZE = 5;
@@ -48,48 +40,157 @@ interface SearchWithAlerts {
   query: string;
   filters: string;
   lastCheckedAt: Date | null;
-  lastVehicleIds: string | null;
   emailAlertsEnabled: boolean;
   discordAlertsEnabled: boolean;
 }
 
-function normalizeFingerprintPart(value: string | undefined | null): string {
-  return (value ?? "").trim().toLowerCase();
+/**
+ * Map a vehicle DB row to the Vehicle type expected by email/Discord templates.
+ */
+function dbVehicleToVehicle(
+  v: typeof vehicle.$inferSelect,
+): Vehicle {
+  return {
+    id: v.vin,
+    year: v.year,
+    make: v.make,
+    model: v.model,
+    color: v.color ?? "",
+    vin: v.vin,
+    stockNumber: v.stockNumber ?? "",
+    availableDate: v.availableDate ?? "",
+    source: v.source as DataSource,
+    location: {
+      locationCode: v.locationCode,
+      locationPageURL: "",
+      name: v.locationName,
+      displayName: v.locationName.replace(/^Pick Your Part - /, ""),
+      address: "",
+      city: "",
+      state: v.state,
+      stateAbbr: v.stateAbbr,
+      zip: "",
+      phone: "",
+      lat: v.lat,
+      lng: v.lng,
+      distance: 0,
+      legacyCode: "",
+      primo: "",
+      source: v.source as DataSource,
+      urls: {
+        store: "",
+        interchange: "",
+        inventory: "",
+        prices: v.pricesUrl ?? "",
+        directions: "",
+        sellACar: "",
+        contact: "",
+        customerServiceChat: null,
+        carbuyChat: null,
+        deals: "",
+        parts: v.partsUrl ?? "",
+      },
+    },
+    yardLocation: {
+      section: v.section ?? "",
+      row: v.row ?? "",
+      space: v.space ?? "",
+    },
+    images: v.imageUrl ? [{ url: v.imageUrl }] : [],
+    detailsUrl: v.detailsUrl ?? "",
+    partsUrl: v.partsUrl ?? "",
+    pricesUrl: v.pricesUrl ?? "",
+    engine: v.engine ?? undefined,
+    trim: v.trim ?? undefined,
+    transmission: v.transmission ?? undefined,
+  };
 }
 
 /**
- * Build a stable fingerprint for alert diffing.
- * This intentionally avoids relying on provider IDs because sources can change ID formats.
+ * Query new vehicles from the canonical vehicle table matching a saved search's criteria.
+ * Returns vehicles where firstSeenAt > lastCheckedAt.
  */
-function getVehicleFingerprint(vehicle: Vehicle): string {
-  const source = normalizeFingerprintPart(vehicle.source);
-  const locationCode = normalizeFingerprintPart(vehicle.location.locationCode);
-  const year = vehicle.year.toString();
-  const make = normalizeFingerprintPart(vehicle.make);
-  const model = normalizeFingerprintPart(vehicle.model);
-  const vin = normalizeFingerprintPart(vehicle.vin);
-  const stockNumber = normalizeFingerprintPart(vehicle.stockNumber);
-  const row = normalizeFingerprintPart(vehicle.yardLocation.row);
-  const space = normalizeFingerprintPart(vehicle.yardLocation.space);
+async function findNewVehicles(
+  search: SearchWithAlerts,
+  filters: z.infer<typeof filtersSchema>,
+): Promise<Vehicle[]> {
+  // Build WHERE conditions
+  const conditions: ReturnType<typeof eq>[] = [];
 
-  if (vin) {
-    return `${source}|vin:${vin}|loc:${locationCode}`;
+  // Only vehicles seen since last check
+  if (search.lastCheckedAt) {
+    conditions.push(gt(vehicle.firstSeenAt, search.lastCheckedAt));
   }
 
-  if (stockNumber) {
-    return `${source}|stock:${stockNumber}|loc:${locationCode}|${year}|${make}|${model}`;
+  // Text query: match against make, model (simple LIKE matching)
+  if (search.query.trim()) {
+    const queryLower = search.query.trim().toLowerCase();
+    conditions.push(
+      or(
+        sql`lower(${vehicle.make}) LIKE ${"%" + queryLower + "%"}`,
+        sql`lower(${vehicle.model}) LIKE ${"%" + queryLower + "%"}`,
+      )!,
+    );
   }
 
-  return `${source}|loc:${locationCode}|${year}|${make}|${model}|row:${row}|space:${space}`;
-}
-
-function isLegacyVehicleState(entries: string[]): boolean {
-  if (entries.length === 0) {
-    return false;
+  // Make filter
+  if (filters.makes && filters.makes.length > 0) {
+    conditions.push(
+      sql`lower(${vehicle.make}) IN (${sql.join(
+        filters.makes.map((m) => sql`${m.toLowerCase()}`),
+        sql`, `,
+      )})`,
+    );
   }
 
-  // Legacy format stored raw source IDs; new format always contains pipe-delimited parts.
-  return entries.every((entry) => !entry.includes("|"));
+  // Color filter
+  if (filters.colors && filters.colors.length > 0) {
+    conditions.push(
+      sql`lower(${vehicle.color}) IN (${sql.join(
+        filters.colors.map((c) => sql`${c.toLowerCase()}`),
+        sql`, `,
+      )})`,
+    );
+  }
+
+  // State filter
+  if (filters.states && filters.states.length > 0) {
+    conditions.push(
+      sql`${vehicle.state} IN (${sql.join(
+        filters.states.map((s) => sql`${s}`),
+        sql`, `,
+      )})`,
+    );
+  }
+
+  // Salvage yards (location name) filter
+  if (filters.salvageYards && filters.salvageYards.length > 0) {
+    conditions.push(
+      sql`${vehicle.locationName} IN (${sql.join(
+        filters.salvageYards.map((y) => sql`${y}`),
+        sql`, `,
+      )})`,
+    );
+  }
+
+  // Year range filter
+  if (filters.minYear) {
+    conditions.push(sql`${vehicle.year} >= ${filters.minYear}`);
+  }
+  if (filters.maxYear) {
+    conditions.push(sql`${vehicle.year} <= ${filters.maxYear}`);
+  }
+
+  const whereClause =
+    conditions.length > 0 ? and(...conditions) : undefined;
+
+  const rows = await db
+    .select()
+    .from(vehicle)
+    .where(whereClause)
+    .limit(100); // Cap alert results
+
+  return rows.map(dbVehicleToVehicle);
 }
 
 async function sendNotifications(
@@ -110,7 +211,6 @@ async function sendNotifications(
     searchId: search.id,
   };
 
-  // Send email notification if enabled
   if (search.emailAlertsEnabled) {
     const emailResult = await sendEmailAlert(userInfo.email, alertData);
     if (emailResult.success) {
@@ -120,7 +220,6 @@ async function sendNotifications(
     }
   }
 
-  // Send Discord notification if enabled and user has Discord set up
   if (search.discordAlertsEnabled) {
     if (!userInfo.discordId) {
       errors.push("Discord alerts enabled but user has no Discord ID linked");
@@ -161,105 +260,29 @@ async function processSearch(
   }
   const filters = filtersParseResult.data;
 
-  // Create tRPC context and caller for server-side search
-  const ctx = await createTRPCContext({ headers: new Headers() });
-  const caller = createCaller(ctx);
+  // Query new vehicles from canonical DB
+  const newVehicles = await findNewVehicles(search, filters);
 
-  // Execute the search with filters supported by the API
-  const searchResult = await caller.vehicles.search({
-    query: search.query,
-    makes: filters.makes,
-    colors: filters.colors,
-    states: filters.states,
-    yearRange:
-      filters.minYear && filters.maxYear
-        ? [filters.minYear, filters.maxYear]
-        : undefined,
-  });
-
-  // Apply salvageYards filter client-side (filters by location.name)
-  const filteredVehicles = filters.salvageYards?.length
-    ? searchResult.vehicles.filter((v) =>
-        filters.salvageYards!.includes(v.location.name),
-      )
-    : searchResult.vehicles;
-
-  // Build stable fingerprints so provider-side ID churn doesn't retrigger old inventory as "new"
-  const currentVehicleFingerprints = filteredVehicles.map((v) =>
-    getVehicleFingerprint(v),
-  );
-
-  // Parse and validate previously stored vehicle IDs
-  let previousVehicleFingerprints: string[] = [];
-  if (search.lastVehicleIds) {
-    const idsParseResult = vehicleIdsSchema.safeParse(
-      JSON.parse(search.lastVehicleIds),
-    );
-    if (idsParseResult.success) {
-      previousVehicleFingerprints = idsParseResult.data;
-    }
-  }
-
-  // TODO(remove-legacy-alert-migration): Remove this branch once production has fully migrated.
-  // Cron runs daily (08:00 UTC), and each successfully processed search migrates in one run.
-  // Exit criteria:
-  // 1) one successful post-deploy cron run completes
-  // 2) DB check confirms no legacy lastVehicleIds entries remain
-  // We baseline instead of diffing to prevent noisy false-positive alerts after deploy.
-  if (isLegacyVehicleState(previousVehicleFingerprints)) {
+  // If this is the first check (no lastCheckedAt), just set the baseline
+  if (!search.lastCheckedAt) {
     await db
       .update(savedSearch)
-      .set({
-        lastCheckedAt: new Date(),
-        lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
-      })
+      .set({ lastCheckedAt: new Date() })
       .where(eq(savedSearch.id, search.id));
-
-    return { searchId: search.id, status: "legacy_baseline_migrated" };
-  }
-
-  // Create a Set for O(1) lookup of previous fingerprints
-  const previousFingerprintsSet = new Set(previousVehicleFingerprints);
-
-  // Find fingerprints in current results that weren't in previous results
-  const newVehicleFingerprints = currentVehicleFingerprints.filter(
-    (fingerprint) => !previousFingerprintsSet.has(fingerprint),
-  );
-  const newVehicleFingerprintsSet = new Set(newVehicleFingerprints);
-  const newVehicles = filteredVehicles.filter((v) =>
-    newVehicleFingerprintsSet.has(getVehicleFingerprint(v)),
-  );
-
-  // If this is the first check, just store the IDs without sending notifications
-  if (previousVehicleFingerprints.length === 0) {
-    await db
-      .update(savedSearch)
-      .set({
-        lastCheckedAt: new Date(),
-        lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
-      })
-      .where(eq(savedSearch.id, search.id));
-
     return { searchId: search.id, status: "first_check_baseline_set" };
   }
 
-  // If no new vehicles, just update the timestamp and IDs
+  // If no new vehicles, just update timestamp
   if (newVehicles.length === 0) {
     await db
       .update(savedSearch)
-      .set({
-        lastCheckedAt: new Date(),
-        lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
-      })
+      .set({ lastCheckedAt: new Date() })
       .where(eq(savedSearch.id, search.id));
-
     return { searchId: search.id, status: "no_new_vehicles" };
   }
 
-  // Build the search URL
+  // Build search URL and send notifications
   const searchUrl = `${env.NEXT_PUBLIC_APP_URL}${buildSearchUrl(search.query, filters)}`;
-
-  // Send notifications (email and/or Discord)
   const { emailSent, discordSent, errors } = await sendNotifications(
     search,
     userInfo,
@@ -267,13 +290,10 @@ async function processSearch(
     searchUrl,
   );
 
-  // Update the stored vehicle IDs regardless of notification success
+  // Update lastCheckedAt
   await db
     .update(savedSearch)
-    .set({
-      lastCheckedAt: new Date(),
-      lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
-    })
+    .set({ lastCheckedAt: new Date() })
     .where(eq(savedSearch.id, search.id));
 
   if (emailSent || discordSent) {
@@ -289,7 +309,6 @@ async function processSearch(
     });
   }
 
-  // Build status message
   const statusParts: string[] = [];
   if (emailSent) statusParts.push("email_sent");
   if (discordSent) statusParts.push("discord_sent");
@@ -306,18 +325,14 @@ async function processSearch(
 }
 
 export async function GET(request: NextRequest) {
-  // Verify the request is from Vercel Cron
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Calculate stale lock threshold (locks older than 5 minutes are considered stale)
     const staleLockThreshold = new Date(Date.now() - LOCK_TIMEOUT_MS);
 
-    // Get all saved searches with any alerts enabled that are not currently being processed
-    // (processingLock is null OR processingLock is older than 5 minutes)
     const searchesWithAlerts = await db
       .select({
         id: savedSearch.id,
@@ -326,19 +341,16 @@ export async function GET(request: NextRequest) {
         query: savedSearch.query,
         filters: savedSearch.filters,
         lastCheckedAt: savedSearch.lastCheckedAt,
-        lastVehicleIds: savedSearch.lastVehicleIds,
         emailAlertsEnabled: savedSearch.emailAlertsEnabled,
         discordAlertsEnabled: savedSearch.discordAlertsEnabled,
       })
       .from(savedSearch)
       .where(
         and(
-          // Either email or discord alerts must be enabled
           or(
             eq(savedSearch.emailAlertsEnabled, true),
             eq(savedSearch.discordAlertsEnabled, true),
           ),
-          // Not currently being processed (or lock is stale)
           or(
             isNull(savedSearch.processingLock),
             lt(savedSearch.processingLock, staleLockThreshold),
@@ -358,23 +370,20 @@ export async function GET(request: NextRequest) {
 
     const results: SearchResult[] = [];
 
-    // Process searches in batches for efficient parallel execution
     for (let i = 0; i < searchesWithAlerts.length; i += BATCH_SIZE) {
       const batch = searchesWithAlerts.slice(i, i + BATCH_SIZE);
 
-      // Acquire locks for this batch
-      const batchIds = batch.map((s) => s.id);
-      for (const id of batchIds) {
+      // Acquire locks
+      for (const s of batch) {
         await db
           .update(savedSearch)
           .set({ processingLock: new Date() })
-          .where(eq(savedSearch.id, id));
+          .where(eq(savedSearch.id, s.id));
       }
 
       const batchResults = await Promise.all(
         batch.map(async (search) => {
           try {
-            // Get user info including Discord details
             const [userInfo] = await db
               .select({
                 email: user.email,
@@ -386,10 +395,6 @@ export async function GET(request: NextRequest) {
               .limit(1);
 
             if (!userInfo?.email) {
-              console.warn(
-                `No email found for user ${search.userId}, search ${search.id}`,
-              );
-              // Release lock
               await db
                 .update(savedSearch)
                 .set({ processingLock: null })
@@ -397,15 +402,13 @@ export async function GET(request: NextRequest) {
               return { searchId: search.id, status: "no_user_email" };
             }
 
-            // Verify user still has an active subscription (required for notifications)
-            // (Webhook should disable alerts on cancellation, but double-check)
+            // Verify subscription
             try {
               const customerState =
                 await polarClient.customers.getStateExternal({
                   externalId: search.userId,
                 });
               if (customerState.activeSubscriptions.length === 0) {
-                // Auto-disable alerts for this user and release lock
                 await db
                   .update(savedSearch)
                   .set({
@@ -425,7 +428,6 @@ export async function GET(request: NextRequest) {
                 };
               }
             } catch {
-              // Customer not found in Polar - disable alerts and release lock
               await db
                 .update(savedSearch)
                 .set({
@@ -446,7 +448,7 @@ export async function GET(request: NextRequest) {
               discordAppInstalled: userInfo.discordAppInstalled,
             });
 
-            // Release lock after successful processing
+            // Release lock
             await db
               .update(savedSearch)
               .set({ processingLock: null })
@@ -458,13 +460,10 @@ export async function GET(request: NextRequest) {
             Sentry.captureException(error, {
               tags: { searchId: search.id, userId: search.userId },
             });
-
-            // Release lock on error
             await db
               .update(savedSearch)
               .set({ processingLock: null })
               .where(eq(savedSearch.id, search.id));
-
             return {
               searchId: search.id,
               status: `error: ${error instanceof Error ? error.message : "Unknown error"}`,
