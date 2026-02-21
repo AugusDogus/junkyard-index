@@ -45,8 +45,8 @@ export function ForgotPasswordForm() {
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
           <AlertDescription>
-            If an account exists with that email, you&apos;ll receive a password reset link shortly.
-            Check your inbox and spam folder.
+            If an account exists with that email, you&apos;ll receive a password
+            reset link shortly. Check your inbox and spam folder.
           </AlertDescription>
         </Alert>
 

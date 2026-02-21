@@ -151,9 +151,7 @@ function getMockLocations(): Location[] {
   ];
 }
 
-async function fetchAllLocations(
-  sources?: DataSource[],
-): Promise<Location[]> {
+async function fetchAllLocations(sources?: DataSource[]): Promise<Location[]> {
   const sourcesToFetch = sources ?? ["pyp", "row52"];
   const allLocations: Location[] = [];
 

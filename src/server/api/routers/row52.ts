@@ -33,7 +33,9 @@ async function fetchRow52<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`Row52 API error: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Row52 API error: ${response.status} ${response.statusText}`,
+    );
   }
 
   return response.json() as Promise<Row52ODataResponse<T>>;
@@ -237,7 +239,10 @@ async function fetchVehiclesFromRow52Internal(
       .filter((v): v is Vehicle => v !== null);
   } catch (error) {
     // Re-throw abort errors to prevent caching empty results
-    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
       throw error instanceof AbortError ? error : new AbortError();
     }
     console.error("Error fetching vehicles from Row52:", error);

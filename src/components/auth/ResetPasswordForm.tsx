@@ -29,7 +29,8 @@ export function ResetPasswordForm() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Invalid or missing reset token. Please request a new password reset link.
+            Invalid or missing reset token. Please request a new password reset
+            link.
           </AlertDescription>
         </Alert>
 
@@ -115,7 +116,7 @@ export function ResetPasswordForm() {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
             tabIndex={-1}
           >
             {showPassword ? (
@@ -143,7 +144,7 @@ export function ResetPasswordForm() {
           <button
             type="button"
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="text-muted-foreground hover:text-foreground absolute right-3 top-1/2 -translate-y-1/2"
+            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
             tabIndex={-1}
           >
             {showConfirmPassword ? (

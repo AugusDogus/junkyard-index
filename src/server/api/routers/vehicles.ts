@@ -227,7 +227,10 @@ async function fetchVehicleInventoryInternal(
     }
   } catch (error) {
     // Re-throw abort errors to prevent caching empty results
-    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) {
+    if (
+      signal?.aborted ||
+      (error instanceof Error && error.name === "AbortError")
+    ) {
       throw error instanceof AbortError ? error : new AbortError();
     }
 
@@ -304,7 +307,6 @@ function extractWordAfterLabel(text: string, label: string): string {
   if (firstWord.endsWith(":")) return "";
   return firstWord;
 }
-
 
 /**
  * Remove crop parameters from image URL
@@ -499,10 +501,16 @@ function filterVehicles(
     if (filters.sources?.length && !filters.sources.includes(vehicle.source)) {
       return false;
     }
-    if (normalizedMakes?.length && !normalizedMakes.includes(vehicle.make.toLowerCase())) {
+    if (
+      normalizedMakes?.length &&
+      !normalizedMakes.includes(vehicle.make.toLowerCase())
+    ) {
       return false;
     }
-    if (normalizedModels?.length && !normalizedModels.includes(vehicle.model.toLowerCase())) {
+    if (
+      normalizedModels?.length &&
+      !normalizedModels.includes(vehicle.model.toLowerCase())
+    ) {
       return false;
     }
     if (normalizedColors?.length) {
@@ -545,7 +553,10 @@ function deduplicateVehicles(vehicles: Vehicle[]): Vehicle[] {
   const vinMap = new Map<string, Vehicle>();
   for (const vehicle of vehicles) {
     const existing = vinMap.get(vehicle.vin);
-    if (!existing || (vehicle.source === "pyp" && existing.source === "row52")) {
+    if (
+      !existing ||
+      (vehicle.source === "pyp" && existing.source === "row52")
+    ) {
       vinMap.set(vehicle.vin, vehicle);
     }
   }

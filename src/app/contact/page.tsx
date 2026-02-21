@@ -36,7 +36,9 @@ export default function ContactPage() {
 
       if (!response.ok) {
         setFormState("error");
-        setErrorMessage(data.error ?? "Something went wrong. Please try again.");
+        setErrorMessage(
+          data.error ?? "Something went wrong. Please try again.",
+        );
         return;
       }
 
@@ -49,7 +51,7 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
@@ -62,23 +64,25 @@ export default function ContactPage() {
       {/* Content */}
       <main className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Mail className="h-6 w-6 text-primary" />
+          <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+            <Mail className="text-primary h-6 w-6" />
           </div>
           <h1 className="mb-2 text-3xl font-bold tracking-tight">Contact Us</h1>
           <p className="text-muted-foreground">
-            Have a question, feedback, or need help? We&apos;d love to hear from you.
+            Have a question, feedback, or need help? We&apos;d love to hear from
+            you.
           </p>
         </div>
 
         {formState === "success" ? (
-          <div className="rounded-lg border bg-card p-8 text-center">
+          <div className="bg-card rounded-lg border p-8 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
               <CheckCircle className="h-6 w-6 text-green-500" />
             </div>
             <h2 className="mb-2 text-xl font-semibold">Message Sent!</h2>
-            <p className="mb-6 text-muted-foreground">
-              Thanks for reaching out. We&apos;ll get back to you as soon as possible.
+            <p className="text-muted-foreground mb-6">
+              Thanks for reaching out. We&apos;ll get back to you as soon as
+              possible.
             </p>
             <Button variant="outline" onClick={() => setFormState("idle")}>
               Send Another Message
@@ -87,7 +91,7 @@ export default function ContactPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {formState === "error" && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+              <div className="border-destructive/50 bg-destructive/10 text-destructive flex items-center gap-2 rounded-lg border p-4 text-sm">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 {errorMessage}
               </div>
@@ -102,7 +106,9 @@ export default function ContactPage() {
                 required
                 maxLength={100}
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 disabled={formState === "submitting"}
               />
             </div>
@@ -115,7 +121,9 @@ export default function ContactPage() {
                 placeholder="you@example.com"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 disabled={formState === "submitting"}
               />
             </div>
@@ -130,10 +138,12 @@ export default function ContactPage() {
                 maxLength={5000}
                 rows={6}
                 value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, message: e.target.value })
+                }
                 disabled={formState === "submitting"}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {formData.message.length}/5000 characters
               </p>
             </div>

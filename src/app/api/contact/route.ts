@@ -8,7 +8,10 @@ const resend = new Resend(env.RESEND_API_KEY);
 const contactSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
   email: z.string().email("Invalid email address"),
-  message: z.string().min(10, "Message must be at least 10 characters").max(5000),
+  message: z
+    .string()
+    .min(10, "Message must be at least 10 characters")
+    .max(5000),
 });
 
 export async function POST(request: Request) {
@@ -19,7 +22,7 @@ export async function POST(request: Request) {
     if (!result.success) {
       return NextResponse.json(
         { error: result.error.errors[0]?.message ?? "Invalid input" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
       console.error("Failed to send contact email:", error);
       return NextResponse.json(
         { error: "Failed to send message. Please try again." },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -54,7 +57,7 @@ export async function POST(request: Request) {
     console.error("Contact form error:", error);
     return NextResponse.json(
       { error: "An unexpected error occurred. Please try again." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

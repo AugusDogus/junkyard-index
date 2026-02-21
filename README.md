@@ -1,8 +1,9 @@
 # Junkyard Index
 
-Search across multiple salvage yard inventory locations nationwide. 
+Search across multiple salvage yard inventory locations nationwide.
 
 Currently indexes salvage yards from:
+
 - [LKQ Pick Your Part](https://www.pyp.com)
 - [Row52 / Pick-n-Pull](https://row52.com)
 

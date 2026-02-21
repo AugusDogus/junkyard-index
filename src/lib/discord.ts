@@ -1,6 +1,11 @@
 import { REST } from "@discordjs/rest";
 import * as Sentry from "@sentry/nextjs";
-import { Routes, type APIChannel, type APIEmbed, type APIMessage } from "discord-api-types/v10";
+import {
+  Routes,
+  type APIChannel,
+  type APIEmbed,
+  type APIMessage,
+} from "discord-api-types/v10";
 import { env } from "~/env";
 import type { Vehicle } from "~/lib/types";
 
@@ -29,7 +34,7 @@ export async function createDMChannel(userId: string): Promise<string> {
  */
 export async function sendMessage(
   channelId: string,
-  message: DiscordMessage
+  message: DiscordMessage,
 ): Promise<APIMessage> {
   return (await discord.post(Routes.channelMessages(channelId), {
     body: message,
@@ -42,14 +47,15 @@ export async function sendMessage(
  */
 export async function sendDM(
   userId: string,
-  message: DiscordMessage
+  message: DiscordMessage,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const channelId = await createDMChannel(userId);
     await sendMessage(channelId, message);
     return { success: true };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     console.error(`Failed to send Discord DM to ${userId}:`, errorMessage);
     Sentry.captureException(error, {
       tags: { context: "discord-dm", userId },
@@ -64,7 +70,7 @@ export async function sendDM(
  */
 export async function sendTestDM(
   userId: string,
-  hasActiveSubscription: boolean
+  hasActiveSubscription: boolean,
 ): Promise<{ success: boolean; error?: string }> {
   const description = hasActiveSubscription
     ? "You've successfully connected Discord to Junkyard Index. You'll receive DMs here when new vehicles match your saved searches with Discord alerts enabled."
@@ -75,12 +81,14 @@ export async function sendTestDM(
   const settingsUrl = `${baseUrl}/settings`;
 
   const message: DiscordMessage = {
-    embeds: [{
-      title: "Discord Connected",
-      description,
-      color: 0x57f287, // Green
-      footer: { text: `Manage your notifications at ${settingsUrl}` },
-    }],
+    embeds: [
+      {
+        title: "Discord Connected",
+        description,
+        color: 0x57f287, // Green
+        footer: { text: `Manage your notifications at ${settingsUrl}` },
+      },
+    ],
   };
 
   return sendDM(userId, message);
@@ -101,7 +109,11 @@ function formatVehicleEmbed(vehicle: Vehicle): APIEmbed {
   if (vehicle.yardLocation.row) {
     fields.push({
       name: "Row",
-      value: vehicle.yardLocation.row + (vehicle.yardLocation.space ? `, Space ${vehicle.yardLocation.space}` : ""),
+      value:
+        vehicle.yardLocation.row +
+        (vehicle.yardLocation.space
+          ? `, Space ${vehicle.yardLocation.space}`
+          : ""),
       inline: true,
     });
   }
@@ -119,7 +131,9 @@ function formatVehicleEmbed(vehicle: Vehicle): APIEmbed {
     url: vehicle.detailsUrl,
     color: 0x5865f2, // Discord blurple
     fields,
-    thumbnail: vehicle.images[0]?.url ? { url: vehicle.images[0].url } : undefined,
+    thumbnail: vehicle.images[0]?.url
+      ? { url: vehicle.images[0].url }
+      : undefined,
   };
 }
 
@@ -136,7 +150,7 @@ export interface DiscordAlertData {
  */
 export async function sendDiscordAlert(
   discordUserId: string,
-  data: DiscordAlertData
+  data: DiscordAlertData,
 ): Promise<{ success: boolean; error?: string }> {
   // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
   const vehiclesToShow = data.newVehicles.slice(0, 9);
@@ -148,9 +162,12 @@ export async function sendDiscordAlert(
     description: `Found **${data.newVehicles.length}** new vehicle${data.newVehicles.length === 1 ? "" : "s"} matching your search${data.query ? ` for "${data.query}"` : ""}.`,
     url: data.searchUrl,
     color: 0x57f287, // Green
-    footer: remainingCount > 0
-      ? { text: `...and ${remainingCount} more vehicle${remainingCount === 1 ? "" : "s"}` }
-      : undefined,
+    footer:
+      remainingCount > 0
+        ? {
+            text: `...and ${remainingCount} more vehicle${remainingCount === 1 ? "" : "s"}`,
+          }
+        : undefined,
   };
 
   // Create embeds for each vehicle

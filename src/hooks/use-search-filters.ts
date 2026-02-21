@@ -8,7 +8,11 @@ import {
 } from "nuqs";
 import { useCallback, useMemo } from "react";
 import type { DataSource, Vehicle } from "~/lib/types";
-import { buildColorDisplayMap, buildDisplayNameMap, normalizeColor } from "~/lib/utils";
+import {
+  buildColorDisplayMap,
+  buildDisplayNameMap,
+  normalizeColor,
+} from "~/lib/utils";
 
 export interface FilterOptions {
   makes: string[];
@@ -30,22 +34,22 @@ export interface UseSearchFiltersReturn {
   sources: string[];
   typedSources: DataSource[];
   setSources: (value: string[]) => void;
-  
+
   // Year range
   yearRange: [number, number];
   setMinYear: (value: number | null) => void;
   setMaxYear: (value: number | null) => void;
   dataMinYear: number;
-  
+
   // Sort
   sortBy: string;
   setSortBy: (value: string) => void;
-  
+
   // Computed values
   filteredVehicles: Vehicle[];
   activeFilterCount: number;
   filterOptions: FilterOptions;
-  
+
   // Actions
   clearAllFilters: () => void;
 }

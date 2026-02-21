@@ -32,46 +32,50 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
 
         const rect = placeholder.getBoundingClientRect();
         const scrollY = window.scrollY;
-        
+
         const logo = document.querySelector('header a[href="/search"]');
         const logoRect = logo?.getBoundingClientRect();
-        
+
         // Find the filter bar to calculate available space
-        const filterBar = document.querySelector('[data-morphing-filter-bar]');
+        const filterBar = document.querySelector("[data-morphing-filter-bar]");
         const filterBarRect = filterBar?.getBoundingClientRect();
-        
+
         // Target position in header
-        const headerTop = logoRect ? logoRect.top + (logoRect.height - 32) / 2 : 16;
+        const headerTop = logoRect
+          ? logoRect.top + (logoRect.height - 32) / 2
+          : 16;
         const headerLeft = logoRect ? logoRect.right + 16 : 200;
-        
+
         // Calculate max width based on available space (leave 24px gap before filter bar)
-        const maxHeaderWidth = filterBarRect 
+        const maxHeaderWidth = filterBarRect
           ? filterBarRect.left - headerLeft - 24
           : window.innerWidth - headerLeft - 200; // Fallback: leave space for buttons
-        
+
         // Use responsive width: min of 350px or available space, but at least 150px
         const headerWidth = Math.max(150, Math.min(350, maxHeaderWidth));
         const headerHeight = 32;
-        
+
         const startTop = rect.top + scrollY;
         const startLeft = rect.left;
         const startWidth = rect.width;
         const startHeight = 40;
-        
+
         const transitionStart = startTop - 80;
         const transitionEnd = startTop - headerTop;
-        
+
         let progress = 0;
         if (scrollY <= transitionStart) {
           progress = 0;
         } else if (scrollY >= transitionEnd) {
           progress = 1;
         } else {
-          progress = (scrollY - transitionStart) / (transitionEnd - transitionStart);
+          progress =
+            (scrollY - transitionStart) / (transitionEnd - transitionStart);
         }
-        
-        const lerp = (start: number, end: number, t: number) => start + (end - start) * t;
-        
+
+        const lerp = (start: number, end: number, t: number) =>
+          start + (end - start) * t;
+
         setStyle({
           top: lerp(startTop - scrollY, headerTop, progress),
           left: lerp(startLeft, headerLeft, progress),
@@ -84,7 +88,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       updatePosition();
       window.addEventListener("scroll", updatePosition, { passive: true });
       window.addEventListener("resize", updatePosition, { passive: true });
-      
+
       return () => {
         window.removeEventListener("scroll", updatePosition);
         window.removeEventListener("resize", updatePosition);
@@ -133,7 +137,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
           placeholder="Enter year, make, model (e.g., '2018 Honda Civic')"
           className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm"
         />
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 opacity-50 select-none" />
       </div>
     );
 
@@ -141,9 +145,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
     if (isMobile) {
       return (
         <div ref={ref} className="mb-6">
-          <form onSubmit={handleSubmit}>
-            {searchInput}
-          </form>
+          <form onSubmit={handleSubmit}>{searchInput}</form>
         </div>
       );
     }
@@ -154,11 +156,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       <div ref={ref} className="mb-6">
         <div ref={placeholderRef} className="h-10 w-full">
           {/* Show static input in placeholder until morphing style is ready */}
-          {!style && (
-            <form onSubmit={handleSubmit}>
-              {searchInput}
-            </form>
-          )}
+          {!style && <form onSubmit={handleSubmit}>{searchInput}</form>}
         </div>
         {style && (
           <form
@@ -181,14 +179,18 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
                 value={searchState?.query ?? ""}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={style.progress > 0.5 ? "Search vehicles..." : "Enter year, make, model (e.g., '2018 Honda Civic')"}
+                placeholder={
+                  style.progress > 0.5
+                    ? "Search vehicles..."
+                    : "Enter year, make, model (e.g., '2018 Honda Civic')"
+                }
                 className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] md:text-sm"
               />
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 opacity-50 select-none" />
             </div>
           </form>
         )}
-        
+
         {/* Hidden on mobile - mobile has pill buttons in empty state instead */}
         <div className="text-muted-foreground mt-2 hidden text-xs sm:block">
           <span>Try: </span>

@@ -63,7 +63,10 @@ export function NewVehiclesAlert({
               </Text>
             </Section>
 
-            <Heading as="h2" className="mb-4 mt-8 text-lg font-semibold text-gray-900">
+            <Heading
+              as="h2"
+              className="mt-8 mb-4 text-lg font-semibold text-gray-900"
+            >
               New Vehicles:
             </Heading>
 
@@ -85,7 +88,9 @@ export function NewVehiclesAlert({
                       />
                     ) : (
                       <Section className="flex h-[68px] w-[90px] items-center justify-center rounded bg-gray-200">
-                        <Text className="m-0 text-xs text-gray-500">No image</Text>
+                        <Text className="m-0 text-xs text-gray-500">
+                          No image
+                        </Text>
                       </Section>
                     )}
                   </Column>
@@ -94,7 +99,9 @@ export function NewVehiclesAlert({
                       {vehicle.year} {vehicle.make} {vehicle.model}
                     </Text>
                     {vehicle.color && (
-                      <Text className="m-0 text-xs text-gray-600">{vehicle.color}</Text>
+                      <Text className="m-0 text-xs text-gray-600">
+                        {vehicle.color}
+                      </Text>
                     )}
                     <Text className="m-0 mt-1 text-xs text-gray-500">
                       {vehicle.location.name}, {vehicle.location.stateAbbr}
@@ -102,7 +109,8 @@ export function NewVehiclesAlert({
                     {vehicle.yardLocation.row && (
                       <Text className="m-0 text-xs text-gray-500">
                         Row {vehicle.yardLocation.row}
-                        {vehicle.yardLocation.space && `, Space ${vehicle.yardLocation.space}`}
+                        {vehicle.yardLocation.space &&
+                          `, Space ${vehicle.yardLocation.space}`}
                       </Text>
                     )}
                   </Column>
@@ -111,8 +119,9 @@ export function NewVehiclesAlert({
             ))}
 
             {remainingCount > 0 && (
-              <Text className="m-0 mt-2 text-center text-sm italic text-gray-500">
-                ...and {remainingCount} more vehicle{remainingCount === 1 ? "" : "s"}
+              <Text className="m-0 mt-2 text-center text-sm text-gray-500 italic">
+                ...and {remainingCount} more vehicle
+                {remainingCount === 1 ? "" : "s"}
               </Text>
             )}
 
@@ -128,8 +137,8 @@ export function NewVehiclesAlert({
             <Hr className="my-8 border-gray-200" />
 
             <Text className="m-0 text-xs text-gray-500">
-              You&apos;re receiving this email because you have email alerts enabled for
-              this search.{" "}
+              You&apos;re receiving this email because you have email alerts
+              enabled for this search.{" "}
               <Link href={unsubscribeUrl} className="text-gray-900 underline">
                 Unsubscribe from this alert
               </Link>{" "}

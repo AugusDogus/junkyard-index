@@ -22,7 +22,11 @@ interface SearchVisibilityContextValue {
 const SearchVisibilityContext =
   createContext<SearchVisibilityContextValue | null>(null);
 
-export function SearchVisibilityProvider({ children }: { children: ReactNode }) {
+export function SearchVisibilityProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const searchStateRef = useRef<SearchState | null>(null);
 
   const value = useMemo(

@@ -138,8 +138,10 @@ export const savedSearch = sqliteTable(
   (table) => [
     index("saved_search_userId_idx").on(table.userId),
     index("saved_search_emailAlertsEnabled_idx").on(table.emailAlertsEnabled),
-    index("saved_search_discordAlertsEnabled_idx").on(table.discordAlertsEnabled),
-  ]
+    index("saved_search_discordAlertsEnabled_idx").on(
+      table.discordAlertsEnabled,
+    ),
+  ],
 );
 
 export const savedSearchRelations = relations(savedSearch, ({ one }) => ({

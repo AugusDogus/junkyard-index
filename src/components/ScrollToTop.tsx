@@ -31,7 +31,7 @@ export function ScrollToTop() {
     <Button
       variant="secondary"
       size="sm"
-      className="fixed bottom-6 right-6 z-50 h-10 w-10 rounded-full p-0 shadow-lg"
+      className="fixed right-6 bottom-6 z-50 h-10 w-10 rounded-full p-0 shadow-lg"
       onClick={scrollToTop}
       aria-label="Scroll to top"
     >

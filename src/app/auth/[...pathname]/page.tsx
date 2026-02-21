@@ -9,7 +9,10 @@ import { SignUpForm } from "~/components/auth/SignUpForm";
 
 type AuthRoute = "sign-in" | "sign-up" | "forgot-password" | "reset-password";
 
-const routeConfig: Record<AuthRoute, { title: string; description: string; Form: React.ComponentType }> = {
+const routeConfig: Record<
+  AuthRoute,
+  { title: string; description: string; Form: React.ComponentType }
+> = {
   "sign-in": {
     title: "Welcome back",
     description: "Sign in to continue",
@@ -42,7 +45,7 @@ export default function AuthPage() {
   return (
     <div className="flex min-h-svh flex-col sm:items-center sm:justify-center sm:p-4">
       {/* Mobile: Full-screen app-like layout */}
-      <div className="flex flex-1 flex-col px-6 pb-8 pt-16 sm:hidden">
+      <div className="flex flex-1 flex-col px-6 pt-16 pb-8 sm:hidden">
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
           <p className="text-muted-foreground mt-2">{description}</p>

@@ -71,7 +71,10 @@ export function SidebarContent({
             const isChecked = sources.length === 0 || sources.includes(source);
 
             return (
-              <div key={source} className="flex items-center space-x-2 pr-3 pl-3">
+              <div
+                key={source}
+                className="flex items-center space-x-2 pr-3 pl-3"
+              >
                 <Checkbox
                   id={`source-${source}`}
                   checked={isChecked}

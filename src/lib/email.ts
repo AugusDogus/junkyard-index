@@ -22,17 +22,17 @@ export function generateUnsubscribeToken(searchId: string): string {
 /**
  * Verify an unsubscribe token is valid for a given search ID.
  */
-export function verifyUnsubscribeToken(searchId: string, token: string): boolean {
+export function verifyUnsubscribeToken(
+  searchId: string,
+  token: string,
+): boolean {
   const expectedToken = generateUnsubscribeToken(searchId);
   // Check length first to avoid timingSafeEqual throwing on mismatched lengths
   if (token.length !== expectedToken.length) {
     return false;
   }
   // Use timing-safe comparison to prevent timing attacks
-  return crypto.timingSafeEqual(
-    Buffer.from(token),
-    Buffer.from(expectedToken)
-  );
+  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken));
 }
 
 function buildUnsubscribeUrl(searchId: string): string {
@@ -50,7 +50,7 @@ export interface EmailAlertData {
 
 export async function sendEmailAlert(
   to: string,
-  data: EmailAlertData
+  data: EmailAlertData,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Generate unsubscribe URL for this specific search

@@ -32,8 +32,8 @@ export function PasswordReset({ resetUrl }: PasswordResetProps) {
             </Heading>
 
             <Text className="m-0 mb-5 text-base text-gray-700">
-              We received a request to reset your password for your Junkyard Index account.
-              Click the button below to set a new password:
+              We received a request to reset your password for your Junkyard
+              Index account. Click the button below to set a new password:
             </Text>
 
             <Section className="my-8 text-center">
@@ -46,16 +46,17 @@ export function PasswordReset({ resetUrl }: PasswordResetProps) {
             </Section>
 
             <Text className="m-0 mb-5 text-sm text-gray-600">
-              This link will expire in 1 hour. If you didn&apos;t request a password reset,
-              you can safely ignore this email.
+              This link will expire in 1 hour. If you didn&apos;t request a
+              password reset, you can safely ignore this email.
             </Text>
 
             <Hr className="my-8 border-gray-200" />
 
             <Text className="m-0 text-xs text-gray-500">
-              If the button above doesn&apos;t work, copy and paste this link into your browser:
+              If the button above doesn&apos;t work, copy and paste this link
+              into your browser:
             </Text>
-            <Text className="m-0 mt-2 break-all text-xs text-gray-500">
+            <Text className="m-0 mt-2 text-xs break-all text-gray-500">
               <Link href={resetUrl} className="text-gray-900 underline">
                 {resetUrl}
               </Link>

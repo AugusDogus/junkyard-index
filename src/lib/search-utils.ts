@@ -8,7 +8,10 @@ interface SearchFilters {
   sortBy?: string;
 }
 
-export function buildSearchUrl(query: string | null, filters: SearchFilters): string {
+export function buildSearchUrl(
+  query: string | null,
+  filters: SearchFilters,
+): string {
   const params = new URLSearchParams();
 
   if (query) {
