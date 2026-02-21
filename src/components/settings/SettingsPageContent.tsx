@@ -12,6 +12,7 @@ import {
   Mail,
   Search,
   Trash2,
+  UserX,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -25,11 +26,19 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 import { DiscordIcon } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { env } from "~/env";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { authClient, signIn, useSession } from "~/lib/auth-client";
+import { authClient, signIn, signOut, useSession } from "~/lib/auth-client";
 import posthog from "posthog-js";
 import { api } from "~/trpc/react";
 
@@ -41,6 +50,7 @@ export function SettingsDashboard() {
   const { data: session, isPending: isSessionLoading } = useSession();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [hasClickedInstall, setHasClickedInstall] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const utils = api.useUtils();
 
@@ -125,6 +135,14 @@ export function SettingsDashboard() {
         toast.error(error.message || "Failed to toggle Discord alerts");
       },
     });
+
+  const deleteAccountMutation = api.user.deleteAccount.useMutation({
+    onSuccess: async () => {
+      await signOut();
+      router.push("/");
+      router.refresh();
+    },
+  });
 
   const hasActiveSubscription =
     subscriptionData?.hasActiveSubscription ?? false;
@@ -237,6 +255,11 @@ export function SettingsDashboard() {
       source: "settings",
     });
     deleteMutation.mutate({ id: searchId });
+  };
+
+  const handleDeleteAccount = () => {
+    posthog.capture(AnalyticsEvents.ACCOUNT_DELETED, { source: "settings" });
+    deleteAccountMutation.mutate();
   };
 
   if (isSessionLoading) {
@@ -555,6 +578,59 @@ export function SettingsDashboard() {
           )}
         </CardContent>
       </Card>
+
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserX className="h-5 w-5" />
+            Delete Account
+          </CardTitle>
+          <CardDescription>
+            Permanently delete your account and all associated data, including
+            saved searches and email alerts. This action cannot be undone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Account
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete your account? This action cannot
+              be undone. All your data, including saved searches and email
+              alerts, will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={deleteAccountMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleteAccountMutation.isPending}
+            >
+              {deleteAccountMutation.isPending
+                ? "Deleting..."
+                : "Delete Account"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
