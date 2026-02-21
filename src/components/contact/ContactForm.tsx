@@ -1,0 +1,156 @@
+"use client";
+
+import { AlertCircle, CheckCircle, Mail, Send } from "lucide-react";
+import { useState } from "react";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Textarea } from "~/components/ui/textarea";
+
+type FormState = "idle" | "submitting" | "success" | "error";
+
+export function ContactForm() {
+  const [formState, setFormState] = useState<FormState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    message: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormState("submitting");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setFormState("error");
+        setErrorMessage(
+          data.error ?? "Something went wrong. Please try again.",
+        );
+        return;
+      }
+
+      setFormState("success");
+      setFormData({ name: "", email: "", message: "" });
+    } catch {
+      setFormState("error");
+      setErrorMessage("Failed to send message. Please try again.");
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-8 text-center">
+        <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+          <Mail className="text-primary h-6 w-6" />
+        </div>
+        <h1 className="mb-2 text-3xl font-bold tracking-tight">Contact Us</h1>
+        <p className="text-muted-foreground">
+          Have a question, feedback, or need help? We&apos;d love to hear from
+          you.
+        </p>
+      </div>
+
+      {formState === "success" ? (
+        <div className="bg-card rounded-lg border p-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
+            <CheckCircle className="h-6 w-6 text-green-500" />
+          </div>
+          <h2 className="mb-2 text-xl font-semibold">Message Sent!</h2>
+          <p className="text-muted-foreground mb-6">
+            Thanks for reaching out. We&apos;ll get back to you as soon as
+            possible.
+          </p>
+          <Button variant="outline" onClick={() => setFormState("idle")}>
+            Send Another Message
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {formState === "error" && (
+            <div className="border-destructive/50 bg-destructive/10 text-destructive flex items-center gap-2 rounded-lg border p-4 text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {errorMessage}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="Your name"
+              required
+              maxLength={100}
+              value={formData.name}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
+              disabled={formState === "submitting"}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              required
+              value={formData.email}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
+              disabled={formState === "submitting"}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="message">Message</Label>
+            <Textarea
+              id="message"
+              placeholder="How can we help you?"
+              required
+              minLength={10}
+              maxLength={5000}
+              rows={6}
+              value={formData.message}
+              onChange={(e) =>
+                setFormData({ ...formData, message: e.target.value })
+              }
+              disabled={formState === "submitting"}
+            />
+            <p className="text-muted-foreground text-xs">
+              {formData.message.length}/5000 characters
+            </p>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={formState === "submitting"}
+          >
+            {formState === "submitting" ? (
+              "Sending..."
+            ) : (
+              <>
+                <Send className="mr-2 h-4 w-4" />
+                Send Message
+              </>
+            )}
+          </Button>
+        </form>
+      )}
+    </>
+  );
+}
