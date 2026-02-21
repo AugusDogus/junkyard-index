@@ -52,6 +52,45 @@ interface SearchWithAlerts {
   discordAlertsEnabled: boolean;
 }
 
+function normalizeFingerprintPart(value: string | undefined | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+/**
+ * Build a stable fingerprint for alert diffing.
+ * This intentionally avoids relying on provider IDs because sources can change ID formats.
+ */
+function getVehicleFingerprint(vehicle: Vehicle): string {
+  const source = normalizeFingerprintPart(vehicle.source);
+  const locationCode = normalizeFingerprintPart(vehicle.location.locationCode);
+  const year = vehicle.year.toString();
+  const make = normalizeFingerprintPart(vehicle.make);
+  const model = normalizeFingerprintPart(vehicle.model);
+  const vin = normalizeFingerprintPart(vehicle.vin);
+  const stockNumber = normalizeFingerprintPart(vehicle.stockNumber);
+  const row = normalizeFingerprintPart(vehicle.yardLocation.row);
+  const space = normalizeFingerprintPart(vehicle.yardLocation.space);
+
+  if (vin) {
+    return `${source}|vin:${vin}|loc:${locationCode}`;
+  }
+
+  if (stockNumber) {
+    return `${source}|stock:${stockNumber}|loc:${locationCode}|${year}|${make}|${model}`;
+  }
+
+  return `${source}|loc:${locationCode}|${year}|${make}|${model}|row:${row}|space:${space}`;
+}
+
+function isLegacyVehicleState(entries: string[]): boolean {
+  if (entries.length === 0) {
+    return false;
+  }
+
+  // Legacy format stored raw source IDs; new format always contains pipe-delimited parts.
+  return entries.every((entry) => !entry.includes("|"));
+}
+
 async function sendNotifications(
   search: SearchWithAlerts,
   userInfo: UserInfo,
@@ -130,32 +169,55 @@ async function processSearch(
     ? searchResult.vehicles.filter((v) => filters.salvageYards!.includes(v.location.name))
     : searchResult.vehicles;
 
-  // Get current vehicle IDs from filtered results
-  const currentVehicleIds = filteredVehicles.map((v) => v.id);
+  // Build stable fingerprints so provider-side ID churn doesn't retrigger old inventory as "new"
+  const currentVehicleFingerprints = filteredVehicles.map((v) => getVehicleFingerprint(v));
 
   // Parse and validate previously stored vehicle IDs
-  let previousVehicleIds: string[] = [];
+  let previousVehicleFingerprints: string[] = [];
   if (search.lastVehicleIds) {
     const idsParseResult = vehicleIdsSchema.safeParse(JSON.parse(search.lastVehicleIds));
     if (idsParseResult.success) {
-      previousVehicleIds = idsParseResult.data;
+      previousVehicleFingerprints = idsParseResult.data;
     }
   }
 
-  // Create a Set for O(1) lookup of previous IDs
-  const previousIdsSet = new Set(previousVehicleIds);
-
-  // Find vehicles that are in current results but weren't in previous results
-  const newVehicleIds = currentVehicleIds.filter((id) => !previousIdsSet.has(id));
-  const newVehicles = filteredVehicles.filter((v) => newVehicleIds.includes(v.id));
-
-  // If this is the first check, just store the IDs without sending notifications
-  if (previousVehicleIds.length === 0) {
+  // TODO(remove-legacy-alert-migration): Remove this branch once production has fully migrated.
+  // Cron runs daily (08:00 UTC), and each successfully processed search migrates in one run.
+  // Exit criteria:
+  // 1) one successful post-deploy cron run completes
+  // 2) DB check confirms no legacy lastVehicleIds entries remain
+  // We baseline instead of diffing to prevent noisy false-positive alerts after deploy.
+  if (isLegacyVehicleState(previousVehicleFingerprints)) {
     await db
       .update(savedSearch)
       .set({
         lastCheckedAt: new Date(),
-        lastVehicleIds: JSON.stringify(currentVehicleIds),
+        lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
+      })
+      .where(eq(savedSearch.id, search.id));
+
+    return { searchId: search.id, status: "legacy_baseline_migrated" };
+  }
+
+  // Create a Set for O(1) lookup of previous fingerprints
+  const previousFingerprintsSet = new Set(previousVehicleFingerprints);
+
+  // Find fingerprints in current results that weren't in previous results
+  const newVehicleFingerprints = currentVehicleFingerprints.filter(
+    (fingerprint) => !previousFingerprintsSet.has(fingerprint)
+  );
+  const newVehicleFingerprintsSet = new Set(newVehicleFingerprints);
+  const newVehicles = filteredVehicles.filter((v) =>
+    newVehicleFingerprintsSet.has(getVehicleFingerprint(v))
+  );
+
+  // If this is the first check, just store the IDs without sending notifications
+  if (previousVehicleFingerprints.length === 0) {
+    await db
+      .update(savedSearch)
+      .set({
+        lastCheckedAt: new Date(),
+        lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
       })
       .where(eq(savedSearch.id, search.id));
 
@@ -168,7 +230,7 @@ async function processSearch(
       .update(savedSearch)
       .set({
         lastCheckedAt: new Date(),
-        lastVehicleIds: JSON.stringify(currentVehicleIds),
+        lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
       })
       .where(eq(savedSearch.id, search.id));
 
@@ -191,7 +253,7 @@ async function processSearch(
     .update(savedSearch)
     .set({
       lastCheckedAt: new Date(),
-      lastVehicleIds: JSON.stringify(currentVehicleIds),
+      lastVehicleIds: JSON.stringify(currentVehicleFingerprints),
     })
     .where(eq(savedSearch.id, search.id));
 
