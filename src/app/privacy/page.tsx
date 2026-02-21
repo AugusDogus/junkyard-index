@@ -27,12 +27,7 @@ export default function PrivacyPage() {
         </h1>
 
         <p className="text-muted-foreground mb-8">
-          Last updated:{" "}
-          {new Date().toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })}
+          Last updated: January 18, 2026
         </p>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
