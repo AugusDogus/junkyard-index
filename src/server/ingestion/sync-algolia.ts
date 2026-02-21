@@ -61,7 +61,7 @@ export async function saveAlgoliaObjects(
     const batch = records.slice(i, i + BATCH_SIZE);
     await algoliaClient.saveObjects({
       indexName: ALGOLIA_INDEX_NAME,
-      objects: batch,
+      objects: batch as unknown as Record<string, unknown>[],
     });
     console.log(
       `[Algolia] Saved batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`,

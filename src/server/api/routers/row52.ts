@@ -5,9 +5,6 @@ import type {
   Location,
   Row52Location,
   Row52ODataResponse,
-  Row52Vehicle,
-  Vehicle,
-  VehicleImage,
 } from "~/lib/types";
 
 function buildODataUrl(endpoint: string, queryString: string): string {
@@ -17,19 +14,17 @@ function buildODataUrl(endpoint: string, queryString: string): string {
 async function fetchRow52<T>(
   endpoint: string,
   queryString: string = "",
-  signal?: AbortSignal,
 ): Promise<Row52ODataResponse<T>> {
   const url = buildODataUrl(endpoint, queryString);
 
   const response = await fetch(url, {
-    signal,
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       Accept: "application/json",
     },
     cache: "force-cache",
-    next: { revalidate: 300 }, // Cache for 5 minutes
+    next: { revalidate: 300 },
   });
 
   if (!response.ok) {
@@ -55,7 +50,7 @@ function transformRow52Location(row52Location: Row52Location): Location {
     phone: row52Location.phone,
     lat: row52Location.latitude,
     lng: row52Location.longitude,
-    distance: 0, // Will be calculated based on user location
+    distance: 0,
     legacyCode: row52Location.code,
     primo: "",
     source: "row52",
@@ -74,48 +69,6 @@ function transformRow52Location(row52Location: Row52Location): Location {
       deals: "",
       parts: row52Location.partsPricingUrl || "",
     },
-  };
-}
-
-function transformRow52Vehicle(
-  row52Vehicle: Row52Vehicle,
-  location: Location,
-): Vehicle {
-  const images: VehicleImage[] = [];
-
-  if (row52Vehicle.images && row52Vehicle.images.length > 0) {
-    for (const img of row52Vehicle.images) {
-      if (!img.isActive || !img.isVisible) continue;
-
-      const baseUrl = img.resourceUrl || `${API_ENDPOINTS.ROW52_CDN}/images/`;
-      const ext = img.extension || ".JPG";
-      images.push({ url: `${baseUrl}${img.size1}${ext}` });
-    }
-  }
-
-  return {
-    id: `row52-${row52Vehicle.id}`,
-    year: row52Vehicle.year,
-    make: row52Vehicle.model?.make?.name || "",
-    model: row52Vehicle.model?.name || "",
-    color: row52Vehicle.color || "",
-    vin: row52Vehicle.vin,
-    stockNumber: row52Vehicle.barCodeNumber,
-    availableDate: row52Vehicle.dateAdded,
-    location,
-    source: "row52",
-    yardLocation: {
-      section: "",
-      row: row52Vehicle.row || "",
-      space: row52Vehicle.slot || "",
-    },
-    images,
-    detailsUrl: `https://row52.com/Vehicle/Index/${row52Vehicle.vin}`,
-    partsUrl: location.urls.parts,
-    pricesUrl: location.urls.prices,
-    engine: row52Vehicle.engine ?? undefined,
-    trim: row52Vehicle.trim ?? undefined,
-    transmission: row52Vehicle.transmission ?? undefined,
   };
 }
 
@@ -162,142 +115,10 @@ export const fetchLocationsFromRow52 = unstable_cache(
   fetchLocationsFromRow52Internal,
   ["row52-locations"],
   {
-    revalidate: 3600, // Cache for 1 hour
+    revalidate: 3600,
     tags: ["row52-locations"],
   },
 );
-
-/**
- * Build the OData filter for vehicle search.
- * Uses odata-query library which automatically escapes string values.
- */
-function buildVehicleFilter(query: string): Record<string, unknown> {
-  const searchTerm = query.trim().toLowerCase();
-
-  if (!searchTerm) {
-    return { isActive: true };
-  }
-
-  // Use odata-query object syntax for automatic escaping
-  return {
-    isActive: true,
-    or: [
-      { "tolower(model/name)": { contains: searchTerm } },
-      { "tolower(model/make/name)": { contains: searchTerm } },
-    ],
-  };
-}
-
-// Custom error class for abort signals - thrown to prevent caching empty results
-class AbortError extends Error {
-  constructor() {
-    super("Request was aborted");
-    this.name = "AbortError";
-  }
-}
-
-async function fetchVehiclesFromRow52Internal(
-  query: string,
-  locationMap: Map<number, Location>,
-  signal?: AbortSignal,
-): Promise<Vehicle[]> {
-  try {
-    // Check if already aborted - throw to prevent caching empty results
-    if (signal?.aborted) {
-      throw new AbortError();
-    }
-
-    const queryString = buildQuery({
-      filter: buildVehicleFilter(query),
-      expand: ["model($expand=make)", "location($expand=state)", "images"],
-      orderBy: "dateAdded desc",
-      top: 1000,
-    });
-
-    const response = await fetchRow52<Row52Vehicle>(
-      API_ENDPOINTS.ROW52_VEHICLES,
-      queryString,
-      signal,
-    );
-
-    // Check if aborted after fetch - throw to prevent caching empty results
-    if (signal?.aborted) {
-      throw new AbortError();
-    }
-
-    return response.value
-      .map((vehicle) => {
-        let location = locationMap.get(vehicle.locationId);
-        if (!location && vehicle.location) {
-          location = transformRow52Location(vehicle.location);
-        }
-        if (!location) {
-          return null;
-        }
-        return transformRow52Vehicle(vehicle, location);
-      })
-      .filter((v): v is Vehicle => v !== null);
-  } catch (error) {
-    // Re-throw abort errors to prevent caching empty results
-    if (
-      signal?.aborted ||
-      (error instanceof Error && error.name === "AbortError")
-    ) {
-      throw error instanceof AbortError ? error : new AbortError();
-    }
-    console.error("Error fetching vehicles from Row52:", error);
-    return [];
-  }
-}
-
-/**
- * Fetch vehicles from Row52 with optional abort signal support
- * Note: The signal is NOT part of the cache key - we pass it through for cancellation
- * but the cache is based on query only
- */
-export async function fetchVehiclesFromRow52(
-  query: string,
-  signal?: AbortSignal,
-): Promise<Vehicle[]> {
-  // Check if already aborted
-  if (signal?.aborted) {
-    return [];
-  }
-
-  const locations = await fetchLocationsFromRow52();
-
-  // Check if aborted after locations fetch
-  if (signal?.aborted) {
-    return [];
-  }
-
-  const locationMap = new Map<number, Location>();
-  locations.forEach((loc) => {
-    locationMap.set(parseInt(loc.locationCode), loc);
-  });
-
-  // Use unstable_cache for the actual vehicle fetch
-  const cachedFetch = unstable_cache(
-    async (q: string) => {
-      return fetchVehiclesFromRow52Internal(q, locationMap, signal);
-    },
-    ["row52-vehicles", query],
-    {
-      revalidate: 300, // Cache for 5 minutes
-      tags: ["row52-vehicles"],
-    },
-  );
-
-  try {
-    return await cachedFetch(query);
-  } catch (error) {
-    // Catch AbortError thrown from inside the cache - return empty without caching
-    if (error instanceof Error && error.name === "AbortError") {
-      return [];
-    }
-    throw error;
-  }
-}
 
 export async function fetchMakesFromRow52(): Promise<
   Array<{ id: number; name: string }>

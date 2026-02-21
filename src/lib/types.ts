@@ -91,27 +91,6 @@ export interface SearchResult {
   locationsWithErrors: string[];
 }
 
-// Parsed vehicle data from HTML
-export interface ParsedVehicleData {
-  id: string;
-  year: number;
-  make: string;
-  model: string;
-  color: string;
-  vin: string;
-  stockNumber: string;
-  availableDate: string;
-  yardLocation: {
-    section: string;
-    row: string;
-    space: string;
-  };
-  images: VehicleImage[];
-  detailsUrl: string;
-  partsUrl: string;
-  pricesUrl: string;
-}
-
 // Component props interfaces
 
 export interface VehicleCardProps {

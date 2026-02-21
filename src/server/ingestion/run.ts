@@ -23,9 +23,8 @@ async function upsertVehicles(
     const batch = vehicles.slice(i, i + UPSERT_BATCH_SIZE);
 
     // Use a transaction for each batch
-    await db.batch(
-      batch.map((v) =>
-        db.run(
+    const statements = batch.map((v) =>
+      db.run(
           sql`INSERT INTO vehicle (
             vin, source, year, make, model, color, stock_number, image_url,
             available_date, location_code, location_name, state, state_abbr,
@@ -66,8 +65,11 @@ async function upsertVehicles(
             first_seen_at = vehicle.first_seen_at,
             last_seen_at = excluded.last_seen_at`,
         ),
-      ),
-    );
+      );
+
+    if (statements.length > 0) {
+      await db.batch(statements as [typeof statements[0], ...typeof statements]);
+    }
 
     upserted += batch.length;
     if (i % 1000 === 0 && i > 0) {
