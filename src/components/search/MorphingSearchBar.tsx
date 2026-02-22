@@ -17,14 +17,16 @@ function queryHook(query: string, search: (query: string) => void) {
   debounceTimerId = setTimeout(() => search(query), DEBOUNCE_MS);
 }
 
-// Shared class names for the Algolia SearchBox input
+// Shared class names for the Algolia SearchBox
 const searchBoxClassNames = {
-  root: "relative w-full",
-  form: "relative w-full",
+  root: "relative w-full h-10",
+  form: "relative w-full h-full",
   input:
-    "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm",
-  submit: "absolute top-1/2 left-3 -translate-y-1/2 opacity-50 [&>svg]:size-4",
-  reset: "absolute top-1/2 right-3 -translate-y-1/2 opacity-50 [&>svg]:size-4",
+    "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 pr-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm",
+  submit:
+    "absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground [&>svg]:size-4",
+  reset:
+    "absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground [&>svg]:size-4",
   loadingIndicator: "hidden",
 };
 
