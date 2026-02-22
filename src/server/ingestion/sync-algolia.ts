@@ -48,25 +48,29 @@ export async function configureAlgoliaIndex(): Promise<void> {
       unretrievableAttributes: ["firstSeenAt"],
     },
   });
-  // Configure virtual replica sort orders (hitsPerPage must match primary)
+  // Configure virtual replica sort orders.
+  // relevancyStrictness: 0 disables Algolia's "Relevant Sort" which otherwise
+  // limits results to only those it considers "relevantly sorted" (nbSortedHits).
+  // Without this, sort replicas return only a handful of results.
+  const replicaDefaults = { hitsPerPage: 1000, relevancyStrictness: 0 };
   await algoliaClient.setSettings({
     indexName: "vehicles_oldest",
     indexSettings: {
+      ...replicaDefaults,
       customRanking: ["asc(availableDateTs)"],
-      hitsPerPage: 1000,
     },
   });
   await algoliaClient.setSettings({
     indexName: "vehicles_year_desc",
-    indexSettings: { customRanking: ["desc(year)"], hitsPerPage: 1000 },
+    indexSettings: { ...replicaDefaults, customRanking: ["desc(year)"] },
   });
   await algoliaClient.setSettings({
     indexName: "vehicles_year_asc",
-    indexSettings: { customRanking: ["asc(year)"], hitsPerPage: 1000 },
+    indexSettings: { ...replicaDefaults, customRanking: ["asc(year)"] },
   });
   await algoliaClient.setSettings({
     indexName: "vehicles_distance",
-    indexSettings: { customRanking: [], hitsPerPage: 1000 },
+    indexSettings: { ...replicaDefaults, customRanking: [] },
   });
   console.log("[Algolia] Index settings configured");
 }

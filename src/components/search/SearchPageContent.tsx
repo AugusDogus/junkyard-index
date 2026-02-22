@@ -323,18 +323,6 @@ function AlgoliaSearchInner({
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
     if (status === "loading" && hits.length === 0) return null;
-    console.log(
-      "[SearchDebug] status:",
-      status,
-      "hits:",
-      hits.length,
-      "vehicles:",
-      vehicles.length,
-      "nbHits:",
-      nbHits,
-      "isLastPage:",
-      isLastPage,
-    );
     return {
       vehicles,
       totalCount: nbHits,
