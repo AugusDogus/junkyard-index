@@ -30,6 +30,12 @@ export async function configureAlgoliaIndex(): Promise<void> {
       ],
       numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
       customRanking: ["desc(availableDateTs)"],
+      // Virtual replicas for sort options (distance is handled natively by aroundLatLng)
+      replicas: [
+        "virtual(vehicles_oldest)",
+        "virtual(vehicles_year_desc)",
+        "virtual(vehicles_year_asc)",
+      ],
       // Typo tolerance settings
       typoTolerance: true,
       minWordSizefor1Typo: 3,
@@ -40,6 +46,19 @@ export async function configureAlgoliaIndex(): Promise<void> {
       // Unretrievable attributes (keep admin key out of search results)
       unretrievableAttributes: ["firstSeenAt"],
     },
+  });
+  // Configure virtual replica sort orders
+  await algoliaClient.setSettings({
+    indexName: "vehicles_oldest",
+    indexSettings: { customRanking: ["asc(availableDateTs)"] },
+  });
+  await algoliaClient.setSettings({
+    indexName: "vehicles_year_desc",
+    indexSettings: { customRanking: ["desc(year)"] },
+  });
+  await algoliaClient.setSettings({
+    indexName: "vehicles_year_asc",
+    indexSettings: { customRanking: ["asc(year)"] },
   });
   console.log("[Algolia] Index settings configured");
 }

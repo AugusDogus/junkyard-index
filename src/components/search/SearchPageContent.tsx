@@ -11,6 +11,7 @@ import {
   useInstantSearch,
   useRange,
   useRefinementList,
+  useSortBy,
   useStats,
 } from "react-instantsearch";
 import { history } from "instantsearch.js/es/lib/routers";
@@ -226,15 +227,27 @@ function AlgoliaSearchInner({
     attribute: "year",
   });
 
-  // Sort state (client-side since we don't have replicas)
-  // Initialize from URL ?sort= param if present
-  const [sortBy, setSortBy] = useState(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      return params.get("sort") || "newest";
-    }
-    return "newest";
-  });
+  // Server-side sorting via Algolia virtual replicas
+  // Distance sort uses the default index with aroundLatLng (Algolia sorts by geo natively)
+  const SORT_ITEMS = useMemo(
+    () => [
+      { value: ALGOLIA_INDEX_NAME, label: "Newest First" },
+      { value: "vehicles_oldest", label: "Oldest First" },
+      { value: "vehicles_year_desc", label: "Year (High to Low)" },
+      { value: "vehicles_year_asc", label: "Year (Low to High)" },
+    ],
+    [],
+  );
+  const { currentRefinement: currentSortIndex, refine: refineSortBy } =
+    useSortBy({ items: SORT_ITEMS });
+
+  // Map the Algolia index name back to our UI sort key
+  const sortBy = useMemo(() => {
+    if (currentSortIndex === "vehicles_oldest") return "oldest";
+    if (currentSortIndex === "vehicles_year_desc") return "year-desc";
+    if (currentSortIndex === "vehicles_year_asc") return "year-asc";
+    return "newest"; // default index = newest
+  }, [currentSortIndex]);
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -246,33 +259,6 @@ function AlgoliaSearchInner({
       ),
     [hits, userLocation],
   );
-
-  // Client-side sort
-  const sortedVehicles = useMemo(() => {
-    const sorted = [...vehicles];
-    switch (sortBy) {
-      case "newest":
-        return sorted.sort(
-          (a, b) =>
-            new Date(b.availableDate).getTime() -
-            new Date(a.availableDate).getTime(),
-        );
-      case "oldest":
-        return sorted.sort(
-          (a, b) =>
-            new Date(a.availableDate).getTime() -
-            new Date(b.availableDate).getTime(),
-        );
-      case "year-desc":
-        return sorted.sort((a, b) => b.year - a.year);
-      case "year-asc":
-        return sorted.sort((a, b) => a.year - b.year);
-      case "distance":
-        return sorted.sort((a, b) => a.location.distance - b.location.distance);
-      default:
-        return sorted;
-    }
-  }, [vehicles, sortBy]);
 
   // Build filter options from Algolia facets
   const filterOptions = useMemo(
@@ -337,7 +323,7 @@ function AlgoliaSearchInner({
     if (!hasActiveSearch) return null;
     if (status === "loading" && hits.length === 0) return null;
     return {
-      vehicles: sortedVehicles,
+      vehicles,
       totalCount: nbHits,
       page: 1,
       hasMore: !isLastPage,
@@ -346,7 +332,7 @@ function AlgoliaSearchInner({
       locationsWithErrors: [],
     };
   }, [
-    sortedVehicles,
+    vehicles,
     nbHits,
     isLastPage,
     processingTimeMS,
@@ -357,10 +343,21 @@ function AlgoliaSearchInner({
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
-  const handleSortChange = useCallback((value: string) => {
-    posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
-    setSortBy(value);
-  }, []);
+  const handleSortChange = useCallback(
+    (value: string) => {
+      posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
+      // Map UI sort key to Algolia index name
+      const indexMap: Record<string, string> = {
+        newest: ALGOLIA_INDEX_NAME,
+        oldest: "vehicles_oldest",
+        "year-desc": "vehicles_year_desc",
+        "year-asc": "vehicles_year_asc",
+        distance: ALGOLIA_INDEX_NAME, // distance = default index with geo ranking
+      };
+      refineSortBy(indexMap[value] ?? ALGOLIA_INDEX_NAME);
+    },
+    [refineSortBy],
+  );
 
   const handleToggleFilters = useCallback(
     () => setShowFilters((prev) => !prev),
@@ -385,7 +382,7 @@ function AlgoliaSearchInner({
       refineLocation(item.value);
     }
     refineYear([yearMin, yearMax]);
-    setSortBy("newest");
+    refineSortBy(ALGOLIA_INDEX_NAME); // Reset to default (newest)
     setShowFilters(false);
   }, [
     activeFilterCount,
@@ -393,6 +390,7 @@ function AlgoliaSearchInner({
     colorItems,
     stateItems,
     locationItems,
+    refineSortBy,
     refineMake,
     refineColor,
     refineState,
@@ -543,22 +541,30 @@ function AlgoliaSearchInner({
   }, []);
 
   // Load more when scrolling near bottom
+  // Load more when scrolling near bottom — also poll to catch cases where
+  // the virtualizer height doesn't trigger a new scroll event after growing
   useEffect(() => {
-    if (isLastPage) return;
+    if (isLastPage || !hasActiveSearch) return;
 
-    const handleScroll = () => {
+    const checkAndLoadMore = () => {
       const scrollTop = window.scrollY;
       const windowHeight = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
 
-      if (docHeight - scrollTop - windowHeight < 800) {
+      if (docHeight - scrollTop - windowHeight < 1500) {
         showMore();
       }
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [isLastPage, showMore]);
+    window.addEventListener("scroll", checkAndLoadMore, { passive: true });
+    // Poll every 500ms as a fallback in case scroll events don't fire
+    const intervalId = setInterval(checkAndLoadMore, 500);
+
+    return () => {
+      window.removeEventListener("scroll", checkAndLoadMore);
+      clearInterval(intervalId);
+    };
+  }, [isLastPage, showMore, hasActiveSearch]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
