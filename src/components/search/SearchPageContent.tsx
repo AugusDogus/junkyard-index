@@ -228,13 +228,13 @@ function AlgoliaSearchInner({
   });
 
   // Server-side sorting via Algolia virtual replicas
-  // Distance sort uses the default index with aroundLatLng (Algolia sorts by geo natively)
   const SORT_ITEMS = useMemo(
     () => [
       { value: ALGOLIA_INDEX_NAME, label: "Newest First" },
       { value: "vehicles_oldest", label: "Oldest First" },
       { value: "vehicles_year_desc", label: "Year (High to Low)" },
       { value: "vehicles_year_asc", label: "Year (Low to High)" },
+      { value: "vehicles_distance", label: "Distance (Nearest)" },
     ],
     [],
   );
@@ -246,6 +246,7 @@ function AlgoliaSearchInner({
     if (currentSortIndex === "vehicles_oldest") return "oldest";
     if (currentSortIndex === "vehicles_year_desc") return "year-desc";
     if (currentSortIndex === "vehicles_year_asc") return "year-asc";
+    if (currentSortIndex === "vehicles_distance") return "distance";
     return "newest"; // default index = newest
   }, [currentSortIndex]);
 
