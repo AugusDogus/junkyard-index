@@ -152,8 +152,17 @@ export async function fetchPypInventory(
   const allErrors: string[] = [];
 
   try {
-    // Get locations for metadata (lat/lng, names, URLs)
+    // Get locations for metadata (lat/lng, names, URLs).
+    // fetchLocationsFromPYP silently returns mock data (1 location) on failure,
+    // so we sanity-check the count to avoid ingesting with incomplete location data.
     const locations = await fetchLocationsFromPYP();
+    if (locations.length < 5) {
+      throw new Error(
+        `PYP returned only ${locations.length} locations (expected 50+). ` +
+          `This likely means the PYP location fetch failed and fell back to mock data. Aborting PYP ingestion.`,
+      );
+    }
+
     const locationMap = new Map<string, Location>();
     for (const loc of locations) {
       locationMap.set(loc.locationCode, loc);
