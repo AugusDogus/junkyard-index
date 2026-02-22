@@ -38,6 +38,7 @@ export interface SaveSearchFilters {
   colors?: string[];
   states?: string[];
   salvageYards?: string[];
+  sources?: string[];
   minYear?: number;
   maxYear?: number;
   sortBy?: string;
