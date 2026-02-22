@@ -17,7 +17,6 @@ export async function configureAlgoliaIndex(): Promise<void> {
         "year",
         "unordered(color)",
         "unordered(vin)",
-        "unordered(stockNumber)",
       ],
       attributesForFaceting: [
         "source",
