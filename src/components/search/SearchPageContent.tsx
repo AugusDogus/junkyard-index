@@ -545,8 +545,24 @@ function AlgoliaSearchInner({
   // Infinite scroll is handled inside SearchResults via the virtualizer.
   // showMore and isLastPage are passed as props.
 
+  // Only send geo params when distance sort is active.
+  // Algolia's "geo" ranking criterion dominates over "custom" (date/year),
+  // so sending aroundLatLng on non-distance sorts makes results sort by
+  // proximity instead of the intended sort order.
+  const isDistanceSort = sortBy === "distance";
+  const aroundLatLng =
+    isDistanceSort && userLocation
+      ? `${userLocation.lat}, ${userLocation.lng}`
+      : undefined;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
+      <Configure
+        hitsPerPage={1000}
+        aroundLatLng={aroundLatLng}
+        aroundLatLngViaIP={isDistanceSort && !userLocation}
+        aroundRadius={isDistanceSort ? "all" : undefined}
+      />
       <ErrorBoundary>
         <MorphingSearchBar />
       </ErrorBoundary>
@@ -903,11 +919,6 @@ export function SearchPageContent({
   isLoggedIn,
   userLocation,
 }: SearchPageContentProps) {
-  // Build aroundLatLng string for Algolia geo-sort
-  const aroundLatLng = userLocation
-    ? `${userLocation.lat}, ${userLocation.lng}`
-    : undefined;
-
   const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
 
   return (
@@ -917,12 +928,6 @@ export function SearchPageContent({
       routing={routing}
       future={{ preserveSharedStateOnUnmount: true }}
     >
-      <Configure
-        hitsPerPage={1000}
-        aroundLatLng={aroundLatLng}
-        aroundLatLngViaIP={!userLocation}
-        aroundRadius="all"
-      />
       <AlgoliaSearchInner isLoggedIn={isLoggedIn} userLocation={userLocation} />
     </InstantSearch>
   );
