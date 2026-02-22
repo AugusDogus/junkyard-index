@@ -114,7 +114,7 @@ async function fetchPypFilterPage(
   page: number,
   session: PypSession,
 ): Promise<PypFilterResponse> {
-  const url = `${API_ENDPOINTS.PYP_BASE}/DesktopModules/pyp_api/api/Inventory/Filter?store=${storeCodes}&filter=&page=${page}&pageSize=${PAGE_SIZE}`;
+  const url = `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${page}&pageSize=${PAGE_SIZE}`;
 
   let response = await fetch(url, {
     headers: buildPypHeaders(session),
@@ -158,7 +158,7 @@ export async function fetchPypInventory(
     const locations = await fetchLocationsFromPYP();
     if (locations.length < 20) {
       throw new Error(
-        `PYP returned only ${locations.length} locations (expected 50+). ` +
+        `PYP returned only ${locations.length} locations (expected 20+). ` +
           `This likely means the PYP location fetch failed and fell back to mock data. Aborting PYP ingestion.`,
       );
     }
@@ -208,7 +208,14 @@ export async function fetchPypInventory(
 
         // Stream upsert if callback provided
         if (onBatch && pageCanonical.length > 0) {
-          await onBatch(pageCanonical);
+          try {
+            await onBatch(pageCanonical);
+          } catch (batchError) {
+            const batchMsg = `PYP onBatch page ${page}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
+            console.error(batchMsg);
+            allErrors.push(batchMsg);
+            // Continue paging — vehicles are still collected in allVehicles
+          }
         }
 
         if (page % 10 === 0) {

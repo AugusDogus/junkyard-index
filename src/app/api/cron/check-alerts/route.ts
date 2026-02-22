@@ -185,7 +185,12 @@ async function findNewVehicles(
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const rows = await db.select().from(vehicle).where(whereClause).limit(100); // Cap alert results
+  const rows = await db
+    .select()
+    .from(vehicle)
+    .where(whereClause)
+    .orderBy(sql`${vehicle.firstSeenAt} DESC`)
+    .limit(100);
 
   return rows.map(dbVehicleToVehicle);
 }
@@ -433,18 +438,38 @@ export async function GET(request: NextRequest) {
                   status: "subscription_expired_disabled",
                 };
               }
-            } catch {
+            } catch (polarError) {
+              // Only disable alerts if the customer definitively doesn't exist.
+              // For transient errors (network, API outage), release the lock
+              // and skip so it retries on the next cron run.
+              const isNotFound =
+                polarError instanceof Error &&
+                (polarError.message.includes("Not Found") ||
+                  polarError.message.includes("404"));
+
+              if (isNotFound) {
+                await db
+                  .update(savedSearch)
+                  .set({
+                    emailAlertsEnabled: false,
+                    discordAlertsEnabled: false,
+                    processingLock: null,
+                  })
+                  .where(eq(savedSearch.id, search.id));
+                return {
+                  searchId: search.id,
+                  status: "no_subscription_disabled",
+                };
+              }
+
+              // Transient error — release lock and skip for retry
               await db
                 .update(savedSearch)
-                .set({
-                  emailAlertsEnabled: false,
-                  discordAlertsEnabled: false,
-                  processingLock: null,
-                })
+                .set({ processingLock: null })
                 .where(eq(savedSearch.id, search.id));
               return {
                 searchId: search.id,
-                status: "no_subscription_disabled",
+                status: "subscription_check_skipped_transient_error",
               };
             }
 

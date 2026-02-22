@@ -9,6 +9,11 @@ import type {
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 1000;
+const PAGE_DELAY_MS = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function fetchRow52<T>(
   endpoint: string,
@@ -35,6 +40,7 @@ async function fetchRow52<T>(
 
 function buildImageUrl(img: Row52Image): string | null {
   if (!img.isActive || !img.isVisible) return null;
+  if (!img.size1) return null;
   const baseUrl = img.resourceUrl || `${API_ENDPOINTS.ROW52_CDN}/images/`;
   const ext = img.extension || ".JPG";
   return `${baseUrl}${img.size1}${ext}`;
@@ -88,7 +94,7 @@ function transformRow52Vehicle(
     section: null,
     row: vehicle.row || null,
     space: vehicle.slot || null,
-    detailsUrl: `https://row52.com/Vehicle/Index/${vehicle.vin}`,
+    detailsUrl: `${API_ENDPOINTS.ROW52_WEB}/Vehicle/Index/${vehicle.vin}`,
     partsUrl: partsPricingUrl,
     pricesUrl: partsPricingUrl,
     engine: vehicle.engine ?? null,
@@ -182,7 +188,7 @@ export async function fetchRow52Inventory(
         for (const rv of pageVehicles) {
           const v = transformRow52Vehicle(rv, locationMap);
           if (v) {
-            allVehicles.push(v);
+            if (!onBatch) allVehicles.push(v);
             pageCanonical.push(v);
           }
         }
@@ -194,8 +200,14 @@ export async function fetchRow52Inventory(
 
         if (pageVehicles.length < PAGE_SIZE) {
           hasMore = false;
+        } else if (
+          totalCount !== undefined &&
+          skip + pageVehicles.length >= totalCount
+        ) {
+          hasMore = false;
         } else {
           skip += PAGE_SIZE;
+          await sleep(PAGE_DELAY_MS);
         }
       } catch (error) {
         const msg = `Row52 page at skip=${skip}: ${error instanceof Error ? error.message : String(error)}`;

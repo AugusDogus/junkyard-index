@@ -135,22 +135,22 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         if (e.key === "Enter") {
           e.preventDefault();
           if (debounceRef.current) clearTimeout(debounceRef.current);
-          refine(inputValue.trim());
+          refine(inputValueRef.current.trim());
         }
       },
-      [refine, inputValue],
+      [refine],
     );
 
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
         e.preventDefault();
-        const trimmed = inputValue.trim();
+        const trimmed = inputValueRef.current.trim();
         if (trimmed) {
           if (debounceRef.current) clearTimeout(debounceRef.current);
           refine(trimmed);
         }
       },
-      [refine, inputValue],
+      [refine],
     );
 
     // Production-matching search input with lucide Search icon, no clear button
@@ -188,13 +188,13 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
           {!style && <form onSubmit={handleSubmit}>{searchInput}</form>}
         </div>
         {/* Try suggestions — hidden on mobile, matches production layout */}
-        <div className="text-muted-foreground mt-2 hidden text-xs sm:block">
+        <div className="text-muted-foreground mt-2 hidden text-xs sm:flex sm:items-center sm:gap-3">
           <span>Try: </span>
-          {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term, i) => (
+          {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term) => (
             <button
               key={term}
               type="button"
-              className={`text-primary cursor-pointer underline hover:no-underline${i < 2 ? " mr-3" : ""}`}
+              className="text-primary cursor-pointer underline hover:no-underline"
               onClick={() => {
                 setInputValue(term);
                 if (debounceRef.current) clearTimeout(debounceRef.current);
