@@ -95,13 +95,16 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       };
     }, [isMobile]);
 
-    // Debounced refine — updates local state immediately, sends to Algolia after delay
+    // Debounced refine — updates local state immediately, sends trimmed value to Algolia after delay
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setInputValue(value);
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => refine(value), DEBOUNCE_MS);
+        debounceRef.current = setTimeout(
+          () => refine(value.trim()),
+          DEBOUNCE_MS,
+        );
       },
       [refine],
     );
@@ -110,9 +113,8 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          // Immediately search on Enter (no debounce)
           if (debounceRef.current) clearTimeout(debounceRef.current);
-          refine(inputValue);
+          refine(inputValue.trim());
         }
       },
       [refine, inputValue],
@@ -121,9 +123,10 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
         e.preventDefault();
-        if (inputValue.trim()) {
+        const trimmed = inputValue.trim();
+        if (trimmed) {
           if (debounceRef.current) clearTimeout(debounceRef.current);
-          refine(inputValue);
+          refine(trimmed);
         }
       },
       [refine, inputValue],
