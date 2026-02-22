@@ -14,6 +14,7 @@ export async function configureAlgoliaIndex(): Promise<void> {
       searchableAttributes: [
         "make",
         "model",
+        "year",
         "unordered(color)",
         "unordered(vin)",
         "unordered(stockNumber)",
