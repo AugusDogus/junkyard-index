@@ -1,42 +1,17 @@
 "use client";
 
-import { forwardRef, useEffect, useRef, useState } from "react";
-import { SearchBox } from "react-instantsearch";
+import { Search } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchBox } from "react-instantsearch";
 import { useIsMobile } from "~/hooks/use-media-query";
 
-/**
- * Module-level debounced queryHook following Algolia's official pattern.
- * Defined outside the component so the reference is stable across renders.
- * @see https://algolia.com/doc/guides/building-search-ui/going-further/improve-performance/react
- */
-let debounceTimerId: ReturnType<typeof setTimeout> | undefined;
 const DEBOUNCE_MS = 300;
-
-function queryHook(query: string, search: (query: string) => void) {
-  clearTimeout(debounceTimerId);
-  debounceTimerId = setTimeout(() => search(query), DEBOUNCE_MS);
-}
-
-// Shared class names for the Algolia SearchBox.
-// Algolia's SVG icons default to black fill. We use fill-current so they
-// inherit the button's text color and respect light/dark themes.
-// The submit button is hidden — we show a decorative search icon via CSS instead.
-// We also hide the native browser clear button on type="search" inputs.
-const searchBoxClassNames = {
-  root: "relative w-full h-10",
-  form: "relative w-full h-full",
-  input:
-    "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background text-foreground flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-3 pr-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
-  submit: "hidden",
-  submitIcon: "hidden",
-  reset:
-    "absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer",
-  resetIcon: "fill-current size-4",
-  loadingIndicator: "hidden",
-};
 
 export const MorphingSearchBar = forwardRef<HTMLDivElement>(
   function MorphingSearchBar(_, ref) {
+    const { query, refine } = useSearchBox();
+    const [inputValue, setInputValue] = useState(query);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const placeholderRef = useRef<HTMLDivElement>(null);
     const isMobile = useIsMobile();
     const [style, setStyle] = useState<{
@@ -46,6 +21,11 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       height: number;
       progress: number;
     } | null>(null);
+
+    // Sync local input when Algolia query changes externally (e.g. URL routing)
+    useEffect(() => {
+      setInputValue(query);
+    }, [query]);
 
     useEffect(() => {
       if (isMobile) return;
@@ -115,35 +95,77 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       };
     }, [isMobile]);
 
+    // Debounced refine — updates local state immediately, sends to Algolia after delay
+    const handleInputChange = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setInputValue(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => refine(value), DEBOUNCE_MS);
+      },
+      [refine],
+    );
+
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          // Immediately search on Enter (no debounce)
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          refine(inputValue);
+        }
+      },
+      [refine, inputValue],
+    );
+
+    const handleSubmit = useCallback(
+      (e: React.FormEvent) => {
+        e.preventDefault();
+        if (inputValue.trim()) {
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          refine(inputValue);
+        }
+      },
+      [refine, inputValue],
+    );
+
+    // Production-matching search input with lucide Search icon, no clear button
+    const searchInput = (
+      <div className="relative h-10 w-full text-sm">
+        <label className="sr-only" htmlFor="search">
+          Search for vehicles
+        </label>
+        <input
+          id="search"
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Enter year, make, model (e.g., '2018 Honda Civic')"
+          className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm"
+        />
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 opacity-50 select-none" />
+      </div>
+    );
+
     // Mobile: static search bar
     if (isMobile) {
       return (
         <div ref={ref} className="mb-6">
-          <div className="h-10">
-            <SearchBox
-              queryHook={queryHook}
-              placeholder="Enter year, make, model (e.g., '2018 Honda Civic')"
-              classNames={searchBoxClassNames}
-            />
-          </div>
+          <form onSubmit={handleSubmit}>{searchInput}</form>
         </div>
       );
     }
 
-    // Desktop: morphing search bar
+    // Desktop: morphing search bar (matches production layout exactly)
     return (
       <div ref={ref} className="mb-6">
         <div ref={placeholderRef} className="h-10 w-full">
-          {!style && (
-            <SearchBox
-              queryHook={queryHook}
-              placeholder="Enter year, make, model (e.g., '2018 Honda Civic')"
-              classNames={searchBoxClassNames}
-            />
-          )}
+          {!style && <form onSubmit={handleSubmit}>{searchInput}</form>}
         </div>
         {style && (
-          <div
+          <form
+            onSubmit={handleSubmit}
             className="fixed z-[60]"
             style={{
               top: style.top,
@@ -152,16 +174,26 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
               height: style.height,
             }}
           >
-            <SearchBox
-              queryHook={queryHook}
-              placeholder={
-                style.progress > 0.5
-                  ? "Search vehicles..."
-                  : "Enter year, make, model (e.g., '2018 Honda Civic')"
-              }
-              classNames={searchBoxClassNames}
-            />
-          </div>
+            <div className="relative h-full w-full text-sm">
+              <label className="sr-only" htmlFor="search">
+                Search for vehicles
+              </label>
+              <input
+                id="search"
+                type="text"
+                value={inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  style.progress > 0.5
+                    ? "Search vehicles..."
+                    : "Enter year, make, model (e.g., '2018 Honda Civic')"
+                }
+                className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] md:text-sm"
+              />
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 opacity-50 select-none" />
+            </div>
+          </form>
         )}
       </div>
     );
