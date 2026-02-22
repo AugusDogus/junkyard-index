@@ -30,11 +30,12 @@ export async function configureAlgoliaIndex(): Promise<void> {
       ],
       numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
       customRanking: ["desc(availableDateTs)"],
-      // Virtual replicas for sort options (distance is handled natively by aroundLatLng)
+      // Virtual replicas for sort options
       replicas: [
         "virtual(vehicles_oldest)",
         "virtual(vehicles_year_desc)",
         "virtual(vehicles_year_asc)",
+        "virtual(vehicles_distance)",
       ],
       // Typo tolerance settings
       typoTolerance: true,
@@ -47,18 +48,25 @@ export async function configureAlgoliaIndex(): Promise<void> {
       unretrievableAttributes: ["firstSeenAt"],
     },
   });
-  // Configure virtual replica sort orders
+  // Configure virtual replica sort orders (hitsPerPage must match primary)
   await algoliaClient.setSettings({
     indexName: "vehicles_oldest",
-    indexSettings: { customRanking: ["asc(availableDateTs)"] },
+    indexSettings: {
+      customRanking: ["asc(availableDateTs)"],
+      hitsPerPage: 1000,
+    },
   });
   await algoliaClient.setSettings({
     indexName: "vehicles_year_desc",
-    indexSettings: { customRanking: ["desc(year)"] },
+    indexSettings: { customRanking: ["desc(year)"], hitsPerPage: 1000 },
   });
   await algoliaClient.setSettings({
     indexName: "vehicles_year_asc",
-    indexSettings: { customRanking: ["asc(year)"] },
+    indexSettings: { customRanking: ["asc(year)"], hitsPerPage: 1000 },
+  });
+  await algoliaClient.setSettings({
+    indexName: "vehicles_distance",
+    indexSettings: { customRanking: [], hitsPerPage: 1000 },
   });
   console.log("[Algolia] Index settings configured");
 }
