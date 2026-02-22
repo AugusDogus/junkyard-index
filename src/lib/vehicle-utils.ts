@@ -22,7 +22,8 @@ export function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
       name: v.locationName,
       displayName: v.locationName
         .replace(/^Pick Your Part - /, "")
-        .replace(/^PICK-n-PULL /, ""),
+        .replace(/^PICK-n-PULL /, "")
+        .replace(/^LKQ Pull-A-Part - /, ""),
       address: "",
       city: "",
       state: v.state,
