@@ -26,6 +26,7 @@ export async function configureAlgoliaIndex(): Promise<void> {
         "searchable(state)",
         "filterOnly(stateAbbr)",
         "searchable(locationName)",
+        "year",
       ],
       numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
       customRanking: ["desc(availableDateTs)"],

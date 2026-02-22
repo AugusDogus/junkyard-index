@@ -5,9 +5,22 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { useIsMobile } from "~/hooks/use-media-query";
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export const MorphingSearchBar = forwardRef<HTMLDivElement>(
   function MorphingSearchBar(_, ref) {
-    const { query, refine } = useSearchBox();
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const { query, refine } = useSearchBox({
+      queryHook(newQuery, search) {
+        // Debounce: cancel any pending search, schedule a new one
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(
+          () => search(newQuery),
+          SEARCH_DEBOUNCE_MS,
+        );
+      },
+    });
     const [inputValue, setInputValue] = useState(query);
     const placeholderRef = useRef<HTMLDivElement>(null);
     const isMobile = useIsMobile();

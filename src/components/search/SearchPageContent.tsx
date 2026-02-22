@@ -208,7 +208,7 @@ function AlgoliaSearchInner({
   });
   const { items: locationItems, refine: refineLocation } = useRefinementList({
     attribute: "locationName",
-    limit: 100,
+    limit: 200,
     sortBy: ["name:asc"],
   });
 
@@ -321,9 +321,12 @@ function AlgoliaSearchInner({
     selectedLocations.length +
     (isYearFiltered ? 1 : 0);
 
+  // Only show results when there's an active query or active filters
+  const hasActiveSearch = query.length > 0 || activeFilterCount > 0;
+
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
-    if (!query && hits.length === 0) return null;
+    if (!hasActiveSearch) return null;
     return {
       vehicles: sortedVehicles,
       totalCount: nbHits,
@@ -333,16 +336,9 @@ function AlgoliaSearchInner({
       locationsCovered: 0,
       locationsWithErrors: [],
     };
-  }, [
-    sortedVehicles,
-    nbHits,
-    isLastPage,
-    processingTimeMS,
-    query,
-    hits.length,
-  ]);
+  }, [sortedVehicles, nbHits, isLastPage, processingTimeMS, hasActiveSearch]);
 
-  const isSearching = query.length > 0 && hits.length === 0 && nbHits === 0;
+  const isSearching = hasActiveSearch && hits.length === 0 && nbHits === 0;
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -653,7 +649,7 @@ function AlgoliaSearchInner({
           )}
 
           {/* Empty State */}
-          {!query && !isSearching && (
+          {!hasActiveSearch && !isSearching && (
             <div className="py-8 sm:py-12">
               <div className="sm:hidden">
                 <h1 className="text-foreground mb-2 text-3xl font-bold tracking-tight">
@@ -887,6 +883,7 @@ export function SearchPageContent({
         hitsPerPage={60}
         aroundLatLng={aroundLatLng}
         aroundLatLngViaIP={!userLocation}
+        aroundRadius="all"
       />
       <AlgoliaSearchInner isLoggedIn={isLoggedIn} userLocation={userLocation} />
     </InstantSearch>

@@ -136,8 +136,12 @@ async function fetchRow52Locations(): Promise<Map<number, Row52Location>> {
 
 /**
  * Fetch all active vehicles from Row52, paginating with $top/$skip.
+ *
+ * @param onBatch - Optional callback called with each page's vehicles for streaming upserts.
  */
-export async function fetchRow52Inventory(): Promise<IngestionResult> {
+export async function fetchRow52Inventory(
+  onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void>,
+): Promise<IngestionResult> {
   const allVehicles: CanonicalVehicle[] = [];
   const allErrors: string[] = [];
 
@@ -172,11 +176,18 @@ export async function fetchRow52Inventory(): Promise<IngestionResult> {
           `[Row52] Fetched page at skip=${skip}: ${pageVehicles.length} vehicles (total: ${totalCount ?? "unknown"})`,
         );
 
+        const pageCanonical: CanonicalVehicle[] = [];
         for (const rv of pageVehicles) {
-          const vehicle = transformRow52Vehicle(rv, locationMap);
-          if (vehicle) {
-            allVehicles.push(vehicle);
+          const v = transformRow52Vehicle(rv, locationMap);
+          if (v) {
+            allVehicles.push(v);
+            pageCanonical.push(v);
           }
+        }
+
+        // Stream upsert if callback provided
+        if (onBatch && pageCanonical.length > 0) {
+          await onBatch(pageCanonical);
         }
 
         if (pageVehicles.length < PAGE_SIZE) {
