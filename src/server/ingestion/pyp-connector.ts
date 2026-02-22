@@ -150,6 +150,7 @@ export async function fetchPypInventory(
 ): Promise<IngestionResult> {
   const allVehicles: CanonicalVehicle[] = [];
   const allErrors: string[] = [];
+  let totalProcessed = 0;
 
   try {
     // Get locations for metadata (lat/lng, names, URLs).
@@ -205,6 +206,7 @@ export async function fetchPypInventory(
             pageCanonical.push(canonical);
           }
         }
+        totalProcessed += pageCanonical.length;
 
         // Stream upsert if callback provided
         if (onBatch && pageCanonical.length > 0) {
@@ -214,13 +216,13 @@ export async function fetchPypInventory(
             const batchMsg = `PYP onBatch page ${page}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
             console.error(batchMsg);
             allErrors.push(batchMsg);
-            // Continue paging — vehicles are still collected in allVehicles
+            // Continue paging despite batch error
           }
         }
 
         if (page % 10 === 0) {
           console.log(
-            `[PYP] Page ${page}: ${allVehicles.length} vehicles so far`,
+            `[PYP] Page ${page}: ${totalProcessed} vehicles processed so far`,
           );
         }
 
@@ -239,7 +241,7 @@ export async function fetchPypInventory(
     }
 
     console.log(
-      `[PYP] Total: ${allVehicles.length} vehicles across ${page} pages, ${allErrors.length} errors`,
+      `[PYP] Total: ${totalProcessed} vehicles across ${page} pages, ${allErrors.length} errors`,
     );
   } catch (error) {
     const msg = `PYP connector failed: ${error instanceof Error ? error.message : String(error)}`;

@@ -62,7 +62,9 @@ function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
       locationCode: v.locationCode,
       locationPageURL: "",
       name: v.locationName,
-      displayName: v.locationName.replace(/^Pick Your Part - /, ""),
+      displayName: v.locationName
+        .replace(/^Pick Your Part - /, "")
+        .replace(/^PICK-n-PULL /, ""),
       address: "",
       city: "",
       state: v.state,
@@ -442,10 +444,14 @@ export async function GET(request: NextRequest) {
               // Only disable alerts if the customer definitively doesn't exist.
               // For transient errors (network, API outage), release the lock
               // and skip so it retries on the next cron run.
-              const isNotFound =
-                polarError instanceof Error &&
-                (polarError.message.includes("Not Found") ||
-                  polarError.message.includes("404"));
+              const statusCode =
+                polarError !== null &&
+                polarError !== undefined &&
+                typeof polarError === "object" &&
+                "statusCode" in polarError
+                  ? (polarError as { statusCode: unknown }).statusCode
+                  : undefined;
+              const isNotFound = statusCode === 404;
 
               if (isNotFound) {
                 await db
