@@ -10,18 +10,16 @@ export interface HomepageLiveStats {
 }
 
 async function getLiveHomepageStatsInternal(): Promise<HomepageLiveStats> {
-  // Query the canonical vehicle table for counts
-  const [vehicleCountResult] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(vehicle);
-
-  const [yardCountResult] = await db
-    .select({ count: sql<number>`COUNT(DISTINCT ${vehicle.locationCode})` })
+  const [result] = await db
+    .select({
+      vehicleCount: sql<number>`COUNT(*)`,
+      yardCount: sql<number>`COUNT(DISTINCT ${vehicle.locationCode})`,
+    })
     .from(vehicle);
 
   return {
-    vehicleCount: vehicleCountResult?.count ?? 0,
-    yardCount: yardCountResult?.count ?? 0,
+    vehicleCount: result?.vehicleCount ?? 0,
+    yardCount: result?.yardCount ?? 0,
     updatedAt: new Date().toISOString(),
   };
 }

@@ -104,15 +104,13 @@ export function SearchResults({
   // Trigger showMore when the last virtual item approaches the end of loaded data.
   // Matches the TanStack Virtual infinite scroll example exactly:
   // https://github.com/TanStack/virtual/blob/main/examples/react/infinite-scroll/src/main.tsx
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const lastVirtualItemIndex =
+    virtualItems[virtualItems.length - 1]?.index ?? -1;
+
   useEffect(() => {
-    const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse();
-
-    if (!lastItem) {
-      return;
-    }
-
     if (
-      lastItem.index >= rows.length - 1 &&
+      lastVirtualItemIndex >= rows.length - 1 &&
       !isLastPage &&
       !isFetchingNextPage &&
       showMore
@@ -120,11 +118,11 @@ export function SearchResults({
       showMore();
     }
   }, [
-    !isLastPage,
-    showMore,
+    lastVirtualItemIndex,
     rows.length,
+    isLastPage,
     isFetchingNextPage,
-    rowVirtualizer.getVirtualItems(),
+    showMore,
   ]);
 
   // Recalculate when columns change

@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
@@ -175,8 +181,8 @@ export const vehicle = sqliteTable(
     locationName: text("location_name").notNull(),
     state: text("state").notNull(),
     stateAbbr: text("state_abbr").notNull(),
-    lat: integer("lat", { mode: "number" }).notNull(), // stored as float via REAL affinity
-    lng: integer("lng", { mode: "number" }).notNull(),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
     section: text("section"),
     row: text("row"),
     space: text("space"),

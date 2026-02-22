@@ -58,6 +58,7 @@ async function getPypSession(): Promise<PypSession> {
   const response = await fetch(
     `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
     {
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -117,6 +118,7 @@ async function fetchPypFilterPage(
 
   let response = await fetch(url, {
     headers: buildPypHeaders(session),
+    signal: AbortSignal.timeout(30_000),
   });
 
   // Retry on auth failure
@@ -126,6 +128,7 @@ async function fetchPypFilterPage(
     const newSession = await getPypSession();
     response = await fetch(url, {
       headers: buildPypHeaders(newSession),
+      signal: AbortSignal.timeout(30_000),
     });
   }
 
@@ -161,15 +164,14 @@ export async function fetchPypInventory(
       `[PYP] Fetching inventory from ${locations.length} locations via JSON API`,
     );
 
-    // Get session
-    const session = await getPypSession();
-
     // Page through all results
     let page = 1;
     let hasMore = true;
 
     while (hasMore && page <= MAX_PAGES) {
       try {
+        // Re-read session each iteration so a 401/403 refresh is picked up
+        const session = await getPypSession();
         const data = await fetchPypFilterPage(storeCodes, page, session);
 
         if (!data.Success) {

@@ -1,7 +1,6 @@
 import { liteClient as algoliasearch } from "algoliasearch/lite";
 import { env } from "~/env";
-
-export const ALGOLIA_INDEX_NAME = "vehicles";
+export { ALGOLIA_INDEX_NAME } from "~/lib/constants";
 
 export const searchClient = algoliasearch(
   env.NEXT_PUBLIC_ALGOLIA_APP_ID,

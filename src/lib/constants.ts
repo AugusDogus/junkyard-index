@@ -1,3 +1,6 @@
+// Algolia
+export const ALGOLIA_INDEX_NAME = "vehicles";
+
 // Search configuration
 export const SEARCH_CONFIG = {
   DEBOUNCE_DELAY: 300,

@@ -291,6 +291,13 @@ function AlgoliaSearchInner({
     () => locationItems.filter((i) => i.isRefined).map((i) => i.value),
     [locationItems],
   );
+  const selectedSources = useMemo(
+    () =>
+      sourceItems
+        .filter((i) => i.isRefined)
+        .map((i) => i.value) as DataSource[],
+    [sourceItems],
+  );
 
   const yearMin = (yearBounds.min ?? 1900) as number;
   const yearMax = (yearBounds.max ?? currentYear) as number;
@@ -313,6 +320,7 @@ function AlgoliaSearchInner({
     selectedColors.length +
     selectedStates.length +
     selectedLocations.length +
+    selectedSources.length +
     (isYearFiltered ? 1 : 0);
 
   // Only show results when there's a non-empty search query
@@ -383,6 +391,9 @@ function AlgoliaSearchInner({
     for (const item of locationItems.filter((i) => i.isRefined)) {
       refineLocation(item.value);
     }
+    for (const item of sourceItems.filter((i) => i.isRefined)) {
+      refineSource(item.value);
+    }
     refineYear([yearMin, yearMax]);
     refineSortBy(ALGOLIA_INDEX_NAME);
     setShowFilters(false);
@@ -392,11 +403,13 @@ function AlgoliaSearchInner({
     colorItems,
     stateItems,
     locationItems,
+    sourceItems,
     refineSortBy,
     refineMake,
     refineColor,
     refineState,
     refineLocation,
+    refineSource,
     refineYear,
     yearMin,
     yearMax,
@@ -460,15 +473,6 @@ function AlgoliaSearchInner({
     [selectedLocations, refineLocation],
   );
 
-  // Selected sources from Algolia
-  const selectedSources = useMemo(
-    () =>
-      sourceItems
-        .filter((i) => i.isRefined)
-        .map((i) => i.value) as DataSource[],
-    [sourceItems],
-  );
-
   const handleSourcesChange = useCallback(
     (newSources: DataSource[]) => {
       // SidebarContent uses [] to mean "all sources" (nothing refined)
@@ -517,20 +521,14 @@ function AlgoliaSearchInner({
     }
   }, [query, isSearching, nbHits, processingTimeMS]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts: Cmd/Ctrl+K to focus search, F to toggle filters
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         document.getElementById("search")?.focus();
+        return;
       }
-    };
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, []);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
       if (e.key === "f" && !e.metaKey && !e.ctrlKey) {
@@ -863,6 +861,11 @@ function createRouting(indexName: string) {
 
         if (indexState.query) state.query = indexState.query;
 
+        // Persist sort (replica index name)
+        if (indexState.sortBy && indexState.sortBy !== indexName) {
+          state.sort = indexState.sortBy;
+        }
+
         // Extract refinement lists
         const refinementList = indexState.refinementList as
           | Record<string, string[]>
@@ -888,6 +891,9 @@ function createRouting(indexName: string) {
         const uiState: Record<string, unknown> = {};
 
         if (state.query) uiState.query = state.query;
+
+        // Restore sort (replica index name)
+        if (state.sort) uiState.sortBy = state.sort;
 
         // Build refinement lists
         const refinementList: Record<string, string[]> = {};
