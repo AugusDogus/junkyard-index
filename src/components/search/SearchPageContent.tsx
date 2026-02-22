@@ -741,6 +741,7 @@ function AlgoliaSearchInner({
               sidebarOpen={!isMobile && showFilters}
               showMore={showMore}
               isLastPage={isLastPage}
+              isFetchingNextPage={status === "loading" || status === "stalled"}
             />
           )}
 

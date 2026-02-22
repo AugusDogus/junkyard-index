@@ -47,6 +47,7 @@ interface SearchResultsProps {
   sidebarOpen?: boolean;
   showMore?: () => void;
   isLastPage?: boolean;
+  isFetchingNextPage?: boolean;
 }
 
 export function SearchResults({
@@ -55,6 +56,7 @@ export function SearchResults({
   sidebarOpen = false,
   showMore,
   isLastPage = true,
+  isFetchingNextPage = false,
 }: SearchResultsProps) {
   const isMobile = useIsMobile();
 
@@ -99,18 +101,31 @@ export function SearchResults({
     scrollPaddingEnd: 100,
   });
 
-  // Trigger showMore when the last virtual item is near the end of loaded data.
-  // This is the TanStack Virtual recommended pattern for infinite scroll.
+  // Trigger showMore when the last virtual item approaches the end of loaded data.
+  // Matches the TanStack Virtual infinite scroll example exactly:
+  // https://github.com/TanStack/virtual/blob/main/examples/react/infinite-scroll/src/main.tsx
   useEffect(() => {
-    const virtualItems = rowVirtualizer.getVirtualItems();
-    const lastItem = virtualItems[virtualItems.length - 1];
+    const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse();
 
-    if (!lastItem) return;
+    if (!lastItem) {
+      return;
+    }
 
-    if (lastItem.index >= rows.length - 1 && !isLastPage && showMore) {
+    if (
+      lastItem.index >= rows.length - 1 &&
+      !isLastPage &&
+      !isFetchingNextPage &&
+      showMore
+    ) {
       showMore();
     }
-  }, [rowVirtualizer.getVirtualItems(), rows.length, isLastPage, showMore]);
+  }, [
+    !isLastPage,
+    showMore,
+    rows.length,
+    isFetchingNextPage,
+    rowVirtualizer.getVirtualItems(),
+  ]);
 
   // Recalculate when columns change
   useEffect(() => {
