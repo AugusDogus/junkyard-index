@@ -163,6 +163,25 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         <div ref={placeholderRef} className="h-10 w-full">
           {!style && <form onSubmit={handleSubmit}>{searchInput}</form>}
         </div>
+        {/* Try suggestions — hidden on mobile, matches production layout */}
+        <div className="text-muted-foreground mt-2 hidden text-xs sm:block">
+          <span>Try: </span>
+          {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term, i) => (
+            <button
+              key={term}
+              type="button"
+              className={`text-primary cursor-pointer underline hover:no-underline${i < 2 ? " mr-3" : ""}`}
+              onClick={() => {
+                setInputValue(term);
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                refine(term);
+              }}
+            >
+              {term}
+            </button>
+          ))}
+        </div>
+
         {style && (
           <form
             onSubmit={handleSubmit}
