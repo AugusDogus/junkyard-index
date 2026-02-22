@@ -323,6 +323,18 @@ function AlgoliaSearchInner({
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
     if (status === "loading" && hits.length === 0) return null;
+    console.log(
+      "[SearchDebug] status:",
+      status,
+      "hits:",
+      hits.length,
+      "vehicles:",
+      vehicles.length,
+      "nbHits:",
+      nbHits,
+      "isLastPage:",
+      isLastPage,
+    );
     return {
       vehicles,
       totalCount: nbHits,
@@ -353,7 +365,7 @@ function AlgoliaSearchInner({
         oldest: "vehicles_oldest",
         "year-desc": "vehicles_year_desc",
         "year-asc": "vehicles_year_asc",
-        distance: ALGOLIA_INDEX_NAME, // distance = default index with geo ranking
+        distance: "vehicles_distance",
       };
       refineSortBy(indexMap[value] ?? ALGOLIA_INDEX_NAME);
     },
