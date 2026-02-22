@@ -541,31 +541,27 @@ function AlgoliaSearchInner({
   }, []);
 
   // Load more when scrolling near bottom
-  // Load more when scrolling near bottom.
-  // Uses a ref for showMore to avoid re-registering the listener on every page load.
-  const showMoreRef = useRef(showMore);
-  showMoreRef.current = showMore;
-  const isLastPageRef = useRef(isLastPage);
-  isLastPageRef.current = isLastPage;
+  // Infinite scroll via Intersection Observer sentinel (Algolia best practice).
+  // A sentinel div at the end of results triggers showMore() when it enters
+  // the viewport. This is reliable regardless of scroll speed or method.
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!hasActiveSearch) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel || isLastPage || !hasActiveSearch) return;
 
-    const handleScroll = () => {
-      if (isLastPageRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          showMore();
+        }
+      },
+      { rootMargin: "600px" },
+    );
 
-      const scrollTop = window.scrollY;
-      const windowHeight = window.innerHeight;
-      const docHeight = document.documentElement.scrollHeight;
-
-      if (docHeight - scrollTop - windowHeight < 1500) {
-        showMoreRef.current();
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [hasActiveSearch]);
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isLastPage, showMore, hasActiveSearch]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
@@ -763,6 +759,11 @@ function AlgoliaSearchInner({
               isLoading={isSearching}
               sidebarOpen={!isMobile && showFilters}
             />
+          )}
+
+          {/* Sentinel for infinite scroll — triggers showMore when visible */}
+          {hasActiveSearch && !isLastPage && (
+            <div ref={sentinelRef} aria-hidden="true" className="h-1" />
           )}
 
           {/* No Results */}
