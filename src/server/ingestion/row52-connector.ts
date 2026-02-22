@@ -52,6 +52,7 @@ function transformRow52Vehicle(
   const model = vehicle.model?.name || "";
 
   if (!vehicle.vin) return null;
+  if (!make || !model) return null;
 
   // Get primary image URL
   let imageUrl: string | null = null;

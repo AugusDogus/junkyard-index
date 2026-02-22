@@ -156,7 +156,7 @@ export async function fetchPypInventory(
     // fetchLocationsFromPYP silently returns mock data (1 location) on failure,
     // so we sanity-check the count to avoid ingesting with incomplete location data.
     const locations = await fetchLocationsFromPYP();
-    if (locations.length < 5) {
+    if (locations.length < 20) {
       throw new Error(
         `PYP returned only ${locations.length} locations (expected 50+). ` +
           `This likely means the PYP location fetch failed and fell back to mock data. Aborting PYP ingestion.`,
@@ -187,15 +187,13 @@ export async function fetchPypInventory(
           allErrors.push(
             `PYP Filter API error on page ${page}: ${data.Errors.join(", ")}`,
           );
-          hasMore = false;
-          continue;
+          break;
         }
 
         const pageVehicles = data.ResponseData?.Vehicles ?? [];
 
         if (pageVehicles.length === 0) {
-          hasMore = false;
-          continue;
+          break;
         }
 
         // Transform vehicles

@@ -257,10 +257,8 @@ async function processSearch(
   }
   const filters = filtersParseResult.data;
 
-  // Query new vehicles from canonical DB
-  const newVehicles = await findNewVehicles(search, filters);
-
   // If this is the first check (no lastCheckedAt), just set the baseline
+  // without running the expensive findNewVehicles query
   if (!search.lastCheckedAt) {
     await db
       .update(savedSearch)
@@ -268,6 +266,9 @@ async function processSearch(
       .where(eq(savedSearch.id, search.id));
     return { searchId: search.id, status: "first_check_baseline_set" };
   }
+
+  // Query new vehicles from canonical DB
+  const newVehicles = await findNewVehicles(search, filters);
 
   // If no new vehicles, just update timestamp
   if (newVehicles.length === 0) {

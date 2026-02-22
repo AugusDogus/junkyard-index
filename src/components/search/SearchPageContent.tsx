@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   Configure,
   InstantSearch,
+  useClearRefinements,
   useInfiniteHits,
   useInstantSearch,
   useRange,
@@ -43,6 +44,37 @@ import type {
 } from "~/lib/types";
 import { calculateDistance } from "~/lib/utils";
 import { api } from "~/trpc/react";
+
+// Module-level sort options — single source of truth for all sort mappings.
+const SORT_OPTIONS: { indexName: string; key: string; label: string }[] = [
+  { indexName: ALGOLIA_INDEX_NAME, key: "newest", label: "Newest First" },
+  { indexName: "vehicles_oldest", key: "oldest", label: "Oldest First" },
+  {
+    indexName: "vehicles_year_desc",
+    key: "year-desc",
+    label: "Year (High to Low)",
+  },
+  {
+    indexName: "vehicles_year_asc",
+    key: "year-asc",
+    label: "Year (Low to High)",
+  },
+  {
+    indexName: "vehicles_distance",
+    key: "distance",
+    label: "Distance (Nearest)",
+  },
+];
+const SORT_ITEMS = SORT_OPTIONS.map(({ indexName, label }) => ({
+  value: indexName,
+  label,
+}));
+const INDEX_TO_KEY = Object.fromEntries(
+  SORT_OPTIONS.map((o) => [o.indexName, o.key]),
+);
+const KEY_TO_INDEX = Object.fromEntries(
+  SORT_OPTIONS.map((o) => [o.key, o.indexName]),
+);
 
 /**
  * Map an Algolia hit to the Vehicle type expected by VehicleCard and other components.
@@ -231,26 +263,13 @@ function AlgoliaSearchInner({
   // Server-side sorting via Algolia replicas.
   // Virtual replicas for date/year (share records with primary).
   // Standard replica for distance (separate index with geo-dominant ranking).
-  const SORT_ITEMS = useMemo(
-    () => [
-      { value: ALGOLIA_INDEX_NAME, label: "Newest First" },
-      { value: "vehicles_oldest", label: "Oldest First" },
-      { value: "vehicles_year_desc", label: "Year (High to Low)" },
-      { value: "vehicles_year_asc", label: "Year (Low to High)" },
-      { value: "vehicles_distance", label: "Distance (Nearest)" },
-    ],
-    [],
-  );
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
     useSortBy({ items: SORT_ITEMS });
 
-  const sortBy = useMemo(() => {
-    if (currentSortIndex === "vehicles_oldest") return "oldest";
-    if (currentSortIndex === "vehicles_year_desc") return "year-desc";
-    if (currentSortIndex === "vehicles_year_asc") return "year-asc";
-    if (currentSortIndex === "vehicles_distance") return "distance";
-    return "newest";
-  }, [currentSortIndex]);
+  const sortBy = useMemo(
+    () => INDEX_TO_KEY[currentSortIndex] ?? "newest",
+    [currentSortIndex],
+  );
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -357,14 +376,7 @@ function AlgoliaSearchInner({
   const handleSortChange = useCallback(
     (value: string) => {
       posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
-      const indexMap: Record<string, string> = {
-        newest: ALGOLIA_INDEX_NAME,
-        oldest: "vehicles_oldest",
-        "year-desc": "vehicles_year_desc",
-        "year-asc": "vehicles_year_asc",
-        distance: "vehicles_distance",
-      };
-      refineSortBy(indexMap[value] ?? ALGOLIA_INDEX_NAME);
+      refineSortBy(KEY_TO_INDEX[value] ?? ALGOLIA_INDEX_NAME);
     },
     [refineSortBy],
   );
@@ -374,46 +386,16 @@ function AlgoliaSearchInner({
     [],
   );
 
+  const { refine: clearRefinements } = useClearRefinements();
+
   const clearAllFilters = useCallback(() => {
     posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
       previous_filter_count: activeFilterCount,
     });
-    // Clear all refinements
-    for (const item of makeItems.filter((i) => i.isRefined)) {
-      refineMake(item.value);
-    }
-    for (const item of colorItems.filter((i) => i.isRefined)) {
-      refineColor(item.value);
-    }
-    for (const item of stateItems.filter((i) => i.isRefined)) {
-      refineState(item.value);
-    }
-    for (const item of locationItems.filter((i) => i.isRefined)) {
-      refineLocation(item.value);
-    }
-    for (const item of sourceItems.filter((i) => i.isRefined)) {
-      refineSource(item.value);
-    }
-    refineYear([yearMin, yearMax]);
+    clearRefinements();
     refineSortBy(ALGOLIA_INDEX_NAME);
     setShowFilters(false);
-  }, [
-    activeFilterCount,
-    makeItems,
-    colorItems,
-    stateItems,
-    locationItems,
-    sourceItems,
-    refineSortBy,
-    refineMake,
-    refineColor,
-    refineState,
-    refineLocation,
-    refineSource,
-    refineYear,
-    yearMin,
-    yearMax,
-  ]);
+  }, [activeFilterCount, clearRefinements, refineSortBy]);
 
   // Filter change handlers that toggle individual values
   const handleMakesChange = useCallback(
@@ -816,6 +798,8 @@ function createRouting(indexName: string) {
           params.set("states", (state.states as string[]).join(","));
         if (state.yards)
           params.set("yards", (state.yards as string[]).join(","));
+        if (state.sources)
+          params.set("sources", (state.sources as string[]).join(","));
         if (state.minYear) params.set("minYear", String(state.minYear));
         if (state.maxYear) params.set("maxYear", String(state.maxYear));
         if (state.sort) params.set("sort", state.sort as string);
@@ -841,6 +825,9 @@ function createRouting(indexName: string) {
 
         const yards = params.get("yards");
         if (yards) state.yards = yards.split(",").filter(Boolean);
+
+        const sources = params.get("sources");
+        if (sources) state.sources = sources.split(",").filter(Boolean);
 
         const minYear = params.get("minYear");
         if (minYear) {
@@ -881,6 +868,8 @@ function createRouting(indexName: string) {
         if (refinementList?.state?.length) state.states = refinementList.state;
         if (refinementList?.locationName?.length)
           state.yards = refinementList.locationName;
+        if (refinementList?.source?.length)
+          state.sources = refinementList.source;
 
         // Extract numeric range
         const range = indexState.range as Record<string, string> | undefined;
@@ -913,6 +902,7 @@ function createRouting(indexName: string) {
         if (state.colors) refinementList.color = state.colors as string[];
         if (state.states) refinementList.state = state.states as string[];
         if (state.yards) refinementList.locationName = state.yards as string[];
+        if (state.sources) refinementList.source = state.sources as string[];
         if (Object.keys(refinementList).length > 0) {
           uiState.refinementList = refinementList;
         }
