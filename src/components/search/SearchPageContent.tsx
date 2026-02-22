@@ -345,12 +345,14 @@ function AlgoliaSearchInner({
   const hasActiveSearch = query.length > 0;
 
   // Loading = Algolia is actively fetching (not stale "0 results")
-  const isSearching = hasActiveSearch && status === "loading";
+  const isSearching =
+    hasActiveSearch && (status === "loading" || status === "stalled");
 
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
-    if (status === "loading" && hits.length === 0) return null;
+    if ((status === "loading" || status === "stalled") && hits.length === 0)
+      return null;
     return {
       vehicles,
       totalCount: nbHits,
