@@ -19,7 +19,7 @@ export async function configureAlgoliaIndex(): Promise<void> {
         "unordered(stockNumber)",
       ],
       attributesForFaceting: [
-        "filterOnly(source)",
+        "source",
         "searchable(make)",
         "searchable(model)",
         "searchable(color)",

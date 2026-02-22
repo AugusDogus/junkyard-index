@@ -8,9 +8,9 @@ import {
   Configure,
   InstantSearch,
   useInfiniteHits,
+  useInstantSearch,
   useRange,
   useRefinementList,
-  useSearchBox,
   useStats,
 } from "react-instantsearch";
 import { history } from "instantsearch.js/es/lib/routers";
@@ -186,7 +186,8 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { query, refine: refineQuery } = useSearchBox();
+  const { indexUiState, setIndexUiState } = useInstantSearch();
+  const query = (indexUiState.query as string) ?? "";
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
 
@@ -208,8 +209,12 @@ function AlgoliaSearchInner({
   });
   const { items: locationItems, refine: refineLocation } = useRefinementList({
     attribute: "locationName",
-    limit: 200,
+    limit: 500,
     sortBy: ["name:asc"],
+  });
+  const { items: sourceItems, refine: refineSource } = useRefinementList({
+    attribute: "source",
+    limit: 10,
   });
 
   // Year range
@@ -445,10 +450,40 @@ function AlgoliaSearchInner({
     [selectedLocations, refineLocation],
   );
 
-  const handleSourcesChange = useCallback((_sources: DataSource[]) => {
-    // Source filtering is handled via Algolia facet if needed;
-    // for now, both sources are in the single index
-  }, []);
+  // Selected sources from Algolia
+  const selectedSources = useMemo(
+    () =>
+      sourceItems
+        .filter((i) => i.isRefined)
+        .map((i) => i.value) as DataSource[],
+    [sourceItems],
+  );
+
+  const handleSourcesChange = useCallback(
+    (newSources: DataSource[]) => {
+      // SidebarContent uses [] to mean "all sources" (nothing refined)
+      // and ["pyp"] or ["row52"] to mean only that source
+      const currentlyRefined = new Set(selectedSources);
+      const desired = new Set(newSources);
+
+      // If desired is empty, clear all refinements
+      if (desired.size === 0) {
+        for (const s of currentlyRefined) {
+          refineSource(s);
+        }
+        return;
+      }
+
+      // Toggle the difference
+      for (const s of currentlyRefined) {
+        if (!desired.has(s as DataSource)) refineSource(s);
+      }
+      for (const s of desired) {
+        if (!currentlyRefined.has(s)) refineSource(s);
+      }
+    },
+    [selectedSources, refineSource],
+  );
 
   const handleYearRangeChange = useCallback(
     (range: [number, number]) => {
@@ -534,7 +569,7 @@ function AlgoliaSearchInner({
               colors={selectedColors}
               states={selectedStates}
               salvageYards={selectedLocations}
-              sources={[]}
+              sources={selectedSources}
               yearRange={yearRange}
               filterOptions={filterOptions}
               onMakesChange={handleMakesChange}
@@ -597,7 +632,7 @@ function AlgoliaSearchInner({
                       colors={selectedColors}
                       states={selectedStates}
                       salvageYards={selectedLocations}
-                      sources={[]}
+                      sources={selectedSources}
                       yearRange={yearRange}
                       filterOptions={filterOptions}
                       onMakesChange={handleMakesChange}
@@ -663,7 +698,12 @@ function AlgoliaSearchInner({
                     <button
                       key={term}
                       type="button"
-                      onClick={() => refineQuery(term)}
+                      onClick={() =>
+                        setIndexUiState((prev) => ({
+                          ...prev,
+                          query: term,
+                        }))
+                      }
                       className="bg-muted hover:bg-muted/80 text-foreground inline-flex cursor-pointer items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
                     >
                       {term}
