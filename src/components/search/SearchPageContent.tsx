@@ -538,7 +538,12 @@ function AlgoliaSearchInner({
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
       <Configure
-        hitsPerPage={50}
+        // Intentionally 1000 (Algolia max). Small page sizes break sorting:
+        // virtual replicas with relevancyStrictness:0 + useInfiniteHits
+        // reset on sort switch, and the virtualizer needs enough rows to
+        // render without the "5 results" bug. 1000 per page means most
+        // queries complete in 1-2 API calls.
+        hitsPerPage={1000}
         aroundLatLng={aroundLatLng}
         aroundLatLngViaIP={isDistanceSort && !userLocation}
         aroundRadius={isDistanceSort ? "all" : undefined}
