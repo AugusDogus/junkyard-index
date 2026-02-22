@@ -1,17 +1,15 @@
 "use client";
 
 /**
- * SearchResults — Virtualized grid of VehicleCards with infinite scroll.
+ * SearchResults - A high-performance virtualized grid component for rendering large lists of VehicleCards.
  *
- * Uses TanStack Virtual's useVirtualizer with a fixed-height scroll container.
- * Follows the official infinite scroll pattern: the virtualizer monitors the
- * last visible item and triggers showMore() when approaching the end.
- *
- * @see https://tanstack.com/virtual/latest/docs/framework/react/examples/infinite-scroll
+ * Uses TanStack Virtual's useWindowVirtualizer (window as scroll container).
+ * Triggers showMore() when the last virtual item is near the end of loaded data,
+ * following the TanStack Virtual infinite scroll pattern.
  */
 
-import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { useEffect, useMemo, useRef } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -60,15 +58,16 @@ export function SearchResults({
 }: SearchResultsProps) {
   const isMobile = useIsMobile();
 
+  // Calculate grid columns based on sidebar state and screen size
   const getGridColumns = () => {
     if (isMobile) return 1;
     if (sidebarOpen) return 2;
-    return 3;
+    return 3; // xl:grid-cols-3 for desktop without sidebar
   };
 
   const columns = getGridColumns();
 
-  // Group vehicles into rows for grid virtualization
+  // Group vehicles into rows for simpler virtualization
   const rows = useMemo(() => {
     if (!searchResult.vehicles) return [];
     const result: Vehicle[][] = [];
@@ -78,20 +77,30 @@ export function SearchResults({
     return result;
   }, [searchResult.vehicles, columns]);
 
-  // Include an extra "loader" row when there are more pages to load
+  // Calculate card height based on column count
+  const getCardHeight = () => {
+    if (isMobile) return 477.88; // 1 column
+    if (sidebarOpen) return 497.38; // 2 columns
+    return 477.88; // 3 columns
+  };
+
+  const cardHeight = getCardHeight();
+  const gapHeight = 24; // gap-6 = 24px
+  const rowHeight = cardHeight + gapHeight;
+
+  // Include an extra loader row when there are more pages
   const rowCount = !isLastPage ? rows.length + 1 : rows.length;
 
-  const parentRef = useRef<HTMLDivElement>(null);
-
-  const rowVirtualizer = useVirtualizer({
+  // Single virtualizer for rows using the window as scroll container
+  const rowVirtualizer = useWindowVirtualizer({
     count: rowCount,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => (isMobile ? 502 : sidebarOpen ? 522 : 502),
+    estimateSize: () => rowHeight,
     overscan: 5,
+    scrollPaddingEnd: 100,
   });
 
   // Trigger showMore when the last virtual item is near the end of loaded data.
-  // This is the TanStack Virtual recommended infinite scroll pattern.
+  // This is the TanStack Virtual recommended pattern for infinite scroll.
   useEffect(() => {
     const virtualItems = rowVirtualizer.getVirtualItems();
     const lastItem = virtualItems[virtualItems.length - 1];
@@ -103,7 +112,7 @@ export function SearchResults({
     }
   }, [rowVirtualizer.getVirtualItems(), rows.length, isLastPage, showMore]);
 
-  // Recalculate sizes when columns change
+  // Recalculate when columns change
   useEffect(() => {
     rowVirtualizer.measure();
   }, [columns, rowVirtualizer]);
@@ -118,6 +127,7 @@ export function SearchResults({
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
       >
+        {/* Loading Skeletons */}
         {Array.from({ length: amountOfSkeletons }).map((_, index) => (
           <Card
             key={index}
@@ -159,57 +169,56 @@ export function SearchResults({
 
   return (
     <div
-      ref={parentRef}
       style={{
-        height: "calc(100vh - 200px)",
-        overflow: "auto",
+        height: `${rowVirtualizer.getTotalSize()}px`,
+        width: "100%",
+        position: "relative",
       }}
     >
-      <div
-        style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const isLoaderRow = virtualRow.index >= rows.length;
-          const row = rows[virtualRow.index];
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        const isLoaderRow = virtualRow.index >= rows.length;
+        const row = rows[virtualRow.index];
 
-          return (
-            <div
-              key={virtualRow.index}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              {isLoaderRow ? (
-                <div className="text-muted-foreground py-8 text-center text-sm">
-                  {!isLastPage ? "Loading more vehicles..." : ""}
-                </div>
-              ) : row ? (
-                <div
-                  className="grid w-full gap-6 pb-6"
-                  style={{
-                    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {row.map((vehicle: Vehicle) => (
-                    <VehicleCard
-                      key={`${vehicle.location.locationCode}-${vehicle.id}`}
-                      vehicle={vehicle}
-                    />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+        return (
+          <div
+            key={`row-${virtualRow.index}`}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: `${virtualRow.size}px`,
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+          >
+            {isLoaderRow ? (
+              <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+                Loading more vehicles...
+              </div>
+            ) : row ? (
+              <div
+                className="grid w-full gap-6"
+                style={{
+                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                }}
+              >
+                {row.map((vehicle: Vehicle) => (
+                  <VehicleCard
+                    key={`${vehicle.location.locationCode}-${vehicle.id}`}
+                    vehicle={vehicle}
+                  />
+                ))}
+                {/* Fill remaining grid slots if row has fewer items than columns */}
+                {Array.from({
+                  length: Math.max(0, columns - row.length),
+                }).map((_, index) => (
+                  <div key={`empty-${index}`} className="h-full" />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
