@@ -17,16 +17,21 @@ function queryHook(query: string, search: (query: string) => void) {
   debounceTimerId = setTimeout(() => search(query), DEBOUNCE_MS);
 }
 
-// Shared class names for the Algolia SearchBox
+// Shared class names for the Algolia SearchBox.
+// Algolia's SVG icons default to black fill. We use fill-current so they
+// inherit the button's text color and respect light/dark themes.
+// The submit button is hidden — we show a decorative search icon via CSS instead.
+// We also hide the native browser clear button on type="search" inputs.
 const searchBoxClassNames = {
   root: "relative w-full h-10",
   form: "relative w-full h-full",
   input:
-    "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-10 pr-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm",
-  submit:
-    "absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground [&>svg]:size-4",
+    "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background text-foreground flex h-full w-full min-w-0 rounded-md border px-3 py-1 pl-3 pr-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:text-sm [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
+  submit: "hidden",
+  submitIcon: "hidden",
   reset:
-    "absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground [&>svg]:size-4",
+    "absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer",
+  resetIcon: "fill-current size-4",
   loadingIndicator: "hidden",
 };
 
