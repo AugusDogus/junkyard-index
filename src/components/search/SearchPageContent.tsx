@@ -186,7 +186,7 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState } = useInstantSearch();
+  const { indexUiState, setIndexUiState, status } = useInstantSearch();
   const query = (indexUiState.query as string) ?? "";
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
@@ -326,12 +326,16 @@ function AlgoliaSearchInner({
     selectedLocations.length +
     (isYearFiltered ? 1 : 0);
 
-  // Only show results when there's an active query or active filters
-  const hasActiveSearch = query.length > 0 || activeFilterCount > 0;
+  // Only show results when there's a non-empty search query
+  const hasActiveSearch = query.length > 0;
+
+  // Loading = Algolia is actively fetching (not stale "0 results")
+  const isSearching = hasActiveSearch && status === "loading";
 
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
+    if (status === "loading" && hits.length === 0) return null;
     return {
       vehicles: sortedVehicles,
       totalCount: nbHits,
@@ -341,9 +345,15 @@ function AlgoliaSearchInner({
       locationsCovered: 0,
       locationsWithErrors: [],
     };
-  }, [sortedVehicles, nbHits, isLastPage, processingTimeMS, hasActiveSearch]);
-
-  const isSearching = hasActiveSearch && hits.length === 0 && nbHits === 0;
+  }, [
+    sortedVehicles,
+    nbHits,
+    isLastPage,
+    processingTimeMS,
+    hasActiveSearch,
+    status,
+    hits.length,
+  ]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
