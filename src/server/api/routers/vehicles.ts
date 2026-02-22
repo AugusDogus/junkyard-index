@@ -22,7 +22,9 @@ function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
       locationCode: v.locationCode,
       locationPageURL: "",
       name: v.locationName,
-      displayName: v.locationName.replace(/^Pick Your Part - /, ""),
+      displayName: v.locationName
+        .replace(/^Pick Your Part - /, "")
+        .replace(/^PICK-n-PULL /, ""),
       address: "",
       city: "",
       state: v.state,

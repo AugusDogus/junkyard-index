@@ -107,10 +107,9 @@ function algoliaHitToVehicle(
       locationCode: (hit.locationCode as string) ?? "",
       locationPageURL: "",
       name: (hit.locationName as string) ?? "",
-      displayName: ((hit.locationName as string) ?? "").replace(
-        /^Pick Your Part - /,
-        "",
-      ),
+      displayName: ((hit.locationName as string) ?? "")
+        .replace(/^Pick Your Part - /, "")
+        .replace(/^PICK-n-PULL /, ""),
       address: "",
       city: "",
       state: (hit.state as string) ?? "",
@@ -898,8 +897,13 @@ function createRouting(indexName: string) {
 
         if (state.query) uiState.query = state.query;
 
-        // Restore sort (replica index name)
-        if (state.sort) uiState.sortBy = state.sort;
+        // Restore sort — validate against known replicas to prevent Algolia errors
+        if (state.sort) {
+          const knownIndices = new Set(SORT_OPTIONS.map((o) => o.indexName));
+          if (knownIndices.has(state.sort as string)) {
+            uiState.sortBy = state.sort;
+          }
+        }
 
         // Build refinement lists
         const refinementList: Record<string, string[]> = {};

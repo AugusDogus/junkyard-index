@@ -23,9 +23,12 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       progress: number;
     } | null>(null);
 
-    // Sync local input when Algolia query changes externally (e.g. URL routing)
+    // Sync local input when Algolia query changes externally (e.g. URL routing).
+    // Skip sync if difference is only trailing whitespace (user still typing).
     useEffect(() => {
-      setInputValue(query);
+      if (query !== inputValueRef.current.trim()) {
+        setInputValue(query);
+      }
     }, [query]);
 
     // Also sync when Next.js navigates (e.g. clicking logo to /search clears URL)
