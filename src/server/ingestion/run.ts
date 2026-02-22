@@ -25,7 +25,7 @@ async function upsertVehicles(
     // Use a transaction for each batch
     const statements = batch.map((v) =>
       db.run(
-          sql`INSERT INTO vehicle (
+        sql`INSERT INTO vehicle (
             vin, source, year, make, model, color, stock_number, image_url,
             available_date, location_code, location_name, state, state_abbr,
             lat, lng, section, row, space, details_url, parts_url, prices_url,
@@ -64,16 +64,20 @@ async function upsertVehicles(
             transmission = excluded.transmission,
             first_seen_at = vehicle.first_seen_at,
             last_seen_at = excluded.last_seen_at`,
-        ),
-      );
+      ),
+    );
 
     if (statements.length > 0) {
-      await db.batch(statements as [typeof statements[0], ...typeof statements]);
+      await db.batch(
+        statements as [(typeof statements)[0], ...typeof statements],
+      );
     }
 
     upserted += batch.length;
     if (i % 1000 === 0 && i > 0) {
-      console.log(`[Ingestion] Upserted ${upserted}/${vehicles.length} vehicles`);
+      console.log(
+        `[Ingestion] Upserted ${upserted}/${vehicles.length} vehicles`,
+      );
     }
   }
 
@@ -121,7 +125,9 @@ export async function runIngestion(): Promise<{
   const runId = crypto.randomUUID();
   const allErrors: string[] = [];
 
-  console.log(`[Ingestion] Starting run ${runId} at ${runTimestamp.toISOString()}`);
+  console.log(
+    `[Ingestion] Starting run ${runId} at ${runTimestamp.toISOString()}`,
+  );
 
   // Record run start
   await db.insert(ingestionRun).values({
@@ -137,12 +143,20 @@ export async function runIngestion(): Promise<{
       fetchPypInventory().catch((error) => {
         const msg = `PYP ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
         console.error(msg);
-        return { source: "pyp" as const, vehicles: [] as CanonicalVehicle[], errors: [msg] };
+        return {
+          source: "pyp" as const,
+          vehicles: [] as CanonicalVehicle[],
+          errors: [msg],
+        };
       }),
       fetchRow52Inventory().catch((error) => {
         const msg = `Row52 ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
         console.error(msg);
-        return { source: "row52" as const, vehicles: [] as CanonicalVehicle[], errors: [msg] };
+        return {
+          source: "row52" as const,
+          vehicles: [] as CanonicalVehicle[],
+          errors: [msg],
+        };
       }),
     ]);
 
@@ -169,7 +183,10 @@ export async function runIngestion(): Promise<{
     );
 
     // 3. Upsert into Turso
-    const totalUpserted = await upsertVehicles(deduplicatedVehicles, runTimestamp);
+    const totalUpserted = await upsertVehicles(
+      deduplicatedVehicles,
+      runTimestamp,
+    );
     console.log(`[Ingestion] Upserted ${totalUpserted} vehicles into Turso`);
 
     // 4. Delete stale records

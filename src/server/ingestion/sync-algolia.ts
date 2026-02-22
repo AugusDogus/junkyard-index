@@ -27,11 +27,7 @@ export async function configureAlgoliaIndex(): Promise<void> {
         "filterOnly(stateAbbr)",
         "searchable(locationName)",
       ],
-      numericAttributesForFiltering: [
-        "year",
-        "availableDateTs",
-        "firstSeenAt",
-      ],
+      numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
       customRanking: ["desc(availableDateTs)"],
       // Typo tolerance settings
       typoTolerance: true,
@@ -55,7 +51,9 @@ export async function saveAlgoliaObjects(
 ): Promise<void> {
   if (records.length === 0) return;
 
-  console.log(`[Algolia] Saving ${records.length} objects in batches of ${BATCH_SIZE}...`);
+  console.log(
+    `[Algolia] Saving ${records.length} objects in batches of ${BATCH_SIZE}...`,
+  );
 
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
     const batch = records.slice(i, i + BATCH_SIZE);

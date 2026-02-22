@@ -1,11 +1,7 @@
 import { unstable_cache } from "next/cache";
 import buildQuery from "odata-query";
 import { API_ENDPOINTS } from "~/lib/constants";
-import type {
-  Location,
-  Row52Location,
-  Row52ODataResponse,
-} from "~/lib/types";
+import type { Location, Row52Location, Row52ODataResponse } from "~/lib/types";
 
 function buildODataUrl(endpoint: string, queryString: string): string {
   return `${API_ENDPOINTS.ROW52_BASE}${endpoint}${queryString}`;

@@ -47,9 +47,7 @@ interface SearchWithAlerts {
 /**
  * Map a vehicle DB row to the Vehicle type expected by email/Discord templates.
  */
-function dbVehicleToVehicle(
-  v: typeof vehicle.$inferSelect,
-): Vehicle {
+function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
   return {
     id: v.vin,
     year: v.year,
@@ -181,14 +179,9 @@ async function findNewVehicles(
     conditions.push(sql`${vehicle.year} <= ${filters.maxYear}`);
   }
 
-  const whereClause =
-    conditions.length > 0 ? and(...conditions) : undefined;
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const rows = await db
-    .select()
-    .from(vehicle)
-    .where(whereClause)
-    .limit(100); // Cap alert results
+  const rows = await db.select().from(vehicle).where(whereClause).limit(100); // Cap alert results
 
   return rows.map(dbVehicleToVehicle);
 }

@@ -7,9 +7,7 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 /**
  * Map a vehicle DB row to the Vehicle type.
  */
-function dbVehicleToVehicle(
-  v: typeof vehicle.$inferSelect,
-): Vehicle {
+function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
   return {
     id: v.vin,
     year: v.year,
