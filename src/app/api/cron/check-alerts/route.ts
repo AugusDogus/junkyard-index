@@ -120,15 +120,19 @@ async function findNewVehicles(
     conditions.push(gt(vehicle.firstSeenAt, search.lastCheckedAt));
   }
 
-  // Text query: match against make, model (simple LIKE matching)
+  // Text query: split into words and match each against make, model, or year.
+  // e.g. "Honda Civic" → word "honda" matches make, word "civic" matches model.
   if (search.query.trim()) {
-    const queryLower = search.query.trim().toLowerCase();
-    conditions.push(
-      or(
-        sql`lower(${vehicle.make}) LIKE ${"%" + queryLower + "%"}`,
-        sql`lower(${vehicle.model}) LIKE ${"%" + queryLower + "%"}`,
-      )!,
-    );
+    const words = search.query.trim().toLowerCase().split(/\s+/);
+    for (const word of words) {
+      conditions.push(
+        or(
+          sql`lower(${vehicle.make}) LIKE ${"%" + word + "%"}`,
+          sql`lower(${vehicle.model}) LIKE ${"%" + word + "%"}`,
+          sql`CAST(${vehicle.year} AS TEXT) LIKE ${"%" + word + "%"}`,
+        )!,
+      );
+    }
   }
 
   // Make filter

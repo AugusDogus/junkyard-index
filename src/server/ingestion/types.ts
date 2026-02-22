@@ -38,7 +38,7 @@ export interface CanonicalVehicle {
  */
 export interface AlgoliaVehicleRecord {
   objectID: string;
-  source: string;
+  source: "pyp" | "row52";
   year: number;
   make: string;
   model: string;
@@ -80,9 +80,12 @@ export function toAlgoliaRecord(
   vehicle: CanonicalVehicle,
   firstSeenAt: Date,
 ): AlgoliaVehicleRecord {
-  const availableDateTs = vehicle.availableDate
-    ? Math.floor(new Date(vehicle.availableDate).getTime() / 1000)
-    : 0;
+  const parsedMs = vehicle.availableDate
+    ? new Date(vehicle.availableDate).getTime()
+    : NaN;
+  const availableDateTs = Number.isNaN(parsedMs)
+    ? 0
+    : Math.floor(parsedMs / 1000);
 
   return {
     objectID: vehicle.vin,

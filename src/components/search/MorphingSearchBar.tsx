@@ -107,6 +107,13 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       };
     }, [isMobile]);
 
+    // Clear pending debounce on unmount
+    useEffect(() => {
+      return () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+      };
+    }, []);
+
     // Debounced refine — updates local state immediately, sends trimmed value to Algolia after delay
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
