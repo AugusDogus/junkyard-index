@@ -67,7 +67,7 @@ function algoliaHitToVehicle(
     make: (hit.make as string) ?? "",
     model: (hit.model as string) ?? "",
     color: (hit.color as string) ?? "",
-    vin: (hit.objectID as string) ?? "",
+    vin: (hit.vin as string) ?? (hit.objectID as string) ?? "",
     stockNumber: (hit.stockNumber as string) ?? "",
     availableDate: (hit.availableDate as string) ?? "",
     source: (hit.source as DataSource) ?? "pyp",
@@ -843,10 +843,16 @@ function createRouting(indexName: string) {
         if (yards) state.yards = yards.split(",").filter(Boolean);
 
         const minYear = params.get("minYear");
-        if (minYear) state.minYear = parseInt(minYear);
+        if (minYear) {
+          const parsed = parseInt(minYear, 10);
+          if (!Number.isNaN(parsed)) state.minYear = parsed;
+        }
 
         const maxYear = params.get("maxYear");
-        if (maxYear) state.maxYear = parseInt(maxYear);
+        if (maxYear) {
+          const parsed = parseInt(maxYear, 10);
+          if (!Number.isNaN(parsed)) state.maxYear = parsed;
+        }
 
         const sort = params.get("sort");
         if (sort) state.sort = sort;
@@ -880,8 +886,14 @@ function createRouting(indexName: string) {
         const range = indexState.range as Record<string, string> | undefined;
         if (range?.year) {
           const [min, max] = (range.year as string).split(":");
-          if (min) state.minYear = parseInt(min);
-          if (max) state.maxYear = parseInt(max);
+          if (min) {
+            const parsed = parseInt(min, 10);
+            if (!Number.isNaN(parsed)) state.minYear = parsed;
+          }
+          if (max) {
+            const parsed = parseInt(max, 10);
+            if (!Number.isNaN(parsed)) state.maxYear = parsed;
+          }
         }
 
         return { [indexName]: state };

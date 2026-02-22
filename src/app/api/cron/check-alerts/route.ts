@@ -370,12 +370,20 @@ export async function GET(request: NextRequest) {
     for (let i = 0; i < searchesWithAlerts.length; i += BATCH_SIZE) {
       const batch = searchesWithAlerts.slice(i, i + BATCH_SIZE);
 
-      // Acquire locks
+      // Acquire locks atomically — only lock if not already locked
       for (const s of batch) {
         await db
           .update(savedSearch)
           .set({ processingLock: new Date() })
-          .where(eq(savedSearch.id, s.id));
+          .where(
+            and(
+              eq(savedSearch.id, s.id),
+              or(
+                isNull(savedSearch.processingLock),
+                lt(savedSearch.processingLock, staleLockThreshold),
+              ),
+            ),
+          );
       }
 
       const batchResults = await Promise.all(
