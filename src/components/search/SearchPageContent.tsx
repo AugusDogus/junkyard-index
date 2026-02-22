@@ -538,7 +538,7 @@ function AlgoliaSearchInner({
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
       <Configure
-        hitsPerPage={1000}
+        hitsPerPage={50}
         aroundLatLng={aroundLatLng}
         aroundLatLngViaIP={isDistanceSort && !userLocation}
         aroundRadius={isDistanceSort ? "all" : undefined}

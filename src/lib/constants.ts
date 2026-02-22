@@ -13,6 +13,8 @@ export const API_ENDPOINTS = {
     "/DesktopModules/pyp_vehicleInventory/getVehicleInventory.aspx",
   LOCATION_PAGE: "/inventory/",
   ROW52_BASE: "https://api.row52.com",
+  ROW52_WEB: "https://row52.com",
+  PYP_FILTER_INVENTORY: "/DesktopModules/pyp_api/api/Inventory/Filter",
   ROW52_VEHICLES: "/odata/Vehicles",
   ROW52_MAKES: "/odata/Makes",
   ROW52_MODELS: "/odata/Models",
