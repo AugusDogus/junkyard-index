@@ -139,8 +139,12 @@ async function fetchPypFilterPage(
 /**
  * Fetch ALL PYP inventory using the Filter API with empty filter.
  * Pages through all results across all stores.
+ *
+ * @param onBatch - Optional callback called with each page's vehicles for streaming upserts.
  */
-export async function fetchPypInventory(): Promise<IngestionResult> {
+export async function fetchPypInventory(
+  onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void>,
+): Promise<IngestionResult> {
   const allVehicles: CanonicalVehicle[] = [];
   const allErrors: string[] = [];
 
@@ -184,11 +188,18 @@ export async function fetchPypInventory(): Promise<IngestionResult> {
         }
 
         // Transform vehicles
+        const pageCanonical: CanonicalVehicle[] = [];
         for (const v of pageVehicles) {
           const canonical = transformPypVehicle(v, locationMap);
           if (canonical) {
             allVehicles.push(canonical);
+            pageCanonical.push(canonical);
           }
+        }
+
+        // Stream upsert if callback provided
+        if (onBatch && pageCanonical.length > 0) {
+          await onBatch(pageCanonical);
         }
 
         if (page % 10 === 0) {

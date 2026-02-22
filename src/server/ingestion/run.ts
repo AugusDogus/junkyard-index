@@ -10,85 +10,103 @@ import { toAlgoliaRecord } from "./types";
 const UPSERT_BATCH_SIZE = 200;
 
 /**
- * Upsert vehicles into Turso in batches using raw SQL for ON CONFLICT.
+ * Upsert a batch of vehicles into Turso using raw SQL for ON CONFLICT.
  * Preserves firstSeenAt for existing records, sets it to runTimestamp for new ones.
  */
-async function upsertVehicles(
+async function upsertBatch(
   vehicles: CanonicalVehicle[],
   runTimestamp: Date,
-): Promise<number> {
-  let upserted = 0;
+): Promise<void> {
+  if (vehicles.length === 0) return;
 
-  for (let i = 0; i < vehicles.length; i += UPSERT_BATCH_SIZE) {
-    const batch = vehicles.slice(i, i + UPSERT_BATCH_SIZE);
+  const statements = vehicles.map((v) =>
+    db.run(
+      sql`INSERT INTO vehicle (
+        vin, source, year, make, model, color, stock_number, image_url,
+        available_date, location_code, location_name, state, state_abbr,
+        lat, lng, section, row, space, details_url, parts_url, prices_url,
+        engine, trim, transmission, first_seen_at, last_seen_at
+      ) VALUES (
+        ${v.vin}, ${v.source}, ${v.year}, ${v.make}, ${v.model}, ${v.color},
+        ${v.stockNumber}, ${v.imageUrl}, ${v.availableDate}, ${v.locationCode},
+        ${v.locationName}, ${v.state}, ${v.stateAbbr}, ${v.lat}, ${v.lng},
+        ${v.section}, ${v.row}, ${v.space}, ${v.detailsUrl}, ${v.partsUrl},
+        ${v.pricesUrl}, ${v.engine}, ${v.trim}, ${v.transmission},
+        ${runTimestamp.getTime()}, ${runTimestamp.getTime()}
+      )
+      ON CONFLICT(vin) DO UPDATE SET
+        source = excluded.source,
+        year = excluded.year,
+        make = excluded.make,
+        model = excluded.model,
+        color = excluded.color,
+        stock_number = excluded.stock_number,
+        image_url = excluded.image_url,
+        available_date = excluded.available_date,
+        location_code = excluded.location_code,
+        location_name = excluded.location_name,
+        state = excluded.state,
+        state_abbr = excluded.state_abbr,
+        lat = excluded.lat,
+        lng = excluded.lng,
+        section = excluded.section,
+        row = excluded.row,
+        space = excluded.space,
+        details_url = excluded.details_url,
+        parts_url = excluded.parts_url,
+        prices_url = excluded.prices_url,
+        engine = excluded.engine,
+        trim = excluded.trim,
+        transmission = excluded.transmission,
+        first_seen_at = vehicle.first_seen_at,
+        last_seen_at = excluded.last_seen_at`,
+    ),
+  );
 
-    // Use a transaction for each batch
-    const statements = batch.map((v) =>
-      db.run(
-        sql`INSERT INTO vehicle (
-            vin, source, year, make, model, color, stock_number, image_url,
-            available_date, location_code, location_name, state, state_abbr,
-            lat, lng, section, row, space, details_url, parts_url, prices_url,
-            engine, trim, transmission, first_seen_at, last_seen_at
-          ) VALUES (
-            ${v.vin}, ${v.source}, ${v.year}, ${v.make}, ${v.model}, ${v.color},
-            ${v.stockNumber}, ${v.imageUrl}, ${v.availableDate}, ${v.locationCode},
-            ${v.locationName}, ${v.state}, ${v.stateAbbr}, ${v.lat}, ${v.lng},
-            ${v.section}, ${v.row}, ${v.space}, ${v.detailsUrl}, ${v.partsUrl},
-            ${v.pricesUrl}, ${v.engine}, ${v.trim}, ${v.transmission},
-            ${runTimestamp.getTime()}, ${runTimestamp.getTime()}
-          )
-          ON CONFLICT(vin) DO UPDATE SET
-            source = excluded.source,
-            year = excluded.year,
-            make = excluded.make,
-            model = excluded.model,
-            color = excluded.color,
-            stock_number = excluded.stock_number,
-            image_url = excluded.image_url,
-            available_date = excluded.available_date,
-            location_code = excluded.location_code,
-            location_name = excluded.location_name,
-            state = excluded.state,
-            state_abbr = excluded.state_abbr,
-            lat = excluded.lat,
-            lng = excluded.lng,
-            section = excluded.section,
-            row = excluded.row,
-            space = excluded.space,
-            details_url = excluded.details_url,
-            parts_url = excluded.parts_url,
-            prices_url = excluded.prices_url,
-            engine = excluded.engine,
-            trim = excluded.trim,
-            transmission = excluded.transmission,
-            first_seen_at = vehicle.first_seen_at,
-            last_seen_at = excluded.last_seen_at`,
-      ),
-    );
+  await db.batch(statements as [(typeof statements)[0], ...typeof statements]);
+}
 
-    if (statements.length > 0) {
-      await db.batch(
-        statements as [(typeof statements)[0], ...typeof statements],
-      );
-    }
+/**
+ * Streaming upsert callback — upserts vehicles to Turso as they arrive
+ * from each connector page, in batches of UPSERT_BATCH_SIZE.
+ */
+function createBatchUpserter(runTimestamp: Date) {
+  let totalUpserted = 0;
+  let buffer: CanonicalVehicle[] = [];
 
-    upserted += batch.length;
-    if (i % 1000 === 0 && i > 0) {
-      console.log(
-        `[Ingestion] Upserted ${upserted}/${vehicles.length} vehicles`,
-      );
-    }
-  }
+  return {
+    /** Add vehicles to the buffer and flush when full. */
+    async add(vehicles: CanonicalVehicle[]): Promise<void> {
+      buffer.push(...vehicles);
 
-  return upserted;
+      while (buffer.length >= UPSERT_BATCH_SIZE) {
+        const batch = buffer.splice(0, UPSERT_BATCH_SIZE);
+        await upsertBatch(batch, runTimestamp);
+        totalUpserted += batch.length;
+
+        if (totalUpserted % 5000 === 0) {
+          console.log(`[Ingestion] Upserted ${totalUpserted} vehicles so far`);
+        }
+      }
+    },
+    /** Flush any remaining vehicles in the buffer. */
+    async flush(): Promise<void> {
+      if (buffer.length > 0) {
+        await upsertBatch(buffer, runTimestamp);
+        totalUpserted += buffer.length;
+        buffer = [];
+      }
+    },
+    get count() {
+      return totalUpserted;
+    },
+  };
 }
 
 /**
  * Delete stale vehicles (those not seen in this run) and return their VINs.
  */
 async function deleteStaleVehicles(runTimestamp: Date): Promise<string[]> {
-  // First, get the VINs that will be deleted (for Algolia cleanup)
   const staleVehicles = await db
     .select({ vin: vehicle.vin })
     .from(vehicle)
@@ -106,11 +124,10 @@ async function deleteStaleVehicles(runTimestamp: Date): Promise<string[]> {
 
 /**
  * Run the full ingestion pipeline:
- * 1. Fetch inventory from PYP and Row52 in parallel
- * 2. Deduplicate by VIN (PYP preferred)
- * 3. Upsert into Turso
- * 4. Delete stale records
- * 5. Sync delta to Algolia
+ * 1. Fetch from Row52 first (lower priority), streaming upserts to Turso
+ * 2. Fetch from PYP second (higher priority — overwrites Row52 dupes via ON CONFLICT)
+ * 3. Delete stale records
+ * 4. Sync all vehicles to Algolia
  */
 export async function runIngestion(): Promise<{
   totalUpserted: number;
@@ -138,63 +155,48 @@ export async function runIngestion(): Promise<{
   });
 
   try {
-    // 1. Fetch from both sources in parallel
-    const [pypResult, row52Result] = await Promise.all([
-      fetchPypInventory().catch((error) => {
-        const msg = `PYP ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        return {
-          source: "pyp" as const,
-          vehicles: [] as CanonicalVehicle[],
-          errors: [msg],
-        };
-      }),
-      fetchRow52Inventory().catch((error) => {
-        const msg = `Row52 ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        return {
-          source: "row52" as const,
-          vehicles: [] as CanonicalVehicle[],
-          errors: [msg],
-        };
-      }),
-    ]);
+    const upserter = createBatchUpserter(runTimestamp);
 
-    allErrors.push(...pypResult.errors, ...row52Result.errors);
+    // 1. Row52 first (lower priority — PYP will overwrite dupes)
+    const row52Result = await fetchRow52Inventory(async (vehicles) => {
+      await upserter.add(vehicles);
+    }).catch((error) => {
+      const msg = `Row52 ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(msg);
+      return {
+        source: "row52" as const,
+        vehicles: [] as CanonicalVehicle[],
+        errors: [msg],
+      };
+    });
+    allErrors.push(...row52Result.errors);
+
+    // 2. PYP second (higher priority — overwrites Row52 dupes)
+    const pypResult = await fetchPypInventory(async (vehicles) => {
+      await upserter.add(vehicles);
+    }).catch((error) => {
+      const msg = `PYP ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(msg);
+      return {
+        source: "pyp" as const,
+        vehicles: [] as CanonicalVehicle[],
+        errors: [msg],
+      };
+    });
+    allErrors.push(...pypResult.errors);
+
+    // Flush any remaining buffered vehicles
+    await upserter.flush();
 
     console.log(
       `[Ingestion] PYP: ${pypResult.vehicles.length} vehicles, Row52: ${row52Result.vehicles.length} vehicles`,
     );
+    console.log(`[Ingestion] Upserted ${upserter.count} vehicles to Turso`);
 
-    // 2. Deduplicate by VIN (PYP preferred over Row52)
-    const vinMap = new Map<string, CanonicalVehicle>();
-
-    // Add Row52 first, then PYP (PYP overwrites duplicates)
-    for (const v of row52Result.vehicles) {
-      if (v.vin) vinMap.set(v.vin, v);
-    }
-    for (const v of pypResult.vehicles) {
-      if (v.vin) vinMap.set(v.vin, v);
-    }
-
-    const deduplicatedVehicles = Array.from(vinMap.values());
-    console.log(
-      `[Ingestion] After dedup: ${deduplicatedVehicles.length} unique vehicles`,
-    );
-
-    // 3. Upsert into Turso
-    const totalUpserted = await upsertVehicles(
-      deduplicatedVehicles,
-      runTimestamp,
-    );
-    console.log(`[Ingestion] Upserted ${totalUpserted} vehicles into Turso`);
-
-    // 4. Delete stale records
+    // 3. Delete stale records
     const deletedVins = await deleteStaleVehicles(runTimestamp);
-    console.log(`[Ingestion] Deleted ${deletedVins.length} stale vehicles`);
 
-    // 5. Build Algolia records from the DB (to get accurate firstSeenAt)
-    // Query all vehicles from DB to get their firstSeenAt timestamps
+    // 4. Build Algolia records from DB (to get accurate firstSeenAt)
     const allDbVehicles = await db.select().from(vehicle);
     const algoliaRecords = allDbVehicles.map((dbVehicle) =>
       toAlgoliaRecord(
@@ -228,7 +230,7 @@ export async function runIngestion(): Promise<{
       ),
     );
 
-    // 6. Sync to Algolia
+    // 5. Sync to Algolia
     await syncToAlgolia(algoliaRecords, deletedVins);
 
     const durationMs = Date.now() - startTime;
@@ -238,7 +240,7 @@ export async function runIngestion(): Promise<{
       .update(ingestionRun)
       .set({
         status: "success",
-        vehiclesUpserted: totalUpserted,
+        vehiclesUpserted: upserter.count,
         vehiclesDeleted: deletedVins.length,
         errors: allErrors.length > 0 ? JSON.stringify(allErrors) : null,
         completedAt: new Date(),
@@ -246,11 +248,11 @@ export async function runIngestion(): Promise<{
       .where(eq(ingestionRun.id, runId));
 
     console.log(
-      `[Ingestion] Run complete in ${durationMs}ms: ${totalUpserted} upserted, ${deletedVins.length} deleted`,
+      `[Ingestion] Run complete in ${durationMs}ms: ${upserter.count} upserted, ${deletedVins.length} deleted`,
     );
 
     return {
-      totalUpserted,
+      totalUpserted: upserter.count,
       totalDeleted: deletedVins.length,
       pypCount: pypResult.vehicles.length,
       row52Count: row52Result.vehicles.length,
@@ -262,7 +264,6 @@ export async function runIngestion(): Promise<{
     console.error(msg);
     allErrors.push(msg);
 
-    // Update run record with error
     await db
       .update(ingestionRun)
       .set({
