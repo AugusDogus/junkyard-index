@@ -30,13 +30,13 @@ export async function configureAlgoliaIndex(): Promise<void> {
       ],
       numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
       customRanking: ["desc(availableDateTs)"],
-      // Virtual replicas for sort options.
-      // Distance sort uses the primary index with aroundLatLng (geo ranking
-      // criterion dominates when aroundLatLng is present — no replica needed).
+      // Virtual replicas for date/year sorts (share records with primary).
+      // Standard replica for distance (needs its own ranking array with geo first).
       replicas: [
         "virtual(vehicles_oldest)",
         "virtual(vehicles_year_desc)",
         "virtual(vehicles_year_asc)",
+        "vehicles_distance",
       ],
       // Typo tolerance settings
       typoTolerance: true,
@@ -68,6 +68,25 @@ export async function configureAlgoliaIndex(): Promise<void> {
   await algoliaClient.setSettings({
     indexName: "vehicles_year_asc",
     indexSettings: { ...replicaDefaults, customRanking: ["asc(year)"] },
+  });
+  // Standard replica for distance sort — geo-dominant ranking (geo first, no customRanking).
+  // Standard replicas can override the ranking array, unlike virtual replicas.
+  await algoliaClient.setSettings({
+    indexName: "vehicles_distance",
+    indexSettings: {
+      ranking: [
+        "typo",
+        "geo",
+        "words",
+        "filters",
+        "proximity",
+        "attribute",
+        "exact",
+        "custom",
+      ],
+      customRanking: [],
+      hitsPerPage: 1000,
+    },
   });
   console.log("[Algolia] Index settings configured");
 }
