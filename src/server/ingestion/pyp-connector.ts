@@ -201,7 +201,7 @@ export async function fetchPypInventory(
         for (const v of pageVehicles) {
           const canonical = transformPypVehicle(v, locationMap);
           if (canonical) {
-            allVehicles.push(canonical);
+            if (!onBatch) allVehicles.push(canonical);
             pageCanonical.push(canonical);
           }
         }
