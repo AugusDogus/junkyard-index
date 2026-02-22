@@ -14,6 +14,7 @@ import {
   useSearchBox,
   useStats,
 } from "react-instantsearch";
+import { history } from "instantsearch.js/es/lib/routers";
 import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
@@ -219,7 +220,14 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
   });
 
   // Sort state (client-side since we don't have replicas)
-  const [sortBy, setSortBy] = useState("newest");
+  // Initialize from URL ?sort= param if present
+  const [sortBy, setSortBy] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("sort") || "newest";
+    }
+    return "newest";
+  });
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -755,6 +763,118 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
 }
 
 /**
+ * Custom routing that maps our URL params ↔ Algolia UI state.
+ * This preserves backward compatibility with saved search URLs
+ * (e.g. /search?q=volvo&makes=HONDA,TOYOTA&states=California&minYear=2019)
+ */
+function createRouting(indexName: string) {
+  return {
+    router: history({
+      cleanUrlOnDispose: false,
+      createURL({ qsModule, routeState, location }): string {
+        const baseUrl = location.href.split("?")[0]!;
+        const params = new URLSearchParams();
+
+        const state = routeState[indexName] as Record<string, unknown> | undefined;
+        if (!state) return baseUrl;
+
+        if (state.query) params.set("q", state.query as string);
+        if (state.makes) params.set("makes", (state.makes as string[]).join(","));
+        if (state.colors) params.set("colors", (state.colors as string[]).join(","));
+        if (state.states) params.set("states", (state.states as string[]).join(","));
+        if (state.yards) params.set("yards", (state.yards as string[]).join(","));
+        if (state.minYear) params.set("minYear", String(state.minYear));
+        if (state.maxYear) params.set("maxYear", String(state.maxYear));
+        if (state.sort) params.set("sort", state.sort as string);
+
+        const qs = params.toString();
+        return qs ? `${baseUrl}?${qs}` : baseUrl;
+      },
+      parseURL({ qsModule, location }) {
+        const params = new URLSearchParams(location.search);
+        const state: Record<string, unknown> = {};
+
+        const q = params.get("q");
+        if (q) state.query = q;
+
+        const makes = params.get("makes");
+        if (makes) state.makes = makes.split(",").filter(Boolean);
+
+        const colors = params.get("colors");
+        if (colors) state.colors = colors.split(",").filter(Boolean);
+
+        const states = params.get("states");
+        if (states) state.states = states.split(",").filter(Boolean);
+
+        const yards = params.get("yards");
+        if (yards) state.yards = yards.split(",").filter(Boolean);
+
+        const minYear = params.get("minYear");
+        if (minYear) state.minYear = parseInt(minYear);
+
+        const maxYear = params.get("maxYear");
+        if (maxYear) state.maxYear = parseInt(maxYear);
+
+        const sort = params.get("sort");
+        if (sort) state.sort = sort;
+
+        return { [indexName]: state };
+      },
+    }),
+    stateMapping: {
+      stateToRoute(uiState: Record<string, Record<string, unknown>>) {
+        const indexState = uiState[indexName] ?? {};
+        const state: Record<string, unknown> = {};
+
+        if (indexState.query) state.query = indexState.query;
+
+        // Extract refinement lists
+        const refinementList = indexState.refinementList as Record<string, string[]> | undefined;
+        if (refinementList?.make?.length) state.makes = refinementList.make;
+        if (refinementList?.color?.length) state.colors = refinementList.color;
+        if (refinementList?.state?.length) state.states = refinementList.state;
+        if (refinementList?.locationName?.length) state.yards = refinementList.locationName;
+
+        // Extract numeric range
+        const range = indexState.range as Record<string, string> | undefined;
+        if (range?.year) {
+          const [min, max] = (range.year as string).split(":");
+          if (min) state.minYear = parseInt(min);
+          if (max) state.maxYear = parseInt(max);
+        }
+
+        return { [indexName]: state };
+      },
+      routeToState(routeState: Record<string, Record<string, unknown>>) {
+        const state = routeState[indexName] ?? {};
+        const uiState: Record<string, unknown> = {};
+
+        if (state.query) uiState.query = state.query;
+
+        // Build refinement lists
+        const refinementList: Record<string, string[]> = {};
+        if (state.makes) refinementList.make = state.makes as string[];
+        if (state.colors) refinementList.color = state.colors as string[];
+        if (state.states) refinementList.state = state.states as string[];
+        if (state.yards) refinementList.locationName = state.yards as string[];
+        if (Object.keys(refinementList).length > 0) {
+          uiState.refinementList = refinementList;
+        }
+
+        // Build range
+        if (state.minYear || state.maxYear) {
+          uiState.range = {
+            year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
+          };
+        }
+
+        return { [indexName]: uiState };
+      },
+    },
+  };
+}
+
+/**
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
 export function SearchPageContent({ isLoggedIn, userLocation }: SearchPageContentProps) {
@@ -763,10 +883,13 @@ export function SearchPageContent({ isLoggedIn, userLocation }: SearchPageConten
     ? `${userLocation.lat}, ${userLocation.lng}`
     : undefined;
 
+  const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
+
   return (
     <InstantSearch
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
+      routing={routing}
       future={{ preserveSharedStateOnUnmount: true }}
     >
       <Configure
