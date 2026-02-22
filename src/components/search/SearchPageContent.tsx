@@ -938,7 +938,7 @@ export function SearchPageContent({
       future={{ preserveSharedStateOnUnmount: true }}
     >
       <Configure
-        hitsPerPage={60}
+        hitsPerPage={1000}
         aroundLatLng={aroundLatLng}
         aroundLatLngViaIP={!userLocation}
         aroundRadius="all"

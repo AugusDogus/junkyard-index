@@ -40,8 +40,8 @@ export async function configureAlgoliaIndex(): Promise<void> {
       typoTolerance: true,
       minWordSizefor1Typo: 3,
       minWordSizefor2Typos: 7,
-      // Pagination
-      hitsPerPage: 24,
+      // Pagination — large page size so most queries load in 1-2 pages
+      hitsPerPage: 1000,
       paginationLimitedTo: 10000,
       // Unretrievable attributes (keep admin key out of search results)
       unretrievableAttributes: ["firstSeenAt"],
