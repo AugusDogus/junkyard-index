@@ -37,6 +37,7 @@ export function transformPypVehicle(
   if (!v.Vin) return null;
 
   const location = locationMap.get(v.YardCode);
+  if (!location) return null;
 
   // Get primary image URL (first photo, or first non-internal one)
   let imageUrl: string | null = null;
@@ -60,12 +61,12 @@ export function transformPypVehicle(
 
   // Build URLs
   const modelSlug = v.Model.toLowerCase().split(" ").join("-");
-  const inventoryPath = location?.urls?.inventory ?? `/inventory/`;
+  const inventoryPath = location.urls?.inventory ?? `/inventory/`;
   const detailsUrl = `${PYP_BASE}${inventoryPath}${year}-${v.Make.toLowerCase()}-${modelSlug}/`;
-  const partsUrl = location?.urls?.parts
+  const partsUrl = location.urls?.parts
     ? `${PYP_BASE}${location.urls.parts}?year=${year}&make=${v.Make}&model=${v.Model}`
     : null;
-  const pricesUrl = location?.urls?.prices
+  const pricesUrl = location.urls?.prices
     ? `${PYP_BASE}${location.urls.prices}`
     : null;
 
@@ -80,11 +81,11 @@ export function transformPypVehicle(
     imageUrl,
     availableDate,
     locationCode: v.YardCode,
-    locationName: location?.name ?? `PYP ${v.YardCode}`,
-    state: location?.state ?? "",
-    stateAbbr: location?.stateAbbr ?? "",
-    lat: location?.lat ?? 0,
-    lng: location?.lng ?? 0,
+    locationName: location.name,
+    state: location.state,
+    stateAbbr: location.stateAbbr,
+    lat: location.lat,
+    lng: location.lng,
     section: v.Section || null,
     row: v.Row || null,
     space: v.SpaceNumber || null,

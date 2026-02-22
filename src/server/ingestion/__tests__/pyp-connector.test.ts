@@ -152,9 +152,7 @@ describe("transformPypVehicle", () => {
     };
 
     const result = transformPypVehicle(input, locationMap);
-    expect(result).not.toBeNull();
-    expect(result!.locationName).toBe("PYP 9999");
-    expect(result!.state).toBe("");
+    expect(result).toBeNull();
   });
 
   test("handles null/empty color and stock number", () => {
