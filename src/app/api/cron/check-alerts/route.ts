@@ -9,7 +9,8 @@ import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailAlert } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
 import { buildSearchUrl } from "~/lib/search-utils";
-import type { Vehicle, DataSource } from "~/lib/types";
+import type { Vehicle } from "~/lib/types";
+import { dbVehicleToVehicle } from "~/lib/vehicle-utils";
 import { savedSearch, user, vehicle } from "~/schema";
 import { filtersSchema } from "~/server/api/routers/savedSearches";
 
@@ -42,68 +43,6 @@ interface SearchWithAlerts {
   lastCheckedAt: Date | null;
   emailAlertsEnabled: boolean;
   discordAlertsEnabled: boolean;
-}
-
-/**
- * Map a vehicle DB row to the Vehicle type expected by email/Discord templates.
- */
-function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
-  return {
-    id: v.vin,
-    year: v.year,
-    make: v.make,
-    model: v.model,
-    color: v.color ?? "",
-    vin: v.vin,
-    stockNumber: v.stockNumber ?? "",
-    availableDate: v.availableDate ?? "",
-    source: v.source as DataSource,
-    location: {
-      locationCode: v.locationCode,
-      locationPageURL: "",
-      name: v.locationName,
-      displayName: v.locationName
-        .replace(/^Pick Your Part - /, "")
-        .replace(/^PICK-n-PULL /, ""),
-      address: "",
-      city: "",
-      state: v.state,
-      stateAbbr: v.stateAbbr,
-      zip: "",
-      phone: "",
-      lat: v.lat,
-      lng: v.lng,
-      distance: 0,
-      legacyCode: "",
-      primo: "",
-      source: v.source as DataSource,
-      urls: {
-        store: "",
-        interchange: "",
-        inventory: "",
-        prices: v.pricesUrl ?? "",
-        directions: "",
-        sellACar: "",
-        contact: "",
-        customerServiceChat: null,
-        carbuyChat: null,
-        deals: "",
-        parts: v.partsUrl ?? "",
-      },
-    },
-    yardLocation: {
-      section: v.section ?? "",
-      row: v.row ?? "",
-      space: v.space ?? "",
-    },
-    images: v.imageUrl ? [{ url: v.imageUrl }] : [],
-    detailsUrl: v.detailsUrl ?? "",
-    partsUrl: v.partsUrl ?? "",
-    pricesUrl: v.pricesUrl ?? "",
-    engine: v.engine ?? undefined,
-    trim: v.trim ?? undefined,
-    transmission: v.transmission ?? undefined,
-  };
 }
 
 /**
