@@ -74,9 +74,16 @@ async function getPypSession(): Promise<PypSession> {
 
   const html = await response.text();
 
-  // Extract cookies
-  const setCookies = response.headers.getSetCookie?.() ?? [];
+  // Extract session cookies from the response.
+  // We manage cookies manually here because this is a server-side cron job
+  // making outbound HTTP requests to pyp.com — not a Next.js request/response
+  // context. Next.js cookies() helpers are for incoming request cookies.
+  // A cookie jar library would be overkill for this single session cookie need.
+  const setCookies = response.headers.getSetCookie();
   const cookies = setCookies.map((c) => c.split(";")[0]).join("; ");
+  if (!cookies) {
+    throw new Error("PYP session response set no cookies");
+  }
 
   // Extract CSRF token from HTML
   const tokenMatch = html.match(
