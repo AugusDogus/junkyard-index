@@ -33,7 +33,6 @@ import {
 import { Sidebar } from "~/components/search/Sidebar";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
@@ -135,7 +134,6 @@ function AlgoliaSearchInner({
 }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
-  const { searchStateRef } = useSearchVisibility();
   const lastTrackedQuery = useRef("");
 
   // Prefetch saved searches
@@ -189,7 +187,7 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { query, refine: setQuery } = useSearchBox();
+  const { query } = useSearchBox();
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
 
@@ -348,24 +346,6 @@ function AlgoliaSearchInner({
   const isSearching = query.length > 0 && hits.length === 0 && nbHits === 0;
 
   // ── Handlers ───────────────────────────────────────────────────────────
-
-  const handleQueryChange = useCallback(
-    (newQuery: string) => {
-      setQuery(newQuery);
-    },
-    [setQuery],
-  );
-
-  const handleSearch = useCallback(() => {
-    // InstantSearch searches as you type, but this satisfies the interface
-  }, []);
-
-  // Update search state ref for docked search bar
-  searchStateRef.current = {
-    query,
-    onChange: handleQueryChange,
-    onSearch: handleSearch,
-  };
 
   const handleSortChange = useCallback((value: string) => {
     posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });

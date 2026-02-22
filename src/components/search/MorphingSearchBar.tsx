@@ -3,12 +3,13 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchVisibility } from "~/context/SearchVisibilityContext";
+import { useSearchBox } from "react-instantsearch";
 import { useIsMobile } from "~/hooks/use-media-query";
 
 export const MorphingSearchBar = forwardRef<HTMLDivElement>(
   function MorphingSearchBar(_, ref) {
-    const { searchStateRef } = useSearchVisibility();
+    const { query, refine } = useSearchBox();
+    const [inputValue, setInputValue] = useState(query);
     const placeholderRef = useRef<HTMLDivElement>(null);
     const isMobile = useIsMobile();
     const [style, setStyle] = useState<{
@@ -18,7 +19,11 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       height: number;
       progress: number;
     } | null>(null);
-    const searchState = searchStateRef.current;
+
+    // Sync local input with Algolia query (e.g. when URL routing changes it)
+    useEffect(() => {
+      setInputValue(query);
+    }, [query]);
 
     useEffect(() => {
       // On mobile, don't set up morphing - just render static
@@ -97,29 +102,29 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
-        searchState?.onChange(e.target.value);
+        const value = e.target.value;
+        setInputValue(value);
+        refine(value);
       },
-      [searchState],
+      [refine],
     );
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          searchState?.onSearch();
+          refine(inputValue);
         }
       },
-      [searchState],
+      [refine, inputValue],
     );
 
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
         e.preventDefault();
-        if (searchState?.query.trim()) {
-          searchState.onSearch();
-        }
+        refine(inputValue);
       },
-      [searchState],
+      [refine, inputValue],
     );
 
     // Shared input component to avoid duplication
@@ -131,7 +136,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         <input
           id="search"
           type="text"
-          value={searchState?.query ?? ""}
+          value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder="Enter year, make, model (e.g., '2018 Honda Civic')"
@@ -176,7 +181,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
               <input
                 id="search"
                 type="text"
-                value={searchState?.query ?? ""}
+                value={inputValue}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder={
