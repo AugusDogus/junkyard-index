@@ -41,12 +41,26 @@ import {
   ALGOLIA_INDEX_NAME,
 } from "~/lib/algolia-search";
 import type { Vehicle, DataSource, SearchResult as SearchResultType } from "~/lib/types";
+import { calculateDistance } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
 /**
  * Map an Algolia hit to the Vehicle type expected by VehicleCard and other components.
  */
-function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
+function algoliaHitToVehicle(
+  hit: Record<string, unknown>,
+  userLocation?: { lat: number; lng: number },
+): Vehicle {
+  const geoloc = hit._geoloc as { lat: number; lng: number } | undefined;
+  const hitLat = geoloc?.lat ?? 0;
+  const hitLng = geoloc?.lng ?? 0;
+
+  // Calculate distance from user if location is available
+  const distance =
+    userLocation && hitLat && hitLng
+      ? calculateDistance(userLocation.lat, userLocation.lng, hitLat, hitLng)
+      : 0;
+
   return {
     id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
     year: (hit.year as number) ?? 0,
@@ -71,9 +85,9 @@ function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
       stateAbbr: (hit.stateAbbr as string) ?? "",
       zip: "",
       phone: "",
-      lat: (hit._geoloc as { lat: number; lng: number })?.lat ?? 0,
-      lng: (hit._geoloc as { lat: number; lng: number })?.lng ?? 0,
-      distance: 0,
+      lat: hitLat,
+      lng: hitLng,
+      distance,
       legacyCode: "",
       primo: "",
       source: (hit.source as DataSource) ?? "pyp",
@@ -110,12 +124,13 @@ function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
 
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
+  userLocation?: { lat: number; lng: number };
 }
 
 /**
  * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
  */
-function AlgoliaSearchInner({ isLoggedIn }: SearchPageContentProps) {
+function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
   const { searchStateRef } = useSearchVisibility();
@@ -210,8 +225,8 @@ function AlgoliaSearchInner({ isLoggedIn }: SearchPageContentProps) {
 
   // Map Algolia hits to Vehicle[]
   const vehicles = useMemo(
-    () => hits.map((hit) => algoliaHitToVehicle(hit as Record<string, unknown>)),
-    [hits],
+    () => hits.map((hit) => algoliaHitToVehicle(hit as Record<string, unknown>, userLocation)),
+    [hits, userLocation],
   );
 
   // Client-side sort
@@ -742,15 +757,24 @@ function AlgoliaSearchInner({ isLoggedIn }: SearchPageContentProps) {
 /**
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
-export function SearchPageContent({ isLoggedIn }: SearchPageContentProps) {
+export function SearchPageContent({ isLoggedIn, userLocation }: SearchPageContentProps) {
+  // Build aroundLatLng string for Algolia geo-sort
+  const aroundLatLng = userLocation
+    ? `${userLocation.lat}, ${userLocation.lng}`
+    : undefined;
+
   return (
     <InstantSearch
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       future={{ preserveSharedStateOnUnmount: true }}
     >
-      <Configure hitsPerPage={60} />
-      <AlgoliaSearchInner isLoggedIn={isLoggedIn} />
+      <Configure
+        hitsPerPage={60}
+        aroundLatLng={aroundLatLng}
+        aroundLatLngViaIP={!userLocation}
+      />
+      <AlgoliaSearchInner isLoggedIn={isLoggedIn} userLocation={userLocation} />
     </InstantSearch>
   );
 }
