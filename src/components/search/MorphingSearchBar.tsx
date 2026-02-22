@@ -32,8 +32,10 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
     // Algolia's history router doesn't detect pushState, so we watch URL params directly
     const searchParams = useSearchParams();
     const urlQuery = searchParams.get("q") ?? "";
+    const inputValueRef = useRef(inputValue);
+    inputValueRef.current = inputValue;
     useEffect(() => {
-      if (!urlQuery && inputValue) {
+      if (!urlQuery && inputValueRef.current) {
         setInputValue("");
         refine("");
       }
