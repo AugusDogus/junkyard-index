@@ -228,27 +228,32 @@ function AlgoliaSearchInner({
   });
 
   // Server-side sorting via Algolia virtual replicas
+  // Server-side sorting via Algolia virtual replicas for date/year sorts.
+  // Distance sort uses the PRIMARY index with aroundLatLng — Algolia's geo
+  // ranking criterion (position 2 in the ranking array) dominates over
+  // customRanking when aroundLatLng is present. No replica needed.
   const SORT_ITEMS = useMemo(
     () => [
       { value: ALGOLIA_INDEX_NAME, label: "Newest First" },
       { value: "vehicles_oldest", label: "Oldest First" },
       { value: "vehicles_year_desc", label: "Year (High to Low)" },
       { value: "vehicles_year_asc", label: "Year (Low to High)" },
-      { value: "vehicles_distance", label: "Distance (Nearest)" },
     ],
     [],
   );
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
     useSortBy({ items: SORT_ITEMS });
 
-  // Map the Algolia index name back to our UI sort key
+  // Distance sort is a special case: same primary index but with aroundLatLng
+  const [isDistanceSort, setIsDistanceSort] = useState(false);
+
   const sortBy = useMemo(() => {
+    if (isDistanceSort) return "distance";
     if (currentSortIndex === "vehicles_oldest") return "oldest";
     if (currentSortIndex === "vehicles_year_desc") return "year-desc";
     if (currentSortIndex === "vehicles_year_asc") return "year-asc";
-    if (currentSortIndex === "vehicles_distance") return "distance";
-    return "newest"; // default index = newest
-  }, [currentSortIndex]);
+    return "newest";
+  }, [currentSortIndex, isDistanceSort]);
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -347,15 +352,20 @@ function AlgoliaSearchInner({
   const handleSortChange = useCallback(
     (value: string) => {
       posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
-      // Map UI sort key to Algolia index name
-      const indexMap: Record<string, string> = {
-        newest: ALGOLIA_INDEX_NAME,
-        oldest: "vehicles_oldest",
-        "year-desc": "vehicles_year_desc",
-        "year-asc": "vehicles_year_asc",
-        distance: "vehicles_distance",
-      };
-      refineSortBy(indexMap[value] ?? ALGOLIA_INDEX_NAME);
+      if (value === "distance") {
+        // Distance uses primary index — aroundLatLng activates geo ranking
+        setIsDistanceSort(true);
+        refineSortBy(ALGOLIA_INDEX_NAME);
+      } else {
+        setIsDistanceSort(false);
+        const indexMap: Record<string, string> = {
+          newest: ALGOLIA_INDEX_NAME,
+          oldest: "vehicles_oldest",
+          "year-desc": "vehicles_year_desc",
+          "year-asc": "vehicles_year_asc",
+        };
+        refineSortBy(indexMap[value] ?? ALGOLIA_INDEX_NAME);
+      }
     },
     [refineSortBy],
   );
@@ -383,7 +393,8 @@ function AlgoliaSearchInner({
       refineLocation(item.value);
     }
     refineYear([yearMin, yearMax]);
-    refineSortBy(ALGOLIA_INDEX_NAME); // Reset to default (newest)
+    refineSortBy(ALGOLIA_INDEX_NAME);
+    setIsDistanceSort(false);
     setShowFilters(false);
   }, [
     activeFilterCount,
@@ -549,7 +560,6 @@ function AlgoliaSearchInner({
   // Algolia's "geo" ranking criterion dominates over "custom" (date/year),
   // so sending aroundLatLng on non-distance sorts makes results sort by
   // proximity instead of the intended sort order.
-  const isDistanceSort = sortBy === "distance";
   const aroundLatLng =
     isDistanceSort && userLocation
       ? `${userLocation.lat}, ${userLocation.lng}`
