@@ -1,7 +1,6 @@
 "use client";
 
 import { AlertCircle, Search } from "lucide-react";
-import Link from "next/link";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -187,7 +186,7 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { query } = useSearchBox();
+  const { query, refine: refineQuery } = useSearchBox();
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
 
@@ -664,24 +663,16 @@ function AlgoliaSearchInner({
                   Search across all available salvage yard locations
                 </p>
                 <div className="mb-8 flex flex-wrap gap-3">
-                  <Link
-                    href="/search?q=Honda+Civic"
-                    className="bg-muted hover:bg-muted/80 text-foreground inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
-                  >
-                    Honda Civic
-                  </Link>
-                  <Link
-                    href="/search?q=2020+Toyota"
-                    className="bg-muted hover:bg-muted/80 text-foreground inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
-                  >
-                    2020 Toyota
-                  </Link>
-                  <Link
-                    href="/search?q=Ford+F-150"
-                    className="bg-muted hover:bg-muted/80 text-foreground inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
-                  >
-                    Ford F-150
-                  </Link>
+                  {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term) => (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={() => refineQuery(term)}
+                      className="bg-muted hover:bg-muted/80 text-foreground inline-flex cursor-pointer items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                    >
+                      {term}
+                    </button>
+                  ))}
                 </div>
                 {isLoggedIn && <SavedSearchesList />}
               </div>

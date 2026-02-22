@@ -1,7 +1,6 @@
 "use client";
 
 import { Search } from "lucide-react";
-import Link from "next/link";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { useIsMobile } from "~/hooks/use-media-query";
@@ -199,24 +198,19 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         {/* Hidden on mobile - mobile has pill buttons in empty state instead */}
         <div className="text-muted-foreground mt-2 hidden text-xs sm:block">
           <span>Try: </span>
-          <Link
-            href="/search?q=Honda+Civic"
-            className="text-primary mr-3 underline hover:no-underline"
-          >
-            Honda Civic
-          </Link>
-          <Link
-            href="/search?q=2020+Toyota"
-            className="text-primary mr-3 underline hover:no-underline"
-          >
-            2020 Toyota
-          </Link>
-          <Link
-            href="/search?q=Ford+F-150"
-            className="text-primary underline hover:no-underline"
-          >
-            Ford F-150
-          </Link>
+          {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term, i) => (
+            <button
+              key={term}
+              type="button"
+              className={`text-primary cursor-pointer underline hover:no-underline${i < 2 ? " mr-3" : ""}`}
+              onClick={() => {
+                setInputValue(term);
+                refine(term);
+              }}
+            >
+              {term}
+            </button>
+          ))}
         </div>
       </div>
     );
