@@ -541,30 +541,31 @@ function AlgoliaSearchInner({
   }, []);
 
   // Load more when scrolling near bottom
-  // Load more when scrolling near bottom — also poll to catch cases where
-  // the virtualizer height doesn't trigger a new scroll event after growing
-  useEffect(() => {
-    if (isLastPage || !hasActiveSearch) return;
+  // Load more when scrolling near bottom.
+  // Uses a ref for showMore to avoid re-registering the listener on every page load.
+  const showMoreRef = useRef(showMore);
+  showMoreRef.current = showMore;
+  const isLastPageRef = useRef(isLastPage);
+  isLastPageRef.current = isLastPage;
 
-    const checkAndLoadMore = () => {
+  useEffect(() => {
+    if (!hasActiveSearch) return;
+
+    const handleScroll = () => {
+      if (isLastPageRef.current) return;
+
       const scrollTop = window.scrollY;
       const windowHeight = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
 
       if (docHeight - scrollTop - windowHeight < 1500) {
-        showMore();
+        showMoreRef.current();
       }
     };
 
-    window.addEventListener("scroll", checkAndLoadMore, { passive: true });
-    // Poll every 500ms as a fallback in case scroll events don't fire
-    const intervalId = setInterval(checkAndLoadMore, 500);
-
-    return () => {
-      window.removeEventListener("scroll", checkAndLoadMore);
-      clearInterval(intervalId);
-    };
-  }, [isLastPage, showMore, hasActiveSearch]);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [hasActiveSearch]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">

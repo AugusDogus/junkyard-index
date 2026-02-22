@@ -31,11 +31,16 @@ interface SearchSummaryProps {
 }
 
 export function SearchSummary({ searchResult }: SearchSummaryProps) {
+  const loaded = searchResult.vehicles.length;
+  const total = searchResult.totalCount;
+  const allLoaded = loaded >= total;
+
   return (
     <div className="text-muted-foreground text-center text-sm">
       <p>
-        Showing {searchResult.vehicles.length} of{" "}
-        {searchResult.totalCount.toLocaleString()} vehicles
+        {allLoaded
+          ? `${total.toLocaleString()} vehicles`
+          : `Showing ${loaded.toLocaleString()} of ${total.toLocaleString()} vehicles`}
         {searchResult.locationsCovered > 0 && (
           <span className="ml-1">
             from {searchResult.locationsCovered} locations
