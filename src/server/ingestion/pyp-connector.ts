@@ -136,7 +136,6 @@ async function fetchPypFilterPage(
   return (await response.json()) as PypFilterResponse;
 }
 
-
 /**
  * Fetch ALL PYP inventory using the Filter API with empty filter.
  * Pages through all results across all stores.
@@ -227,4 +226,3 @@ export async function fetchPypInventory(): Promise<IngestionResult> {
     errors: allErrors,
   };
 }
-

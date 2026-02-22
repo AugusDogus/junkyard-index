@@ -8,10 +8,7 @@ import {
   replayIntegration,
 } from "@sentry/nextjs";
 import posthog from "posthog-js";
-import {
-  denyUrls,
-  ignoreErrors,
-} from "sentry-ignores";
+import { denyUrls, ignoreErrors } from "sentry-ignores";
 import { env } from "~/env";
 
 Sentry.init({

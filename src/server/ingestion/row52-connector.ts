@@ -65,7 +65,6 @@ function transformRow52Vehicle(
   }
 
   // Build location URLs
-  const webUrl = location.webUrl || "";
   const partsPricingUrl = location.partsPricingUrl || "";
 
   return {

@@ -31,17 +31,17 @@ import {
   SearchSummary,
 } from "~/components/search/SearchResults";
 import { Sidebar } from "~/components/search/Sidebar";
-import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import {
-  searchClient,
-  ALGOLIA_INDEX_NAME,
-} from "~/lib/algolia-search";
-import type { Vehicle, DataSource, SearchResult as SearchResultType } from "~/lib/types";
+import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import type {
+  Vehicle,
+  DataSource,
+  SearchResult as SearchResultType,
+} from "~/lib/types";
 import { calculateDistance } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
@@ -111,9 +111,7 @@ function algoliaHitToVehicle(
       row: (hit.row as string) ?? "",
       space: (hit.space as string) ?? "",
     },
-    images: (hit.imageUrl as string)
-      ? [{ url: hit.imageUrl as string }]
-      : [],
+    images: (hit.imageUrl as string) ? [{ url: hit.imageUrl as string }] : [],
     detailsUrl: (hit.detailsUrl as string) ?? "",
     partsUrl: (hit.partsUrl as string) ?? "",
     pricesUrl: (hit.pricesUrl as string) ?? "",
@@ -131,7 +129,10 @@ interface SearchPageContentProps {
 /**
  * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
  */
-function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps) {
+function AlgoliaSearchInner({
+  isLoggedIn,
+  userLocation,
+}: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
   const { searchStateRef } = useSearchVisibility();
@@ -193,29 +194,33 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
   const { nbHits, processingTimeMS } = useStats();
 
   // Facets
-  const {
-    items: makeItems,
-    refine: refineMake,
-  } = useRefinementList({ attribute: "make", limit: 100, sortBy: ["name:asc"] });
-  const {
-    items: colorItems,
-    refine: refineColor,
-  } = useRefinementList({ attribute: "color", limit: 50, sortBy: ["name:asc"] });
-  const {
-    items: stateItems,
-    refine: refineState,
-  } = useRefinementList({ attribute: "state", limit: 60, sortBy: ["name:asc"] });
-  const {
-    items: locationItems,
-    refine: refineLocation,
-  } = useRefinementList({
+  const { items: makeItems, refine: refineMake } = useRefinementList({
+    attribute: "make",
+    limit: 100,
+    sortBy: ["name:asc"],
+  });
+  const { items: colorItems, refine: refineColor } = useRefinementList({
+    attribute: "color",
+    limit: 50,
+    sortBy: ["name:asc"],
+  });
+  const { items: stateItems, refine: refineState } = useRefinementList({
+    attribute: "state",
+    limit: 60,
+    sortBy: ["name:asc"],
+  });
+  const { items: locationItems, refine: refineLocation } = useRefinementList({
     attribute: "locationName",
     limit: 100,
     sortBy: ["name:asc"],
   });
 
   // Year range
-  const { range: yearBounds, start: yearStart, refine: refineYear } = useRange({
+  const {
+    range: yearBounds,
+    start: yearStart,
+    refine: refineYear,
+  } = useRange({
     attribute: "year",
   });
 
@@ -233,7 +238,10 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
 
   // Map Algolia hits to Vehicle[]
   const vehicles = useMemo(
-    () => hits.map((hit) => algoliaHitToVehicle(hit as Record<string, unknown>, userLocation)),
+    () =>
+      hits.map((hit) =>
+        algoliaHitToVehicle(hit as Record<string, unknown>, userLocation),
+      ),
     [hits, userLocation],
   );
 
@@ -258,9 +266,7 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
       case "year-asc":
         return sorted.sort((a, b) => a.year - b.year);
       case "distance":
-        return sorted.sort(
-          (a, b) => a.location.distance - b.location.distance,
-        );
+        return sorted.sort((a, b) => a.location.distance - b.location.distance);
       default:
         return sorted;
     }
@@ -298,11 +304,18 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
   const yearMin = (yearBounds.min ?? 1900) as number;
   const yearMax = (yearBounds.max ?? currentYear) as number;
   const yearRange: [number, number] = [
-    (yearStart[0] != null && yearStart[0] !== -Infinity) ? yearStart[0] as number : yearMin,
-    (yearStart[1] != null && yearStart[1] !== Infinity) ? yearStart[1] as number : yearMax,
+    yearStart[0] !== null &&
+    yearStart[0] !== undefined &&
+    yearStart[0] !== -Infinity
+      ? (yearStart[0] as number)
+      : yearMin,
+    yearStart[1] !== null &&
+    yearStart[1] !== undefined &&
+    yearStart[1] !== Infinity
+      ? (yearStart[1] as number)
+      : yearMax,
   ];
-  const isYearFiltered =
-    yearRange[0] !== yearMin || yearRange[1] !== yearMax;
+  const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
   const activeFilterCount =
     selectedMakes.length +
@@ -323,7 +336,14 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
       locationsCovered: 0,
       locationsWithErrors: [],
     };
-  }, [sortedVehicles, nbHits, isLastPage, processingTimeMS, query, hits.length]);
+  }, [
+    sortedVehicles,
+    nbHits,
+    isLastPage,
+    processingTimeMS,
+    query,
+    hits.length,
+  ]);
 
   const isSearching = query.length > 0 && hits.length === 0 && nbHits === 0;
 
@@ -347,13 +367,10 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
     onSearch: handleSearch,
   };
 
-  const handleSortChange = useCallback(
-    (value: string) => {
-      posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
-      setSortBy(value);
-    },
-    [],
-  );
+  const handleSortChange = useCallback((value: string) => {
+    posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
+    setSortBy(value);
+  }, []);
 
   const handleToggleFilters = useCallback(
     () => setShowFilters((prev) => !prev),
@@ -471,12 +488,7 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
     if (lastTrackedQuery.current === query) return;
     lastTrackedQuery.current = query;
 
-    const ctx = buildSearchContext(
-      query,
-      nbHits,
-      processingTimeMS,
-      0,
-    );
+    const ctx = buildSearchContext(query, nbHits, processingTimeMS, 0);
 
     if (nbHits === 0) {
       posthog.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
@@ -655,9 +667,7 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
                 </div>
               ) : searchResult ? (
                 <div className="text-muted-foreground mb-6 flex items-center justify-between text-sm">
-                  <span>
-                    Results in {processingTimeMS}ms
-                  </span>
+                  <span>Results in {processingTimeMS}ms</span>
                 </div>
               ) : null}
             </div>
@@ -732,28 +742,26 @@ function AlgoliaSearchInner({ isLoggedIn, userLocation }: SearchPageContentProps
           )}
 
           {/* No Results */}
-          {query &&
-            searchResult?.totalCount === 0 &&
-            !isSearching && (
-              <div className="py-12 text-center">
-                <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-                  <AlertCircle className="text-muted-foreground h-12 w-12" />
-                </div>
-                <h2 className="text-foreground mb-2 text-lg font-medium">
-                  No vehicles found
-                </h2>
-                <p className="text-muted-foreground mx-auto mb-6 max-w-md">
-                  {activeFilterCount > 0
-                    ? "No vehicles match your current filters. Try adjusting your filters."
-                    : "No vehicles match your search. Try different search terms."}
-                </p>
-                {activeFilterCount > 0 && (
-                  <Button onClick={clearAllFilters} variant="outline">
-                    Clear All Filters
-                  </Button>
-                )}
+          {query && searchResult?.totalCount === 0 && !isSearching && (
+            <div className="py-12 text-center">
+              <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+                <AlertCircle className="text-muted-foreground h-12 w-12" />
               </div>
-            )}
+              <h2 className="text-foreground mb-2 text-lg font-medium">
+                No vehicles found
+              </h2>
+              <p className="text-muted-foreground mx-auto mb-6 max-w-md">
+                {activeFilterCount > 0
+                  ? "No vehicles match your current filters. Try adjusting your filters."
+                  : "No vehicles match your search. Try different search terms."}
+              </p>
+              {activeFilterCount > 0 && (
+                <Button onClick={clearAllFilters} variant="outline">
+                  Clear All Filters
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -771,18 +779,24 @@ function createRouting(indexName: string) {
   return {
     router: history({
       cleanUrlOnDispose: false,
-      createURL({ qsModule, routeState, location }): string {
+      createURL({ routeState, location }): string {
         const baseUrl = location.href.split("?")[0]!;
         const params = new URLSearchParams();
 
-        const state = routeState[indexName] as Record<string, unknown> | undefined;
+        const state = routeState[indexName] as
+          | Record<string, unknown>
+          | undefined;
         if (!state) return baseUrl;
 
         if (state.query) params.set("q", state.query as string);
-        if (state.makes) params.set("makes", (state.makes as string[]).join(","));
-        if (state.colors) params.set("colors", (state.colors as string[]).join(","));
-        if (state.states) params.set("states", (state.states as string[]).join(","));
-        if (state.yards) params.set("yards", (state.yards as string[]).join(","));
+        if (state.makes)
+          params.set("makes", (state.makes as string[]).join(","));
+        if (state.colors)
+          params.set("colors", (state.colors as string[]).join(","));
+        if (state.states)
+          params.set("states", (state.states as string[]).join(","));
+        if (state.yards)
+          params.set("yards", (state.yards as string[]).join(","));
         if (state.minYear) params.set("minYear", String(state.minYear));
         if (state.maxYear) params.set("maxYear", String(state.maxYear));
         if (state.sort) params.set("sort", state.sort as string);
@@ -790,7 +804,7 @@ function createRouting(indexName: string) {
         const qs = params.toString();
         return qs ? `${baseUrl}?${qs}` : baseUrl;
       },
-      parseURL({ qsModule, location }) {
+      parseURL({ location }) {
         const params = new URLSearchParams(location.search);
         const state: Record<string, unknown> = {};
 
@@ -829,11 +843,14 @@ function createRouting(indexName: string) {
         if (indexState.query) state.query = indexState.query;
 
         // Extract refinement lists
-        const refinementList = indexState.refinementList as Record<string, string[]> | undefined;
+        const refinementList = indexState.refinementList as
+          | Record<string, string[]>
+          | undefined;
         if (refinementList?.make?.length) state.makes = refinementList.make;
         if (refinementList?.color?.length) state.colors = refinementList.color;
         if (refinementList?.state?.length) state.states = refinementList.state;
-        if (refinementList?.locationName?.length) state.yards = refinementList.locationName;
+        if (refinementList?.locationName?.length)
+          state.yards = refinementList.locationName;
 
         // Extract numeric range
         const range = indexState.range as Record<string, string> | undefined;
@@ -877,7 +894,10 @@ function createRouting(indexName: string) {
 /**
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
-export function SearchPageContent({ isLoggedIn, userLocation }: SearchPageContentProps) {
+export function SearchPageContent({
+  isLoggedIn,
+  userLocation,
+}: SearchPageContentProps) {
   // Build aroundLatLng string for Algolia geo-sort
   const aroundLatLng = userLocation
     ? `${userLocation.lat}, ${userLocation.lng}`

@@ -9,11 +9,7 @@ import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
 
-export default async function SearchPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function SearchPage() {
   const reqHeaders = await headers();
 
   const [session, geo] = await Promise.all([

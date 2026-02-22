@@ -53,7 +53,11 @@ function findNewVehicles(
 
     // Make filter
     if (filters.makes && filters.makes.length > 0) {
-      if (!filters.makes.map((m) => m.toLowerCase()).includes(v.make.toLowerCase())) {
+      if (
+        !filters.makes
+          .map((m) => m.toLowerCase())
+          .includes(v.make.toLowerCase())
+      ) {
         return false;
       }
     }

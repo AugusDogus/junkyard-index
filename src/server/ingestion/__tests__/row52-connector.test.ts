@@ -44,9 +44,7 @@ describe("toAlgoliaRecord", () => {
     expect(record.availableDateTs).toBe(
       Math.floor(new Date("2026-01-15T10:00:00.000Z").getTime() / 1000),
     );
-    expect(record.firstSeenAt).toBe(
-      Math.floor(firstSeenAt.getTime() / 1000),
-    );
+    expect(record.firstSeenAt).toBe(Math.floor(firstSeenAt.getTime() / 1000));
     expect(record.engine).toBe("2.0L I4");
     expect(record.trim).toBe("SE");
     expect(record.transmission).toBe("Automatic");

@@ -186,10 +186,8 @@ export const vehicle = sqliteTable(
     engine: text("engine"),
     trim: text("trim"),
     transmission: text("transmission"),
-    firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" })
-      .notNull(),
-    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" })
-      .notNull(),
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [
     index("vehicle_source_idx").on(table.source),
