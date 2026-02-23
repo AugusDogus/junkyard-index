@@ -470,7 +470,8 @@ export async function GET(request: NextRequest) {
       distinctId: "system",
       event: "alert_cron_completed",
       properties: {
-        total_processed: searchesWithAlerts.length,
+        total_selected: searchesWithAlerts.length,
+        total_processed: results.length,
         notifications_sent: notificationsSent,
         errors: errored,
       },
@@ -478,7 +479,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       message: "Cron job completed",
-      processed: searchesWithAlerts.length,
+      selected: searchesWithAlerts.length,
+      processed: results.length,
       results,
     });
   } catch (error) {
