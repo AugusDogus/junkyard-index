@@ -23,6 +23,9 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       progress: number;
     } | null>(null);
 
+    const inputValueRef = useRef(inputValue);
+    inputValueRef.current = inputValue;
+
     // Sync local input when Algolia query changes externally (e.g. URL routing).
     // Skip sync if difference is only trailing whitespace (user still typing).
     useEffect(() => {
@@ -35,8 +38,6 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
     // Algolia's history router doesn't detect pushState, so we watch URL params directly
     const searchParams = useSearchParams();
     const urlQuery = searchParams.get("q") ?? "";
-    const inputValueRef = useRef(inputValue);
-    inputValueRef.current = inputValue;
     useEffect(() => {
       if (!urlQuery && inputValueRef.current) {
         setInputValue("");
