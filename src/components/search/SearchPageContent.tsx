@@ -89,7 +89,7 @@ function algoliaHitToVehicle(
 
   // Calculate distance from user if location is available
   const distance =
-    userLocation && hitLat && hitLng
+    userLocation && (hitLat !== 0 || hitLng !== 0)
       ? calculateDistance(userLocation.lat, userLocation.lng, hitLat, hitLng)
       : 0;
 
@@ -948,7 +948,12 @@ export function SearchPageContent({
       routing={routing}
       future={{ preserveSharedStateOnUnmount: true }}
     >
-      <AlgoliaSearchInner isLoggedIn={isLoggedIn} userLocation={userLocation} />
+      <ErrorBoundary>
+        <AlgoliaSearchInner
+          isLoggedIn={isLoggedIn}
+          userLocation={userLocation}
+        />
+      </ErrorBoundary>
     </InstantSearch>
   );
 }
