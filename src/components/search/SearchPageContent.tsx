@@ -427,29 +427,9 @@ function AlgoliaSearchInner({
   );
 
   const handleSourcesChange = useCallback(
-    (newSources: DataSource[]) => {
-      // SidebarContent uses [] to mean "all sources" (nothing refined)
-      // and ["pyp"] or ["row52"] to mean only that source
-      const currentlyRefined = new Set(selectedSources);
-      const desired = new Set(newSources);
-
-      // If desired is empty, clear all refinements
-      if (desired.size === 0) {
-        for (const s of currentlyRefined) {
-          refineSource(s);
-        }
-        return;
-      }
-
-      // Toggle the difference
-      for (const s of currentlyRefined) {
-        if (!desired.has(s as DataSource)) refineSource(s);
-      }
-      for (const s of desired) {
-        if (!currentlyRefined.has(s)) refineSource(s);
-      }
-    },
-    [selectedSources, refineSource],
+    (newSources: DataSource[]) =>
+      applyRefinementDiff(selectedSources, newSources, refineSource),
+    [selectedSources, refineSource, applyRefinementDiff],
   );
 
   const handleYearRangeChange = useCallback(
