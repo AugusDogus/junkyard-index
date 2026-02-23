@@ -43,7 +43,7 @@ try {
   }
 } catch (error) {
   console.error("Ingestion failed:", error);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
   // Restore server-only guard
   writeFileSync(serverOnlyPath, originalContent);

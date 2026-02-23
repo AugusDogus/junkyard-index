@@ -166,6 +166,7 @@ export async function runIngestion(): Promise<{
       return {
         source: "row52" as const,
         vehicles: [] as CanonicalVehicle[],
+        count: 0,
         errors: [msg],
       };
     });
@@ -180,6 +181,7 @@ export async function runIngestion(): Promise<{
       return {
         source: "pyp" as const,
         vehicles: [] as CanonicalVehicle[],
+        count: 0,
         errors: [msg],
       };
     });
@@ -189,7 +191,7 @@ export async function runIngestion(): Promise<{
     await upserter.flush();
 
     console.log(
-      `[Ingestion] PYP: ${pypResult.vehicles.length} vehicles, Row52: ${row52Result.vehicles.length} vehicles`,
+      `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles`,
     );
     console.log(`[Ingestion] Upserted ${upserter.count} vehicles to Turso`);
 
@@ -254,8 +256,8 @@ export async function runIngestion(): Promise<{
     return {
       totalUpserted: upserter.count,
       totalDeleted: deletedVins.length,
-      pypCount: pypResult.vehicles.length,
-      row52Count: row52Result.vehicles.length,
+      pypCount: pypResult.count,
+      row52Count: row52Result.count,
       errors: allErrors,
       durationMs,
     };

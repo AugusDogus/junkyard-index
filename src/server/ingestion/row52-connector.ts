@@ -152,6 +152,7 @@ export async function fetchRow52Inventory(
 ): Promise<IngestionResult> {
   const allVehicles: CanonicalVehicle[] = [];
   const allErrors: string[] = [];
+  let totalProcessed = 0;
 
   try {
     console.log("[Row52] Fetching locations...");
@@ -193,6 +194,8 @@ export async function fetchRow52Inventory(
           }
         }
 
+        totalProcessed += pageCanonical.length;
+
         // Stream upsert if callback provided
         if (onBatch && pageCanonical.length > 0) {
           await onBatch(pageCanonical);
@@ -218,7 +221,7 @@ export async function fetchRow52Inventory(
     }
 
     console.log(
-      `[Row52] Total: ${allVehicles.length} vehicles, ${allErrors.length} errors`,
+      `[Row52] Total: ${totalProcessed} vehicles, ${allErrors.length} errors`,
     );
   } catch (error) {
     const msg = `Row52 connector failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -229,6 +232,7 @@ export async function fetchRow52Inventory(
   return {
     source: "row52",
     vehicles: allVehicles,
+    count: totalProcessed,
     errors: allErrors,
   };
 }

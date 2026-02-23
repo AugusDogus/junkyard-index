@@ -109,7 +109,8 @@ function algoliaHitToVehicle(
       name: (hit.locationName as string) ?? "",
       displayName: ((hit.locationName as string) ?? "")
         .replace(/^Pick Your Part - /, "")
-        .replace(/^PICK-n-PULL /, ""),
+        .replace(/^PICK-n-PULL /, "")
+        .replace(/^LKQ Pull-A-Part - /, ""),
       address: "",
       city: "",
       state: (hit.state as string) ?? "",

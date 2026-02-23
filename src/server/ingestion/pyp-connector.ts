@@ -259,6 +259,7 @@ export async function fetchPypInventory(
   return {
     source: "pyp",
     vehicles: allVehicles,
+    count: totalProcessed,
     errors: allErrors,
   };
 }
