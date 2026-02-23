@@ -218,7 +218,8 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState, status } = useInstantSearch();
+  const { indexUiState, setIndexUiState, status, error } =
+    useInstantSearch();
   const query = (indexUiState.query as string) ?? "";
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
@@ -719,8 +720,24 @@ function AlgoliaSearchInner({
             />
           )}
 
+          {/* Search Error */}
+          {error && !isSearching && (
+            <div className="py-12 text-center">
+              <div className="bg-destructive/10 mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+                <AlertCircle className="text-destructive h-12 w-12" />
+              </div>
+              <h2 className="text-foreground mb-2 text-lg font-medium">
+                Search unavailable
+              </h2>
+              <p className="text-muted-foreground mx-auto max-w-md">
+                We&apos;re having trouble connecting to search. Please try again
+                in a moment.
+              </p>
+            </div>
+          )}
+
           {/* No Results */}
-          {query && searchResult?.totalCount === 0 && !isSearching && (
+          {query && searchResult?.totalCount === 0 && !isSearching && !error && (
             <div className="py-12 text-center">
               <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
                 <AlertCircle className="text-muted-foreground h-12 w-12" />
