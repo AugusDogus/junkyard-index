@@ -89,7 +89,7 @@ function algoliaHitToVehicle(
 
   // Calculate distance from user if location is available
   const distance =
-    userLocation && (hitLat !== 0 || hitLng !== 0)
+    userLocation && geoloc != null
       ? calculateDistance(userLocation.lat, userLocation.lng, hitLat, hitLng)
       : 0;
 
@@ -397,62 +397,40 @@ function AlgoliaSearchInner({
     setShowFilters(false);
   }, [activeFilterCount, clearRefinements, refineSortBy]);
 
+  // Helper: toggle only the values that changed between current and next.
+  const applyRefinementDiff = useCallback(
+    (current: string[], next: string[], refine: (value: string) => void) => {
+      const currentSet = new Set(current);
+      const nextSet = new Set(next);
+      for (const v of currentSet) if (!nextSet.has(v)) refine(v);
+      for (const v of nextSet) if (!currentSet.has(v)) refine(v);
+    },
+    [],
+  );
+
   // Filter change handlers that toggle individual values
   const handleMakesChange = useCallback(
-    (newMakes: string[]) => {
-      const current = new Set(selectedMakes);
-      const next = new Set(newMakes);
-      // Find what was added or removed
-      for (const m of current) {
-        if (!next.has(m)) refineMake(m); // uncheck
-      }
-      for (const m of next) {
-        if (!current.has(m)) refineMake(m); // check
-      }
-    },
-    [selectedMakes, refineMake],
+    (newMakes: string[]) =>
+      applyRefinementDiff(selectedMakes, newMakes, refineMake),
+    [selectedMakes, refineMake, applyRefinementDiff],
   );
 
   const handleColorsChange = useCallback(
-    (newColors: string[]) => {
-      const current = new Set(selectedColors);
-      const next = new Set(newColors);
-      for (const c of current) {
-        if (!next.has(c)) refineColor(c);
-      }
-      for (const c of next) {
-        if (!current.has(c)) refineColor(c);
-      }
-    },
-    [selectedColors, refineColor],
+    (newColors: string[]) =>
+      applyRefinementDiff(selectedColors, newColors, refineColor),
+    [selectedColors, refineColor, applyRefinementDiff],
   );
 
   const handleStatesChange = useCallback(
-    (newStates: string[]) => {
-      const current = new Set(selectedStates);
-      const next = new Set(newStates);
-      for (const s of current) {
-        if (!next.has(s)) refineState(s);
-      }
-      for (const s of next) {
-        if (!current.has(s)) refineState(s);
-      }
-    },
-    [selectedStates, refineState],
+    (newStates: string[]) =>
+      applyRefinementDiff(selectedStates, newStates, refineState),
+    [selectedStates, refineState, applyRefinementDiff],
   );
 
   const handleLocationsChange = useCallback(
-    (newLocations: string[]) => {
-      const current = new Set(selectedLocations);
-      const next = new Set(newLocations);
-      for (const l of current) {
-        if (!next.has(l)) refineLocation(l);
-      }
-      for (const l of next) {
-        if (!current.has(l)) refineLocation(l);
-      }
-    },
-    [selectedLocations, refineLocation],
+    (newLocations: string[]) =>
+      applyRefinementDiff(selectedLocations, newLocations, refineLocation),
+    [selectedLocations, refineLocation, applyRefinementDiff],
   );
 
   const handleSourcesChange = useCallback(
@@ -932,6 +910,8 @@ function createRouting(indexName: string) {
   };
 }
 
+const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
+
 /**
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
@@ -946,7 +926,7 @@ export function SearchPageContent({
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
-      future={{ preserveSharedStateOnUnmount: true }}
+      future={INSTANT_SEARCH_FUTURE}
     >
       <ErrorBoundary>
         <AlgoliaSearchInner
