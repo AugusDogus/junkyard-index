@@ -443,9 +443,9 @@ function AlgoliaSearchInner({
     [refineYear],
   );
 
-  // Track search outcomes
+  // Track search outcomes (skip errors so failed queries can be re-tracked on success)
   useEffect(() => {
-    if (!query || isSearching) return;
+    if (!query || isSearching || error) return;
     if (lastTrackedQuery.current === query) return;
     lastTrackedQuery.current = query;
 
@@ -456,7 +456,7 @@ function AlgoliaSearchInner({
     } else {
       posthog.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
     }
-  }, [query, isSearching, nbHits, processingTimeMS]);
+  }, [query, isSearching, error, nbHits, processingTimeMS]);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, F to toggle filters
   useEffect(() => {
@@ -683,7 +683,7 @@ function AlgoliaSearchInner({
           )}
 
           {/* Search Results */}
-          {(searchResult ?? isSearching) && (
+          {(searchResult ?? isSearching) && !error && (
             <SearchResults
               searchResult={
                 searchResult ?? {
