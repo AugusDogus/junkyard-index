@@ -75,6 +75,7 @@ const INDEX_TO_KEY = Object.fromEntries(
 const KEY_TO_INDEX = Object.fromEntries(
   SORT_OPTIONS.map((o) => [o.key, o.indexName]),
 );
+const KNOWN_SORT_INDICES = new Set(SORT_OPTIONS.map((o) => o.indexName));
 
 /**
  * Map an Algolia hit to the Vehicle type expected by VehicleCard and other components.
@@ -869,8 +870,7 @@ function createRouting(indexName: string) {
 
         // Restore sort — validate against known replicas to prevent Algolia errors
         if (state.sort) {
-          const knownIndices = new Set(SORT_OPTIONS.map((o) => o.indexName));
-          if (knownIndices.has(state.sort as string)) {
+          if (KNOWN_SORT_INDICES.has(state.sort as string)) {
             uiState.sortBy = state.sort;
           }
         }
