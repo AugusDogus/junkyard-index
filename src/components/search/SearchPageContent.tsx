@@ -344,7 +344,10 @@ function AlgoliaSearchInner({
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
-    if ((status === "loading" || status === "stalled") && hits.length === 0)
+    if (
+      (status === "loading" || status === "stalled" || status === "error") &&
+      hits.length === 0
+    )
       return null;
     return {
       vehicles,
@@ -829,9 +832,9 @@ function createRouting(indexName: string) {
 
         if (indexState.query) state.query = indexState.query;
 
-        // Persist sort (replica index name)
+        // Persist sort as human-readable key (e.g. "oldest" not "vehicles_oldest")
         if (indexState.sortBy && indexState.sortBy !== indexName) {
-          state.sort = indexState.sortBy;
+          state.sort = INDEX_TO_KEY[indexState.sortBy] ?? indexState.sortBy;
         }
 
         // Extract refinement lists
@@ -868,10 +871,12 @@ function createRouting(indexName: string) {
 
         if (state.query) uiState.query = state.query;
 
-        // Restore sort — validate against known replicas to prevent Algolia errors
+        // Restore sort — map human key to index name, validate, then set
         if (state.sort) {
-          if (KNOWN_SORT_INDICES.has(state.sort as string)) {
-            uiState.sortBy = state.sort;
+          const mapped =
+            KEY_TO_INDEX[state.sort as string] ?? (state.sort as string);
+          if (KNOWN_SORT_INDICES.has(mapped)) {
+            uiState.sortBy = mapped;
           }
         }
 
