@@ -168,7 +168,7 @@ function AlgoliaSearchInner({
   const lastTrackedQuery = useRef("");
 
   // Prefetch saved searches
-  api.savedSearches.list.useQuery(undefined, { enabled: isLoggedIn });
+  api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
 
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
@@ -319,16 +319,8 @@ function AlgoliaSearchInner({
   const yearMin = (yearBounds.min ?? 1900) as number;
   const yearMax = (yearBounds.max ?? currentYear) as number;
   const yearRange: [number, number] = [
-    yearStart[0] !== null &&
-    yearStart[0] !== undefined &&
-    yearStart[0] !== -Infinity
-      ? (yearStart[0] as number)
-      : yearMin,
-    yearStart[1] !== null &&
-    yearStart[1] !== undefined &&
-    yearStart[1] !== Infinity
-      ? (yearStart[1] as number)
-      : yearMax,
+    Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin,
+    Number.isFinite(yearStart[1]) ? (yearStart[1] as number) : yearMax,
   ];
   const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
