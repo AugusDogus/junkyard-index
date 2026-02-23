@@ -98,8 +98,8 @@ async function findNewVehicles(
   // State filter
   if (filters.states && filters.states.length > 0) {
     conditions.push(
-      sql`${vehicle.state} IN (${sql.join(
-        filters.states.map((s) => sql`${s}`),
+      sql`lower(${vehicle.state}) IN (${sql.join(
+        filters.states.map((s) => sql`${s.toLowerCase()}`),
         sql`, `,
       )})`,
     );
@@ -108,8 +108,8 @@ async function findNewVehicles(
   // Salvage yards (location name) filter
   if (filters.salvageYards && filters.salvageYards.length > 0) {
     conditions.push(
-      sql`${vehicle.locationName} IN (${sql.join(
-        filters.salvageYards.map((y) => sql`${y}`),
+      sql`lower(${vehicle.locationName}) IN (${sql.join(
+        filters.salvageYards.map((y) => sql`${y.toLowerCase()}`),
         sql`, `,
       )})`,
     );
@@ -412,6 +412,11 @@ export async function GET(request: NextRequest) {
                     processingLock: null,
                   })
                   .where(eq(savedSearch.id, search.id));
+                posthog.capture({
+                  distinctId: search.userId,
+                  event: "alert_no_subscription_disabled",
+                  properties: { search_id: search.id },
+                });
                 return {
                   searchId: search.id,
                   status: "no_subscription_disabled",
@@ -419,6 +424,17 @@ export async function GET(request: NextRequest) {
               }
 
               // Transient error — release lock and skip for retry
+              console.error(
+                `Transient Polar error for search ${search.id}, will retry:`,
+                polarError,
+              );
+              Sentry.captureException(polarError, {
+                tags: {
+                  searchId: search.id,
+                  userId: search.userId,
+                  context: "polar-subscription-check",
+                },
+              });
               await db
                 .update(savedSearch)
                 .set({ processingLock: null })
