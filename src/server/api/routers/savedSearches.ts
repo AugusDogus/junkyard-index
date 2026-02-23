@@ -25,10 +25,16 @@ export const savedSearchesRouter = createTRPCRouter({
       .where(eq(savedSearch.userId, ctx.user.id))
       .orderBy(savedSearch.createdAt);
 
-    return searches.map((s) => ({
-      ...s,
-      filters: JSON.parse(s.filters) as z.infer<typeof filtersSchema>,
-    }));
+    return searches.map((s) => {
+      let filters: z.infer<typeof filtersSchema>;
+      try {
+        filters = filtersSchema.parse(JSON.parse(s.filters));
+      } catch {
+        console.error(`Invalid filters for saved search ${s.id}, using empty`);
+        filters = {};
+      }
+      return { ...s, filters };
+    });
   }),
 
   create: protectedProcedure
