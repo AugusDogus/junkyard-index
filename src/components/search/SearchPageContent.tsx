@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Configure,
-  InstantSearch,
   useClearRefinements,
   useInfiniteHits,
   useInstantSearch,
@@ -15,7 +14,7 @@ import {
   useSortBy,
   useStats,
 } from "react-instantsearch";
-import { history } from "instantsearch.js/es/lib/routers";
+import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
@@ -760,9 +759,15 @@ function AlgoliaSearchInner({
  */
 function createRouting(indexName: string) {
   return {
-    router: history({
+    router: {
       cleanUrlOnDispose: false,
-      createURL({ routeState, location }): string {
+      createURL({
+        routeState,
+        location,
+      }: {
+        routeState: Record<string, Record<string, unknown>>;
+        location: Location;
+      }): string {
         const baseUrl = location.href.split("?")[0]!;
         const params = new URLSearchParams();
 
@@ -789,7 +794,7 @@ function createRouting(indexName: string) {
         const qs = params.toString();
         return qs ? `${baseUrl}?${qs}` : baseUrl;
       },
-      parseURL({ location }) {
+      parseURL({ location }: { location: Location }) {
         const params = new URLSearchParams(location.search);
         const state: Record<string, unknown> = {};
 
@@ -828,7 +833,7 @@ function createRouting(indexName: string) {
 
         return { [indexName]: state };
       },
-    }),
+    },
     stateMapping: {
       stateToRoute(uiState: Record<string, Record<string, unknown>>) {
         const indexState = uiState[indexName] ?? {};
@@ -921,7 +926,7 @@ export function SearchPageContent({
   const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
 
   return (
-    <InstantSearch
+    <InstantSearchNext
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
@@ -933,6 +938,6 @@ export function SearchPageContent({
           userLocation={userLocation}
         />
       </ErrorBoundary>
-    </InstantSearch>
+    </InstantSearchNext>
   );
 }
