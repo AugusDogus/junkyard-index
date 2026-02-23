@@ -72,6 +72,7 @@ export const savedSearchesRouter = createTRPCRouter({
           has_colors_filter: (input.filters.colors?.length ?? 0) > 0,
           has_states_filter: (input.filters.states?.length ?? 0) > 0,
           has_yards_filter: (input.filters.salvageYards?.length ?? 0) > 0,
+          has_sources_filter: (input.filters.sources?.length ?? 0) > 0,
         },
       });
 
