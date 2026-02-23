@@ -29,8 +29,11 @@ export const savedSearchesRouter = createTRPCRouter({
       let filters: z.infer<typeof filtersSchema>;
       try {
         filters = filtersSchema.parse(JSON.parse(s.filters));
-      } catch {
-        console.error(`Invalid filters for saved search ${s.id}, using empty`);
+      } catch (err) {
+        console.error(
+          `Invalid filters for saved search ${s.id}, using empty`,
+          err,
+        );
         filters = {};
       }
       return { ...s, filters };
