@@ -741,7 +741,7 @@ function AlgoliaSearchInner({
                   locationsWithErrors: [],
                 }
               }
-              isLoading={isSearching}
+              isLoading={isSearching && hits.length === 0}
               sidebarOpen={!isMobile && showFilters}
               showMore={showMore}
               isLastPage={isLastPage}
