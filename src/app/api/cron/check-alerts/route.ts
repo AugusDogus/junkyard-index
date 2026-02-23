@@ -189,10 +189,16 @@ async function processSearch(
   search: SearchWithAlerts,
   userInfo: UserInfo,
 ): Promise<SearchResult> {
-  // Parse and validate filters
-  const filtersParseResult = filtersSchema.safeParse(
-    JSON.parse(search.filters),
-  );
+  // Parse and validate filters — catch malformed JSON so it follows the
+  // same "invalid_filters" path instead of bubbling as a generic error.
+  let rawFilters: unknown;
+  try {
+    rawFilters = JSON.parse(search.filters);
+  } catch {
+    console.error(`Malformed JSON for search ${search.id}`);
+    return { searchId: search.id, status: "invalid_filters" };
+  }
+  const filtersParseResult = filtersSchema.safeParse(rawFilters);
   if (!filtersParseResult.success) {
     console.error(
       `Invalid filters for search ${search.id}:`,
