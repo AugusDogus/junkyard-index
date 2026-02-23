@@ -176,6 +176,7 @@ export function SaveSearchDialog({
         search_name: variables.name,
         email_alerts_enabled: variables.emailAlertsEnabled ?? false,
         discord_alerts_enabled: variables.discordAlertsEnabled ?? false,
+        has_sources_filter: (filters.sources?.length ?? 0) > 0,
       });
 
       if (
@@ -325,6 +326,11 @@ export function SaveSearchDialog({
             {filters.states && filters.states.length > 0 && (
               <p>
                 <strong>States:</strong> {filters.states.join(", ")}
+              </p>
+            )}
+            {filters.sources && filters.sources.length > 0 && (
+              <p>
+                <strong>Sources:</strong> {filters.sources.join(", ")}
               </p>
             )}
           </div>

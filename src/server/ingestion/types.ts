@@ -70,6 +70,8 @@ export interface AlgoliaVehicleRecord {
 export interface IngestionResult {
   source: string;
   vehicles: CanonicalVehicle[];
+  /** Total vehicles processed (accurate even when streaming via onBatch). */
+  count: number;
   errors: string[];
 }
 

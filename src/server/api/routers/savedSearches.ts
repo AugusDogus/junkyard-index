@@ -11,6 +11,7 @@ export const filtersSchema = z.object({
   colors: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),
   salvageYards: z.array(z.string()).optional(),
+  sources: z.array(z.string()).optional(),
   minYear: z.number().optional(),
   maxYear: z.number().optional(),
   sortBy: z.string().optional(),
