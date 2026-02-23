@@ -258,7 +258,6 @@ function AlgoliaSearchInner({
     attribute: "year",
   });
 
-  // Server-side sorting via Algolia virtual replicas
   // Server-side sorting via Algolia replicas.
   // Virtual replicas for date/year (share records with primary).
   // Standard replica for distance (separate index with geo-dominant ranking).

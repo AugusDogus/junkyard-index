@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
+import { type SQL, and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "~/env";
@@ -54,7 +54,7 @@ async function findNewVehicles(
   filters: z.infer<typeof filtersSchema>,
 ): Promise<Vehicle[]> {
   // Build WHERE conditions
-  const conditions: ReturnType<typeof eq>[] = [];
+  const conditions: (SQL | undefined)[] = [];
 
   // Only vehicles seen since last check
   if (search.lastCheckedAt) {
@@ -66,13 +66,12 @@ async function findNewVehicles(
   if (search.query.trim()) {
     const words = search.query.trim().toLowerCase().split(/\s+/);
     for (const word of words) {
-      conditions.push(
-        or(
-          sql`lower(${vehicle.make}) LIKE ${"%" + word + "%"}`,
-          sql`lower(${vehicle.model}) LIKE ${"%" + word + "%"}`,
-          sql`CAST(${vehicle.year} AS TEXT) LIKE ${"%" + word + "%"}`,
-        )!,
+      const wordCondition = or(
+        sql`lower(${vehicle.make}) LIKE ${"%" + word + "%"}`,
+        sql`lower(${vehicle.model}) LIKE ${"%" + word + "%"}`,
+        sql`CAST(${vehicle.year} AS TEXT) LIKE ${"%" + word + "%"}`,
       );
+      if (wordCondition) conditions.push(wordCondition);
     }
   }
 
@@ -130,7 +129,7 @@ async function findNewVehicles(
     .select()
     .from(vehicle)
     .where(whereClause)
-    .orderBy(sql`${vehicle.firstSeenAt} DESC`)
+    .orderBy(desc(vehicle.firstSeenAt))
     .limit(100);
 
   return rows.map(dbVehicleToVehicle);
@@ -317,9 +316,10 @@ export async function GET(request: NextRequest) {
     for (let i = 0; i < searchesWithAlerts.length; i += BATCH_SIZE) {
       const batch = searchesWithAlerts.slice(i, i + BATCH_SIZE);
 
-      // Acquire locks atomically — only lock if not already locked
+      // Acquire locks atomically — only process searches whose lock was acquired
+      const lockedIds = new Set<string>();
       for (const s of batch) {
-        await db
+        const result = await db
           .update(savedSearch)
           .set({ processingLock: new Date() })
           .where(
@@ -330,11 +330,16 @@ export async function GET(request: NextRequest) {
                 lt(savedSearch.processingLock, staleLockThreshold),
               ),
             ),
-          );
+          )
+          .returning({ id: savedSearch.id });
+        if (result.length > 0) {
+          lockedIds.add(s.id);
+        }
       }
+      const lockedBatch = batch.filter((s) => lockedIds.has(s.id));
 
       const batchResults = await Promise.all(
-        batch.map(async (search) => {
+        lockedBatch.map(async (search) => {
           try {
             const [userInfo] = await db
               .select({
