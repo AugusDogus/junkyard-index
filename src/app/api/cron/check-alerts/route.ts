@@ -218,6 +218,10 @@ async function processSearch(
     return { searchId: search.id, status: "first_check_baseline_set" };
   }
 
+  // Capture time before querying so lastCheckedAt uses the same boundary,
+  // closing the race window where vehicles inserted during processing are skipped.
+  const queryTime = new Date();
+
   // Query new vehicles from canonical DB
   const newVehicles = await findNewVehicles(search, filters);
 
@@ -225,7 +229,7 @@ async function processSearch(
   if (newVehicles.length === 0) {
     await db
       .update(savedSearch)
-      .set({ lastCheckedAt: new Date() })
+      .set({ lastCheckedAt: queryTime })
       .where(eq(savedSearch.id, search.id));
     return { searchId: search.id, status: "no_new_vehicles" };
   }
@@ -242,7 +246,7 @@ async function processSearch(
   // Update lastCheckedAt
   await db
     .update(savedSearch)
-    .set({ lastCheckedAt: new Date() })
+    .set({ lastCheckedAt: queryTime })
     .where(eq(savedSearch.id, search.id));
 
   if (emailSent || discordSent) {
@@ -492,6 +496,8 @@ export async function GET(request: NextRequest) {
         errors: errored,
       },
     });
+    // Flush PostHog events before the serverless function terminates.
+    await posthog.shutdown();
 
     return NextResponse.json({
       message: "Cron job completed",
