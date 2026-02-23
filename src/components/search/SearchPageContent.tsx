@@ -90,7 +90,7 @@ function algoliaHitToVehicle(
 
   // Calculate distance from user if location is available
   const distance =
-    userLocation && geoloc != null
+    userLocation && geoloc !== null && geoloc !== undefined
       ? calculateDistance(userLocation.lat, userLocation.lng, hitLat, hitLng)
       : 0;
 
@@ -219,8 +219,7 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState, status, error } =
-    useInstantSearch();
+  const { indexUiState, setIndexUiState, status, error } = useInstantSearch();
   const query = (indexUiState.query as string) ?? "";
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
@@ -721,26 +720,29 @@ function AlgoliaSearchInner({
           )}
 
           {/* No Results */}
-          {query && searchResult?.totalCount === 0 && !isSearching && !error && (
-            <div className="py-12 text-center">
-              <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-                <AlertCircle className="text-muted-foreground h-12 w-12" />
+          {query &&
+            searchResult?.totalCount === 0 &&
+            !isSearching &&
+            !error && (
+              <div className="py-12 text-center">
+                <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+                  <AlertCircle className="text-muted-foreground h-12 w-12" />
+                </div>
+                <h2 className="text-foreground mb-2 text-lg font-medium">
+                  No vehicles found
+                </h2>
+                <p className="text-muted-foreground mx-auto mb-6 max-w-md">
+                  {activeFilterCount > 0
+                    ? "No vehicles match your current filters. Try adjusting your filters."
+                    : "No vehicles match your search. Try different search terms."}
+                </p>
+                {activeFilterCount > 0 && (
+                  <Button onClick={clearAllFilters} variant="outline">
+                    Clear All Filters
+                  </Button>
+                )}
               </div>
-              <h2 className="text-foreground mb-2 text-lg font-medium">
-                No vehicles found
-              </h2>
-              <p className="text-muted-foreground mx-auto mb-6 max-w-md">
-                {activeFilterCount > 0
-                  ? "No vehicles match your current filters. Try adjusting your filters."
-                  : "No vehicles match your search. Try different search terms."}
-              </p>
-              {activeFilterCount > 0 && (
-                <Button onClick={clearAllFilters} variant="outline">
-                  Clear All Filters
-                </Button>
-              )}
-            </div>
-          )}
+            )}
         </div>
       </div>
 
@@ -834,7 +836,8 @@ function createRouting(indexName: string) {
 
         // Persist sort as human-readable key (e.g. "oldest" not "vehicles_oldest")
         if (indexState.sortBy && indexState.sortBy !== indexName) {
-          state.sort = INDEX_TO_KEY[indexState.sortBy] ?? indexState.sortBy;
+          state.sort =
+            INDEX_TO_KEY[indexState.sortBy as string] ?? indexState.sortBy;
         }
 
         // Extract refinement lists
