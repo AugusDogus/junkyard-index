@@ -9,6 +9,7 @@ import { Polar } from "@polar-sh/sdk";
 import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { oAuthProxy } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
@@ -51,6 +52,7 @@ export const auth = betterAuth({
     discord: {
       clientId: env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
       clientSecret: env.DISCORD_CLIENT_SECRET,
+      redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/callback/discord`,
     },
   },
   databaseHooks: {
@@ -71,6 +73,7 @@ export const auth = betterAuth({
   },
   secret: env.BETTER_AUTH_SECRET,
   plugins: [
+    oAuthProxy(),
     polar({
       client: polarClient,
       createCustomerOnSignUp: true,
