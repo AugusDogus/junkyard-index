@@ -219,7 +219,9 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState, status, error } = useInstantSearch();
+  const { indexUiState, setIndexUiState, status, error } = useInstantSearch({
+    catchError: true,
+  });
   const query = (indexUiState.query as string) ?? "";
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
