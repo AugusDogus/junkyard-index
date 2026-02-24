@@ -17,6 +17,7 @@ interface MockVehicle {
   state: string;
   locationName: string;
   color: string;
+  source: "pyp" | "row52";
 }
 
 /**
@@ -30,6 +31,7 @@ function findNewVehicles(
     query?: string;
     makes?: string[];
     states?: string[];
+    sources?: string[];
     minYear?: number;
     maxYear?: number;
   },
@@ -69,6 +71,16 @@ function findNewVehicles(
       }
     }
 
+    // Source filter (pyp | row52)
+    if (filters.sources && filters.sources.length > 0) {
+      const validSources = filters.sources.filter(
+        (s): s is "pyp" | "row52" => s === "pyp" || s === "row52",
+      );
+      if (validSources.length > 0 && !validSources.includes(v.source)) {
+        return false;
+      }
+    }
+
     // Year range
     if (filters.minYear && v.year < filters.minYear) return false;
     if (filters.maxYear && v.year > filters.maxYear) return false;
@@ -92,6 +104,7 @@ describe("alert detection logic", () => {
       state: "California",
       locationName: "PYP Sun Valley",
       color: "Blue",
+      source: "pyp",
     },
     {
       vin: "VIN002",
@@ -102,6 +115,7 @@ describe("alert detection logic", () => {
       state: "California",
       locationName: "PYP Sun Valley",
       color: "Red",
+      source: "row52",
     },
     {
       vin: "VIN003",
@@ -112,6 +126,7 @@ describe("alert detection logic", () => {
       state: "Texas",
       locationName: "PYP Houston",
       color: "White",
+      source: "pyp",
     },
     {
       vin: "VIN004",
@@ -122,6 +137,7 @@ describe("alert detection logic", () => {
       state: "California",
       locationName: "PYP Sun Valley",
       color: "Black",
+      source: "row52",
     },
   ];
 
@@ -197,5 +213,24 @@ describe("alert detection logic", () => {
     // VIN004: HONDA, CA, 2022 ✓ but firstSeenAt is twoDaysAgo which equals lastCheckedAt, so excluded
     expect(result.length).toBe(1);
     expect(result[0]!.vin).toBe("VIN001");
+  });
+
+  test("applies sources filter", () => {
+    const result = findNewVehicles(vehicles, yesterday, {
+      sources: ["pyp"],
+    });
+    // firstSeenAt > yesterday: VIN001 (now), VIN002 (now); VIN003=yesterday excluded by time
+    // Of those, sources pyp: VIN001 ✓, VIN002=row52 ✗
+    expect(result.length).toBe(1);
+    expect(result[0]!.vin).toBe("VIN001");
+  });
+
+  test("sources filter excludes non-matching vehicles", () => {
+    const result = findNewVehicles(vehicles, yesterday, {
+      sources: ["row52"],
+    });
+    // VIN002: row52 ✓ only
+    expect(result.length).toBe(1);
+    expect(result[0]!.vin).toBe("VIN002");
   });
 });
