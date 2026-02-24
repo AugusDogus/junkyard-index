@@ -53,6 +53,9 @@ export const savedSearchesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const id = crypto.randomUUID();
       const now = new Date();
+      const alertsEnabled =
+        (input.emailAlertsEnabled ?? false) ||
+        (input.discordAlertsEnabled ?? false);
 
       await ctx.db.insert(savedSearch).values({
         id,
@@ -62,6 +65,7 @@ export const savedSearchesRouter = createTRPCRouter({
         filters: JSON.stringify(input.filters),
         emailAlertsEnabled: input.emailAlertsEnabled ?? false,
         discordAlertsEnabled: input.discordAlertsEnabled ?? false,
+        lastCheckedAt: alertsEnabled ? now : null,
         createdAt: now,
         updatedAt: now,
       });
@@ -143,7 +147,10 @@ export const savedSearchesRouter = createTRPCRouter({
 
       await ctx.db
         .update(savedSearch)
-        .set({ emailAlertsEnabled: input.enabled })
+        .set({
+          emailAlertsEnabled: input.enabled,
+          ...(input.enabled && { lastCheckedAt: new Date() }),
+        })
         .where(
           and(
             eq(savedSearch.id, input.id),
@@ -218,7 +225,10 @@ export const savedSearchesRouter = createTRPCRouter({
 
       await ctx.db
         .update(savedSearch)
-        .set({ discordAlertsEnabled: input.enabled })
+        .set({
+          discordAlertsEnabled: input.enabled,
+          ...(input.enabled && { lastCheckedAt: new Date() }),
+        })
         .where(
           and(
             eq(savedSearch.id, input.id),

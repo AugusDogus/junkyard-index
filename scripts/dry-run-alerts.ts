@@ -101,6 +101,20 @@ function buildWhereClause(
     );
   }
 
+  if (filters.sources && filters.sources.length > 0) {
+    const validSources = filters.sources.filter(
+      (s): s is "pyp" | "row52" => s === "pyp" || s === "row52",
+    );
+    if (validSources.length > 0) {
+      conditions.push(
+        sql`${vehicle.source} IN (${sql.join(
+          validSources.map((s) => sql`${s}`),
+          sql`, `,
+        )})`,
+      );
+    }
+  }
+
   if (filters.minYear) {
     conditions.push(sql`${vehicle.year} >= ${filters.minYear}`);
   }
