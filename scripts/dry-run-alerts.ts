@@ -14,23 +14,14 @@
  * 2) "next" pass using a simulated lastCheckedAt=now baseline
  */
 import { eq, or } from "drizzle-orm";
-import { z } from "zod";
 import { getAlertMatchStats } from "~/lib/algolia-alert-search";
 import { db } from "~/lib/db";
+import {
+  filtersSchema,
+  type SavedSearchFilters,
+} from "~/lib/saved-search-filters";
 import { savedSearch } from "~/schema";
-
-const filtersSchema = z.object({
-  makes: z.array(z.string()).optional(),
-  colors: z.array(z.string()).optional(),
-  states: z.array(z.string()).optional(),
-  salvageYards: z.array(z.string()).optional(),
-  sources: z.array(z.string()).optional(),
-  minYear: z.number().optional(),
-  maxYear: z.number().optional(),
-  sortBy: z.string().optional(),
-});
-
-type ParsedFilters = z.infer<typeof filtersSchema>;
+type ParsedFilters = SavedSearchFilters;
 
 interface SearchWithAlerts {
   id: string;
@@ -157,4 +148,3 @@ main().catch((error) => {
   console.error("[dry-run-alerts] failed:", error);
   process.exitCode = 1;
 });
-

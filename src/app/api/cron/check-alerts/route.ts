@@ -9,10 +9,10 @@ import { db } from "~/lib/db";
 import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailAlert } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
+import { filtersSchema } from "~/lib/saved-search-filters";
 import { buildSearchUrl } from "~/lib/search-utils";
 import type { Vehicle } from "~/lib/types";
 import { savedSearch, user } from "~/schema";
-import { filtersSchema } from "~/server/api/routers/savedSearches";
 
 // Lock timeout in milliseconds (5 minutes)
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
@@ -48,13 +48,13 @@ interface SearchWithAlerts {
 async function findNewVehicles(
   search: SearchWithAlerts,
   filters: z.infer<typeof filtersSchema>,
-): Promise<Vehicle[]> {
-  const { vehicles } = await getAlertMatchStats(
+): Promise<{ vehicles: Vehicle[]; fullCount: number }> {
+  const { vehicles, fullCount } = await getAlertMatchStats(
     search.query,
     filters,
     search.lastCheckedAt,
   );
-  return vehicles;
+  return { vehicles, fullCount };
 }
 
 async function sendNotifications(
@@ -145,15 +145,22 @@ async function processSearch(
   const queryTime = new Date();
 
   // Query new vehicles from canonical DB
-  const newVehicles = await findNewVehicles(search, filters);
+  const { vehicles: newVehicles, fullCount } = await findNewVehicles(
+    search,
+    filters,
+  );
+  const canAdvanceLastCheckedAt = newVehicles.length === fullCount;
 
   // If no new vehicles, just update timestamp
-  if (newVehicles.length === 0) {
+  if (newVehicles.length === 0 && canAdvanceLastCheckedAt) {
     await db
       .update(savedSearch)
       .set({ lastCheckedAt: queryTime })
       .where(eq(savedSearch.id, search.id));
     return { searchId: search.id, status: "no_new_vehicles" };
+  }
+  if (newVehicles.length === 0) {
+    return { searchId: search.id, status: "no_new_vehicles_partial_scan" };
   }
 
   // Build search URL and send notifications
@@ -166,10 +173,12 @@ async function processSearch(
   );
 
   // Update lastCheckedAt
-  await db
-    .update(savedSearch)
-    .set({ lastCheckedAt: queryTime })
-    .where(eq(savedSearch.id, search.id));
+  if (canAdvanceLastCheckedAt) {
+    await db
+      .update(savedSearch)
+      .set({ lastCheckedAt: queryTime })
+      .where(eq(savedSearch.id, search.id));
+  }
 
   if (emailSent || discordSent) {
     posthog.capture({
@@ -189,6 +198,7 @@ async function processSearch(
   if (discordSent) statusParts.push("discord_sent");
   if (errors.length > 0) statusParts.push(`errors: ${errors.join("; ")}`);
   if (statusParts.length === 0) statusParts.push("no_notifications_sent");
+  if (!canAdvanceLastCheckedAt) statusParts.push("last_checked_not_advanced");
 
   return {
     searchId: search.id,
