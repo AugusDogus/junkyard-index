@@ -226,11 +226,30 @@ export function SaveSearchDialog({
     const enableEmail = notificationsEnabled && emailEnabled;
     const enableDiscord =
       notificationsEnabled && discordEnabled && !!hasDiscordSetup;
+    const normalizedSources = (filters.sources ?? []).filter(
+      (source): source is "pyp" | "row52" =>
+        source === "pyp" || source === "row52",
+    );
+    const restFilters = {
+      makes: filters.makes,
+      colors: filters.colors,
+      states: filters.states,
+      salvageYards: filters.salvageYards,
+      minYear: filters.minYear,
+      maxYear: filters.maxYear,
+      sortBy: filters.sortBy,
+    };
 
     createMutation.mutate({
       name: name.trim(),
       query,
-      filters,
+      filters: {
+        ...restFilters,
+        ...(filters.sources && {
+          sources:
+            normalizedSources.length > 0 ? normalizedSources : undefined,
+        }),
+      },
       emailAlertsEnabled: enableEmail,
       discordAlertsEnabled: enableDiscord,
     });

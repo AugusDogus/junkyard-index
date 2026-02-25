@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   algoliaHitToVehicle,
   buildAlertFiltersString,
+  getAlertMatchStats,
 } from "~/lib/algolia-alert-search";
+import { searchClient } from "~/lib/algolia-search";
 
 describe("algolia alert search helpers", () => {
   test("builds timestamp and numeric year constraints", () => {
@@ -86,5 +88,146 @@ describe("algolia alert search helpers", () => {
     expect(vehicle.location.name).toBe("PYP Sun Valley");
     expect(vehicle.location.lat).toBe(34.2);
     expect(vehicle.images[0]?.url).toBe("https://example.com/image.jpg");
+  });
+});
+
+describe("getAlertMatchStats pagination", () => {
+  const originalSearchForHits = searchClient.searchForHits;
+  type SearchParams = Parameters<typeof searchClient.searchForHits>[0];
+  const createHits = (count: number, prefix: string): Record<string, unknown>[] =>
+    Array.from({ length: count }, (_, index) => ({
+      objectID: `${prefix}-${index}`,
+      make: "Honda",
+      model: "Civic",
+      year: 2019,
+    }));
+  const getRequestedPage = (params: SearchParams): number => {
+    if (typeof params === "object" && params !== null && "requests" in params) {
+      const request = params.requests[0];
+      if (request && typeof request === "object" && "page" in request) {
+        const page = request.page;
+        return typeof page === "number" ? page : 0;
+      }
+    }
+    return 0;
+  };
+
+  function mockSearchForHits(
+    fn: typeof searchClient.searchForHits,
+  ): void {
+    Object.defineProperty(searchClient, "searchForHits", {
+      configurable: true,
+      writable: true,
+      value: fn,
+    });
+  }
+
+  function restoreSearchForHits(): void {
+    mockSearchForHits(originalSearchForHits);
+  }
+
+  test("aggregates multiple pages and stops at nbPages", async () => {
+    const pages = new Map<number, { hits: Record<string, unknown>[] }>([
+      [
+        0,
+        {
+          hits: createHits(100, "VIN-A"),
+        },
+      ],
+      [
+        1,
+        {
+          hits: createHits(100, "VIN-B"),
+        },
+      ],
+    ]);
+    const requestedPages: number[] = [];
+
+    mockSearchForHits((async (params) => {
+      const page = getRequestedPage(params);
+      requestedPages.push(page);
+      const payload = pages.get(page) ?? { hits: [] };
+      return {
+        results: [
+          {
+            hits: payload.hits,
+            nbHits: 200,
+            nbPages: 2,
+          },
+        ],
+      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
+    }) as typeof searchClient.searchForHits);
+
+    try {
+      const result = await getAlertMatchStats("honda", {}, null);
+      expect(result.fullCount).toBe(200);
+      expect(result.vehicles.length).toBe(200);
+      expect(requestedPages).toEqual([0, 1]);
+    } finally {
+      restoreSearchForHits();
+    }
+  });
+
+  test("stops when a subsequent page has empty hits", async () => {
+    const requestedPages: number[] = [];
+
+    mockSearchForHits((async (params) => {
+      const page = getRequestedPage(params);
+      requestedPages.push(page);
+      if (page === 0) {
+        return {
+          results: [
+            {
+              hits: createHits(100, "VIN-C"),
+              nbHits: 500,
+              nbPages: 50,
+            },
+          ],
+        } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
+      }
+      return {
+        results: [
+          {
+            hits: [],
+            nbHits: 500,
+            nbPages: 50,
+          },
+        ],
+      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
+    }) as typeof searchClient.searchForHits);
+
+    try {
+      const result = await getAlertMatchStats("ford", {}, null);
+      expect(result.fullCount).toBe(500);
+      expect(result.vehicles.length).toBe(100);
+      expect(requestedPages).toEqual([0, 1]);
+    } finally {
+      restoreSearchForHits();
+    }
+  });
+
+  test("stops even with repeated page payloads by fullCount", async () => {
+    let callCount = 0;
+
+    mockSearchForHits((async () => {
+      callCount += 1;
+      return {
+        results: [
+          {
+            hits: createHits(100, `VIN-${callCount}`),
+            nbHits: 300,
+          },
+        ],
+      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
+    }) as typeof searchClient.searchForHits);
+
+    try {
+      const result = await getAlertMatchStats("mazda", {}, null);
+      expect(result.fullCount).toBe(300);
+      expect(result.vehicles.length).toBe(300);
+      expect(callCount).toBe(3);
+    } finally {
+      restoreSearchForHits();
+    }
   });
 });

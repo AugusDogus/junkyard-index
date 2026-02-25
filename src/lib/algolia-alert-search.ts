@@ -1,4 +1,4 @@
-import type { Vehicle } from "~/lib/types";
+import type { DataSource, Vehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 
 export interface AlertFilters {
@@ -19,6 +19,10 @@ interface AlgoliaSearchResponse {
 
 function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function parseDataSource(value: unknown): DataSource {
+  return value === "pyp" || value === "row52" ? value : "pyp";
 }
 
 function buildStringOrFilter(
@@ -88,6 +92,7 @@ export function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
   const geoloc = hit._geoloc as { lat: number; lng: number } | undefined;
   const hitLat = geoloc?.lat ?? 0;
   const hitLng = geoloc?.lng ?? 0;
+  const source = parseDataSource(hit.source);
 
   return {
     id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
@@ -98,7 +103,7 @@ export function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
     vin: (hit.vin as string) ?? (hit.objectID as string) ?? "",
     stockNumber: (hit.stockNumber as string) ?? "",
     availableDate: (hit.availableDate as string) ?? "",
-    source: (hit.source as "pyp" | "row52") ?? "pyp",
+    source,
     location: {
       locationCode: (hit.locationCode as string) ?? "",
       locationPageURL: "",
@@ -118,7 +123,7 @@ export function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
       distance: 0,
       legacyCode: "",
       primo: "",
-      source: (hit.source as "pyp" | "row52") ?? "pyp",
+      source,
       urls: {
         store: "",
         interchange: "",
