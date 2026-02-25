@@ -1,7 +1,8 @@
 import * as Sentry from "@sentry/nextjs";
-import { type SQL, and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getAlertMatchStats } from "~/lib/algolia-alert-search";
 import { env } from "~/env";
 import { polarClient } from "~/lib/auth";
 import { db } from "~/lib/db";
@@ -10,8 +11,7 @@ import { sendEmailAlert } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
 import { buildSearchUrl } from "~/lib/search-utils";
 import type { Vehicle } from "~/lib/types";
-import { dbVehicleToVehicle } from "~/lib/vehicle-utils";
-import { savedSearch, user, vehicle } from "~/schema";
+import { savedSearch, user } from "~/schema";
 import { filtersSchema } from "~/server/api/routers/savedSearches";
 
 // Lock timeout in milliseconds (5 minutes)
@@ -45,109 +45,16 @@ interface SearchWithAlerts {
   discordAlertsEnabled: boolean;
 }
 
-/**
- * Query new vehicles from the canonical vehicle table matching a saved search's criteria.
- * Returns vehicles where firstSeenAt > lastCheckedAt.
- */
 async function findNewVehicles(
   search: SearchWithAlerts,
   filters: z.infer<typeof filtersSchema>,
 ): Promise<Vehicle[]> {
-  // Build WHERE conditions
-  const conditions: (SQL | undefined)[] = [];
-
-  // Only vehicles seen since last check
-  if (search.lastCheckedAt) {
-    conditions.push(gt(vehicle.firstSeenAt, search.lastCheckedAt));
-  }
-
-  // Text query: split into words and match each against make, model, or year.
-  // e.g. "Honda Civic" → word "honda" matches make, word "civic" matches model.
-  if (search.query.trim()) {
-    const words = search.query.trim().toLowerCase().split(/\s+/);
-    for (const word of words) {
-      const wordCondition = or(
-        sql`lower(${vehicle.make}) LIKE ${"%" + word + "%"}`,
-        sql`lower(${vehicle.model}) LIKE ${"%" + word + "%"}`,
-        sql`CAST(${vehicle.year} AS TEXT) LIKE ${"%" + word + "%"}`,
-      );
-      if (wordCondition) conditions.push(wordCondition);
-    }
-  }
-
-  // Make filter
-  if (filters.makes && filters.makes.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.make}) IN (${sql.join(
-        filters.makes.map((m) => sql`${m.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  // Color filter
-  if (filters.colors && filters.colors.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.color}) IN (${sql.join(
-        filters.colors.map((c) => sql`${c.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  // State filter
-  if (filters.states && filters.states.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.state}) IN (${sql.join(
-        filters.states.map((s) => sql`${s.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  // Salvage yards (location name) filter
-  if (filters.salvageYards && filters.salvageYards.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.locationName}) IN (${sql.join(
-        filters.salvageYards.map((y) => sql`${y.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  // Source filter (pyp | row52)
-  if (filters.sources && filters.sources.length > 0) {
-    const validSources = filters.sources.filter(
-      (s): s is "pyp" | "row52" => s === "pyp" || s === "row52",
-    );
-    if (validSources.length > 0) {
-      conditions.push(
-        sql`${vehicle.source} IN (${sql.join(
-          validSources.map((s) => sql`${s}`),
-          sql`, `,
-        )})`,
-      );
-    }
-  }
-
-  // Year range filter
-  if (filters.minYear) {
-    conditions.push(sql`${vehicle.year} >= ${filters.minYear}`);
-  }
-  if (filters.maxYear) {
-    conditions.push(sql`${vehicle.year} <= ${filters.maxYear}`);
-  }
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const rows = await db
-    .select()
-    .from(vehicle)
-    .where(whereClause)
-    .orderBy(desc(vehicle.firstSeenAt))
-    .limit(100);
-
-  return rows.map(dbVehicleToVehicle);
+  const { vehicles } = await getAlertMatchStats(
+    search.query,
+    filters,
+    search.lastCheckedAt,
+  );
+  return vehicles;
 }
 
 async function sendNotifications(

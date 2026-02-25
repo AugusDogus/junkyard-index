@@ -13,10 +13,11 @@
  * 1) "now" pass using current lastCheckedAt (what cron would do right now)
  * 2) "next" pass using a simulated lastCheckedAt=now baseline
  */
-import { and, desc, eq, gt, or, sql, type SQL } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { z } from "zod";
+import { getAlertMatchStats } from "~/lib/algolia-alert-search";
 import { db } from "~/lib/db";
-import { savedSearch, vehicle } from "~/schema";
+import { savedSearch } from "~/schema";
 
 const filtersSchema = z.object({
   makes: z.array(z.string()).optional(),
@@ -42,113 +43,21 @@ interface SearchWithAlerts {
   discordAlertsEnabled: boolean;
 }
 
-function buildWhereClause(
-  searchQuery: string,
-  filters: ParsedFilters,
-  lastCheckedAt: Date | null,
-): SQL | undefined {
-  const conditions: (SQL | undefined)[] = [];
-
-  if (lastCheckedAt) {
-    conditions.push(gt(vehicle.firstSeenAt, lastCheckedAt));
-  }
-
-  if (searchQuery.trim()) {
-    const words = searchQuery.trim().toLowerCase().split(/\s+/);
-    for (const word of words) {
-      const wordCondition = or(
-        sql`lower(${vehicle.make}) LIKE ${`%${word}%`}`,
-        sql`lower(${vehicle.model}) LIKE ${`%${word}%`}`,
-        sql`CAST(${vehicle.year} AS TEXT) LIKE ${`%${word}%`}`,
-      );
-      if (wordCondition) conditions.push(wordCondition);
-    }
-  }
-
-  if (filters.makes && filters.makes.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.make}) IN (${sql.join(
-        filters.makes.map((m) => sql`${m.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  if (filters.colors && filters.colors.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.color}) IN (${sql.join(
-        filters.colors.map((c) => sql`${c.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  if (filters.states && filters.states.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.state}) IN (${sql.join(
-        filters.states.map((s) => sql`${s.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  if (filters.salvageYards && filters.salvageYards.length > 0) {
-    conditions.push(
-      sql`lower(${vehicle.locationName}) IN (${sql.join(
-        filters.salvageYards.map((y) => sql`${y.toLowerCase()}`),
-        sql`, `,
-      )})`,
-    );
-  }
-
-  if (filters.sources && filters.sources.length > 0) {
-    const validSources = filters.sources.filter(
-      (s): s is "pyp" | "row52" => s === "pyp" || s === "row52",
-    );
-    if (validSources.length > 0) {
-      conditions.push(
-        sql`${vehicle.source} IN (${sql.join(
-          validSources.map((s) => sql`${s}`),
-          sql`, `,
-        )})`,
-      );
-    }
-  }
-
-  if (filters.minYear) {
-    conditions.push(sql`${vehicle.year} >= ${filters.minYear}`);
-  }
-  if (filters.maxYear) {
-    conditions.push(sql`${vehicle.year} <= ${filters.maxYear}`);
-  }
-
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
-
 async function getMatchStats(
   searchQuery: string,
   filters: ParsedFilters,
   lastCheckedAt: Date | null,
 ): Promise<{ fullCount: number; sampleCount: number; sampleVins: string[] }> {
-  const whereClause = buildWhereClause(searchQuery, filters, lastCheckedAt);
-
-  const countRows = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(vehicle)
-    .where(whereClause);
-  const fullCount = countRows[0]?.count ?? 0;
-
-  const sampleRows = await db
-    .select({ vin: vehicle.vin })
-    .from(vehicle)
-    .where(whereClause)
-    .orderBy(desc(vehicle.firstSeenAt))
-    .limit(100);
+  const { fullCount, vehicles } = await getAlertMatchStats(
+    searchQuery,
+    filters,
+    lastCheckedAt,
+  );
 
   return {
     fullCount,
-    sampleCount: sampleRows.length,
-    sampleVins: sampleRows.slice(0, 5).map((row) => row.vin),
+    sampleCount: vehicles.length,
+    sampleVins: vehicles.slice(0, 5).map((row) => row.vin),
   };
 }
 

@@ -3,6 +3,7 @@ interface SearchFilters {
   colors?: string[];
   states?: string[];
   salvageYards?: string[];
+  sources?: string[];
   minYear?: number;
   maxYear?: number;
   sortBy?: string;
@@ -29,6 +30,9 @@ export function buildSearchUrl(
   }
   if (filters.salvageYards && filters.salvageYards.length > 0) {
     params.set("yards", filters.salvageYards.join(","));
+  }
+  if (filters.sources && filters.sources.length > 0) {
+    params.set("sources", filters.sources.join(","));
   }
   if (filters.minYear) {
     params.set("minYear", filters.minYear.toString());
