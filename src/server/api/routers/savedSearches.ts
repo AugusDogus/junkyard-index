@@ -1,21 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { filtersSchema } from "~/lib/saved-search-filters";
 import { polarClient } from "~/lib/auth";
 import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { savedSearch, user } from "~/schema";
-
-export const filtersSchema = z.object({
-  makes: z.array(z.string()).optional(),
-  colors: z.array(z.string()).optional(),
-  states: z.array(z.string()).optional(),
-  salvageYards: z.array(z.string()).optional(),
-  sources: z.array(z.string()).optional(),
-  minYear: z.number().optional(),
-  maxYear: z.number().optional(),
-  sortBy: z.string().optional(),
-});
 
 export const savedSearchesRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -118,6 +108,27 @@ export const savedSearchesRouter = createTRPCRouter({
   toggleEmailAlerts: protectedProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      const [existingSavedSearch] = await ctx.db
+        .select({
+          emailAlertsEnabled: savedSearch.emailAlertsEnabled,
+          discordAlertsEnabled: savedSearch.discordAlertsEnabled,
+        })
+        .from(savedSearch)
+        .where(
+          and(
+            eq(savedSearch.id, input.id),
+            eq(savedSearch.userId, ctx.user.id),
+          ),
+        )
+        .limit(1);
+
+      if (!existingSavedSearch) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Saved search not found",
+        });
+      }
+
       // If enabling alerts, verify user has an active subscription
       if (input.enabled) {
         try {
@@ -145,11 +156,16 @@ export const savedSearchesRouter = createTRPCRouter({
         }
       }
 
+      const hadAnyAlerts =
+        existingSavedSearch.emailAlertsEnabled ||
+        existingSavedSearch.discordAlertsEnabled;
+      const shouldSetLastCheckedAt = input.enabled && !hadAnyAlerts;
+
       await ctx.db
         .update(savedSearch)
         .set({
           emailAlertsEnabled: input.enabled,
-          ...(input.enabled && { lastCheckedAt: new Date() }),
+          ...(shouldSetLastCheckedAt && { lastCheckedAt: new Date() }),
         })
         .where(
           and(
@@ -173,6 +189,27 @@ export const savedSearchesRouter = createTRPCRouter({
   toggleDiscordAlerts: protectedProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      const [existingSavedSearch] = await ctx.db
+        .select({
+          emailAlertsEnabled: savedSearch.emailAlertsEnabled,
+          discordAlertsEnabled: savedSearch.discordAlertsEnabled,
+        })
+        .from(savedSearch)
+        .where(
+          and(
+            eq(savedSearch.id, input.id),
+            eq(savedSearch.userId, ctx.user.id),
+          ),
+        )
+        .limit(1);
+
+      if (!existingSavedSearch) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Saved search not found",
+        });
+      }
+
       // If enabling alerts, verify user has an active subscription and Discord setup
       if (input.enabled) {
         // Check subscription
@@ -223,11 +260,16 @@ export const savedSearchesRouter = createTRPCRouter({
         }
       }
 
+      const hadAnyAlerts =
+        existingSavedSearch.emailAlertsEnabled ||
+        existingSavedSearch.discordAlertsEnabled;
+      const shouldSetLastCheckedAt = input.enabled && !hadAnyAlerts;
+
       await ctx.db
         .update(savedSearch)
         .set({
           discordAlertsEnabled: input.enabled,
-          ...(input.enabled && { lastCheckedAt: new Date() }),
+          ...(shouldSetLastCheckedAt && { lastCheckedAt: new Date() }),
         })
         .where(
           and(

@@ -1,5 +1,5 @@
 import type { Vehicle } from "~/lib/types";
-import { ALGOLIA_INDEX_NAME, algoliaClient } from "~/lib/algolia";
+import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 
 export interface AlertFilters {
   makes?: string[];
@@ -9,21 +9,27 @@ export interface AlertFilters {
   sources?: string[];
   minYear?: number;
   maxYear?: number;
-  sortBy?: string;
 }
 
 interface AlgoliaSearchResponse {
   hits?: Record<string, unknown>[];
   nbHits?: number;
+  nbPages?: number;
 }
 
 function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-function buildStringOrFilter(attribute: string, values: string[]): string | null {
-  if (values.length === 0) return null;
-  const clauses = values.map(
+function buildStringOrFilter(
+  attribute: string,
+  values: string[],
+): string | null {
+  const cleanedValues = values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  if (cleanedValues.length === 0) return null;
+  const clauses = cleanedValues.map(
     (value) => `${attribute}:"${escapeFilterValue(value)}"`,
   );
   return clauses.length === 1 ? clauses[0]! : `(${clauses.join(" OR ")})`;
@@ -61,11 +67,18 @@ export function buildAlertFiltersString(
   );
   if (sourcesClause) clauses.push(sourcesClause);
 
-  if (typeof filters.minYear === "number") {
-    clauses.push(`year >= ${filters.minYear}`);
+  let minYear = Number.isFinite(filters.minYear) ? filters.minYear : undefined;
+  let maxYear = Number.isFinite(filters.maxYear) ? filters.maxYear : undefined;
+
+  if (minYear !== undefined && maxYear !== undefined && minYear > maxYear) {
+    [minYear, maxYear] = [maxYear, minYear];
   }
-  if (typeof filters.maxYear === "number") {
-    clauses.push(`year <= ${filters.maxYear}`);
+
+  if (minYear !== undefined) {
+    clauses.push(`year >= ${minYear}`);
+  }
+  if (maxYear !== undefined) {
+    clauses.push(`year <= ${maxYear}`);
   }
 
   return clauses.length > 0 ? clauses.join(" AND ") : undefined;
@@ -141,19 +154,53 @@ export async function getAlertMatchStats(
   lastCheckedAt: Date | null,
 ): Promise<{ fullCount: number; vehicles: Vehicle[] }> {
   const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
+  const hitsPerPage = 100;
+  let page = 0;
+  let fullCount = 0;
+  const vehicles: Vehicle[] = [];
 
-  const response = (await algoliaClient.searchSingleIndex({
-    indexName: ALGOLIA_INDEX_NAME,
-    searchParams: {
-      query: query.trim(),
-      filters: filtersString,
-      hitsPerPage: 100,
-    },
-  })) as AlgoliaSearchResponse;
+  while (true) {
+    const response = await searchClient.searchForHits<Record<string, unknown>>({
+      requests: [
+        {
+          indexName: ALGOLIA_INDEX_NAME,
+          query: query.trim(),
+          filters: filtersString,
+          hitsPerPage,
+          page,
+        },
+      ],
+    });
+    const result = response.results[0] as AlgoliaSearchResponse | undefined;
+    if (!result) {
+      break;
+    }
 
-  const hits = response.hits ?? [];
+    const hits = result.hits ?? [];
+    if (page === 0) {
+      fullCount = result.nbHits ?? hits.length;
+    }
+    if (hits.length === 0) {
+      break;
+    }
+
+    vehicles.push(...hits.map(algoliaHitToVehicle));
+
+    if (vehicles.length >= fullCount) {
+      break;
+    }
+    if (hits.length < hitsPerPage) {
+      break;
+    }
+    if (typeof result.nbPages === "number" && page + 1 >= result.nbPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
   return {
-    fullCount: response.nbHits ?? 0,
-    vehicles: hits.map(algoliaHitToVehicle),
+    fullCount,
+    vehicles,
   };
 }

@@ -246,8 +246,13 @@ export function SaveSearchDialog({
       posthog.capture(AnalyticsEvents.SAVED_SEARCH_AUTH_REQUIRED, { query });
       setIsNavigatingToAuth(true);
       storePendingSaveSearch(query, filters);
+      const returnUrl = new URL(
+        window.location.pathname + window.location.search,
+        window.location.origin,
+      );
+      returnUrl.searchParams.set("saveSearch", "1");
       const returnTo = encodeURIComponent(
-        window.location.pathname + window.location.search + "&saveSearch=1",
+        `${returnUrl.pathname}${returnUrl.search}`,
       );
       router.push(`/auth/sign-in?returnTo=${returnTo}`);
     }

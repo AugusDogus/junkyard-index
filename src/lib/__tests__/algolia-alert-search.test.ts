@@ -33,6 +33,39 @@ describe("algolia alert search helpers", () => {
     expect(filters).not.toContain("ignore-me");
   });
 
+  test("drops empty and whitespace facet values", () => {
+    const filters = buildAlertFiltersString(
+      {
+        makes: ["Honda", "", "   ", "Toyota"],
+      },
+      null,
+    );
+
+    expect(filters).toContain('(make:"Honda" OR make:"Toyota")');
+    expect(filters).not.toContain('make:""');
+  });
+
+  test("handles finite and inverted year ranges safely", () => {
+    const filters = buildAlertFiltersString(
+      {
+        minYear: Number.POSITIVE_INFINITY,
+        maxYear: Number.NaN,
+      },
+      null,
+    );
+    expect(filters).toBeUndefined();
+
+    const swappedRange = buildAlertFiltersString(
+      {
+        minYear: 2020,
+        maxYear: 2015,
+      },
+      null,
+    );
+    expect(swappedRange).toContain("year >= 2015");
+    expect(swappedRange).toContain("year <= 2020");
+  });
+
   test("maps algolia hits to Vehicle shape", () => {
     const vehicle = algoliaHitToVehicle({
       objectID: "VIN123",
