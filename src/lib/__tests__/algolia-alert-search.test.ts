@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 
 import {
   algoliaHitToVehicle,
@@ -126,6 +126,10 @@ describe("getAlertMatchStats pagination", () => {
     mockSearchForHits(originalSearchForHits);
   }
 
+  afterEach(() => {
+    restoreSearchForHits();
+  });
+
   test("aggregates multiple pages and stops at nbPages", async () => {
     const pages = new Map<number, { hits: Record<string, unknown>[] }>([
       [
@@ -158,14 +162,10 @@ describe("getAlertMatchStats pagination", () => {
       } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
     }) as typeof searchClient.searchForHits);
 
-    try {
-      const result = await getAlertMatchStats("honda", {}, null);
-      expect(result.fullCount).toBe(200);
-      expect(result.vehicles.length).toBe(200);
-      expect(requestedPages).toEqual([0, 1]);
-    } finally {
-      restoreSearchForHits();
-    }
+    const result = await getAlertMatchStats("honda", {}, null);
+    expect(result.fullCount).toBe(200);
+    expect(result.vehicles.length).toBe(200);
+    expect(requestedPages).toEqual([0, 1]);
   });
 
   test("stops when a subsequent page has empty hits", async () => {
@@ -196,14 +196,10 @@ describe("getAlertMatchStats pagination", () => {
       } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
     }) as typeof searchClient.searchForHits);
 
-    try {
-      const result = await getAlertMatchStats("ford", {}, null);
-      expect(result.fullCount).toBe(500);
-      expect(result.vehicles.length).toBe(100);
-      expect(requestedPages).toEqual([0, 1]);
-    } finally {
-      restoreSearchForHits();
-    }
+    const result = await getAlertMatchStats("ford", {}, null);
+    expect(result.fullCount).toBe(500);
+    expect(result.vehicles.length).toBe(100);
+    expect(requestedPages).toEqual([0, 1]);
   });
 
   test("stops even with repeated page payloads by fullCount", async () => {
@@ -221,13 +217,9 @@ describe("getAlertMatchStats pagination", () => {
       } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
     }) as typeof searchClient.searchForHits);
 
-    try {
-      const result = await getAlertMatchStats("mazda", {}, null);
-      expect(result.fullCount).toBe(300);
-      expect(result.vehicles.length).toBe(300);
-      expect(callCount).toBe(3);
-    } finally {
-      restoreSearchForHits();
-    }
+    const result = await getAlertMatchStats("mazda", {}, null);
+    expect(result.fullCount).toBe(300);
+    expect(result.vehicles.length).toBe(300);
+    expect(callCount).toBe(3);
   });
 });

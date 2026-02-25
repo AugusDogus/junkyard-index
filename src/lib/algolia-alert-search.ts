@@ -15,6 +15,7 @@ interface AlgoliaSearchResponse {
   hits?: Record<string, unknown>[];
   nbHits?: number;
   nbPages?: number;
+  paginationLimitedTo?: number;
 }
 
 function escapeFilterValue(value: string): string {
@@ -162,6 +163,7 @@ export async function getAlertMatchStats(
   const hitsPerPage = 100;
   let page = 0;
   let fullCount = 0;
+  let paginationLimitedTo: number | undefined;
   const vehicles: Vehicle[] = [];
 
   while (true) {
@@ -184,6 +186,7 @@ export async function getAlertMatchStats(
     const hits = result.hits ?? [];
     if (page === 0) {
       fullCount = result.nbHits ?? hits.length;
+      paginationLimitedTo = result.paginationLimitedTo;
     }
     if (hits.length === 0) {
       break;
@@ -202,6 +205,16 @@ export async function getAlertMatchStats(
     }
 
     page += 1;
+  }
+
+  if (
+    paginationLimitedTo !== undefined &&
+    fullCount > paginationLimitedTo &&
+    vehicles.length < fullCount
+  ) {
+    console.warn(
+      `[algolia-alert-search] Retrieved ${vehicles.length} of ${fullCount} hits due to paginationLimitedTo=${paginationLimitedTo}.`,
+    );
   }
 
   return {
