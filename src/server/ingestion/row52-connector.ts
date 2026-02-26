@@ -1,5 +1,5 @@
 import buildQuery from "odata-query";
-import pLimit from "p-limit";
+import pMap from "p-map";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type {
   Row52Image,
@@ -7,6 +7,7 @@ import type {
   Row52ODataResponse,
   Row52Vehicle,
 } from "~/lib/types";
+import { fetchWithTimeoutRetry } from "./fetch-with-retry";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 1000;
@@ -20,49 +21,18 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isTimeoutError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const lowerMessage = error.message.toLowerCase();
-  return (
-    error.name === "TimeoutError" ||
-    error.name === "AbortError" ||
-    lowerMessage.includes("aborted due to timeout") ||
-    lowerMessage.includes("timeout")
-  );
-}
-
-async function fetchWithTimeoutRetry(
+function fetchRow52WithRetry(
   url: string,
   init: RequestInit,
   context: string,
 ): Promise<Response> {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= TIMEOUT_RETRY_LIMIT + 1; attempt += 1) {
-    try {
-      return await fetch(url, {
-        ...init,
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-    } catch (error) {
-      lastError = error;
-      const shouldRetry =
-        isTimeoutError(error) && attempt <= TIMEOUT_RETRY_LIMIT;
-      if (!shouldRetry) {
-        throw error;
-      }
-
-      const delayMs = TIMEOUT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-      console.warn(
-        `[Row52] ${context} timed out (attempt ${attempt}/${TIMEOUT_RETRY_LIMIT + 1}), retrying in ${delayMs}ms`,
-      );
-      await sleep(delayMs);
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`[Row52] ${context} failed after timeout retries`);
+  return fetchWithTimeoutRetry(url, init, {
+    context,
+    logPrefix: "[Row52]",
+    timeoutMs: FETCH_TIMEOUT_MS,
+    retries: TIMEOUT_RETRY_LIMIT,
+    baseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
+  });
 }
 
 async function fetchRow52<T>(
@@ -70,7 +40,7 @@ async function fetchRow52<T>(
   queryString: string,
 ): Promise<Row52ODataResponse<T>> {
   const url = `${API_ENDPOINTS.ROW52_BASE}${endpoint}${queryString}`;
-  const response = await fetchWithTimeoutRetry(
+  const response = await fetchRow52WithRetry(
     url,
     {
       headers: {
@@ -412,22 +382,20 @@ export async function fetchRow52Inventory(
             chunkStart,
             chunkStart + PAGE_FETCH_CONCURRENCY,
           );
-          const limit = pLimit(PAGE_FETCH_CONCURRENCY);
-
-          const pageResults = await Promise.all(
-            chunkSkips.map((skip, index) =>
-              limit(async () => {
-                if (PAGE_DELAY_MS > 0 && index > 0) {
-                  await sleep(index * PAGE_DELAY_MS);
-                }
-                try {
-                  const page = await fetchVehiclePage(skip, false);
-                  return { ok: true as const, skip, page };
-                } catch (error) {
-                  return { ok: false as const, skip, error };
-                }
-              }),
-            ),
+          const pageResults = await pMap(
+            chunkSkips,
+            async (skip, index) => {
+              if (PAGE_DELAY_MS > 0 && index > 0) {
+                await sleep(index * PAGE_DELAY_MS);
+              }
+              try {
+                const page = await fetchVehiclePage(skip, false);
+                return { ok: true as const, skip, page };
+              } catch (error) {
+                return { ok: false as const, skip, error };
+              }
+            },
+            { concurrency: PAGE_FETCH_CONCURRENCY },
           );
 
           const successfulPages = pageResults

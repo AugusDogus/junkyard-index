@@ -1,7 +1,8 @@
 import { API_ENDPOINTS } from "~/lib/constants";
-import pLimit from "p-limit";
+import pMap from "p-map";
 import type { Location } from "~/lib/types";
 import { fetchLocationsFromPYP } from "~/server/api/routers/locations";
+import { fetchWithTimeoutRetry } from "./fetch-with-retry";
 import { transformPypVehicle } from "./pyp-transform";
 import type { PypVehicleJson } from "./pyp-transform";
 import type { CanonicalVehicle, IngestionResult } from "./types";
@@ -32,53 +33,18 @@ interface PypSession {
 let cachedSession: PypSession | null = null;
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isTimeoutError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const lowerMessage = error.message.toLowerCase();
-  return (
-    error.name === "TimeoutError" ||
-    error.name === "AbortError" ||
-    lowerMessage.includes("aborted due to timeout") ||
-    lowerMessage.includes("timeout")
-  );
-}
-
-async function fetchWithTimeoutRetry(
+function fetchPypWithRetry(
   url: string,
   init: RequestInit,
   context: string,
 ): Promise<Response> {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= TIMEOUT_RETRY_LIMIT + 1; attempt += 1) {
-    try {
-      return await fetch(url, {
-        ...init,
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      });
-    } catch (error) {
-      lastError = error;
-      const shouldRetry =
-        isTimeoutError(error) && attempt <= TIMEOUT_RETRY_LIMIT;
-      if (!shouldRetry) {
-        throw error;
-      }
-
-      const delayMs = TIMEOUT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
-      console.warn(
-        `[PYP] ${context} timed out (attempt ${attempt}/${TIMEOUT_RETRY_LIMIT + 1}), retrying in ${delayMs}ms`,
-      );
-      await sleep(delayMs);
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`[PYP] ${context} failed after timeout retries`);
+  return fetchWithTimeoutRetry(url, init, {
+    context,
+    logPrefix: "[PYP]",
+    timeoutMs: FETCH_TIMEOUT_MS,
+    retries: TIMEOUT_RETRY_LIMIT,
+    baseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
+  });
 }
 
 /**
@@ -124,7 +90,7 @@ async function getPypSession(): Promise<PypSession> {
     return cachedSession;
   }
 
-  const response = await fetchWithTimeoutRetry(
+  const response = await fetchPypWithRetry(
     `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
     {
       headers: {
@@ -192,7 +158,7 @@ async function fetchPypFilterPage(
 ): Promise<PypFilterResponse> {
   const url = `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${page}&pageSize=${PAGE_SIZE}`;
 
-  let response = await fetchWithTimeoutRetry(
+  let response = await fetchPypWithRetry(
     url,
     {
       headers: buildPypHeaders(session),
@@ -205,7 +171,7 @@ async function fetchPypFilterPage(
     console.log("[PYP] Session expired, refreshing...");
     cachedSession = null;
     const newSession = await getPypSession();
-    response = await fetchWithTimeoutRetry(
+    response = await fetchPypWithRetry(
       url,
       {
         headers: buildPypHeaders(newSession),
@@ -376,22 +342,21 @@ export async function fetchPypInventory(
 
       // Re-read session each chunk so a 401/403 refresh is picked up.
       const session = await getPypSession();
-      const limit = pLimit(PAGE_FETCH_CONCURRENCY);
-      const chunkResults = await Promise.all(
-        pageNumbers.map((pageNumber) =>
-          limit(async () => {
-            try {
-              const data = await fetchPypFilterPage(
-                storeCodes,
-                pageNumber,
-                session,
-              );
-              return { ok: true as const, pageNumber, data };
-            } catch (error) {
-              return { ok: false as const, pageNumber, error };
-            }
-          }),
-        ),
+      const chunkResults = await pMap(
+        pageNumbers,
+        async (pageNumber) => {
+          try {
+            const data = await fetchPypFilterPage(
+              storeCodes,
+              pageNumber,
+              session,
+            );
+            return { ok: true as const, pageNumber, data };
+          } catch (error) {
+            return { ok: false as const, pageNumber, error };
+          }
+        },
+        { concurrency: PAGE_FETCH_CONCURRENCY },
       );
 
       const orderedResults = [...chunkResults].sort(
