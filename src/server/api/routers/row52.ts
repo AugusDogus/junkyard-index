@@ -2,6 +2,12 @@ import { unstable_cache } from "next/cache";
 import buildQuery from "odata-query";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location, Row52Location, Row52ODataResponse } from "~/lib/types";
+import { fetchWithTimeoutRetry } from "~/server/ingestion/fetch-with-retry";
+
+const ROW52_TIMEOUT_MS = 15_000;
+const ROW52_RETRIES = 2;
+const ROW52_BASE_DELAY_MS = 1_000;
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
 
 function buildODataUrl(endpoint: string, queryString: string): string {
   return `${API_ENDPOINTS.ROW52_BASE}${endpoint}${queryString}`;
@@ -12,16 +18,26 @@ async function fetchRow52<T>(
   queryString: string = "",
 ): Promise<Row52ODataResponse<T>> {
   const url = buildODataUrl(endpoint, queryString);
-
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "application/json",
+  const response = await fetchWithTimeoutRetry(
+    url,
+    {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "application/json",
+      },
+      cache: "force-cache",
+      next: { revalidate: 300 },
     },
-    cache: "force-cache",
-    next: { revalidate: 300 },
-  });
+    {
+      context: endpoint,
+      logPrefix: "[Row52 api]",
+      timeoutMs: ROW52_TIMEOUT_MS,
+      retries: ROW52_RETRIES,
+      baseDelayMs: ROW52_BASE_DELAY_MS,
+      retryStatusCodes: RETRYABLE_STATUS_CODES,
+    },
+  );
 
   if (!response.ok) {
     throw new Error(

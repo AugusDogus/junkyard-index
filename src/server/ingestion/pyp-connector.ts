@@ -23,6 +23,7 @@ const PAGE_FETCH_CONCURRENCY = 3;
 const FETCH_TIMEOUT_MS = 30_000;
 const TIMEOUT_RETRY_LIMIT = 2;
 const TIMEOUT_RETRY_BASE_DELAY_MS = 1_000;
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
 
 interface PypSession {
   cookies: string;
@@ -44,6 +45,7 @@ function fetchPypWithRetry(
     timeoutMs: FETCH_TIMEOUT_MS,
     retries: TIMEOUT_RETRY_LIMIT,
     baseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
+    retryStatusCodes: RETRYABLE_STATUS_CODES,
   });
 }
 
@@ -201,7 +203,7 @@ export async function fetchPypInventoryChunk(
     if (locations.length < 20) {
       throw new Error(
         `PYP returned only ${locations.length} locations (expected 20+). ` +
-          `This likely means the PYP location fetch failed and fell back to mock data. Aborting PYP ingestion.`,
+          `This likely means PYP locations are currently unavailable. Aborting PYP ingestion for this run.`,
       );
     }
 
@@ -304,13 +306,12 @@ export async function fetchPypInventory(
 
   try {
     // Get locations for metadata (lat/lng, names, URLs).
-    // fetchLocationsFromPYP silently returns mock data (1 location) on failure,
-    // so we sanity-check the count to avoid ingesting with incomplete location data.
+    // If PYP locations are unavailable, skip this source for safety.
     const locations = await fetchLocationsFromPYP();
     if (locations.length < 20) {
       throw new Error(
         `PYP returned only ${locations.length} locations (expected 20+). ` +
-          `This likely means the PYP location fetch failed and fell back to mock data. Aborting PYP ingestion.`,
+          `This likely means PYP locations are currently unavailable. Aborting PYP ingestion for this run.`,
       );
     }
 

@@ -16,6 +16,7 @@ const PAGE_FETCH_CONCURRENCY = 4;
 const FETCH_TIMEOUT_MS = 30_000;
 const TIMEOUT_RETRY_LIMIT = 2;
 const TIMEOUT_RETRY_BASE_DELAY_MS = 1_000;
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,6 +33,7 @@ function fetchRow52WithRetry(
     timeoutMs: FETCH_TIMEOUT_MS,
     retries: TIMEOUT_RETRY_LIMIT,
     baseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
+    retryStatusCodes: RETRYABLE_STATUS_CODES,
   });
 }
 

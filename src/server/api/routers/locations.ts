@@ -3,32 +3,66 @@ import { API_ENDPOINTS } from "~/lib/constants";
 import type { DataSource, Location } from "~/lib/types";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { fetchLocationsFromRow52 } from "./row52";
+import { fetchWithTimeoutRetry } from "~/server/ingestion/fetch-with-retry";
+
+const PYP_LOCATION_TIMEOUT_MS = 15_000;
+const PYP_LOCATION_RETRIES = 2;
+const PYP_LOCATION_BASE_DELAY_MS = 1_000;
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
+
+function shouldDisablePypFetch(): boolean {
+  const value = process.env.DISABLE_PYP_FETCH;
+  if (!value) return false;
+  return value === "1" || value.toLowerCase() === "true";
+}
+
+async function fetchPypLocationHtml(): Promise<string> {
+  const response = await fetchWithTimeoutRetry(
+    `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
+    {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+      cache: "force-cache",
+      next: { revalidate: 3600 },
+    },
+    {
+      context: "PYP locations page",
+      logPrefix: "[PYP locations]",
+      timeoutMs: PYP_LOCATION_TIMEOUT_MS,
+      retries: PYP_LOCATION_RETRIES,
+      baseDelayMs: PYP_LOCATION_BASE_DELAY_MS,
+      retryStatusCodes: RETRYABLE_STATUS_CODES,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`PYP locations HTTP error: ${response.status}`);
+  }
+
+  return response.text();
+}
 
 /**
  * Fetches location data from PYP website with Next.js Data Cache
  * - Uses 'force-cache' for persistent caching across requests
  * - Revalidates every hour to ensure fresh data
  * - Automatic request deduplication within render passes
- * In a real implementation, this would scrape the actual location page
- * For now, we'll use a mock implementation
+ * In a real implementation, this would scrape the actual location page.
  */
 export async function fetchLocationsFromPYP(): Promise<Location[]> {
-  try {
-    // In production, this would fetch from the actual PYP inventory page
-    // and parse the _locationList JavaScript variable
-    const response = await fetch(
-      `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-      {
-        cache: "force-cache", // Use Next.js Data Cache
-        next: { revalidate: 3600 }, // Revalidate every hour
-      },
+  if (shouldDisablePypFetch()) {
+    console.warn(
+      "[PYP locations] DISABLE_PYP_FETCH is enabled; skipping PYP locations",
     );
+    return [];
+  }
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const html = await response.text();
+  try {
+    const html = await fetchPypLocationHtml();
 
     // Parse the _locationList variable from the HTML
     // Handle both spaced and non-spaced formats: "var _locationList = [" and "var _locationList=["
@@ -105,75 +139,44 @@ export async function fetchLocationsFromPYP(): Promise<Location[]> {
     return locations;
   } catch (error) {
     console.error("Error fetching locations from PYP:", error);
-
-    // Fallback to hardcoded location data for development
-    return getMockLocations();
+    return [];
   }
-}
-
-/**
- * Mock location data for development
- */
-function getMockLocations(): Location[] {
-  return [
-    {
-      locationCode: "1223",
-      locationPageURL: "https://www.pyp.com/inventory/huntsville-1223/",
-      name: "Pick Your Part - Huntsville",
-      displayName: "Huntsville",
-      address: "6942 Stringfield Rd.",
-      city: "Huntsville",
-      state: "Alabama",
-      stateAbbr: "AL",
-      zip: "35806",
-      phone: "(800) 962-2277",
-      lat: 34.77887,
-      lng: -86.652217,
-      distance: 0,
-      legacyCode: "223",
-      primo: "",
-      source: "pyp",
-      urls: {
-        store: "https://www.pyp.com/inventory/huntsville-1223/",
-        interchange: "/parts/huntsville-1223/",
-        inventory: "/inventory/huntsville-1223/",
-        prices: "/prices/huntsville-1223/",
-        directions:
-          "https://www.google.com/maps/dir/?api=1&destination=6942+Stringfield+Rd.+Huntsville+Alabama+35806&dir_action=navigate",
-        sellACar: "/sellacar/huntsville-1223/",
-        contact: "/contact/huntsville-1223/",
-        customerServiceChat: null,
-        carbuyChat: null,
-        deals: "/deals/huntsville-1223/",
-        parts: "/parts/huntsville-1223/",
-      },
-    },
-  ];
 }
 
 async function fetchAllLocations(sources?: DataSource[]): Promise<Location[]> {
   const sourcesToFetch = sources ?? ["pyp", "row52"];
-  const allLocations: Location[] = [];
-
-  const promises: Promise<void>[] = [];
+  const sourceFetchers: Array<{
+    source: DataSource;
+    load: () => Promise<Location[]>;
+  }> = [];
 
   if (sourcesToFetch.includes("pyp")) {
-    promises.push(
-      fetchLocationsFromPYP().then((locations) => {
-        allLocations.push(...locations);
-      }),
-    );
+    sourceFetchers.push({ source: "pyp", load: fetchLocationsFromPYP });
   }
-
   if (sourcesToFetch.includes("row52")) {
-    promises.push(
-      fetchLocationsFromRow52().then((locations) => {
-        allLocations.push(...locations);
-      }),
-    );
+    sourceFetchers.push({ source: "row52", load: fetchLocationsFromRow52 });
   }
 
-  await Promise.all(promises);
+  const settled = await Promise.allSettled(
+    sourceFetchers.map(async (entry) => ({
+      source: entry.source,
+      locations: await entry.load(),
+    })),
+  );
+
+  const allLocations: Location[] = [];
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      allLocations.push(...result.value.locations);
+    } else {
+      console.error("[Locations] Source load failed:", result.reason);
+    }
+  }
+
+  if (allLocations.length === 0) {
+    console.warn("[Locations] All sources unavailable; returning empty list");
+    return [];
+  }
 
   return allLocations;
 }

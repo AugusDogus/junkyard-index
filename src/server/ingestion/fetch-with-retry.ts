@@ -6,6 +6,7 @@ interface FetchWithRetryOptions {
   timeoutMs: number;
   retries: number;
   baseDelayMs: number;
+  retryStatusCodes?: number[];
 }
 
 function toErrorMessage(error: unknown): string {
@@ -30,16 +31,35 @@ export async function fetchWithTimeoutRetry(
   options: FetchWithRetryOptions,
 ): Promise<Response> {
   const totalAttempts = options.retries + 1;
+  const retryStatusCodes = new Set(options.retryStatusCodes ?? []);
 
   return pRetry(
     async (attemptNumber) => {
       try {
-        return await fetch(url, {
+        const response = await fetch(url, {
           ...init,
           signal: AbortSignal.timeout(options.timeoutMs),
         });
+
+        if (retryStatusCodes.has(response.status)) {
+          if (attemptNumber < totalAttempts) {
+            const delayMs = options.baseDelayMs * 2 ** (attemptNumber - 1);
+            console.warn(
+              `${options.logPrefix} ${options.context} returned ${response.status} (attempt ${attemptNumber}/${totalAttempts}), retrying in ${delayMs}ms`,
+            );
+          }
+          throw new Error(`Retryable HTTP status: ${response.status}`);
+        }
+
+        return response;
       } catch (error) {
         if (!isTimeoutError(error)) {
+          if (
+            error instanceof Error &&
+            error.message.startsWith("Retryable HTTP status:")
+          ) {
+            throw error;
+          }
           throw new AbortError(toErrorMessage(error));
         }
 
@@ -57,8 +77,7 @@ export async function fetchWithTimeoutRetry(
       retries: options.retries,
       factor: 2,
       minTimeout: options.baseDelayMs,
-      maxTimeout:
-        options.baseDelayMs * 2 ** Math.max(options.retries - 1, 0),
+      maxTimeout: options.baseDelayMs * 2 ** Math.max(options.retries - 1, 0),
       randomize: false,
     },
   );

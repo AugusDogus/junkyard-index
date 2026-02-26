@@ -103,7 +103,9 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           {vehicle.isMissing && (
             <Badge variant="destructive" className="mt-2">
               {missingLabel}
-              {vehicle.missingRunCount ? ` (${vehicle.missingRunCount} runs)` : ""}
+              {vehicle.missingRunCount
+                ? ` (${vehicle.missingRunCount} runs)`
+                : ""}
             </Badge>
           )}
         </div>

@@ -200,7 +200,9 @@ async function transitionMissingVehicles(
     })
     .from(vehicle)
     .where(lt(vehicle.lastSeenAt, runTimestamp));
-  const missingCandidateVins = missingCandidates.map((candidate) => candidate.vin);
+  const missingCandidateVins = missingCandidates.map(
+    (candidate) => candidate.vin,
+  );
 
   if (missingCandidateVins.length > 0) {
     const missingSinceUnsetVins: string[] = [];
@@ -229,7 +231,10 @@ async function transitionMissingVehicles(
       }
     }
 
-    for (const vinChunk of splitIntoChunks(missingSinceUnsetVins, VIN_QUERY_CHUNK_SIZE)) {
+    for (const vinChunk of splitIntoChunks(
+      missingSinceUnsetVins,
+      VIN_QUERY_CHUNK_SIZE,
+    )) {
       await db
         .update(vehicle)
         .set({ missingSinceAt: runTimestamp })
