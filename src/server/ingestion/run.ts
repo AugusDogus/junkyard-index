@@ -75,6 +75,8 @@ async function upsertBatch(
           transmission: v.transmission,
           firstSeenAt: runTimestamp,
           lastSeenAt: runTimestamp,
+          missingSinceAt: null,
+          missingRunCount: 0,
         })
         .onConflictDoUpdate({
           target: vehicle.vin,
@@ -103,6 +105,8 @@ async function upsertBatch(
             trim: v.trim,
             transmission: v.transmission,
             lastSeenAt: runTimestamp,
+            missingSinceAt: null,
+            missingRunCount: 0,
           },
         });
     }
@@ -170,7 +174,7 @@ function splitIntoChunks<T>(items: T[], chunkSize: number): T[][] {
  * Transition stale vehicles through a "missing" state before deletion.
  *
  * Rules:
- * - Vehicles seen in this run are always reset to active (not missing).
+ * - Vehicles seen in this run are reset in the upsert path.
  * - If source data is incomplete (errors), we DO NOT advance missing/deletion.
  * - Vehicles are deleted only after 3 missing runs OR 3 days missing.
  */
@@ -178,15 +182,6 @@ async function transitionMissingVehicles(
   runTimestamp: Date,
   allowAdvanceMissingState: boolean,
 ): Promise<MissingTransitionResult> {
-  // Any vehicle seen this run should be marked active again.
-  await db
-    .update(vehicle)
-    .set({
-      missingSinceAt: null,
-      missingRunCount: 0,
-    })
-    .where(eq(vehicle.lastSeenAt, runTimestamp));
-
   if (!allowAdvanceMissingState) {
     console.warn(
       "[Ingestion] Skipping missing-state advancement and deletions because one or more sources errored",
