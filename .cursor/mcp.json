@@ -2,6 +2,13 @@
   "mcpServers": {
     "Sentry": {
       "url": "https://mcp.sentry.dev/mcp/whispchat/junkyard-index"
+    },
+    "trigger": {
+      "args": [
+        "trigger.dev@4.4.1",
+        "mcp"
+      ],
+      "command": "npx"
     }
   }
 }
