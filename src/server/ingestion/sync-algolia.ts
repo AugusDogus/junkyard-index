@@ -2,9 +2,15 @@ import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import type { AlgoliaVehicleRecord } from "./types";
 
 const BATCH_SIZE = 1000;
+let configuredInProcess = false;
+
+interface SyncToAlgoliaOptions {
+  configureIndex?: boolean;
+}
 
 /**
- * Configure Algolia index settings. Idempotent — safe to call on every run.
+ * Configure Algolia index settings.
+ * Usually invoked during deploys or manually, not every ingestion run.
  */
 export async function configureAlgoliaIndex(): Promise<void> {
   console.log("[Algolia] Configuring index settings...");
@@ -138,9 +144,21 @@ export async function deleteAlgoliaObjects(vins: string[]): Promise<void> {
 export async function syncToAlgolia(
   upserted: AlgoliaVehicleRecord[],
   deletedVins: string[],
+  options?: SyncToAlgoliaOptions,
 ): Promise<void> {
-  // Configure index settings (idempotent)
-  await configureAlgoliaIndex();
+  const shouldConfigureIndex = options?.configureIndex === true;
+  if (shouldConfigureIndex) {
+    if (!configuredInProcess) {
+      await configureAlgoliaIndex();
+      configuredInProcess = true;
+    } else {
+      console.log("[Algolia] Skipping index settings (already configured in-process)");
+    }
+  } else {
+    console.log(
+      "[Algolia] Skipping index settings during ingestion (set ALGOLIA_CONFIGURE_ON_INGEST=1 to enable)",
+    );
+  }
 
   // Save new/updated records
   await saveAlgoliaObjects(upserted);

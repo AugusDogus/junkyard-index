@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "~/lib/constants";
+import pLimit from "p-limit";
 import type { Location } from "~/lib/types";
 import { fetchLocationsFromPYP } from "~/server/api/routers/locations";
 import { transformPypVehicle } from "./pyp-transform";
@@ -17,6 +18,7 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 500;
 const MAX_PAGES = 200; // Safety limit (~100k vehicles max)
+const PAGE_FETCH_CONCURRENCY = 3;
 
 interface PypSession {
   cookies: string;
@@ -181,74 +183,102 @@ export async function fetchPypInventory(
       `[PYP] Fetching inventory from ${locations.length} locations via JSON API`,
     );
 
-    // Page through all results
-    let page = 1;
+    // Page through all results in bounded-concurrency chunks.
+    let nextPage = 1;
+    let pagesProcessed = 0;
     let hasMore = true;
 
-    while (hasMore && page <= MAX_PAGES) {
-      try {
-        // Re-read session each iteration so a 401/403 refresh is picked up
-        const session = await getPypSession();
-        const data = await fetchPypFilterPage(storeCodes, page, session);
+    while (hasMore && nextPage <= MAX_PAGES) {
+      const pageNumbers: number[] = [];
+      for (
+        let idx = 0;
+        idx < PAGE_FETCH_CONCURRENCY && nextPage <= MAX_PAGES;
+        idx += 1
+      ) {
+        pageNumbers.push(nextPage);
+        nextPage += 1;
+      }
 
+      // Re-read session each chunk so a 401/403 refresh is picked up.
+      const session = await getPypSession();
+      const limit = pLimit(PAGE_FETCH_CONCURRENCY);
+      const chunkResults = await Promise.all(
+        pageNumbers.map((pageNumber) =>
+          limit(async () => {
+            try {
+              const data = await fetchPypFilterPage(storeCodes, pageNumber, session);
+              return { ok: true as const, pageNumber, data };
+            } catch (error) {
+              return { ok: false as const, pageNumber, error };
+            }
+          }),
+        ),
+      );
+
+      const orderedResults = [...chunkResults].sort(
+        (a, b) => a.pageNumber - b.pageNumber,
+      );
+
+      for (const result of orderedResults) {
+        if (!result.ok) {
+          const msg = `PYP page ${result.pageNumber}: ${result.error instanceof Error ? result.error.message : String(result.error)}`;
+          console.error(msg);
+          allErrors.push(msg);
+          hasMore = false;
+          break;
+        }
+
+        const data = result.data;
         if (!data.Success) {
           allErrors.push(
-            `PYP Filter API error on page ${page}: ${data.Errors.join(", ")}`,
+            `PYP Filter API error on page ${result.pageNumber}: ${data.Errors.join(", ")}`,
           );
+          hasMore = false;
           break;
         }
 
         const pageVehicles = data.ResponseData?.Vehicles ?? [];
-
         if (pageVehicles.length === 0) {
+          hasMore = false;
           break;
         }
 
-        // Transform vehicles
         const pageCanonical: CanonicalVehicle[] = [];
-        for (const v of pageVehicles) {
-          const canonical = transformPypVehicle(v, locationMap);
+        for (const pageVehicle of pageVehicles) {
+          const canonical = transformPypVehicle(pageVehicle, locationMap);
           if (canonical) {
             if (!onBatch) allVehicles.push(canonical);
             pageCanonical.push(canonical);
           }
         }
         totalProcessed += pageCanonical.length;
+        pagesProcessed += 1;
 
-        // Stream upsert if callback provided
         if (onBatch && pageCanonical.length > 0) {
           try {
             await onBatch(pageCanonical);
           } catch (batchError) {
-            const batchMsg = `PYP onBatch page ${page}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
+            const batchMsg = `PYP onBatch page ${result.pageNumber}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
             console.error(batchMsg);
             allErrors.push(batchMsg);
-            // Continue paging despite batch error
           }
         }
 
-        if (page % 10 === 0) {
+        if (result.pageNumber % 10 === 0) {
           console.log(
-            `[PYP] Page ${page}: ${totalProcessed} vehicles processed so far`,
+            `[PYP] Page ${result.pageNumber}: ${totalProcessed} vehicles processed so far`,
           );
         }
 
-        // If we got fewer than PAGE_SIZE, we've reached the end
         if (pageVehicles.length < PAGE_SIZE) {
           hasMore = false;
-        } else {
-          page++;
+          break;
         }
-      } catch (error) {
-        const msg = `PYP page ${page}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        allErrors.push(msg);
-        hasMore = false;
       }
     }
 
     console.log(
-      `[PYP] Total: ${totalProcessed} vehicles across ${page} pages, ${allErrors.length} errors`,
+      `[PYP] Total: ${totalProcessed} vehicles across ${pagesProcessed} pages, ${allErrors.length} errors`,
     );
   } catch (error) {
     const msg = `PYP connector failed: ${error instanceof Error ? error.message : String(error)}`;

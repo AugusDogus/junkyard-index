@@ -1,4 +1,5 @@
 import buildQuery from "odata-query";
+import pLimit from "p-limit";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type {
   Row52Image,
@@ -10,6 +11,7 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 1000;
 const PAGE_DELAY_MS = 200;
+const PAGE_FETCH_CONCURRENCY = 4;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,6 +38,40 @@ async function fetchRow52<T>(
   }
 
   return response.json() as Promise<Row52ODataResponse<T>>;
+}
+
+interface Row52VehiclesPage {
+  skip: number;
+  totalCount?: number;
+  vehicles: Row52Vehicle[];
+}
+
+function buildVehicleQuery(skip: number, includeCount: boolean): string {
+  return buildQuery({
+    filter: { isActive: true },
+    expand: ["model($expand=make)", "location($expand=state)", "images"],
+    orderBy: "dateAdded desc",
+    top: PAGE_SIZE,
+    skip,
+    count: includeCount,
+  });
+}
+
+async function fetchVehiclePage(
+  skip: number,
+  includeCount: boolean,
+): Promise<Row52VehiclesPage> {
+  const queryString = buildVehicleQuery(skip, includeCount);
+  const response = await fetchRow52<Row52Vehicle>(
+    API_ENDPOINTS.ROW52_VEHICLES,
+    queryString,
+  );
+
+  return {
+    skip,
+    totalCount: response["@odata.count"],
+    vehicles: response.value,
+  };
 }
 
 function buildImageUrl(img: Row52Image): string | null {
@@ -159,64 +195,113 @@ export async function fetchRow52Inventory(
     const locationMap = await fetchRow52Locations();
     console.log(`[Row52] Found ${locationMap.size} participating locations`);
 
-    let skip = 0;
-    let hasMore = true;
+    const processPage = async (page: Row52VehiclesPage): Promise<void> => {
+      console.log(
+        `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${page.totalCount ?? "unknown"})`,
+      );
 
-    while (hasMore) {
-      try {
-        const queryString = buildQuery({
-          filter: { isActive: true },
-          expand: ["model($expand=make)", "location($expand=state)", "images"],
-          orderBy: "dateAdded desc",
-          top: PAGE_SIZE,
-          skip,
-          count: true,
-        });
+      const pageCanonical: CanonicalVehicle[] = [];
+      for (const rv of page.vehicles) {
+        const vehicle = transformRow52Vehicle(rv, locationMap);
+        if (vehicle) {
+          if (!onBatch) allVehicles.push(vehicle);
+          pageCanonical.push(vehicle);
+        }
+      }
 
-        const response = await fetchRow52<Row52Vehicle>(
-          API_ENDPOINTS.ROW52_VEHICLES,
-          queryString,
-        );
+      totalProcessed += pageCanonical.length;
 
-        const totalCount = response["@odata.count"];
-        const pageVehicles = response.value;
+      if (onBatch && pageCanonical.length > 0) {
+        await onBatch(pageCanonical);
+      }
+    };
 
-        console.log(
-          `[Row52] Fetched page at skip=${skip}: ${pageVehicles.length} vehicles (total: ${totalCount ?? "unknown"})`,
-        );
+    // First page is fetched independently so we can determine total page count.
+    const firstPage = await fetchVehiclePage(0, true);
+    await processPage(firstPage);
 
-        const pageCanonical: CanonicalVehicle[] = [];
-        for (const rv of pageVehicles) {
-          const v = transformRow52Vehicle(rv, locationMap);
-          if (v) {
-            if (!onBatch) allVehicles.push(v);
-            pageCanonical.push(v);
+    const totalCount = firstPage.totalCount;
+    const firstPageIsLast = firstPage.vehicles.length < PAGE_SIZE;
+    if (!firstPageIsLast) {
+      if (totalCount === undefined) {
+        // Fallback to sequential paging if upstream omits @odata.count.
+        let skip = PAGE_SIZE;
+        let hasMore = true;
+
+        while (hasMore) {
+          try {
+            const page = await fetchVehiclePage(skip, false);
+            await processPage(page);
+
+            if (page.vehicles.length < PAGE_SIZE) {
+              hasMore = false;
+            } else {
+              skip += PAGE_SIZE;
+              await sleep(PAGE_DELAY_MS);
+            }
+          } catch (error) {
+            const msg = `Row52 page at skip=${skip}: ${error instanceof Error ? error.message : String(error)}`;
+            console.error(msg);
+            allErrors.push(msg);
+            hasMore = false;
           }
         }
-
-        totalProcessed += pageCanonical.length;
-
-        // Stream upsert if callback provided
-        if (onBatch && pageCanonical.length > 0) {
-          await onBatch(pageCanonical);
+      } else {
+        const remainingSkips: number[] = [];
+        for (let skip = PAGE_SIZE; skip < totalCount; skip += PAGE_SIZE) {
+          remainingSkips.push(skip);
         }
+        let stopPaging = false;
 
-        if (pageVehicles.length < PAGE_SIZE) {
-          hasMore = false;
-        } else if (
-          totalCount !== undefined &&
-          skip + pageVehicles.length >= totalCount
+        for (
+          let chunkStart = 0;
+          chunkStart < remainingSkips.length && !stopPaging;
+          chunkStart += PAGE_FETCH_CONCURRENCY
         ) {
-          hasMore = false;
-        } else {
-          skip += PAGE_SIZE;
-          await sleep(PAGE_DELAY_MS);
+          const chunkSkips = remainingSkips.slice(
+            chunkStart,
+            chunkStart + PAGE_FETCH_CONCURRENCY,
+          );
+          const limit = pLimit(PAGE_FETCH_CONCURRENCY);
+
+          const pageResults = await Promise.all(
+            chunkSkips.map((skip, index) =>
+              limit(async () => {
+                if (PAGE_DELAY_MS > 0 && index > 0) {
+                  await sleep(index * PAGE_DELAY_MS);
+                }
+                try {
+                  const page = await fetchVehiclePage(skip, false);
+                  return { ok: true as const, skip, page };
+                } catch (error) {
+                  return { ok: false as const, skip, error };
+                }
+              }),
+            ),
+          );
+
+          const successfulPages = pageResults
+            .filter((result) => result.ok)
+            .map((result) => result.page)
+            .sort((a, b) => a.skip - b.skip);
+
+          for (const page of successfulPages) {
+            await processPage(page);
+            if (page.vehicles.length < PAGE_SIZE) {
+              stopPaging = true;
+              break;
+            }
+          }
+
+          for (const result of pageResults) {
+            if (!result.ok) {
+              const msg = `Row52 page at skip=${result.skip}: ${result.error instanceof Error ? result.error.message : String(result.error)}`;
+              console.error(msg);
+              allErrors.push(msg);
+              stopPaging = true;
+            }
+          }
         }
-      } catch (error) {
-        const msg = `Row52 page at skip=${skip}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        allErrors.push(msg);
-        hasMore = false; // Stop on error
       }
     }
 
