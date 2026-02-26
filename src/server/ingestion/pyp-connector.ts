@@ -48,6 +48,21 @@ interface PypFilterResponse {
   Messages: string[];
 }
 
+export interface PypChunkOptions {
+  startPage: number;
+  maxPages: number;
+  onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void>;
+}
+
+export interface PypChunkResult {
+  source: "pyp";
+  count: number;
+  errors: string[];
+  pagesProcessed: number;
+  nextPage: number;
+  done: boolean;
+}
+
 /**
  * Establish a PYP session by visiting the inventory page.
  * Extracts cookies and the CSRF RequestVerificationToken.
@@ -148,6 +163,108 @@ async function fetchPypFilterPage(
   return (await response.json()) as PypFilterResponse;
 }
 
+export async function fetchPypInventoryChunk(
+  options: PypChunkOptions,
+): Promise<PypChunkResult> {
+  const allErrors: string[] = [];
+  let totalProcessed = 0;
+  let pagesProcessed = 0;
+  let nextPage = Math.max(1, options.startPage);
+  let done = false;
+
+  try {
+    const locations = await fetchLocationsFromPYP();
+    if (locations.length < 20) {
+      throw new Error(
+        `PYP returned only ${locations.length} locations (expected 20+). ` +
+          `This likely means the PYP location fetch failed and fell back to mock data. Aborting PYP ingestion.`,
+      );
+    }
+
+    const locationMap = new Map<string, Location>();
+    for (const location of locations) {
+      locationMap.set(location.locationCode, location);
+    }
+
+    const storeCodes = locations
+      .map((location) => location.locationCode)
+      .join(",");
+    console.log(
+      `[PYP] Fetching inventory chunk from ${locations.length} locations (start_page=${nextPage})`,
+    );
+
+    let remainingPages = Math.max(0, options.maxPages);
+    while (!done && remainingPages > 0 && nextPage <= MAX_PAGES) {
+      const session = await getPypSession();
+      const data = await fetchPypFilterPage(storeCodes, nextPage, session);
+
+      if (!data.Success) {
+        allErrors.push(
+          `PYP Filter API error on page ${nextPage}: ${data.Errors.join(", ")}`,
+        );
+        done = true;
+        break;
+      }
+
+      const pageVehicles = data.ResponseData?.Vehicles ?? [];
+      if (pageVehicles.length === 0) {
+        done = true;
+        break;
+      }
+
+      const pageCanonical: CanonicalVehicle[] = [];
+      for (const pageVehicle of pageVehicles) {
+        const canonical = transformPypVehicle(pageVehicle, locationMap);
+        if (canonical) {
+          pageCanonical.push(canonical);
+        }
+      }
+
+      if (options.onBatch && pageCanonical.length > 0) {
+        await options.onBatch(pageCanonical);
+      }
+
+      totalProcessed += pageCanonical.length;
+      pagesProcessed += 1;
+      remainingPages -= 1;
+
+      if (nextPage % 10 === 0) {
+        console.log(
+          `[PYP] Page ${nextPage}: ${totalProcessed} vehicles processed in chunk so far`,
+        );
+      }
+
+      if (pageVehicles.length < PAGE_SIZE) {
+        done = true;
+      } else {
+        nextPage += 1;
+      }
+    }
+
+    if (nextPage > MAX_PAGES) {
+      done = true;
+    }
+
+    console.log(
+      `[PYP] Chunk complete: ${totalProcessed} vehicles across ${pagesProcessed} pages (next_page=${nextPage}, done=${done})`,
+    );
+  } catch (error) {
+    const msg = `PYP chunk failed at page ${nextPage}: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(msg);
+    allErrors.push(msg);
+    done = true;
+  }
+
+  return {
+    source: "pyp",
+    count: totalProcessed,
+    errors: allErrors,
+    pagesProcessed,
+    nextPage,
+    done,
+  };
+}
+
 /**
  * Fetch ALL PYP inventory using the Filter API with empty filter.
  * Pages through all results across all stores.
@@ -206,7 +323,11 @@ export async function fetchPypInventory(
         pageNumbers.map((pageNumber) =>
           limit(async () => {
             try {
-              const data = await fetchPypFilterPage(storeCodes, pageNumber, session);
+              const data = await fetchPypFilterPage(
+                storeCodes,
+                pageNumber,
+                session,
+              );
               return { ok: true as const, pageNumber, data };
             } catch (error) {
               return { ok: false as const, pageNumber, error };

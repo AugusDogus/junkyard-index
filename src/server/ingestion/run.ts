@@ -2,8 +2,16 @@ import { eq, lt, sql } from "drizzle-orm";
 import pLimit from "p-limit";
 import { db } from "~/lib/db";
 import { ingestionRun, vehicle } from "~/schema";
-import { fetchPypInventory } from "./pyp-connector";
-import { fetchRow52Inventory } from "./row52-connector";
+import {
+  fetchPypInventory,
+  fetchPypInventoryChunk,
+  type PypChunkResult,
+} from "./pyp-connector";
+import {
+  fetchRow52Inventory,
+  fetchRow52InventoryChunk,
+  type Row52ChunkResult,
+} from "./row52-connector";
 import { syncToAlgolia } from "./sync-algolia";
 import type { AlgoliaVehicleRecord, CanonicalVehicle } from "./types";
 import { toAlgoliaRecord } from "./types";
@@ -11,7 +19,9 @@ import { toAlgoliaRecord } from "./types";
 const UPSERT_BATCH_SIZE = 1000;
 const UPSERT_SQL_VALUES_CHUNK_SIZE = 25;
 const VIN_QUERY_CHUNK_SIZE = 400;
-const RUN_LOCK_TIMEOUT_MS = 10 * 60 * 1000;
+const RUN_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+const ROW52_PAGES_PER_STEP = 2;
+const PYP_PAGES_PER_STEP = 3;
 
 const EMPTY_TIMINGS = {
   sourcesParallelMs: 0,
@@ -22,6 +32,29 @@ const EMPTY_TIMINGS = {
   algoliaPrepMs: 0,
   algoliaSyncMs: 0,
 };
+
+export interface IngestionContinuationState {
+  cycleId: string;
+  cycleStartedAtMs: number;
+  row52Skip: number;
+  row52TotalCount?: number;
+  row52Done: boolean;
+  pypPage: number;
+  pypDone: boolean;
+  totalUpserted: number;
+}
+
+export interface IngestionStepResult {
+  status: "in_progress" | "completed" | "skipped" | "error";
+  state?: IngestionContinuationState;
+  totalUpserted: number;
+  totalDeleted: number;
+  pypCount: number;
+  row52Count: number;
+  errors: string[];
+  durationMs: number;
+  timingsMs: typeof EMPTY_TIMINGS;
+}
 
 /**
  * Upsert a batch of vehicles into Turso using raw SQL for ON CONFLICT.
@@ -38,7 +71,10 @@ async function upsertBatch(
     index < vehicles.length;
     index += UPSERT_SQL_VALUES_CHUNK_SIZE
   ) {
-    const sqlChunk = vehicles.slice(index, index + UPSERT_SQL_VALUES_CHUNK_SIZE);
+    const sqlChunk = vehicles.slice(
+      index,
+      index + UPSERT_SQL_VALUES_CHUNK_SIZE,
+    );
     const valuesSql = sql.join(
       sqlChunk.map(
         (v) => sql`(
@@ -181,6 +217,47 @@ async function acquireIngestionLock(
   return insertedRun !== undefined;
 }
 
+async function isIngestionRunActive(runId: string): Promise<boolean> {
+  const [runningRun] = await db
+    .select({ id: ingestionRun.id, status: ingestionRun.status })
+    .from(ingestionRun)
+    .where(eq(ingestionRun.id, runId))
+    .limit(1);
+  return runningRun?.status === "running";
+}
+
+async function markIngestionRunSuccess(
+  runId: string,
+  vehiclesUpserted: number,
+  vehiclesDeleted: number,
+  errors: string[],
+): Promise<void> {
+  await db
+    .update(ingestionRun)
+    .set({
+      status: "success",
+      vehiclesUpserted,
+      vehiclesDeleted,
+      errors: errors.length > 0 ? JSON.stringify(errors) : null,
+      completedAt: new Date(),
+    })
+    .where(eq(ingestionRun.id, runId));
+}
+
+async function markIngestionRunError(
+  runId: string,
+  errors: string[],
+): Promise<void> {
+  await db
+    .update(ingestionRun)
+    .set({
+      status: "error",
+      errors: JSON.stringify(errors),
+      completedAt: new Date(),
+    })
+    .where(eq(ingestionRun.id, runId));
+}
+
 function mapDbVehicleToAlgoliaRecord(
   dbVehicle: typeof vehicle.$inferSelect,
 ): AlgoliaVehicleRecord {
@@ -229,7 +306,10 @@ async function fetchAlgoliaRecordsForVins(
     index += VIN_QUERY_CHUNK_SIZE
   ) {
     const vinChunk = uniqueVins.slice(index, index + VIN_QUERY_CHUNK_SIZE);
-    const vinList = sql.join(vinChunk.map((vin) => sql`${vin}`), sql`, `);
+    const vinList = sql.join(
+      vinChunk.map((vin) => sql`${vin}`),
+      sql`, `,
+    );
     const rows = await db
       .select()
       .from(vehicle)
@@ -241,6 +321,218 @@ async function fetchAlgoliaRecordsForVins(
   }
 
   return records;
+}
+
+function createInitialContinuationState(): IngestionContinuationState {
+  return {
+    cycleId: crypto.randomUUID(),
+    cycleStartedAtMs: Date.now(),
+    row52Skip: 0,
+    row52Done: false,
+    pypPage: 1,
+    pypDone: false,
+    totalUpserted: 0,
+  };
+}
+
+export async function runIngestionStep(
+  providedState?: IngestionContinuationState,
+): Promise<IngestionStepResult> {
+  const startTime = Date.now();
+  const allErrors: string[] = [];
+  const state = providedState ?? createInitialContinuationState();
+  const cycleTimestamp = new Date(state.cycleStartedAtMs);
+  const isInitialStep = providedState === undefined;
+
+  if (isInitialStep) {
+    const lockAcquired = await acquireIngestionLock(
+      state.cycleId,
+      cycleTimestamp,
+    );
+    if (!lockAcquired) {
+      const msg = `[Ingestion] Skipping cycle start ${state.cycleId}: another ingestion run is already active`;
+      console.warn(msg);
+      return {
+        status: "skipped",
+        totalUpserted: 0,
+        totalDeleted: 0,
+        pypCount: 0,
+        row52Count: 0,
+        errors: [msg],
+        durationMs: Date.now() - startTime,
+        timingsMs: EMPTY_TIMINGS,
+      };
+    }
+  } else {
+    const isActive = await isIngestionRunActive(state.cycleId);
+    if (!isActive) {
+      const msg = `[Ingestion] Cycle ${state.cycleId} is not active; skipping continuation`;
+      console.warn(msg);
+      return {
+        status: "skipped",
+        totalUpserted: state.totalUpserted,
+        totalDeleted: 0,
+        pypCount: 0,
+        row52Count: 0,
+        errors: [msg],
+        durationMs: Date.now() - startTime,
+        timingsMs: EMPTY_TIMINGS,
+      };
+    }
+  }
+
+  try {
+    const upserter = createBatchUpserter(cycleTimestamp);
+    const writeQueue = pLimit(1);
+
+    const row52StartedAt = Date.now();
+    const row52Promise: Promise<Row52ChunkResult | null> = state.row52Done
+      ? Promise.resolve(null)
+      : fetchRow52InventoryChunk({
+          startSkip: state.row52Skip,
+          knownTotalCount: state.row52TotalCount,
+          maxPages: ROW52_PAGES_PER_STEP,
+          onBatch: async (vehicles) => {
+            await writeQueue(() => upserter.add(vehicles));
+          },
+        });
+
+    const pypStartedAt = Date.now();
+    const pypPromise: Promise<PypChunkResult | null> = state.pypDone
+      ? Promise.resolve(null)
+      : fetchPypInventoryChunk({
+          startPage: state.pypPage,
+          maxPages: PYP_PAGES_PER_STEP,
+          onBatch: async (vehicles) => {
+            await writeQueue(() => upserter.add(vehicles));
+          },
+        });
+
+    const [row52Chunk, pypChunk] = await Promise.all([
+      row52Promise,
+      pypPromise,
+    ]);
+    const row52FetchMs = state.row52Done ? 0 : Date.now() - row52StartedAt;
+    const pypFetchMs = state.pypDone ? 0 : Date.now() - pypStartedAt;
+    const sourcesParallelMs = Math.max(row52FetchMs, pypFetchMs);
+
+    if (row52Chunk) allErrors.push(...row52Chunk.errors);
+    if (pypChunk) allErrors.push(...pypChunk.errors);
+
+    const flushStartedAt = Date.now();
+    await writeQueue(() => upserter.flush());
+    const upsertFlushMs = Date.now() - flushStartedAt;
+
+    const touchedVins = upserter.getTouchedVins();
+    const algoliaPrepStartedAt = Date.now();
+    const algoliaRecords = await fetchAlgoliaRecordsForVins(touchedVins);
+    const algoliaPrepMs = Date.now() - algoliaPrepStartedAt;
+
+    const algoliaSyncStartedAt = Date.now();
+    await syncToAlgolia(algoliaRecords, [], {
+      configureIndex: process.env.ALGOLIA_CONFIGURE_ON_INGEST === "1",
+    });
+    const algoliaSyncMs = Date.now() - algoliaSyncStartedAt;
+
+    const nextState: IngestionContinuationState = {
+      ...state,
+      totalUpserted: state.totalUpserted + upserter.count,
+      row52Skip: row52Chunk ? row52Chunk.nextSkip : state.row52Skip,
+      row52Done: row52Chunk ? row52Chunk.done : state.row52Done,
+      row52TotalCount: row52Chunk?.totalCount ?? state.row52TotalCount,
+      pypPage: pypChunk ? pypChunk.nextPage : state.pypPage,
+      pypDone: pypChunk ? pypChunk.done : state.pypDone,
+    };
+
+    const timingsMs = {
+      sourcesParallelMs,
+      row52FetchMs,
+      pypFetchMs,
+      upsertFlushMs,
+      staleDeleteMs: 0,
+      algoliaPrepMs,
+      algoliaSyncMs,
+    };
+
+    if (allErrors.length > 0) {
+      await markIngestionRunError(state.cycleId, allErrors);
+      return {
+        status: "error",
+        totalUpserted: nextState.totalUpserted,
+        totalDeleted: 0,
+        pypCount: pypChunk?.count ?? 0,
+        row52Count: row52Chunk?.count ?? 0,
+        errors: allErrors,
+        durationMs: Date.now() - startTime,
+        timingsMs,
+      };
+    }
+
+    console.log(
+      `[Ingestion] Step for cycle ${state.cycleId}: row52_count=${row52Chunk?.count ?? 0}, pyp_count=${pypChunk?.count ?? 0}, touched_vins=${touchedVins.length}, total_upserted=${nextState.totalUpserted}`,
+    );
+
+    if (nextState.row52Done && nextState.pypDone) {
+      const staleDeleteStartedAt = Date.now();
+      const deletedVins = await deleteStaleVehicles(cycleTimestamp);
+      const staleDeleteMs = Date.now() - staleDeleteStartedAt;
+
+      const finalizeSyncStartedAt = Date.now();
+      await syncToAlgolia([], deletedVins, {
+        configureIndex: process.env.ALGOLIA_CONFIGURE_ON_INGEST === "1",
+      });
+      const finalizeSyncMs = Date.now() - finalizeSyncStartedAt;
+
+      await markIngestionRunSuccess(
+        state.cycleId,
+        nextState.totalUpserted,
+        deletedVins.length,
+        [],
+      );
+
+      return {
+        status: "completed",
+        totalUpserted: nextState.totalUpserted,
+        totalDeleted: deletedVins.length,
+        pypCount: pypChunk?.count ?? 0,
+        row52Count: row52Chunk?.count ?? 0,
+        errors: [],
+        durationMs: Date.now() - startTime,
+        timingsMs: {
+          ...timingsMs,
+          staleDeleteMs,
+          algoliaSyncMs: timingsMs.algoliaSyncMs + finalizeSyncMs,
+        },
+      };
+    }
+
+    return {
+      status: "in_progress",
+      state: nextState,
+      totalUpserted: nextState.totalUpserted,
+      totalDeleted: 0,
+      pypCount: pypChunk?.count ?? 0,
+      row52Count: row52Chunk?.count ?? 0,
+      errors: [],
+      durationMs: Date.now() - startTime,
+      timingsMs,
+    };
+  } catch (error) {
+    const msg = `Ingestion step failed: ${error instanceof Error ? error.message : String(error)}`;
+    allErrors.push(msg);
+    console.error(msg);
+    await markIngestionRunError(state.cycleId, allErrors);
+    return {
+      status: "error",
+      totalUpserted: state.totalUpserted,
+      totalDeleted: 0,
+      pypCount: 0,
+      row52Count: 0,
+      errors: allErrors,
+      durationMs: Date.now() - startTime,
+      timingsMs: EMPTY_TIMINGS,
+    };
+  }
 }
 
 /**
@@ -342,7 +634,10 @@ export async function runIngestion(): Promise<{
       }
     })();
 
-    const [row52Result, pypResult] = await Promise.all([row52Promise, pypPromise]);
+    const [row52Result, pypResult] = await Promise.all([
+      row52Promise,
+      pypPromise,
+    ]);
     const sourcesParallelMs = Date.now() - sourcesStart;
 
     allErrors.push(...row52Result.errors);

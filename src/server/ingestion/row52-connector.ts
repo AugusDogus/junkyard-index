@@ -46,6 +46,23 @@ interface Row52VehiclesPage {
   vehicles: Row52Vehicle[];
 }
 
+export interface Row52ChunkOptions {
+  startSkip: number;
+  maxPages: number;
+  knownTotalCount?: number;
+  onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void>;
+}
+
+export interface Row52ChunkResult {
+  source: "row52";
+  count: number;
+  errors: string[];
+  pagesProcessed: number;
+  nextSkip: number;
+  done: boolean;
+  totalCount?: number;
+}
+
 function buildVehicleQuery(skip: number, includeCount: boolean): string {
   return buildQuery({
     filter: { isActive: true },
@@ -71,6 +88,83 @@ async function fetchVehiclePage(
     skip,
     totalCount: response["@odata.count"],
     vehicles: response.value,
+  };
+}
+
+export async function fetchRow52InventoryChunk(
+  options: Row52ChunkOptions,
+): Promise<Row52ChunkResult> {
+  const allErrors: string[] = [];
+  let totalProcessed = 0;
+  let pagesProcessed = 0;
+  let skip = Math.max(0, options.startSkip);
+  let totalCount = options.knownTotalCount;
+  let done = false;
+
+  try {
+    console.log("[Row52] Fetching locations...");
+    const locationMap = await fetchRow52Locations();
+    console.log(`[Row52] Found ${locationMap.size} participating locations`);
+
+    while (!done && pagesProcessed < options.maxPages) {
+      const includeCount = totalCount === undefined;
+      const page = await fetchVehiclePage(skip, includeCount);
+      if (totalCount === undefined && page.totalCount !== undefined) {
+        totalCount = page.totalCount;
+      }
+
+      console.log(
+        `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${totalCount ?? "unknown"})`,
+      );
+
+      const pageCanonical: CanonicalVehicle[] = [];
+      for (const row of page.vehicles) {
+        const vehicle = transformRow52Vehicle(row, locationMap);
+        if (vehicle) {
+          pageCanonical.push(vehicle);
+        }
+      }
+
+      if (options.onBatch && pageCanonical.length > 0) {
+        await options.onBatch(pageCanonical);
+      }
+
+      totalProcessed += pageCanonical.length;
+      pagesProcessed += 1;
+
+      if (page.vehicles.length < PAGE_SIZE) {
+        done = true;
+      } else if (
+        totalCount !== undefined &&
+        skip + page.vehicles.length >= totalCount
+      ) {
+        done = true;
+      } else {
+        skip += PAGE_SIZE;
+        if (PAGE_DELAY_MS > 0) {
+          await sleep(PAGE_DELAY_MS);
+        }
+      }
+    }
+
+    console.log(
+      `[Row52] Chunk complete: ${totalProcessed} vehicles across ${pagesProcessed} pages (next_skip=${skip}, done=${done})`,
+    );
+  } catch (error) {
+    const msg = `Row52 chunk failed at skip=${skip}: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(msg);
+    allErrors.push(msg);
+    done = true;
+  }
+
+  return {
+    source: "row52",
+    count: totalProcessed,
+    errors: allErrors,
+    pagesProcessed,
+    nextSkip: skip,
+    done,
+    totalCount,
   };
 }
 

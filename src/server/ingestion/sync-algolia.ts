@@ -152,7 +152,9 @@ export async function syncToAlgolia(
       await configureAlgoliaIndex();
       configuredInProcess = true;
     } else {
-      console.log("[Algolia] Skipping index settings (already configured in-process)");
+      console.log(
+        "[Algolia] Skipping index settings (already configured in-process)",
+      );
     }
   } else {
     console.log(

@@ -246,8 +246,7 @@ export function SaveSearchDialog({
       filters: {
         ...restFilters,
         ...(filters.sources && {
-          sources:
-            normalizedSources.length > 0 ? normalizedSources : undefined,
+          sources: normalizedSources.length > 0 ? normalizedSources : undefined,
         }),
       },
       emailAlertsEnabled: enableEmail,

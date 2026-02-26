@@ -94,7 +94,10 @@ describe("algolia alert search helpers", () => {
 describe("getAlertMatchStats pagination", () => {
   const originalSearchForHits = searchClient.searchForHits;
   type SearchParams = Parameters<typeof searchClient.searchForHits>[0];
-  const createHits = (count: number, prefix: string): Record<string, unknown>[] =>
+  const createHits = (
+    count: number,
+    prefix: string,
+  ): Record<string, unknown>[] =>
     Array.from({ length: count }, (_, index) => ({
       objectID: `${prefix}-${index}`,
       make: "Honda",
@@ -112,9 +115,7 @@ describe("getAlertMatchStats pagination", () => {
     return 0;
   };
 
-  function mockSearchForHits(
-    fn: typeof searchClient.searchForHits,
-  ): void {
+  function mockSearchForHits(fn: typeof searchClient.searchForHits): void {
     Object.defineProperty(searchClient, "searchForHits", {
       configurable: true,
       writable: true,
