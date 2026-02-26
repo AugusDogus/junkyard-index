@@ -64,6 +64,6 @@ export function dbVehicleToVehicle(v: typeof vehicle.$inferSelect): Vehicle {
     transmission: v.transmission ?? undefined,
     isMissing: v.missingSinceAt !== null,
     missingSinceAt: v.missingSinceAt?.toISOString(),
-    missingRunCount: v.missingRunCount,
+    missingRunCount: v.missingRunCount ?? 0,
   };
 }

@@ -1,4 +1,4 @@
-import { eq, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import pLimit from "p-limit";
 import { db } from "~/lib/db";
 import { ingestionRun, vehicle } from "~/schema";
@@ -26,7 +26,7 @@ const EMPTY_TIMINGS = {
 };
 
 /**
- * Upsert a batch of vehicles into Turso using raw SQL for ON CONFLICT.
+ * Upsert a batch of vehicles into Turso via Drizzle.
  * Preserves firstSeenAt for existing records, sets it to runTimestamp for new ones.
  */
 async function upsertBatch(
@@ -40,56 +40,72 @@ async function upsertBatch(
     index < vehicles.length;
     index += UPSERT_SQL_VALUES_CHUNK_SIZE
   ) {
-    const sqlChunk = vehicles.slice(
+    const batchChunk = vehicles.slice(
       index,
       index + UPSERT_SQL_VALUES_CHUNK_SIZE,
     );
-    const valuesSql = sql.join(
-      sqlChunk.map(
-        (v) => sql`(
-        ${v.vin}, ${v.source}, ${v.year}, ${v.make}, ${v.model}, ${v.color},
-        ${v.stockNumber}, ${v.imageUrl}, ${v.availableDate}, ${v.locationCode},
-        ${v.locationName}, ${v.state}, ${v.stateAbbr}, ${v.lat}, ${v.lng},
-        ${v.section}, ${v.row}, ${v.space}, ${v.detailsUrl}, ${v.partsUrl},
-        ${v.pricesUrl}, ${v.engine}, ${v.trim}, ${v.transmission},
-        ${runTimestamp.getTime()}, ${runTimestamp.getTime()}
-      )`,
-      ),
-      sql`, `,
-    );
 
-    await db.run(sql`INSERT INTO vehicle (
-        vin, source, year, make, model, color, stock_number, image_url,
-        available_date, location_code, location_name, state, state_abbr,
-        lat, lng, section, row, space, details_url, parts_url, prices_url,
-        engine, trim, transmission, first_seen_at, last_seen_at
-      ) VALUES ${valuesSql}
-      ON CONFLICT(vin) DO UPDATE SET
-        source = excluded.source,
-        year = excluded.year,
-        make = excluded.make,
-        model = excluded.model,
-        color = excluded.color,
-        stock_number = excluded.stock_number,
-        image_url = excluded.image_url,
-        available_date = excluded.available_date,
-        location_code = excluded.location_code,
-        location_name = excluded.location_name,
-        state = excluded.state,
-        state_abbr = excluded.state_abbr,
-        lat = excluded.lat,
-        lng = excluded.lng,
-        section = excluded.section,
-        row = excluded.row,
-        space = excluded.space,
-        details_url = excluded.details_url,
-        parts_url = excluded.parts_url,
-        prices_url = excluded.prices_url,
-        engine = excluded.engine,
-        trim = excluded.trim,
-        transmission = excluded.transmission,
-        first_seen_at = vehicle.first_seen_at,
-        last_seen_at = excluded.last_seen_at`);
+    for (const v of batchChunk) {
+      await db
+        .insert(vehicle)
+        .values({
+          vin: v.vin,
+          source: v.source,
+          year: v.year,
+          make: v.make,
+          model: v.model,
+          color: v.color,
+          stockNumber: v.stockNumber,
+          imageUrl: v.imageUrl,
+          availableDate: v.availableDate,
+          locationCode: v.locationCode,
+          locationName: v.locationName,
+          state: v.state,
+          stateAbbr: v.stateAbbr,
+          lat: v.lat,
+          lng: v.lng,
+          section: v.section,
+          row: v.row,
+          space: v.space,
+          detailsUrl: v.detailsUrl,
+          partsUrl: v.partsUrl,
+          pricesUrl: v.pricesUrl,
+          engine: v.engine,
+          trim: v.trim,
+          transmission: v.transmission,
+          firstSeenAt: runTimestamp,
+          lastSeenAt: runTimestamp,
+        })
+        .onConflictDoUpdate({
+          target: vehicle.vin,
+          set: {
+            source: v.source,
+            year: v.year,
+            make: v.make,
+            model: v.model,
+            color: v.color,
+            stockNumber: v.stockNumber,
+            imageUrl: v.imageUrl,
+            availableDate: v.availableDate,
+            locationCode: v.locationCode,
+            locationName: v.locationName,
+            state: v.state,
+            stateAbbr: v.stateAbbr,
+            lat: v.lat,
+            lng: v.lng,
+            section: v.section,
+            row: v.row,
+            space: v.space,
+            detailsUrl: v.detailsUrl,
+            partsUrl: v.partsUrl,
+            pricesUrl: v.pricesUrl,
+            engine: v.engine,
+            trim: v.trim,
+            transmission: v.transmission,
+            lastSeenAt: runTimestamp,
+          },
+        });
+    }
   }
 }
 
@@ -142,6 +158,14 @@ interface MissingTransitionResult {
   missingUpdatedVins: string[];
 }
 
+function splitIntoChunks<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
 /**
  * Transition stale vehicles through a "missing" state before deletion.
  *
@@ -170,53 +194,77 @@ async function transitionMissingVehicles(
     return { deletedVins: [], missingUpdatedVins: [] };
   }
 
-  const missingSinceCutoff = new Date(runTimestamp.getTime() - MISSING_DELETE_AFTER_MS);
+  const missingSinceCutoff = new Date(
+    runTimestamp.getTime() - MISSING_DELETE_AFTER_MS,
+  );
   const missingCandidates = await db
-    .select({ vin: vehicle.vin })
+    .select({
+      vin: vehicle.vin,
+      missingSinceAt: vehicle.missingSinceAt,
+      missingRunCount: vehicle.missingRunCount,
+    })
     .from(vehicle)
     .where(lt(vehicle.lastSeenAt, runTimestamp));
-  const missingCandidateVins = missingCandidates.map((row) => row.vin);
+  const missingCandidateVins = missingCandidates.map((candidate) => candidate.vin);
 
   if (missingCandidateVins.length > 0) {
-    await db
-      .update(vehicle)
-      .set({
-        missingSinceAt: sql`COALESCE(${vehicle.missingSinceAt}, ${runTimestamp})`,
-        missingRunCount: sql`${vehicle.missingRunCount} + 1`,
-      })
-      .where(lt(vehicle.lastSeenAt, runTimestamp));
-  }
+    const missingSinceUnsetVins: string[] = [];
+    const incrementGroups = new Map<number, string[]>();
+    const staleVins: string[] = [];
 
-  const staleVehicles = await db
-    .select({ vin: vehicle.vin })
-    .from(vehicle)
-    .where(
-      sql`${vehicle.lastSeenAt} < ${runTimestamp}
-        AND (
-          ${vehicle.missingRunCount} >= ${MISSING_DELETE_AFTER_RUNS}
-          OR (
-            ${vehicle.missingSinceAt} IS NOT NULL
-            AND ${vehicle.missingSinceAt} <= ${missingSinceCutoff}
-          )
-        )`,
+    for (const candidate of missingCandidates) {
+      const nextRunCount = (candidate.missingRunCount ?? 0) + 1;
+      const existingGroup = incrementGroups.get(nextRunCount);
+      if (existingGroup) {
+        existingGroup.push(candidate.vin);
+      } else {
+        incrementGroups.set(nextRunCount, [candidate.vin]);
+      }
+
+      const effectiveMissingSinceAt = candidate.missingSinceAt ?? runTimestamp;
+      if (candidate.missingSinceAt === null) {
+        missingSinceUnsetVins.push(candidate.vin);
+      }
+
+      if (
+        nextRunCount >= MISSING_DELETE_AFTER_RUNS ||
+        effectiveMissingSinceAt <= missingSinceCutoff
+      ) {
+        staleVins.push(candidate.vin);
+      }
+    }
+
+    for (const vinChunk of splitIntoChunks(missingSinceUnsetVins, VIN_QUERY_CHUNK_SIZE)) {
+      await db
+        .update(vehicle)
+        .set({ missingSinceAt: runTimestamp })
+        .where(inArray(vehicle.vin, vinChunk));
+    }
+
+    for (const [nextRunCount, vins] of incrementGroups) {
+      for (const vinChunk of splitIntoChunks(vins, VIN_QUERY_CHUNK_SIZE)) {
+        await db
+          .update(vehicle)
+          .set({ missingRunCount: nextRunCount })
+          .where(inArray(vehicle.vin, vinChunk));
+      }
+    }
+
+    if (staleVins.length > 0) {
+      for (const vinChunk of splitIntoChunks(staleVins, VIN_QUERY_CHUNK_SIZE)) {
+        await db.delete(vehicle).where(inArray(vehicle.vin, vinChunk));
+      }
+      console.log(`[Ingestion] Deleted ${staleVins.length} stale vehicles`);
+    }
+
+    const deletedVinSet = new Set(staleVins);
+    const missingUpdatedVins = missingCandidateVins.filter(
+      (vin) => !deletedVinSet.has(vin),
     );
 
-  const staleVins = staleVehicles.map((v) => v.vin);
-  if (staleVins.length > 0) {
-    const vinList = sql.join(
-      staleVins.map((vin) => sql`${vin}`),
-      sql`, `,
-    );
-    await db.delete(vehicle).where(sql`${vehicle.vin} IN (${vinList})`);
-    console.log(`[Ingestion] Deleted ${staleVins.length} stale vehicles`);
+    return { deletedVins: staleVins, missingUpdatedVins };
   }
-
-  const deletedVinSet = new Set(staleVins);
-  const missingUpdatedVins = missingCandidateVins.filter(
-    (vin) => !deletedVinSet.has(vin),
-  );
-
-  return { deletedVins: staleVins, missingUpdatedVins };
+  return { deletedVins: [], missingUpdatedVins: [] };
 }
 
 /**
@@ -227,26 +275,33 @@ async function acquireIngestionLock(
   runId: string,
   runTimestamp: Date,
 ): Promise<boolean> {
-  const lockCutoffMs = runTimestamp.getTime() - RUN_LOCK_TIMEOUT_MS;
+  const lockCutoff = new Date(runTimestamp.getTime() - RUN_LOCK_TIMEOUT_MS);
 
-  await db.run(sql`
-    INSERT INTO ingestion_run (id, source, status, started_at)
-    SELECT ${runId}, ${"all"}, ${"running"}, ${runTimestamp.getTime()}
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM ingestion_run
-      WHERE status = ${"running"}
-        AND started_at >= ${lockCutoffMs}
-    )
-  `);
+  return db.transaction(async (tx) => {
+    const [activeRun] = await tx
+      .select({ id: ingestionRun.id })
+      .from(ingestionRun)
+      .where(
+        and(
+          eq(ingestionRun.status, "running"),
+          gte(ingestionRun.startedAt, lockCutoff),
+        ),
+      )
+      .limit(1);
 
-  const [insertedRun] = await db
-    .select({ id: ingestionRun.id })
-    .from(ingestionRun)
-    .where(eq(ingestionRun.id, runId))
-    .limit(1);
+    if (activeRun) {
+      return false;
+    }
 
-  return insertedRun !== undefined;
+    await tx.insert(ingestionRun).values({
+      id: runId,
+      source: "all",
+      status: "running",
+      startedAt: runTimestamp,
+    });
+
+    return true;
+  });
 }
 
 function mapDbVehicleToAlgoliaRecord(
@@ -281,7 +336,7 @@ function mapDbVehicleToAlgoliaRecord(
     },
     dbVehicle.firstSeenAt,
     dbVehicle.missingSinceAt,
-    dbVehicle.missingRunCount,
+    dbVehicle.missingRunCount ?? 0,
   );
 }
 
@@ -299,14 +354,10 @@ async function fetchAlgoliaRecordsForVins(
     index += VIN_QUERY_CHUNK_SIZE
   ) {
     const vinChunk = uniqueVins.slice(index, index + VIN_QUERY_CHUNK_SIZE);
-    const vinList = sql.join(
-      vinChunk.map((vin) => sql`${vin}`),
-      sql`, `,
-    );
     const rows = await db
       .select()
       .from(vehicle)
-      .where(sql`${vehicle.vin} IN (${vinList})`);
+      .where(inArray(vehicle.vin, vinChunk));
 
     for (const row of rows) {
       records.push(mapDbVehicleToAlgoliaRecord(row));

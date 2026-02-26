@@ -195,7 +195,7 @@ export const vehicle = sqliteTable(
     firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull(),
     missingSinceAt: integer("missing_since_at", { mode: "timestamp_ms" }),
-    missingRunCount: integer("missing_run_count").default(0).notNull(),
+    missingRunCount: integer("missing_run_count"),
   },
   (table) => [
     index("vehicle_source_idx").on(table.source),

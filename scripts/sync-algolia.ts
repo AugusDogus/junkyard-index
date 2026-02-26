@@ -60,7 +60,7 @@ try {
       },
       dbVehicle.firstSeenAt,
       dbVehicle.missingSinceAt,
-      dbVehicle.missingRunCount,
+      dbVehicle.missingRunCount ?? 0,
     ),
   );
 
