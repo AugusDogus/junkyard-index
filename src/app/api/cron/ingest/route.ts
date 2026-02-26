@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { env } from "~/env";
 import { runIngestion } from "~/server/ingestion/run";
 
-export const maxDuration = 300; // 5 minutes
+export const maxDuration = 800;
 
 export async function GET(request: NextRequest) {
   // Verify the request is from Vercel Cron
