@@ -92,6 +92,12 @@ function algoliaHitToVehicle(
     userLocation && geoloc !== null && geoloc !== undefined
       ? calculateDistance(userLocation.lat, userLocation.lng, hitLat, hitLng)
       : 0;
+  const missingSinceAtSeconds =
+    typeof hit.missingSinceAt === "number" ? hit.missingSinceAt : null;
+  const missingSinceAt =
+    missingSinceAtSeconds !== null
+      ? new Date(missingSinceAtSeconds * 1000).toISOString()
+      : undefined;
 
   return {
     id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
@@ -149,6 +155,9 @@ function algoliaHitToVehicle(
     engine: (hit.engine as string) ?? undefined,
     trim: (hit.trim as string) ?? undefined,
     transmission: (hit.transmission as string) ?? undefined,
+    isMissing: (hit.isMissing as boolean) ?? false,
+    missingSinceAt,
+    missingRunCount: (hit.missingRunCount as number) ?? 0,
   };
 }
 

@@ -57,6 +57,9 @@ export interface Vehicle {
   engine?: string;
   trim?: string;
   transmission?: string;
+  isMissing?: boolean;
+  missingSinceAt?: string;
+  missingRunCount?: number;
 }
 
 export interface VehicleImage {

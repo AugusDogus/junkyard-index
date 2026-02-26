@@ -12,6 +12,8 @@ const UPSERT_BATCH_SIZE = 1000;
 const UPSERT_SQL_VALUES_CHUNK_SIZE = 25;
 const VIN_QUERY_CHUNK_SIZE = 400;
 const RUN_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+const MISSING_DELETE_AFTER_RUNS = 3;
+const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 
 const EMPTY_TIMINGS = {
   sourcesParallelMs: 0,
@@ -135,23 +137,86 @@ function createBatchUpserter(runTimestamp: Date) {
   };
 }
 
+interface MissingTransitionResult {
+  deletedVins: string[];
+  missingUpdatedVins: string[];
+}
+
 /**
- * Delete stale vehicles (those not seen in this run) and return their VINs.
+ * Transition stale vehicles through a "missing" state before deletion.
+ *
+ * Rules:
+ * - Vehicles seen in this run are always reset to active (not missing).
+ * - If source data is incomplete (errors), we DO NOT advance missing/deletion.
+ * - Vehicles are deleted only after 3 missing runs OR 3 days missing.
  */
-async function deleteStaleVehicles(runTimestamp: Date): Promise<string[]> {
-  const staleVehicles = await db
+async function transitionMissingVehicles(
+  runTimestamp: Date,
+  allowAdvanceMissingState: boolean,
+): Promise<MissingTransitionResult> {
+  // Any vehicle seen this run should be marked active again.
+  await db
+    .update(vehicle)
+    .set({
+      missingSinceAt: null,
+      missingRunCount: 0,
+    })
+    .where(eq(vehicle.lastSeenAt, runTimestamp));
+
+  if (!allowAdvanceMissingState) {
+    console.warn(
+      "[Ingestion] Skipping missing-state advancement and deletions because one or more sources errored",
+    );
+    return { deletedVins: [], missingUpdatedVins: [] };
+  }
+
+  const missingSinceCutoff = new Date(runTimestamp.getTime() - MISSING_DELETE_AFTER_MS);
+  const missingCandidates = await db
     .select({ vin: vehicle.vin })
     .from(vehicle)
     .where(lt(vehicle.lastSeenAt, runTimestamp));
+  const missingCandidateVins = missingCandidates.map((row) => row.vin);
+
+  if (missingCandidateVins.length > 0) {
+    await db
+      .update(vehicle)
+      .set({
+        missingSinceAt: sql`COALESCE(${vehicle.missingSinceAt}, ${runTimestamp})`,
+        missingRunCount: sql`${vehicle.missingRunCount} + 1`,
+      })
+      .where(lt(vehicle.lastSeenAt, runTimestamp));
+  }
+
+  const staleVehicles = await db
+    .select({ vin: vehicle.vin })
+    .from(vehicle)
+    .where(
+      sql`${vehicle.lastSeenAt} < ${runTimestamp}
+        AND (
+          ${vehicle.missingRunCount} >= ${MISSING_DELETE_AFTER_RUNS}
+          OR (
+            ${vehicle.missingSinceAt} IS NOT NULL
+            AND ${vehicle.missingSinceAt} <= ${missingSinceCutoff}
+          )
+        )`,
+    );
 
   const staleVins = staleVehicles.map((v) => v.vin);
-
   if (staleVins.length > 0) {
-    await db.delete(vehicle).where(lt(vehicle.lastSeenAt, runTimestamp));
+    const vinList = sql.join(
+      staleVins.map((vin) => sql`${vin}`),
+      sql`, `,
+    );
+    await db.delete(vehicle).where(sql`${vehicle.vin} IN (${vinList})`);
     console.log(`[Ingestion] Deleted ${staleVins.length} stale vehicles`);
   }
 
-  return staleVins;
+  const deletedVinSet = new Set(staleVins);
+  const missingUpdatedVins = missingCandidateVins.filter(
+    (vin) => !deletedVinSet.has(vin),
+  );
+
+  return { deletedVins: staleVins, missingUpdatedVins };
 }
 
 /**
@@ -215,6 +280,8 @@ function mapDbVehicleToAlgoliaRecord(
       transmission: dbVehicle.transmission,
     },
     dbVehicle.firstSeenAt,
+    dbVehicle.missingSinceAt,
+    dbVehicle.missingRunCount,
   );
 }
 
@@ -253,8 +320,8 @@ async function fetchAlgoliaRecordsForVins(
  * Run the full ingestion pipeline:
  * 1. Fetch from Row52 + PYP in parallel
  * 2. Serialize all DB writes through a single queue
- * 3. Delete stale records
- * 4. Sync all vehicles to Algolia
+ * 3. Advance missing state and delete records beyond threshold
+ * 4. Sync changed records to Algolia
  */
 export async function runIngestion(): Promise<{
   totalUpserted: number;
@@ -370,14 +437,24 @@ export async function runIngestion(): Promise<{
       `[Ingestion] Source timings: row52=${row52FetchMs}ms pyp=${pypFetchMs}ms parallel_window=${sourcesParallelMs}ms`,
     );
 
-    // 3. Delete stale records
+    const hasSourceErrors =
+      row52Result.errors.length > 0 || pypResult.errors.length > 0;
+
+    // 3. Advance missing-state and conditionally delete stale records
     const staleDeleteStartedAt = Date.now();
-    const deletedVins = await deleteStaleVehicles(runTimestamp);
+    const missingTransition = await transitionMissingVehicles(
+      runTimestamp,
+      !hasSourceErrors,
+    );
+    const deletedVins = missingTransition.deletedVins;
     const staleDeleteMs = Date.now() - staleDeleteStartedAt;
 
-    // 4. Build Algolia records only for touched VINs
+    // 4. Build Algolia records for touched VINs + missing-state changes
     const algoliaPrepStartedAt = Date.now();
-    const touchedVins = upserter.getTouchedVins();
+    const touchedVins = [
+      ...upserter.getTouchedVins(),
+      ...missingTransition.missingUpdatedVins,
+    ];
     const algoliaRecords = await fetchAlgoliaRecordsForVins(touchedVins);
     const algoliaPrepMs = Date.now() - algoliaPrepStartedAt;
     console.log(

@@ -61,6 +61,9 @@ export interface AlgoliaVehicleRecord {
   trim: string | null;
   transmission: string | null;
   firstSeenAt: number;
+  isMissing: boolean;
+  missingSinceAt: number | null;
+  missingRunCount: number;
   _geoloc: { lat: number; lng: number };
 }
 
@@ -81,6 +84,8 @@ export interface IngestionResult {
 export function toAlgoliaRecord(
   vehicle: CanonicalVehicle,
   firstSeenAt: Date,
+  missingSinceAt: Date | null,
+  missingRunCount: number,
 ): AlgoliaVehicleRecord {
   const parsedMs = vehicle.availableDate
     ? new Date(vehicle.availableDate).getTime()
@@ -114,6 +119,12 @@ export function toAlgoliaRecord(
     trim: vehicle.trim,
     transmission: vehicle.transmission,
     firstSeenAt: Math.floor(firstSeenAt.getTime() / 1000),
+    isMissing: missingSinceAt !== null,
+    missingSinceAt:
+      missingSinceAt !== null
+        ? Math.floor(missingSinceAt.getTime() / 1000)
+        : null,
+    missingRunCount,
     _geoloc: { lat: vehicle.lat, lng: vehicle.lng },
   };
 }

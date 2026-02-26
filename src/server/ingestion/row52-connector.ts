@@ -12,9 +12,57 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
 const PAGE_SIZE = 1000;
 const PAGE_DELAY_MS = 200;
 const PAGE_FETCH_CONCURRENCY = 4;
+const FETCH_TIMEOUT_MS = 30_000;
+const TIMEOUT_RETRY_LIMIT = 2;
+const TIMEOUT_RETRY_BASE_DELAY_MS = 1_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const lowerMessage = error.message.toLowerCase();
+  return (
+    error.name === "TimeoutError" ||
+    error.name === "AbortError" ||
+    lowerMessage.includes("aborted due to timeout") ||
+    lowerMessage.includes("timeout")
+  );
+}
+
+async function fetchWithTimeoutRetry(
+  url: string,
+  init: RequestInit,
+  context: string,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= TIMEOUT_RETRY_LIMIT + 1; attempt += 1) {
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch (error) {
+      lastError = error;
+      const shouldRetry =
+        isTimeoutError(error) && attempt <= TIMEOUT_RETRY_LIMIT;
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const delayMs = TIMEOUT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      console.warn(
+        `[Row52] ${context} timed out (attempt ${attempt}/${TIMEOUT_RETRY_LIMIT + 1}), retrying in ${delayMs}ms`,
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`[Row52] ${context} failed after timeout retries`);
 }
 
 async function fetchRow52<T>(
@@ -22,14 +70,17 @@ async function fetchRow52<T>(
   queryString: string,
 ): Promise<Row52ODataResponse<T>> {
   const url = `${API_ENDPOINTS.ROW52_BASE}${endpoint}${queryString}`;
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "application/json",
+  const response = await fetchWithTimeoutRetry(
+    url,
+    {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "application/json",
+      },
     },
-    signal: AbortSignal.timeout(30_000),
-  });
+    endpoint,
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -283,6 +334,7 @@ export async function fetchRow52Inventory(
   const allVehicles: CanonicalVehicle[] = [];
   const allErrors: string[] = [];
   let totalProcessed = 0;
+  let knownTotalCount: number | undefined;
 
   try {
     console.log("[Row52] Fetching locations...");
@@ -290,8 +342,12 @@ export async function fetchRow52Inventory(
     console.log(`[Row52] Found ${locationMap.size} participating locations`);
 
     const processPage = async (page: Row52VehiclesPage): Promise<void> => {
+      if (page.totalCount !== undefined) {
+        knownTotalCount = page.totalCount;
+      }
+
       console.log(
-        `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${page.totalCount ?? "unknown"})`,
+        `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${knownTotalCount ?? "unknown"})`,
       );
 
       const pageCanonical: CanonicalVehicle[] = [];

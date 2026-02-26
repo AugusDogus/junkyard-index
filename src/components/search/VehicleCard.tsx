@@ -47,6 +47,10 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
     }
   };
 
+  const missingLabel = vehicle.missingSinceAt
+    ? `Missing since ${formatDate(vehicle.missingSinceAt)}`
+    : "Marked missing";
+
   return (
     <Card className="group gap-0 overflow-hidden py-0 transition-shadow hover:shadow-lg">
       <CardHeader className="p-0">
@@ -96,6 +100,12 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           <p className="text-muted-foreground text-sm">
             Color: {vehicle.color}
           </p>
+          {vehicle.isMissing && (
+            <Badge variant="destructive" className="mt-2">
+              {missingLabel}
+              {vehicle.missingRunCount ? ` (${vehicle.missingRunCount} runs)` : ""}
+            </Badge>
+          )}
         </div>
 
         {/* Vehicle Details */}

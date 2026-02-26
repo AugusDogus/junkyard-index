@@ -59,6 +59,8 @@ try {
         transmission: dbVehicle.transmission,
       },
       dbVehicle.firstSeenAt,
+      dbVehicle.missingSinceAt,
+      dbVehicle.missingRunCount,
     ),
   );
 

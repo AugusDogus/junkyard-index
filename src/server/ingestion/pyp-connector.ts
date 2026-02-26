@@ -19,6 +19,9 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
 const PAGE_SIZE = 500;
 const MAX_PAGES = 200; // Safety limit (~100k vehicles max)
 const PAGE_FETCH_CONCURRENCY = 3;
+const FETCH_TIMEOUT_MS = 30_000;
+const TIMEOUT_RETRY_LIMIT = 2;
+const TIMEOUT_RETRY_BASE_DELAY_MS = 1_000;
 
 interface PypSession {
   cookies: string;
@@ -28,6 +31,55 @@ interface PypSession {
 
 let cachedSession: PypSession | null = null;
 const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const lowerMessage = error.message.toLowerCase();
+  return (
+    error.name === "TimeoutError" ||
+    error.name === "AbortError" ||
+    lowerMessage.includes("aborted due to timeout") ||
+    lowerMessage.includes("timeout")
+  );
+}
+
+async function fetchWithTimeoutRetry(
+  url: string,
+  init: RequestInit,
+  context: string,
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= TIMEOUT_RETRY_LIMIT + 1; attempt += 1) {
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch (error) {
+      lastError = error;
+      const shouldRetry =
+        isTimeoutError(error) && attempt <= TIMEOUT_RETRY_LIMIT;
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const delayMs = TIMEOUT_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      console.warn(
+        `[PYP] ${context} timed out (attempt ${attempt}/${TIMEOUT_RETRY_LIMIT + 1}), retrying in ${delayMs}ms`,
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`[PYP] ${context} failed after timeout retries`);
+}
 
 /**
  * PYP /api/Inventory/Filter response shape.
@@ -72,10 +124,9 @@ async function getPypSession(): Promise<PypSession> {
     return cachedSession;
   }
 
-  const response = await fetch(
+  const response = await fetchWithTimeoutRetry(
     `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
     {
-      signal: AbortSignal.timeout(30_000),
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -83,6 +134,7 @@ async function getPypSession(): Promise<PypSession> {
           "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
     },
+    "session bootstrap",
   );
 
   if (!response.ok) {
@@ -140,20 +192,26 @@ async function fetchPypFilterPage(
 ): Promise<PypFilterResponse> {
   const url = `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${page}&pageSize=${PAGE_SIZE}`;
 
-  let response = await fetch(url, {
-    headers: buildPypHeaders(session),
-    signal: AbortSignal.timeout(30_000),
-  });
+  let response = await fetchWithTimeoutRetry(
+    url,
+    {
+      headers: buildPypHeaders(session),
+    },
+    `page ${page}`,
+  );
 
-  // Retry on auth failure
+  // Retry on auth failure.
   if (response.status === 401 || response.status === 403) {
     console.log("[PYP] Session expired, refreshing...");
     cachedSession = null;
     const newSession = await getPypSession();
-    response = await fetch(url, {
-      headers: buildPypHeaders(newSession),
-      signal: AbortSignal.timeout(30_000),
-    });
+    response = await fetchWithTimeoutRetry(
+      url,
+      {
+        headers: buildPypHeaders(newSession),
+      },
+      `page ${page} after session refresh`,
+    );
   }
 
   if (!response.ok) {

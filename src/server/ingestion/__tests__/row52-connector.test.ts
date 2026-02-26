@@ -32,7 +32,7 @@ describe("toAlgoliaRecord", () => {
     };
 
     const firstSeenAt = new Date("2026-01-15T10:00:00.000Z");
-    const record = toAlgoliaRecord(vehicle, firstSeenAt);
+    const record = toAlgoliaRecord(vehicle, firstSeenAt, null, 0);
 
     expect(record.objectID).toBe("1FADP3F29FL123456");
     expect(record.source).toBe("row52");
@@ -45,6 +45,9 @@ describe("toAlgoliaRecord", () => {
       Math.floor(new Date("2026-01-15T10:00:00.000Z").getTime() / 1000),
     );
     expect(record.firstSeenAt).toBe(Math.floor(firstSeenAt.getTime() / 1000));
+    expect(record.isMissing).toBe(false);
+    expect(record.missingSinceAt).toBeNull();
+    expect(record.missingRunCount).toBe(0);
     expect(record.engine).toBe("2.0L I4");
     expect(record.trim).toBe("SE");
     expect(record.transmission).toBe("Automatic");
@@ -78,7 +81,12 @@ describe("toAlgoliaRecord", () => {
       transmission: null,
     };
 
-    const record = toAlgoliaRecord(vehicle, new Date("2026-02-21T00:00:00Z"));
+    const record = toAlgoliaRecord(
+      vehicle,
+      new Date("2026-02-21T00:00:00Z"),
+      null,
+      0,
+    );
 
     expect(record.availableDateTs).toBe(0);
     expect(record.color).toBeNull();
