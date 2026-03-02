@@ -8,6 +8,7 @@ import type {
   Row52Vehicle,
 } from "~/lib/types";
 import { fetchWithTimeoutRetry } from "./fetch-with-retry";
+import type { SnapshotSink } from "./snapshot-sink";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 1000;
@@ -77,6 +78,16 @@ export interface Row52ChunkOptions {
 }
 
 export interface Row52ChunkResult {
+  source: "row52";
+  count: number;
+  errors: string[];
+  pagesProcessed: number;
+  nextSkip: number;
+  done: boolean;
+  totalCount?: number;
+}
+
+export interface Row52StreamResult {
   source: "row52";
   count: number;
   errors: string[];
@@ -439,5 +450,70 @@ export async function fetchRow52Inventory(
     vehicles: allVehicles,
     count: totalProcessed,
     errors: allErrors,
+  };
+}
+
+export async function streamRow52InventoryToSink(options: {
+  sink: SnapshotSink;
+  startSkip?: number;
+  pagesPerChunk?: number;
+  onProgress?: (progress: {
+    nextSkip: number;
+    pagesProcessed: number;
+    vehiclesProcessed: number;
+    done: boolean;
+    totalCount?: number;
+    errors: string[];
+  }) => Promise<void> | void;
+}): Promise<Row52StreamResult> {
+  const pagesPerChunk = Math.max(1, options.pagesPerChunk ?? 10);
+  let nextSkip = Math.max(0, options.startSkip ?? 0);
+  let knownTotalCount: number | undefined;
+  let totalCount = 0;
+  let pagesProcessed = 0;
+  let done = false;
+  const errors: string[] = [];
+
+  while (!done) {
+    const chunkResult = await fetchRow52InventoryChunk({
+      startSkip: nextSkip,
+      maxPages: pagesPerChunk,
+      knownTotalCount,
+      onBatch: async (vehicles) => {
+        await options.sink.enqueue("row52", vehicles);
+      },
+    });
+
+    totalCount += chunkResult.count;
+    pagesProcessed += chunkResult.pagesProcessed;
+    errors.push(...chunkResult.errors);
+    knownTotalCount = chunkResult.totalCount ?? knownTotalCount;
+    done =
+      chunkResult.done ||
+      chunkResult.errors.length > 0 ||
+      chunkResult.pagesProcessed === 0;
+
+    nextSkip = chunkResult.nextSkip;
+
+    if (options.onProgress) {
+      await options.onProgress({
+        nextSkip,
+        pagesProcessed,
+        vehiclesProcessed: totalCount,
+        done,
+        totalCount: knownTotalCount,
+        errors,
+      });
+    }
+  }
+
+  return {
+    source: "row52",
+    count: totalCount,
+    errors,
+    pagesProcessed,
+    nextSkip,
+    done: true,
+    totalCount: knownTotalCount,
   };
 }

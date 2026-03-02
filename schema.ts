@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -219,3 +220,107 @@ export const ingestionRun = sqliteTable("ingestion_run", {
   startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
   completedAt: integer("completed_at", { mode: "timestamp_ms" }),
 });
+
+export const ingestionSourceRun = sqliteTable(
+  "ingestion_source_run",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    source: text("source").notNull(), // "pyp" | "row52"
+    status: text("status").notNull(), // "running" | "success" | "error" | "partial"
+    startCursor: text("start_cursor"),
+    nextCursor: text("next_cursor"),
+    pagesProcessed: integer("pages_processed").default(0).notNull(),
+    vehiclesProcessed: integer("vehicles_processed").default(0).notNull(),
+    errors: text("errors"), // JSON array of error strings
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("ingestion_source_run_run_id_idx").on(table.runId),
+    index("ingestion_source_run_source_idx").on(table.source),
+    index("ingestion_source_run_status_idx").on(table.status),
+  ],
+);
+
+export const vehicleSnapshot = sqliteTable(
+  "vehicle_snapshot",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    source: text("source").notNull(), // "pyp" | "row52"
+    vin: text("vin").notNull(),
+    year: integer("year").notNull(),
+    make: text("make").notNull(),
+    model: text("model").notNull(),
+    color: text("color"),
+    stockNumber: text("stock_number"),
+    imageUrl: text("image_url"),
+    availableDate: text("available_date"),
+    locationCode: text("location_code").notNull(),
+    locationName: text("location_name").notNull(),
+    state: text("state").notNull(),
+    stateAbbr: text("state_abbr").notNull(),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
+    section: text("section"),
+    row: text("row"),
+    space: text("space"),
+    detailsUrl: text("details_url"),
+    partsUrl: text("parts_url"),
+    pricesUrl: text("prices_url"),
+    engine: text("engine"),
+    trim: text("trim"),
+    transmission: text("transmission"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.runId, table.source, table.vin],
+    }),
+    index("vehicle_snapshot_run_source_idx").on(table.runId, table.source),
+    index("vehicle_snapshot_vin_idx").on(table.vin),
+  ],
+);
+
+export const vehicleChange = sqliteTable(
+  "vehicle_change",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    runId: text("run_id")
+      .notNull()
+      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    vin: text("vin").notNull(),
+    changeType: text("change_type").notNull(), // "upsert" | "missing" | "delete"
+    payload: text("payload"),
+    payloadVersion: integer("payload_version").default(1).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    processedAt: integer("processed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("vehicle_change_run_id_idx").on(table.runId),
+    index("vehicle_change_vin_idx").on(table.vin),
+    index("vehicle_change_processed_at_idx").on(table.processedAt, table.id),
+  ],
+);
+
+export const ingestionProjectorCheckpoint = sqliteTable(
+  "ingestion_projector_checkpoint",
+  {
+    name: text("name").primaryKey(),
+    lastProcessedChangeId: integer("last_processed_change_id")
+      .default(0)
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+);

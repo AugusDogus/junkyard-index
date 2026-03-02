@@ -5,6 +5,7 @@ import { fetchLocationsFromPYP } from "~/server/api/routers/locations";
 import { fetchWithTimeoutRetry } from "./fetch-with-retry";
 import { transformPypVehicle } from "./pyp-transform";
 import type { PypVehicleJson } from "./pyp-transform";
+import type { SnapshotSink } from "./snapshot-sink";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
 /**
@@ -75,6 +76,15 @@ export interface PypChunkOptions {
 }
 
 export interface PypChunkResult {
+  source: "pyp";
+  count: number;
+  errors: string[];
+  pagesProcessed: number;
+  nextPage: number;
+  done: boolean;
+}
+
+export interface PypStreamResult {
   source: "pyp";
   count: number;
   errors: string[];
@@ -436,5 +446,63 @@ export async function fetchPypInventory(
     vehicles: allVehicles,
     count: totalProcessed,
     errors: allErrors,
+  };
+}
+
+export async function streamPypInventoryToSink(options: {
+  sink: SnapshotSink;
+  startPage?: number;
+  pagesPerChunk?: number;
+  onProgress?: (progress: {
+    nextPage: number;
+    pagesProcessed: number;
+    vehiclesProcessed: number;
+    done: boolean;
+    errors: string[];
+  }) => Promise<void> | void;
+}): Promise<PypStreamResult> {
+  const pagesPerChunk = Math.max(1, options.pagesPerChunk ?? 10);
+  let nextPage = Math.max(1, options.startPage ?? 1);
+  let totalCount = 0;
+  let pagesProcessed = 0;
+  let done = false;
+  const errors: string[] = [];
+
+  while (!done && nextPage <= MAX_PAGES) {
+    const chunkResult = await fetchPypInventoryChunk({
+      startPage: nextPage,
+      maxPages: pagesPerChunk,
+      onBatch: async (vehicles) => {
+        await options.sink.enqueue("pyp", vehicles);
+      },
+    });
+
+    totalCount += chunkResult.count;
+    pagesProcessed += chunkResult.pagesProcessed;
+    errors.push(...chunkResult.errors);
+    nextPage = chunkResult.nextPage;
+    done =
+      chunkResult.done ||
+      chunkResult.errors.length > 0 ||
+      chunkResult.pagesProcessed === 0;
+
+    if (options.onProgress) {
+      await options.onProgress({
+        nextPage,
+        pagesProcessed,
+        vehiclesProcessed: totalCount,
+        done,
+        errors,
+      });
+    }
+  }
+
+  return {
+    source: "pyp",
+    count: totalCount,
+    errors,
+    pagesProcessed,
+    nextPage,
+    done: done || nextPage > MAX_PAGES,
   };
 }
