@@ -1,5 +1,6 @@
 import { logger, schedules } from "@trigger.dev/sdk";
 import { runIngestion } from "~/server/ingestion/run";
+import { vehicleAlgoliaProjectorTask } from "./algolia-projector";
 
 type IngestionRunResult = Awaited<ReturnType<typeof runIngestion>>;
 
@@ -14,6 +15,16 @@ async function executeIngestion(): Promise<IngestionRunResult> {
     durationMs: result.durationMs,
     errorCount: result.errors.length,
   });
+
+  if (result.errors.length === 0) {
+    logger.info("Triggering Algolia projector after successful ingestion");
+    await vehicleAlgoliaProjectorTask.trigger();
+  } else {
+    logger.warn(
+      "Skipping Algolia projector trigger due to ingestion errors",
+      { errorCount: result.errors.length },
+    );
+  }
 
   return result;
 }

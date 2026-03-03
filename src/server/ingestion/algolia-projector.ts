@@ -11,7 +11,6 @@ import { toAlgoliaRecord } from "./types";
 
 const PROJECTOR_NAME = "vehicle_algolia";
 const DEFAULT_BATCH_SIZE = 1000;
-const DEFAULT_MAX_BATCHES = 20;
 const VIN_QUERY_CHUNK_SIZE = 400;
 
 export interface AlgoliaProjectorRunResult {
@@ -20,7 +19,6 @@ export interface AlgoliaProjectorRunResult {
   upsertsSynced: number;
   deletesSynced: number;
   lastProcessedChangeId: number;
-  hasMore: boolean;
 }
 
 function mapDbVehicleToCanonical(
@@ -140,11 +138,9 @@ async function markChangesProcessed(changeIds: number[]): Promise<void> {
 
 export async function runAlgoliaProjector(options?: {
   batchSize?: number;
-  maxBatches?: number;
   configureIndex?: boolean;
 }): Promise<AlgoliaProjectorRunResult> {
   const batchSize = Math.max(1, options?.batchSize ?? DEFAULT_BATCH_SIZE);
-  const maxBatches = Math.max(1, options?.maxBatches ?? DEFAULT_MAX_BATCHES);
   const shouldConfigureIndex = options?.configureIndex === true;
 
   await ensureCheckpointRow();
@@ -154,9 +150,8 @@ export async function runAlgoliaProjector(options?: {
   let changesProcessed = 0;
   let upsertsSynced = 0;
   let deletesSynced = 0;
-  let hasMore = false;
 
-  while (batchesProcessed < maxBatches) {
+  while (true) {
     const changes = await db
       .select({
         id: vehicleChange.id,
@@ -169,7 +164,6 @@ export async function runAlgoliaProjector(options?: {
       .limit(batchSize);
 
     if (changes.length === 0) {
-      hasMore = false;
       break;
     }
 
@@ -198,22 +192,11 @@ export async function runAlgoliaProjector(options?: {
     deletesSynced += deleteVins.length;
   }
 
-  if (batchesProcessed === maxBatches) {
-    const nextChange = await db
-      .select({ id: vehicleChange.id })
-      .from(vehicleChange)
-      .where(gt(vehicleChange.id, lastProcessedChangeId))
-      .orderBy(asc(vehicleChange.id))
-      .limit(1);
-    hasMore = nextChange.length > 0;
-  }
-
   return {
     batchesProcessed,
     changesProcessed,
     upsertsSynced,
     deletesSynced,
     lastProcessedChangeId,
-    hasMore,
   };
 }
