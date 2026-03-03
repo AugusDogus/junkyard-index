@@ -1,10 +1,10 @@
-import { API_ENDPOINTS } from "~/lib/constants";
 import pMap from "p-map";
+import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
 import { fetchLocationsFromPYP } from "~/server/api/routers/locations";
 import { fetchWithTimeoutRetry } from "./fetch-with-retry";
-import { transformPypVehicle } from "./pyp-transform";
 import type { PypVehicleJson } from "./pyp-transform";
+import { transformPypVehicle } from "./pyp-transform";
 import type { SnapshotSink } from "./snapshot-sink";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
