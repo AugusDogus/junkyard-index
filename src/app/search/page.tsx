@@ -5,6 +5,7 @@ import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
+import { StatusBanner } from "~/components/StatusBanner";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
@@ -35,6 +36,9 @@ export default async function SearchPage() {
   return (
     <SearchVisibilityProvider>
       <div className="bg-background flex min-h-svh flex-col">
+        <Suspense>
+          <StatusBanner />
+        </Suspense>
         <Header />
         <div className="flex-1">
           <ErrorBoundary>

@@ -1,4 +1,5 @@
 import { and, eq, gte } from "drizzle-orm";
+import { env } from "~/env";
 import { db } from "~/lib/db";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
 import {
@@ -345,6 +346,14 @@ export async function runIngestionPipeline(): Promise<{
       `[Ingestion] Stage timings: snapshot_drain=${upsertFlushMs}ms reconcile=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
     );
 
+    if (env.BETTERSTACK_HEARTBEAT_URL) {
+      fetch(env.BETTERSTACK_HEARTBEAT_URL, { method: "HEAD" }).catch((err) => {
+        console.warn(
+          `[Ingestion] BetterStack heartbeat failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    }
+
     return {
       totalUpserted: reconcileResult.upsertedCount,
       totalDeleted: reconcileResult.deletedCount,
@@ -367,6 +376,16 @@ export async function runIngestionPipeline(): Promise<{
         completedAt: new Date(),
       })
       .where(eq(ingestionRun.id, runId));
+
+    if (env.BETTERSTACK_HEARTBEAT_URL) {
+      fetch(`${env.BETTERSTACK_HEARTBEAT_URL}/fail`, { method: "HEAD" }).catch(
+        (err) => {
+          console.warn(
+            `[Ingestion] BetterStack heartbeat (fail) failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        },
+      );
+    }
 
     throw error;
   }

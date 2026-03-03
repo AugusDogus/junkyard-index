@@ -29,6 +29,7 @@ export const env = createEnv({
     GOOGLE_ADS_CONVERSION_LABEL: z.string().optional(),
     // Algolia (server-only write key for ingestion)
     ALGOLIA_WRITE_API_KEY: z.string(),
+    BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
   },
 
   /**
@@ -44,6 +45,7 @@ export const env = createEnv({
     // Algolia (public, safe to expose)
     NEXT_PUBLIC_ALGOLIA_APP_ID: z.string(),
     NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY: z.string(),
+    NEXT_PUBLIC_STATUS_PAGE_URL: z.string().url().optional(),
   },
 
   /**
@@ -73,9 +75,11 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     ALGOLIA_WRITE_API_KEY: process.env.ALGOLIA_WRITE_API_KEY,
+    BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
     NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY:
       process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
+    NEXT_PUBLIC_STATUS_PAGE_URL: process.env.NEXT_PUBLIC_STATUS_PAGE_URL,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
