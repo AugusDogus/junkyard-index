@@ -19,7 +19,7 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
  */
 
 const PAGE_SIZE = 500;
-const MAX_PAGES = 200; // Safety limit (~100k vehicles max)
+const PAGE_COUNT_WARNING_THRESHOLD = 250;
 const PAGE_FETCH_CONCURRENCY = 3;
 const FETCH_TIMEOUT_MS = 30_000;
 const TIMEOUT_RETRY_LIMIT = 2;
@@ -230,7 +230,7 @@ export async function fetchPypInventoryChunk(
     );
 
     let remainingPages = Math.max(0, options.maxPages);
-    while (!done && remainingPages > 0 && nextPage <= MAX_PAGES) {
+    while (!done && remainingPages > 0) {
       const session = await getPypSession();
       const data = await fetchPypFilterPage(storeCodes, nextPage, session);
 
@@ -270,15 +270,18 @@ export async function fetchPypInventoryChunk(
         );
       }
 
+      if (nextPage === PAGE_COUNT_WARNING_THRESHOLD) {
+        console.warn(
+          `[PYP] Reached ${PAGE_COUNT_WARNING_THRESHOLD} pages (${totalProcessed} vehicles). ` +
+            `This is unusually high — verify PYP API is paginating correctly.`,
+        );
+      }
+
       if (pageVehicles.length < PAGE_SIZE) {
         done = true;
       } else {
         nextPage += 1;
       }
-    }
-
-    if (nextPage > MAX_PAGES) {
-      done = true;
     }
 
     console.log(
@@ -340,11 +343,11 @@ export async function fetchPypInventory(
     let pagesProcessed = 0;
     let hasMore = true;
 
-    while (hasMore && nextPage <= MAX_PAGES) {
+    while (hasMore) {
       const pageNumbers: number[] = [];
       for (
         let idx = 0;
-        idx < PAGE_FETCH_CONCURRENCY && nextPage <= MAX_PAGES;
+        idx < PAGE_FETCH_CONCURRENCY;
         idx += 1
       ) {
         pageNumbers.push(nextPage);
@@ -425,6 +428,13 @@ export async function fetchPypInventory(
           );
         }
 
+        if (result.pageNumber === PAGE_COUNT_WARNING_THRESHOLD) {
+          console.warn(
+            `[PYP] Reached ${PAGE_COUNT_WARNING_THRESHOLD} pages (${totalProcessed} vehicles). ` +
+              `This is unusually high — verify PYP API is paginating correctly.`,
+          );
+        }
+
         if (pageVehicles.length < PAGE_SIZE) {
           hasMore = false;
           break;
@@ -468,7 +478,7 @@ export async function streamPypInventoryToSink(options: {
   let done = false;
   const errors: string[] = [];
 
-  while (!done && nextPage <= MAX_PAGES) {
+  while (!done) {
     const chunkResult = await fetchPypInventoryChunk({
       startPage: nextPage,
       maxPages: pagesPerChunk,
@@ -503,6 +513,6 @@ export async function streamPypInventoryToSink(options: {
     errors,
     pagesProcessed,
     nextPage,
-    done: done || nextPage > MAX_PAGES,
+    done: true,
   };
 }
