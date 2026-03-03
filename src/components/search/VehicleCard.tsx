@@ -1,7 +1,6 @@
 "use client";
 
 import { Eye, ImageIcon, MapPin } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { memo, useCallback } from "react";
@@ -13,9 +12,9 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
+import { VehicleImage } from "~/components/search/VehicleImage";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
-import wsrvLoader from "~/lib/wsrvLoader";
 
 function VehicleCardComponent({ vehicle }: VehicleCardProps) {
   const primaryImage = vehicle.images[0];
@@ -57,12 +56,9 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         {/* Vehicle Image */}
         <div className="bg-muted relative aspect-video overflow-hidden">
           {primaryImage ? (
-            <Image
-              loader={wsrvLoader}
+            <VehicleImage
               src={primaryImage.url}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-              fill
-              className="object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           ) : (
