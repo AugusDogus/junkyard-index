@@ -1,8 +1,6 @@
 import { ArrowRight, Bell, Car, MapPin, Search, Zap } from "lucide-react";
 import Link from "next/link";
-import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
-import { StatusBanner } from "~/components/StatusBanner";
 import { Button } from "~/components/ui/button";
 import { api } from "~/trpc/server";
 
@@ -36,9 +34,6 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <Suspense>
-        <StatusBanner />
-      </Suspense>
       {/* Hero Section */}
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
