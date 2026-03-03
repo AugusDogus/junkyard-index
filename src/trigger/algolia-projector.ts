@@ -1,4 +1,4 @@
-import { logger, schedules, task, timeout } from "@trigger.dev/sdk";
+import { logger, task, timeout } from "@trigger.dev/sdk";
 import { runAlgoliaProjector } from "~/server/ingestion/algolia-projector";
 
 async function executeAlgoliaProjector() {
@@ -21,18 +21,6 @@ async function executeAlgoliaProjector() {
 
 export const vehicleAlgoliaProjectorTask = task({
   id: "vehicle-algolia-projector",
-  maxDuration: timeout.None,
-  queue: {
-    concurrencyLimit: 1,
-  },
-  run: async () => {
-    return executeAlgoliaProjector();
-  },
-});
-
-export const vehicleAlgoliaProjectorSchedule = schedules.task({
-  id: "vehicle-algolia-projector-scheduled",
-  cron: "0 * * * *",
   maxDuration: timeout.None,
   queue: {
     concurrencyLimit: 1,
