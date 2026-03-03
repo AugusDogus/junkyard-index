@@ -4,6 +4,7 @@ import { Eye, ImageIcon, MapPin } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { memo, useCallback } from "react";
+import { VehicleImage } from "~/components/search/VehicleImage";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -12,7 +13,6 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
-import { VehicleImage } from "~/components/search/VehicleImage";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 
@@ -99,9 +99,6 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           {vehicle.isMissing && (
             <Badge variant="destructive" className="mt-2">
               {missingLabel}
-              {vehicle.missingRunCount
-                ? ` (${vehicle.missingRunCount} runs)`
-                : ""}
             </Badge>
           )}
         </div>
