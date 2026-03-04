@@ -3,12 +3,8 @@ import { API_ENDPOINTS } from "~/lib/constants";
 import type { DataSource, Location } from "~/lib/types";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { fetchLocationsFromRow52 } from "./row52";
-import { fetchWithTimeoutRetry } from "~/server/ingestion/fetch-with-retry";
 
 const PYP_LOCATION_TIMEOUT_MS = 15_000;
-const PYP_LOCATION_RETRIES = 2;
-const PYP_LOCATION_BASE_DELAY_MS = 1_000;
-const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
 
 function shouldDisablePypFetch(): boolean {
   const value = process.env.DISABLE_PYP_FETCH;
@@ -16,42 +12,13 @@ function shouldDisablePypFetch(): boolean {
   return value === "1" || value.toLowerCase() === "true";
 }
 
-async function fetchPypLocationHtml(): Promise<string> {
-  const response = await fetchWithTimeoutRetry(
-    `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-    {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-      cache: "force-cache",
-      next: { revalidate: 3600 },
-    },
-    {
-      context: "PYP locations page",
-      logPrefix: "[PYP locations]",
-      timeoutMs: PYP_LOCATION_TIMEOUT_MS,
-      retries: PYP_LOCATION_RETRIES,
-      baseDelayMs: PYP_LOCATION_BASE_DELAY_MS,
-      retryStatusCodes: RETRYABLE_STATUS_CODES,
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`PYP locations HTTP error: ${response.status}`);
-  }
-
-  return response.text();
-}
-
 /**
- * Fetches location data from PYP website with Next.js Data Cache
- * - Uses 'force-cache' for persistent caching across requests
- * - Revalidates every hour to ensure fresh data
- * - Automatic request deduplication within render passes
- * In a real implementation, this would scrape the actual location page.
+ * Fetch PYP locations for the tRPC frontend route.
+ *
+ * This is a best-effort call — pyp.com is behind Cloudflare and will 403 on
+ * server-side requests. When that happens we return an empty array gracefully.
+ * The ingestion pipeline uses a Playwright browser session instead (see
+ * `pyp-browser-session.ts`) and does not depend on this function.
  */
 export async function fetchLocationsFromPYP(): Promise<Location[]> {
   if (shouldDisablePypFetch()) {
@@ -62,14 +29,38 @@ export async function fetchLocationsFromPYP(): Promise<Location[]> {
   }
 
   try {
-    const html = await fetchPypLocationHtml();
+    const url = `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      PYP_LOCATION_TIMEOUT_MS,
+    );
 
-    // Parse the _locationList variable from the HTML
-    // Handle both spaced and non-spaced formats: "var _locationList = [" and "var _locationList=["
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn(
+        `[PYP locations] HTTP ${response.status} — returning empty (Cloudflare likely blocking server-side fetch)`,
+      );
+      return [];
+    }
+
+    const html = await response.text();
     const locationListMatch = /var _locationList\s*=\s*(\[.*?\]);/s.exec(html);
-
     if (!locationListMatch) {
-      throw new Error("Could not find _locationList in HTML");
+      console.warn(
+        "[PYP locations] _locationList not found in HTML — returning empty",
+      );
+      return [];
     }
 
     const locationData = JSON.parse(locationListMatch[1] ?? "[]") as Array<{
@@ -103,8 +94,7 @@ export async function fetchLocationsFromPYP(): Promise<Location[]> {
       };
     }>;
 
-    // Transform to our interface format
-    const locations: Location[] = locationData.map((loc) => ({
+    return locationData.map((loc) => ({
       locationCode: loc.LocationCode,
       locationPageURL: loc.LocationPageURL,
       name: loc.Name,
@@ -135,10 +125,8 @@ export async function fetchLocationsFromPYP(): Promise<Location[]> {
         parts: loc.Urls.Parts,
       },
     }));
-
-    return locations;
   } catch (error) {
-    console.error("Error fetching locations from PYP:", error);
+    console.error("[PYP locations] Error:", error);
     return [];
   }
 }
@@ -182,10 +170,6 @@ async function fetchAllLocations(sources?: DataSource[]): Promise<Location[]> {
 }
 
 export const locationsRouter = createTRPCRouter({
-  /**
-   * Get all locations from all sources
-   * Uses Next.js Data Cache for automatic caching and request deduplication
-   */
   getAll: publicProcedure
     .input(
       z
@@ -198,9 +182,6 @@ export const locationsRouter = createTRPCRouter({
       return await fetchAllLocations(input?.sources);
     }),
 
-  /**
-   * Get locations by state
-   */
   getByState: publicProcedure
     .input(
       z.object({
@@ -215,9 +196,6 @@ export const locationsRouter = createTRPCRouter({
       );
     }),
 
-  /**
-   * Get a specific location by code
-   */
   getByCode: publicProcedure
     .input(
       z.object({
@@ -236,9 +214,6 @@ export const locationsRouter = createTRPCRouter({
       );
     }),
 
-  /**
-   * Search locations by name or city
-   */
   search: publicProcedure
     .input(
       z.object({
@@ -258,9 +233,6 @@ export const locationsRouter = createTRPCRouter({
       );
     }),
 
-  /**
-   * Get unique states that have locations
-   */
   getStates: publicProcedure
     .input(
       z
