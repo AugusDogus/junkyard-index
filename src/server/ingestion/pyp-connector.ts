@@ -2,7 +2,6 @@ import pMap from "p-map";
 import type { Location } from "~/lib/types";
 import { PypBrowserSession, type PypFilterResponse } from "./pyp-browser-session";
 import { transformPypVehicle } from "./pyp-transform";
-import type { SnapshotSink } from "./snapshot-sink";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
 /**
@@ -220,7 +219,7 @@ export async function fetchPypInventory(
 }
 
 export async function streamPypInventoryToSink(options: {
-  sink: SnapshotSink;
+  onBatch: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
   startPage?: number;
   pagesPerChunk?: number;
   onProgress?: (progress: {
@@ -291,7 +290,7 @@ export async function streamPypInventoryToSink(options: {
           }
 
           if (result.canonical.length > 0) {
-            await options.sink.enqueue("pyp", result.canonical);
+            await options.onBatch(result.canonical);
           }
 
           totalCount += result.canonical.length;

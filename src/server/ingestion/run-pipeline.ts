@@ -178,7 +178,6 @@ export async function runIngestionPipeline(): Promise<{
       initSourceRun(runId, "row52", runTimestamp),
       initSourceRun(runId, "pyp", runTimestamp),
     ]);
-
     const snapshotSink = createSnapshotSink({
       runId,
       maxQueuedBatches: SNAPSHOT_QUEUE_MAX_BATCHES,
@@ -192,7 +191,9 @@ export async function runIngestionPipeline(): Promise<{
       const startedAt = Date.now();
       try {
         const result = await streamRow52InventoryToSink({
-          sink: snapshotSink,
+          onBatch: async (vehicles) => {
+            await snapshotSink.enqueue("row52", vehicles);
+          },
           pagesPerChunk: SOURCE_CHUNK_PAGES,
           onProgress: async (progress) => {
             await updateSourceRunProgress({
@@ -239,7 +240,9 @@ export async function runIngestionPipeline(): Promise<{
       const startedAt = Date.now();
       try {
         const result = await streamPypInventoryToSink({
-          sink: snapshotSink,
+          onBatch: async (vehicles) => {
+            await snapshotSink.enqueue("pyp", vehicles);
+          },
           pagesPerChunk: SOURCE_CHUNK_PAGES,
           onProgress: async (progress) => {
             await updateSourceRunProgress({

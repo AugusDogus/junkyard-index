@@ -98,6 +98,115 @@ export async function reconcileFromSnapshotRun(
       FROM vehicle_snapshot
       WHERE run_id = ${options.runId}
         AND source IN (${healthySourcesSql})
+    ),
+    latest_snapshot AS (
+      SELECT
+        vin,
+        source,
+        year,
+        make,
+        model,
+        color,
+        stock_number,
+        image_url,
+        available_date,
+        location_code,
+        location_name,
+        state,
+        state_abbr,
+        lat,
+        lng,
+        section,
+        row,
+        space,
+        details_url,
+        parts_url,
+        prices_url,
+        engine,
+        trim,
+        transmission
+      FROM ranked_snapshot
+      WHERE rn = 1
+    )
+    INSERT INTO vehicle_change (
+      run_id,
+      vin,
+      change_type,
+      payload,
+      payload_version,
+      created_at
+    )
+    SELECT
+      ${options.runId},
+      s.vin,
+      'upsert',
+      NULL,
+      1,
+      ${runTsMs}
+    FROM latest_snapshot s
+    LEFT JOIN vehicle v ON v.vin = s.vin
+    WHERE v.vin IS NULL
+      OR v.source IS NOT s.source
+      OR v.year IS NOT s.year
+      OR v.make IS NOT s.make
+      OR v.model IS NOT s.model
+      OR v.color IS NOT s.color
+      OR v.stock_number IS NOT s.stock_number
+      OR v.image_url IS NOT s.image_url
+      OR v.available_date IS NOT s.available_date
+      OR v.location_code IS NOT s.location_code
+      OR v.location_name IS NOT s.location_name
+      OR v.state IS NOT s.state
+      OR v.state_abbr IS NOT s.state_abbr
+      OR v.lat IS NOT s.lat
+      OR v.lng IS NOT s.lng
+      OR v.section IS NOT s.section
+      OR v.row IS NOT s.row
+      OR v.space IS NOT s.space
+      OR v.details_url IS NOT s.details_url
+      OR v.parts_url IS NOT s.parts_url
+      OR v.prices_url IS NOT s.prices_url
+      OR v.engine IS NOT s.engine
+      OR v.trim IS NOT s.trim
+      OR v.transmission IS NOT s.transmission
+      OR v.missing_since_at IS NOT NULL
+      OR COALESCE(v.missing_run_count, 0) != 0
+  `);
+
+  await db.run(sql`
+    WITH ranked_snapshot AS (
+      SELECT
+        vin,
+        source,
+        year,
+        make,
+        model,
+        color,
+        stock_number,
+        image_url,
+        available_date,
+        location_code,
+        location_name,
+        state,
+        state_abbr,
+        lat,
+        lng,
+        section,
+        row,
+        space,
+        details_url,
+        parts_url,
+        prices_url,
+        engine,
+        trim,
+        transmission,
+        ROW_NUMBER() OVER (
+          PARTITION BY vin
+          ORDER BY CASE source WHEN 'row52' THEN 0 ELSE 1 END
+        ) AS rn
+      FROM vehicle_snapshot
+      WHERE run_id = ${options.runId}
+        AND source IN (${healthySourcesSql})
     )
     INSERT INTO vehicle (
       vin,
@@ -187,37 +296,6 @@ export async function reconcileFromSnapshotRun(
       last_seen_at = excluded.last_seen_at,
       missing_since_at = NULL,
       missing_run_count = 0
-  `);
-
-  await db.run(sql`
-    WITH ranked_snapshot AS (
-      SELECT
-        vin,
-        ROW_NUMBER() OVER (
-          PARTITION BY vin
-          ORDER BY CASE source WHEN 'row52' THEN 0 ELSE 1 END
-        ) AS rn
-      FROM vehicle_snapshot
-      WHERE run_id = ${options.runId}
-        AND source IN (${healthySourcesSql})
-    )
-    INSERT INTO vehicle_change (
-      run_id,
-      vin,
-      change_type,
-      payload,
-      payload_version,
-      created_at
-    )
-    SELECT
-      ${options.runId},
-      vin,
-      'upsert',
-      NULL,
-      1,
-      ${runTsMs}
-    FROM ranked_snapshot
-    WHERE rn = 1
   `);
 
   if (!options.allowAdvanceMissingState) {

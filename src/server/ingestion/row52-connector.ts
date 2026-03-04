@@ -8,7 +8,6 @@ import type {
   Row52Vehicle,
 } from "~/lib/types";
 import { fetchWithTimeoutRetry } from "./fetch-with-retry";
-import type { SnapshotSink } from "./snapshot-sink";
 import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 1000;
@@ -73,8 +72,9 @@ interface Row52VehiclesPage {
 export interface Row52ChunkOptions {
   startSkip: number;
   maxPages: number;
+  locationMap: Map<number, Row52Location>;
   knownTotalCount?: number;
-  onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void>;
+  onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
 }
 
 export interface Row52ChunkResult {
@@ -136,10 +136,6 @@ export async function fetchRow52InventoryChunk(
   let done = false;
 
   try {
-    console.log("[Row52] Fetching locations...");
-    const locationMap = await fetchRow52Locations();
-    console.log(`[Row52] Found ${locationMap.size} participating locations`);
-
     while (!done && pagesProcessed < options.maxPages) {
       const includeCount = totalCount === undefined;
       const page = await fetchVehiclePage(skip, includeCount);
@@ -153,7 +149,7 @@ export async function fetchRow52InventoryChunk(
 
       const pageCanonical: CanonicalVehicle[] = [];
       for (const row of page.vehicles) {
-        const vehicle = transformRow52Vehicle(row, locationMap);
+        const vehicle = transformRow52Vehicle(row, options.locationMap);
         if (vehicle) {
           pageCanonical.push(vehicle);
         }
@@ -454,7 +450,7 @@ export async function fetchRow52Inventory(
 }
 
 export async function streamRow52InventoryToSink(options: {
-  sink: SnapshotSink;
+  onBatch: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
   startSkip?: number;
   pagesPerChunk?: number;
   onProgress?: (progress: {
@@ -473,15 +469,17 @@ export async function streamRow52InventoryToSink(options: {
   let pagesProcessed = 0;
   let done = false;
   const errors: string[] = [];
+  console.log("[Row52] Fetching locations...");
+  const locationMap = await fetchRow52Locations();
+  console.log(`[Row52] Found ${locationMap.size} participating locations`);
 
   while (!done) {
     const chunkResult = await fetchRow52InventoryChunk({
       startSkip: nextSkip,
       maxPages: pagesPerChunk,
+      locationMap,
       knownTotalCount,
-      onBatch: async (vehicles) => {
-        await options.sink.enqueue("row52", vehicles);
-      },
+      onBatch: options.onBatch,
     });
 
     totalCount += chunkResult.count;

@@ -3,9 +3,69 @@ import type { AlgoliaVehicleRecord } from "./types";
 
 const BATCH_SIZE = 1000;
 let configuredInProcess = false;
+interface WaitForTaskClient {
+  waitForTask?: (params: {
+    indexName: string;
+    taskID: number;
+  }) => Promise<unknown>;
+}
 
 interface SyncToAlgoliaOptions {
   configureIndex?: boolean;
+}
+
+function extractTaskIds(value: unknown): number[] {
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractTaskIds(entry));
+  }
+
+  const record = value as Record<string, unknown>;
+  const taskIds: number[] = [];
+
+  const taskIDValue =
+    typeof record.taskID === "number"
+      ? record.taskID
+      : typeof record.taskId === "number"
+        ? record.taskId
+        : null;
+  if (taskIDValue !== null) {
+    taskIds.push(taskIDValue);
+  }
+
+  const nestedKeys = ["results", "responses", "items", "tasks"];
+  for (const key of nestedKeys) {
+    const nested = record[key];
+    if (Array.isArray(nested)) {
+      taskIds.push(...extractTaskIds(nested));
+    }
+  }
+
+  return taskIds;
+}
+
+async function waitForFinalTask(taskIds: number[]): Promise<void> {
+  const finalTaskId = taskIds.at(-1);
+  if (finalTaskId === undefined) {
+    return;
+  }
+
+  const client = algoliaClient as unknown as WaitForTaskClient;
+  if (!client.waitForTask) {
+    console.warn(
+      "[Algolia] Client does not expose waitForTask(); skipping explicit wait",
+    );
+    return;
+  }
+
+  console.log(`[Algolia] Waiting for final indexing task ${finalTaskId}...`);
+  await client.waitForTask({
+    indexName: ALGOLIA_INDEX_NAME,
+    taskID: finalTaskId,
+  });
 }
 
 /**
@@ -102,8 +162,9 @@ export async function configureAlgoliaIndex(): Promise<void> {
  */
 export async function saveAlgoliaObjects(
   records: AlgoliaVehicleRecord[],
-): Promise<void> {
-  if (records.length === 0) return;
+): Promise<number[]> {
+  const taskIds: number[] = [];
+  if (records.length === 0) return taskIds;
 
   console.log(
     `[Algolia] Saving ${records.length} objects in batches of ${BATCH_SIZE}...`,
@@ -111,33 +172,40 @@ export async function saveAlgoliaObjects(
 
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
     const batch = records.slice(i, i + BATCH_SIZE);
-    await algoliaClient.saveObjects({
+    const response = await algoliaClient.saveObjects({
       indexName: ALGOLIA_INDEX_NAME,
       objects: batch as unknown as Record<string, unknown>[],
-      waitForTasks: true,
+      waitForTasks: false,
     });
+    taskIds.push(...extractTaskIds(response));
     console.log(
       `[Algolia] Saved batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`,
     );
   }
+
+  return taskIds;
 }
 
 /**
  * Batch delete objects from Algolia by objectID (VIN).
  */
-export async function deleteAlgoliaObjects(vins: string[]): Promise<void> {
-  if (vins.length === 0) return;
+export async function deleteAlgoliaObjects(vins: string[]): Promise<number[]> {
+  const taskIds: number[] = [];
+  if (vins.length === 0) return taskIds;
 
   console.log(`[Algolia] Deleting ${vins.length} objects...`);
 
   for (let i = 0; i < vins.length; i += BATCH_SIZE) {
     const batch = vins.slice(i, i + BATCH_SIZE);
-    await algoliaClient.deleteObjects({
+    const response = await algoliaClient.deleteObjects({
       indexName: ALGOLIA_INDEX_NAME,
       objectIDs: batch,
-      waitForTasks: true,
+      waitForTasks: false,
     });
+    taskIds.push(...extractTaskIds(response));
   }
+
+  return taskIds;
 }
 
 /**
@@ -165,10 +233,11 @@ export async function syncToAlgolia(
   }
 
   // Save new/updated records
-  await saveAlgoliaObjects(upserted);
+  const saveTaskIds = await saveAlgoliaObjects(upserted);
 
   // Delete stale records
-  await deleteAlgoliaObjects(deletedVins);
+  const deleteTaskIds = await deleteAlgoliaObjects(deletedVins);
+  await waitForFinalTask([...saveTaskIds, ...deleteTaskIds]);
 
   console.log(
     `[Algolia] Sync complete: ${upserted.length} saved, ${deletedVins.length} deleted`,

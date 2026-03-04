@@ -1,9 +1,9 @@
-import { db } from "~/lib/db";
 import { sql } from "drizzle-orm";
+import { db } from "~/lib/db";
 import { vehicleSnapshot } from "~/schema";
 import type { CanonicalVehicle } from "./types";
 
-const SNAPSHOT_INSERT_CHUNK_SIZE = 20;
+const SNAPSHOT_INSERT_CHUNK_SIZE = 32;
 
 interface SnapshotJob {
   source: "pyp" | "row52";
