@@ -1,5 +1,5 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import Browserbase from "@browserbasehq/sdk";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
 import type { PypVehicleJson } from "./pyp-transform";
@@ -95,6 +95,7 @@ export class PypBrowserSession {
     const session = await bb.sessions.create({
       projectId,
       browserSettings: { solveCaptchas: true },
+      timeout: 900, 
     });
     this.sessionId = session.id;
 
