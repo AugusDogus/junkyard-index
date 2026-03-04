@@ -22,6 +22,7 @@
     "trigger:deploy": "./node_modules/.bin/trigger deploy --skip-update-check"
   },
   "dependencies": {
+    "@browserbasehq/sdk": "^2.7.0",
     "@discordjs/rest": "^2.6.0",
     "@libsql/client": "^0.17.0",
     "@polar-sh/better-auth": "^1.6.4",
@@ -61,7 +62,7 @@
     "p-limit": "^6.2.0",
     "p-map": "^7.0.4",
     "p-retry": "^7.1.1",
-    "playwright": "1.40.0",
+    "playwright-core": "^1.58.2",
     "posthog-js": "^1.352.0",
     "posthog-node": "^5.24.17",
     "radix-ui": "^1.4.3",

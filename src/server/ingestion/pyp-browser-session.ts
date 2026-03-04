@@ -1,4 +1,5 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import Browserbase from "@browserbasehq/sdk";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
 import type { PypVehicleJson } from "./pyp-transform";
@@ -57,17 +58,17 @@ interface PypRawLocation {
   };
 }
 
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
 /**
- * Manages a headed Playwright browser session against pyp.com.
+ * Manages a remote Browserbase session for PYP scraping.
  *
  * Cloudflare binds its JS-challenge clearance to the browser's TLS fingerprint,
  * so plain Node `fetch()` calls are always rejected even with valid cookies.
- * By keeping an actual Chromium instance open and routing API calls through
- * `page.evaluate(fetch(...))`, every request inherits the browser's TLS stack
- * and Cloudflare clearance.
+ * By running a real Chromium instance via Browserbase and routing API calls
+ * through `page.evaluate(fetch(...))`, every request inherits the browser's
+ * TLS stack and Cloudflare clearance.
+ *
+ * Browserbase provides stealth mode and CAPTCHA solving out of the box,
+ * eliminating the need for local Chromium/Xvfb in the Trigger.dev container.
  *
  * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> `close()`
  */
@@ -75,6 +76,7 @@ export class PypBrowserSession {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
+  private sessionId: string | null = null;
   private csrfToken: string | null = null;
   private _locations: Location[] = [];
 
@@ -83,22 +85,27 @@ export class PypBrowserSession {
   }
 
   async open(): Promise<void> {
-    // Trigger.dev's playwright({ headless: false }) extension handles Xvfb + DISPLAY
-    this.browser = await chromium.launch({
-      headless: false,
-      args: ["--disable-blink-features=AutomationControlled"],
-    });
+    const apiKey = process.env.BROWSERBASE_API_KEY;
+    const projectId = process.env.BROWSERBASE_PROJECT_ID;
+    if (!apiKey || !projectId) {
+      throw new Error("BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID must be set");
+    }
 
-    this.context = await this.browser.newContext({ userAgent: USER_AGENT });
-    this.page = await this.context.newPage();
-
-    await this.page.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => false });
+    const bb = new Browserbase({ apiKey });
+    const session = await bb.sessions.create({
+      projectId,
+      browserSettings: { solveCaptchas: true },
     });
+    this.sessionId = session.id;
+
+    this.browser = await chromium.connectOverCDP(session.connectUrl);
+
+    this.context = this.browser.contexts()[0] ?? await this.browser.newContext();
+    this.page = this.context.pages()[0] ?? await this.context.newPage();
 
     await this.page.goto(
       `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-      { waitUntil: "networkidle", timeout: 45_000 },
+      { waitUntil: "networkidle", timeout: 60_000 },
     );
 
     this.csrfToken = await this.page.evaluate(
@@ -160,7 +167,6 @@ export class PypBrowserSession {
     return result.data as PypFilterResponse;
   }
 
-
   async close(): Promise<void> {
     await this.page?.close().catch(() => {});
     await this.context?.close().catch(() => {});
@@ -168,6 +174,11 @@ export class PypBrowserSession {
     this.page = null;
     this.context = null;
     this.browser = null;
+
+    if (this.sessionId) {
+      console.log(`[PYP] Browserbase session: https://browserbase.com/sessions/${this.sessionId}`);
+      this.sessionId = null;
+    }
   }
 }
 

@@ -30,6 +30,9 @@ export const env = createEnv({
     // Algolia (server-only write key for ingestion)
     ALGOLIA_WRITE_API_KEY: z.string(),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
+    // Browserbase (remote browser for PYP scraping, only needed in Trigger.dev worker)
+    BROWSERBASE_API_KEY: z.string().optional(),
+    BROWSERBASE_PROJECT_ID: z.string().optional(),
   },
 
   /**
@@ -76,6 +79,8 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     ALGOLIA_WRITE_API_KEY: process.env.ALGOLIA_WRITE_API_KEY,
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
+    BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+    BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
     NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY:
       process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
