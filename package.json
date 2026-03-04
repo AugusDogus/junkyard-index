@@ -61,7 +61,7 @@
     "p-limit": "^6.2.0",
     "p-map": "^7.0.4",
     "p-retry": "^7.1.1",
-    "playwright": "1.49.1",
+    "playwright": "1.40.0",
     "posthog-js": "^1.352.0",
     "posthog-node": "^5.24.17",
     "radix-ui": "^1.4.3",

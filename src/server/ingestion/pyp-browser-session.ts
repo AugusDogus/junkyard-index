@@ -1,5 +1,3 @@
-import type { ChildProcess } from "node:child_process";
-import { spawn } from "node:child_process";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
@@ -77,7 +75,6 @@ export class PypBrowserSession {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
-  private xvfbProcess: ChildProcess | null = null;
   private csrfToken: string | null = null;
   private _locations: Location[] = [];
 
@@ -85,43 +82,11 @@ export class PypBrowserSession {
     return this._locations;
   }
 
-  private async ensureLinuxDisplay(): Promise<void> {
-    if (process.platform !== "linux") {
-      return;
-    }
-    if (process.env.DISPLAY) {
-      return;
-    }
-
-    try {
-      this.xvfbProcess = spawn(
-        "Xvfb",
-        [":99", "-screen", "0", "1280x720x24", "-nolisten", "tcp"],
-        {
-          stdio: "ignore",
-        },
-      );
-      process.env.DISPLAY = ":99";
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 250);
-      });
-    } catch (error) {
-      throw new Error(
-        `Failed to start Xvfb for headed Chromium: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
   async open(): Promise<void> {
-    await this.ensureLinuxDisplay();
-
+    // Trigger.dev's playwright({ headless: false }) extension handles Xvfb + DISPLAY
     this.browser = await chromium.launch({
       headless: false,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-      ],
+      args: ["--disable-blink-features=AutomationControlled"],
     });
 
     this.context = await this.browser.newContext({ userAgent: USER_AGENT });
@@ -200,10 +165,6 @@ export class PypBrowserSession {
     await this.page?.close().catch(() => {});
     await this.context?.close().catch(() => {});
     await this.browser?.close().catch(() => {});
-    if (this.xvfbProcess && !this.xvfbProcess.killed) {
-      this.xvfbProcess.kill("SIGTERM");
-    }
-    this.xvfbProcess = null;
     this.page = null;
     this.context = null;
     this.browser = null;
