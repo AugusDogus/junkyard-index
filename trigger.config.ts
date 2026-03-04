@@ -9,7 +9,7 @@ export default defineConfig({
   runtime: "node-22",
   maxDuration: 4 * 60 * 60,
   build: {
-    external: ["playwright-core", "playwright", "chromium-bidi"],
+    external: ["playwright-core", "playwright"],
     extensions: [
       playwright({ headless: false }),
     ],
