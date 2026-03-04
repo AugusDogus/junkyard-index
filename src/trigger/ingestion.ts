@@ -15,6 +15,14 @@ function formatTaskError(error: unknown): string {
   }
 }
 
+/**
+ * Runs ingestion and then executes downstream search freshness steps.
+ *
+ * @remarks
+ * The projector + alerts chain always runs after ingestion, even when one source
+ * partially fails, because healthy-source upserts still need to be indexed and
+ * surfaced to users. Deletion safety remains enforced inside ingestion reconcile.
+ */
 async function executeIngestion(): Promise<IngestionRunResult> {
   const source = "schedule";
   logger.info("Starting ingestion task", { source });
@@ -27,26 +35,30 @@ async function executeIngestion(): Promise<IngestionRunResult> {
     errorCount: result.errors.length,
   });
 
-  if (result.errors.length === 0) {
-    logger.info("Running Algolia projector after successful ingestion");
-    const projectorResult = await vehicleAlgoliaProjectorTask.triggerAndWait();
-    if (!projectorResult.ok) {
-      throw new Error(
-        `Algolia projector task failed: ${formatTaskError(projectorResult.error)}`,
-      );
-    }
-
-    logger.info("Running search alerts after projector drain");
-    const alertsResult = await vehicleSearchAlertsTask.triggerAndWait();
-    if (!alertsResult.ok) {
-      throw new Error(
-        `Search alerts task failed: ${formatTaskError(alertsResult.error)}`,
-      );
-    }
-  } else {
+  if (result.errors.length > 0) {
     logger.warn(
-      "Skipping projector and alert tasks due to ingestion errors",
-      { errorCount: result.errors.length },
+      "Continuing with projector and alerts despite source ingestion errors",
+      {
+        errorCount: result.errors.length,
+        totalUpserted: result.totalUpserted,
+        totalDeleted: result.totalDeleted,
+      },
+    );
+  }
+
+  logger.info("Running Algolia projector after ingestion");
+  const projectorResult = await vehicleAlgoliaProjectorTask.triggerAndWait();
+  if (!projectorResult.ok) {
+    throw new Error(
+      `Algolia projector task failed: ${formatTaskError(projectorResult.error)}`,
+    );
+  }
+
+  logger.info("Running search alerts after projector drain");
+  const alertsResult = await vehicleSearchAlertsTask.triggerAndWait();
+  if (!alertsResult.ok) {
+    throw new Error(
+      `Search alerts task failed: ${formatTaskError(alertsResult.error)}`,
     );
   }
 

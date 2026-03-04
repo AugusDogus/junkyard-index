@@ -166,7 +166,12 @@ async function processSearch(
     searchUrl,
   );
 
-  if (canAdvanceLastCheckedAt) {
+  /**
+   * Advance checkpoint only when scan coverage is complete AND delivery had no
+   * errors. This preserves retryability after transient provider failures.
+   */
+  const shouldAdvanceLastCheckedAt = canAdvanceLastCheckedAt && errors.length === 0;
+  if (shouldAdvanceLastCheckedAt) {
     await db
       .update(savedSearch)
       .set({ lastCheckedAt: queryTime })
@@ -191,7 +196,11 @@ async function processSearch(
   if (discordSent) statusParts.push("discord_sent");
   if (errors.length > 0) statusParts.push(`errors: ${errors.join("; ")}`);
   if (statusParts.length === 0) statusParts.push("no_notifications_sent");
-  if (!canAdvanceLastCheckedAt) statusParts.push("last_checked_not_advanced");
+  if (!canAdvanceLastCheckedAt) {
+    statusParts.push("last_checked_not_advanced");
+  } else if (errors.length > 0) {
+    statusParts.push("last_checked_not_advanced_due_delivery_errors");
+  }
 
   return {
     searchId: search.id,
