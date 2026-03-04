@@ -143,7 +143,6 @@ export function SaveSearchDialog({
           emailAlertsEnabled: newSearch.emailAlertsEnabled ?? false,
           discordAlertsEnabled: newSearch.discordAlertsEnabled ?? false,
           lastCheckedAt: null,
-          lastVehicleIds: null,
           processingLock: null,
           createdAt: new Date(),
           updatedAt: new Date(),

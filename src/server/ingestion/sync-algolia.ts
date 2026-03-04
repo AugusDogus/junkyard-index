@@ -114,6 +114,7 @@ export async function saveAlgoliaObjects(
     await algoliaClient.saveObjects({
       indexName: ALGOLIA_INDEX_NAME,
       objects: batch as unknown as Record<string, unknown>[],
+      waitForTasks: true,
     });
     console.log(
       `[Algolia] Saved batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`,
@@ -134,6 +135,7 @@ export async function deleteAlgoliaObjects(vins: string[]): Promise<void> {
     await algoliaClient.deleteObjects({
       indexName: ALGOLIA_INDEX_NAME,
       objectIDs: batch,
+      waitForTasks: true,
     });
   }
 }

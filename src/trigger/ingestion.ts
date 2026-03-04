@@ -1,8 +1,19 @@
 import { logger, schedules } from "@trigger.dev/sdk";
 import { runIngestion } from "~/server/ingestion/run";
 import { vehicleAlgoliaProjectorTask } from "./algolia-projector";
+import { vehicleSearchAlertsTask } from "./search-alerts";
 
 type IngestionRunResult = Awaited<ReturnType<typeof runIngestion>>;
+
+function formatTaskError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
 async function executeIngestion(): Promise<IngestionRunResult> {
   const source = "schedule";
@@ -17,11 +28,24 @@ async function executeIngestion(): Promise<IngestionRunResult> {
   });
 
   if (result.errors.length === 0) {
-    logger.info("Triggering Algolia projector after successful ingestion");
-    await vehicleAlgoliaProjectorTask.trigger();
+    logger.info("Running Algolia projector after successful ingestion");
+    const projectorResult = await vehicleAlgoliaProjectorTask.triggerAndWait();
+    if (!projectorResult.ok) {
+      throw new Error(
+        `Algolia projector task failed: ${formatTaskError(projectorResult.error)}`,
+      );
+    }
+
+    logger.info("Running search alerts after projector drain");
+    const alertsResult = await vehicleSearchAlertsTask.triggerAndWait();
+    if (!alertsResult.ok) {
+      throw new Error(
+        `Search alerts task failed: ${formatTaskError(alertsResult.error)}`,
+      );
+    }
   } else {
     logger.warn(
-      "Skipping Algolia projector trigger due to ingestion errors",
+      "Skipping projector and alert tasks due to ingestion errors",
       { errorCount: result.errors.length },
     );
   }

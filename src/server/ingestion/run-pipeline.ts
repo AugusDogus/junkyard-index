@@ -295,9 +295,10 @@ export async function runIngestionPipeline(): Promise<{
     const healthySources = determineHealthySources(sourceOutcomes);
 
     const staleDeleteStartedAt = Date.now();
+    const reconcileTimestamp = new Date();
     const reconcileResult = await reconcileFromSnapshotRun({
       runId,
-      runTimestamp,
+      runTimestamp: reconcileTimestamp,
       healthySources,
       allowAdvanceMissingState: shouldAdvanceMissingState(sourceOutcomes),
       missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,

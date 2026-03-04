@@ -131,7 +131,6 @@ export const savedSearch = sqliteTable(
       .default(false)
       .notNull(),
     lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" }),
-    lastVehicleIds: text("last_vehicle_ids"),
     // Processing lock to prevent race conditions between cron job and webhooks
     processingLock: integer("processing_lock", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
