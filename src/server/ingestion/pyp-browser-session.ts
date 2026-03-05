@@ -1,4 +1,4 @@
-import Browserbase from "@browserbasehq/sdk";
+import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
@@ -59,24 +59,15 @@ interface PypRawLocation {
 }
 
 /**
- * Browserbase free-tier caps sessions at 15 min (900s). We rotate at 12 min
- * to leave headroom for session setup (~5-10s) and any in-flight request that
- * might be slow. The 3-minute buffer accounts for the worst case where a page
- * fetch takes ~30s (observed during server load spikes) plus session teardown
- * and re-creation time.
- */
-const SESSION_ROTATE_MS = 12 * 60 * 1000;
-
-/**
- * Manages a remote Browserbase session for PYP scraping.
+ * Manages a remote Hyperbrowser session for PYP scraping.
  *
- * ## Why Browserbase, not local Playwright?
+ * ## Why a managed cloud browser?
  *
  * PYP's Cloudflare protection detects headless browsers and rejects requests
- * based on TLS fingerprinting — even headed Playwright in Trigger.dev's
- * container (via Xvfb) was unreliable across deploys. Browserbase provides
- * managed stealth-mode browsers with CAPTCHA solving, eliminating the fragile
- * Xvfb + custom-build-extension setup we previously maintained.
+ * based on unknown signals (likely TLS fingerprinting, JA3 hashes, or browser
+ * attestation). Even headed Playwright in Trigger.dev's container (via Xvfb)
+ * was unreliable across deploys. A managed cloud browser with stealth mode
+ * handles this reliably.
  *
  * ## Why page.evaluate(fetch(...)) instead of extracting cookies?
  *
@@ -86,51 +77,36 @@ const SESSION_ROTATE_MS = 12 * 60 * 1000;
  * reliable approach we've found is executing fetch() from within the browser's
  * page context so every request inherits the browser's full network stack.
  *
- * ## Session rotation
- *
- * `reopen()` closes the current session and opens a fresh one while preserving
- * the cached location list (extracted from pyp.com's `_locationList` global).
- * This avoids re-scraping locations on each rotation and allows the connector
- * to seamlessly resume pagination from where it left off.
- *
- * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> optionally `reopen()` -> ... -> `close()`
+ * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> `close()`
  */
 export class PypBrowserSession {
+  private client: Hyperbrowser | null = null;
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private sessionId: string | null = null;
   private csrfToken: string | null = null;
   private _locations: Location[] = [];
-  private sessionStartedAt = 0;
 
   get locations(): Location[] {
     return this._locations;
   }
 
-  /** True when the current session has been open longer than SESSION_ROTATE_MS. */
-  get shouldRotate(): boolean {
-    if (this.sessionStartedAt === 0) return false;
-    return Date.now() - this.sessionStartedAt > SESSION_ROTATE_MS;
-  }
-
   async open(): Promise<void> {
-    const apiKey = process.env.BROWSERBASE_API_KEY;
-    const projectId = process.env.BROWSERBASE_PROJECT_ID;
-    if (!apiKey || !projectId) {
-      throw new Error("BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID must be set");
+    const apiKey = process.env.HYPERBROWSER_API_KEY;
+    if (!apiKey) {
+      throw new Error("HYPERBROWSER_API_KEY must be set");
     }
 
-    const bb = new Browserbase({ apiKey });
-    const session = await bb.sessions.create({
-      projectId,
-      browserSettings: { solveCaptchas: true },
-      timeout: 900, // seconds — Browserbase free-tier max
+    this.client = new Hyperbrowser({ apiKey });
+    const session = await this.client.sessions.create({
+      useStealth: true,
+      solveCaptchas: true,
+      acceptCookies: true,
     });
     this.sessionId = session.id;
-    this.sessionStartedAt = Date.now();
 
-    this.browser = await chromium.connectOverCDP(session.connectUrl);
+    this.browser = await chromium.connectOverCDP(session.wsEndpoint);
 
     this.context = this.browser.contexts()[0] ?? await this.browser.newContext();
     this.page = this.context.pages()[0] ?? await this.context.newPage();
@@ -160,22 +136,8 @@ export class PypBrowserSession {
   }
 
   /**
-   * Close the current Browserbase session and open a fresh one.
-   * Preserves the cached location list so the caller can continue pagination
-   * without re-extracting locations.
-   */
-  async reopen(): Promise<void> {
-    const cachedLocations = this._locations;
-    await this.close();
-    await this.open();
-    if (cachedLocations.length > 0 && this._locations.length === 0) {
-      this._locations = cachedLocations;
-    }
-  }
-
-  /**
    * Call the PYP Filter API from within the browser page context.
-   * The request inherits the browser's Cloudflare clearance and TLS fingerprint.
+   * The request inherits the browser's Cloudflare clearance and network stack.
    */
   async fetchFilterPage(
     storeCodes: string,
@@ -220,10 +182,10 @@ export class PypBrowserSession {
     this.page = null;
     this.context = null;
     this.browser = null;
-    this.sessionStartedAt = 0;
 
-    if (this.sessionId) {
-      console.log(`[PYP] Browserbase session: https://browserbase.com/sessions/${this.sessionId}`);
+    if (this.sessionId && this.client) {
+      console.log(`[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${this.sessionId}`);
+      await this.client.sessions.stop(this.sessionId).catch(() => {});
       this.sessionId = null;
     }
   }
