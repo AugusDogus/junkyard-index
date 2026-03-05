@@ -7,18 +7,17 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
 /**
  * PYP JSON API connector.
  *
- * Uses a headed Playwright browser session to bypass Cloudflare's JS challenge,
- * then calls the `/DesktopModules/pyp_api/api/Inventory/Filter` endpoint via
- * `page.evaluate(fetch(...))` to page through the complete inventory as JSON.
+ * Fetches inventory **per-store** rather than across all stores at once.
+ * The PYP Filter API degrades severely with deep pagination across all stores
+ * (page 30+ takes 30-60s each), but per-store queries return in ~1s because
+ * each store has only 1-3 pages of results.
  *
- * Cloudflare binds its challenge clearance to the browser's TLS fingerprint, so
- * plain Node `fetch()` calls are always rejected. Routing requests through the
- * Chromium instance preserves the fingerprint and Cloudflare pass-through.
+ * With STORE_CONCURRENCY=3 and ~61 stores averaging ~2.5 pages each,
+ * the full ingestion completes in ~1-2 minutes instead of 15+.
  */
 
 const PAGE_SIZE = 500;
-const PAGE_FETCH_CONCURRENCY = 3;
-const PAGE_COUNT_WARNING_THRESHOLD = 250;
+const STORE_CONCURRENCY = 3;
 
 export interface PypStreamResult {
   source: "pyp";
@@ -29,20 +28,9 @@ export interface PypStreamResult {
   done: boolean;
 }
 
-interface PageFetchResult {
-  ok: true;
-  pageNumber: number;
-  data: PypFilterResponse;
-}
-
-interface PageFetchError {
-  ok: false;
-  pageNumber: number;
-  error: unknown;
-}
-
 function processPage(
   data: PypFilterResponse,
+  storeCode: string,
   pageNumber: number,
   locationMap: Map<string, Location>,
 ): {
@@ -56,7 +44,7 @@ function processPage(
       vehicleCount: 0,
       canonical: [],
       isLastPage: true,
-      apiError: `PYP Filter API error on page ${pageNumber}: ${data.Errors.join(", ")}`,
+      apiError: `PYP Filter API error on store ${storeCode} page ${pageNumber}: ${data.Errors.join(", ")}`,
     };
   }
 
@@ -84,8 +72,7 @@ function buildLocationContext(locations: Location[]) {
   for (const loc of locations) {
     locationMap.set(loc.locationCode, loc);
   }
-  const storeCodes = locations.map((l) => l.locationCode).join(",");
-  return { locationMap, storeCodes };
+  return { locationMap };
 }
 
 function assertMinLocations(locations: Location[]) {
@@ -97,11 +84,56 @@ function assertMinLocations(locations: Location[]) {
   }
 }
 
+interface StoreResult {
+  storeCode: string;
+  vehicles: CanonicalVehicle[];
+  pages: number;
+  error: string | null;
+}
+
 /**
- * Fetch ALL PYP inventory using the Filter API with empty filter.
- * Pages through all results across all stores.
+ * Fetch all vehicles for a single store, paginating until done.
+ */
+async function fetchStoreInventory(
+  session: PypBrowserSession,
+  storeCode: string,
+  locationMap: Map<string, Location>,
+): Promise<StoreResult> {
+  const vehicles: CanonicalVehicle[] = [];
+  let page = 1;
+
+  while (true) {
+    let data: PypFilterResponse;
+    try {
+      data = await session.fetchFilterPage(storeCode, page, PAGE_SIZE);
+    } catch (error) {
+      return {
+        storeCode,
+        vehicles,
+        pages: page - 1,
+        error: `Store ${storeCode} page ${page}: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    const result = processPage(data, storeCode, page, locationMap);
+
+    if (result.apiError) {
+      return { storeCode, vehicles, pages: page, error: result.apiError };
+    }
+
+    vehicles.push(...result.canonical);
+
+    if (result.isLastPage) break;
+    page++;
+  }
+
+  return { storeCode, vehicles, pages: page, error: null };
+}
+
+/**
+ * Fetch ALL PYP inventory by querying each store individually.
  *
- * Opens (and closes) a Playwright browser session internally.
+ * Opens (and closes) a Browserbase session internally.
  */
 export async function fetchPypInventory(
   onBatch?: (vehicles: CanonicalVehicle[]) => Promise<void>,
@@ -114,93 +146,44 @@ export async function fetchPypInventory(
   try {
     await session.open();
     assertMinLocations(session.locations);
-    const { locationMap, storeCodes } = buildLocationContext(session.locations);
+    const { locationMap } = buildLocationContext(session.locations);
+    const storeCodes = session.locations.map((l) => l.locationCode);
 
     console.log(
-      `[PYP] Fetching inventory from ${session.locations.length} locations via browser-proxied JSON API`,
+      `[PYP] Fetching inventory from ${storeCodes.length} stores (per-store, concurrency=${STORE_CONCURRENCY})`,
     );
 
-    let nextPage = 1;
-    let pagesProcessed = 0;
-    let hasMore = true;
+    let storesCompleted = 0;
 
-    while (hasMore) {
-      const pageNumbers: number[] = [];
-      for (let i = 0; i < PAGE_FETCH_CONCURRENCY; i++) {
-        pageNumbers.push(nextPage + i);
-      }
+    await pMap(
+      storeCodes,
+      async (storeCode) => {
+        const result = await fetchStoreInventory(session, storeCode, locationMap);
+        storesCompleted++;
 
-      const chunkResults = await pMap(
-        pageNumbers,
-        async (pageNumber): Promise<PageFetchResult | PageFetchError> => {
-          try {
-            const data = await session.fetchFilterPage(storeCodes, pageNumber, PAGE_SIZE);
-            return { ok: true, pageNumber, data };
-          } catch (error) {
-            return { ok: false, pageNumber, error };
-          }
-        },
-        { concurrency: PAGE_FETCH_CONCURRENCY },
-      );
-
-      const sorted = [...chunkResults].sort((a, b) => a.pageNumber - b.pageNumber);
-
-      for (const fetchResult of sorted) {
-        if (!fetchResult.ok) {
-          const msg = `PYP page ${fetchResult.pageNumber}: ${fetchResult.error instanceof Error ? fetchResult.error.message : String(fetchResult.error)}`;
-          console.error(msg);
-          allErrors.push(msg);
-          hasMore = false;
-          break;
+        if (result.error) {
+          console.error(result.error);
+          allErrors.push(result.error);
         }
 
-        const result = processPage(fetchResult.data, fetchResult.pageNumber, locationMap);
-
-        console.log(
-          `[PYP] Page ${fetchResult.pageNumber}: ${result.vehicleCount} vehicles fetched, ${result.canonical.length} transformed (${totalProcessed + result.canonical.length} total)`,
-        );
-
-        if (result.apiError) {
-          allErrors.push(result.apiError);
-          hasMore = false;
-          break;
-        }
-
-        if (result.canonical.length > 0) {
+        if (result.vehicles.length > 0) {
           if (onBatch) {
-            try {
-              await onBatch(result.canonical);
-            } catch (batchError) {
-              const batchMsg = `PYP onBatch page ${fetchResult.pageNumber}: ${batchError instanceof Error ? batchError.message : String(batchError)}`;
-              console.error(batchMsg);
-              allErrors.push(batchMsg);
-            }
+            await onBatch(result.vehicles);
           } else {
-            allVehicles.push(...result.canonical);
+            allVehicles.push(...result.vehicles);
           }
         }
 
-        totalProcessed += result.canonical.length;
-        pagesProcessed += 1;
-
-        if (fetchResult.pageNumber === PAGE_COUNT_WARNING_THRESHOLD) {
-          console.warn(
-            `[PYP] Reached ${PAGE_COUNT_WARNING_THRESHOLD} pages (${totalProcessed} vehicles). ` +
-              `This is unusually high — verify PYP API is paginating correctly.`,
-          );
-        }
-
-        if (result.isLastPage) {
-          hasMore = false;
-          break;
-        }
-      }
-
-      nextPage += pageNumbers.length;
-    }
+        totalProcessed += result.vehicles.length;
+        console.log(
+          `[PYP] Store ${storeCode}: ${result.vehicles.length} vehicles (${result.pages} pages) [${storesCompleted}/${storeCodes.length} stores, ${totalProcessed} total]`,
+        );
+      },
+      { concurrency: STORE_CONCURRENCY },
+    );
 
     console.log(
-      `[PYP] Total: ${totalProcessed} vehicles across ${pagesProcessed} pages, ${allErrors.length} errors`,
+      `[PYP] Total: ${totalProcessed} vehicles from ${storeCodes.length} stores, ${allErrors.length} errors`,
     );
   } catch (error) {
     const msg = `PYP connector failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -220,122 +203,72 @@ export async function fetchPypInventory(
 
 export async function streamPypInventoryToSink(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
-  startPage?: number;
-  pagesPerChunk?: number;
   onProgress?: (progress: {
-    nextPage: number;
-    pagesProcessed: number;
+    storesCompleted: number;
+    totalStores: number;
     vehiclesProcessed: number;
     done: boolean;
     errors: string[];
   }) => Promise<void> | void;
 }): Promise<PypStreamResult> {
-  let nextPage = Math.max(1, options.startPage ?? 1);
   let totalCount = 0;
-  let pagesProcessed = 0;
-  let done = false;
+  let totalPages = 0;
+  let storesCompleted = 0;
   const errors: string[] = [];
 
   const session = new PypBrowserSession();
   try {
     await session.open();
     assertMinLocations(session.locations);
-    const { locationMap, storeCodes } = buildLocationContext(session.locations);
+    const { locationMap } = buildLocationContext(session.locations);
+    const storeCodes = session.locations.map((l) => l.locationCode);
 
     console.log(
-      `[PYP] Streaming inventory from ${session.locations.length} locations via browser-proxied JSON API`,
+      `[PYP] Streaming inventory from ${storeCodes.length} stores (per-store, concurrency=${STORE_CONCURRENCY})`,
     );
 
-    while (!done) {
-      try {
-        const pageNumbers: number[] = [];
-        for (let i = 0; i < PAGE_FETCH_CONCURRENCY; i++) {
-          pageNumbers.push(nextPage + i);
+    await pMap(
+      storeCodes,
+      async (storeCode) => {
+        const result = await fetchStoreInventory(session, storeCode, locationMap);
+        storesCompleted++;
+
+        if (result.error) {
+          console.error(result.error);
+          errors.push(result.error);
         }
 
-        const chunkResults = await pMap(
-          pageNumbers,
-          async (pageNumber): Promise<PageFetchResult | PageFetchError> => {
-            try {
-              const data = await session.fetchFilterPage(storeCodes, pageNumber, PAGE_SIZE);
-              return { ok: true, pageNumber, data };
-            } catch (error) {
-              return { ok: false, pageNumber, error };
-            }
-          },
-          { concurrency: PAGE_FETCH_CONCURRENCY },
+        if (result.vehicles.length > 0) {
+          await options.onBatch(result.vehicles);
+        }
+
+        totalCount += result.vehicles.length;
+        totalPages += result.pages;
+
+        console.log(
+          `[PYP] Store ${storeCode}: ${result.vehicles.length} vehicles (${result.pages} pages) [${storesCompleted}/${storeCodes.length} stores, ${totalCount} total]`,
         );
-
-        const sorted = [...chunkResults].sort((a, b) => a.pageNumber - b.pageNumber);
-
-        for (const fetchResult of sorted) {
-          if (!fetchResult.ok) {
-            const msg = `PYP page ${fetchResult.pageNumber}: ${fetchResult.error instanceof Error ? fetchResult.error.message : String(fetchResult.error)}`;
-            console.error(msg);
-            errors.push(msg);
-            done = true;
-            break;
-          }
-
-          const result = processPage(fetchResult.data, fetchResult.pageNumber, locationMap);
-
-          console.log(
-            `[PYP] Page ${fetchResult.pageNumber}: ${result.vehicleCount} vehicles fetched, ${result.canonical.length} transformed (${totalCount + result.canonical.length} total)`,
-          );
-
-          if (result.apiError) {
-            errors.push(result.apiError);
-            done = true;
-            break;
-          }
-
-          if (result.canonical.length > 0) {
-            await options.onBatch(result.canonical);
-          }
-
-          totalCount += result.canonical.length;
-          pagesProcessed += 1;
-
-          if (fetchResult.pageNumber === PAGE_COUNT_WARNING_THRESHOLD) {
-            console.warn(
-              `[PYP] Reached ${PAGE_COUNT_WARNING_THRESHOLD} pages (${totalCount} vehicles). ` +
-                `This is unusually high — verify PYP API is paginating correctly.`,
-            );
-          }
-
-          if (result.isLastPage) {
-            done = true;
-            break;
-          }
-        }
-
-        nextPage += pageNumbers.length;
 
         if (options.onProgress) {
           await options.onProgress({
-            nextPage,
-            pagesProcessed,
+            storesCompleted,
+            totalStores: storeCodes.length,
             vehiclesProcessed: totalCount,
-            done,
+            done: storesCompleted === storeCodes.length,
             errors,
           });
         }
-      } catch (error) {
-        const msg = `PYP page ${nextPage}: ${error instanceof Error ? error.message : String(error)}`;
-        console.error(msg);
-        errors.push(msg);
-        done = true;
-      }
-    }
+      },
+      { concurrency: STORE_CONCURRENCY },
+    );
 
     console.log(
-      `[PYP] Stream complete: ${totalCount} vehicles across ${pagesProcessed} pages, ${errors.length} errors`,
+      `[PYP] Stream complete: ${totalCount} vehicles from ${storeCodes.length} stores (${totalPages} pages), ${errors.length} errors`,
     );
   } catch (error) {
     const msg = `PYP connector failed: ${error instanceof Error ? error.message : String(error)}`;
     console.error(msg);
     errors.push(msg);
-    done = true;
   } finally {
     await session.close();
   }
@@ -344,8 +277,8 @@ export async function streamPypInventoryToSink(options: {
     source: "pyp",
     count: totalCount,
     errors,
-    pagesProcessed,
-    nextPage,
+    pagesProcessed: totalPages,
+    nextPage: 0,
     done: true,
   };
 }
