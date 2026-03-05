@@ -101,7 +101,6 @@ export class PypBrowserSession {
     this.client = new Hyperbrowser({ apiKey });
     const session = await this.client.sessions.create({
       useStealth: true,
-      solveCaptchas: true,
       acceptCookies: true,
     });
     this.sessionId = session.id;
