@@ -30,6 +30,14 @@ import type { CanonicalVehicle } from "./types";
  * Summing per-store results yields ~42k vehicles vs ~73k from the global query.
  * We confirmed the "missing" vehicles are real and current on pyp.com, so we
  * MUST use the all-stores combined query to get complete coverage.
+ *
+ * ## Session rotation
+ *
+ * Hyperbrowser caps sessions at 15 minutes. The full crawl usually fits in one
+ * session (~11 min at ~4s/page), but server response times are unpredictable.
+ * Session rotation at 12 minutes provides a safety net: `reopen()` closes the
+ * current session, creates a fresh one, and resumes pagination from the last
+ * successful page. Only one session is active at a time.
  */
 
 /**
@@ -129,7 +137,7 @@ function assertMinLocations(locations: Location[]) {
 
 /**
  * Fetch ALL PYP inventory using the Filter API with empty filter.
- * Pages through results sequentially within a single Hyperbrowser session.
+ * Pages through results sequentially, rotating Hyperbrowser sessions if needed.
  */
 export async function streamPypInventoryToSink(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
@@ -147,6 +155,7 @@ export async function streamPypInventoryToSink(options: {
   let totalCount = 0;
   let pagesProcessed = 0;
   let done = false;
+  let sessionCount = 1;
   const errors: string[] = [];
 
   const session = new PypBrowserSession();
@@ -160,6 +169,15 @@ export async function streamPypInventoryToSink(options: {
     );
 
     while (!done) {
+      if (session.shouldRotate) {
+        console.log(
+          `[PYP] Rotating session (session #${sessionCount} done, page ${nextPage} next)`,
+        );
+        await session.reopen();
+        sessionCount++;
+        console.log(`[PYP] New session #${sessionCount} ready, resuming from page ${nextPage}`);
+      }
+
       try {
         const pageNumbers: number[] = [];
         for (let i = 0; i < PAGE_FETCH_CONCURRENCY; i++) {
@@ -242,7 +260,7 @@ export async function streamPypInventoryToSink(options: {
     }
 
     console.log(
-      `[PYP] Stream complete: ${totalCount} vehicles across ${pagesProcessed} pages, ${errors.length} errors`,
+      `[PYP] Stream complete: ${totalCount} vehicles across ${pagesProcessed} pages (${sessionCount} session${sessionCount > 1 ? "s" : ""}), ${errors.length} errors`,
     );
   } catch (error) {
     const msg = `PYP connector failed: ${error instanceof Error ? error.message : String(error)}`;

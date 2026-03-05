@@ -59,6 +59,12 @@ interface PypRawLocation {
 }
 
 /**
+ * Hyperbrowser caps sessions at 15 min. We rotate at 12 min to leave headroom
+ * for session setup (~5-10s) and any in-flight request that might be slow.
+ */
+const SESSION_ROTATE_MS = 12 * 60 * 1000;
+
+/**
  * Manages a remote Hyperbrowser session for PYP scraping.
  *
  * ## Why a managed cloud browser?
@@ -77,7 +83,15 @@ interface PypRawLocation {
  * reliable approach we've found is executing fetch() from within the browser's
  * page context so every request inherits the browser's full network stack.
  *
- * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> `close()`
+ * ## Session rotation
+ *
+ * Hyperbrowser has a 15-minute max session duration. The full crawl at ~4s/page
+ * takes ~11 minutes, so it usually fits in one session, but server response
+ * times are unpredictable. `reopen()` closes the current session and opens a
+ * fresh one, preserving the cached location list so pagination resumes
+ * seamlessly.
+ *
+ * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> optionally `reopen()` -> ... -> `close()`
  */
 export class PypBrowserSession {
   private client: Hyperbrowser | null = null;
@@ -87,9 +101,15 @@ export class PypBrowserSession {
   private sessionId: string | null = null;
   private csrfToken: string | null = null;
   private _locations: Location[] = [];
+  private sessionStartedAt = 0;
 
   get locations(): Location[] {
     return this._locations;
+  }
+
+  get shouldRotate(): boolean {
+    if (this.sessionStartedAt === 0) return false;
+    return Date.now() - this.sessionStartedAt > SESSION_ROTATE_MS;
   }
 
   async open(): Promise<void> {
@@ -104,6 +124,7 @@ export class PypBrowserSession {
       acceptCookies: true,
     });
     this.sessionId = session.id;
+    this.sessionStartedAt = Date.now();
 
     this.browser = await chromium.connectOverCDP(session.wsEndpoint);
 
@@ -132,6 +153,20 @@ export class PypBrowserSession {
       () => (typeof _locationList !== "undefined" ? _locationList : []),
     );
     this._locations = rawLocations.map(mapRawLocation);
+  }
+
+  /**
+   * Close the current session and open a fresh one.
+   * Preserves the cached location list so the caller can continue pagination
+   * without re-extracting locations.
+   */
+  async reopen(): Promise<void> {
+    const cachedLocations = this._locations;
+    await this.close();
+    await this.open();
+    if (cachedLocations.length > 0 && this._locations.length === 0) {
+      this._locations = cachedLocations;
+    }
   }
 
   /**
@@ -181,6 +216,7 @@ export class PypBrowserSession {
     this.page = null;
     this.context = null;
     this.browser = null;
+    this.sessionStartedAt = 0;
 
     if (this.sessionId && this.client) {
       console.log(`[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${this.sessionId}`);
