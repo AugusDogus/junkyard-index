@@ -59,18 +59,41 @@ interface PypRawLocation {
 }
 
 /**
+ * Browserbase free-tier caps sessions at 15 min (900s). We rotate at 12 min
+ * to leave headroom for session setup (~5-10s) and any in-flight request that
+ * might be slow. The 3-minute buffer accounts for the worst case where a page
+ * fetch takes ~30s (observed during server load spikes) plus session teardown
+ * and re-creation time.
+ */
+const SESSION_ROTATE_MS = 12 * 60 * 1000;
+
+/**
  * Manages a remote Browserbase session for PYP scraping.
  *
- * Cloudflare binds its JS-challenge clearance to the browser's TLS fingerprint,
- * so plain Node `fetch()` calls are always rejected even with valid cookies.
- * By running a real Chromium instance via Browserbase and routing API calls
- * through `page.evaluate(fetch(...))`, every request inherits the browser's
- * TLS stack and Cloudflare clearance.
+ * ## Why Browserbase, not local Playwright?
  *
- * Browserbase provides stealth mode and CAPTCHA solving out of the box,
- * eliminating the need for local Chromium/Xvfb in the Trigger.dev container.
+ * PYP's Cloudflare protection detects headless browsers and rejects requests
+ * based on TLS fingerprinting — even headed Playwright in Trigger.dev's
+ * container (via Xvfb) was unreliable across deploys. Browserbase provides
+ * managed stealth-mode browsers with CAPTCHA solving, eliminating the fragile
+ * Xvfb + custom-build-extension setup we previously maintained.
  *
- * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> `close()`
+ * ## Why page.evaluate(fetch(...)) instead of extracting cookies?
+ *
+ * Extracting cookies from the browser and replaying them with Node `fetch()`
+ * still gets blocked by Cloudflare — likely because the detection goes beyond
+ * cookies (TLS fingerprint, JA3 hash, browser attestation, etc.). The only
+ * reliable approach we've found is executing fetch() from within the browser's
+ * page context so every request inherits the browser's full network stack.
+ *
+ * ## Session rotation
+ *
+ * `reopen()` closes the current session and opens a fresh one while preserving
+ * the cached location list (extracted from pyp.com's `_locationList` global).
+ * This avoids re-scraping locations on each rotation and allows the connector
+ * to seamlessly resume pagination from where it left off.
+ *
+ * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> optionally `reopen()` -> ... -> `close()`
  */
 export class PypBrowserSession {
   private browser: Browser | null = null;
@@ -79,9 +102,16 @@ export class PypBrowserSession {
   private sessionId: string | null = null;
   private csrfToken: string | null = null;
   private _locations: Location[] = [];
+  private sessionStartedAt = 0;
 
   get locations(): Location[] {
     return this._locations;
+  }
+
+  /** True when the current session has been open longer than SESSION_ROTATE_MS. */
+  get shouldRotate(): boolean {
+    if (this.sessionStartedAt === 0) return false;
+    return Date.now() - this.sessionStartedAt > SESSION_ROTATE_MS;
   }
 
   async open(): Promise<void> {
@@ -95,9 +125,10 @@ export class PypBrowserSession {
     const session = await bb.sessions.create({
       projectId,
       browserSettings: { solveCaptchas: true },
-      timeout: 900, 
+      timeout: 900, // seconds — Browserbase free-tier max
     });
     this.sessionId = session.id;
+    this.sessionStartedAt = Date.now();
 
     this.browser = await chromium.connectOverCDP(session.connectUrl);
 
@@ -126,6 +157,20 @@ export class PypBrowserSession {
       () => (typeof _locationList !== "undefined" ? _locationList : []),
     );
     this._locations = rawLocations.map(mapRawLocation);
+  }
+
+  /**
+   * Close the current Browserbase session and open a fresh one.
+   * Preserves the cached location list so the caller can continue pagination
+   * without re-extracting locations.
+   */
+  async reopen(): Promise<void> {
+    const cachedLocations = this._locations;
+    await this.close();
+    await this.open();
+    if (cachedLocations.length > 0 && this._locations.length === 0) {
+      this._locations = cachedLocations;
+    }
   }
 
   /**
@@ -175,6 +220,7 @@ export class PypBrowserSession {
     this.page = null;
     this.context = null;
     this.browser = null;
+    this.sessionStartedAt = 0;
 
     if (this.sessionId) {
       console.log(`[PYP] Browserbase session: https://browserbase.com/sessions/${this.sessionId}`);

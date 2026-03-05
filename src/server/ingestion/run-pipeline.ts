@@ -243,12 +243,13 @@ export async function runIngestionPipeline(): Promise<{
           onBatch: async (vehicles) => {
             await snapshotSink.enqueue("pyp", vehicles);
           },
+          pagesPerChunk: SOURCE_CHUNK_PAGES,
           onProgress: async (progress) => {
             await updateSourceRunProgress({
               runId,
               source: "pyp",
-              nextCursor: `${progress.storesCompleted}/${progress.totalStores}`,
-              pagesProcessed: progress.storesCompleted,
+              nextCursor: String(progress.nextPage),
+              pagesProcessed: progress.pagesProcessed,
               vehiclesProcessed: progress.vehiclesProcessed,
             });
           },
@@ -257,7 +258,7 @@ export async function runIngestionPipeline(): Promise<{
         await completeSourceRun({
           runId,
           source: "pyp",
-          nextCursor: "done",
+          nextCursor: String(result.nextPage),
           pagesProcessed: result.pagesProcessed,
           vehiclesProcessed: result.count,
           errors: result.errors,
