@@ -9,14 +9,16 @@ import {
   type PipelineSourceName,
 } from "./pipeline-policy";
 import { streamPypInventoryToSink } from "./pyp-connector";
-import { reconcileFromSnapshotRun } from "./reconcile";
+import {
+  buildFinalInventoryByVin,
+  reconcileFromFinalInventory,
+} from "./reconcile";
 import { streamRow52InventoryToSink } from "./row52-connector";
-import { createSnapshotSink } from "./snapshot-sink";
+import type { CanonicalVehicle } from "./types";
 
 const RUN_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
-const SNAPSHOT_QUEUE_MAX_BATCHES = 64;
 const SOURCE_CHUNK_PAGES = 10;
 
 const EMPTY_TIMINGS = {
@@ -31,6 +33,15 @@ const EMPTY_TIMINGS = {
 
 type SourceName = PipelineSourceName;
 type SourceOutcome = PipelineSourceOutcome;
+
+function accumulateVehicles(
+  target: Map<string, CanonicalVehicle>,
+  vehicles: CanonicalVehicle[],
+): void {
+  for (const vehicle of vehicles) {
+    target.set(vehicle.vin, vehicle);
+  }
+}
 
 async function acquireIngestionLock(
   runId: string,
@@ -178,10 +189,8 @@ export async function runIngestionPipeline(): Promise<{
       initSourceRun(runId, "row52", runTimestamp),
       initSourceRun(runId, "pyp", runTimestamp),
     ]);
-    const snapshotSink = createSnapshotSink({
-      runId,
-      maxQueuedBatches: SNAPSHOT_QUEUE_MAX_BATCHES,
-    });
+    const row52ByVin = new Map<string, CanonicalVehicle>();
+    const pypByVin = new Map<string, CanonicalVehicle>();
 
     let row52FetchMs = 0;
     let pypFetchMs = 0;
@@ -191,8 +200,8 @@ export async function runIngestionPipeline(): Promise<{
       const startedAt = Date.now();
       try {
         const result = await streamRow52InventoryToSink({
-          onBatch: async (vehicles) => {
-            await snapshotSink.enqueue("row52", vehicles);
+          onBatch: (vehicles) => {
+            accumulateVehicles(row52ByVin, vehicles);
           },
           pagesPerChunk: SOURCE_CHUNK_PAGES,
           onProgress: async (progress) => {
@@ -240,8 +249,8 @@ export async function runIngestionPipeline(): Promise<{
       const startedAt = Date.now();
       try {
         const result = await streamPypInventoryToSink({
-          onBatch: async (vehicles) => {
-            await snapshotSink.enqueue("pyp", vehicles);
+          onBatch: (vehicles) => {
+            accumulateVehicles(pypByVin, vehicles);
           },
           pagesPerChunk: SOURCE_CHUNK_PAGES,
           onProgress: async (progress) => {
@@ -288,26 +297,34 @@ export async function runIngestionPipeline(): Promise<{
     const [row52Result, pypResult] = await Promise.all([row52Promise, pypPromise]);
     const sourcesParallelMs = Date.now() - sourcesStart;
 
-    const flushStartedAt = Date.now();
-    await snapshotSink.drain();
-    const upsertFlushMs = Date.now() - flushStartedAt;
-
     allErrors.push(...row52Result.errors, ...pypResult.errors);
 
     const sourceOutcomes = [row52Result, pypResult];
     const healthySources = determineHealthySources(sourceOutcomes);
-
-    const staleDeleteStartedAt = Date.now();
     const reconcileTimestamp = new Date();
-    const reconcileResult = await reconcileFromSnapshotRun({
+
+    const finalInventoryByVin = buildFinalInventoryByVin({
+      healthySources,
+      row52ByVin,
+      pypByVin,
+    });
+    const finalizedInventoryCount = finalInventoryByVin.size;
+    row52ByVin.clear();
+    pypByVin.clear();
+
+    const reconcileResult = await reconcileFromFinalInventory({
       runId,
       runTimestamp: reconcileTimestamp,
-      healthySources,
+      finalInventoryByVin,
       allowAdvanceMissingState: shouldAdvanceMissingState(sourceOutcomes),
       missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
       missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
     });
-    const staleDeleteMs = Date.now() - staleDeleteStartedAt;
+    const upsertFlushMs =
+      reconcileResult.timingsMs.readExistingMs +
+      reconcileResult.timingsMs.planMs +
+      reconcileResult.timingsMs.upsertWriteMs;
+    const staleDeleteMs = reconcileResult.timingsMs.missingWriteMs;
 
     if (reconcileResult.skippedMissingAdvance) {
       console.warn(
@@ -341,13 +358,16 @@ export async function runIngestionPipeline(): Promise<{
       `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles`,
     );
     console.log(
+      `[Ingestion] Finalized ${finalizedInventoryCount} canonical vehicles from healthy sources`,
+    );
+    console.log(
       `[Ingestion] Reconcile complete: ${reconcileResult.upsertedCount} upserted, ${reconcileResult.deletedCount} deleted, ${reconcileResult.missingUpdatedCount} marked missing`,
     );
     console.log(
       `[Ingestion] Source timings: row52=${row52FetchMs}ms pyp=${pypFetchMs}ms parallel_window=${sourcesParallelMs}ms`,
     );
     console.log(
-      `[Ingestion] Stage timings: snapshot_drain=${upsertFlushMs}ms reconcile=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
+      `[Ingestion] Stage timings: inventory_diff_upsert=${upsertFlushMs}ms missing_delete=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
     );
 
     if (env.BETTERSTACK_HEARTBEAT_URL) {

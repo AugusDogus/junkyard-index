@@ -12,6 +12,12 @@ import type { CanonicalVehicle, IngestionResult } from "./types";
 
 const PAGE_SIZE = 1000;
 const PAGE_DELAY_MS = 200;
+/**
+ * Read-only sweeps via `bun run bench:row52` show concurrency=4 is the
+ * best current balance of throughput and latency. Concurrency=5 is close,
+ * but it regressed average/p95 latency and lost on average throughput across
+ * repeated 20-page and 40-page runs. Re-benchmark before changing this.
+ */
 const PAGE_FETCH_CONCURRENCY = 4;
 const FETCH_TIMEOUT_MS = 30_000;
 const TIMEOUT_RETRY_LIMIT = 2;
@@ -462,46 +468,160 @@ export async function streamRow52InventoryToSink(options: {
     errors: string[];
   }) => Promise<void> | void;
 }): Promise<Row52StreamResult> {
-  const pagesPerChunk = Math.max(1, options.pagesPerChunk ?? 10);
+  const progressEveryPages = Math.max(1, options.pagesPerChunk ?? 10);
   let nextSkip = Math.max(0, options.startSkip ?? 0);
   let knownTotalCount: number | undefined;
   let totalCount = 0;
   let pagesProcessed = 0;
   let done = false;
+  let lastProgressPages = 0;
   const errors: string[] = [];
   console.log("[Row52] Fetching locations...");
   const locationMap = await fetchRow52Locations();
   console.log(`[Row52] Found ${locationMap.size} participating locations`);
 
-  while (!done) {
-    const chunkResult = await fetchRow52InventoryChunk({
-      startSkip: nextSkip,
-      maxPages: pagesPerChunk,
-      locationMap,
-      knownTotalCount,
-      onBatch: options.onBatch,
+  const emitProgress = async (force: boolean): Promise<void> => {
+    if (!options.onProgress) {
+      return;
+    }
+
+    if (!force && pagesProcessed - lastProgressPages < progressEveryPages) {
+      return;
+    }
+
+    lastProgressPages = pagesProcessed;
+    await options.onProgress({
+      nextSkip,
+      pagesProcessed,
+      vehiclesProcessed: totalCount,
+      done,
+      totalCount: knownTotalCount,
+      errors,
     });
+  };
 
-    totalCount += chunkResult.count;
-    pagesProcessed += chunkResult.pagesProcessed;
-    errors.push(...chunkResult.errors);
-    knownTotalCount = chunkResult.totalCount ?? knownTotalCount;
-    done =
-      chunkResult.done ||
-      chunkResult.errors.length > 0 ||
-      chunkResult.pagesProcessed === 0;
+  const processPage = async (page: Row52VehiclesPage): Promise<void> => {
+    if (page.totalCount !== undefined) {
+      knownTotalCount = page.totalCount;
+    }
 
-    nextSkip = chunkResult.nextSkip;
+    console.log(
+      `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${knownTotalCount ?? "unknown"})`,
+    );
 
-    if (options.onProgress) {
-      await options.onProgress({
-        nextSkip,
-        pagesProcessed,
-        vehiclesProcessed: totalCount,
-        done,
-        totalCount: knownTotalCount,
-        errors,
-      });
+    const pageCanonical: CanonicalVehicle[] = [];
+    for (const row of page.vehicles) {
+      const vehicle = transformRow52Vehicle(row, locationMap);
+      if (vehicle) {
+        pageCanonical.push(vehicle);
+      }
+    }
+
+    if (pageCanonical.length > 0) {
+      await options.onBatch(pageCanonical);
+    }
+
+    totalCount += pageCanonical.length;
+    pagesProcessed += 1;
+    nextSkip = page.skip + PAGE_SIZE;
+  };
+
+  const firstPage = await fetchVehiclePage(nextSkip, true);
+  await processPage(firstPage);
+
+  if (firstPage.vehicles.length < PAGE_SIZE) {
+    done = true;
+    await emitProgress(true);
+  } else {
+    const totalRows = firstPage.totalCount;
+
+    if (totalRows === undefined) {
+      // Fallback for upstream responses without @odata.count.
+      while (!done) {
+        try {
+          const page = await fetchVehiclePage(nextSkip, false);
+          await processPage(page);
+
+          if (page.vehicles.length < PAGE_SIZE) {
+            done = true;
+          } else if (PAGE_DELAY_MS > 0) {
+            await sleep(PAGE_DELAY_MS);
+          }
+        } catch (error) {
+          const msg = `Row52 page at skip=${nextSkip}: ${error instanceof Error ? error.message : String(error)}`;
+          console.error(msg);
+          errors.push(msg);
+          done = true;
+        }
+
+        await emitProgress(done);
+      }
+    } else {
+      const remainingSkips: number[] = [];
+      for (
+        let skip = firstPage.skip + PAGE_SIZE;
+        skip < totalRows;
+        skip += PAGE_SIZE
+      ) {
+        remainingSkips.push(skip);
+      }
+
+      let stopPaging = false;
+      for (
+        let chunkStart = 0;
+        chunkStart < remainingSkips.length && !stopPaging;
+        chunkStart += PAGE_FETCH_CONCURRENCY
+      ) {
+        const chunkSkips = remainingSkips.slice(
+          chunkStart,
+          chunkStart + PAGE_FETCH_CONCURRENCY,
+        );
+        const pageResults = await pMap(
+          chunkSkips,
+          async (skip, index) => {
+            if (PAGE_DELAY_MS > 0 && index > 0) {
+              await sleep(index * PAGE_DELAY_MS);
+            }
+            try {
+              const page = await fetchVehiclePage(skip, false);
+              return { ok: true as const, skip, page };
+            } catch (error) {
+              return { ok: false as const, skip, error };
+            }
+          },
+          { concurrency: PAGE_FETCH_CONCURRENCY },
+        );
+
+        const successfulPages = pageResults
+          .filter((result) => result.ok)
+          .map((result) => result.page)
+          .sort((a, b) => a.skip - b.skip);
+
+        for (const page of successfulPages) {
+          await processPage(page);
+          if (page.vehicles.length < PAGE_SIZE) {
+            stopPaging = true;
+            break;
+          }
+        }
+
+        for (const result of pageResults) {
+          if (!result.ok) {
+            const msg = `Row52 page at skip=${result.skip}: ${result.error instanceof Error ? result.error.message : String(result.error)}`;
+            console.error(msg);
+            errors.push(msg);
+            stopPaging = true;
+          }
+        }
+
+        done = stopPaging;
+        await emitProgress(done);
+      }
+
+      if (!done) {
+        done = true;
+        await emitProgress(true);
+      }
     }
   }
 

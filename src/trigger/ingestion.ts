@@ -69,6 +69,11 @@ export const vehicleIngestionDailySchedule = schedules.task({
   id: "vehicle-ingestion-daily",
   cron: "0 7 * * *",
   maxDuration: 4 * 60 * 60,
+  // The pipeline now keeps both source inventories in memory until reconcile,
+  // so give it enough headroom to avoid GC churn and OOMs on larger runs.
+  machine: {
+    preset: "medium-1x",
+  },
   queue: {
     concurrencyLimit: 1,
   },

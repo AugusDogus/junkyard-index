@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "bench:row52": "bun scripts/row52-benchmark.ts",
     "build": "next build",
     "check": "oxlint . && tsc --noEmit",
     "dev": "next dev --turbo",

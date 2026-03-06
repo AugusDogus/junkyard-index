@@ -1,12 +1,20 @@
-import type { ResultSet } from "@libsql/client";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
-import { vehicleSnapshot } from "~/schema";
+import { vehicle, vehicleChange } from "~/schema";
+import type { CanonicalVehicle } from "./types";
+
+type SourceName = CanonicalVehicle["source"];
+type ExistingVehicleRow = typeof vehicle.$inferSelect;
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const VEHICLE_UPSERT_CHUNK_SIZE = 500;
+const VEHICLE_CHANGE_CHUNK_SIZE = 1_000;
+const VIN_DELETE_CHUNK_SIZE = 500;
 
 interface ReconcileOptions {
   runId: string;
   runTimestamp: Date;
-  healthySources: Array<"pyp" | "row52">;
+  finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
   allowAdvanceMissingState: boolean;
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
@@ -17,372 +25,396 @@ export interface ReconcileResult {
   deletedCount: number;
   missingUpdatedCount: number;
   skippedMissingAdvance: boolean;
+  timingsMs: {
+    readExistingMs: number;
+    planMs: number;
+    upsertWriteMs: number;
+    missingWriteMs: number;
+  };
 }
 
-function readRowsAffected(result: ResultSet): number {
-  return result.rowsAffected;
+interface PlannedVehicleUpsert {
+  vehicle: CanonicalVehicle;
+  firstSeenAt: Date;
 }
 
-function sourceInListSql(sources: Array<"pyp" | "row52">) {
-  return sql.join(
-    sources.map((source) => sql`${source}`),
-    sql`, `,
+interface MissingTransition {
+  vin: string;
+  changeType: "missing" | "delete";
+  missingSinceAt: Date;
+  missingRunCount: number;
+}
+
+interface ReconcilePlan {
+  upsertedCount: number;
+  changedUpserts: PlannedVehicleUpsert[];
+  missingTransitions: MissingTransition[];
+  deleteVins: string[];
+  skippedMissingAdvance: boolean;
+}
+
+export function buildFinalInventoryByVin(params: {
+  healthySources: SourceName[];
+  row52ByVin: ReadonlyMap<string, CanonicalVehicle>;
+  pypByVin: ReadonlyMap<string, CanonicalVehicle>;
+}): Map<string, CanonicalVehicle> {
+  const finalInventory = new Map<string, CanonicalVehicle>();
+
+  if (params.healthySources.includes("pyp")) {
+    for (const [vin, vehicle] of params.pypByVin) {
+      finalInventory.set(vin, vehicle);
+    }
+  }
+
+  if (params.healthySources.includes("row52")) {
+    for (const [vin, vehicle] of params.row52ByVin) {
+      finalInventory.set(vin, vehicle);
+    }
+  }
+
+  return finalInventory;
+}
+
+function vehicleNeedsUpsert(
+  existingVehicle: ExistingVehicleRow | undefined,
+  nextVehicle: CanonicalVehicle,
+): boolean {
+  if (!existingVehicle) {
+    return true;
+  }
+
+  return (
+    existingVehicle.source !== nextVehicle.source ||
+    existingVehicle.year !== nextVehicle.year ||
+    existingVehicle.make !== nextVehicle.make ||
+    existingVehicle.model !== nextVehicle.model ||
+    existingVehicle.color !== nextVehicle.color ||
+    existingVehicle.stockNumber !== nextVehicle.stockNumber ||
+    existingVehicle.imageUrl !== nextVehicle.imageUrl ||
+    existingVehicle.availableDate !== nextVehicle.availableDate ||
+    existingVehicle.locationCode !== nextVehicle.locationCode ||
+    existingVehicle.locationName !== nextVehicle.locationName ||
+    existingVehicle.state !== nextVehicle.state ||
+    existingVehicle.stateAbbr !== nextVehicle.stateAbbr ||
+    existingVehicle.lat !== nextVehicle.lat ||
+    existingVehicle.lng !== nextVehicle.lng ||
+    existingVehicle.section !== nextVehicle.section ||
+    existingVehicle.row !== nextVehicle.row ||
+    existingVehicle.space !== nextVehicle.space ||
+    existingVehicle.detailsUrl !== nextVehicle.detailsUrl ||
+    existingVehicle.partsUrl !== nextVehicle.partsUrl ||
+    existingVehicle.pricesUrl !== nextVehicle.pricesUrl ||
+    existingVehicle.engine !== nextVehicle.engine ||
+    existingVehicle.trim !== nextVehicle.trim ||
+    existingVehicle.transmission !== nextVehicle.transmission ||
+    existingVehicle.missingSinceAt !== null ||
+    (existingVehicle.missingRunCount ?? 0) !== 0
   );
 }
 
-export async function reconcileFromSnapshotRun(
-  options: ReconcileOptions,
-): Promise<ReconcileResult> {
-  const runTsMs = options.runTimestamp.getTime();
-  const missingSinceCutoffMs = runTsMs - options.missingDeleteAfterMs;
-
-  if (options.healthySources.length === 0) {
-    return {
-      upsertedCount: 0,
-      deletedCount: 0,
-      missingUpdatedCount: 0,
-      skippedMissingAdvance: !options.allowAdvanceMissingState,
-    };
+export function createReconcilePlan(params: {
+  finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
+  existingVehicles: ExistingVehicleRow[];
+  runTimestamp: Date;
+  allowAdvanceMissingState: boolean;
+  missingDeleteAfterRuns: number;
+  missingDeleteAfterMs: number;
+}): ReconcilePlan {
+  const existingByVin = new Map<string, ExistingVehicleRow>();
+  for (const existingVehicle of params.existingVehicles) {
+    existingByVin.set(existingVehicle.vin, existingVehicle);
   }
 
-  const healthySourcesSql = sourceInListSql(options.healthySources);
+  const changedUpserts: PlannedVehicleUpsert[] = [];
+  for (const [vin, nextVehicle] of params.finalInventoryByVin) {
+    const existingVehicle = existingByVin.get(vin);
+    if (!vehicleNeedsUpsert(existingVehicle, nextVehicle)) {
+      continue;
+    }
 
-  const distinctVins = db
-    .selectDistinct({ vin: vehicleSnapshot.vin })
-    .from(vehicleSnapshot)
-    .where(
-      and(
-        eq(vehicleSnapshot.runId, options.runId),
-        inArray(vehicleSnapshot.source, options.healthySources),
-      ),
-    )
-    .as("distinct_vins");
-  const [upsertCountRow] = await db
-    .select({
-      count: sql<number>`cast(count(*) as integer)`,
-    })
-    .from(distinctVins);
-  const upsertedCount = upsertCountRow?.count ?? 0;
+    changedUpserts.push({
+      vehicle: nextVehicle,
+      firstSeenAt: existingVehicle?.firstSeenAt ?? params.runTimestamp,
+    });
+  }
 
-  await db.run(sql`
-    WITH ranked_snapshot AS (
-      SELECT
-        vin,
-        source,
-        year,
-        make,
-        model,
-        color,
-        stock_number,
-        image_url,
-        available_date,
-        location_code,
-        location_name,
-        state,
-        state_abbr,
-        lat,
-        lng,
-        section,
-        row,
-        space,
-        details_url,
-        parts_url,
-        prices_url,
-        engine,
-        trim,
-        transmission,
-        ROW_NUMBER() OVER (
-          PARTITION BY vin
-          ORDER BY CASE source WHEN 'row52' THEN 0 ELSE 1 END
-        ) AS rn
-      FROM vehicle_snapshot
-      WHERE run_id = ${options.runId}
-        AND source IN (${healthySourcesSql})
-    ),
-    latest_snapshot AS (
-      SELECT
-        vin,
-        source,
-        year,
-        make,
-        model,
-        color,
-        stock_number,
-        image_url,
-        available_date,
-        location_code,
-        location_name,
-        state,
-        state_abbr,
-        lat,
-        lng,
-        section,
-        row,
-        space,
-        details_url,
-        parts_url,
-        prices_url,
-        engine,
-        trim,
-        transmission
-      FROM ranked_snapshot
-      WHERE rn = 1
-    )
-    INSERT INTO vehicle_change (
-      run_id,
-      vin,
-      change_type,
-      payload,
-      payload_version,
-      created_at
-    )
-    SELECT
-      ${options.runId},
-      s.vin,
-      'upsert',
-      NULL,
-      1,
-      ${runTsMs}
-    FROM latest_snapshot s
-    LEFT JOIN vehicle v ON v.vin = s.vin
-    WHERE v.vin IS NULL
-      OR v.source IS NOT s.source
-      OR v.year IS NOT s.year
-      OR v.make IS NOT s.make
-      OR v.model IS NOT s.model
-      OR v.color IS NOT s.color
-      OR v.stock_number IS NOT s.stock_number
-      OR v.image_url IS NOT s.image_url
-      OR v.available_date IS NOT s.available_date
-      OR v.location_code IS NOT s.location_code
-      OR v.location_name IS NOT s.location_name
-      OR v.state IS NOT s.state
-      OR v.state_abbr IS NOT s.state_abbr
-      OR v.lat IS NOT s.lat
-      OR v.lng IS NOT s.lng
-      OR v.section IS NOT s.section
-      OR v.row IS NOT s.row
-      OR v.space IS NOT s.space
-      OR v.details_url IS NOT s.details_url
-      OR v.parts_url IS NOT s.parts_url
-      OR v.prices_url IS NOT s.prices_url
-      OR v.engine IS NOT s.engine
-      OR v.trim IS NOT s.trim
-      OR v.transmission IS NOT s.transmission
-      OR v.missing_since_at IS NOT NULL
-      OR COALESCE(v.missing_run_count, 0) != 0
-  `);
-
-  await db.run(sql`
-    WITH ranked_snapshot AS (
-      SELECT
-        vin,
-        source,
-        year,
-        make,
-        model,
-        color,
-        stock_number,
-        image_url,
-        available_date,
-        location_code,
-        location_name,
-        state,
-        state_abbr,
-        lat,
-        lng,
-        section,
-        row,
-        space,
-        details_url,
-        parts_url,
-        prices_url,
-        engine,
-        trim,
-        transmission,
-        ROW_NUMBER() OVER (
-          PARTITION BY vin
-          ORDER BY CASE source WHEN 'row52' THEN 0 ELSE 1 END
-        ) AS rn
-      FROM vehicle_snapshot
-      WHERE run_id = ${options.runId}
-        AND source IN (${healthySourcesSql})
-    )
-    INSERT INTO vehicle (
-      vin,
-      source,
-      year,
-      make,
-      model,
-      color,
-      stock_number,
-      image_url,
-      available_date,
-      location_code,
-      location_name,
-      state,
-      state_abbr,
-      lat,
-      lng,
-      section,
-      row,
-      space,
-      details_url,
-      parts_url,
-      prices_url,
-      engine,
-      trim,
-      transmission,
-      first_seen_at,
-      last_seen_at,
-      missing_since_at,
-      missing_run_count
-    )
-    SELECT
-      vin,
-      source,
-      year,
-      make,
-      model,
-      color,
-      stock_number,
-      image_url,
-      available_date,
-      location_code,
-      location_name,
-      state,
-      state_abbr,
-      lat,
-      lng,
-      section,
-      row,
-      space,
-      details_url,
-      parts_url,
-      prices_url,
-      engine,
-      trim,
-      transmission,
-      ${runTsMs},
-      ${runTsMs},
-      NULL,
-      0
-    FROM ranked_snapshot
-    WHERE rn = 1
-    ON CONFLICT(vin) DO UPDATE SET
-      source = excluded.source,
-      year = excluded.year,
-      make = excluded.make,
-      model = excluded.model,
-      color = excluded.color,
-      stock_number = excluded.stock_number,
-      image_url = excluded.image_url,
-      available_date = excluded.available_date,
-      location_code = excluded.location_code,
-      location_name = excluded.location_name,
-      state = excluded.state,
-      state_abbr = excluded.state_abbr,
-      lat = excluded.lat,
-      lng = excluded.lng,
-      section = excluded.section,
-      row = excluded.row,
-      space = excluded.space,
-      details_url = excluded.details_url,
-      parts_url = excluded.parts_url,
-      prices_url = excluded.prices_url,
-      engine = excluded.engine,
-      trim = excluded.trim,
-      transmission = excluded.transmission,
-      last_seen_at = excluded.last_seen_at,
-      missing_since_at = NULL,
-      missing_run_count = 0
-  `);
-
-  if (!options.allowAdvanceMissingState) {
+  if (!params.allowAdvanceMissingState) {
     return {
-      upsertedCount,
-      deletedCount: 0,
-      missingUpdatedCount: 0,
+      upsertedCount: params.finalInventoryByVin.size,
+      changedUpserts,
+      missingTransitions: [],
+      deleteVins: [],
       skippedMissingAdvance: true,
     };
   }
 
-  const deleteChangesResult = await db.run(sql`
-    INSERT INTO vehicle_change (
-      run_id,
-      vin,
-      change_type,
-      payload,
-      payload_version,
-      created_at
-    )
-    SELECT
-      ${options.runId},
-      vin,
-      'delete',
-      NULL,
-      1,
-      ${runTsMs}
-    FROM vehicle
-    WHERE last_seen_at < ${runTsMs}
-      AND (
-        COALESCE(missing_run_count, 0) + 1 >= ${options.missingDeleteAfterRuns}
-        OR COALESCE(missing_since_at, ${runTsMs}) <= ${missingSinceCutoffMs}
-      )
-  `);
-  const deletedCount = readRowsAffected(deleteChangesResult);
+  const missingSinceCutoffMs =
+    params.runTimestamp.getTime() - params.missingDeleteAfterMs;
+  const missingTransitions: MissingTransition[] = [];
+  const deleteVins: string[] = [];
 
-  const missingChangesResult = await db.run(sql`
-    INSERT INTO vehicle_change (
-      run_id,
-      vin,
-      change_type,
-      payload,
-      payload_version,
-      created_at
-    )
-    SELECT
-      ${options.runId},
-      vin,
-      'missing',
-      NULL,
-      1,
-      ${runTsMs}
-    FROM vehicle
-    WHERE last_seen_at < ${runTsMs}
-      AND NOT (
-        COALESCE(missing_run_count, 0) + 1 >= ${options.missingDeleteAfterRuns}
-        OR COALESCE(missing_since_at, ${runTsMs}) <= ${missingSinceCutoffMs}
-      )
-  `);
-  const missingUpdatedCount = readRowsAffected(missingChangesResult);
+  for (const existingVehicle of params.existingVehicles) {
+    if (params.finalInventoryByVin.has(existingVehicle.vin)) {
+      continue;
+    }
 
-  await db.run(sql`
-    UPDATE vehicle
-    SET missing_since_at = ${runTsMs}
-    WHERE last_seen_at < ${runTsMs}
-      AND missing_since_at IS NULL
-  `);
+    const missingSinceAt = existingVehicle.missingSinceAt ?? params.runTimestamp;
+    const missingRunCount = (existingVehicle.missingRunCount ?? 0) + 1;
+    const shouldDelete =
+      missingRunCount >= params.missingDeleteAfterRuns ||
+      missingSinceAt.getTime() <= missingSinceCutoffMs;
 
-  await db.run(sql`
-    UPDATE vehicle
-    SET missing_run_count = COALESCE(missing_run_count, 0) + 1
-    WHERE last_seen_at < ${runTsMs}
-  `);
+    if (shouldDelete) {
+      deleteVins.push(existingVehicle.vin);
+    }
 
-  await db.run(sql`
-    DELETE FROM vehicle
-    WHERE last_seen_at < ${runTsMs}
-      AND (
-        COALESCE(missing_run_count, 0) >= ${options.missingDeleteAfterRuns}
-        OR missing_since_at <= ${missingSinceCutoffMs}
-      )
-  `);
+    missingTransitions.push({
+      vin: existingVehicle.vin,
+      changeType: shouldDelete ? "delete" : "missing",
+      missingSinceAt,
+      missingRunCount,
+    });
+  }
 
   return {
-    upsertedCount,
-    deletedCount,
-    missingUpdatedCount,
+    upsertedCount: params.finalInventoryByVin.size,
+    changedUpserts,
+    missingTransitions,
+    deleteVins,
     skippedMissingAdvance: false,
+  };
+}
+
+function chunkValues<T>(values: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
+function toVehicleRow(params: {
+  vehicle: CanonicalVehicle;
+  firstSeenAt: Date;
+  runTimestamp: Date;
+}): typeof vehicle.$inferInsert {
+  return {
+    vin: params.vehicle.vin,
+    source: params.vehicle.source,
+    year: params.vehicle.year,
+    make: params.vehicle.make,
+    model: params.vehicle.model,
+    color: params.vehicle.color,
+    stockNumber: params.vehicle.stockNumber,
+    imageUrl: params.vehicle.imageUrl,
+    availableDate: params.vehicle.availableDate,
+    locationCode: params.vehicle.locationCode,
+    locationName: params.vehicle.locationName,
+    state: params.vehicle.state,
+    stateAbbr: params.vehicle.stateAbbr,
+    lat: params.vehicle.lat,
+    lng: params.vehicle.lng,
+    section: params.vehicle.section,
+    row: params.vehicle.row,
+    space: params.vehicle.space,
+    detailsUrl: params.vehicle.detailsUrl,
+    partsUrl: params.vehicle.partsUrl,
+    pricesUrl: params.vehicle.pricesUrl,
+    engine: params.vehicle.engine,
+    trim: params.vehicle.trim,
+    transmission: params.vehicle.transmission,
+    firstSeenAt: params.firstSeenAt,
+    lastSeenAt: params.runTimestamp,
+    missingSinceAt: null,
+    missingRunCount: 0,
+  };
+}
+
+async function insertVehicleChanges(
+  tx: DbTransaction,
+  rows: Array<typeof vehicleChange.$inferInsert>,
+): Promise<void> {
+  for (const chunk of chunkValues(rows, VEHICLE_CHANGE_CHUNK_SIZE)) {
+    await tx.insert(vehicleChange).values(chunk);
+  }
+}
+
+async function upsertVehicles(
+  tx: DbTransaction,
+  rows: Array<typeof vehicle.$inferInsert>,
+): Promise<void> {
+  for (const chunk of chunkValues(rows, VEHICLE_UPSERT_CHUNK_SIZE)) {
+    await tx
+      .insert(vehicle)
+      .values(chunk)
+      .onConflictDoUpdate({
+        target: vehicle.vin,
+        set: {
+          source: sql`excluded.source`,
+          year: sql`excluded.year`,
+          make: sql`excluded.make`,
+          model: sql`excluded.model`,
+          color: sql`excluded.color`,
+          stockNumber: sql`excluded.stock_number`,
+          imageUrl: sql`excluded.image_url`,
+          availableDate: sql`excluded.available_date`,
+          locationCode: sql`excluded.location_code`,
+          locationName: sql`excluded.location_name`,
+          state: sql`excluded.state`,
+          stateAbbr: sql`excluded.state_abbr`,
+          lat: sql`excluded.lat`,
+          lng: sql`excluded.lng`,
+          section: sql`excluded.section`,
+          row: sql`excluded.row`,
+          space: sql`excluded.space`,
+          detailsUrl: sql`excluded.details_url`,
+          partsUrl: sql`excluded.parts_url`,
+          pricesUrl: sql`excluded.prices_url`,
+          engine: sql`excluded.engine`,
+          trim: sql`excluded.trim`,
+          transmission: sql`excluded.transmission`,
+          lastSeenAt: sql`excluded.last_seen_at`,
+          missingSinceAt: null,
+          missingRunCount: 0,
+        },
+      });
+  }
+}
+
+async function updateMissingVehicles(
+  tx: DbTransaction,
+  missingTransitions: MissingTransition[],
+): Promise<void> {
+  for (const transition of missingTransitions) {
+    await tx
+      .update(vehicle)
+      .set({
+        missingSinceAt: transition.missingSinceAt,
+        missingRunCount: transition.missingRunCount,
+      })
+      .where(eq(vehicle.vin, transition.vin));
+  }
+}
+
+async function deleteVehiclesByVin(
+  tx: DbTransaction,
+  vins: string[],
+): Promise<void> {
+  for (const chunk of chunkValues(vins, VIN_DELETE_CHUNK_SIZE)) {
+    await tx.delete(vehicle).where(inArray(vehicle.vin, chunk));
+  }
+}
+
+export async function reconcileFromFinalInventory(
+  options: ReconcileOptions,
+): Promise<ReconcileResult> {
+  if (options.finalInventoryByVin.size === 0 && !options.allowAdvanceMissingState) {
+    return {
+      upsertedCount: 0,
+      deletedCount: 0,
+      missingUpdatedCount: 0,
+      skippedMissingAdvance: true,
+      timingsMs: {
+        readExistingMs: 0,
+        planMs: 0,
+        upsertWriteMs: 0,
+        missingWriteMs: 0,
+      },
+    };
+  }
+
+  const readExistingStartedAt = Date.now();
+  const existingVehicles = await db.select().from(vehicle);
+  const readExistingMs = Date.now() - readExistingStartedAt;
+
+  const planStartedAt = Date.now();
+  const plan = createReconcilePlan({
+    finalInventoryByVin: options.finalInventoryByVin,
+    existingVehicles,
+    runTimestamp: options.runTimestamp,
+    allowAdvanceMissingState: options.allowAdvanceMissingState,
+    missingDeleteAfterRuns: options.missingDeleteAfterRuns,
+    missingDeleteAfterMs: options.missingDeleteAfterMs,
+  });
+  const planMs = Date.now() - planStartedAt;
+
+  let upsertWriteMs = 0;
+  let missingWriteMs = 0;
+
+  await db.transaction(async (tx) => {
+    if (plan.changedUpserts.length > 0) {
+      const upsertWriteStartedAt = Date.now();
+
+      await insertVehicleChanges(
+        tx,
+        plan.changedUpserts.map((entry) => ({
+          runId: options.runId,
+          vin: entry.vehicle.vin,
+          changeType: "upsert",
+          payload: null,
+          payloadVersion: 1,
+          createdAt: options.runTimestamp,
+        })),
+      );
+
+      await upsertVehicles(
+        tx,
+        plan.changedUpserts.map((entry) =>
+          toVehicleRow({
+            vehicle: entry.vehicle,
+            firstSeenAt: entry.firstSeenAt,
+            runTimestamp: options.runTimestamp,
+          }),
+        ),
+      );
+
+      upsertWriteMs = Date.now() - upsertWriteStartedAt;
+    }
+
+    if (plan.missingTransitions.length > 0) {
+      const missingWriteStartedAt = Date.now();
+
+      await insertVehicleChanges(
+        tx,
+        plan.missingTransitions.map((transition) => ({
+          runId: options.runId,
+          vin: transition.vin,
+          changeType: transition.changeType,
+          payload: null,
+          payloadVersion: 1,
+          createdAt: options.runTimestamp,
+        })),
+      );
+
+      const missingOnly = plan.missingTransitions.filter(
+        (transition) => transition.changeType === "missing",
+      );
+      if (missingOnly.length > 0) {
+        await updateMissingVehicles(tx, missingOnly);
+      }
+
+      if (plan.deleteVins.length > 0) {
+        await deleteVehiclesByVin(tx, plan.deleteVins);
+      }
+
+      missingWriteMs = Date.now() - missingWriteStartedAt;
+    }
+  });
+
+  return {
+    upsertedCount: plan.upsertedCount,
+    deletedCount: plan.deleteVins.length,
+    missingUpdatedCount: plan.missingTransitions.filter(
+      (transition) => transition.changeType === "missing",
+    ).length,
+    skippedMissingAdvance: plan.skippedMissingAdvance,
+    timingsMs: {
+      readExistingMs,
+      planMs,
+      upsertWriteMs,
+      missingWriteMs,
+    },
   };
 }
