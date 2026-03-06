@@ -33,10 +33,10 @@ import type { CanonicalVehicle } from "./types";
  *
  * ## Session rotation
  *
- * Hyperbrowser caps sessions at 15 minutes. The full crawl usually fits in one
- * session (~11 min at ~4s/page), but server response times are unpredictable.
- * Session rotation at 12 minutes provides a safety net: `reopen()` closes the
- * current session, creates a fresh one, and resumes pagination from the last
+ * Hyperbrowser caps sessions at 15 minutes. The full crawl takes 30-50 minutes
+ * in practice (deep pages slow to 30-40s each), so multiple sessions are
+ * expected. Session rotation at 12 minutes: `reopen()` closes the current
+ * session, creates a fresh one, and resumes pagination from the last
  * successful page. Only one session is active at a time.
  */
 
@@ -47,10 +47,10 @@ const PAGE_SIZE = 500;
 
 /**
  * Must be 1. Under concurrent pagination (concurrency >= 2), PYP's server
- * degrades exponentially — individual page responses jump from ~4s to 30-60s
- * past page 30, making the full crawl take 2+ hours. Sequential requests stay
- * at a consistent ~4s/page even at page 140+, completing the full ~145-page
- * crawl in ~11 minutes.
+ * degrades even worse. Sequential requests are the lesser evil, though they
+ * still slow down significantly in deep pagination — early pages take ~5s,
+ * but pages 23+ can take 30-40s each in prod. A full ~145-page crawl
+ * typically takes 30-50 minutes across multiple Hyperbrowser sessions.
  *
  * This is a server-side bottleneck, not a client-side one.
  */
@@ -243,13 +243,19 @@ export async function streamPypInventoryToSink(options: {
         nextPage += pageNumbers.length;
 
         if (options.onProgress) {
-          await options.onProgress({
-            nextPage,
-            pagesProcessed,
-            vehiclesProcessed: totalCount,
-            done,
-            errors,
-          });
+          try {
+            await options.onProgress({
+              nextPage,
+              pagesProcessed,
+              vehiclesProcessed: totalCount,
+              done,
+              errors,
+            });
+          } catch (progressError) {
+            console.warn(
+              `[PYP] Progress update failed (non-fatal): ${progressError instanceof Error ? progressError.message : String(progressError)}`,
+            );
+          }
         }
       } catch (error) {
         const msg = `PYP page ${nextPage}: ${error instanceof Error ? error.message : String(error)}`;

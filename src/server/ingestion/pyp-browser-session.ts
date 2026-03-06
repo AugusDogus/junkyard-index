@@ -85,11 +85,11 @@ const SESSION_ROTATE_MS = 12 * 60 * 1000;
  *
  * ## Session rotation
  *
- * Hyperbrowser has a 15-minute max session duration. The full crawl at ~4s/page
- * takes ~11 minutes, so it usually fits in one session, but server response
- * times are unpredictable. `reopen()` closes the current session and opens a
+ * Hyperbrowser has a 15-minute max session duration. The full crawl takes
+ * 30-50 minutes in practice (deep pages slow to 30-40s each), so multiple
+ * sessions are expected. `reopen()` closes the current session and opens a
  * fresh one, preserving the cached location list so pagination resumes
- * seamlessly.
+ * from where it left off.
  *
  * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> optionally `reopen()` -> ... -> `close()`
  */
