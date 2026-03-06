@@ -34,6 +34,23 @@ const EMPTY_TIMINGS = {
 type SourceName = PipelineSourceName;
 type SourceOutcome = PipelineSourceOutcome;
 
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function logMemoryUsage(
+  stage: string,
+  details: Record<string, number | string>,
+): void {
+  const usage = process.memoryUsage();
+  const detailText = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  console.log(
+    `[Ingestion] Memory ${stage}: rss=${formatMegabytes(usage.rss)} heap_used=${formatMegabytes(usage.heapUsed)} heap_total=${formatMegabytes(usage.heapTotal)} external=${formatMegabytes(usage.external)} ${detailText}`.trim(),
+  );
+}
+
 function accumulateVehicles(
   target: Map<string, CanonicalVehicle>,
   vehicles: CanonicalVehicle[],
@@ -224,6 +241,11 @@ export async function runIngestionPipeline(): Promise<{
           errors: result.errors,
         });
 
+        logMemoryUsage("after_row52_fetch", {
+          row52Vins: row52ByVin.size,
+          pypVins: pypByVin.size,
+        });
+
         return {
           source: "row52",
           count: result.count,
@@ -273,6 +295,11 @@ export async function runIngestionPipeline(): Promise<{
           errors: result.errors,
         });
 
+        logMemoryUsage("after_pyp_fetch", {
+          row52Vins: row52ByVin.size,
+          pypVins: pypByVin.size,
+        });
+
         return {
           source: "pyp",
           count: result.count,
@@ -303,14 +330,24 @@ export async function runIngestionPipeline(): Promise<{
     const healthySources = determineHealthySources(sourceOutcomes);
     const reconcileTimestamp = new Date();
 
+    logMemoryUsage("before_inventory_finalization", {
+      row52Vins: row52ByVin.size,
+      pypVins: pypByVin.size,
+      healthySources: healthySources.join(",") || "none",
+    });
+
     const finalInventoryByVin = buildFinalInventoryByVin({
       healthySources,
       row52ByVin,
       pypByVin,
     });
     const finalizedInventoryCount = finalInventoryByVin.size;
-    row52ByVin.clear();
-    pypByVin.clear();
+
+    logMemoryUsage("after_inventory_finalization", {
+      finalVins: finalizedInventoryCount,
+      row52Vins: row52ByVin.size,
+      pypVins: pypByVin.size,
+    });
 
     const reconcileResult = await reconcileFromFinalInventory({
       runId,

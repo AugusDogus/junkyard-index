@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { vehicle, vehicleChange } from "~/schema";
 import type { CanonicalVehicle } from "./types";
@@ -10,6 +10,8 @@ type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const VEHICLE_UPSERT_CHUNK_SIZE = 500;
 const VEHICLE_CHANGE_CHUNK_SIZE = 1_000;
 const VIN_DELETE_CHUNK_SIZE = 500;
+const EXISTING_VEHICLE_LOOKUP_CHUNK_SIZE = 1_000;
+const MISSING_SCAN_CHUNK_SIZE = 5_000;
 
 interface ReconcileOptions {
   runId: string;
@@ -45,6 +47,12 @@ interface MissingTransition {
   missingRunCount: number;
 }
 
+interface MissingStateRow {
+  vin: string;
+  missingSinceAt: Date | null;
+  missingRunCount: number | null;
+}
+
 interface ReconcilePlan {
   upsertedCount: number;
   changedUpserts: PlannedVehicleUpsert[];
@@ -55,24 +63,38 @@ interface ReconcilePlan {
 
 export function buildFinalInventoryByVin(params: {
   healthySources: SourceName[];
-  row52ByVin: ReadonlyMap<string, CanonicalVehicle>;
-  pypByVin: ReadonlyMap<string, CanonicalVehicle>;
+  row52ByVin: Map<string, CanonicalVehicle>;
+  pypByVin: Map<string, CanonicalVehicle>;
 }): Map<string, CanonicalVehicle> {
-  const finalInventory = new Map<string, CanonicalVehicle>();
+  const row52Healthy = params.healthySources.includes("row52");
+  const pypHealthy = params.healthySources.includes("pyp");
 
-  if (params.healthySources.includes("pyp")) {
+  if (row52Healthy && pypHealthy) {
+    // Keep the larger Row52 map as the working set so we avoid allocating a
+    // third VIN map and also minimize merge churn. Row52 still wins on shared
+    // VINs by only filling holes from PYP.
     for (const [vin, vehicle] of params.pypByVin) {
-      finalInventory.set(vin, vehicle);
+      if (!params.row52ByVin.has(vin)) {
+        params.row52ByVin.set(vin, vehicle);
+      }
     }
+    params.pypByVin.clear();
+    return params.row52ByVin;
   }
 
-  if (params.healthySources.includes("row52")) {
-    for (const [vin, vehicle] of params.row52ByVin) {
-      finalInventory.set(vin, vehicle);
-    }
+  if (row52Healthy) {
+    params.pypByVin.clear();
+    return params.row52ByVin;
   }
 
-  return finalInventory;
+  if (pypHealthy) {
+    params.row52ByVin.clear();
+    return params.pypByVin;
+  }
+
+  params.row52ByVin.clear();
+  params.pypByVin.clear();
+  return new Map<string, CanonicalVehicle>();
 }
 
 function vehicleNeedsUpsert(
@@ -193,6 +215,177 @@ function chunkValues<T>(values: T[], chunkSize: number): T[][] {
   }
 
   return chunks;
+}
+
+function* chunkMapEntries<K, V>(
+  values: ReadonlyMap<K, V>,
+  chunkSize: number,
+): Generator<Array<[K, V]>> {
+  let chunk: Array<[K, V]> = [];
+
+  for (const entry of values) {
+    chunk.push(entry);
+    if (chunk.length >= chunkSize) {
+      yield chunk;
+      chunk = [];
+    }
+  }
+
+  if (chunk.length > 0) {
+    yield chunk;
+  }
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function logReconcileMemory(
+  stage: string,
+  details: Record<string, number | string>,
+): void {
+  const usage = process.memoryUsage();
+  const detailText = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  console.log(
+    `[Ingestion] Memory ${stage}: rss=${formatMegabytes(usage.rss)} heap_used=${formatMegabytes(usage.heapUsed)} heap_total=${formatMegabytes(usage.heapTotal)} external=${formatMegabytes(usage.external)} ${detailText}`.trim(),
+  );
+}
+
+async function collectChangedUpserts(params: {
+  finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
+  runTimestamp: Date;
+}): Promise<{
+  changedUpserts: PlannedVehicleUpsert[];
+  readExistingMs: number;
+  planMs: number;
+}> {
+  const changedUpserts: PlannedVehicleUpsert[] = [];
+  let readExistingMs = 0;
+  let planMs = 0;
+
+  for (const chunk of chunkMapEntries(
+    params.finalInventoryByVin,
+    EXISTING_VEHICLE_LOOKUP_CHUNK_SIZE,
+  )) {
+    const vins = chunk.map(([vin]) => vin);
+
+    const readStartedAt = Date.now();
+    const existingRows = await db
+      .select()
+      .from(vehicle)
+      .where(inArray(vehicle.vin, vins));
+    readExistingMs += Date.now() - readStartedAt;
+
+    const planStartedAt = Date.now();
+    const existingByVin = new Map<string, ExistingVehicleRow>();
+    for (const existingVehicle of existingRows) {
+      existingByVin.set(existingVehicle.vin, existingVehicle);
+    }
+
+    for (const [vin, nextVehicle] of chunk) {
+      const existingVehicle = existingByVin.get(vin);
+      if (!vehicleNeedsUpsert(existingVehicle, nextVehicle)) {
+        continue;
+      }
+
+      changedUpserts.push({
+        vehicle: nextVehicle,
+        firstSeenAt: existingVehicle?.firstSeenAt ?? params.runTimestamp,
+      });
+    }
+    planMs += Date.now() - planStartedAt;
+  }
+
+  return {
+    changedUpserts,
+    readExistingMs,
+    planMs,
+  };
+}
+
+async function collectMissingTransitions(params: {
+  finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
+  runTimestamp: Date;
+  missingDeleteAfterRuns: number;
+  missingDeleteAfterMs: number;
+}): Promise<{
+  missingTransitions: MissingTransition[];
+  deleteVins: string[];
+  readExistingMs: number;
+  planMs: number;
+}> {
+  const missingSinceCutoffMs =
+    params.runTimestamp.getTime() - params.missingDeleteAfterMs;
+  const missingTransitions: MissingTransition[] = [];
+  const deleteVins: string[] = [];
+  let readExistingMs = 0;
+  let planMs = 0;
+  let lastVin: string | null = null;
+
+  while (true) {
+    const readStartedAt = Date.now();
+    const rows: MissingStateRow[] =
+      lastVin === null
+        ? await db
+            .select({
+              vin: vehicle.vin,
+              missingSinceAt: vehicle.missingSinceAt,
+              missingRunCount: vehicle.missingRunCount,
+            })
+            .from(vehicle)
+            .orderBy(asc(vehicle.vin))
+            .limit(MISSING_SCAN_CHUNK_SIZE)
+        : await db
+            .select({
+              vin: vehicle.vin,
+              missingSinceAt: vehicle.missingSinceAt,
+              missingRunCount: vehicle.missingRunCount,
+            })
+            .from(vehicle)
+            .where(gt(vehicle.vin, lastVin))
+            .orderBy(asc(vehicle.vin))
+            .limit(MISSING_SCAN_CHUNK_SIZE);
+    readExistingMs += Date.now() - readStartedAt;
+
+    if (rows.length === 0) {
+      break;
+    }
+
+    const planStartedAt = Date.now();
+    for (const existingVehicle of rows) {
+      if (params.finalInventoryByVin.has(existingVehicle.vin)) {
+        continue;
+      }
+
+      const missingSinceAt = existingVehicle.missingSinceAt ?? params.runTimestamp;
+      const missingRunCount = (existingVehicle.missingRunCount ?? 0) + 1;
+      const shouldDelete =
+        missingRunCount >= params.missingDeleteAfterRuns ||
+        missingSinceAt.getTime() <= missingSinceCutoffMs;
+
+      if (shouldDelete) {
+        deleteVins.push(existingVehicle.vin);
+      }
+
+      missingTransitions.push({
+        vin: existingVehicle.vin,
+        changeType: shouldDelete ? "delete" : "missing",
+        missingSinceAt,
+        missingRunCount,
+      });
+    }
+    planMs += Date.now() - planStartedAt;
+    lastVin = rows[rows.length - 1]?.vin ?? null;
+  }
+
+  return {
+    missingTransitions,
+    deleteVins,
+    readExistingMs,
+    planMs,
+  };
 }
 
 function toVehicleRow(params: {
@@ -325,31 +518,54 @@ export async function reconcileFromFinalInventory(
     };
   }
 
-  const readExistingStartedAt = Date.now();
-  const existingVehicles = await db.select().from(vehicle);
-  const readExistingMs = Date.now() - readExistingStartedAt;
-
-  const planStartedAt = Date.now();
-  const plan = createReconcilePlan({
-    finalInventoryByVin: options.finalInventoryByVin,
-    existingVehicles,
-    runTimestamp: options.runTimestamp,
-    allowAdvanceMissingState: options.allowAdvanceMissingState,
-    missingDeleteAfterRuns: options.missingDeleteAfterRuns,
-    missingDeleteAfterMs: options.missingDeleteAfterMs,
+  logReconcileMemory("before_reconcile_reads", {
+    finalVins: options.finalInventoryByVin.size,
   });
-  const planMs = Date.now() - planStartedAt;
+
+  const changedUpsertsResult = await collectChangedUpserts({
+    finalInventoryByVin: options.finalInventoryByVin,
+    runTimestamp: options.runTimestamp,
+  });
+  let readExistingMs = changedUpsertsResult.readExistingMs;
+  let planMs = changedUpsertsResult.planMs;
+
+  logReconcileMemory("after_upsert_planning", {
+    changedUpserts: changedUpsertsResult.changedUpserts.length,
+  });
+
+  let missingTransitions: MissingTransition[] = [];
+  let deleteVins: string[] = [];
+  let skippedMissingAdvance = false;
+
+  if (options.allowAdvanceMissingState) {
+    const missingResult = await collectMissingTransitions({
+      finalInventoryByVin: options.finalInventoryByVin,
+      runTimestamp: options.runTimestamp,
+      missingDeleteAfterRuns: options.missingDeleteAfterRuns,
+      missingDeleteAfterMs: options.missingDeleteAfterMs,
+    });
+    missingTransitions = missingResult.missingTransitions;
+    deleteVins = missingResult.deleteVins;
+    readExistingMs += missingResult.readExistingMs;
+    planMs += missingResult.planMs;
+    logReconcileMemory("after_missing_scan", {
+      missingTransitions: missingTransitions.length,
+      deleteVins: deleteVins.length,
+    });
+  } else {
+    skippedMissingAdvance = true;
+  }
 
   let upsertWriteMs = 0;
   let missingWriteMs = 0;
 
   await db.transaction(async (tx) => {
-    if (plan.changedUpserts.length > 0) {
+    if (changedUpsertsResult.changedUpserts.length > 0) {
       const upsertWriteStartedAt = Date.now();
 
       await insertVehicleChanges(
         tx,
-        plan.changedUpserts.map((entry) => ({
+        changedUpsertsResult.changedUpserts.map((entry) => ({
           runId: options.runId,
           vin: entry.vehicle.vin,
           changeType: "upsert",
@@ -361,7 +577,7 @@ export async function reconcileFromFinalInventory(
 
       await upsertVehicles(
         tx,
-        plan.changedUpserts.map((entry) =>
+        changedUpsertsResult.changedUpserts.map((entry) =>
           toVehicleRow({
             vehicle: entry.vehicle,
             firstSeenAt: entry.firstSeenAt,
@@ -373,12 +589,12 @@ export async function reconcileFromFinalInventory(
       upsertWriteMs = Date.now() - upsertWriteStartedAt;
     }
 
-    if (plan.missingTransitions.length > 0) {
+    if (missingTransitions.length > 0) {
       const missingWriteStartedAt = Date.now();
 
       await insertVehicleChanges(
         tx,
-        plan.missingTransitions.map((transition) => ({
+        missingTransitions.map((transition) => ({
           runId: options.runId,
           vin: transition.vin,
           changeType: transition.changeType,
@@ -388,15 +604,15 @@ export async function reconcileFromFinalInventory(
         })),
       );
 
-      const missingOnly = plan.missingTransitions.filter(
+      const missingOnly = missingTransitions.filter(
         (transition) => transition.changeType === "missing",
       );
       if (missingOnly.length > 0) {
         await updateMissingVehicles(tx, missingOnly);
       }
 
-      if (plan.deleteVins.length > 0) {
-        await deleteVehiclesByVin(tx, plan.deleteVins);
+      if (deleteVins.length > 0) {
+        await deleteVehiclesByVin(tx, deleteVins);
       }
 
       missingWriteMs = Date.now() - missingWriteStartedAt;
@@ -404,12 +620,12 @@ export async function reconcileFromFinalInventory(
   });
 
   return {
-    upsertedCount: plan.upsertedCount,
-    deletedCount: plan.deleteVins.length,
-    missingUpdatedCount: plan.missingTransitions.filter(
+    upsertedCount: options.finalInventoryByVin.size,
+    deletedCount: deleteVins.length,
+    missingUpdatedCount: missingTransitions.filter(
       (transition) => transition.changeType === "missing",
     ).length,
-    skippedMissingAdvance: plan.skippedMissingAdvance,
+    skippedMissingAdvance,
     timingsMs: {
       readExistingMs,
       planMs,
