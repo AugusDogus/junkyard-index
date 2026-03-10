@@ -17,7 +17,7 @@ import {
 import { useIsMobile } from "~/hooks/use-media-query";
 
 export interface HeaderStatusData {
-  aggregateStatus: "operational" | "degraded" | "down";
+  aggregateStatus: "operational" | "in_progress" | "degraded" | "down";
   message: string;
   affected: string;
   statusPageUrl: string | null;
@@ -50,7 +50,9 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
 
   if (data.aggregateStatus === "operational") return null;
 
-  const isDegraded = data.aggregateStatus === "degraded";
+  const isDegraded =
+    data.aggregateStatus === "degraded" ||
+    data.aggregateStatus === "in_progress";
   const colorClass = isDegraded
     ? "text-amber-500 dark:text-amber-400"
     : "text-red-500 dark:text-red-400";

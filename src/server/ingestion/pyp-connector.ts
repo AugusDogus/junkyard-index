@@ -237,6 +237,7 @@ export function streamPypInventory<E, R>(options: {
       }
 
       if (result.isLastPage) {
+        nextPage += 1;
         done = true;
         yield* notifyProgress(options.onProgress, {
           nextPage,

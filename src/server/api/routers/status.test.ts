@@ -4,11 +4,12 @@ import {
   parseErrors,
   worstStatus,
   type IngestionStatus,
-} from "./status";
+} from "./status-utils";
 
 describe("status helpers", () => {
   test("maps source run statuses to public ingestion statuses", () => {
     expect(mapRunStatus("success")).toBe("operational");
+    expect(mapRunStatus("running")).toBe("in_progress");
     expect(mapRunStatus("partial")).toBe("degraded");
     expect(mapRunStatus("error")).toBe("down");
     expect(mapRunStatus("unexpected")).toBe("down");

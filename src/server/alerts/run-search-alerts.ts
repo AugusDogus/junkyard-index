@@ -103,11 +103,11 @@ export function buildAlertResultStatus(params: {
   canAdvanceLastCheckedAt: boolean;
 }): string {
   const statusParts: string[] = [];
+  if (params.errors.length > 0) {
+    statusParts.push(`error: ${params.errors.join("; ")}`);
+  }
   if (params.emailSent) statusParts.push("email_sent");
   if (params.discordSent) statusParts.push("discord_sent");
-  if (params.errors.length > 0) {
-    statusParts.push(`errors: ${params.errors.join("; ")}`);
-  }
   if (statusParts.length === 0) statusParts.push("no_notifications_sent");
   if (!params.canAdvanceLastCheckedAt) {
     statusParts.push("last_checked_not_advanced");

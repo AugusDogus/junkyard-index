@@ -435,33 +435,44 @@ export function streamRow52Inventory<E, R>(options: {
             { concurrency: PAGE_FETCH_CONCURRENCY },
           );
 
+          const failedResults = pageResults.filter(
+            (
+              result,
+            ): result is { ok: false; skip: number; error: Error } => !result.ok,
+          );
+          const firstFailedSkip =
+            failedResults.length > 0
+              ? Math.min(...failedResults.map((result) => result.skip))
+              : null;
+          for (const result of failedResults) {
+            const msg = `Row52 page at skip=${result.skip}: ${result.error.message}`;
+            yield* Effect.logError(msg);
+            errors.push(msg);
+          }
+          if (firstFailedSkip !== null) {
+            stopPaging = true;
+          }
+
           const successfulPages = pageResults
             .filter(
               (
-                r,
-              ): r is {
+                result,
+              ): result is {
                 ok: true;
                 skip: number;
                 page: Row52VehiclesPage;
-              } => r.ok,
+              } => result.ok,
             )
-            .map((r) => r.page)
-            .sort((a, b) => a.skip - b.skip);
+            .sort((left, right) => left.skip - right.skip);
 
-          for (const page of successfulPages) {
-            yield* processPage(page);
-            if (page.vehicles.length < PAGE_SIZE) {
-              stopPaging = true;
+          for (const result of successfulPages) {
+            if (firstFailedSkip !== null && result.skip >= firstFailedSkip) {
               break;
             }
-          }
-
-          for (const result of pageResults) {
-            if (!result.ok) {
-              const msg = `Row52 page at skip=${result.skip}: ${result.error.message}`;
-              yield* Effect.logError(msg);
-              errors.push(msg);
+            yield* processPage(result.page);
+            if (result.page.vehicles.length < PAGE_SIZE) {
               stopPaging = true;
+              break;
             }
           }
 

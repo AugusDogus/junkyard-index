@@ -206,6 +206,7 @@ function openSession(
     };
 
     yield* doOpen(state).pipe(
+      Effect.tapError(() => doClose(state).pipe(Effect.catchAll(() => Effect.void))),
       Effect.mapError((cause) => new BrowserSessionError({ phase: "open", cause })),
     );
 
@@ -342,7 +343,13 @@ function doFetchFilterPage(
       );
     }
 
-    return decodePypFilterResponse(result.data);
+    const decoded = yield* Effect.try({
+      try: () => decodePypFilterResponse(result.data),
+      catch: (cause) =>
+        cause instanceof Error ? cause : new Error(String(cause)),
+    });
+
+    return decoded;
   });
 }
 
