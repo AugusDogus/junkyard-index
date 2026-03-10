@@ -13,9 +13,9 @@ const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
   row52: "Row52",
 };
 
-type IngestionStatus = "operational" | "degraded" | "down";
+export type IngestionStatus = "operational" | "degraded" | "down";
 
-function mapRunStatus(status: string): IngestionStatus {
+export function mapRunStatus(status: string): IngestionStatus {
   switch (status) {
     case "success":
       return "operational";
@@ -34,7 +34,7 @@ const STATUS_SEVERITY: Record<IngestionStatus, number> = {
   down: 2,
 };
 
-function worstStatus(statuses: IngestionStatus[]): IngestionStatus {
+export function worstStatus(statuses: IngestionStatus[]): IngestionStatus {
   let worst: IngestionStatus = "operational";
   for (const s of statuses) {
     if (STATUS_SEVERITY[s] > STATUS_SEVERITY[worst]) {
@@ -44,7 +44,7 @@ function worstStatus(statuses: IngestionStatus[]): IngestionStatus {
   return worst;
 }
 
-function parseErrors(errorsJson: string | null): string[] | null {
+export function parseErrors(errorsJson: string | null): string[] | null {
   if (!errorsJson) return null;
   try {
     const parsed: unknown = JSON.parse(errorsJson);

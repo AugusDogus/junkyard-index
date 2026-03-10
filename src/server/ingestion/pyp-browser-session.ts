@@ -1,13 +1,16 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from "playwright-core";
+import { Effect, Scope } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
 import type { PypVehicleJson } from "./pyp-transform";
+import { BrowserSessionError } from "./errors";
 
-/**
- * PYP /api/Inventory/Filter response shape.
- * Duplicated from pyp-connector so the browser session module is self-contained.
- */
 export interface PypFilterResponse {
   Success: boolean;
   Errors: string[];
@@ -24,9 +27,6 @@ export interface PypFilterResponse {
   Messages: string[];
 }
 
-/**
- * Raw shape of a location object embedded in pyp.com's `_locationList` global.
- */
 interface PypRawLocation {
   LocationCode: string;
   LocationPageURL: string;
@@ -59,170 +59,199 @@ interface PypRawLocation {
 }
 
 /**
- * Hyperbrowser caps sessions at 15 min. We rotate at 12 min to leave headroom
- * for session setup (~5-10s) and any in-flight request that might be slow.
+ * Hyperbrowser caps sessions at 15 min. Rotate at 12 min to leave headroom.
  */
 const SESSION_ROTATE_MS = 12 * 60 * 1000;
 
-/**
- * Manages a remote Hyperbrowser session for PYP scraping.
- *
- * ## Why a managed cloud browser?
- *
- * PYP's Cloudflare protection detects headless browsers and rejects requests
- * based on unknown signals (likely TLS fingerprinting, JA3 hashes, or browser
- * attestation). Even headed Playwright in Trigger.dev's container (via Xvfb)
- * was unreliable across deploys. A managed cloud browser with stealth mode
- * handles this reliably.
- *
- * ## Why page.evaluate(fetch(...)) instead of extracting cookies?
- *
- * Extracting cookies from the browser and replaying them with Node `fetch()`
- * still gets blocked by Cloudflare — likely because the detection goes beyond
- * cookies (TLS fingerprint, JA3 hash, browser attestation, etc.). The only
- * reliable approach we've found is executing fetch() from within the browser's
- * page context so every request inherits the browser's full network stack.
- *
- * ## Session rotation
- *
- * Hyperbrowser has a 15-minute max session duration. The full crawl takes
- * 30-50 minutes in practice (deep pages slow to 30-40s each), so multiple
- * sessions are expected. `reopen()` closes the current session and opens a
- * fresh one, preserving the cached location list so pagination resumes
- * from where it left off.
- *
- * Lifecycle: `open()` -> `fetchFilterPage()` (N times) -> optionally `reopen()` -> ... -> `close()`
- */
-export class PypBrowserSession {
-  private client: Hyperbrowser | null = null;
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private page: Page | null = null;
-  private sessionId: string | null = null;
-  private csrfToken: string | null = null;
-  private _locations: Location[] = [];
-  private sessionStartedAt = 0;
-
-  get locations(): Location[] {
-    return this._locations;
-  }
-
-  get shouldRotate(): boolean {
-    if (this.sessionStartedAt === 0) return false;
-    return Date.now() - this.sessionStartedAt > SESSION_ROTATE_MS;
-  }
-
-  async open(): Promise<void> {
-    const apiKey = process.env.HYPERBROWSER_API_KEY;
-    if (!apiKey) {
-      throw new Error("HYPERBROWSER_API_KEY must be set");
-    }
-
-    this.client = new Hyperbrowser({ apiKey });
-    const session = await this.client.sessions.create({
-      useStealth: true,
-      acceptCookies: true,
-    });
-    this.sessionId = session.id;
-    this.sessionStartedAt = Date.now();
-
-    this.browser = await chromium.connectOverCDP(session.wsEndpoint);
-
-    this.context = this.browser.contexts()[0] ?? await this.browser.newContext();
-    this.page = this.context.pages()[0] ?? await this.context.newPage();
-
-    await this.page.goto(
-      `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-      { waitUntil: "networkidle", timeout: 60_000 },
-    );
-
-    this.csrfToken = await this.page.evaluate(
-      () =>
-        (
-          document.querySelector(
-            '[name=__RequestVerificationToken]',
-          ) as HTMLInputElement | null
-        )?.value ?? null,
-    );
-    if (!this.csrfToken) {
-      throw new Error("Could not extract RequestVerificationToken from PYP page");
-    }
-
-    const rawLocations: PypRawLocation[] = await this.page.evaluate(
-      // @ts-expect-error -- _locationList is a global injected by pyp.com
-      () => (typeof _locationList !== "undefined" ? _locationList : []),
-    );
-    this._locations = rawLocations.map(mapRawLocation);
-  }
-
-  /**
-   * Close the current session and open a fresh one.
-   * Preserves the cached location list so the caller can continue pagination
-   * without re-extracting locations.
-   */
-  async reopen(): Promise<void> {
-    const cachedLocations = this._locations;
-    await this.close();
-    await this.open();
-    if (cachedLocations.length > 0 && this._locations.length === 0) {
-      this._locations = cachedLocations;
-    }
-  }
-
-  /**
-   * Call the PYP Filter API from within the browser page context.
-   * The request inherits the browser's Cloudflare clearance and network stack.
-   */
-  async fetchFilterPage(
+export interface PypSession {
+  readonly locations: Location[];
+  readonly shouldRotate: boolean;
+  fetchFilterPage(
     storeCodes: string,
     pageNumber: number,
     pageSize: number,
-  ): Promise<PypFilterResponse> {
-    if (!this.page || !this.csrfToken) {
-      throw new Error("PypBrowserSession not open — call open() first");
-    }
+  ): Effect.Effect<PypFilterResponse, BrowserSessionError>;
+  reopen(): Effect.Effect<void, BrowserSessionError>;
+}
 
-    const path = `${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${pageNumber}&pageSize=${pageSize}`;
-    const token = this.csrfToken;
+/**
+ * Acquire a managed PYP browser session.
+ * The session is automatically closed when the surrounding Scope finalizes,
+ * even on failure or interruption.
+ */
+export function acquirePypSession(
+  apiKey: string,
+): Effect.Effect<PypSession, BrowserSessionError, Scope.Scope> {
+  return Effect.acquireRelease(
+    openSession(apiKey),
+    (session) =>
+      Effect.sync(() => {
+        session._close();
+      }),
+  );
+}
 
-    const result = await this.page.evaluate(
-      async ({ path, token }: { path: string; token: string }) => {
-        const res = await fetch(path, {
-          headers: {
-            Accept: "application/json",
-            RequestVerificationToken: token,
-            "X-Requested-With": "XMLHttpRequest",
-          },
-        });
-        if (!res.ok) {
-          return { _error: true as const, status: res.status };
-        }
-        return { _error: false as const, data: await res.json() };
-      },
-      { path, token },
+interface MutableSessionState {
+  client: Hyperbrowser;
+  browser: Browser | null;
+  context: BrowserContext | null;
+  page: Page | null;
+  sessionId: string | null;
+  csrfToken: string | null;
+  locations: Location[];
+  sessionStartedAt: number;
+  apiKey: string;
+}
+
+function openSession(
+  apiKey: string,
+): Effect.Effect<PypSession & { _close: () => void }, BrowserSessionError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const state: MutableSessionState = {
+        client: new Hyperbrowser({ apiKey }),
+        browser: null,
+        context: null,
+        page: null,
+        sessionId: null,
+        csrfToken: null,
+        locations: [],
+        sessionStartedAt: 0,
+        apiKey,
+      };
+
+      await doOpen(state);
+
+      const session: PypSession & { _close: () => void } = {
+        get locations() {
+          return state.locations;
+        },
+        get shouldRotate() {
+          if (state.sessionStartedAt === 0) return false;
+          return Date.now() - state.sessionStartedAt > SESSION_ROTATE_MS;
+        },
+        fetchFilterPage: (storeCodes, pageNumber, pageSize) =>
+          Effect.tryPromise({
+            try: () => doFetchFilterPage(state, storeCodes, pageNumber, pageSize),
+            catch: (cause) =>
+              new BrowserSessionError({ phase: "fetch", cause }),
+          }),
+        reopen: () =>
+          Effect.tryPromise({
+            try: async () => {
+              const cachedLocations = state.locations;
+              await doClose(state);
+              await doOpen(state);
+              if (cachedLocations.length > 0 && state.locations.length === 0) {
+                state.locations = cachedLocations;
+              }
+            },
+            catch: (cause) =>
+              new BrowserSessionError({ phase: "rotate", cause }),
+          }),
+        _close: () => {
+          doClose(state).catch(() => {});
+        },
+      };
+
+      return session;
+    },
+    catch: (cause) => new BrowserSessionError({ phase: "open", cause }),
+  });
+}
+
+async function doOpen(state: MutableSessionState): Promise<void> {
+  const session = await state.client.sessions.create({
+    useStealth: true,
+    acceptCookies: true,
+  });
+  state.sessionId = session.id;
+  state.sessionStartedAt = Date.now();
+
+  state.browser = await chromium.connectOverCDP(session.wsEndpoint);
+  state.context =
+    state.browser.contexts()[0] ?? (await state.browser.newContext());
+  state.page =
+    state.context.pages()[0] ?? (await state.context.newPage());
+
+  await state.page.goto(
+    `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
+    { waitUntil: "networkidle", timeout: 60_000 },
+  );
+
+  state.csrfToken = await state.page.evaluate(
+    () =>
+      (
+        document.querySelector(
+          "[name=__RequestVerificationToken]",
+        ) as HTMLInputElement | null
+      )?.value ?? null,
+  );
+  if (!state.csrfToken) {
+    throw new Error(
+      "Could not extract RequestVerificationToken from PYP page",
     );
-
-    if (result._error) {
-      throw new Error(`PYP Filter API returned ${result.status}`);
-    }
-
-    return result.data as PypFilterResponse;
   }
 
-  async close(): Promise<void> {
-    await this.page?.close().catch(() => {});
-    await this.context?.close().catch(() => {});
-    await this.browser?.close().catch(() => {});
-    this.page = null;
-    this.context = null;
-    this.browser = null;
-    this.sessionStartedAt = 0;
+  const rawLocations: PypRawLocation[] = await state.page.evaluate(
+    // @ts-expect-error -- _locationList is a global injected by pyp.com
+    () => (typeof _locationList !== "undefined" ? _locationList : []),
+  );
+  state.locations = rawLocations.map(mapRawLocation);
+}
 
-    if (this.sessionId && this.client) {
-      console.log(`[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${this.sessionId}`);
-      await this.client.sessions.stop(this.sessionId).catch(() => {});
-      this.sessionId = null;
-    }
+async function doFetchFilterPage(
+  state: MutableSessionState,
+  storeCodes: string,
+  pageNumber: number,
+  pageSize: number,
+): Promise<PypFilterResponse> {
+  if (!state.page || !state.csrfToken) {
+    throw new Error("PypBrowserSession not open — call open() first");
+  }
+
+  const path = `${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${pageNumber}&pageSize=${pageSize}`;
+  const token = state.csrfToken;
+
+  const result = await state.page.evaluate(
+    async ({ path, token }: { path: string; token: string }) => {
+      const res = await fetch(path, {
+        headers: {
+          Accept: "application/json",
+          RequestVerificationToken: token,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      if (!res.ok) {
+        return { _error: true as const, status: res.status };
+      }
+      return { _error: false as const, data: await res.json() };
+    },
+    { path, token },
+  );
+
+  if (result._error) {
+    throw new Error(`PYP Filter API returned ${result.status}`);
+  }
+
+  return result.data as PypFilterResponse;
+}
+
+async function doClose(state: MutableSessionState): Promise<void> {
+  await state.page?.close().catch(() => {});
+  await state.context?.close().catch(() => {});
+  await state.browser?.close().catch(() => {});
+  state.page = null;
+  state.context = null;
+  state.browser = null;
+  state.sessionStartedAt = 0;
+
+  if (state.sessionId && state.client) {
+    console.log(
+      `[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${state.sessionId}`,
+    );
+    await state.client.sessions.stop(state.sessionId).catch(() => {});
+    state.sessionId = null;
   }
 }
 
@@ -259,3 +288,4 @@ function mapRawLocation(raw: PypRawLocation): Location {
     },
   };
 }
+

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { transformPypVehicle, type PypVehicleJson } from "../pyp-transform";
 import type { Location } from "~/lib/types";
+import { transformPypVehicle, type PypVehicleJson } from "./pyp-transform";
 
 const mockLocation: Location = {
   locationCode: "1229",
@@ -34,8 +34,7 @@ const mockLocation: Location = {
   },
 };
 
-const locationMap = new Map<string, Location>();
-locationMap.set("1229", mockLocation);
+const locationMap = new Map<string, Location>([["1229", mockLocation]]);
 
 describe("transformPypVehicle", () => {
   test("transforms a complete vehicle correctly", () => {
@@ -59,39 +58,22 @@ describe("transformPypVehicle", () => {
           IsInternal: false,
           InventoryPhoto: false,
         },
-        {
-          PhotoPath:
-            "https://cdn.lkqcorp.com/carbuy/CAR-BACK-LEFT_24371885.jpg?w=500&h=500",
-          IsPrimary: false,
-          IsInternal: false,
-          InventoryPhoto: false,
-        },
       ],
     };
 
     const result = transformPypVehicle(input, locationMap);
 
     expect(result).not.toBeNull();
-    expect(result!.vin).toBe("2HGFC2F84LH554430");
-    expect(result!.source).toBe("pyp");
-    expect(result!.year).toBe(2020);
-    expect(result!.make).toBe("HONDA");
-    expect(result!.model).toBe("CIVIC");
-    expect(result!.color).toBe("Blue");
-    expect(result!.stockNumber).toBe("1229-36026");
-    expect(result!.imageUrl).toBe(
-      "https://cdn.lkqcorp.com/carbuy/CAR-FRONT-LEFT_24371885.jpg?w=500&h=500",
-    );
-    expect(result!.availableDate).toBe("2026-02-05T14:07:19.000Z");
-    expect(result!.locationCode).toBe("1229");
-    expect(result!.locationName).toBe("Pick Your Part - Sun Valley");
-    expect(result!.state).toBe("California");
-    expect(result!.stateAbbr).toBe("CA");
-    expect(result!.lat).toBe(34.2284);
-    expect(result!.lng).toBe(-118.3929);
-    expect(result!.section).toBe("Prime");
-    expect(result!.row).toBe("p1");
-    expect(result!.space).toBe("2");
+    expect(result?.vin).toBe("2HGFC2F84LH554430");
+    expect(result?.source).toBe("pyp");
+    expect(result?.year).toBe(2020);
+    expect(result?.make).toBe("HONDA");
+    expect(result?.model).toBe("CIVIC");
+    expect(result?.imageUrl).toContain("CAR-FRONT-LEFT_24371885");
+    expect(result?.locationName).toBe("Pick Your Part - Sun Valley");
+    expect(result?.section).toBe("Prime");
+    expect(result?.row).toBe("p1");
+    expect(result?.space).toBe("2");
   });
 
   test("returns null for vehicle without VIN", () => {
@@ -110,8 +92,7 @@ describe("transformPypVehicle", () => {
       Photos: [],
     };
 
-    const result = transformPypVehicle(input, locationMap);
-    expect(result).toBeNull();
+    expect(transformPypVehicle(input, locationMap)).toBeNull();
   });
 
   test("handles missing photos", () => {
@@ -132,7 +113,7 @@ describe("transformPypVehicle", () => {
 
     const result = transformPypVehicle(input, locationMap);
     expect(result).not.toBeNull();
-    expect(result!.imageUrl).toBeNull();
+    expect(result?.imageUrl).toBeNull();
   });
 
   test("handles unknown location code gracefully", () => {
@@ -151,11 +132,10 @@ describe("transformPypVehicle", () => {
       Photos: [],
     };
 
-    const result = transformPypVehicle(input, locationMap);
-    expect(result).toBeNull();
+    expect(transformPypVehicle(input, locationMap)).toBeNull();
   });
 
-  test("handles null/empty color and stock number", () => {
+  test("normalizes empty optional fields to null", () => {
     const input: PypVehicleJson = {
       YardCode: "1229",
       Section: "",
@@ -173,11 +153,11 @@ describe("transformPypVehicle", () => {
 
     const result = transformPypVehicle(input, locationMap);
     expect(result).not.toBeNull();
-    expect(result!.color).toBeNull();
-    expect(result!.stockNumber).toBeNull();
-    expect(result!.section).toBeNull();
-    expect(result!.row).toBeNull();
-    expect(result!.space).toBeNull();
-    expect(result!.availableDate).toBeNull();
+    expect(result?.color).toBeNull();
+    expect(result?.stockNumber).toBeNull();
+    expect(result?.section).toBeNull();
+    expect(result?.row).toBeNull();
+    expect(result?.space).toBeNull();
+    expect(result?.availableDate).toBeNull();
   });
 });

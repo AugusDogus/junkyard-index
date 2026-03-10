@@ -3,7 +3,7 @@ import {
   determineHealthySources,
   shouldAdvanceMissingState,
   type PipelineSourceOutcome,
-} from "../pipeline-policy";
+} from "./pipeline-policy";
 
 describe("pipeline policy", () => {
   test("returns both sources as healthy when both have no errors", () => {

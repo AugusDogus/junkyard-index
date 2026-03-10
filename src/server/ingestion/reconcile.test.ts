@@ -1,10 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { vehicle } from "~/schema";
-import type { CanonicalVehicle } from "../types";
-import {
-  buildFinalInventoryByVin,
-  createReconcilePlan,
-} from "../reconcile";
+import type { CanonicalVehicle } from "./types";
+import { buildFinalInventoryByVin, createReconcilePlan } from "./reconcile";
 
 function makeCanonicalVehicle(
   vin: string,

@@ -6,10 +6,82 @@ import { fetchLocationsFromRow52 } from "./row52";
 
 const PYP_LOCATION_TIMEOUT_MS = 15_000;
 
-function shouldDisablePypFetch(): boolean {
+export function shouldDisablePypFetch(): boolean {
   const value = process.env.DISABLE_PYP_FETCH;
   if (!value) return false;
   return value === "1" || value.toLowerCase() === "true";
+}
+
+type PypLocationPayload = Array<{
+  LocationCode: string;
+  LocationPageURL: string;
+  Name: string;
+  DisplayName: string;
+  Address: string;
+  City: string;
+  State: string;
+  StateAbbr: string;
+  Zip: string;
+  Phone: string;
+  Lat: number;
+  Lng: number;
+  Distance: number;
+  LegacyCode: string;
+  Primo: string;
+  Urls: {
+    Store: string;
+    Interchange: string;
+    Inventory: string;
+    Prices: string;
+    Directions: string;
+    SellACar: string;
+    Contact: string;
+    CustomerServiceChat: string | null;
+    CarbuyChat: string | null;
+    Deals: string;
+    Parts: string;
+  };
+}>;
+
+export function parsePypLocationsFromHtml(html: string): Location[] {
+  const locationListMatch = /var _locationList\s*=\s*(\[.*?\]);/s.exec(html);
+  if (!locationListMatch) {
+    return [];
+  }
+
+  const locationData = JSON.parse(locationListMatch[1] ?? "[]") as PypLocationPayload;
+
+  return locationData.map((loc) => ({
+    locationCode: loc.LocationCode,
+    locationPageURL: loc.LocationPageURL,
+    name: loc.Name,
+    displayName: loc.DisplayName,
+    address: loc.Address,
+    city: loc.City,
+    state: loc.State,
+    stateAbbr: loc.StateAbbr,
+    zip: loc.Zip,
+    phone: loc.Phone,
+    lat: loc.Lat,
+    lng: loc.Lng,
+    distance: loc.Distance,
+    legacyCode: loc.LegacyCode,
+    primo: loc.Primo,
+    source: "pyp" as const,
+    urls: {
+      store: loc.Urls.Store,
+      interchange: loc.Urls.Interchange,
+      inventory: loc.Urls.Inventory,
+      prices: loc.Urls.Prices,
+      directions: loc.Urls.Directions,
+      sellACar: loc.Urls.SellACar,
+      contact: loc.Urls.Contact,
+      customerServiceChat: loc.Urls.CustomerServiceChat,
+      carbuyChat: loc.Urls.CarbuyChat,
+      deals: loc.Urls.Deals,
+      parts: loc.Urls.Parts,
+    },
+  }));
 }
 
 /**
@@ -55,76 +127,15 @@ export async function fetchLocationsFromPYP(): Promise<Location[]> {
     }
 
     const html = await response.text();
-    const locationListMatch = /var _locationList\s*=\s*(\[.*?\]);/s.exec(html);
-    if (!locationListMatch) {
+    const locations = parsePypLocationsFromHtml(html);
+    if (locations.length === 0) {
       console.warn(
         "[PYP locations] _locationList not found in HTML — returning empty",
       );
       return [];
     }
 
-    const locationData = JSON.parse(locationListMatch[1] ?? "[]") as Array<{
-      LocationCode: string;
-      LocationPageURL: string;
-      Name: string;
-      DisplayName: string;
-      Address: string;
-      City: string;
-      State: string;
-      StateAbbr: string;
-      Zip: string;
-      Phone: string;
-      Lat: number;
-      Lng: number;
-      Distance: number;
-      LegacyCode: string;
-      Primo: string;
-      Urls: {
-        Store: string;
-        Interchange: string;
-        Inventory: string;
-        Prices: string;
-        Directions: string;
-        SellACar: string;
-        Contact: string;
-        CustomerServiceChat: string | null;
-        CarbuyChat: string | null;
-        Deals: string;
-        Parts: string;
-      };
-    }>;
-
-    return locationData.map((loc) => ({
-      locationCode: loc.LocationCode,
-      locationPageURL: loc.LocationPageURL,
-      name: loc.Name,
-      displayName: loc.DisplayName,
-      address: loc.Address,
-      city: loc.City,
-      state: loc.State,
-      stateAbbr: loc.StateAbbr,
-      zip: loc.Zip,
-      phone: loc.Phone,
-      lat: loc.Lat,
-      lng: loc.Lng,
-      distance: loc.Distance,
-      legacyCode: loc.LegacyCode,
-      primo: loc.Primo,
-      source: "pyp" as const,
-      urls: {
-        store: loc.Urls.Store,
-        interchange: loc.Urls.Interchange,
-        inventory: loc.Urls.Inventory,
-        prices: loc.Urls.Prices,
-        directions: loc.Urls.Directions,
-        sellACar: loc.Urls.SellACar,
-        contact: loc.Urls.Contact,
-        customerServiceChat: loc.Urls.CustomerServiceChat,
-        carbuyChat: loc.Urls.CarbuyChat,
-        deals: loc.Urls.Deals,
-        parts: loc.Urls.Parts,
-      },
-    }));
+    return locations;
   } catch (error) {
     console.error("[PYP locations] Error:", error);
     return [];

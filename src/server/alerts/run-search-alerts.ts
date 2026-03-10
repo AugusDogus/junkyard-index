@@ -51,6 +51,71 @@ export interface RunSearchAlertsResult {
   results: SearchAlertResult[];
 }
 
+type SavedSearchFiltersParseResult =
+  | {
+      success: true;
+      data: z.infer<typeof filtersSchema>;
+    }
+  | {
+      success: false;
+      reason: "malformed_json" | "invalid_schema";
+      error: z.ZodError<z.infer<typeof filtersSchema>>;
+    };
+
+export function parseSavedSearchFilters(
+  rawFiltersJson: string,
+): SavedSearchFiltersParseResult {
+  let rawFilters: unknown;
+  try {
+    rawFilters = JSON.parse(rawFiltersJson);
+  } catch {
+    return {
+      success: false,
+      reason: "malformed_json",
+      error: new z.ZodError([
+        {
+          code: z.ZodIssueCode.custom,
+          message: "Malformed filters JSON",
+          path: [],
+        },
+      ]),
+    };
+  }
+
+  const filtersParseResult = filtersSchema.safeParse(rawFilters);
+  if (filtersParseResult.success) {
+    return filtersParseResult;
+  }
+
+  return {
+    success: false,
+    reason: "invalid_schema",
+    error: filtersParseResult.error,
+  };
+}
+
+export function buildAlertResultStatus(params: {
+  emailSent: boolean;
+  discordSent: boolean;
+  errors: string[];
+  canAdvanceLastCheckedAt: boolean;
+}): string {
+  const statusParts: string[] = [];
+  if (params.emailSent) statusParts.push("email_sent");
+  if (params.discordSent) statusParts.push("discord_sent");
+  if (params.errors.length > 0) {
+    statusParts.push(`errors: ${params.errors.join("; ")}`);
+  }
+  if (statusParts.length === 0) statusParts.push("no_notifications_sent");
+  if (!params.canAdvanceLastCheckedAt) {
+    statusParts.push("last_checked_not_advanced");
+  } else if (params.errors.length > 0) {
+    statusParts.push("last_checked_not_advanced_due_delivery_errors");
+  }
+
+  return statusParts.join(", ");
+}
+
 async function findNewVehicles(
   search: SearchWithAlerts,
   filters: z.infer<typeof filtersSchema>,
@@ -114,20 +179,17 @@ async function processSearch(
   search: SearchWithAlerts,
   userInfo: UserInfo,
 ): Promise<SearchAlertResult> {
-  let rawFilters: unknown;
-  try {
-    rawFilters = JSON.parse(search.filters);
-  } catch {
-    console.error(`Malformed JSON for search ${search.id}`);
-    return { searchId: search.id, status: "invalid_filters" };
-  }
-
-  const filtersParseResult = filtersSchema.safeParse(rawFilters);
+  const filtersParseResult = parseSavedSearchFilters(search.filters);
   if (!filtersParseResult.success) {
-    console.error(
-      `Invalid filters for search ${search.id}:`,
-      filtersParseResult.error,
-    );
+    if (filtersParseResult.reason === "malformed_json") {
+      console.error(`Malformed JSON for search ${search.id}`);
+    } else {
+      console.error(
+        `Invalid filters for search ${search.id}:`,
+        filtersParseResult.error,
+      );
+    }
+
     return { searchId: search.id, status: "invalid_filters" };
   }
   const filters = filtersParseResult.data;
@@ -191,20 +253,14 @@ async function processSearch(
     });
   }
 
-  const statusParts: string[] = [];
-  if (emailSent) statusParts.push("email_sent");
-  if (discordSent) statusParts.push("discord_sent");
-  if (errors.length > 0) statusParts.push(`errors: ${errors.join("; ")}`);
-  if (statusParts.length === 0) statusParts.push("no_notifications_sent");
-  if (!canAdvanceLastCheckedAt) {
-    statusParts.push("last_checked_not_advanced");
-  } else if (errors.length > 0) {
-    statusParts.push("last_checked_not_advanced_due_delivery_errors");
-  }
-
   return {
     searchId: search.id,
-    status: statusParts.join(", "),
+    status: buildAlertResultStatus({
+      emailSent,
+      discordSent,
+      errors,
+      canAdvanceLastCheckedAt,
+    }),
     newVehicles: newVehicles.length,
     emailSent,
     discordSent,

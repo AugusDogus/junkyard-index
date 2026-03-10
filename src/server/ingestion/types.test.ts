@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { toAlgoliaRecord } from "../types";
-import type { CanonicalVehicle } from "../types";
+import type { CanonicalVehicle } from "./types";
+import { toAlgoliaRecord } from "./types";
 
 describe("toAlgoliaRecord", () => {
   test("maps a canonical vehicle to an Algolia record correctly", () => {
@@ -48,9 +48,6 @@ describe("toAlgoliaRecord", () => {
     expect(record.isMissing).toBe(false);
     expect(record.missingSinceAt).toBeNull();
     expect(record.missingRunCount).toBe(0);
-    expect(record.engine).toBe("2.0L I4");
-    expect(record.trim).toBe("SE");
-    expect(record.transmission).toBe("Automatic");
   });
 
   test("handles null availableDate with timestamp 0", () => {

@@ -1,4 +1,4 @@
-import pRetry, { AbortError } from "p-retry";
+import { Effect, Schedule, Duration } from "effect";
 
 interface FetchWithRetryOptions {
   context: string;
@@ -9,76 +9,75 @@ interface FetchWithRetryOptions {
   retryStatusCodes?: number[];
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-function isTimeoutError(error: unknown): boolean {
+function isRetryable(
+  error: unknown,
+  _retryStatusCodes: ReadonlySet<number>,
+): boolean {
+  if (
+    error instanceof Error &&
+    error.message.startsWith("Retryable HTTP status:")
+  ) {
+    return true;
+  }
   if (!(error instanceof Error)) return false;
-  const lowerMessage = error.message.toLowerCase();
+  const lower = error.message.toLowerCase();
   return (
     error.name === "TimeoutError" ||
     error.name === "AbortError" ||
-    lowerMessage.includes("aborted due to timeout") ||
-    lowerMessage.includes("timeout")
+    lower.includes("aborted due to timeout") ||
+    lower.includes("timeout")
   );
 }
 
-export async function fetchWithTimeoutRetry(
+/**
+ * Effect-based fetch with timeout and exponential-backoff retries.
+ * Replaces the old p-retry implementation with Effect.retry + Schedule.
+ */
+export function fetchWithRetry(
   url: string,
   init: RequestInit,
   options: FetchWithRetryOptions,
-): Promise<Response> {
-  const totalAttempts = options.retries + 1;
+): Effect.Effect<Response, Error> {
   const retryStatusCodes = new Set(options.retryStatusCodes ?? []);
+  const totalAttempts = options.retries + 1;
 
-  return pRetry(
-    async (attemptNumber) => {
-      try {
-        const response = await fetch(url, {
-          ...init,
-          signal: AbortSignal.timeout(options.timeoutMs),
-        });
+  const attempt = Effect.gen(function* () {
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        fetch(url, { ...init, signal: AbortSignal.timeout(options.timeoutMs) }),
+      catch: (cause) =>
+        cause instanceof Error ? cause : new Error(String(cause)),
+    });
 
-        if (retryStatusCodes.has(response.status)) {
-          if (attemptNumber < totalAttempts) {
-            const delayMs = options.baseDelayMs * 2 ** (attemptNumber - 1);
-            console.warn(
-              `${options.logPrefix} ${options.context} returned ${response.status} (attempt ${attemptNumber}/${totalAttempts}), retrying in ${delayMs}ms`,
-            );
-          }
-          throw new Error(`Retryable HTTP status: ${response.status}`);
-        }
+    if (retryStatusCodes.has(response.status)) {
+      return yield* Effect.fail(
+        new Error(`Retryable HTTP status: ${response.status}`),
+      );
+    }
 
-        return response;
-      } catch (error) {
-        if (!isTimeoutError(error)) {
-          if (
-            error instanceof Error &&
-            error.message.startsWith("Retryable HTTP status:")
-          ) {
-            throw error;
-          }
-          throw new AbortError(toErrorMessage(error));
-        }
+    return response;
+  });
 
-        if (attemptNumber < totalAttempts) {
-          const delayMs = options.baseDelayMs * 2 ** (attemptNumber - 1);
-          console.warn(
-            `${options.logPrefix} ${options.context} timed out (attempt ${attemptNumber}/${totalAttempts}), retrying in ${delayMs}ms`,
-          );
-        }
+  const retrySchedule = Schedule.intersect(
+    Schedule.recurs(options.retries),
+    Schedule.exponential(Duration.millis(options.baseDelayMs), 2),
+  );
 
-        throw error instanceof Error ? error : new Error(toErrorMessage(error));
-      }
-    },
-    {
-      retries: options.retries,
-      factor: 2,
-      minTimeout: options.baseDelayMs,
-      maxTimeout: options.baseDelayMs * 2 ** Math.max(options.retries - 1, 0),
-      randomize: false,
-    },
+  return attempt.pipe(
+    Effect.retry(
+      retrySchedule.pipe(
+        Schedule.whileInput<Error>((error) =>
+          isRetryable(error, retryStatusCodes),
+        ),
+      ),
+    ),
+    Effect.tapError((error) =>
+      Effect.sync(() =>
+        console.error(
+          `${options.logPrefix} ${options.context} failed after ${totalAttempts} attempts: ${error.message}`,
+        ),
+      ),
+    ),
   );
 }
+
