@@ -391,7 +391,9 @@ function fetchRow52Source(
             errors: [msg],
             nextSkip: Number.parseInt(latestNextCursor, 10) || 0,
             pagesProcessed: latestPagesProcessed,
-            done: true,
+            done: false,
+            fullyExhausted: false,
+            stopped: true,
           })),
         );
       }),

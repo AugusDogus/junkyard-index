@@ -169,6 +169,8 @@ export interface Row52StreamResult {
   pagesProcessed: number;
   nextSkip: number;
   done: boolean;
+  fullyExhausted: boolean;
+  stopped: boolean;
   totalCount?: number;
 }
 
@@ -217,7 +219,12 @@ function transformRow52Vehicle(
   vehicle: Row52Vehicle,
   locationMap: Map<number, Row52Location>,
 ): CanonicalVehicle | null {
-  const location = vehicle.location ?? locationMap.get(vehicle.locationId);
+  const participatingLocation = locationMap.get(vehicle.locationId);
+  const expandedLocation =
+    vehicle.location && vehicle.location.isParticipating
+      ? vehicle.location
+      : undefined;
+  const location = participatingLocation ?? expandedLocation;
   if (!location) return null;
 
   const state = location.state;
@@ -279,7 +286,8 @@ export function streamRow52Inventory<E, R>(options: {
     nextSkip: number;
     pagesProcessed: number;
     vehiclesProcessed: number;
-    done: boolean;
+    fullyExhausted: boolean;
+    stopped: boolean;
     totalCount?: number;
     errors: string[];
   }) => Effect.Effect<void, E, R>;
@@ -295,6 +303,8 @@ export function streamRow52Inventory<E, R>(options: {
     let totalCount = 0;
     let pagesProcessed = 0;
     let done = false;
+    let fullyExhausted = false;
+    let stopped = false;
     let lastProgressPages = 0;
     const errors: string[] = [];
 
@@ -317,7 +327,8 @@ export function streamRow52Inventory<E, R>(options: {
         nextSkip,
         pagesProcessed,
         vehiclesProcessed: totalCount,
-        done,
+        fullyExhausted,
+        stopped,
         totalCount: knownTotalCount,
         errors,
       });
@@ -356,6 +367,7 @@ export function streamRow52Inventory<E, R>(options: {
     yield* processPage(firstPage);
 
     if (firstPage.vehicles.length < PAGE_SIZE) {
+      fullyExhausted = true;
       done = true;
       yield* emitProgress(true);
     } else {
@@ -381,10 +393,12 @@ export function streamRow52Inventory<E, R>(options: {
             const msg = `Row52 page at skip=${nextSkip}: ${pageResult.error.message}`;
             yield* Effect.logError(msg);
             errors.push(msg);
+            stopped = true;
             done = true;
           } else {
             yield* processPage(pageResult.page);
             if (pageResult.page.vehicles.length < PAGE_SIZE) {
+              fullyExhausted = true;
               done = true;
               terminatedNormally = true;
             } else if (PAGE_DELAY_MS > 0) {
@@ -461,6 +475,7 @@ export function streamRow52Inventory<E, R>(options: {
             errors.push(msg);
           }
           if (firstFailedSkip !== null) {
+            stopped = true;
             stopPaging = true;
           }
 
@@ -482,6 +497,7 @@ export function streamRow52Inventory<E, R>(options: {
             }
             yield* processPage(result.page);
             if (result.page.vehicles.length < PAGE_SIZE) {
+              fullyExhausted = true;
               stopPaging = true;
               break;
             }
@@ -492,6 +508,7 @@ export function streamRow52Inventory<E, R>(options: {
         }
 
         if (!done) {
+          fullyExhausted = true;
           done = true;
           yield* emitProgress(true);
         }
@@ -504,7 +521,9 @@ export function streamRow52Inventory<E, R>(options: {
       errors,
       pagesProcessed,
       nextSkip,
-      done: true,
+      done: fullyExhausted,
+      fullyExhausted,
+      stopped,
       totalCount: knownTotalCount,
     };
   });
