@@ -21,7 +21,7 @@ export interface AlgoliaProjectorRunResult {
   lastProcessedChangeId: number;
 }
 
-function mapDbVehicleToCanonical(
+export function mapDbVehicleToCanonical(
   row: typeof vehicle.$inferSelect,
 ): CanonicalVehicle {
   const source = row.source === "row52" ? "row52" : "pyp";
@@ -50,6 +50,23 @@ function mapDbVehicleToCanonical(
     engine: row.engine,
     trim: row.trim,
     transmission: row.transmission,
+  };
+}
+
+export function partitionVehicleChanges(
+  changes: Array<{
+    id: number;
+    vin: string;
+    changeType: string;
+  }>,
+): { deleteVins: string[]; upsertVins: string[] } {
+  return {
+    deleteVins: changes
+      .filter((change) => change.changeType === "delete")
+      .map((change) => change.vin),
+    upsertVins: changes
+      .filter((change) => change.changeType !== "delete")
+      .map((change) => change.vin),
   };
 }
 
@@ -167,12 +184,7 @@ export async function runAlgoliaProjector(options?: {
       break;
     }
 
-    const deleteVins = changes
-      .filter((change) => change.changeType === "delete")
-      .map((change) => change.vin);
-    const upsertVins = changes
-      .filter((change) => change.changeType !== "delete")
-      .map((change) => change.vin);
+    const { deleteVins, upsertVins } = partitionVehicleChanges(changes);
 
     const upsertRecords = await fetchVehicleRecords(upsertVins);
     await syncToAlgolia(upsertRecords, deleteVins, {
