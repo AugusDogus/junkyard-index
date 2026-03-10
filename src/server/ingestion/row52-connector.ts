@@ -362,6 +362,7 @@ export function streamRow52Inventory<E, R>(options: {
       const totalRows = firstPage.totalCount;
 
       if (totalRows === undefined) {
+        let terminatedNormally = false;
         while (!done) {
           const pageResult = yield* fetchVehiclePageEffect(nextSkip, false)
             .pipe(
@@ -385,12 +386,18 @@ export function streamRow52Inventory<E, R>(options: {
             yield* processPage(pageResult.page);
             if (pageResult.page.vehicles.length < PAGE_SIZE) {
               done = true;
+              terminatedNormally = true;
             } else if (PAGE_DELAY_MS > 0) {
               yield* Effect.sleep(Duration.millis(PAGE_DELAY_MS));
             }
           }
 
           yield* emitProgress(done);
+        }
+        if (terminatedNormally) {
+          yield* Effect.logInfo(
+            `[Row52] Paging terminated normally (unknown totalRows) at skip=${nextSkip}`,
+          );
         }
       } else {
         const remainingSkips: number[] = [];

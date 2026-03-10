@@ -1,7 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { filtersSchema } from "~/lib/saved-search-filters";
+import {
+  filtersSchema,
+  parseSavedSearchFilters,
+} from "~/lib/saved-search-filters";
 import { polarClient } from "~/lib/auth";
 import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
@@ -17,12 +20,13 @@ export const savedSearchesRouter = createTRPCRouter({
 
     return searches.map((s) => {
       let filters: z.infer<typeof filtersSchema>;
-      try {
-        filters = filtersSchema.parse(JSON.parse(s.filters));
-      } catch (err) {
+      const parsedFilters = parseSavedSearchFilters(s.filters);
+      if (parsedFilters.success) {
+        filters = parsedFilters.data;
+      } else {
         console.error(
           `Invalid filters for saved search ${s.id}, using empty`,
-          err,
+          parsedFilters.error,
         );
         filters = {};
       }
