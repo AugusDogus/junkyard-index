@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@discordjs/rest": "^2.6.0",
+    "@effect/platform": "^0.94.5",
     "@hyperbrowser/sdk": "^0.83.3",
     "@libsql/client": "^0.17.0",
     "@polar-sh/better-auth": "^1.6.4",

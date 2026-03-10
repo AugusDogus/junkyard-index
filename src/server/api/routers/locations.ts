@@ -49,7 +49,12 @@ export function parsePypLocationsFromHtml(html: string): Location[] {
     return [];
   }
 
-  const locationData = JSON.parse(locationListMatch[1] ?? "[]") as PypLocationPayload;
+  let locationData: PypLocationPayload;
+  try {
+    locationData = JSON.parse(locationListMatch[1] ?? "[]") as PypLocationPayload;
+  } catch {
+    return [];
+  }
 
   return locationData.map((loc) => ({
     locationCode: loc.LocationCode,

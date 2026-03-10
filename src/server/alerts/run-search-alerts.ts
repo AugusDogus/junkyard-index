@@ -58,7 +58,12 @@ type SavedSearchFiltersParseResult =
     }
   | {
       success: false;
-      reason: "malformed_json" | "invalid_schema";
+      reason: "malformed_json";
+      error: SyntaxError;
+    }
+  | {
+      success: false;
+      reason: "invalid_schema";
       error: z.ZodError<z.infer<typeof filtersSchema>>;
     };
 
@@ -68,17 +73,14 @@ export function parseSavedSearchFilters(
   let rawFilters: unknown;
   try {
     rawFilters = JSON.parse(rawFiltersJson);
-  } catch {
+  } catch (error) {
     return {
       success: false,
       reason: "malformed_json",
-      error: new z.ZodError([
-        {
-          code: z.ZodIssueCode.custom,
-          message: "Malformed filters JSON",
-          path: [],
-        },
-      ]),
+      error:
+        error instanceof SyntaxError
+          ? error
+          : new SyntaxError(String(error)),
     };
   }
 

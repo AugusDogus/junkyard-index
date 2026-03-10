@@ -1,7 +1,7 @@
+import { HttpClient } from "@effect/platform";
 import { Effect, Scope } from "effect";
 import { and, eq, gte } from "drizzle-orm";
 import { db } from "~/lib/db";
-import { env } from "~/env";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
 import {
   determineHealthySources,
@@ -20,7 +20,7 @@ import {
   HeartbeatError,
   ReconcileError,
 } from "./errors";
-import { Config } from "./runtime";
+import { Config, Database, runIngestionEffect } from "./runtime";
 import type { CanonicalVehicle } from "./types";
 
 const RUN_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000;
@@ -63,17 +63,15 @@ function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function logMemoryUsage(
+function formatMemoryUsage(
   stage: string,
   details: Record<string, number | string>,
-): void {
+): string {
   const usage = process.memoryUsage();
   const detailText = Object.entries(details)
     .map(([key, value]) => `${key}=${value}`)
     .join(" ");
-  console.log(
-    `[Ingestion] Memory ${stage}: rss=${formatMegabytes(usage.rss)} heap_used=${formatMegabytes(usage.heapUsed)} heap_total=${formatMegabytes(usage.heapTotal)} external=${formatMegabytes(usage.external)} ${detailText}`.trim(),
-  );
+  return `[Ingestion] Memory ${stage}: rss=${formatMegabytes(usage.rss)} heap_used=${formatMegabytes(usage.heapUsed)} heap_total=${formatMegabytes(usage.heapTotal)} external=${formatMegabytes(usage.external)} ${detailText}`.trim();
 }
 
 function accumulateVehicles(
@@ -258,24 +256,40 @@ function fetchRow52Source(
   runId: string,
   vehicleMap: Map<string, CanonicalVehicle>,
   otherMap: Map<string, CanonicalVehicle>,
-): Effect.Effect<SourceOutcome & { fetchMs: number }, never> {
+): Effect.Effect<
+  SourceOutcome & { fetchMs: number },
+  never,
+  HttpClient.HttpClient
+> {
   return Effect.gen(function* () {
     const startedAt = Date.now();
 
+    const reportProgress = (progress: {
+      nextSkip: number;
+      pagesProcessed: number;
+      vehiclesProcessed: number;
+    }) =>
+      updateSourceRunProgress({
+        runId,
+        source: "row52",
+        nextCursor: String(progress.nextSkip),
+        pagesProcessed: progress.pagesProcessed,
+        vehiclesProcessed: progress.vehiclesProcessed,
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.logWarning(
+            `[Ingestion] Row52 progress update failed: ${error.message}`,
+          ),
+        ),
+      );
+
     const result = yield* streamRow52Inventory({
-      onBatch: (vehicles) => accumulateVehicles(vehicleMap, vehicles),
+      onBatch: (vehicles) =>
+        Effect.sync(() => {
+          accumulateVehicles(vehicleMap, vehicles);
+        }),
       pagesPerChunk: SOURCE_CHUNK_PAGES,
-      onProgress: async (progress) => {
-        await Effect.runPromise(
-          updateSourceRunProgress({
-            runId,
-            source: "row52",
-            nextCursor: String(progress.nextSkip),
-            pagesProcessed: progress.pagesProcessed,
-            vehiclesProcessed: progress.vehiclesProcessed,
-          }).pipe(Effect.catchAll(() => Effect.void)),
-        );
-      },
+      onProgress: reportProgress,
     }).pipe(
       Effect.tap((result) =>
         completeSourceRun({
@@ -288,8 +302,8 @@ function fetchRow52Source(
         }).pipe(Effect.catchAll(() => Effect.void)),
       ),
       Effect.tap(() =>
-        Effect.sync(() =>
-          logMemoryUsage("after_row52_fetch", {
+        Effect.logDebug(
+          formatMemoryUsage("after_row52_fetch", {
             row52Vins: vehicleMap.size,
             otherVins: otherMap.size,
           }),
@@ -335,19 +349,31 @@ function fetchPypSource(
   return Effect.gen(function* () {
     const startedAt = Date.now();
 
+    const reportProgress = (progress: {
+      nextPage: number;
+      pagesProcessed: number;
+      vehiclesProcessed: number;
+    }) =>
+      updateSourceRunProgress({
+        runId,
+        source: "pyp",
+        nextCursor: String(progress.nextPage),
+        pagesProcessed: progress.pagesProcessed,
+        vehiclesProcessed: progress.vehiclesProcessed,
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.logWarning(
+            `[Ingestion] PYP progress update failed: ${error.message}`,
+          ),
+        ),
+      );
+
     const result = yield* streamPypInventory({
-      onBatch: (vehicles) => accumulateVehicles(vehicleMap, vehicles),
-      onProgress: async (progress) => {
-        await Effect.runPromise(
-          updateSourceRunProgress({
-            runId,
-            source: "pyp",
-            nextCursor: String(progress.nextPage),
-            pagesProcessed: progress.pagesProcessed,
-            vehiclesProcessed: progress.vehiclesProcessed,
-          }).pipe(Effect.catchAll(() => Effect.void)),
-        );
-      },
+      onBatch: (vehicles) =>
+        Effect.sync(() => {
+          accumulateVehicles(vehicleMap, vehicles);
+        }),
+      onProgress: reportProgress,
     }).pipe(
       Effect.tap((result) =>
         completeSourceRun({
@@ -360,8 +386,8 @@ function fetchPypSource(
         }).pipe(Effect.catchAll(() => Effect.void)),
       ),
       Effect.tap(() =>
-        Effect.sync(() =>
-          logMemoryUsage("after_pyp_fetch", {
+        Effect.logDebug(
+          formatMemoryUsage("after_pyp_fetch", {
             pypVins: vehicleMap.size,
             otherVins: otherMap.size,
           }),
@@ -405,14 +431,15 @@ function fetchPypSource(
 export const ingestionPipeline: Effect.Effect<
   IngestionPipelineResult,
   PersistenceError | ReconcileError | HeartbeatError,
-  Scope.Scope | Config
+  Scope.Scope | Config | Database | HttpClient.HttpClient
 > = Effect.gen(function* () {
   const startTime = Date.now();
   const runTimestamp = new Date();
   const runId = crypto.randomUUID();
   const allErrors: string[] = [];
+  const config = yield* Config;
 
-  console.log(
+  yield* Effect.logInfo(
     `[Ingestion] Starting run ${runId} at ${runTimestamp.toISOString()} (pipeline=effect)`,
   );
 
@@ -420,7 +447,7 @@ export const ingestionPipeline: Effect.Effect<
   if (!lockAcquired) {
     const durationMs = Date.now() - startTime;
     const msg = `[Ingestion] Skipping run ${runId}: another ingestion run is already active`;
-    console.warn(msg);
+    yield* Effect.logWarning(msg);
     return {
       totalUpserted: 0,
       totalDeleted: 0,
@@ -432,160 +459,174 @@ export const ingestionPipeline: Effect.Effect<
     };
   }
 
-  yield* Effect.all([
-    initSourceRun(runId, "row52", runTimestamp),
-    initSourceRun(runId, "pyp", runTimestamp),
-  ]);
+  const runWithLock = Effect.gen(function* () {
+    yield* Effect.all([
+      initSourceRun(runId, "row52", runTimestamp),
+      initSourceRun(runId, "pyp", runTimestamp),
+    ]);
 
-  const row52ByVin = new Map<string, CanonicalVehicle>();
-  const pypByVin = new Map<string, CanonicalVehicle>();
+    const row52ByVin = new Map<string, CanonicalVehicle>();
+    const pypByVin = new Map<string, CanonicalVehicle>();
 
-  const sourcesStart = Date.now();
+    const sourcesStart = Date.now();
 
-  const [row52Result, pypResult] = yield* Effect.all(
-    [
-      fetchRow52Source(runId, row52ByVin, pypByVin),
-      fetchPypSource(runId, pypByVin, row52ByVin),
-    ],
-    { concurrency: 2 },
-  );
-
-  const sourcesParallelMs = Date.now() - sourcesStart;
-  allErrors.push(...row52Result.errors, ...pypResult.errors);
-
-  const sourceOutcomes: SourceOutcome[] = [row52Result, pypResult];
-  const healthySources = determineHealthySources(sourceOutcomes);
-  const reconcileTimestamp = new Date();
-
-  logMemoryUsage("before_inventory_finalization", {
-    row52Vins: row52ByVin.size,
-    pypVins: pypByVin.size,
-    healthySources: healthySources.join(",") || "none",
-  });
-
-  const finalInventoryByVin = buildFinalInventoryByVin({
-    healthySources,
-    row52ByVin,
-    pypByVin,
-  });
-  const finalizedInventoryCount = finalInventoryByVin.size;
-
-  logMemoryUsage("after_inventory_finalization", {
-    finalVins: finalizedInventoryCount,
-    row52Vins: row52ByVin.size,
-    pypVins: pypByVin.size,
-  });
-
-  const reconcileResult = yield* Effect.tryPromise({
-    try: () =>
-      reconcileFromFinalInventory({
-        runId,
-        runTimestamp: reconcileTimestamp,
-        finalInventoryByVin,
-        allowAdvanceMissingState: shouldAdvanceMissingState(sourceOutcomes),
-        missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
-        missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
-      }),
-    catch: (cause) => new ReconcileError({ cause }),
-  });
-
-  const upsertFlushMs =
-    reconcileResult.timingsMs.readExistingMs +
-    reconcileResult.timingsMs.planMs +
-    reconcileResult.timingsMs.upsertWriteMs;
-  const staleDeleteMs = reconcileResult.timingsMs.missingWriteMs;
-
-  if (reconcileResult.skippedMissingAdvance) {
-    console.warn(
-      "[Ingestion] Skipping missing-state advancement and deletions because one or more sources errored",
+    const [row52Result, pypResult] = yield* Effect.all(
+      [
+        fetchRow52Source(runId, row52ByVin, pypByVin),
+        fetchPypSource(runId, pypByVin, row52ByVin),
+      ],
+      { concurrency: 2 },
     );
-  }
 
-  const durationMs = Date.now() - startTime;
-  const timingsMs = {
-    sourcesParallelMs,
-    row52FetchMs: row52Result.fetchMs,
-    pypFetchMs: pypResult.fetchMs,
-    upsertFlushMs,
-    staleDeleteMs,
-    algoliaPrepMs: 0,
-    algoliaSyncMs: 0,
-  };
+    const sourcesParallelMs = Date.now() - sourcesStart;
+    allErrors.push(...row52Result.errors, ...pypResult.errors);
 
-  yield* markRunComplete(
-    runId,
-    "success",
-    allErrors,
-    reconcileResult.upsertedCount,
-    reconcileResult.deletedCount,
-  );
+    const sourceOutcomes: SourceOutcome[] = [row52Result, pypResult];
+    const healthySources = determineHealthySources(sourceOutcomes);
+    const reconcileTimestamp = new Date();
 
-  console.log(
-    `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles`,
-  );
-  console.log(
-    `[Ingestion] Finalized ${finalizedInventoryCount} canonical vehicles from healthy sources`,
-  );
-  console.log(
-    `[Ingestion] Reconcile complete: ${reconcileResult.upsertedCount} upserted, ${reconcileResult.deletedCount} deleted, ${reconcileResult.missingUpdatedCount} marked missing`,
-  );
-  console.log(
-    `[Ingestion] Source timings: row52=${row52Result.fetchMs}ms pyp=${pypResult.fetchMs}ms parallel_window=${sourcesParallelMs}ms`,
-  );
-  console.log(
-    `[Ingestion] Stage timings: inventory_diff_upsert=${upsertFlushMs}ms missing_delete=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
-  );
+    yield* Effect.logDebug(
+      formatMemoryUsage("before_inventory_finalization", {
+        row52Vins: row52ByVin.size,
+        pypVins: pypByVin.size,
+        healthySources: healthySources.join(",") || "none",
+      }),
+    );
 
-  if (env.BETTERSTACK_HEARTBEAT_URL) {
-    yield* sendHeartbeat(env.BETTERSTACK_HEARTBEAT_URL, false).pipe(
-      Effect.catchAll((err) =>
-        Effect.sync(() =>
-          console.warn(
+    const finalInventoryByVin = buildFinalInventoryByVin({
+      healthySources,
+      row52ByVin,
+      pypByVin,
+    });
+    const finalizedInventoryCount = finalInventoryByVin.size;
+
+    yield* Effect.logDebug(
+      formatMemoryUsage("after_inventory_finalization", {
+        finalVins: finalizedInventoryCount,
+        row52Vins: row52ByVin.size,
+        pypVins: pypByVin.size,
+      }),
+    );
+
+    const reconcileResult = yield* reconcileFromFinalInventory({
+      runId,
+      runTimestamp: reconcileTimestamp,
+      finalInventoryByVin,
+      allowAdvanceMissingState: shouldAdvanceMissingState(sourceOutcomes),
+      missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
+      missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
+    }).pipe(Effect.mapError((cause) => new ReconcileError({ cause })));
+
+    const upsertFlushMs =
+      reconcileResult.timingsMs.readExistingMs +
+      reconcileResult.timingsMs.planMs +
+      reconcileResult.timingsMs.upsertWriteMs;
+    const staleDeleteMs = reconcileResult.timingsMs.missingWriteMs;
+
+    if (reconcileResult.skippedMissingAdvance) {
+      yield* Effect.logWarning(
+        "[Ingestion] Skipping missing-state advancement and deletions because one or more sources errored",
+      );
+    }
+
+    const durationMs = Date.now() - startTime;
+    const timingsMs = {
+      sourcesParallelMs,
+      row52FetchMs: row52Result.fetchMs,
+      pypFetchMs: pypResult.fetchMs,
+      upsertFlushMs,
+      staleDeleteMs,
+      algoliaPrepMs: 0,
+      algoliaSyncMs: 0,
+    };
+
+    yield* markRunComplete(
+      runId,
+      "success",
+      allErrors,
+      reconcileResult.upsertedCount,
+      reconcileResult.deletedCount,
+    );
+
+    yield* Effect.logInfo(
+      `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles`,
+    );
+    yield* Effect.logInfo(
+      `[Ingestion] Finalized ${finalizedInventoryCount} canonical vehicles from healthy sources`,
+    );
+    yield* Effect.logInfo(
+      `[Ingestion] Reconcile complete: ${reconcileResult.upsertedCount} upserted, ${reconcileResult.deletedCount} deleted, ${reconcileResult.missingUpdatedCount} marked missing`,
+    );
+    yield* Effect.logInfo(
+      `[Ingestion] Source timings: row52=${row52Result.fetchMs}ms pyp=${pypResult.fetchMs}ms parallel_window=${sourcesParallelMs}ms`,
+    );
+    yield* Effect.logInfo(
+      `[Ingestion] Stage timings: inventory_diff_upsert=${upsertFlushMs}ms missing_delete=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
+    );
+
+    if (config.betterStackHeartbeatUrl) {
+      yield* sendHeartbeat(config.betterStackHeartbeatUrl, false).pipe(
+        Effect.catchAll((err) =>
+          Effect.logWarning(
             `[Ingestion] BetterStack heartbeat failed: ${err.message}`,
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  return {
-    totalUpserted: reconcileResult.upsertedCount,
-    totalDeleted: reconcileResult.deletedCount,
-    pypCount: pypResult.count,
-    row52Count: row52Result.count,
-    errors: allErrors,
-    durationMs,
-    timingsMs,
-  };
+    return {
+      totalUpserted: reconcileResult.upsertedCount,
+      totalDeleted: reconcileResult.deletedCount,
+      pypCount: pypResult.count,
+      row52Count: row52Result.count,
+      errors: allErrors,
+      durationMs,
+      timingsMs,
+    };
+  });
+
+  return yield* runWithLock.pipe(
+    Effect.catchAll((error) => {
+      const msg = `Ingestion run failed: ${error.message}`;
+      allErrors.push(msg);
+      return markRunComplete(runId, "error", allErrors).pipe(
+        Effect.catchAll((markError) =>
+          Effect.logWarning(
+            `[Ingestion] Failed to mark run ${runId} as error: ${markError.message}`,
+          ),
+        ),
+        Effect.zipRight(Effect.fail(error)),
+      );
+    }),
+  );
 });
 
 /**
  * Run the ingestion pipeline. This is the sole entry point for run.ts and Trigger tasks.
  */
 export async function runIngestionPipeline(): Promise<IngestionPipelineResult> {
-  return Effect.runPromise(
+  return runIngestionEffect(
     ingestionPipeline.pipe(
       Effect.scoped,
-      Effect.provide(Config.Live),
-      Effect.catchAll((error) => {
-        const msg = `Ingestion run failed: ${error.message}`;
-        console.error(msg);
-
-        if (env.BETTERSTACK_HEARTBEAT_URL) {
-          sendHeartbeat(env.BETTERSTACK_HEARTBEAT_URL, true).pipe(
-            Effect.catchAll((err) =>
-              Effect.sync(() =>
-                console.warn(
-                  `[Ingestion] BetterStack heartbeat (fail) failed: ${err.message}`,
+      Effect.catchAll((error) =>
+        Effect.gen(function* () {
+          const config = yield* Config;
+          const msg = `Ingestion run failed: ${error.message}`;
+          const reportFailureHeartbeat = config.betterStackHeartbeatUrl
+            ? sendHeartbeat(config.betterStackHeartbeatUrl, true).pipe(
+                Effect.catchAll((err) =>
+                  Effect.logWarning(
+                    `[Ingestion] BetterStack heartbeat (fail) failed: ${err.message}`,
+                  ),
                 ),
-              ),
-            ),
-            Effect.runSync,
-          );
-        }
+              )
+            : Effect.void;
 
-        return Effect.fail(error);
-      }),
+          yield* reportFailureHeartbeat;
+          yield* Effect.logError(msg);
+          return yield* Effect.fail(error);
+        }),
+      ),
     ),
   );
 }

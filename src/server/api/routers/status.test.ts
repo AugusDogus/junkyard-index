@@ -11,7 +11,7 @@ describe("status helpers", () => {
     expect(mapRunStatus("success")).toBe("operational");
     expect(mapRunStatus("partial")).toBe("degraded");
     expect(mapRunStatus("error")).toBe("down");
-    expect(mapRunStatus("unexpected")).toBe("operational");
+    expect(mapRunStatus("unexpected")).toBe("down");
   });
 
   test("picks the worst status from a list", () => {

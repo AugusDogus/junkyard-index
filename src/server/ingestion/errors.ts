@@ -1,18 +1,40 @@
 import { Data } from "effect";
 
+function getCauseMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 export class IngestionLockError extends Data.TaggedError("IngestionLockError")<{
   runId: string;
   message: string;
 }> {}
+
+export class RetryableHttpStatusError extends Data.TaggedError(
+  "RetryableHttpStatusError",
+)<{
+  context: string;
+  status: number;
+}> {
+  override get message() {
+    return `${this.context} returned retryable HTTP status ${this.status}`;
+  }
+}
+
+export class RequestTimeoutError extends Data.TaggedError("RequestTimeoutError")<{
+  context: string;
+  cause: unknown;
+}> {
+  override get message() {
+    return `${this.context} timed out: ${getCauseMessage(this.cause)}`;
+  }
+}
 
 export class PypProviderError extends Data.TaggedError("PypProviderError")<{
   page: number;
   cause: unknown;
 }> {
   override get message() {
-    const inner =
-      this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `PYP page ${this.page}: ${inner}`;
+    return `PYP page ${this.page}: ${getCauseMessage(this.cause)}`;
   }
 }
 
@@ -23,9 +45,7 @@ export class Row52ProviderError extends Data.TaggedError(
   cause: unknown;
 }> {
   override get message() {
-    const inner =
-      this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Row52 at skip=${this.skip}: ${inner}`;
+    return `Row52 at skip=${this.skip}: ${getCauseMessage(this.cause)}`;
   }
 }
 
@@ -36,9 +56,7 @@ export class BrowserSessionError extends Data.TaggedError(
   cause: unknown;
 }> {
   override get message() {
-    const inner =
-      this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Browser session ${this.phase}: ${inner}`;
+    return `Browser session ${this.phase}: ${getCauseMessage(this.cause)}`;
   }
 }
 
@@ -46,9 +64,7 @@ export class ReconcileError extends Data.TaggedError("ReconcileError")<{
   cause: unknown;
 }> {
   override get message() {
-    const inner =
-      this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Reconcile failed: ${inner}`;
+    return `Reconcile failed: ${getCauseMessage(this.cause)}`;
   }
 }
 
@@ -57,9 +73,7 @@ export class PersistenceError extends Data.TaggedError("PersistenceError")<{
   cause: unknown;
 }> {
   override get message() {
-    const inner =
-      this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Persistence ${this.operation}: ${inner}`;
+    return `Persistence ${this.operation}: ${getCauseMessage(this.cause)}`;
   }
 }
 
@@ -67,14 +81,14 @@ export class HeartbeatError extends Data.TaggedError("HeartbeatError")<{
   cause: unknown;
 }> {
   override get message() {
-    const inner =
-      this.cause instanceof Error ? this.cause.message : String(this.cause);
-    return `Heartbeat failed: ${inner}`;
+    return `Heartbeat failed: ${getCauseMessage(this.cause)}`;
   }
 }
 
 export type IngestionError =
   | IngestionLockError
+  | RetryableHttpStatusError
+  | RequestTimeoutError
   | PypProviderError
   | Row52ProviderError
   | BrowserSessionError

@@ -1,3 +1,4 @@
+import { FetchHttpClient } from "@effect/platform";
 import { Context, Effect, Layer, ManagedRuntime } from "effect";
 import { db } from "~/lib/db";
 import { env } from "~/env";
@@ -24,7 +25,11 @@ export class Config extends Context.Tag("ingestion/Config")<
   });
 }
 
-export const IngestionLayer = Layer.mergeAll(Database.Live, Config.Live);
+export const IngestionLayer = Layer.mergeAll(
+  Database.Live,
+  Config.Live,
+  FetchHttpClient.layer,
+);
 
 const runtime = ManagedRuntime.make(IngestionLayer);
 

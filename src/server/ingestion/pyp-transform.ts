@@ -16,7 +16,7 @@ export interface PypVehicleJson {
   InYardDate: string;
   StockNumber: string;
   Vin: string;
-  Photos: Array<{
+  Photos: ReadonlyArray<{
     PhotoPath: string;
     IsPrimary: boolean;
     IsInternal: boolean;

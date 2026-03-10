@@ -5,27 +5,52 @@ import {
   type BrowserContext,
   type Page,
 } from "playwright-core";
-import { Effect, Scope } from "effect";
+import { Effect, Scope, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
-import type { PypVehicleJson } from "./pyp-transform";
 import { BrowserSessionError } from "./errors";
 
-export interface PypFilterResponse {
-  Success: boolean;
-  Errors: string[];
-  ResponseData: {
-    Request: {
-      YardCode: string[];
-      Filter: string;
-      PageSize: number;
-      PageNumber: number;
-      FilterDeals: boolean;
-    };
-    Vehicles: PypVehicleJson[];
-  };
-  Messages: string[];
-}
+const PypPhotoSchema = Schema.Struct({
+  PhotoPath: Schema.String,
+  IsPrimary: Schema.Boolean,
+  IsInternal: Schema.Boolean,
+  InventoryPhoto: Schema.Boolean,
+});
+
+const PypVehicleJsonSchema = Schema.Struct({
+  YardCode: Schema.String,
+  Section: Schema.String,
+  Row: Schema.String,
+  SpaceNumber: Schema.String,
+  Color: Schema.String,
+  Year: Schema.String,
+  Make: Schema.String,
+  Model: Schema.String,
+  InYardDate: Schema.String,
+  StockNumber: Schema.String,
+  Vin: Schema.String,
+  Photos: Schema.Array(PypPhotoSchema),
+});
+
+const PypFilterResponseSchema = Schema.Struct({
+  Success: Schema.Boolean,
+  Errors: Schema.Array(Schema.String),
+  ResponseData: Schema.Struct({
+    Request: Schema.Struct({
+      YardCode: Schema.Array(Schema.String),
+      Filter: Schema.String,
+      PageSize: Schema.Number,
+      PageNumber: Schema.Number,
+      FilterDeals: Schema.Boolean,
+    }),
+    Vehicles: Schema.Array(PypVehicleJsonSchema),
+  }),
+  Messages: Schema.Array(Schema.String),
+});
+
+export type PypFilterResponse = Schema.Schema.Type<typeof PypFilterResponseSchema>;
+
+const decodePypFilterResponse = Schema.decodeUnknownSync(PypFilterResponseSchema);
 
 interface PypRawLocation {
   LocationCode: string;
@@ -58,6 +83,64 @@ interface PypRawLocation {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isPypUrls(value: unknown): value is PypRawLocation["Urls"] {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isString(value.Store) &&
+    isString(value.Interchange) &&
+    isString(value.Inventory) &&
+    isString(value.Prices) &&
+    isString(value.Directions) &&
+    isString(value.SellACar) &&
+    isString(value.Contact) &&
+    (value.CustomerServiceChat === null ||
+      isString(value.CustomerServiceChat)) &&
+    (value.CarbuyChat === null || isString(value.CarbuyChat)) &&
+    isString(value.Deals) &&
+    isString(value.Parts)
+  );
+}
+
+function isPypRawLocation(value: unknown): value is PypRawLocation {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isString(value.LocationCode) &&
+    isString(value.LocationPageURL) &&
+    isString(value.Name) &&
+    isString(value.DisplayName) &&
+    isString(value.Address) &&
+    isString(value.City) &&
+    isString(value.State) &&
+    isString(value.StateAbbr) &&
+    isString(value.Zip) &&
+    isString(value.Phone) &&
+    isNumber(value.Lat) &&
+    isNumber(value.Lng) &&
+    isNumber(value.Distance) &&
+    isString(value.LegacyCode) &&
+    isString(value.Primo) &&
+    isPypUrls(value.Urls)
+  );
+}
+
 /**
  * Hyperbrowser caps sessions at 15 min. Rotate at 12 min to leave headroom.
  */
@@ -74,6 +157,11 @@ export interface PypSession {
   reopen(): Effect.Effect<void, BrowserSessionError>;
 }
 
+interface ManagedPypSession {
+  readonly session: PypSession;
+  readonly close: Effect.Effect<void, BrowserSessionError>;
+}
+
 /**
  * Acquire a managed PYP browser session.
  * The session is automatically closed when the surrounding Scope finalizes,
@@ -82,13 +170,11 @@ export interface PypSession {
 export function acquirePypSession(
   apiKey: string,
 ): Effect.Effect<PypSession, BrowserSessionError, Scope.Scope> {
-  return Effect.acquireRelease(
+  const managed = Effect.acquireRelease(
     openSession(apiKey),
-    (session) =>
-      Effect.sync(() => {
-        session._close();
-      }),
+    (session) => session.close.pipe(Effect.catchAll(() => Effect.void)),
   );
+  return managed.pipe(Effect.map((session) => session.session));
 }
 
 interface MutableSessionState {
@@ -105,154 +191,191 @@ interface MutableSessionState {
 
 function openSession(
   apiKey: string,
-): Effect.Effect<PypSession & { _close: () => void }, BrowserSessionError> {
-  return Effect.tryPromise({
-    try: async () => {
-      const state: MutableSessionState = {
-        client: new Hyperbrowser({ apiKey }),
-        browser: null,
-        context: null,
-        page: null,
-        sessionId: null,
-        csrfToken: null,
-        locations: [],
-        sessionStartedAt: 0,
-        apiKey,
-      };
+): Effect.Effect<ManagedPypSession, BrowserSessionError> {
+  return Effect.gen(function* () {
+    const state: MutableSessionState = {
+      client: new Hyperbrowser({ apiKey }),
+      browser: null,
+      context: null,
+      page: null,
+      sessionId: null,
+      csrfToken: null,
+      locations: [],
+      sessionStartedAt: 0,
+      apiKey,
+    };
 
-      await doOpen(state);
-
-      const session: PypSession & { _close: () => void } = {
-        get locations() {
-          return state.locations;
-        },
-        get shouldRotate() {
-          if (state.sessionStartedAt === 0) return false;
-          return Date.now() - state.sessionStartedAt > SESSION_ROTATE_MS;
-        },
-        fetchFilterPage: (storeCodes, pageNumber, pageSize) =>
-          Effect.tryPromise({
-            try: () => doFetchFilterPage(state, storeCodes, pageNumber, pageSize),
-            catch: (cause) =>
-              new BrowserSessionError({ phase: "fetch", cause }),
-          }),
-        reopen: () =>
-          Effect.tryPromise({
-            try: async () => {
-              const cachedLocations = state.locations;
-              await doClose(state);
-              await doOpen(state);
-              if (cachedLocations.length > 0 && state.locations.length === 0) {
-                state.locations = cachedLocations;
-              }
-            },
-            catch: (cause) =>
-              new BrowserSessionError({ phase: "rotate", cause }),
-          }),
-        _close: () => {
-          doClose(state).catch(() => {});
-        },
-      };
-
-      return session;
-    },
-    catch: (cause) => new BrowserSessionError({ phase: "open", cause }),
-  });
-}
-
-async function doOpen(state: MutableSessionState): Promise<void> {
-  const session = await state.client.sessions.create({
-    useStealth: true,
-    acceptCookies: true,
-  });
-  state.sessionId = session.id;
-  state.sessionStartedAt = Date.now();
-
-  state.browser = await chromium.connectOverCDP(session.wsEndpoint);
-  state.context =
-    state.browser.contexts()[0] ?? (await state.browser.newContext());
-  state.page =
-    state.context.pages()[0] ?? (await state.context.newPage());
-
-  await state.page.goto(
-    `${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`,
-    { waitUntil: "networkidle", timeout: 60_000 },
-  );
-
-  state.csrfToken = await state.page.evaluate(
-    () =>
-      (
-        document.querySelector(
-          "[name=__RequestVerificationToken]",
-        ) as HTMLInputElement | null
-      )?.value ?? null,
-  );
-  if (!state.csrfToken) {
-    throw new Error(
-      "Could not extract RequestVerificationToken from PYP page",
+    yield* doOpen(state).pipe(
+      Effect.mapError((cause) => new BrowserSessionError({ phase: "open", cause })),
     );
-  }
 
-  const rawLocations: PypRawLocation[] = await state.page.evaluate(
-    // @ts-expect-error -- _locationList is a global injected by pyp.com
-    () => (typeof _locationList !== "undefined" ? _locationList : []),
-  );
-  state.locations = rawLocations.map(mapRawLocation);
+    const close = doClose(state).pipe(
+      Effect.mapError((cause) => new BrowserSessionError({ phase: "close", cause })),
+    );
+
+    const session: PypSession = {
+      get locations() {
+        return state.locations;
+      },
+      get shouldRotate() {
+        if (state.sessionStartedAt === 0) return false;
+        return Date.now() - state.sessionStartedAt > SESSION_ROTATE_MS;
+      },
+      fetchFilterPage: (storeCodes, pageNumber, pageSize) =>
+        doFetchFilterPage(state, storeCodes, pageNumber, pageSize).pipe(
+          Effect.mapError((cause) =>
+            new BrowserSessionError({ phase: "fetch", cause }),
+          ),
+        ),
+      reopen: () =>
+        Effect.gen(function* () {
+          const cachedLocations = state.locations;
+          yield* close;
+          yield* doOpen(state).pipe(
+            Effect.mapError((cause) =>
+              new BrowserSessionError({ phase: "rotate", cause }),
+            ),
+          );
+          if (cachedLocations.length > 0 && state.locations.length === 0) {
+            state.locations = cachedLocations;
+          }
+        }),
+    };
+
+    return { session, close };
+  });
 }
 
-async function doFetchFilterPage(
+function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
+  return Effect.gen(function* () {
+    const session = yield* Effect.tryPromise(() =>
+      state.client.sessions.create({
+        useStealth: true,
+        acceptCookies: true,
+      }),
+    );
+    state.sessionId = session.id;
+    state.sessionStartedAt = Date.now();
+
+    const browser = yield* Effect.tryPromise(() =>
+      chromium.connectOverCDP(session.wsEndpoint),
+    );
+    state.browser = browser;
+
+    const context =
+      browser.contexts()[0] ??
+      (yield* Effect.tryPromise(() => browser.newContext()));
+    state.context = context;
+
+    const page =
+      context.pages()[0] ?? (yield* Effect.tryPromise(() => context.newPage()));
+    state.page = page;
+
+    yield* Effect.tryPromise(() =>
+      page.goto(`${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`, {
+        waitUntil: "networkidle",
+        timeout: 60_000,
+      }),
+    );
+
+    state.csrfToken = yield* Effect.tryPromise(() =>
+      page.evaluate(() => {
+        const element = document.querySelector("[name=__RequestVerificationToken]");
+        return element instanceof HTMLInputElement ? element.value : null;
+      }),
+    );
+    if (!state.csrfToken) {
+      return yield* Effect.fail(
+        new Error("Could not extract RequestVerificationToken from PYP page"),
+      );
+    }
+
+    const rawLocations = yield* Effect.tryPromise(() =>
+      page.evaluate(() => {
+        const value = Reflect.get(globalThis, "_locationList");
+        return Array.isArray(value) ? value : [];
+      }),
+    );
+    state.locations = rawLocations.filter(isPypRawLocation).map(mapRawLocation);
+  }).pipe(Effect.asVoid);
+}
+
+function doFetchFilterPage(
   state: MutableSessionState,
   storeCodes: string,
   pageNumber: number,
   pageSize: number,
-): Promise<PypFilterResponse> {
-  if (!state.page || !state.csrfToken) {
-    throw new Error("PypBrowserSession not open — call open() first");
-  }
+): Effect.Effect<PypFilterResponse, unknown> {
+  return Effect.gen(function* () {
+    const page = state.page;
+    const token = state.csrfToken;
+    if (!page || !token) {
+      return yield* Effect.fail(
+        new Error("PypBrowserSession not open — call open() first"),
+      );
+    }
 
-  const path = `${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${pageNumber}&pageSize=${pageSize}`;
-  const token = state.csrfToken;
+    const path = `${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${pageNumber}&pageSize=${pageSize}`;
 
-  const result = await state.page.evaluate(
-    async ({ path, token }: { path: string; token: string }) => {
-      const res = await fetch(path, {
-        headers: {
-          Accept: "application/json",
-          RequestVerificationToken: token,
-          "X-Requested-With": "XMLHttpRequest",
+    const result = yield* Effect.tryPromise(() =>
+      page.evaluate(
+        async ({ path, token }: { path: string; token: string }) => {
+          const res = await fetch(path, {
+            headers: {
+              Accept: "application/json",
+              RequestVerificationToken: token,
+              "X-Requested-With": "XMLHttpRequest",
+            },
+          });
+          if (!res.ok) {
+            return { _error: true as const, status: res.status };
+          }
+          return { _error: false as const, data: await res.json() };
         },
-      });
-      if (!res.ok) {
-        return { _error: true as const, status: res.status };
-      }
-      return { _error: false as const, data: await res.json() };
-    },
-    { path, token },
-  );
+        { path, token },
+      ),
+    );
 
-  if (result._error) {
-    throw new Error(`PYP Filter API returned ${result.status}`);
-  }
+    if (result._error) {
+      return yield* Effect.fail(
+        new Error(`PYP Filter API returned ${result.status}`),
+      );
+    }
 
-  return result.data as PypFilterResponse;
+    return decodePypFilterResponse(result.data);
+  });
 }
 
-async function doClose(state: MutableSessionState): Promise<void> {
-  await state.page?.close().catch(() => {});
-  await state.context?.close().catch(() => {});
-  await state.browser?.close().catch(() => {});
-  state.page = null;
-  state.context = null;
-  state.browser = null;
-  state.sessionStartedAt = 0;
+function doClose(state: MutableSessionState): Effect.Effect<void, unknown> {
+  return Effect.gen(function* () {
+    const page = state.page;
+    if (page) {
+      yield* Effect.tryPromise(() => page.close().catch(() => undefined));
+    }
+    const context = state.context;
+    if (context) {
+      yield* Effect.tryPromise(() => context.close().catch(() => undefined));
+    }
+    const browser = state.browser;
+    if (browser) {
+      yield* Effect.tryPromise(() => browser.close().catch(() => undefined));
+    }
+    state.page = null;
+    state.context = null;
+    state.browser = null;
+    state.sessionStartedAt = 0;
 
-  if (state.sessionId && state.client) {
-    console.log(
-      `[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${state.sessionId}`,
-    );
-    await state.client.sessions.stop(state.sessionId).catch(() => {});
-    state.sessionId = null;
-  }
+    const sessionId = state.sessionId;
+    if (sessionId) {
+      yield* Effect.logInfo(
+        `[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${sessionId}`,
+      );
+      yield* Effect.tryPromise(() =>
+        state.client.sessions.stop(sessionId).catch(() => undefined),
+      );
+      state.sessionId = null;
+    }
+  }).pipe(Effect.asVoid);
 }
 
 function mapRawLocation(raw: PypRawLocation): Location {
