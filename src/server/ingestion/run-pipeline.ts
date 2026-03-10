@@ -390,7 +390,11 @@ function fetchRow52Source(
           vehiclesProcessed: latestVehiclesProcessed,
           errors: [msg],
         }).pipe(
-          Effect.catchAll(() => Effect.void),
+          Effect.catchAll((error) =>
+            Effect.logWarning(
+              `[Ingestion] completeSourceRun failed for source=row52 runId=${runId}: ${error.message}`,
+            ),
+          ),
           Effect.map(() => ({
             source: "row52" as const,
             count: latestVehiclesProcessed,
@@ -486,7 +490,11 @@ function fetchPypSource(
           vehiclesProcessed: latestVehiclesProcessed,
           errors: [msg],
         }).pipe(
-          Effect.catchAll(() => Effect.void),
+          Effect.catchAll((error) =>
+            Effect.logWarning(
+              `[Ingestion] completeSourceRun failed for source=pyp runId=${runId}: ${error.message}`,
+            ),
+          ),
           Effect.map(() => ({
             source: "pyp" as const,
             count: latestVehiclesProcessed,
