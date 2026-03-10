@@ -1,14 +1,16 @@
+import {
+  HttpClient,
+} from "@effect/platform";
 import buildQuery from "odata-query";
-import { Effect, Duration } from "effect";
+import { Effect, Duration, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type {
   Row52Image,
   Row52Location,
-  Row52ODataResponse,
   Row52Vehicle,
 } from "~/lib/types";
-import { fetchWithRetry } from "./fetch-with-retry";
 import { Row52ProviderError } from "./errors";
+import { fetchRow52OData } from "./row52-transport";
 import type { CanonicalVehicle } from "./types";
 
 const PAGE_SIZE = 1000;
@@ -17,54 +19,99 @@ const PAGE_FETCH_CONCURRENCY = 4;
 const FETCH_TIMEOUT_MS = 30_000;
 const TIMEOUT_RETRY_LIMIT = 2;
 const TIMEOUT_RETRY_BASE_DELAY_MS = 1_000;
-const RETRYABLE_STATUS_CODES = [429, 502, 503, 504];
+const ROW52_FETCH_OPTIONS = {
+  timeoutMs: FETCH_TIMEOUT_MS,
+  retryLimit: TIMEOUT_RETRY_LIMIT,
+  retryBaseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
+} as const;
 
-function fetchRow52Effect(
-  endpoint: string,
-  queryString: string,
-): Effect.Effect<Row52ODataResponse<Row52Vehicle>, Error> {
-  const url = `${API_ENDPOINTS.ROW52_BASE}${endpoint}${queryString}`;
-  return fetchWithRetry(
-    url,
-    {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "application/json",
-      },
-    },
-    {
-      context: endpoint,
-      logPrefix: "[Row52]",
-      timeoutMs: FETCH_TIMEOUT_MS,
-      retries: TIMEOUT_RETRY_LIMIT,
-      baseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
-      retryStatusCodes: RETRYABLE_STATUS_CODES,
-    },
-  ).pipe(
-    Effect.flatMap((response) => {
-      if (!response.ok) {
-        return Effect.fail(
-          new Error(
-            `Row52 API error: ${response.status} ${response.statusText}`,
-          ),
-        );
-      }
-      return Effect.tryPromise({
-        try: () =>
-          response.json() as Promise<Row52ODataResponse<Row52Vehicle>>,
-        catch: (cause) =>
-          cause instanceof Error
-            ? cause
-            : new Error(`Failed to parse Row52 JSON: ${String(cause)}`),
-      });
-    }),
-  );
-}
+const Row52StateSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  abbreviation: Schema.String,
+  countryId: Schema.Number,
+});
+
+const Row52MakeSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+});
+
+const Row52ModelSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  makeId: Schema.Number,
+  make: Schema.optional(Row52MakeSchema),
+});
+
+const Row52LocationSchema = Schema.Struct({
+  id: Schema.Number,
+  accountId: Schema.String,
+  name: Schema.String,
+  code: Schema.String,
+  address1: Schema.String,
+  address2: Schema.NullOr(Schema.String),
+  city: Schema.String,
+  zipCode: Schema.String,
+  stateId: Schema.Number,
+  phone: Schema.String,
+  hours: Schema.String,
+  latitude: Schema.Number,
+  longitude: Schema.Number,
+  isActive: Schema.Boolean,
+  isVisible: Schema.Boolean,
+  isParticipating: Schema.Boolean,
+  webUrl: Schema.String,
+  logoUrl: Schema.NullOr(Schema.String),
+  partsPricingUrl: Schema.String,
+  state: Schema.optional(Row52StateSchema),
+});
+
+const Row52ImageSchema = Schema.Struct({
+  id: Schema.Number,
+  fileName: Schema.String,
+  resourceUrl: Schema.String,
+  vehicleId: Schema.Number,
+  size1: Schema.String,
+  size2: Schema.String,
+  size3: Schema.String,
+  size4: Schema.String,
+  original: Schema.String,
+  extension: Schema.String,
+  caption: Schema.NullOr(Schema.String),
+  sortOrder: Schema.Number,
+  isActive: Schema.Boolean,
+  isVisible: Schema.Boolean,
+});
+
+const Row52VehicleSchema = Schema.Struct({
+  id: Schema.Number,
+  vin: Schema.String,
+  modelId: Schema.Number,
+  year: Schema.Number,
+  locationId: Schema.Number,
+  row: Schema.String,
+  slot: Schema.NullOr(Schema.String),
+  barCodeNumber: Schema.String,
+  dateAdded: Schema.String,
+  creationDate: Schema.String,
+  lastModificationDate: Schema.String,
+  isActive: Schema.Boolean,
+  isVisible: Schema.Boolean,
+  defaultImage: Schema.Number,
+  color: Schema.NullOr(Schema.String),
+  engine: Schema.NullOr(Schema.String),
+  trim: Schema.NullOr(Schema.String),
+  transmission: Schema.NullOr(Schema.String),
+  model: Schema.optional(Row52ModelSchema),
+  location: Schema.optional(Row52LocationSchema),
+  images: Schema.optional(Schema.Array(Row52ImageSchema)),
+});
 
 function fetchRow52LocationsEffect(): Effect.Effect<
   Map<number, Row52Location>,
-  Error
+  Error,
+  HttpClient.HttpClient
 > {
   const queryString = buildQuery({
     orderBy: "state/name",
@@ -89,40 +136,12 @@ function fetchRow52LocationsEffect(): Effect.Effect<
     filter: { isParticipating: true },
   });
 
-  const url = `${API_ENDPOINTS.ROW52_BASE}${API_ENDPOINTS.ROW52_LOCATIONS}${queryString}`;
-  return fetchWithRetry(
-    url,
-    {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "application/json",
-      },
-    },
-    {
-      context: API_ENDPOINTS.ROW52_LOCATIONS,
-      logPrefix: "[Row52]",
-      timeoutMs: FETCH_TIMEOUT_MS,
-      retries: TIMEOUT_RETRY_LIMIT,
-      baseDelayMs: TIMEOUT_RETRY_BASE_DELAY_MS,
-      retryStatusCodes: RETRYABLE_STATUS_CODES,
-    },
-  ).pipe(
-    Effect.flatMap((response) => {
-      if (!response.ok) {
-        return Effect.fail(
-          new Error(
-            `Row52 Locations API error: ${response.status} ${response.statusText}`,
-          ),
-        );
-      }
-      return Effect.tryPromise({
-        try: () =>
-          response.json() as Promise<Row52ODataResponse<Row52Location>>,
-        catch: (cause) =>
-          cause instanceof Error ? cause : new Error(String(cause)),
-      });
-    }),
+  return fetchRow52OData({
+    endpoint: API_ENDPOINTS.ROW52_LOCATIONS,
+    queryString,
+    itemSchema: Row52LocationSchema,
+    ...ROW52_FETCH_OPTIONS,
+  }).pipe(
     Effect.map((data) => {
       const map = new Map<number, Row52Location>();
       for (const loc of data.value) {
@@ -163,13 +182,21 @@ function buildVehicleQuery(skip: number, includeCount: boolean): string {
 function fetchVehiclePageEffect(
   skip: number,
   includeCount: boolean,
-): Effect.Effect<Row52VehiclesPage, Error> {
+): Effect.Effect<Row52VehiclesPage, Error, HttpClient.HttpClient> {
   const queryString = buildVehicleQuery(skip, includeCount);
-  return fetchRow52Effect(API_ENDPOINTS.ROW52_VEHICLES, queryString).pipe(
+  return fetchRow52OData({
+    endpoint: API_ENDPOINTS.ROW52_VEHICLES,
+    queryString,
+    itemSchema: Row52VehicleSchema,
+    ...ROW52_FETCH_OPTIONS,
+  }).pipe(
     Effect.map((response) => ({
       skip,
       totalCount: response["@odata.count"],
-      vehicles: response.value,
+      vehicles: response.value.map((vehicle) => ({
+        ...vehicle,
+        images: vehicle.images ? [...vehicle.images] : vehicle.images,
+      })),
     })),
   );
 }
@@ -240,8 +267,8 @@ function transformRow52Vehicle(
 /**
  * Effect-based Row52 inventory stream.
  */
-export function streamRow52Inventory(options: {
-  onBatch: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
+export function streamRow52Inventory<E, R>(options: {
+  onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startSkip?: number;
   pagesPerChunk?: number;
   onProgress?: (progress: {
@@ -251,8 +278,12 @@ export function streamRow52Inventory(options: {
     done: boolean;
     totalCount?: number;
     errors: string[];
-  }) => Promise<void> | void;
-}): Effect.Effect<Row52StreamResult, Row52ProviderError> {
+  }) => Effect.Effect<void, E, R>;
+}): Effect.Effect<
+  Row52StreamResult,
+  Row52ProviderError | E,
+  HttpClient.HttpClient | R
+> {
   return Effect.gen(function* () {
     const progressEveryPages = Math.max(1, options.pagesPerChunk ?? 10);
     let nextSkip = Math.max(0, options.startSkip ?? 0);
@@ -263,20 +294,22 @@ export function streamRow52Inventory(options: {
     let lastProgressPages = 0;
     const errors: string[] = [];
 
-    console.log("[Row52] Fetching locations...");
+    yield* Effect.logInfo("[Row52] Fetching locations...");
     const locationMap = yield* fetchRow52LocationsEffect().pipe(
       Effect.mapError(
         (cause) => new Row52ProviderError({ skip: -1, cause }),
       ),
     );
-    console.log(`[Row52] Found ${locationMap.size} participating locations`);
+    yield* Effect.logInfo(
+      `[Row52] Found ${locationMap.size} participating locations`,
+    );
 
-    const emitProgress = async (force: boolean): Promise<void> => {
-      if (!options.onProgress) return;
+    const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
+      if (!options.onProgress) return Effect.succeed(undefined);
       if (!force && pagesProcessed - lastProgressPages < progressEveryPages)
-        return;
+        return Effect.succeed(undefined);
       lastProgressPages = pagesProcessed;
-      await options.onProgress({
+      return options.onProgress({
         nextSkip,
         pagesProcessed,
         vehiclesProcessed: totalCount,
@@ -286,40 +319,41 @@ export function streamRow52Inventory(options: {
       });
     };
 
-    const processPage = (page: Row52VehiclesPage): void => {
-      if (page.totalCount !== undefined) {
-        knownTotalCount = page.totalCount;
-      }
+    const processPage = (page: Row52VehiclesPage): Effect.Effect<void, E, R> =>
+      Effect.gen(function* () {
+        if (page.totalCount !== undefined) {
+          knownTotalCount = page.totalCount;
+        }
 
-      console.log(
-        `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${knownTotalCount ?? "unknown"})`,
-      );
+        yield* Effect.logInfo(
+          `[Row52] Fetched page at skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${knownTotalCount ?? "unknown"})`,
+        );
 
-      const pageCanonical: CanonicalVehicle[] = [];
-      for (const row of page.vehicles) {
-        const v = transformRow52Vehicle(row, locationMap);
-        if (v) pageCanonical.push(v);
-      }
+        const pageCanonical: CanonicalVehicle[] = [];
+        for (const row of page.vehicles) {
+          const v = transformRow52Vehicle(row, locationMap);
+          if (v) pageCanonical.push(v);
+        }
 
-      if (pageCanonical.length > 0) {
-        options.onBatch(pageCanonical);
-      }
+        if (pageCanonical.length > 0) {
+          yield* options.onBatch(pageCanonical);
+        }
 
-      totalCount += pageCanonical.length;
-      pagesProcessed += 1;
-      nextSkip = page.skip + PAGE_SIZE;
-    };
+        totalCount += pageCanonical.length;
+        pagesProcessed += 1;
+        nextSkip = page.skip + PAGE_SIZE;
+      });
 
     const firstPage = yield* fetchVehiclePageEffect(nextSkip, true).pipe(
       Effect.mapError(
         (cause) => new Row52ProviderError({ skip: nextSkip, cause }),
       ),
     );
-    processPage(firstPage);
+    yield* processPage(firstPage);
 
     if (firstPage.vehicles.length < PAGE_SIZE) {
       done = true;
-      yield* Effect.promise(() => emitProgress(true));
+      yield* emitProgress(true);
     } else {
       const totalRows = firstPage.totalCount;
 
@@ -340,11 +374,11 @@ export function streamRow52Inventory(options: {
 
           if (!pageResult.ok) {
             const msg = `Row52 page at skip=${nextSkip}: ${pageResult.error.message}`;
-            console.error(msg);
+            yield* Effect.logError(msg);
             errors.push(msg);
             done = true;
           } else {
-            processPage(pageResult.page);
+            yield* processPage(pageResult.page);
             if (pageResult.page.vehicles.length < PAGE_SIZE) {
               done = true;
             } else if (PAGE_DELAY_MS > 0) {
@@ -352,7 +386,7 @@ export function streamRow52Inventory(options: {
             }
           }
 
-          yield* Effect.promise(() => emitProgress(done));
+          yield* emitProgress(done);
         }
       } else {
         const remainingSkips: number[] = [];
@@ -415,7 +449,7 @@ export function streamRow52Inventory(options: {
             .sort((a, b) => a.skip - b.skip);
 
           for (const page of successfulPages) {
-            processPage(page);
+            yield* processPage(page);
             if (page.vehicles.length < PAGE_SIZE) {
               stopPaging = true;
               break;
@@ -425,19 +459,19 @@ export function streamRow52Inventory(options: {
           for (const result of pageResults) {
             if (!result.ok) {
               const msg = `Row52 page at skip=${result.skip}: ${result.error.message}`;
-              console.error(msg);
+              yield* Effect.logError(msg);
               errors.push(msg);
               stopPaging = true;
             }
           }
 
           done = stopPaging;
-          yield* Effect.promise(() => emitProgress(done));
+          yield* emitProgress(done);
         }
 
         if (!done) {
           done = true;
-          yield* Effect.promise(() => emitProgress(true));
+          yield* emitProgress(true);
         }
       }
     }

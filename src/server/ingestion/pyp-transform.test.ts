@@ -69,11 +69,29 @@ describe("transformPypVehicle", () => {
     expect(result?.year).toBe(2020);
     expect(result?.make).toBe("HONDA");
     expect(result?.model).toBe("CIVIC");
-    expect(result?.imageUrl).toContain("CAR-FRONT-LEFT_24371885");
+    expect(result?.color).toBe("Blue");
+    expect(result?.stockNumber).toBe("1229-36026");
+    expect(result?.imageUrl).toBe(
+      "https://cdn.lkqcorp.com/carbuy/CAR-FRONT-LEFT_24371885.jpg?w=500&h=500",
+    );
+    expect(result?.availableDate).toBe("2026-02-05T14:07:19.000Z");
     expect(result?.locationName).toBe("Pick Your Part - Sun Valley");
+    expect(result?.state).toBe("California");
+    expect(result?.stateAbbr).toBe("CA");
+    expect(result?.lat).toBe(34.2284);
+    expect(result?.lng).toBe(-118.3929);
     expect(result?.section).toBe("Prime");
     expect(result?.row).toBe("p1");
     expect(result?.space).toBe("2");
+    expect(result?.detailsUrl).toBe(
+      "https://www.pyp.com/inventory/sun-valley-1229/2020-honda-civic/",
+    );
+    expect(result?.partsUrl).toBe(
+      "https://www.pyp.com/parts/sun-valley-1229/?year=2020&make=HONDA&model=CIVIC",
+    );
+    expect(result?.pricesUrl).toBe(
+      "https://www.pyp.com/prices/sun-valley-1229/",
+    );
   });
 
   test("returns null for vehicle without VIN", () => {

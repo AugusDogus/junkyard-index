@@ -7,7 +7,11 @@ import {
 const originalDisablePypFetch = process.env.DISABLE_PYP_FETCH;
 
 afterEach(() => {
-  process.env.DISABLE_PYP_FETCH = originalDisablePypFetch;
+  if (originalDisablePypFetch === undefined) {
+    delete process.env.DISABLE_PYP_FETCH;
+  } else {
+    process.env.DISABLE_PYP_FETCH = originalDisablePypFetch;
+  }
 });
 
 describe("locations helpers", () => {

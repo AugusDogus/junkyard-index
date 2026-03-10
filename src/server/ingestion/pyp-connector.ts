@@ -78,12 +78,37 @@ function assertMinLocations(locations: Location[]) {
   }
 }
 
+function notifyProgress<E, R>(
+  onProgress:
+    | ((progress: {
+        nextPage: number;
+        pagesProcessed: number;
+        vehiclesProcessed: number;
+        done: boolean;
+        errors: string[];
+      }) => Effect.Effect<void, E, R>)
+    | undefined,
+  progress: {
+    nextPage: number;
+    pagesProcessed: number;
+    vehiclesProcessed: number;
+    done: boolean;
+    errors: string[];
+  },
+): Effect.Effect<void, E, R> {
+  if (!onProgress) {
+    return Effect.succeed(undefined);
+  }
+
+  return onProgress(progress);
+}
+
 /**
  * Effect-based PYP inventory stream.
  * Uses a scoped browser session that is automatically cleaned up on failure or completion.
  */
-export function streamPypInventory(options: {
-  onBatch: (vehicles: CanonicalVehicle[]) => Promise<void> | void;
+export function streamPypInventory<E, R>(options: {
+  onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startPage?: number;
   onProgress?: (progress: {
     nextPage: number;
@@ -91,11 +116,11 @@ export function streamPypInventory(options: {
     vehiclesProcessed: number;
     done: boolean;
     errors: string[];
-  }) => Promise<void> | void;
+  }) => Effect.Effect<void, E, R>;
 }): Effect.Effect<
   PypStreamResult,
-  PypProviderError | BrowserSessionError,
-  Config | Scope.Scope
+  PypProviderError | BrowserSessionError | E,
+  Config | Scope.Scope | R
 > {
   return Effect.gen(function* () {
     const config = yield* Config;
@@ -110,7 +135,14 @@ export function streamPypInventory(options: {
     }
 
     const session: PypSession = yield* acquirePypSession(apiKey);
-    assertMinLocations(session.locations);
+    yield* Effect.try({
+      try: () => assertMinLocations(session.locations),
+      catch: (cause) =>
+        new BrowserSessionError({
+          phase: "open",
+          cause,
+        }),
+    });
     const { locationMap, storeCodes } = buildLocationContext(session.locations);
 
     let nextPage = Math.max(1, options.startPage ?? 1);
@@ -120,18 +152,18 @@ export function streamPypInventory(options: {
     let sessionCount = 1;
     const errors: string[] = [];
 
-    console.log(
+    yield* Effect.logInfo(
       `[PYP] Streaming inventory from ${session.locations.length} locations via browser-proxied JSON API`,
     );
 
     while (!done) {
       if (session.shouldRotate) {
-        console.log(
+        yield* Effect.logInfo(
           `[PYP] Rotating session (session #${sessionCount} done, page ${nextPage} next)`,
         );
         yield* session.reopen();
         sessionCount++;
-        console.log(
+        yield* Effect.logInfo(
           `[PYP] New session #${sessionCount} ready, resuming from page ${nextPage}`,
         );
       }
@@ -154,9 +186,16 @@ export function streamPypInventory(options: {
 
       if (!fetchResult.ok) {
         const msg = fetchResult.error.message;
-        console.error(msg);
+        yield* Effect.logError(msg);
         errors.push(msg);
         done = true;
+        yield* notifyProgress(options.onProgress, {
+          nextPage,
+          pagesProcessed,
+          vehiclesProcessed: totalCount,
+          done: true,
+          errors,
+        });
         break;
       }
 
@@ -166,27 +205,32 @@ export function streamPypInventory(options: {
         locationMap,
       );
 
-      console.log(
+      yield* Effect.logInfo(
         `[PYP] Page ${fetchResult.pageNumber}: ${result.vehicleCount} vehicles fetched, ${result.canonical.length} transformed (${totalCount + result.canonical.length} total)`,
       );
 
       if (result.apiError) {
         errors.push(result.apiError);
         done = true;
+        yield* notifyProgress(options.onProgress, {
+          nextPage,
+          pagesProcessed,
+          vehiclesProcessed: totalCount,
+          done: true,
+          errors,
+        });
         break;
       }
 
       if (result.canonical.length > 0) {
-        yield* Effect.promise(() =>
-          Promise.resolve(options.onBatch(result.canonical)),
-        );
+        yield* options.onBatch(result.canonical);
       }
 
       totalCount += result.canonical.length;
       pagesProcessed += 1;
 
       if (fetchResult.pageNumber === PAGE_COUNT_WARNING_THRESHOLD) {
-        console.warn(
+        yield* Effect.logWarning(
           `[PYP] Reached ${PAGE_COUNT_WARNING_THRESHOLD} pages (${totalCount} vehicles). ` +
             `This is unusually high — verify PYP API is paginating correctly.`,
         );
@@ -194,37 +238,30 @@ export function streamPypInventory(options: {
 
       if (result.isLastPage) {
         done = true;
+        yield* notifyProgress(options.onProgress, {
+          nextPage,
+          pagesProcessed,
+          vehiclesProcessed: totalCount,
+          done: true,
+          errors,
+        });
         break;
       }
 
       nextPage += 1;
 
       if (options.onProgress) {
-        yield* Effect.tryPromise({
-          try: () =>
-            Promise.resolve(
-              options.onProgress!({
-                nextPage,
-                pagesProcessed,
-                vehiclesProcessed: totalCount,
-                done,
-                errors,
-              }),
-            ),
-          catch: (progressError) => {
-            console.warn(
-              `[PYP] Progress update failed (non-fatal): ${progressError instanceof Error ? progressError.message : String(progressError)}`,
-            );
-            return new BrowserSessionError({
-              phase: "fetch",
-              cause: progressError,
-            });
-          },
-        }).pipe(Effect.catchAll(() => Effect.void));
+        yield* notifyProgress(options.onProgress, {
+          nextPage,
+          pagesProcessed,
+          vehiclesProcessed: totalCount,
+          done,
+          errors,
+        });
       }
     }
 
-    console.log(
+    yield* Effect.logInfo(
       `[PYP] Stream complete: ${totalCount} vehicles across ${pagesProcessed} pages (${sessionCount} session${sessionCount > 1 ? "s" : ""}), ${errors.length} errors`,
     );
 

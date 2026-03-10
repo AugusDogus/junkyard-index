@@ -24,7 +24,8 @@ export function mapRunStatus(status: string): IngestionStatus {
     case "error":
       return "down";
     default:
-      return "operational";
+      console.warn(`[Status] Unexpected ingestion status: ${status}`);
+      return "down";
   }
 }
 

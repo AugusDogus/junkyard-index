@@ -1,6 +1,9 @@
+import { Effect } from "effect";
 import { asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { vehicle, vehicleChange } from "~/schema";
+import { PersistenceError } from "./errors";
+import { Database } from "./runtime";
 import type { CanonicalVehicle } from "./types";
 
 type SourceName = CanonicalVehicle["source"];
@@ -240,152 +243,189 @@ function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function logReconcileMemory(
+function formatReconcileMemory(
   stage: string,
   details: Record<string, number | string>,
-): void {
+): string {
   const usage = process.memoryUsage();
   const detailText = Object.entries(details)
     .map(([key, value]) => `${key}=${value}`)
     .join(" ");
-  console.log(
-    `[Ingestion] Memory ${stage}: rss=${formatMegabytes(usage.rss)} heap_used=${formatMegabytes(usage.heapUsed)} heap_total=${formatMegabytes(usage.heapTotal)} external=${formatMegabytes(usage.external)} ${detailText}`.trim(),
+  return `[Ingestion] Memory ${stage}: rss=${formatMegabytes(usage.rss)} heap_used=${formatMegabytes(usage.heapUsed)} heap_total=${formatMegabytes(usage.heapTotal)} external=${formatMegabytes(usage.external)} ${detailText}`.trim();
+}
+
+function dbEffect<A>(
+  operation: string,
+  run: () => Promise<A>,
+): Effect.Effect<A, PersistenceError> {
+  return Effect.tryPromise({
+    try: run,
+    catch: (cause) => new PersistenceError({ operation, cause }),
+  });
+}
+
+function dbTransactionEffect<A>(
+  dbClient: typeof db,
+  operation: string,
+  run: (tx: DbTransaction) => Effect.Effect<A, PersistenceError>,
+): Effect.Effect<A, PersistenceError> {
+  return dbEffect(operation, () =>
+    dbClient.transaction((tx) => Effect.runPromise(run(tx))),
   );
 }
 
-async function collectChangedUpserts(params: {
+function collectChangedUpserts(params: {
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
   runTimestamp: Date;
-}): Promise<{
+}): Effect.Effect<
+  {
   changedUpserts: PlannedVehicleUpsert[];
   readExistingMs: number;
   planMs: number;
-}> {
-  const changedUpserts: PlannedVehicleUpsert[] = [];
-  let readExistingMs = 0;
-  let planMs = 0;
+  },
+  PersistenceError,
+  Database
+> {
+  return Effect.gen(function* () {
+    const dbClient = yield* Database;
+    const changedUpserts: PlannedVehicleUpsert[] = [];
+    let readExistingMs = 0;
+    let planMs = 0;
 
-  for (const chunk of chunkMapEntries(
-    params.finalInventoryByVin,
-    EXISTING_VEHICLE_LOOKUP_CHUNK_SIZE,
-  )) {
-    const vins = chunk.map(([vin]) => vin);
+    for (const chunk of chunkMapEntries(
+      params.finalInventoryByVin,
+      EXISTING_VEHICLE_LOOKUP_CHUNK_SIZE,
+    )) {
+      const vins = chunk.map(([vin]) => vin);
 
-    const readStartedAt = Date.now();
-    const existingRows = await db
-      .select()
-      .from(vehicle)
-      .where(inArray(vehicle.vin, vins));
-    readExistingMs += Date.now() - readStartedAt;
+      const readStartedAt = Date.now();
+      const existingRows = yield* dbEffect("reconcile.readExistingVehicles", () =>
+        dbClient.select().from(vehicle).where(inArray(vehicle.vin, vins)),
+      );
+      readExistingMs += Date.now() - readStartedAt;
 
-    const planStartedAt = Date.now();
-    const existingByVin = new Map<string, ExistingVehicleRow>();
-    for (const existingVehicle of existingRows) {
-      existingByVin.set(existingVehicle.vin, existingVehicle);
-    }
-
-    for (const [vin, nextVehicle] of chunk) {
-      const existingVehicle = existingByVin.get(vin);
-      if (!vehicleNeedsUpsert(existingVehicle, nextVehicle)) {
-        continue;
+      const planStartedAt = Date.now();
+      const existingByVin = new Map<string, ExistingVehicleRow>();
+      for (const existingVehicle of existingRows) {
+        existingByVin.set(existingVehicle.vin, existingVehicle);
       }
 
-      changedUpserts.push({
-        vehicle: nextVehicle,
-        firstSeenAt: existingVehicle?.firstSeenAt ?? params.runTimestamp,
-      });
-    }
-    planMs += Date.now() - planStartedAt;
-  }
+      for (const [vin, nextVehicle] of chunk) {
+        const existingVehicle = existingByVin.get(vin);
+        if (!vehicleNeedsUpsert(existingVehicle, nextVehicle)) {
+          continue;
+        }
 
-  return {
-    changedUpserts,
-    readExistingMs,
-    planMs,
-  };
+        changedUpserts.push({
+          vehicle: nextVehicle,
+          firstSeenAt: existingVehicle?.firstSeenAt ?? params.runTimestamp,
+        });
+      }
+      planMs += Date.now() - planStartedAt;
+    }
+
+    return {
+      changedUpserts,
+      readExistingMs,
+      planMs,
+    };
+  });
 }
 
-async function collectMissingTransitions(params: {
+function collectMissingTransitions(params: {
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
   runTimestamp: Date;
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
-}): Promise<{
+}): Effect.Effect<
+  {
   missingTransitions: MissingTransition[];
   deleteVins: string[];
   readExistingMs: number;
   planMs: number;
-}> {
-  const missingSinceCutoffMs =
-    params.runTimestamp.getTime() - params.missingDeleteAfterMs;
-  const missingTransitions: MissingTransition[] = [];
-  const deleteVins: string[] = [];
-  let readExistingMs = 0;
-  let planMs = 0;
-  let lastVin: string | null = null;
+  },
+  PersistenceError,
+  Database
+> {
+  return Effect.gen(function* () {
+    const dbClient = yield* Database;
+    const missingSinceCutoffMs =
+      params.runTimestamp.getTime() - params.missingDeleteAfterMs;
+    const missingTransitions: MissingTransition[] = [];
+    const deleteVins: string[] = [];
+    let readExistingMs = 0;
+    let planMs = 0;
+    let lastVin: string | null = null;
 
-  while (true) {
-    const readStartedAt = Date.now();
-    const rows: MissingStateRow[] =
-      lastVin === null
-        ? await db
-            .select({
-              vin: vehicle.vin,
-              missingSinceAt: vehicle.missingSinceAt,
-              missingRunCount: vehicle.missingRunCount,
-            })
-            .from(vehicle)
-            .orderBy(asc(vehicle.vin))
-            .limit(MISSING_SCAN_CHUNK_SIZE)
-        : await db
-            .select({
-              vin: vehicle.vin,
-              missingSinceAt: vehicle.missingSinceAt,
-              missingRunCount: vehicle.missingRunCount,
-            })
-            .from(vehicle)
-            .where(gt(vehicle.vin, lastVin))
-            .orderBy(asc(vehicle.vin))
-            .limit(MISSING_SCAN_CHUNK_SIZE);
-    readExistingMs += Date.now() - readStartedAt;
+    while (true) {
+      const readStartedAt = Date.now();
+      const lastVinValue = lastVin;
+      const rows: MissingStateRow[] =
+        lastVinValue === null
+          ? yield* dbEffect("reconcile.readMissingState.initial", () =>
+              dbClient
+                .select({
+                  vin: vehicle.vin,
+                  missingSinceAt: vehicle.missingSinceAt,
+                  missingRunCount: vehicle.missingRunCount,
+                })
+                .from(vehicle)
+                .orderBy(asc(vehicle.vin))
+                .limit(MISSING_SCAN_CHUNK_SIZE),
+            )
+          : yield* dbEffect("reconcile.readMissingState.paginated", () =>
+              dbClient
+                .select({
+                  vin: vehicle.vin,
+                  missingSinceAt: vehicle.missingSinceAt,
+                  missingRunCount: vehicle.missingRunCount,
+                })
+                .from(vehicle)
+                .where(gt(vehicle.vin, lastVinValue))
+                .orderBy(asc(vehicle.vin))
+                .limit(MISSING_SCAN_CHUNK_SIZE),
+            );
+      readExistingMs += Date.now() - readStartedAt;
 
-    if (rows.length === 0) {
-      break;
-    }
-
-    const planStartedAt = Date.now();
-    for (const existingVehicle of rows) {
-      if (params.finalInventoryByVin.has(existingVehicle.vin)) {
-        continue;
+      if (rows.length === 0) {
+        break;
       }
 
-      const missingSinceAt = existingVehicle.missingSinceAt ?? params.runTimestamp;
-      const missingRunCount = (existingVehicle.missingRunCount ?? 0) + 1;
-      const shouldDelete =
-        missingRunCount >= params.missingDeleteAfterRuns ||
-        missingSinceAt.getTime() <= missingSinceCutoffMs;
+      const planStartedAt = Date.now();
+      for (const existingVehicle of rows) {
+        if (params.finalInventoryByVin.has(existingVehicle.vin)) {
+          continue;
+        }
 
-      if (shouldDelete) {
-        deleteVins.push(existingVehicle.vin);
+        const missingSinceAt =
+          existingVehicle.missingSinceAt ?? params.runTimestamp;
+        const missingRunCount = (existingVehicle.missingRunCount ?? 0) + 1;
+        const shouldDelete =
+          missingRunCount >= params.missingDeleteAfterRuns ||
+          missingSinceAt.getTime() <= missingSinceCutoffMs;
+
+        if (shouldDelete) {
+          deleteVins.push(existingVehicle.vin);
+        }
+
+        missingTransitions.push({
+          vin: existingVehicle.vin,
+          changeType: shouldDelete ? "delete" : "missing",
+          missingSinceAt,
+          missingRunCount,
+        });
       }
-
-      missingTransitions.push({
-        vin: existingVehicle.vin,
-        changeType: shouldDelete ? "delete" : "missing",
-        missingSinceAt,
-        missingRunCount,
-      });
+      planMs += Date.now() - planStartedAt;
+      lastVin = rows[rows.length - 1]?.vin ?? null;
     }
-    planMs += Date.now() - planStartedAt;
-    lastVin = rows[rows.length - 1]?.vin ?? null;
-  }
 
-  return {
-    missingTransitions,
-    deleteVins,
-    readExistingMs,
-    planMs,
-  };
+    return {
+      missingTransitions,
+      deleteVins,
+      readExistingMs,
+      planMs,
+    };
+  });
 }
 
 function toVehicleRow(params: {
@@ -425,212 +465,243 @@ function toVehicleRow(params: {
   };
 }
 
-async function insertVehicleChanges(
+function insertVehicleChanges(
   tx: DbTransaction,
   rows: Array<typeof vehicleChange.$inferInsert>,
-): Promise<void> {
-  for (const chunk of chunkValues(rows, VEHICLE_CHANGE_CHUNK_SIZE)) {
-    await tx.insert(vehicleChange).values(chunk);
-  }
+): Effect.Effect<void, PersistenceError> {
+  return Effect.gen(function* () {
+    for (const chunk of chunkValues(rows, VEHICLE_CHANGE_CHUNK_SIZE)) {
+      yield* dbEffect("reconcile.insertVehicleChanges", () =>
+        tx.insert(vehicleChange).values(chunk),
+      );
+    }
+  });
 }
 
-async function upsertVehicles(
+function upsertVehicles(
   tx: DbTransaction,
   rows: Array<typeof vehicle.$inferInsert>,
-): Promise<void> {
-  for (const chunk of chunkValues(rows, VEHICLE_UPSERT_CHUNK_SIZE)) {
-    await tx
-      .insert(vehicle)
-      .values(chunk)
-      .onConflictDoUpdate({
-        target: vehicle.vin,
-        set: {
-          source: sql`excluded.source`,
-          year: sql`excluded.year`,
-          make: sql`excluded.make`,
-          model: sql`excluded.model`,
-          color: sql`excluded.color`,
-          stockNumber: sql`excluded.stock_number`,
-          imageUrl: sql`excluded.image_url`,
-          availableDate: sql`excluded.available_date`,
-          locationCode: sql`excluded.location_code`,
-          locationName: sql`excluded.location_name`,
-          state: sql`excluded.state`,
-          stateAbbr: sql`excluded.state_abbr`,
-          lat: sql`excluded.lat`,
-          lng: sql`excluded.lng`,
-          section: sql`excluded.section`,
-          row: sql`excluded.row`,
-          space: sql`excluded.space`,
-          detailsUrl: sql`excluded.details_url`,
-          partsUrl: sql`excluded.parts_url`,
-          pricesUrl: sql`excluded.prices_url`,
-          engine: sql`excluded.engine`,
-          trim: sql`excluded.trim`,
-          transmission: sql`excluded.transmission`,
-          lastSeenAt: sql`excluded.last_seen_at`,
-          missingSinceAt: null,
-          missingRunCount: 0,
-        },
-      });
-  }
+): Effect.Effect<void, PersistenceError> {
+  return Effect.gen(function* () {
+    for (const chunk of chunkValues(rows, VEHICLE_UPSERT_CHUNK_SIZE)) {
+      yield* dbEffect("reconcile.upsertVehicles", () =>
+        tx
+          .insert(vehicle)
+          .values(chunk)
+          .onConflictDoUpdate({
+            target: vehicle.vin,
+            set: {
+              source: sql`excluded.source`,
+              year: sql`excluded.year`,
+              make: sql`excluded.make`,
+              model: sql`excluded.model`,
+              color: sql`excluded.color`,
+              stockNumber: sql`excluded.stock_number`,
+              imageUrl: sql`excluded.image_url`,
+              availableDate: sql`excluded.available_date`,
+              locationCode: sql`excluded.location_code`,
+              locationName: sql`excluded.location_name`,
+              state: sql`excluded.state`,
+              stateAbbr: sql`excluded.state_abbr`,
+              lat: sql`excluded.lat`,
+              lng: sql`excluded.lng`,
+              section: sql`excluded.section`,
+              row: sql`excluded.row`,
+              space: sql`excluded.space`,
+              detailsUrl: sql`excluded.details_url`,
+              partsUrl: sql`excluded.parts_url`,
+              pricesUrl: sql`excluded.prices_url`,
+              engine: sql`excluded.engine`,
+              trim: sql`excluded.trim`,
+              transmission: sql`excluded.transmission`,
+              lastSeenAt: sql`excluded.last_seen_at`,
+              missingSinceAt: null,
+              missingRunCount: 0,
+            },
+          }),
+      );
+    }
+  });
 }
 
-async function updateMissingVehicles(
+function updateMissingVehicles(
   tx: DbTransaction,
   missingTransitions: MissingTransition[],
-): Promise<void> {
-  for (const transition of missingTransitions) {
-    await tx
-      .update(vehicle)
-      .set({
-        missingSinceAt: transition.missingSinceAt,
-        missingRunCount: transition.missingRunCount,
-      })
-      .where(eq(vehicle.vin, transition.vin));
-  }
+): Effect.Effect<void, PersistenceError> {
+  return Effect.gen(function* () {
+    for (const transition of missingTransitions) {
+      yield* dbEffect("reconcile.updateMissingVehicles", () =>
+        tx
+          .update(vehicle)
+          .set({
+            missingSinceAt: transition.missingSinceAt,
+            missingRunCount: transition.missingRunCount,
+          })
+          .where(eq(vehicle.vin, transition.vin)),
+      );
+    }
+  });
 }
 
-async function deleteVehiclesByVin(
+function deleteVehiclesByVin(
   tx: DbTransaction,
   vins: string[],
-): Promise<void> {
-  for (const chunk of chunkValues(vins, VIN_DELETE_CHUNK_SIZE)) {
-    await tx.delete(vehicle).where(inArray(vehicle.vin, chunk));
-  }
+): Effect.Effect<void, PersistenceError> {
+  return Effect.gen(function* () {
+    for (const chunk of chunkValues(vins, VIN_DELETE_CHUNK_SIZE)) {
+      yield* dbEffect("reconcile.deleteVehiclesByVin", () =>
+        tx.delete(vehicle).where(inArray(vehicle.vin, chunk)),
+      );
+    }
+  });
 }
 
-export async function reconcileFromFinalInventory(
+export function reconcileFromFinalInventory(
   options: ReconcileOptions,
-): Promise<ReconcileResult> {
-  if (options.finalInventoryByVin.size === 0 && !options.allowAdvanceMissingState) {
-    return {
-      upsertedCount: 0,
-      deletedCount: 0,
-      missingUpdatedCount: 0,
-      skippedMissingAdvance: true,
-      timingsMs: {
-        readExistingMs: 0,
-        planMs: 0,
-        upsertWriteMs: 0,
-        missingWriteMs: 0,
-      },
-    };
-  }
+): Effect.Effect<ReconcileResult, PersistenceError, Database> {
+  return Effect.gen(function* () {
+    const dbClient = yield* Database;
 
-  logReconcileMemory("before_reconcile_reads", {
-    finalVins: options.finalInventoryByVin.size,
-  });
+    if (
+      options.finalInventoryByVin.size === 0 &&
+      !options.allowAdvanceMissingState
+    ) {
+      return {
+        upsertedCount: 0,
+        deletedCount: 0,
+        missingUpdatedCount: 0,
+        skippedMissingAdvance: true,
+        timingsMs: {
+          readExistingMs: 0,
+          planMs: 0,
+          upsertWriteMs: 0,
+          missingWriteMs: 0,
+        },
+      };
+    }
 
-  const changedUpsertsResult = await collectChangedUpserts({
-    finalInventoryByVin: options.finalInventoryByVin,
-    runTimestamp: options.runTimestamp,
-  });
-  let readExistingMs = changedUpsertsResult.readExistingMs;
-  let planMs = changedUpsertsResult.planMs;
+    yield* Effect.logDebug(
+      formatReconcileMemory("before_reconcile_reads", {
+        finalVins: options.finalInventoryByVin.size,
+      }),
+    );
 
-  logReconcileMemory("after_upsert_planning", {
-    changedUpserts: changedUpsertsResult.changedUpserts.length,
-  });
-
-  let missingTransitions: MissingTransition[] = [];
-  let deleteVins: string[] = [];
-  let skippedMissingAdvance = false;
-
-  if (options.allowAdvanceMissingState) {
-    const missingResult = await collectMissingTransitions({
+    const changedUpsertsResult = yield* collectChangedUpserts({
       finalInventoryByVin: options.finalInventoryByVin,
       runTimestamp: options.runTimestamp,
-      missingDeleteAfterRuns: options.missingDeleteAfterRuns,
-      missingDeleteAfterMs: options.missingDeleteAfterMs,
     });
-    missingTransitions = missingResult.missingTransitions;
-    deleteVins = missingResult.deleteVins;
-    readExistingMs += missingResult.readExistingMs;
-    planMs += missingResult.planMs;
-    logReconcileMemory("after_missing_scan", {
-      missingTransitions: missingTransitions.length,
-      deleteVins: deleteVins.length,
-    });
-  } else {
-    skippedMissingAdvance = true;
-  }
+    let readExistingMs = changedUpsertsResult.readExistingMs;
+    let planMs = changedUpsertsResult.planMs;
 
-  let upsertWriteMs = 0;
-  let missingWriteMs = 0;
+    yield* Effect.logDebug(
+      formatReconcileMemory("after_upsert_planning", {
+        changedUpserts: changedUpsertsResult.changedUpserts.length,
+      }),
+    );
 
-  await db.transaction(async (tx) => {
-    if (changedUpsertsResult.changedUpserts.length > 0) {
-      const upsertWriteStartedAt = Date.now();
+    let missingTransitions: MissingTransition[] = [];
+    let deleteVins: string[] = [];
+    let skippedMissingAdvance = false;
 
-      await insertVehicleChanges(
-        tx,
-        changedUpsertsResult.changedUpserts.map((entry) => ({
-          runId: options.runId,
-          vin: entry.vehicle.vin,
-          changeType: "upsert",
-          payload: null,
-          payloadVersion: 1,
-          createdAt: options.runTimestamp,
-        })),
+    if (options.allowAdvanceMissingState) {
+      const missingResult = yield* collectMissingTransitions({
+        finalInventoryByVin: options.finalInventoryByVin,
+        runTimestamp: options.runTimestamp,
+        missingDeleteAfterRuns: options.missingDeleteAfterRuns,
+        missingDeleteAfterMs: options.missingDeleteAfterMs,
+      });
+      missingTransitions = missingResult.missingTransitions;
+      deleteVins = missingResult.deleteVins;
+      readExistingMs += missingResult.readExistingMs;
+      planMs += missingResult.planMs;
+      yield* Effect.logDebug(
+        formatReconcileMemory("after_missing_scan", {
+          missingTransitions: missingTransitions.length,
+          deleteVins: deleteVins.length,
+        }),
       );
-
-      await upsertVehicles(
-        tx,
-        changedUpsertsResult.changedUpserts.map((entry) =>
-          toVehicleRow({
-            vehicle: entry.vehicle,
-            firstSeenAt: entry.firstSeenAt,
-            runTimestamp: options.runTimestamp,
-          }),
-        ),
-      );
-
-      upsertWriteMs = Date.now() - upsertWriteStartedAt;
+    } else {
+      skippedMissingAdvance = true;
     }
 
-    if (missingTransitions.length > 0) {
-      const missingWriteStartedAt = Date.now();
+    let upsertWriteMs = 0;
+    let missingWriteMs = 0;
 
-      await insertVehicleChanges(
-        tx,
-        missingTransitions.map((transition) => ({
-          runId: options.runId,
-          vin: transition.vin,
-          changeType: transition.changeType,
-          payload: null,
-          payloadVersion: 1,
-          createdAt: options.runTimestamp,
-        })),
-      );
+    yield* dbTransactionEffect(dbClient, "reconcile.transaction", (tx) =>
+      Effect.gen(function* () {
+        if (changedUpsertsResult.changedUpserts.length > 0) {
+          const upsertWriteStartedAt = Date.now();
 
-      const missingOnly = missingTransitions.filter(
+          yield* insertVehicleChanges(
+            tx,
+            changedUpsertsResult.changedUpserts.map((entry) => ({
+              runId: options.runId,
+              vin: entry.vehicle.vin,
+              changeType: "upsert",
+              payload: null,
+              payloadVersion: 1,
+              createdAt: options.runTimestamp,
+            })),
+          );
+
+          yield* upsertVehicles(
+            tx,
+            changedUpsertsResult.changedUpserts.map((entry) =>
+              toVehicleRow({
+                vehicle: entry.vehicle,
+                firstSeenAt: entry.firstSeenAt,
+                runTimestamp: options.runTimestamp,
+              }),
+            ),
+          );
+
+          upsertWriteMs = Date.now() - upsertWriteStartedAt;
+        }
+
+        if (missingTransitions.length > 0) {
+          const missingWriteStartedAt = Date.now();
+
+          yield* insertVehicleChanges(
+            tx,
+            missingTransitions.map((transition) => ({
+              runId: options.runId,
+              vin: transition.vin,
+              changeType: transition.changeType,
+              payload: null,
+              payloadVersion: 1,
+              createdAt: options.runTimestamp,
+            })),
+          );
+
+          const missingOnly = missingTransitions.filter(
+            (transition) => transition.changeType === "missing",
+          );
+          if (missingOnly.length > 0) {
+            yield* updateMissingVehicles(tx, missingOnly);
+          }
+
+          if (deleteVins.length > 0) {
+            yield* deleteVehiclesByVin(tx, deleteVins);
+          }
+
+          missingWriteMs = Date.now() - missingWriteStartedAt;
+        }
+      }),
+    );
+
+    return {
+      upsertedCount: options.finalInventoryByVin.size,
+      deletedCount: deleteVins.length,
+      missingUpdatedCount: missingTransitions.filter(
         (transition) => transition.changeType === "missing",
-      );
-      if (missingOnly.length > 0) {
-        await updateMissingVehicles(tx, missingOnly);
-      }
-
-      if (deleteVins.length > 0) {
-        await deleteVehiclesByVin(tx, deleteVins);
-      }
-
-      missingWriteMs = Date.now() - missingWriteStartedAt;
-    }
+      ).length,
+      skippedMissingAdvance,
+      timingsMs: {
+        readExistingMs,
+        planMs,
+        upsertWriteMs,
+        missingWriteMs,
+      },
+    };
   });
-
-  return {
-    upsertedCount: options.finalInventoryByVin.size,
-    deletedCount: deleteVins.length,
-    missingUpdatedCount: missingTransitions.filter(
-      (transition) => transition.changeType === "missing",
-    ).length,
-    skippedMissingAdvance,
-    timingsMs: {
-      readExistingMs,
-      planMs,
-      upsertWriteMs,
-      missingWriteMs,
-    },
-  };
 }
