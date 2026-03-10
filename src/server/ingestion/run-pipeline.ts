@@ -1,5 +1,5 @@
-import { HttpClient } from "@effect/platform";
-import { Effect, Scope } from "effect";
+import { HttpClient, HttpClientRequest } from "@effect/platform";
+import { Duration, Effect, Scope } from "effect";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
@@ -27,6 +27,7 @@ const RUN_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const SOURCE_CHUNK_PAGES = 10;
+const HEARTBEAT_TIMEOUT_MS = 5_000;
 
 const EMPTY_TIMINGS = {
   sourcesParallelMs: 0,
@@ -300,18 +301,32 @@ const markRunComplete = (
 const sendHeartbeat = (
   url: string,
   fail: boolean,
-): Effect.Effect<void, HeartbeatError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const response = await fetch(fail ? `${url}/fail` : url, {
-        method: "HEAD",
-      });
-      if (!response.ok) {
-        throw new Error(`Heartbeat responded with HTTP ${response.status}`);
-      }
-    },
-    catch: (cause) => new HeartbeatError({ cause }),
-  });
+): Effect.Effect<void, HeartbeatError, HttpClient.HttpClient> =>
+  Effect.gen(function* () {
+    const client = yield* HttpClient.HttpClient;
+    const request = HttpClientRequest.head(fail ? `${url}/fail` : url);
+
+    const response = yield* client.execute(request).pipe(
+      Effect.raceFirst(
+        Effect.sleep(Duration.millis(HEARTBEAT_TIMEOUT_MS)).pipe(
+          Effect.flatMap(() =>
+            Effect.fail(
+              new Error(`Heartbeat timed out after ${HEARTBEAT_TIMEOUT_MS}ms`),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (response.status < 200 || response.status >= 300) {
+      return yield* Effect.fail(
+        new Error(`Heartbeat responded with HTTP ${response.status}`),
+      );
+    }
+  }).pipe(
+    Effect.mapError((cause) => new HeartbeatError({ cause })),
+    Effect.asVoid,
+  );
 
 function fetchRow52Source(
   runId: string,
@@ -319,7 +334,7 @@ function fetchRow52Source(
   otherMap: Map<string, CanonicalVehicle>,
 ): Effect.Effect<
   SourceOutcome & { fetchMs: number },
-  never,
+  PersistenceError,
   HttpClient.HttpClient
 > {
   return Effect.gen(function* () {
@@ -381,6 +396,9 @@ function fetchRow52Source(
         ),
       ),
       Effect.catchAll((error) => {
+        if (error instanceof PersistenceError) {
+          return Effect.fail(error);
+        }
         const msg = `Row52 ingestion failed: ${error.message}`;
         return completeSourceRun({
           runId,
@@ -422,7 +440,11 @@ function fetchPypSource(
   runId: string,
   vehicleMap: Map<string, CanonicalVehicle>,
   otherMap: Map<string, CanonicalVehicle>,
-): Effect.Effect<SourceOutcome & { fetchMs: number }, never, Scope.Scope | Config> {
+): Effect.Effect<
+  SourceOutcome & { fetchMs: number },
+  PersistenceError,
+  Scope.Scope | Config
+> {
   return Effect.gen(function* () {
     const startedAt = Date.now();
     let latestNextCursor = "1";
@@ -481,6 +503,9 @@ function fetchPypSource(
         ),
       ),
       Effect.catchAll((error) => {
+        if (error instanceof PersistenceError) {
+          return Effect.fail(error);
+        }
         const msg = `PYP ingestion failed: ${error.message}`;
         return completeSourceRun({
           runId,
