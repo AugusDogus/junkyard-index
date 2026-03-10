@@ -522,7 +522,7 @@ function fetchPypSource(
 export const ingestionPipeline: Effect.Effect<
   IngestionPipelineResult,
   PersistenceError | ReconcileError | HeartbeatError,
-  Scope.Scope | Config | Database | HttpClient.HttpClient
+  Scope.Scope | Config | HttpClient.HttpClient
 > = Effect.gen(function* () {
   const startTime = Date.now();
   const runTimestamp = new Date();
@@ -606,7 +606,10 @@ export const ingestionPipeline: Effect.Effect<
       allowAdvanceMissingState: shouldAdvanceMissingState(sourceOutcomes),
       missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
       missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
-    }).pipe(Effect.mapError((cause) => new ReconcileError({ cause })));
+    }).pipe(
+      Effect.provideService(Database, db),
+      Effect.mapError((cause) => new ReconcileError({ cause })),
+    );
 
     const upsertFlushMs =
       reconcileResult.timingsMs.readExistingMs +
