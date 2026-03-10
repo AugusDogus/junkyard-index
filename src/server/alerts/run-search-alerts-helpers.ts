@@ -1,50 +1,7 @@
-import { z } from "zod";
-import { filtersSchema } from "~/lib/saved-search-filters";
-
-export type SavedSearchFiltersParseResult =
-  | {
-      success: true;
-      data: z.infer<typeof filtersSchema>;
-    }
-  | {
-      success: false;
-      reason: "malformed_json";
-      error: SyntaxError;
-    }
-  | {
-      success: false;
-      reason: "invalid_schema";
-      error: z.ZodError<z.infer<typeof filtersSchema>>;
-    };
-
-export function parseSavedSearchFilters(
-  rawFiltersJson: string,
-): SavedSearchFiltersParseResult {
-  let rawFilters: unknown;
-  try {
-    rawFilters = JSON.parse(rawFiltersJson);
-  } catch (error) {
-    return {
-      success: false,
-      reason: "malformed_json",
-      error:
-        error instanceof SyntaxError
-          ? error
-          : new SyntaxError(String(error)),
-    };
-  }
-
-  const filtersParseResult = filtersSchema.safeParse(rawFilters);
-  if (filtersParseResult.success) {
-    return filtersParseResult;
-  }
-
-  return {
-    success: false,
-    reason: "invalid_schema",
-    error: filtersParseResult.error,
-  };
-}
+export {
+  parseSavedSearchFilters,
+  type SavedSearchFiltersParseResult,
+} from "~/lib/saved-search-filters";
 
 export function buildAlertResultStatus(params: {
   emailSent: boolean;

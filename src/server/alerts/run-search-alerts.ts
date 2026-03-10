@@ -127,7 +127,10 @@ async function processSearch(
   const filtersParseResult = parseSavedSearchFilters(search.filters);
   if (!filtersParseResult.success) {
     if (filtersParseResult.reason === "malformed_json") {
-      console.error(`Malformed JSON for search ${search.id}`);
+      console.error(
+        `Malformed JSON for search ${search.id}:`,
+        filtersParseResult.error,
+      );
     } else {
       console.error(
         `Invalid filters for search ${search.id}:`,
