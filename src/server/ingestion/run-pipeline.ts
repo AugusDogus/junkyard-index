@@ -1,6 +1,6 @@
 import { HttpClient } from "@effect/platform";
 import { Effect, Scope } from "effect";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
 import {
@@ -208,6 +208,66 @@ const completeSourceRun = (params: {
       }),
   }).pipe(Effect.asVoid);
 
+function parseSourceErrors(errorsJson: string | null): string[] {
+  if (!errorsJson) return [];
+  try {
+    const parsed: unknown = JSON.parse(errorsJson);
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function isSourceName(value: string): value is SourceName {
+  return value === "row52" || value === "pyp";
+}
+
+const finalizePendingSourceRuns = (
+  runId: string,
+  failureMessage: string,
+): Effect.Effect<void, PersistenceError> =>
+  Effect.gen(function* () {
+    const pendingSourceRuns = yield* Effect.tryPromise({
+      try: () =>
+        db
+          .select({
+            source: ingestionSourceRun.source,
+            nextCursor: ingestionSourceRun.nextCursor,
+            pagesProcessed: ingestionSourceRun.pagesProcessed,
+            vehiclesProcessed: ingestionSourceRun.vehiclesProcessed,
+            errors: ingestionSourceRun.errors,
+          })
+          .from(ingestionSourceRun)
+          .where(
+            and(
+              eq(ingestionSourceRun.runId, runId),
+              eq(ingestionSourceRun.status, "running"),
+            ),
+          ),
+      catch: (cause) =>
+        new PersistenceError({ operation: "finalizePendingSourceRuns.read", cause }),
+    });
+
+    for (const sourceRun of pendingSourceRuns) {
+      if (!isSourceName(sourceRun.source)) {
+        continue;
+      }
+
+      const existingErrors = parseSourceErrors(sourceRun.errors);
+      yield* completeSourceRun({
+        runId,
+        source: sourceRun.source,
+        nextCursor:
+          sourceRun.nextCursor ?? (sourceRun.source === "pyp" ? "1" : "0"),
+        pagesProcessed: sourceRun.pagesProcessed,
+        vehiclesProcessed: sourceRun.vehiclesProcessed,
+        errors: [...existingErrors, failureMessage],
+      });
+    }
+  }).pipe(Effect.asVoid);
+
 const markRunComplete = (
   runId: string,
   status: "success" | "error",
@@ -258,13 +318,19 @@ function fetchRow52Source(
 > {
   return Effect.gen(function* () {
     const startedAt = Date.now();
+    let latestNextCursor = "0";
+    let latestPagesProcessed = 0;
+    let latestVehiclesProcessed = 0;
 
     const reportProgress = (progress: {
       nextSkip: number;
       pagesProcessed: number;
       vehiclesProcessed: number;
-    }) =>
-      updateSourceRunProgress({
+    }) => {
+      latestNextCursor = String(progress.nextSkip);
+      latestPagesProcessed = progress.pagesProcessed;
+      latestVehiclesProcessed = progress.vehiclesProcessed;
+      return updateSourceRunProgress({
         runId,
         source: "row52",
         nextCursor: String(progress.nextSkip),
@@ -277,6 +343,7 @@ function fetchRow52Source(
           ),
         ),
       );
+    };
 
     const result = yield* streamRow52Inventory({
       onBatch: (vehicles) =>
@@ -286,16 +353,19 @@ function fetchRow52Source(
       pagesPerChunk: SOURCE_CHUNK_PAGES,
       onProgress: reportProgress,
     }).pipe(
-      Effect.tap((result) =>
-        completeSourceRun({
+      Effect.tap((result) => {
+        latestNextCursor = String(result.nextSkip);
+        latestPagesProcessed = result.pagesProcessed;
+        latestVehiclesProcessed = result.count;
+        return completeSourceRun({
           runId,
           source: "row52",
           nextCursor: String(result.nextSkip),
           pagesProcessed: result.pagesProcessed,
           vehiclesProcessed: result.count,
           errors: result.errors,
-        }).pipe(Effect.catchAll(() => Effect.void)),
-      ),
+        }).pipe(Effect.catchAll(() => Effect.void));
+      }),
       Effect.tap(() =>
         Effect.logDebug(
           formatMemoryUsage("after_row52_fetch", {
@@ -309,9 +379,9 @@ function fetchRow52Source(
         return completeSourceRun({
           runId,
           source: "row52",
-          nextCursor: "0",
-          pagesProcessed: 0,
-          vehiclesProcessed: 0,
+          nextCursor: latestNextCursor,
+          pagesProcessed: latestPagesProcessed,
+          vehiclesProcessed: latestVehiclesProcessed,
           errors: [msg],
         }).pipe(
           Effect.catchAll(() => Effect.void),
@@ -319,8 +389,8 @@ function fetchRow52Source(
             source: "row52" as const,
             count: 0,
             errors: [msg],
-            nextSkip: 0,
-            pagesProcessed: 0,
+            nextSkip: Number.parseInt(latestNextCursor, 10) || 0,
+            pagesProcessed: latestPagesProcessed,
             done: true,
           })),
         );
@@ -343,13 +413,19 @@ function fetchPypSource(
 ): Effect.Effect<SourceOutcome & { fetchMs: number }, never, Scope.Scope | Config> {
   return Effect.gen(function* () {
     const startedAt = Date.now();
+    let latestNextCursor = "1";
+    let latestPagesProcessed = 0;
+    let latestVehiclesProcessed = 0;
 
     const reportProgress = (progress: {
       nextPage: number;
       pagesProcessed: number;
       vehiclesProcessed: number;
-    }) =>
-      updateSourceRunProgress({
+    }) => {
+      latestNextCursor = String(progress.nextPage);
+      latestPagesProcessed = progress.pagesProcessed;
+      latestVehiclesProcessed = progress.vehiclesProcessed;
+      return updateSourceRunProgress({
         runId,
         source: "pyp",
         nextCursor: String(progress.nextPage),
@@ -362,6 +438,7 @@ function fetchPypSource(
           ),
         ),
       );
+    };
 
     const result = yield* streamPypInventory({
       onBatch: (vehicles) =>
@@ -370,16 +447,19 @@ function fetchPypSource(
         }),
       onProgress: reportProgress,
     }).pipe(
-      Effect.tap((result) =>
-        completeSourceRun({
+      Effect.tap((result) => {
+        latestNextCursor = String(result.nextPage);
+        latestPagesProcessed = result.pagesProcessed;
+        latestVehiclesProcessed = result.count;
+        return completeSourceRun({
           runId,
           source: "pyp",
           nextCursor: String(result.nextPage),
           pagesProcessed: result.pagesProcessed,
           vehiclesProcessed: result.count,
           errors: result.errors,
-        }).pipe(Effect.catchAll(() => Effect.void)),
-      ),
+        }).pipe(Effect.catchAll(() => Effect.void));
+      }),
       Effect.tap(() =>
         Effect.logDebug(
           formatMemoryUsage("after_pyp_fetch", {
@@ -393,9 +473,9 @@ function fetchPypSource(
         return completeSourceRun({
           runId,
           source: "pyp",
-          nextCursor: "1",
-          pagesProcessed: 0,
-          vehiclesProcessed: 0,
+          nextCursor: latestNextCursor,
+          pagesProcessed: latestPagesProcessed,
+          vehiclesProcessed: latestVehiclesProcessed,
           errors: [msg],
         }).pipe(
           Effect.catchAll(() => Effect.void),
@@ -403,8 +483,8 @@ function fetchPypSource(
             source: "pyp" as const,
             count: 0,
             errors: [msg],
-            nextPage: 1,
-            pagesProcessed: 0,
+            nextPage: Number.parseInt(latestNextCursor, 10) || 1,
+            pagesProcessed: latestPagesProcessed,
             done: true,
           })),
         );
@@ -581,18 +661,38 @@ export const ingestionPipeline: Effect.Effect<
   });
 
   return yield* runWithLock.pipe(
-    Effect.catchAll((error) => {
-      const msg = `Ingestion run failed: ${error.message}`;
-      allErrors.push(msg);
-      return markRunComplete(runId, "error", allErrors).pipe(
-        Effect.catchAll((markError) =>
-          Effect.logWarning(
+    Effect.catchAll((error) =>
+      Effect.gen(function* () {
+        const msg = `Ingestion run failed: ${error.message}`;
+        allErrors.push(msg);
+
+        const finalizeError = yield* finalizePendingSourceRuns(runId, msg).pipe(
+          Effect.match({
+            onSuccess: () => null,
+            onFailure: (finalizationFailure) => finalizationFailure,
+          }),
+        );
+        if (finalizeError) {
+          const finalizeMessage = `Failed to finalize source runs for ${runId}: ${finalizeError.message}`;
+          allErrors.push(finalizeMessage);
+          yield* Effect.logWarning(`[Ingestion] ${finalizeMessage}`);
+        }
+
+        const markError = yield* markRunComplete(runId, "error", allErrors).pipe(
+          Effect.match({
+            onSuccess: () => null,
+            onFailure: (markFailure) => markFailure,
+          }),
+        );
+        if (markError) {
+          yield* Effect.logWarning(
             `[Ingestion] Failed to mark run ${runId} as error: ${markError.message}`,
-          ),
-        ),
-        Effect.zipRight(Effect.fail(error)),
-      );
-    }),
+          );
+        }
+
+        return yield* Effect.fail(error);
+      }),
+    ),
   );
 });
 

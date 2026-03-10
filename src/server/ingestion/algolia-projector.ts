@@ -62,11 +62,23 @@ export function partitionVehicleChanges(
     changeType: string;
   }>,
 ): { deleteVins: string[]; upsertVins: string[] } {
+  const latestChangeByVin = new Map<
+    string,
+    { id: number; vin: string; changeType: string }
+  >();
+  for (const change of changes) {
+    const previous = latestChangeByVin.get(change.vin);
+    if (!previous || change.id > previous.id) {
+      latestChangeByVin.set(change.vin, change);
+    }
+  }
+  const latestChanges = [...latestChangeByVin.values()];
+
   return {
-    deleteVins: changes
+    deleteVins: latestChanges
       .filter((change) => change.changeType === "delete")
       .map((change) => change.vin),
-    upsertVins: changes
+    upsertVins: latestChanges
       .filter((change) => change.changeType !== "delete")
       .map((change) => change.vin),
   };
@@ -227,7 +239,12 @@ export function runAlgoliaProjectorEffect(options?: {
             changeType: vehicleChange.changeType,
           })
           .from(vehicleChange)
-          .where(gt(vehicleChange.id, lastProcessedChangeId))
+          .where(
+            and(
+              gt(vehicleChange.id, lastProcessedChangeId),
+              isNull(vehicleChange.processedAt),
+            ),
+          )
           .orderBy(asc(vehicleChange.id))
           .limit(batchSize),
       );
