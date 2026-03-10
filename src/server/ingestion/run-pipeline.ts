@@ -264,7 +264,13 @@ const finalizePendingSourceRuns = (
         pagesProcessed: sourceRun.pagesProcessed,
         vehiclesProcessed: sourceRun.vehiclesProcessed,
         errors: [...existingErrors, failureMessage],
-      });
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.logWarning(
+            `[Ingestion] Failed to finalize source run ${sourceRun.source} for ${runId}: ${error.message}`,
+          ),
+        ),
+      );
     }
   }).pipe(Effect.asVoid);
 
@@ -364,7 +370,7 @@ function fetchRow52Source(
           pagesProcessed: result.pagesProcessed,
           vehiclesProcessed: result.count,
           errors: result.errors,
-        }).pipe(Effect.catchAll(() => Effect.void));
+        });
       }),
       Effect.tap(() =>
         Effect.logDebug(
@@ -387,7 +393,7 @@ function fetchRow52Source(
           Effect.catchAll(() => Effect.void),
           Effect.map(() => ({
             source: "row52" as const,
-            count: 0,
+            count: latestVehiclesProcessed,
             errors: [msg],
             nextSkip: Number.parseInt(latestNextCursor, 10) || 0,
             pagesProcessed: latestPagesProcessed,
@@ -460,7 +466,7 @@ function fetchPypSource(
           pagesProcessed: result.pagesProcessed,
           vehiclesProcessed: result.count,
           errors: result.errors,
-        }).pipe(Effect.catchAll(() => Effect.void));
+        });
       }),
       Effect.tap(() =>
         Effect.logDebug(
@@ -483,7 +489,7 @@ function fetchPypSource(
           Effect.catchAll(() => Effect.void),
           Effect.map(() => ({
             source: "pyp" as const,
-            count: 0,
+            count: latestVehiclesProcessed,
             errors: [msg],
             nextPage: Number.parseInt(latestNextCursor, 10) || 1,
             pagesProcessed: latestPagesProcessed,
