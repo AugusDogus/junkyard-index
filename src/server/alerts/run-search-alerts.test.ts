@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildAlertResultStatus,
   parseSavedSearchFilters,
-} from "./run-search-alerts";
+} from "./run-search-alerts-helpers";
 
 describe("run-search-alerts helpers", () => {
   test("parses valid saved-search filters", () => {

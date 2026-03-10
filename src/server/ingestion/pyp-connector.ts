@@ -143,7 +143,7 @@ export function streamPypInventory<E, R>(options: {
           cause,
         }),
     });
-    const { locationMap, storeCodes } = buildLocationContext(session.locations);
+    let { locationMap, storeCodes } = buildLocationContext(session.locations);
 
     let nextPage = Math.max(1, options.startPage ?? 1);
     let totalCount = 0;
@@ -162,6 +162,7 @@ export function streamPypInventory<E, R>(options: {
           `[PYP] Rotating session (session #${sessionCount} done, page ${nextPage} next)`,
         );
         yield* session.reopen();
+        ({ locationMap, storeCodes } = buildLocationContext(session.locations));
         sessionCount++;
         yield* Effect.logInfo(
           `[PYP] New session #${sessionCount} ready, resuming from page ${nextPage}`,

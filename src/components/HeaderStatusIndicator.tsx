@@ -23,8 +23,14 @@ export interface HeaderStatusData {
   statusPageUrl: string | null;
 }
 
-function StatusIcon({ isDegraded }: { isDegraded: boolean }) {
-  return isDegraded ? (
+function StatusIcon({
+  isDegraded,
+  isInProgress,
+}: {
+  isDegraded: boolean;
+  isInProgress: boolean;
+}) {
+  return isDegraded || isInProgress ? (
     <Info className="size-5" />
   ) : (
     <AlertTriangle className="size-5" />
@@ -50,12 +56,23 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
 
   if (data.aggregateStatus === "operational") return null;
 
-  const isDegraded =
-    data.aggregateStatus === "degraded" ||
-    data.aggregateStatus === "in_progress";
-  const colorClass = isDegraded
-    ? "text-amber-500 dark:text-amber-400"
-    : "text-red-500 dark:text-red-400";
+  const isInProgress = data.aggregateStatus === "in_progress";
+  const isDegraded = data.aggregateStatus === "degraded";
+  const colorClass = isInProgress
+    ? "text-sky-500 dark:text-sky-400"
+    : isDegraded
+      ? "text-amber-500 dark:text-amber-400"
+      : "text-red-500 dark:text-red-400";
+  const ariaLabel = isInProgress
+    ? "Ingestion currently in progress"
+    : isDegraded
+      ? "Provider status degraded"
+      : "Provider status disruption";
+  const title = isInProgress
+    ? "Ingestion In Progress"
+    : isDegraded
+      ? "Service Degraded"
+      : "Service Disruption";
 
   if (isMobile) {
     return (
@@ -64,16 +81,14 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
           type="button"
           className={colorClass}
           onClick={() => setDialogOpen(true)}
-          aria-label="Provider status issue"
+          aria-label={ariaLabel}
         >
-          <StatusIcon isDegraded={isDegraded} />
+          <StatusIcon isDegraded={isDegraded} isInProgress={isInProgress} />
         </button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className={colorClass}>
-                {isDegraded ? "Service Degraded" : "Service Disruption"}
-              </DialogTitle>
+              <DialogTitle className={colorClass}>{title}</DialogTitle>
               <DialogDescription>
                 {data.message}
                 <br />
@@ -93,9 +108,9 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
         <button
           type="button"
           className={colorClass}
-          aria-label="Provider status issue"
+          aria-label={ariaLabel}
         >
-          <StatusIcon isDegraded={isDegraded} />
+          <StatusIcon isDegraded={isDegraded} isInProgress={isInProgress} />
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs">

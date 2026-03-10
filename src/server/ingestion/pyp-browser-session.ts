@@ -233,6 +233,9 @@ function openSession(
           const cachedLocations = state.locations;
           yield* close;
           yield* doOpen(state).pipe(
+            Effect.tapError(() =>
+              doClose(state).pipe(Effect.catchAll(() => Effect.void)),
+            ),
             Effect.mapError((cause) =>
               new BrowserSessionError({ phase: "rotate", cause }),
             ),

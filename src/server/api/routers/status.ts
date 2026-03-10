@@ -85,7 +85,7 @@ async function getProviderStatusInternal(): Promise<StatusResponse> {
 const getProviderStatus = unstable_cache(
   getProviderStatusInternal,
   ["provider-status"],
-  { revalidate: 300 },
+  { revalidate: 10 },
 );
 
 export const statusRouter = createTRPCRouter({
