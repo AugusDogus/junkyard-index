@@ -1,9 +1,15 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { env } from "~/env";
 import { db } from "~/lib/db";
 import { ingestionSourceRun } from "~/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import {
+  mapRunStatus,
+  parseErrors,
+  worstStatus,
+  type IngestionStatus,
+} from "./status-utils";
 
 const SOURCES = ["pyp", "row52"] as const;
 type SourceKey = (typeof SOURCES)[number];
@@ -12,51 +18,6 @@ const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
   pyp: "LKQ Pick Your Part",
   row52: "Row52",
 };
-
-export type IngestionStatus = "operational" | "degraded" | "down";
-
-export function mapRunStatus(status: string): IngestionStatus {
-  switch (status) {
-    case "success":
-      return "operational";
-    case "partial":
-      return "degraded";
-    case "error":
-      return "down";
-    default:
-      console.warn(`[Status] Unexpected ingestion status: ${status}`);
-      return "down";
-  }
-}
-
-const STATUS_SEVERITY: Record<IngestionStatus, number> = {
-  operational: 0,
-  degraded: 1,
-  down: 2,
-};
-
-export function worstStatus(statuses: IngestionStatus[]): IngestionStatus {
-  let worst: IngestionStatus = "operational";
-  for (const s of statuses) {
-    if (STATUS_SEVERITY[s] > STATUS_SEVERITY[worst]) {
-      worst = s;
-    }
-  }
-  return worst;
-}
-
-export function parseErrors(errorsJson: string | null): string[] | null {
-  if (!errorsJson) return null;
-  try {
-    const parsed: unknown = JSON.parse(errorsJson);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((e): e is string => typeof e === "string");
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 interface ProviderStatus {
   name: string;
@@ -86,12 +47,7 @@ async function getProviderStatusInternal(): Promise<StatusResponse> {
         vehiclesProcessed: ingestionSourceRun.vehiclesProcessed,
       })
       .from(ingestionSourceRun)
-      .where(
-        and(
-          eq(ingestionSourceRun.source, source),
-          ne(ingestionSourceRun.status, "running"),
-        ),
-      )
+      .where(eq(ingestionSourceRun.source, source))
       .orderBy(desc(ingestionSourceRun.startedAt))
       .limit(1);
 

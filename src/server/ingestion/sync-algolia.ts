@@ -141,7 +141,7 @@ function waitForFinalTask(taskIds: number[]): Effect.Effect<void, Error> {
  * Configure Algolia index settings.
  * Usually invoked during deploys or manually, not every ingestion run.
  */
-export function configureAlgoliaIndex(): Effect.Effect<void, Error> {
+export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     yield* Effect.logInfo("[Algolia] Configuring index settings...");
     yield* setIndexSettingsEffect({
@@ -228,6 +228,10 @@ export function configureAlgoliaIndex(): Effect.Effect<void, Error> {
   });
 }
 
+export async function configureAlgoliaIndex(): Promise<void> {
+  return Effect.runPromise(configureAlgoliaIndexEffect());
+}
+
 /**
  * Batch save objects to Algolia.
  */
@@ -280,7 +284,7 @@ export function deleteAlgoliaObjects(vins: string[]): Effect.Effect<number[], Er
 /**
  * Full sync: save upserted records and delete stale ones.
  */
-export function syncToAlgolia(
+export function syncToAlgoliaEffect(
   upserted: AlgoliaVehicleRecord[],
   deletedVins: string[],
   options?: SyncToAlgoliaOptions,
@@ -289,7 +293,7 @@ export function syncToAlgolia(
     const shouldConfigureIndex = options?.configureIndex === true;
     if (shouldConfigureIndex) {
       if (!configuredInProcess) {
-        yield* configureAlgoliaIndex();
+        yield* configureAlgoliaIndexEffect();
         configuredInProcess = true;
       } else {
         yield* Effect.logInfo(
@@ -310,4 +314,12 @@ export function syncToAlgolia(
       `[Algolia] Sync complete: ${upserted.length} saved, ${deletedVins.length} deleted`,
     );
   });
+}
+
+export async function syncToAlgolia(
+  upserted: AlgoliaVehicleRecord[],
+  deletedVins: string[],
+  options?: SyncToAlgoliaOptions,
+): Promise<void> {
+  return Effect.runPromise(syncToAlgoliaEffect(upserted, deletedVins, options));
 }

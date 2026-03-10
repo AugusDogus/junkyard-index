@@ -43,18 +43,63 @@ type PypLocationPayload = Array<{
   };
 }>;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+type PypLocationRecord = PypLocationPayload[number];
+
+function isValidPypLocation(value: unknown): value is PypLocationRecord {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isString(value.LocationCode) &&
+    isString(value.LocationPageURL) &&
+    isString(value.Name) &&
+    isString(value.DisplayName) &&
+    isString(value.Address) &&
+    isString(value.City) &&
+    isString(value.State) &&
+    isString(value.StateAbbr) &&
+    isString(value.Zip) &&
+    isString(value.Phone) &&
+    isNumber(value.Lat) &&
+    isNumber(value.Lng) &&
+    isNumber(value.Distance) &&
+    isString(value.LegacyCode) &&
+    isString(value.Primo) &&
+    isRecord(value.Urls)
+  );
+}
+
 export function parsePypLocationsFromHtml(html: string): Location[] {
   const locationListMatch = /var _locationList\s*=\s*(\[.*?\]);/s.exec(html);
   if (!locationListMatch) {
     return [];
   }
 
-  let locationData: PypLocationPayload;
+  let parsedPayload: unknown;
   try {
-    locationData = JSON.parse(locationListMatch[1] ?? "[]") as PypLocationPayload;
+    parsedPayload = JSON.parse(locationListMatch[1] ?? "[]");
   } catch {
     return [];
   }
+
+  if (!Array.isArray(parsedPayload)) {
+    return [];
+  }
+
+  const locationData = parsedPayload.filter(isValidPypLocation);
 
   return locationData.map((loc) => ({
     locationCode: loc.LocationCode,
@@ -74,17 +119,24 @@ export function parsePypLocationsFromHtml(html: string): Location[] {
     primo: loc.Primo,
     source: "pyp" as const,
     urls: {
-      store: loc.Urls.Store,
-      interchange: loc.Urls.Interchange,
-      inventory: loc.Urls.Inventory,
-      prices: loc.Urls.Prices,
-      directions: loc.Urls.Directions,
-      sellACar: loc.Urls.SellACar,
-      contact: loc.Urls.Contact,
-      customerServiceChat: loc.Urls.CustomerServiceChat,
-      carbuyChat: loc.Urls.CarbuyChat,
-      deals: loc.Urls.Deals,
-      parts: loc.Urls.Parts,
+      store: isString(loc.Urls?.Store) ? loc.Urls.Store : "",
+      interchange: isString(loc.Urls?.Interchange) ? loc.Urls.Interchange : "",
+      inventory: isString(loc.Urls?.Inventory) ? loc.Urls.Inventory : "",
+      prices: isString(loc.Urls?.Prices) ? loc.Urls.Prices : "",
+      directions: isString(loc.Urls?.Directions) ? loc.Urls.Directions : "",
+      sellACar: isString(loc.Urls?.SellACar) ? loc.Urls.SellACar : "",
+      contact: isString(loc.Urls?.Contact) ? loc.Urls.Contact : "",
+      customerServiceChat:
+        loc.Urls?.CustomerServiceChat === null ||
+        isString(loc.Urls?.CustomerServiceChat)
+          ? (loc.Urls?.CustomerServiceChat ?? null)
+          : null,
+      carbuyChat:
+        loc.Urls?.CarbuyChat === null || isString(loc.Urls?.CarbuyChat)
+          ? (loc.Urls?.CarbuyChat ?? null)
+          : null,
+      deals: isString(loc.Urls?.Deals) ? loc.Urls.Deals : "",
+      parts: isString(loc.Urls?.Parts) ? loc.Urls.Parts : "",
     },
   }));
 }

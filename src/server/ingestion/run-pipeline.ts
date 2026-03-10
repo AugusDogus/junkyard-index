@@ -1,6 +1,6 @@
 import { HttpClient } from "@effect/platform";
 import { Effect, Scope } from "effect";
-import { and, eq, gte } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
 import {
@@ -92,32 +92,23 @@ const acquireLock = (
   runTimestamp: Date,
 ): Effect.Effect<boolean, PersistenceError> =>
   Effect.tryPromise({
-    try: () => {
+    try: async () => {
       const lockCutoff = new Date(
         runTimestamp.getTime() - RUN_LOCK_TIMEOUT_MS,
       );
-      return db.transaction(async (tx) => {
-        const [activeRun] = await tx
-          .select({ id: ingestionRun.id })
-          .from(ingestionRun)
-          .where(
-            and(
-              eq(ingestionRun.status, "running"),
-              gte(ingestionRun.startedAt, lockCutoff),
-            ),
-          )
-          .limit(1);
 
-        if (activeRun) return false;
+      const result = await db.run(sql`
+        insert into ingestion_run (id, source, status, started_at)
+        select ${runId}, 'all', 'running', ${runTimestamp.getTime()}
+        where not exists (
+          select 1
+          from ingestion_run
+          where status = 'running'
+            and started_at >= ${lockCutoff.getTime()}
+        )
+      `);
 
-        await tx.insert(ingestionRun).values({
-          id: runId,
-          source: "all",
-          status: "running",
-          startedAt: runTimestamp,
-        });
-        return true;
-      });
+      return (result.rowsAffected ?? 0) > 0;
     },
     catch: (cause) =>
       new PersistenceError({ operation: "acquireLock", cause }),
@@ -245,10 +236,14 @@ const sendHeartbeat = (
   fail: boolean,
 ): Effect.Effect<void, HeartbeatError> =>
   Effect.tryPromise({
-    try: () =>
-      fetch(fail ? `${url}/fail` : url, { method: "HEAD" }).then(
-        () => undefined,
-      ),
+    try: async () => {
+      const response = await fetch(fail ? `${url}/fail` : url, {
+        method: "HEAD",
+      });
+      if (!response.ok) {
+        throw new Error(`Heartbeat responded with HTTP ${response.status}`);
+      }
+    },
     catch: (cause) => new HeartbeatError({ cause }),
   });
 

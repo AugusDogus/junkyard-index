@@ -7,7 +7,7 @@ import {
 } from "~/schema";
 import { PersistenceError } from "./errors";
 import { Database, runIngestionEffect } from "./runtime";
-import { syncToAlgolia } from "./sync-algolia";
+import { syncToAlgoliaEffect } from "./sync-algolia";
 import type { AlgoliaVehicleRecord, CanonicalVehicle } from "./types";
 import { toAlgoliaRecord } from "./types";
 
@@ -239,7 +239,7 @@ export function runAlgoliaProjectorEffect(options?: {
       const { deleteVins, upsertVins } = partitionVehicleChanges(changes);
 
       const upsertRecords = yield* fetchVehicleRecords(upsertVins);
-      yield* syncToAlgolia(upsertRecords, deleteVins, {
+      yield* syncToAlgoliaEffect(upsertRecords, deleteVins, {
         configureIndex: shouldConfigureIndex && batchesProcessed === 0,
       }).pipe(
         Effect.mapError(

@@ -60,7 +60,7 @@ describe("run-search-alerts helpers", () => {
         canAdvanceLastCheckedAt: false,
       }),
     ).toBe(
-      "errors: Email failed: timeout, last_checked_not_advanced",
+      "error: Email failed: timeout, last_checked_not_advanced",
     );
   });
 
@@ -73,7 +73,7 @@ describe("run-search-alerts helpers", () => {
         canAdvanceLastCheckedAt: true,
       }),
     ).toBe(
-      "discord_sent, errors: Email failed: provider unavailable, last_checked_not_advanced_due_delivery_errors",
+      "error: Email failed: provider unavailable, discord_sent, last_checked_not_advanced_due_delivery_errors",
     );
   });
 });

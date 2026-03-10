@@ -15,7 +15,9 @@ export async function Header() {
         .map((p) => p.name);
 
       const message =
-        data.aggregateStatus === "degraded"
+        data.aggregateStatus === "in_progress"
+          ? "Ingestion is currently running."
+          : data.aggregateStatus === "degraded"
           ? "Some yard data may be incomplete."
           : "Some yard data is temporarily unavailable.";
 
