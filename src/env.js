@@ -21,7 +21,6 @@ export const env = createEnv({
     RESEND_API_KEY: z.string(),
     RESEND_FROM_EMAIL: z.string().email(),
     CONTACT_EMAIL: z.string().email(),
-    CRON_SECRET: z.string(),
     TRIGGER_PROJECT_REF: z.string().optional(),
     UNSUBSCRIBE_SECRET: z.string().min(32),
     // Google Ads conversion tracking (optional)
@@ -69,7 +68,6 @@ export const env = createEnv({
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     CONTACT_EMAIL: process.env.CONTACT_EMAIL,
-    CRON_SECRET: process.env.CRON_SECRET,
     TRIGGER_PROJECT_REF: process.env.TRIGGER_PROJECT_REF,
     UNSUBSCRIBE_SECRET: process.env.UNSUBSCRIBE_SECRET,
     GOOGLE_ADS_CONVERSION_ID: process.env.GOOGLE_ADS_CONVERSION_ID,
