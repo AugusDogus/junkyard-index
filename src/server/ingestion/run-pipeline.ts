@@ -89,16 +89,15 @@ function accumulateVehicles(
   }
 }
 
-/** Distinct VIN count across two maps (Row52 + PYP) while sources run in parallel. */
+/** Distinct VIN count across peer source maps while all three run in parallel. */
 function uniqueVinCountAcrossMaps(
-  a: Map<string, CanonicalVehicle>,
-  b: Map<string, CanonicalVehicle>,
+  ...maps: Array<Map<string, CanonicalVehicle>>
 ): number {
-  let n = a.size;
-  for (const k of b.keys()) {
-    if (!a.has(k)) n += 1;
+  const keys = new Set<string>();
+  for (const m of maps) {
+    for (const k of m.keys()) keys.add(k);
   }
-  return n;
+  return keys.size;
 }
 
 function sourceRunId(runId: string, source: SourceName): string {
@@ -348,7 +347,10 @@ const sendHeartbeat = (
 function fetchRow52Source(
   runId: string,
   vehicleMap: Map<string, CanonicalVehicle>,
-  otherMap: Map<string, CanonicalVehicle>,
+  peerMaps: {
+    pyp: Map<string, CanonicalVehicle>;
+    autorecycler: Map<string, CanonicalVehicle>;
+  },
 ): Effect.Effect<
   SourceOutcome & { fetchMs: number },
   PersistenceError,
@@ -408,7 +410,10 @@ function fetchRow52Source(
         Effect.logDebug(
           formatMemoryUsage("after_row52_fetch", {
             row52Vins: vehicleMap.size,
-            otherVins: otherMap.size,
+            otherVins: uniqueVinCountAcrossMaps(
+              peerMaps.pyp,
+              peerMaps.autorecycler,
+            ),
           }),
         ),
       ),
@@ -456,7 +461,10 @@ function fetchRow52Source(
 function fetchPypSource(
   runId: string,
   vehicleMap: Map<string, CanonicalVehicle>,
-  otherMap: Map<string, CanonicalVehicle>,
+  peerMaps: {
+    row52: Map<string, CanonicalVehicle>;
+    autorecycler: Map<string, CanonicalVehicle>;
+  },
 ): Effect.Effect<
   SourceOutcome & { fetchMs: number },
   PersistenceError,
@@ -515,7 +523,10 @@ function fetchPypSource(
         Effect.logDebug(
           formatMemoryUsage("after_pyp_fetch", {
             pypVins: vehicleMap.size,
-            otherVins: otherMap.size,
+            otherVins: uniqueVinCountAcrossMaps(
+              peerMaps.row52,
+              peerMaps.autorecycler,
+            ),
           }),
         ),
       ),
@@ -736,8 +747,14 @@ export const ingestionPipeline: Effect.Effect<
 
     const [row52Result, pypResult, autorecyclerResult] = yield* Effect.all(
       [
-        fetchRow52Source(runId, row52ByVin, pypByVin),
-        fetchPypSource(runId, pypByVin, row52ByVin),
+        fetchRow52Source(runId, row52ByVin, {
+          pyp: pypByVin,
+          autorecycler: autorecyclerByVin,
+        }),
+        fetchPypSource(runId, pypByVin, {
+          row52: row52ByVin,
+          autorecycler: autorecyclerByVin,
+        }),
         fetchAutorecyclerSource(runId, autorecyclerByVin, {
           row52: row52ByVin,
           pyp: pypByVin,
