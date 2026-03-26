@@ -1,10 +1,11 @@
-import { Duration, Effect } from "effect";
+import { Effect } from "effect";
 import {
   buildGlobalMsearchBody,
   postAutorecyclerElasticsearchMsearch,
   type AutorecyclerMsearchHit,
   type AutorecyclerMsearchResponse,
 } from "./autorecycler-client";
+import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
 import { createAutorecyclerOrgGeoResolver } from "./autorecycler-geo";
 import { transformAutorecyclerMsearchHit } from "./autorecycler-transform";
 import type { CanonicalVehicle } from "./types";
@@ -12,11 +13,13 @@ import { AutorecyclerProviderError } from "./errors";
 import type { PersistenceError } from "./errors";
 import type { Database } from "./runtime";
 
-const PAGE_SIZE = 50;
-const PAGE_DELAY_MS = 120;
-const PROGRESS_EVERY_PAGES = 10;
-/** Safety cap — raise if inventory grows beyond this many pages. */
-const MAX_PAGES = 50_000;
+/**
+ * msearch `search.n` (requested page size). Live probe (2025-03) returns at most **400** hits
+ * per response regardless of larger `n`; use 400 to match the server cap. Pagination must
+ * advance `from` by **hits returned** ({@link streamAutorecyclerInventory} does this), not by
+ * this constant alone, so rows are never skipped if the cap changes.
+ */
+const REQUESTED_PAGE_SIZE = 400;
 
 function hitSource(hit: AutorecyclerMsearchHit): Record<string, unknown> | null {
   const src = hit._source;
@@ -133,6 +136,11 @@ export function streamAutorecyclerInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startFrom?: number;
   pagesPerChunk?: number;
+  /**
+   * Optional hook for `run-pipeline.ts` (in-memory `latest*` on failure + throttled
+   * `updateSourceRunProgress`). Throttled by `pagesPerChunk`, or
+   * `DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL` if omitted; last page always emits.
+   */
   onProgress?: (progress: {
     nextFrom: number;
     pagesProcessed: number;
@@ -147,13 +155,15 @@ export function streamAutorecyclerInventory<E, R>(options: {
 > {
   return Effect.gen(function* () {
     const geo = createAutorecyclerOrgGeoResolver();
-    const progressEveryPages = Math.max(1, options.pagesPerChunk ?? PROGRESS_EVERY_PAGES);
+    const progressEveryPages = Math.max(
+      1,
+      options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
+    );
     let from = Math.max(0, options.startFrom ?? 0);
     let pagesProcessed = 0;
     let totalCanonical = 0;
     let done = false;
     let fullyExhausted = false;
-    let stopped = false;
     let lastProgressPages = 0;
     const errors: string[] = [];
 
@@ -167,16 +177,16 @@ export function streamAutorecyclerInventory<E, R>(options: {
         nextFrom: from,
         pagesProcessed,
         vehiclesProcessed: totalCanonical,
-        stopped,
+        stopped: false,
         errors,
       });
     };
 
-    while (!done && pagesProcessed < MAX_PAGES) {
+    while (!done) {
       const json = yield* Effect.tryPromise({
         try: () =>
           postAutorecyclerElasticsearchMsearch(
-            buildGlobalMsearchBody(from, PAGE_SIZE),
+            buildGlobalMsearchBody(from, REQUESTED_PAGE_SIZE),
           ),
         catch: (cause) => new AutorecyclerProviderError({ from, cause }),
       });
@@ -227,27 +237,16 @@ export function streamAutorecyclerInventory<E, R>(options: {
 
         totalCanonical += pageCanonical.length;
         pagesProcessed += 1;
-        from += PAGE_SIZE;
+        from += hits.length;
 
         const atEnd = r0.at_end === true;
         if (atEnd || hits.length === 0) {
           fullyExhausted = atEnd;
           done = true;
-        } else if (PAGE_DELAY_MS > 0) {
-          yield* Effect.sleep(Duration.millis(PAGE_DELAY_MS));
         }
 
         yield* emitProgress(done);
       }
-    }
-
-    if (!done && pagesProcessed >= MAX_PAGES) {
-      const msg = `[AutoRecycler] Stopped: exceeded max pages (${MAX_PAGES})`;
-      yield* Effect.logWarning(msg);
-      errors.push(msg);
-      stopped = true;
-      done = true;
-      yield* emitProgress(true);
     }
 
     yield* Effect.logInfo(
@@ -262,7 +261,7 @@ export function streamAutorecyclerInventory<E, R>(options: {
       nextFrom: from,
       done,
       fullyExhausted,
-      stopped,
+      stopped: false,
       geoStats: geo.getStats(),
     };
   });
