@@ -22,6 +22,9 @@ try {
   const { db } = await import("../src/lib/db");
   const { vehicle } = await import("../schema");
   const { toAlgoliaRecord } = await import("../src/server/ingestion/types");
+  const { mapDbVehicleToCanonical } = await import(
+    "../src/server/ingestion/algolia-projector-helpers"
+  );
   const { syncToAlgolia } =
     await import("../src/server/ingestion/sync-algolia");
 
@@ -32,32 +35,7 @@ try {
   console.log("Building Algolia records...");
   const algoliaRecords = allDbVehicles.map((dbVehicle) =>
     toAlgoliaRecord(
-      {
-        vin: dbVehicle.vin,
-        source: dbVehicle.source as "pyp" | "row52" | "autorecycler",
-        year: dbVehicle.year,
-        make: dbVehicle.make,
-        model: dbVehicle.model,
-        color: dbVehicle.color,
-        stockNumber: dbVehicle.stockNumber,
-        imageUrl: dbVehicle.imageUrl,
-        availableDate: dbVehicle.availableDate,
-        locationCode: dbVehicle.locationCode,
-        locationName: dbVehicle.locationName,
-        state: dbVehicle.state,
-        stateAbbr: dbVehicle.stateAbbr,
-        lat: dbVehicle.lat,
-        lng: dbVehicle.lng,
-        section: dbVehicle.section,
-        row: dbVehicle.row,
-        space: dbVehicle.space,
-        detailsUrl: dbVehicle.detailsUrl,
-        partsUrl: dbVehicle.partsUrl,
-        pricesUrl: dbVehicle.pricesUrl,
-        engine: dbVehicle.engine,
-        trim: dbVehicle.trim,
-        transmission: dbVehicle.transmission,
-      },
+      mapDbVehicleToCanonical(dbVehicle),
       dbVehicle.firstSeenAt,
       dbVehicle.missingSinceAt,
       dbVehicle.missingRunCount ?? 0,
