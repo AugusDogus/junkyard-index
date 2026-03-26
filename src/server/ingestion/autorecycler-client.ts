@@ -77,6 +77,25 @@ function isRetryableStatus(status: number): boolean {
   return status === 429 || status === 502 || status === 503 || status === 504;
 }
 
+/** HTTP failure that must not trigger exponential backoff (e.g. 4xx other than rate limits). */
+export class AutorecyclerNonRetryableHttpError extends Error {
+  override readonly name = "AutorecyclerNonRetryableHttpError";
+  readonly nonRetryable = true as const;
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+function isNonRetryableHttpClientError(
+  e: unknown,
+): e is AutorecyclerNonRetryableHttpError {
+  return e instanceof AutorecyclerNonRetryableHttpError;
+}
+
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -124,11 +143,18 @@ export async function postAutorecyclerElasticsearchMsearch(
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`msearch HTTP ${res.status}: ${text.slice(0, 500)}`);
+        const msg = `msearch HTTP ${res.status}: ${text.slice(0, 500)}`;
+        if (!isRetryableStatus(res.status)) {
+          throw new AutorecyclerNonRetryableHttpError(msg, res.status);
+        }
+        throw new Error(msg);
       }
 
       return (await res.json()) as AutorecyclerMsearchResponse;
     } catch (e) {
+      if (isNonRetryableHttpClientError(e)) {
+        throw e;
+      }
       lastError = e;
       if (attempt < MAX_RETRIES - 1) {
         await new Promise((r) => setTimeout(r, RETRY_BASE_MS * 2 ** attempt));
@@ -158,10 +184,17 @@ export async function fetchAutorecyclerInitDataForUrl(
       }
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`init/data HTTP ${res.status}: ${text.slice(0, 400)}`);
+        const msg = `init/data HTTP ${res.status}: ${text.slice(0, 400)}`;
+        if (!isRetryableStatus(res.status)) {
+          throw new AutorecyclerNonRetryableHttpError(msg, res.status);
+        }
+        throw new Error(msg);
       }
       return (await res.json()) as AutorecyclerInitDataRow[];
     } catch (e) {
+      if (isNonRetryableHttpClientError(e)) {
+        throw e;
+      }
       if (attempt === MAX_RETRIES - 1) {
         throw e instanceof Error ? e : new Error(String(e));
       }
