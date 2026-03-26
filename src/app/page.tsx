@@ -150,10 +150,29 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Data sources + live stats */}
       <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="bg-border grid gap-px overflow-hidden rounded-xl border sm:grid-cols-3">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="mb-4 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
+            Three networks. One search.
+          </h2>
+          <p className="text-muted-foreground mx-auto mb-12 max-w-xl text-pretty">
+            We pull inventory from each source daily and combine it into a
+            single index—same filters, sorts, and alerts everywhere.
+          </p>
+
+          <div className="mb-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+            {["LKQ Pick Your Part", "Row52", "AutoRecycler"].map((name) => (
+              <div key={name} className="flex items-center gap-2.5">
+                <div className="bg-muted flex size-8 items-center justify-center rounded-md">
+                  <Car className="text-muted-foreground size-4" />
+                </div>
+                <span className="text-sm font-medium">{name}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 divide-x">
             <StatCard
               value={formatVehicleBadgeCount(liveStats.vehicleCount)}
               label="Vehicles Tracked"
@@ -162,40 +181,7 @@ export default async function Home() {
               value={formatYardBadgeCount(liveStats.yardCount)}
               label="Yards Nationwide"
             />
-            <StatCard value="2" label="Yard Networks" />
-          </div>
-        </div>
-      </section>
-
-      {/* Data Sources Section */}
-      <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl">
-          <p className="text-muted-foreground mb-3 text-center text-sm font-medium">
-            Data Sources
-          </p>
-          <h2 className="mb-12 text-center text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Aggregating inventory you can trust
-          </h2>
-          <div className="bg-border grid gap-px overflow-hidden rounded-xl border sm:grid-cols-2">
-            <div className="bg-background flex flex-col items-center gap-3 p-8 text-center">
-              <div className="bg-muted flex size-10 items-center justify-center rounded-lg">
-                <Car className="text-muted-foreground size-5" />
-              </div>
-              <p className="text-lg font-semibold">LKQ Pick Your Part</p>
-              <p className="text-muted-foreground text-sm text-pretty">
-                The largest self-service used auto parts network in the US.
-              </p>
-            </div>
-            <div className="bg-background flex flex-col items-center gap-3 p-8 text-center">
-              <div className="bg-muted flex size-10 items-center justify-center rounded-lg">
-                <Car className="text-muted-foreground size-5" />
-              </div>
-              <p className="text-lg font-semibold">Row52</p>
-              <p className="text-muted-foreground text-sm text-pretty">
-                Community-powered inventory from independent yards across the
-                country.
-              </p>
-            </div>
+            <StatCard value="3" label="Yard Networks" />
           </div>
         </div>
       </section>
@@ -279,9 +265,9 @@ function StepCard({
 
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
-    <div className="bg-background flex flex-col items-center gap-1 p-8">
-      <p className="text-3xl font-bold tabular-nums sm:text-4xl">{value}</p>
-      <p className="text-muted-foreground text-sm">{label}</p>
+    <div className="flex flex-col items-center gap-1 py-2">
+      <p className="text-2xl font-bold tabular-nums sm:text-3xl">{value}</p>
+      <p className="text-muted-foreground text-xs sm:text-sm">{label}</p>
     </div>
   );
 }
