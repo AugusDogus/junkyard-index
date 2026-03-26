@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { eq, sql } from "drizzle-orm";
 import { autorecyclerOrgGeo } from "~/schema";
-import { PersistenceError } from "./errors";
+import { AutorecyclerProviderError, PersistenceError } from "./errors";
 import { Database } from "./runtime";
 import { fetchAutorecyclerDetailsInitData } from "./autorecycler-client";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
@@ -88,7 +88,11 @@ export function createAutorecyclerOrgGeoResolver() {
   const resolveOneEffect = (params: {
     orgLookup: string;
     inventoryIdSeed: string;
-  }): Effect.Effect<AutorecyclerOrgGeo | null, PersistenceError, Database> =>
+  }): Effect.Effect<
+    AutorecyclerOrgGeo | null,
+    PersistenceError | AutorecyclerProviderError,
+    Database
+  > =>
     Effect.gen(function* () {
       const { orgLookup, inventoryIdSeed } = params;
       geoLookupCount++;
@@ -126,18 +130,22 @@ export function createAutorecyclerOrgGeoResolver() {
         return mapped;
       }
 
-      const rows = yield* Effect.promise(() =>
-        fetchAutorecyclerDetailsInitData(inventoryIdSeed),
-      ).pipe(
-        Effect.catchAll(() => {
-          geoMissAfterFetch++;
-          return Effect.succeed(null);
-        }),
+      const rows = yield* Effect.tryPromise({
+        try: () => fetchAutorecyclerDetailsInitData(inventoryIdSeed),
+        catch: (cause) =>
+          new AutorecyclerProviderError({
+            /** Not an msearch offset; reserved for details init/data geo resolution. */
+            from: -1,
+            cause: new Error(
+              `details init/data orgLookup=${orgLookup} inventoryId=${inventoryIdSeed}: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { cause },
+            ),
+          }),
+      }).pipe(
+        Effect.tapError((e) =>
+          Effect.logError(`[AutoRecycler geo] ${e.message}`),
+        ),
       );
-
-      if (!rows) {
-        return null;
-      }
 
       const parsed = parseOrgGeoFromDetailsInitData(rows, orgLookup);
       if (!parsed) {
@@ -183,7 +191,11 @@ export function createAutorecyclerOrgGeoResolver() {
   /** Resolve many orgs; uses lazy sequential resolution to reduce rate-limit risk. */
   const resolveBatchEffect = (
     seeds: ReadonlyMap<string, string>,
-  ): Effect.Effect<void, PersistenceError, Database> =>
+  ): Effect.Effect<
+    void,
+    PersistenceError | AutorecyclerProviderError,
+    Database
+  > =>
     Effect.gen(function* () {
       for (const [org, inv] of seeds) {
         yield* resolveOneEffect({ orgLookup: org, inventoryIdSeed: inv }).pipe(
