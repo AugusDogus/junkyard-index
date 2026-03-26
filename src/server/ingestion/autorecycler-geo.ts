@@ -54,9 +54,6 @@ export function parseOrgGeoFromDetailsInitData(
           : "AutoRecycler";
 
     const stateOut = state || stateAbbr || "Unknown";
-    const abbrOut =
-      stateAbbr ||
-      (typeof components["state code"] === "string" ? components["state code"] : "");
 
     return {
       orgLookup: want,
@@ -64,7 +61,7 @@ export function parseOrgGeoFromDetailsInitData(
       lng,
       locationName,
       state: stateOut,
-      stateAbbr: abbrOut,
+      stateAbbr,
       address,
     };
   }
