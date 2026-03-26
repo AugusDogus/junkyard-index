@@ -24,6 +24,13 @@ function hitSource(hit: AutorecyclerMsearchHit): Record<string, unknown> | null 
   return src as Record<string, unknown>;
 }
 
+/** Same normalization as {@link transformAutorecyclerMsearchHit} (trimmed org id). */
+function autorecyclerOrgLookupKey(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  return t.length > 0 ? t : null;
+}
+
 type MsearchFirstPage =
   | {
       ok: true;
@@ -191,11 +198,11 @@ export function streamAutorecyclerInventory<E, R>(options: {
         for (const h of hits) {
           const src = hitSource(h);
           if (!src) continue;
-          const org = src.organization_custom_organization;
-          const inv = src.inventory_id_text;
-          if (typeof org === "string" && typeof inv === "string") {
-            if (!geo.getCached(org) && !seeds.has(org)) {
-              seeds.set(org, inv);
+          const orgKey = autorecyclerOrgLookupKey(src.organization_custom_organization);
+          const invKey = autorecyclerOrgLookupKey(src.inventory_id_text);
+          if (orgKey && invKey) {
+            if (!geo.getCached(orgKey) && !seeds.has(orgKey)) {
+              seeds.set(orgKey, invKey);
             }
           }
         }
@@ -206,11 +213,9 @@ export function streamAutorecyclerInventory<E, R>(options: {
         for (const h of hits) {
           const src = hitSource(h);
           if (!src) continue;
-          const org =
-            typeof src.organization_custom_organization === "string"
-              ? src.organization_custom_organization
-              : "";
-          const g = org ? geo.getCached(org) : undefined;
+          const orgKey = autorecyclerOrgLookupKey(src.organization_custom_organization);
+          if (!orgKey) continue;
+          const g = geo.getCached(orgKey);
           if (!g) continue;
           const c = transformAutorecyclerMsearchHit(src, g);
           if (c) pageCanonical.push(c);
