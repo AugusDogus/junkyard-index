@@ -3,7 +3,7 @@ import { vehicle } from "~/schema";
 import {
   mapDbVehicleToCanonical,
   partitionVehicleChanges,
-} from "./algolia-projector";
+} from "./algolia-projector-helpers";
 
 describe("algolia-projector helpers", () => {
   test("maps a database vehicle row to canonical shape", () => {

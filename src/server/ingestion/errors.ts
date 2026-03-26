@@ -49,6 +49,17 @@ export class Row52ProviderError extends Data.TaggedError(
   }
 }
 
+export class AutorecyclerProviderError extends Data.TaggedError(
+  "AutorecyclerProviderError",
+)<{
+  from: number;
+  cause: unknown;
+}> {
+  override get message() {
+    return `AutoRecycler at from=${this.from}: ${getCauseMessage(this.cause)}`;
+  }
+}
+
 export class BrowserSessionError extends Data.TaggedError(
   "BrowserSessionError",
 )<{
@@ -91,6 +102,7 @@ export type IngestionError =
   | RequestTimeoutError
   | PypProviderError
   | Row52ProviderError
+  | AutorecyclerProviderError
   | BrowserSessionError
   | ReconcileError
   | PersistenceError

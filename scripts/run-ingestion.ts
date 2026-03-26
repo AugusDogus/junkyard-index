@@ -32,6 +32,7 @@ try {
   console.log("\n=== INGESTION COMPLETE ===");
   console.log(`PYP vehicles: ${result.pypCount}`);
   console.log(`Row52 vehicles: ${result.row52Count}`);
+  console.log(`AutoRecycler vehicles: ${result.autorecyclerCount}`);
   console.log(`Total upserted: ${result.totalUpserted}`);
   console.log(`Stale deleted: ${result.totalDeleted}`);
   console.log(`Duration: ${result.durationMs}ms`);

@@ -68,35 +68,57 @@ export function buildFinalInventoryByVin(params: {
   healthySources: SourceName[];
   row52ByVin: Map<string, CanonicalVehicle>;
   pypByVin: Map<string, CanonicalVehicle>;
+  autorecyclerByVin: Map<string, CanonicalVehicle>;
 }): Map<string, CanonicalVehicle> {
   const row52Healthy = params.healthySources.includes("row52");
   const pypHealthy = params.healthySources.includes("pyp");
+  const autorecyclerHealthy = params.healthySources.includes("autorecycler");
+
+  const mergeAutorecyclerHoles = (into: Map<string, CanonicalVehicle>) => {
+    if (!autorecyclerHealthy) return;
+    for (const [vin, vehicle] of params.autorecyclerByVin) {
+      if (!into.has(vin)) {
+        into.set(vin, vehicle);
+      }
+    }
+  };
 
   if (row52Healthy && pypHealthy) {
-    // Keep the larger Row52 map as the working set so we avoid allocating a
-    // third VIN map and also minimize merge churn. Row52 still wins on shared
-    // VINs by only filling holes from PYP.
+    // Row52 wins overlaps; PYP fills holes; AutoRecycler fills remaining holes.
     for (const [vin, vehicle] of params.pypByVin) {
       if (!params.row52ByVin.has(vin)) {
         params.row52ByVin.set(vin, vehicle);
       }
     }
     params.pypByVin.clear();
+    mergeAutorecyclerHoles(params.row52ByVin);
+    params.autorecyclerByVin.clear();
     return params.row52ByVin;
   }
 
   if (row52Healthy) {
+    mergeAutorecyclerHoles(params.row52ByVin);
     params.pypByVin.clear();
+    params.autorecyclerByVin.clear();
     return params.row52ByVin;
   }
 
   if (pypHealthy) {
+    mergeAutorecyclerHoles(params.pypByVin);
     params.row52ByVin.clear();
+    params.autorecyclerByVin.clear();
     return params.pypByVin;
+  }
+
+  if (autorecyclerHealthy) {
+    params.row52ByVin.clear();
+    params.pypByVin.clear();
+    return params.autorecyclerByVin;
   }
 
   params.row52ByVin.clear();
   params.pypByVin.clear();
+  params.autorecyclerByVin.clear();
   return new Map<string, CanonicalVehicle>();
 }
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const SOURCE_VALUES = ["pyp", "row52"] as const;
+const SOURCE_VALUES = ["pyp", "row52", "autorecycler"] as const;
 const MIN_VEHICLE_YEAR = 1886;
 const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 

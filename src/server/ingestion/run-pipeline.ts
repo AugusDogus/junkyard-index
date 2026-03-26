@@ -14,6 +14,7 @@ import {
   buildFinalInventoryByVin,
   reconcileFromFinalInventory,
 } from "./reconcile";
+import { streamAutorecyclerInventory } from "./autorecycler-connector";
 import { streamRow52Inventory } from "./row52-connector";
 import {
   PersistenceError,
@@ -33,6 +34,7 @@ const EMPTY_TIMINGS = {
   sourcesParallelMs: 0,
   row52FetchMs: 0,
   pypFetchMs: 0,
+  autorecyclerFetchMs: 0,
   upsertFlushMs: 0,
   staleDeleteMs: 0,
   algoliaPrepMs: 0,
@@ -47,12 +49,14 @@ export interface IngestionPipelineResult {
   totalDeleted: number;
   pypCount: number;
   row52Count: number;
+  autorecyclerCount: number;
   errors: string[];
   durationMs: number;
   timingsMs: {
     sourcesParallelMs: number;
     row52FetchMs: number;
     pypFetchMs: number;
+    autorecyclerFetchMs: number;
     upsertFlushMs: number;
     staleDeleteMs: number;
     algoliaPrepMs: number;
@@ -222,7 +226,7 @@ function parseSourceErrors(errorsJson: string | null): string[] {
 }
 
 function isSourceName(value: string): value is SourceName {
-  return value === "row52" || value === "pyp";
+  return value === "row52" || value === "pyp" || value === "autorecycler";
 }
 
 const finalizePendingSourceRuns = (
@@ -541,6 +545,132 @@ function fetchPypSource(
   });
 }
 
+function fetchAutorecyclerSource(
+  runId: string,
+  vehicleMap: Map<string, CanonicalVehicle>,
+  otherMap: Map<string, CanonicalVehicle>,
+): Effect.Effect<
+  SourceOutcome & { fetchMs: number },
+  PersistenceError,
+  HttpClient.HttpClient
+> {
+  return Effect.gen(function* () {
+    const startedAt = Date.now();
+    let latestNextCursor = "0";
+    let latestPagesProcessed = 0;
+    let latestVehiclesProcessed = 0;
+
+    const reportProgress = (progress: {
+      nextFrom: number;
+      pagesProcessed: number;
+      vehiclesProcessed: number;
+    }) => {
+      latestNextCursor = String(progress.nextFrom);
+      latestPagesProcessed = progress.pagesProcessed;
+      latestVehiclesProcessed = progress.vehiclesProcessed;
+      return updateSourceRunProgress({
+        runId,
+        source: "autorecycler",
+        nextCursor: String(progress.nextFrom),
+        pagesProcessed: progress.pagesProcessed,
+        vehiclesProcessed: progress.vehiclesProcessed,
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.logWarning(
+            `[Ingestion] AutoRecycler progress update failed: ${error.message}`,
+          ),
+        ),
+      );
+    };
+
+    const result = yield* streamAutorecyclerInventory({
+      onBatch: (vehicles) =>
+        Effect.sync(() => {
+          accumulateVehicles(vehicleMap, vehicles);
+        }),
+      pagesPerChunk: SOURCE_CHUNK_PAGES,
+      onProgress: (progress) =>
+        reportProgress({
+          nextFrom: progress.nextFrom,
+          pagesProcessed: progress.pagesProcessed,
+          vehiclesProcessed: progress.vehiclesProcessed,
+        }),
+    }).pipe(
+      Effect.provideService(Database, db),
+      Effect.tap((res) => {
+        latestNextCursor = String(res.nextFrom);
+        latestPagesProcessed = res.pagesProcessed;
+        latestVehiclesProcessed = res.count;
+        return Effect.logInfo(
+          `[Ingestion] AutoRecycler geo_stats=${JSON.stringify(res.geoStats)}`,
+        ).pipe(
+          Effect.flatMap(() =>
+            completeSourceRun({
+              runId,
+              source: "autorecycler",
+              nextCursor: String(res.nextFrom),
+              pagesProcessed: res.pagesProcessed,
+              vehiclesProcessed: res.count,
+              errors: res.errors,
+            }),
+          ),
+        );
+      }),
+      Effect.tap(() =>
+        Effect.logDebug(
+          formatMemoryUsage("after_autorecycler_fetch", {
+            autorecyclerVins: vehicleMap.size,
+            otherVins: otherMap.size,
+          }),
+        ),
+      ),
+      Effect.catchAll((error) => {
+        if (error instanceof PersistenceError) {
+          return Effect.fail(error);
+        }
+        const msg = `AutoRecycler ingestion failed: ${error.message}`;
+        return completeSourceRun({
+          runId,
+          source: "autorecycler",
+          nextCursor: latestNextCursor,
+          pagesProcessed: latestPagesProcessed,
+          vehiclesProcessed: latestVehiclesProcessed,
+          errors: [msg],
+        }).pipe(
+          Effect.catchAll((e) =>
+            Effect.logWarning(
+              `[Ingestion] completeSourceRun failed for source=autorecycler runId=${runId}: ${e.message}`,
+            ),
+          ),
+          Effect.map(() => ({
+            source: "autorecycler" as const,
+            count: latestVehiclesProcessed,
+            errors: [msg],
+            pagesProcessed: latestPagesProcessed,
+            nextFrom: Number.parseInt(latestNextCursor, 10) || 0,
+            done: false,
+            fullyExhausted: false,
+            stopped: true,
+            geoStats: {
+              geoLookupCount: 0,
+              geoHitMemory: 0,
+              geoHitDb: 0,
+              geoMissAfterFetch: 0,
+            },
+          })),
+        );
+      }),
+    );
+
+    return {
+      source: "autorecycler" as const,
+      count: result.count,
+      errors: result.errors,
+      fetchMs: Date.now() - startedAt,
+    };
+  });
+}
+
 /**
  * Main ingestion pipeline as an Effect program.
  */
@@ -569,6 +699,7 @@ export const ingestionPipeline: Effect.Effect<
       totalDeleted: 0,
       pypCount: 0,
       row52Count: 0,
+      autorecyclerCount: 0,
       errors: [msg],
       durationMs,
       timingsMs: EMPTY_TIMINGS,
@@ -579,25 +710,40 @@ export const ingestionPipeline: Effect.Effect<
     yield* Effect.all([
       initSourceRun(runId, "row52", runTimestamp),
       initSourceRun(runId, "pyp", runTimestamp),
+      initSourceRun(runId, "autorecycler", runTimestamp),
     ]);
 
     const row52ByVin = new Map<string, CanonicalVehicle>();
     const pypByVin = new Map<string, CanonicalVehicle>();
+    const autorecyclerByVin = new Map<string, CanonicalVehicle>();
 
     const sourcesStart = Date.now();
 
-    const [row52Result, pypResult] = yield* Effect.all(
+    const [row52Result, pypResult, autorecyclerResult] = yield* Effect.all(
       [
         fetchRow52Source(runId, row52ByVin, pypByVin),
         fetchPypSource(runId, pypByVin, row52ByVin),
+        fetchAutorecyclerSource(
+          runId,
+          autorecyclerByVin,
+          row52ByVin,
+        ),
       ],
-      { concurrency: 2 },
+      { concurrency: 3 },
     );
 
     const sourcesParallelMs = Date.now() - sourcesStart;
-    allErrors.push(...row52Result.errors, ...pypResult.errors);
+    allErrors.push(
+      ...row52Result.errors,
+      ...pypResult.errors,
+      ...autorecyclerResult.errors,
+    );
 
-    const sourceOutcomes: SourceOutcome[] = [row52Result, pypResult];
+    const sourceOutcomes: SourceOutcome[] = [
+      row52Result,
+      pypResult,
+      autorecyclerResult,
+    ];
     const healthySources = determineHealthySources(sourceOutcomes);
     const reconcileTimestamp = new Date();
 
@@ -605,6 +751,7 @@ export const ingestionPipeline: Effect.Effect<
       formatMemoryUsage("before_inventory_finalization", {
         row52Vins: row52ByVin.size,
         pypVins: pypByVin.size,
+        autorecyclerVins: autorecyclerByVin.size,
         healthySources: healthySources.join(",") || "none",
       }),
     );
@@ -613,6 +760,7 @@ export const ingestionPipeline: Effect.Effect<
       healthySources,
       row52ByVin,
       pypByVin,
+      autorecyclerByVin,
     });
     const finalizedInventoryCount = finalInventoryByVin.size;
 
@@ -621,6 +769,7 @@ export const ingestionPipeline: Effect.Effect<
         finalVins: finalizedInventoryCount,
         row52Vins: row52ByVin.size,
         pypVins: pypByVin.size,
+        autorecyclerVins: autorecyclerByVin.size,
       }),
     );
 
@@ -653,6 +802,7 @@ export const ingestionPipeline: Effect.Effect<
       sourcesParallelMs,
       row52FetchMs: row52Result.fetchMs,
       pypFetchMs: pypResult.fetchMs,
+      autorecyclerFetchMs: autorecyclerResult.fetchMs,
       upsertFlushMs,
       staleDeleteMs,
       algoliaPrepMs: 0,
@@ -668,7 +818,7 @@ export const ingestionPipeline: Effect.Effect<
     );
 
     yield* Effect.logInfo(
-      `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles`,
+      `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles, AutoRecycler: ${autorecyclerResult.count} vehicles`,
     );
     yield* Effect.logInfo(
       `[Ingestion] Finalized ${finalizedInventoryCount} canonical vehicles from healthy sources`,
@@ -677,7 +827,7 @@ export const ingestionPipeline: Effect.Effect<
       `[Ingestion] Reconcile complete: ${reconcileResult.upsertedCount} upserted, ${reconcileResult.deletedCount} deleted, ${reconcileResult.missingUpdatedCount} marked missing`,
     );
     yield* Effect.logInfo(
-      `[Ingestion] Source timings: row52=${row52Result.fetchMs}ms pyp=${pypResult.fetchMs}ms parallel_window=${sourcesParallelMs}ms`,
+      `[Ingestion] Source timings: row52=${row52Result.fetchMs}ms pyp=${pypResult.fetchMs}ms autorecycler=${autorecyclerResult.fetchMs}ms parallel_window=${sourcesParallelMs}ms`,
     );
     yield* Effect.logInfo(
       `[Ingestion] Stage timings: inventory_diff_upsert=${upsertFlushMs}ms missing_delete=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
@@ -698,6 +848,7 @@ export const ingestionPipeline: Effect.Effect<
       totalDeleted: reconcileResult.deletedCount,
       pypCount: pypResult.count,
       row52Count: row52Result.count,
+      autorecyclerCount: autorecyclerResult.count,
       errors: allErrors,
       durationMs,
       timingsMs,

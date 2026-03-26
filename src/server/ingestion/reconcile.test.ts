@@ -89,6 +89,7 @@ describe("reconcile helpers", () => {
       healthySources: ["row52", "pyp"],
       row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
       pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
+      autorecyclerByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(row52Vehicle);
@@ -108,9 +109,27 @@ describe("reconcile helpers", () => {
       healthySources: ["pyp"],
       row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
       pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
+      autorecyclerByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(pypVehicle);
+  });
+
+  test("fills AutoRecycler-only VINs after Row52 and PYP merge", () => {
+    const row52Vehicle = makeCanonicalVehicle("VIN_A", "row52");
+    const arVehicle = makeCanonicalVehicle("VIN_B", "autorecycler", {
+      stockNumber: "AR-1",
+    });
+
+    const finalInventory = buildFinalInventoryByVin({
+      healthySources: ["row52", "pyp", "autorecycler"],
+      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
+      pypByVin: new Map(),
+      autorecyclerByVin: new Map([[arVehicle.vin, arVehicle]]),
+    });
+
+    expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
+    expect(finalInventory.get("VIN_B")).toEqual(arVehicle);
   });
 
   test("treats reappearing vehicles as changed so missing state is cleared", () => {

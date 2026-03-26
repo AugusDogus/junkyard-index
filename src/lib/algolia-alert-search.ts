@@ -23,7 +23,10 @@ function escapeFilterValue(value: string): string {
 }
 
 function parseDataSource(value: unknown): DataSource {
-  return value === "pyp" || value === "row52" ? value : "pyp";
+  if (value === "pyp" || value === "row52" || value === "autorecycler") {
+    return value;
+  }
+  return "pyp";
 }
 
 function buildStringOrFilter(
@@ -68,7 +71,9 @@ export function buildAlertFiltersString(
 
   const sourcesClause = buildStringOrFilter(
     "source",
-    (filters.sources ?? []).filter((s) => s === "pyp" || s === "row52"),
+    (filters.sources ?? []).filter(
+      (s) => s === "pyp" || s === "row52" || s === "autorecycler",
+    ),
   );
   if (sourcesClause) clauses.push(sourcesClause);
 

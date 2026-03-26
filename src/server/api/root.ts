@@ -1,10 +1,8 @@
-import { locationsRouter } from "~/server/api/routers/locations";
 import { savedSearchesRouter } from "~/server/api/routers/savedSearches";
 import { statsRouter } from "~/server/api/routers/stats";
 import { statusRouter } from "~/server/api/routers/status";
 import { subscriptionRouter } from "~/server/api/routers/subscription";
 import { userRouter } from "~/server/api/routers/user";
-import { vehiclesRouter } from "~/server/api/routers/vehicles";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -13,8 +11,6 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
-  locations: locationsRouter,
-  vehicles: vehiclesRouter,
   savedSearches: savedSearchesRouter,
   subscription: subscriptionRouter,
   user: userRouter,

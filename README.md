@@ -6,6 +6,7 @@ Currently indexes salvage yards from:
 
 - [LKQ Pick Your Part](https://www.pyp.com)
 - [Row52 / Pick-n-Pull](https://row52.com)
+- [AutoRecycler](https://app.autorecycler.io)
 
 ## Features
 
@@ -23,11 +24,12 @@ Currently indexes salvage yards from:
 - [Tailwind CSS](https://tailwindcss.com) - Utility-first styling
 - [shadcn/ui](https://ui.shadcn.com) - Accessible UI components
 - [tRPC](https://trpc.io) - End-to-end type-safe APIs
-- [Cheerio](https://cheerio.js.org) - Server-side HTML parsing
+- [Algolia](https://www.algolia.com) - Search index and InstantSearch UI
+- [Drizzle ORM](https://orm.drizzle.team) + [Turso](https://turso.tech) (libSQL) - Vehicle data and ingestion metadata
+- [Trigger.dev](https://trigger.dev) - Scheduled ingestion, Algolia projector, and search alerts
+- [Effect](https://effect.website) - Ingestion pipeline errors and concurrency
 - [nuqs](https://nuqs.47ng.com) - Type-safe URL search params
 - [better-auth](https://better-auth.com) - Authentication
-
-_This project was initially scaffolded using [create-t3-app](https://create.t3.gg/)._
 
 ## Getting Started
 

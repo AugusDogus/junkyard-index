@@ -34,7 +34,7 @@ try {
     toAlgoliaRecord(
       {
         vin: dbVehicle.vin,
-        source: dbVehicle.source as "pyp" | "row52",
+        source: dbVehicle.source as "pyp" | "row52" | "autorecycler",
         year: dbVehicle.year,
         make: dbVehicle.make,
         model: dbVehicle.model,

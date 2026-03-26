@@ -169,7 +169,7 @@ export const vehicle = sqliteTable(
   "vehicle",
   {
     vin: text("vin").primaryKey(),
-    source: text("source").notNull(), // "pyp" | "row52"
+    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler"
     year: integer("year").notNull(),
     make: text("make").notNull(),
     model: text("model").notNull(),
@@ -227,7 +227,7 @@ export const ingestionSourceRun = sqliteTable(
     runId: text("run_id")
       .notNull()
       .references(() => ingestionRun.id, { onDelete: "cascade" }),
-    source: text("source").notNull(), // "pyp" | "row52"
+    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler"
     status: text("status").notNull(), // "running" | "success" | "error" | "partial"
     startCursor: text("start_cursor"),
     nextCursor: text("next_cursor"),
@@ -250,7 +250,7 @@ export const vehicleSnapshot = sqliteTable(
     runId: text("run_id")
       .notNull()
       .references(() => ingestionRun.id, { onDelete: "cascade" }),
-    source: text("source").notNull(), // "pyp" | "row52"
+    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler"
     vin: text("vin").notNull(),
     year: integer("year").notNull(),
     make: text("make").notNull(),
@@ -322,4 +322,20 @@ export const ingestionProjectorCheckpoint = sqliteTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
+);
+
+/** Cached yard geolocation resolved from AutoRecycler `init/data` (details pages). */
+export const autorecyclerOrgGeo = sqliteTable(
+  "autorecycler_org_geo",
+  {
+    orgLookup: text("org_lookup").primaryKey(),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
+    locationName: text("location_name").notNull(),
+    state: text("state").notNull(),
+    stateAbbr: text("state_abbr").notNull(),
+    address: text("address"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("autorecycler_org_geo_updated_at_idx").on(table.updatedAt)],
 );
