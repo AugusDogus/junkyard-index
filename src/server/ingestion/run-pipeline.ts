@@ -550,11 +550,7 @@ function fetchAutorecyclerSource(
   runId: string,
   vehicleMap: Map<string, CanonicalVehicle>,
   otherMap: Map<string, CanonicalVehicle>,
-): Effect.Effect<
-  SourceOutcome & { fetchMs: number },
-  PersistenceError,
-  HttpClient.HttpClient
-> {
+): Effect.Effect<SourceOutcome & { fetchMs: number }, PersistenceError> {
   return Effect.gen(function* () {
     const startedAt = Date.now();
     let latestNextCursor = "0";
