@@ -89,17 +89,6 @@ function accumulateVehicles(
   }
 }
 
-/** Distinct VIN count across peer source maps while all three run in parallel. */
-function uniqueVinCountAcrossMaps(
-  ...maps: Array<Map<string, CanonicalVehicle>>
-): number {
-  const keys = new Set<string>();
-  for (const m of maps) {
-    for (const k of m.keys()) keys.add(k);
-  }
-  return keys.size;
-}
-
 function sourceRunId(runId: string, source: SourceName): string {
   return `${runId}:${source}`;
 }
@@ -159,6 +148,8 @@ const updateSourceRunProgress = (params: {
   nextCursor: string;
   pagesProcessed: number;
   vehiclesProcessed: number;
+  /** When non-empty, persisted on the source-run row for mid-run diagnostics. */
+  errors?: string[];
 }): Effect.Effect<void, PersistenceError> =>
   Effect.tryPromise({
     try: () =>
@@ -168,6 +159,9 @@ const updateSourceRunProgress = (params: {
           nextCursor: params.nextCursor,
           pagesProcessed: params.pagesProcessed,
           vehiclesProcessed: params.vehiclesProcessed,
+          ...(params.errors !== undefined && params.errors.length > 0
+            ? { errors: JSON.stringify(params.errors) }
+            : {}),
         })
         .where(
           eq(
@@ -361,25 +355,33 @@ function fetchRow52Source(
     let latestNextCursor = "0";
     let latestPagesProcessed = 0;
     let latestVehiclesProcessed = 0;
+    let latestProgressErrors: string[] = [];
 
     const reportProgress = (progress: {
       nextSkip: number;
       pagesProcessed: number;
       vehiclesProcessed: number;
+      errors: string[];
     }) => {
       latestNextCursor = String(progress.nextSkip);
       latestPagesProcessed = progress.pagesProcessed;
       latestVehiclesProcessed = progress.vehiclesProcessed;
+      latestProgressErrors = progress.errors;
       return updateSourceRunProgress({
         runId,
         source: "row52",
         nextCursor: String(progress.nextSkip),
         pagesProcessed: progress.pagesProcessed,
         vehiclesProcessed: progress.vehiclesProcessed,
+        errors: progress.errors,
       }).pipe(
         Effect.catchAll((error) =>
           Effect.logWarning(
-            `[Ingestion] Row52 progress update failed: ${error.message}`,
+            `[Ingestion] Row52 progress update failed: ${error.message}${
+              progress.errors.length > 0
+                ? ` (provider: ${progress.errors.join("; ")})`
+                : ""
+            }`,
           ),
         ),
       );
@@ -410,10 +412,8 @@ function fetchRow52Source(
         Effect.logDebug(
           formatMemoryUsage("after_row52_fetch", {
             row52Vins: vehicleMap.size,
-            otherVins: uniqueVinCountAcrossMaps(
-              peerMaps.pyp,
-              peerMaps.autorecycler,
-            ),
+            peerPypVins: peerMaps.pyp.size,
+            peerAutorecyclerVins: peerMaps.autorecycler.size,
           }),
         ),
       ),
@@ -428,7 +428,10 @@ function fetchRow52Source(
           nextCursor: latestNextCursor,
           pagesProcessed: latestPagesProcessed,
           vehiclesProcessed: latestVehiclesProcessed,
-          errors: [msg],
+          errors:
+            latestProgressErrors.length > 0
+              ? [...latestProgressErrors, msg]
+              : [msg],
         }).pipe(
           Effect.catchAll((error) =>
             Effect.logWarning(
@@ -475,25 +478,33 @@ function fetchPypSource(
     let latestNextCursor = "1";
     let latestPagesProcessed = 0;
     let latestVehiclesProcessed = 0;
+    let latestProgressErrors: string[] = [];
 
     const reportProgress = (progress: {
       nextPage: number;
       pagesProcessed: number;
       vehiclesProcessed: number;
+      errors: string[];
     }) => {
       latestNextCursor = String(progress.nextPage);
       latestPagesProcessed = progress.pagesProcessed;
       latestVehiclesProcessed = progress.vehiclesProcessed;
+      latestProgressErrors = progress.errors;
       return updateSourceRunProgress({
         runId,
         source: "pyp",
         nextCursor: String(progress.nextPage),
         pagesProcessed: progress.pagesProcessed,
         vehiclesProcessed: progress.vehiclesProcessed,
+        errors: progress.errors,
       }).pipe(
         Effect.catchAll((error) =>
           Effect.logWarning(
-            `[Ingestion] PYP progress update failed: ${error.message}`,
+            `[Ingestion] PYP progress update failed: ${error.message}${
+              progress.errors.length > 0
+                ? ` (provider: ${progress.errors.join("; ")})`
+                : ""
+            }`,
           ),
         ),
       );
@@ -523,10 +534,8 @@ function fetchPypSource(
         Effect.logDebug(
           formatMemoryUsage("after_pyp_fetch", {
             pypVins: vehicleMap.size,
-            otherVins: uniqueVinCountAcrossMaps(
-              peerMaps.row52,
-              peerMaps.autorecycler,
-            ),
+            peerRow52Vins: peerMaps.row52.size,
+            peerAutorecyclerVins: peerMaps.autorecycler.size,
           }),
         ),
       ),
@@ -541,7 +550,10 @@ function fetchPypSource(
           nextCursor: latestNextCursor,
           pagesProcessed: latestPagesProcessed,
           vehiclesProcessed: latestVehiclesProcessed,
-          errors: [msg],
+          errors:
+            latestProgressErrors.length > 0
+              ? [...latestProgressErrors, msg]
+              : [msg],
         }).pipe(
           Effect.catchAll((error) =>
             Effect.logWarning(
@@ -582,25 +594,33 @@ function fetchAutorecyclerSource(
     let latestNextCursor = "0";
     let latestPagesProcessed = 0;
     let latestVehiclesProcessed = 0;
+    let latestProgressErrors: string[] = [];
 
     const reportProgress = (progress: {
       nextFrom: number;
       pagesProcessed: number;
       vehiclesProcessed: number;
+      errors: string[];
     }) => {
       latestNextCursor = String(progress.nextFrom);
       latestPagesProcessed = progress.pagesProcessed;
       latestVehiclesProcessed = progress.vehiclesProcessed;
+      latestProgressErrors = progress.errors;
       return updateSourceRunProgress({
         runId,
         source: "autorecycler",
         nextCursor: String(progress.nextFrom),
         pagesProcessed: progress.pagesProcessed,
         vehiclesProcessed: progress.vehiclesProcessed,
+        errors: progress.errors,
       }).pipe(
         Effect.catchAll((error) =>
           Effect.logWarning(
-            `[Ingestion] AutoRecycler progress update failed: ${error.message}`,
+            `[Ingestion] AutoRecycler progress update failed: ${error.message}${
+              progress.errors.length > 0
+                ? ` (provider: ${progress.errors.join("; ")})`
+                : ""
+            }`,
           ),
         ),
       );
@@ -617,6 +637,7 @@ function fetchAutorecyclerSource(
           nextFrom: progress.nextFrom,
           pagesProcessed: progress.pagesProcessed,
           vehiclesProcessed: progress.vehiclesProcessed,
+          errors: progress.errors,
         }),
     }).pipe(
       Effect.provideService(Database, db),
@@ -643,10 +664,8 @@ function fetchAutorecyclerSource(
         Effect.logDebug(
           formatMemoryUsage("after_autorecycler_fetch", {
             autorecyclerVins: vehicleMap.size,
-            otherVins: uniqueVinCountAcrossMaps(
-              peerMaps.row52,
-              peerMaps.pyp,
-            ),
+            peerRow52Vins: peerMaps.row52.size,
+            peerPypVins: peerMaps.pyp.size,
           }),
         ),
       ),
@@ -661,7 +680,10 @@ function fetchAutorecyclerSource(
           nextCursor: latestNextCursor,
           pagesProcessed: latestPagesProcessed,
           vehiclesProcessed: latestVehiclesProcessed,
-          errors: [msg],
+          errors:
+            latestProgressErrors.length > 0
+              ? [...latestProgressErrors, msg]
+              : [msg],
         }).pipe(
           Effect.catchAll((e) =>
             Effect.logWarning(
