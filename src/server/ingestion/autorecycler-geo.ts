@@ -17,17 +17,20 @@ export function parseOrgGeoFromDetailsInitData(
   rows: Array<{ type?: string; data?: Record<string, unknown> }>,
   expectedOrg: string,
 ): AutorecyclerOrgGeo | null {
+  const want = expectedOrg.trim();
+  if (want.length === 0) return null;
+
   for (const row of rows) {
     const d = row.data;
     if (!isRecord(d)) continue;
     const t = row.type ?? (typeof d._type === "string" ? d._type : undefined);
     if (t !== "custom.inventory") continue;
 
-    const org =
+    const orgRaw =
       typeof d.organization_custom_organization === "string"
-        ? d.organization_custom_organization
+        ? d.organization_custom_organization.trim()
         : null;
-    if (org !== expectedOrg) continue;
+    if (!orgRaw || orgRaw !== want) continue;
 
     const geoUnknown = d.gps_location_geographic_address;
     if (!isRecord(geoUnknown)) continue;
@@ -56,7 +59,7 @@ export function parseOrgGeoFromDetailsInitData(
       (typeof components["state code"] === "string" ? components["state code"] : "");
 
     return {
-      orgLookup: expectedOrg,
+      orgLookup: want,
       lat,
       lng,
       locationName,

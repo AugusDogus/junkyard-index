@@ -32,6 +32,26 @@ describe("autorecycler geo", () => {
     expect(g!.address).toContain("Chesapeake");
   });
 
+  test("parseOrgGeoFromDetailsInitData matches org after trim on both sides", () => {
+    const orgCore = "1348695171700984260__LOOKUP__test";
+    const rows = [
+      {
+        type: "custom.inventory",
+        data: {
+          organization_custom_organization: orgCore,
+          gps_location_geographic_address: {
+            lat: 1,
+            lng: 2,
+            components: { city: "X", "state code": "ST" },
+          },
+        },
+      },
+    ];
+    const g = parseOrgGeoFromDetailsInitData(rows, `  ${orgCore}  `);
+    expect(g).not.toBeNull();
+    expect(g!.orgLookup).toBe(orgCore);
+  });
+
   test("parseOrgGeoFromDetailsInitData returns null when org mismatches", () => {
     const rows = [
       {
