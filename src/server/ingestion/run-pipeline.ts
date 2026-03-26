@@ -89,6 +89,18 @@ function accumulateVehicles(
   }
 }
 
+/** Distinct VIN count across two maps (Row52 + PYP) while sources run in parallel. */
+function uniqueVinCountAcrossMaps(
+  a: Map<string, CanonicalVehicle>,
+  b: Map<string, CanonicalVehicle>,
+): number {
+  let n = a.size;
+  for (const k of b.keys()) {
+    if (!a.has(k)) n += 1;
+  }
+  return n;
+}
+
 function sourceRunId(runId: string, source: SourceName): string {
   return `${runId}:${source}`;
 }
@@ -549,7 +561,10 @@ function fetchPypSource(
 function fetchAutorecyclerSource(
   runId: string,
   vehicleMap: Map<string, CanonicalVehicle>,
-  otherMap: Map<string, CanonicalVehicle>,
+  peerMaps: {
+    row52: Map<string, CanonicalVehicle>;
+    pyp: Map<string, CanonicalVehicle>;
+  },
 ): Effect.Effect<SourceOutcome & { fetchMs: number }, PersistenceError> {
   return Effect.gen(function* () {
     const startedAt = Date.now();
@@ -617,7 +632,10 @@ function fetchAutorecyclerSource(
         Effect.logDebug(
           formatMemoryUsage("after_autorecycler_fetch", {
             autorecyclerVins: vehicleMap.size,
-            otherVins: otherMap.size,
+            otherVins: uniqueVinCountAcrossMaps(
+              peerMaps.row52,
+              peerMaps.pyp,
+            ),
           }),
         ),
       ),
@@ -720,11 +738,10 @@ export const ingestionPipeline: Effect.Effect<
       [
         fetchRow52Source(runId, row52ByVin, pypByVin),
         fetchPypSource(runId, pypByVin, row52ByVin),
-        fetchAutorecyclerSource(
-          runId,
-          autorecyclerByVin,
-          row52ByVin,
-        ),
+        fetchAutorecyclerSource(runId, autorecyclerByVin, {
+          row52: row52ByVin,
+          pyp: pypByVin,
+        }),
       ],
       { concurrency: 3 },
     );
