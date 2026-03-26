@@ -43,6 +43,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# Local scratchpad
+.scratchpad/
+
 # idea files
 .idea
 # Sentry Config File

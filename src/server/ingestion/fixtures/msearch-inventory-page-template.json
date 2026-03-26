@@ -1,0 +1,42 @@
+{
+  "appname": "autoscrapzen",
+  "app_version": "live",
+  "searches": [
+    {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "type": "custom.inventorysearch",
+      "constraints": [
+        {
+          "key": "deleted_boolean",
+          "value": true,
+          "constraint_type": "not equal"
+        },
+        {
+          "key": "organization_custom_organization",
+          "value": ["1348695171700984260__LOOKUP__1723480416579x725386772121473500"],
+          "constraint_type": "in"
+        },
+        {
+          "key": "visible_boolean",
+          "value": true,
+          "constraint_type": "equals"
+        }
+      ],
+      "sorts_list": [
+        {
+          "sort_field": "default_preview_image_boolean",
+          "descending": true
+        },
+        {
+          "sort_field": "added_date_date",
+          "descending": true
+        }
+      ],
+      "from": 0,
+      "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
+      "situation": "initial search",
+      "n": 50
+    }
+  ]
+}

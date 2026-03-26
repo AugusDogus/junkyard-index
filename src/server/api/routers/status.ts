@@ -11,12 +11,13 @@ import {
   type IngestionStatus,
 } from "./status-utils";
 
-const SOURCES = ["pyp", "row52"] as const;
+const SOURCES = ["pyp", "row52", "autorecycler"] as const;
 type SourceKey = (typeof SOURCES)[number];
 
 const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
   pyp: "LKQ Pick Your Part",
   row52: "Row52",
+  autorecycler: "AutoRecycler.io",
 };
 
 interface ProviderStatus {

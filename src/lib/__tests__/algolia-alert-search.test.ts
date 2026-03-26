@@ -24,14 +24,16 @@ describe("algolia alert search helpers", () => {
       {
         makes: ["Honda", "Toyota"],
         states: ["California", "Nevada"],
-        sources: ["pyp", "row52", "ignore-me"],
+        sources: ["pyp", "row52", "autorecycler", "ignore-me"],
       },
       null,
     );
 
     expect(filters).toContain('(make:"Honda" OR make:"Toyota")');
     expect(filters).toContain('(state:"California" OR state:"Nevada")');
-    expect(filters).toContain('(source:"pyp" OR source:"row52")');
+    expect(filters).toContain(
+      '(source:"pyp" OR source:"row52" OR source:"autorecycler")',
+    );
     expect(filters).not.toContain("ignore-me");
   });
 
@@ -88,6 +90,23 @@ describe("algolia alert search helpers", () => {
     expect(vehicle.location.name).toBe("PYP Sun Valley");
     expect(vehicle.location.lat).toBe(34.2);
     expect(vehicle.images[0]?.url).toBe("https://example.com/image.jpg");
+  });
+
+  test("preserves autorecycler source on hits", () => {
+    const vehicle = algoliaHitToVehicle({
+      objectID: "VIN456",
+      year: 2012,
+      make: "Ford",
+      model: "Focus",
+      source: "autorecycler",
+      locationName: "Tampa, FL",
+      locationCode: "org-1",
+      state: "Florida",
+      stateAbbr: "FL",
+      _geoloc: { lat: 27.9, lng: -82.4 },
+    });
+    expect(vehicle.source).toBe("autorecycler");
+    expect(vehicle.location.source).toBe("autorecycler");
   });
 });
 

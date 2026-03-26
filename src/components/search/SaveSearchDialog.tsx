@@ -226,8 +226,10 @@ export function SaveSearchDialog({
     const enableDiscord =
       notificationsEnabled && discordEnabled && !!hasDiscordSetup;
     const normalizedSources = (filters.sources ?? []).filter(
-      (source): source is "pyp" | "row52" =>
-        source === "pyp" || source === "row52",
+      (source): source is "pyp" | "row52" | "autorecycler" =>
+        source === "pyp" ||
+        source === "row52" ||
+        source === "autorecycler",
     );
     const restFilters = {
       makes: filters.makes,

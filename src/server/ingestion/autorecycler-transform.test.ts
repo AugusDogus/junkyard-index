@@ -1,0 +1,56 @@
+import { describe, expect, test } from "bun:test";
+import {
+  parseAutorecyclerNameText,
+  transformAutorecyclerMsearchHit,
+} from "./autorecycler-transform";
+
+describe("autorecycler transform", () => {
+  test("parseAutorecyclerNameText parses leading year in name_text", () => {
+    expect(
+      parseAutorecyclerNameText("2000 Nissan Sentra", undefined),
+    ).toEqual({
+      year: 2000,
+      make: "Nissan",
+      model: "Sentra",
+    });
+  });
+
+  test("parseAutorecyclerNameText falls back to vehicle_year_number", () => {
+    expect(parseAutorecyclerNameText("Nissan Sentra", 2001)).toEqual({
+      year: 2001,
+      make: "Nissan",
+      model: "Sentra",
+    });
+  });
+
+  test("transformAutorecyclerMsearchHit builds canonical vehicle", () => {
+    const geo = {
+      orgLookup: "ORG1",
+      lat: 36.1,
+      lng: -80.2,
+      locationName: "Winston-Salem, NC",
+      state: "North Carolina",
+      stateAbbr: "NC",
+    };
+    const src = {
+      vin_text: "3N1CB51D7YL308709",
+      inventory_id_text: "1774437931255x929776907807752400",
+      name_text: "2000 Nissan Sentra",
+      vehicle_year_number: 2000,
+      exterior_color_text: "GREY",
+      stock_number_text: "STK1",
+      organization_custom_organization: "ORG1",
+      row_text: "300",
+      added_date_date: 1_774_396_800_000,
+      preview_image_image: "//cdn.example/img.jpg",
+    };
+    const v = transformAutorecyclerMsearchHit(src, geo);
+    expect(v).not.toBeNull();
+    expect(v!.vin).toBe("3N1CB51D7YL308709");
+    expect(v!.source).toBe("autorecycler");
+    expect(v!.imageUrl).toBe("https://cdn.example/img.jpg");
+    expect(v!.detailsUrl).toContain("/details/1774437931255x929776907807752400");
+    expect(v!.lat).toBe(36.1);
+    expect(v!.lng).toBe(-80.2);
+  });
+});

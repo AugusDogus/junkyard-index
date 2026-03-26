@@ -31,6 +31,9 @@ async function executeIngestion(): Promise<IngestionRunResult> {
     source,
     totalUpserted: result.totalUpserted,
     totalDeleted: result.totalDeleted,
+    pypCount: result.pypCount,
+    row52Count: result.row52Count,
+    autorecyclerCount: result.autorecyclerCount,
     durationMs: result.durationMs,
     errorCount: result.errors.length,
   });
