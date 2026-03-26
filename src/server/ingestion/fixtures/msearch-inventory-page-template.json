@@ -36,7 +36,7 @@
       "from": 0,
       "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
       "situation": "initial search",
-      "n": 50
+      "n": 400
     }
   ]
 }

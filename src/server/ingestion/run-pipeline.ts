@@ -3,6 +3,7 @@ import { Duration, Effect, Scope } from "effect";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { ingestionRun, ingestionSourceRun } from "~/schema";
+import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
 import {
   determineHealthySources,
   shouldAdvanceMissingState,
@@ -27,7 +28,7 @@ import type { CanonicalVehicle } from "./types";
 const RUN_LOCK_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
-const SOURCE_CHUNK_PAGES = 10;
+const SOURCE_CHUNK_PAGES = DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL;
 const HEARTBEAT_TIMEOUT_MS = 5_000;
 
 const EMPTY_TIMINGS = {

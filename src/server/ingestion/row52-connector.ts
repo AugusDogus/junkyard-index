@@ -4,6 +4,7 @@ import {
 import buildQuery from "odata-query";
 import { Effect, Duration, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
+import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
 import type {
   Row52Image,
   Row52Location,
@@ -297,7 +298,10 @@ export function streamRow52Inventory<E, R>(options: {
   HttpClient.HttpClient | R
 > {
   return Effect.gen(function* () {
-    const progressEveryPages = Math.max(1, options.pagesPerChunk ?? 10);
+    const progressEveryPages = Math.max(
+      1,
+      options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
+    );
     let nextSkip = Math.max(0, options.startSkip ?? 0);
     let knownTotalCount: number | undefined;
     let totalCount = 0;
