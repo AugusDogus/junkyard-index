@@ -73,12 +73,14 @@ export function createAutorecyclerOrgGeoResolver() {
   let geoLookupCount = 0;
   let geoHitMemory = 0;
   let geoHitDb = 0;
+  let geoFetches = 0;
   let geoMissAfterFetch = 0;
 
   const getStats = () => ({
     geoLookupCount,
     geoHitMemory,
     geoHitDb,
+    geoFetches,
     geoMissAfterFetch,
   });
 
@@ -110,7 +112,13 @@ export function createAutorecyclerOrgGeoResolver() {
             .limit(1),
         catch: (cause) =>
           new PersistenceError({ operation: "autorecyclerOrgGeo.select", cause }),
-      });
+      }).pipe(
+        Effect.tapError((e) =>
+          Effect.logError(
+            `[AutoRecycler geo] DB select failed for org=${orgLookup}: ${e.message}`,
+          ),
+        ),
+      );
 
       if (existing) {
         geoHitDb++;
@@ -127,11 +135,12 @@ export function createAutorecyclerOrgGeoResolver() {
         return mapped;
       }
 
+      geoFetches++;
+
       const rows = yield* Effect.tryPromise({
         try: () => fetchAutorecyclerDetailsInitData(inventoryIdSeed),
         catch: (cause) =>
           new AutorecyclerProviderError({
-            /** Not an msearch offset; reserved for details init/data geo resolution. */
             from: -1,
             cause: new Error(
               `details init/data orgLookup=${orgLookup} inventoryId=${inventoryIdSeed}: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -179,7 +188,13 @@ export function createAutorecyclerOrgGeoResolver() {
             }),
         catch: (cause) =>
           new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
-      });
+      }).pipe(
+        Effect.tapError((e) =>
+          Effect.logError(
+            `[AutoRecycler geo] DB upsert failed for org=${orgLookup}: ${e.message}`,
+          ),
+        ),
+      );
 
       memory.set(orgLookup, parsed);
       return parsed;

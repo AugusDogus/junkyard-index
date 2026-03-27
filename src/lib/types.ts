@@ -135,16 +135,16 @@ export interface Row52Location {
   city: string;
   zipCode: string;
   stateId: number;
-  phone: string;
+  phone: string | null;
   hours: string;
   latitude: number;
   longitude: number;
   isActive: boolean;
   isVisible: boolean;
   isParticipating: boolean;
-  webUrl: string;
+  webUrl: string | null;
   logoUrl: string | null;
-  partsPricingUrl: string;
+  partsPricingUrl: string | null;
   state?: Row52State;
 }
 

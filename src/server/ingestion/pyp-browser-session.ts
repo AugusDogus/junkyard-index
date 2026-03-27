@@ -17,12 +17,17 @@ const PypPhotoSchema = Schema.Struct({
   InventoryPhoto: Schema.Boolean,
 });
 
+const OptionalPypStringField = Schema.optionalWith(Schema.String, {
+  nullable: true,
+  default: () => "",
+});
+
 const PypVehicleJsonSchema = Schema.Struct({
   YardCode: Schema.String,
-  Section: Schema.String,
-  Row: Schema.String,
-  SpaceNumber: Schema.String,
-  Color: Schema.String,
+  Section: OptionalPypStringField,
+  Row: OptionalPypStringField,
+  SpaceNumber: OptionalPypStringField,
+  Color: OptionalPypStringField,
   Year: Schema.String,
   Make: Schema.String,
   Model: Schema.String,
@@ -48,9 +53,12 @@ const PypFilterResponseSchema = Schema.Struct({
   Messages: Schema.Array(Schema.String),
 });
 
-export type PypFilterResponse = Schema.Schema.Type<typeof PypFilterResponseSchema>;
+export type PypFilterResponse = Schema.Schema.Type<
+  typeof PypFilterResponseSchema
+>;
 
-const decodePypFilterResponse = Schema.decodeUnknownSync(PypFilterResponseSchema);
+export const decodePypFilterResponse =
+  Schema.decodeUnknownSync(PypFilterResponseSchema);
 
 interface PypRawLocation {
   LocationCode: string;
@@ -145,16 +153,30 @@ function isPypRawLocation(value: unknown): value is PypRawLocation {
  * Hyperbrowser caps sessions at 15 min. Rotate at 12 min to leave headroom.
  */
 const SESSION_ROTATE_MS = 12 * 60 * 1000;
+const CDP_CONNECT_TIMEOUT_MS = 45_000;
+const CDP_CONNECT_ATTEMPTS = 3;
+const CDP_CONNECT_RETRY_DELAY_MS = 2_000;
+const HYPERBROWSER_REGION = "us-west" as const;
 
 export interface PypSession {
   readonly locations: Location[];
   readonly shouldRotate: boolean;
+  fetchRawFilterPage(
+    storeCodes: string,
+    pageNumber: number,
+    pageSize: number,
+  ): Effect.Effect<unknown, BrowserSessionError>;
   fetchFilterPage(
     storeCodes: string,
     pageNumber: number,
     pageSize: number,
   ): Effect.Effect<PypFilterResponse, BrowserSessionError>;
   reopen(): Effect.Effect<void, BrowserSessionError>;
+}
+
+export interface PypRawFilterPageResult {
+  readonly locations: Location[];
+  readonly raw: unknown;
 }
 
 interface ManagedPypSession {
@@ -187,6 +209,10 @@ interface MutableSessionState {
   locations: Location[];
   sessionStartedAt: number;
   apiKey: string;
+}
+
+function toError(cause: unknown): Error {
+  return cause instanceof Error ? cause : new Error(String(cause));
 }
 
 function openSession(
@@ -222,6 +248,12 @@ function openSession(
         if (state.sessionStartedAt === 0) return false;
         return Date.now() - state.sessionStartedAt > SESSION_ROTATE_MS;
       },
+      fetchRawFilterPage: (storeCodes, pageNumber, pageSize) =>
+        doFetchFilterPageRaw(state, storeCodes, pageNumber, pageSize).pipe(
+          Effect.mapError((cause) =>
+            new BrowserSessionError({ phase: "fetch", cause }),
+          ),
+        ),
       fetchFilterPage: (storeCodes, pageNumber, pageSize) =>
         doFetchFilterPage(state, storeCodes, pageNumber, pageSize).pipe(
           Effect.mapError((cause) =>
@@ -252,19 +284,59 @@ function openSession(
 
 function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
   return Effect.gen(function* () {
-    const session = yield* Effect.tryPromise(() =>
-      state.client.sessions.create({
-        useStealth: true,
-        acceptCookies: true,
-      }),
-    );
-    state.sessionId = session.id;
-    state.sessionStartedAt = Date.now();
+    let lastError: Error | null = null;
 
-    const browser = yield* Effect.tryPromise(() =>
-      chromium.connectOverCDP(session.wsEndpoint),
-    );
-    state.browser = browser;
+    for (let attempt = 1; attempt <= CDP_CONNECT_ATTEMPTS; attempt += 1) {
+      const session = yield* Effect.tryPromise({
+        try: () =>
+          state.client.sessions.create({
+          useStealth: true,
+          acceptCookies: true,
+          region: HYPERBROWSER_REGION,
+        }),
+        catch: toError,
+      });
+      state.sessionId = session.id;
+      state.sessionStartedAt = Date.now();
+
+      const browserResult = yield* Effect.tryPromise({
+        try: () =>
+          chromium.connectOverCDP(session.wsEndpoint, {
+            timeout: CDP_CONNECT_TIMEOUT_MS,
+          }),
+        catch: toError,
+      }).pipe(
+        Effect.map((browser) => ({ ok: true as const, browser })),
+        Effect.catchAll((cause) =>
+          Effect.succeed({
+            ok: false as const,
+            error: toError(cause),
+          }),
+        ),
+      );
+
+      if (browserResult.ok) {
+        state.browser = browserResult.browser;
+        break;
+      }
+
+      lastError = browserResult.error;
+      yield* Effect.logWarning(
+        `[PYP] Hyperbrowser CDP connect attempt ${attempt}/${CDP_CONNECT_ATTEMPTS} failed: ${lastError.message}`,
+      );
+      yield* doClose(state).pipe(Effect.catchAll(() => Effect.void));
+
+      if (attempt < CDP_CONNECT_ATTEMPTS) {
+        yield* Effect.sleep(CDP_CONNECT_RETRY_DELAY_MS);
+      }
+    }
+
+    const browser = state.browser;
+    if (!browser) {
+      return yield* Effect.fail(
+        lastError ?? new Error("Failed to connect to Hyperbrowser session"),
+      );
+    }
 
     const context =
       browser.contexts()[0] ??
@@ -310,6 +382,23 @@ function doFetchFilterPage(
   pageNumber: number,
   pageSize: number,
 ): Effect.Effect<PypFilterResponse, unknown> {
+  return doFetchFilterPageRaw(state, storeCodes, pageNumber, pageSize).pipe(
+    Effect.flatMap((raw) =>
+      Effect.try({
+        try: () => decodePypFilterResponse(raw),
+        catch: (cause) =>
+          cause instanceof Error ? cause : new Error(String(cause)),
+      }),
+    ),
+  );
+}
+
+function doFetchFilterPageRaw(
+  state: MutableSessionState,
+  storeCodes: string,
+  pageNumber: number,
+  pageSize: number,
+): Effect.Effect<unknown, unknown> {
   return Effect.gen(function* () {
     const page = state.page;
     const token = state.csrfToken;
@@ -346,13 +435,22 @@ function doFetchFilterPage(
       );
     }
 
-    const decoded = yield* Effect.try({
-      try: () => decodePypFilterResponse(result.data),
-      catch: (cause) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
-    });
+    return result.data;
+  });
+}
 
-    return decoded;
+export function fetchRawPypFilterPage(
+  apiKey: string,
+  pageNumber: number,
+  pageSize: number,
+): Effect.Effect<PypRawFilterPageResult, BrowserSessionError, Scope.Scope> {
+  return Effect.gen(function* () {
+    const session = yield* acquirePypSession(apiKey);
+    const storeCodes = session.locations
+      .map((location) => location.locationCode)
+      .join(",");
+    const raw = yield* session.fetchRawFilterPage(storeCodes, pageNumber, pageSize);
+    return { locations: session.locations, raw };
   });
 }
 
