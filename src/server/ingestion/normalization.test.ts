@@ -10,6 +10,8 @@ describe("normalization helpers", () => {
     expect(normalizeCanonicalMake("HONDA")).toBe("Honda");
     expect(normalizeCanonicalMake("Jeep")).toBe("Jeep");
     expect(normalizeCanonicalMake("BMW")).toBe("BMW");
+    expect(normalizeCanonicalMake("mercedes benz")).toBe("Mercedes-Benz");
+    expect(normalizeCanonicalMake("ROLLS-ROYCE")).toBe("Rolls-Royce");
     expect(normalizeCanonicalMake("1963")).toBe("Other");
   });
 
