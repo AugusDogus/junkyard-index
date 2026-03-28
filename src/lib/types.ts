@@ -66,6 +66,39 @@ export interface VehicleImage {
   url: string;
 }
 
+export interface SearchVehicle {
+  id: string;
+  year: number;
+  make: string;
+  model: string;
+  color: string;
+  vin: string;
+  stockNumber: string;
+  availableDate: string;
+  source: DataSource;
+  locationCode: string;
+  locationName: string;
+  locationDisplayName: string;
+  state: string;
+  stateAbbr: string;
+  lat: number;
+  lng: number;
+  distance: number;
+  section: string;
+  row: string;
+  space: string;
+  imageUrl: string | null;
+  detailsUrl: string;
+  partsUrl: string;
+  pricesUrl: string;
+  engine?: string;
+  trim?: string;
+  transmission?: string;
+  isMissing?: boolean;
+  missingSinceAt?: string;
+  missingRunCount?: number;
+}
+
 // Search filters interface
 export interface SearchFilters {
   query: string;
@@ -85,7 +118,7 @@ export interface SearchFilters {
 
 // Search result structure
 export interface SearchResult {
-  vehicles: Vehicle[];
+  vehicles: SearchVehicle[];
   totalCount: number;
   page: number;
   hasMore: boolean;
@@ -97,7 +130,7 @@ export interface SearchResult {
 // Component props interfaces
 
 export interface VehicleCardProps {
-  vehicle: Vehicle;
+  vehicle: SearchVehicle;
 }
 
 export interface Row52ODataResponse<T> {

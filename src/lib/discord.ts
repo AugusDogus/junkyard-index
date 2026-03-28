@@ -7,7 +7,7 @@ import {
   type APIMessage,
 } from "discord-api-types/v10";
 import { env } from "~/env";
-import type { Vehicle } from "~/lib/types";
+import type { SearchVehicle } from "~/lib/types";
 
 // Initialize Discord REST client
 const discord = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
@@ -97,22 +97,22 @@ export async function sendTestDM(
 /**
  * Format vehicles into Discord embeds for the alert notification.
  */
-function formatVehicleEmbed(vehicle: Vehicle): APIEmbed {
+function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
   const fields: APIEmbed["fields"] = [
     {
       name: "Location",
-      value: `${vehicle.location.name}, ${vehicle.location.stateAbbr}`,
+      value: `${vehicle.locationName}, ${vehicle.stateAbbr}`,
       inline: true,
     },
   ];
 
-  if (vehicle.yardLocation.row) {
+  if (vehicle.row) {
     fields.push({
       name: "Row",
       value:
-        vehicle.yardLocation.row +
-        (vehicle.yardLocation.space
-          ? `, Space ${vehicle.yardLocation.space}`
+        vehicle.row +
+        (vehicle.space
+          ? `, Space ${vehicle.space}`
           : ""),
       inline: true,
     });
@@ -131,8 +131,8 @@ function formatVehicleEmbed(vehicle: Vehicle): APIEmbed {
     url: vehicle.detailsUrl,
     color: 0x5865f2, // Discord blurple
     fields,
-    thumbnail: vehicle.images[0]?.url
-      ? { url: vehicle.images[0].url }
+    thumbnail: vehicle.imageUrl
+      ? { url: vehicle.imageUrl }
       : undefined,
   };
 }
@@ -140,7 +140,7 @@ function formatVehicleEmbed(vehicle: Vehicle): APIEmbed {
 export interface DiscordAlertData {
   searchName: string;
   query: string;
-  newVehicles: Vehicle[];
+  newVehicles: SearchVehicle[];
   searchUrl: string;
   searchId: string;
 }

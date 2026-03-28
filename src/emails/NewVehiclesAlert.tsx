@@ -15,12 +15,12 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
-import type { Vehicle } from "~/lib/types";
+import type { SearchVehicle } from "~/lib/types";
 
 interface NewVehiclesAlertProps {
   searchName: string;
   query: string;
-  newVehicles: Vehicle[];
+  newVehicles: SearchVehicle[];
   searchUrl: string;
   unsubscribeUrl: string;
 }
@@ -78,9 +78,9 @@ export function NewVehiclesAlert({
               >
                 <Row>
                   <Column className="w-[100px] align-top">
-                    {vehicle.images[0]?.url ? (
+                    {vehicle.imageUrl ? (
                       <Img
-                        src={vehicle.images[0].url}
+                        src={vehicle.imageUrl}
                         alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
                         width={90}
                         height={68}
@@ -104,13 +104,12 @@ export function NewVehiclesAlert({
                       </Text>
                     )}
                     <Text className="m-0 mt-1 text-xs text-gray-500">
-                      {vehicle.location.name}, {vehicle.location.stateAbbr}
+                      {vehicle.locationName}, {vehicle.stateAbbr}
                     </Text>
-                    {vehicle.yardLocation.row && (
+                    {vehicle.row && (
                       <Text className="m-0 text-xs text-gray-500">
-                        Row {vehicle.yardLocation.row}
-                        {vehicle.yardLocation.space &&
-                          `, Space ${vehicle.yardLocation.space}`}
+                        Row {vehicle.row}
+                        {vehicle.space && `, Space ${vehicle.space}`}
                       </Text>
                     )}
                   </Column>

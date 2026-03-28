@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import {
-  algoliaHitToVehicle,
   buildAlertFiltersString,
   getAlertMatchStats,
 } from "~/lib/algolia-alert-search";
 import { searchClient } from "~/lib/algolia-search";
+import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 
 describe("algolia alert search helpers", () => {
   test("builds timestamp and numeric year constraints", () => {
@@ -70,8 +70,8 @@ describe("algolia alert search helpers", () => {
     expect(swappedRange).toContain("year <= 2020");
   });
 
-  test("maps algolia hits to Vehicle shape", () => {
-    const vehicle = algoliaHitToVehicle({
+  test("maps algolia hits to search vehicle shape", () => {
+    const vehicle = algoliaHitToSearchVehicle({
       objectID: "VIN123",
       year: 2015,
       make: "Honda",
@@ -87,13 +87,13 @@ describe("algolia alert search helpers", () => {
 
     expect(vehicle.vin).toBe("VIN123");
     expect(vehicle.make).toBe("Honda");
-    expect(vehicle.location.name).toBe("PYP Sun Valley");
-    expect(vehicle.location.lat).toBe(34.2);
-    expect(vehicle.images[0]?.url).toBe("https://example.com/image.jpg");
+    expect(vehicle.locationName).toBe("PYP Sun Valley");
+    expect(vehicle.lat).toBe(34.2);
+    expect(vehicle.imageUrl).toBe("https://example.com/image.jpg");
   });
 
   test("preserves autorecycler source on hits", () => {
-    const vehicle = algoliaHitToVehicle({
+    const vehicle = algoliaHitToSearchVehicle({
       objectID: "VIN456",
       year: 2012,
       make: "Ford",
@@ -106,7 +106,7 @@ describe("algolia alert search helpers", () => {
       _geoloc: { lat: 27.9, lng: -82.4 },
     });
     expect(vehicle.source).toBe("autorecycler");
-    expect(vehicle.location.source).toBe("autorecycler");
+    expect(vehicle.locationCode).toBe("org-1");
   });
 });
 

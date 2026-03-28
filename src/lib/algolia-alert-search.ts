@@ -1,4 +1,5 @@
-import type { DataSource, Vehicle } from "~/lib/types";
+import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import type { SearchVehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 
 export interface AlertFilters {
@@ -20,13 +21,6 @@ interface AlgoliaSearchResponse {
 
 function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
-function parseDataSource(value: unknown): DataSource {
-  if (value === "pyp" || value === "row52" || value === "autorecycler") {
-    return value;
-  }
-  return "pyp";
 }
 
 function buildStringOrFilter(
@@ -94,82 +88,17 @@ export function buildAlertFiltersString(
   return clauses.length > 0 ? clauses.join(" AND ") : undefined;
 }
 
-export function algoliaHitToVehicle(hit: Record<string, unknown>): Vehicle {
-  const geoloc = hit._geoloc as { lat: number; lng: number } | undefined;
-  const hitLat = geoloc?.lat ?? 0;
-  const hitLng = geoloc?.lng ?? 0;
-  const source = parseDataSource(hit.source);
-
-  return {
-    id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
-    year: (hit.year as number) ?? 0,
-    make: (hit.make as string) ?? "",
-    model: (hit.model as string) ?? "",
-    color: (hit.color as string) ?? "",
-    vin: (hit.vin as string) ?? (hit.objectID as string) ?? "",
-    stockNumber: (hit.stockNumber as string) ?? "",
-    availableDate: (hit.availableDate as string) ?? "",
-    source,
-    location: {
-      locationCode: (hit.locationCode as string) ?? "",
-      locationPageURL: "",
-      name: (hit.locationName as string) ?? "",
-      displayName: ((hit.locationName as string) ?? "")
-        .replace(/^Pick Your Part - /, "")
-        .replace(/^PICK-n-PULL /, "")
-        .replace(/^LKQ Pull-A-Part - /, ""),
-      address: "",
-      city: "",
-      state: (hit.state as string) ?? "",
-      stateAbbr: (hit.stateAbbr as string) ?? "",
-      zip: "",
-      phone: "",
-      lat: hitLat,
-      lng: hitLng,
-      distance: 0,
-      legacyCode: "",
-      primo: "",
-      source,
-      urls: {
-        store: "",
-        interchange: "",
-        inventory: "",
-        prices: (hit.pricesUrl as string) ?? "",
-        directions: "",
-        sellACar: "",
-        contact: "",
-        customerServiceChat: null,
-        carbuyChat: null,
-        deals: "",
-        parts: (hit.partsUrl as string) ?? "",
-      },
-    },
-    yardLocation: {
-      section: (hit.section as string) ?? "",
-      row: (hit.row as string) ?? "",
-      space: (hit.space as string) ?? "",
-    },
-    images: (hit.imageUrl as string) ? [{ url: hit.imageUrl as string }] : [],
-    detailsUrl: (hit.detailsUrl as string) ?? "",
-    partsUrl: (hit.partsUrl as string) ?? "",
-    pricesUrl: (hit.pricesUrl as string) ?? "",
-    engine: (hit.engine as string) ?? undefined,
-    trim: (hit.trim as string) ?? undefined,
-    transmission: (hit.transmission as string) ?? undefined,
-  };
-}
-
 export async function getAlertMatchStats(
   query: string,
   filters: AlertFilters,
   lastCheckedAt: Date | null,
-): Promise<{ fullCount: number; vehicles: Vehicle[] }> {
+): Promise<{ fullCount: number; vehicles: SearchVehicle[] }> {
   const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
   const hitsPerPage = 100;
   let page = 0;
   let fullCount = 0;
   let paginationLimitedTo: number | undefined;
-  const vehicles: Vehicle[] = [];
+  const vehicles: SearchVehicle[] = [];
 
   while (true) {
     const response = await searchClient.searchForHits<Record<string, unknown>>({
@@ -197,7 +126,7 @@ export async function getAlertMatchStats(
       break;
     }
 
-    vehicles.push(...hits.map(algoliaHitToVehicle));
+    vehicles.push(...hits.map((hit) => algoliaHitToSearchVehicle(hit)));
 
     if (vehicles.length >= fullCount) {
       break;

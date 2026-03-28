@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ImageIcon, MapPin } from "lucide-react";
+import { Eye, MapPin } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { memo, useCallback } from "react";
@@ -17,8 +17,7 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 
 function VehicleCardComponent({ vehicle }: VehicleCardProps) {
-  const primaryImage = vehicle.images[0];
-  const hasMultipleImages = vehicle.images.length > 1;
+  const primaryImage = vehicle.imageUrl;
 
   const handleDetailsClick = useCallback(() => {
     posthog.capture(AnalyticsEvents.VEHICLE_DETAILS_CLICKED, {
@@ -27,10 +26,10 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
       make: vehicle.make,
       model: vehicle.model,
       source: vehicle.source,
-      location_code: vehicle.location.locationCode,
-      has_image: vehicle.images.length > 0,
+      location_code: vehicle.locationCode,
+      has_image: primaryImage !== null,
     });
-  }, [vehicle]);
+  }, [primaryImage, vehicle]);
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -57,7 +56,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         <div className="bg-muted relative aspect-video overflow-hidden">
           {primaryImage ? (
             <VehicleImage
-              src={primaryImage.url}
+              src={primaryImage}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
@@ -68,18 +67,6 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
               </div>
             </div>
           )}
-
-          {/* Image Count Badge */}
-          {hasMultipleImages && (
-            <Badge
-              variant="secondary"
-              className="absolute top-3 left-3 bg-black/50 text-white hover:bg-black/70"
-            >
-              <ImageIcon />
-              {vehicle.images.length - 1} more
-            </Badge>
-          )}
-
           {/* Stock Number Badge */}
           <Badge className="absolute top-3 right-3">
             Stock #{vehicle.stockNumber}
@@ -110,17 +97,11 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
             <span className="font-mono text-xs">{vehicle.vin || "N/A"}</span>
           </div>
 
-          {(vehicle.yardLocation.section ||
-            vehicle.yardLocation.row ||
-            vehicle.yardLocation.space) && (
+          {(vehicle.section || vehicle.row || vehicle.space) && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Location:</span>
               <span className="text-xs">
-                {[
-                  vehicle.yardLocation.section,
-                  vehicle.yardLocation.row,
-                  vehicle.yardLocation.space,
-                ]
+                {[vehicle.section, vehicle.row, vehicle.space]
                   .filter(Boolean)
                   .join("-") || "N/A"}
               </span>
@@ -137,7 +118,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         <div className="text-muted-foreground mt-3 flex items-center text-sm">
           <MapPin className="mr-1.5 h-4 w-4" />
           <span>
-            {vehicle.location.displayName}, {vehicle.location.stateAbbr}
+            {vehicle.locationDisplayName}, {vehicle.stateAbbr}
           </span>
         </div>
       </CardContent>

@@ -9,7 +9,7 @@ import { sendEmailAlert } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
 import { filtersSchema } from "~/lib/saved-search-filters";
 import { buildSearchUrl } from "~/lib/search-utils";
-import type { Vehicle } from "~/lib/types";
+import type { SearchVehicle } from "~/lib/types";
 import { env } from "~/env";
 import { savedSearch, user } from "~/schema";
 import {
@@ -64,7 +64,7 @@ export interface RunSearchAlertsResult {
 async function findNewVehicles(
   search: SearchWithAlerts,
   filters: z.infer<typeof filtersSchema>,
-): Promise<{ vehicles: Vehicle[]; fullCount: number }> {
+): Promise<{ vehicles: SearchVehicle[]; fullCount: number }> {
   const { vehicles, fullCount } = await getAlertMatchStats(
     search.query,
     filters,
@@ -76,7 +76,7 @@ async function findNewVehicles(
 async function sendNotifications(
   search: SearchWithAlerts,
   userInfo: UserInfo,
-  newVehicles: Vehicle[],
+  newVehicles: SearchVehicle[],
   searchUrl: string,
 ): Promise<{ emailSent: boolean; discordSent: boolean; errors: string[] }> {
   const errors: string[] = [];

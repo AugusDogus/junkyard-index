@@ -18,7 +18,7 @@ import {
 } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile } from "~/hooks/use-media-query";
-import type { SearchResult, Vehicle } from "~/lib/types";
+import type { SearchResult, SearchVehicle } from "~/lib/types";
 import { VehicleCard } from "./VehicleCard";
 
 interface SearchSummaryProps {
@@ -72,7 +72,7 @@ export function SearchResults({
   // Group vehicles into rows for simpler virtualization
   const rows = useMemo(() => {
     if (!searchResult.vehicles) return [];
-    const result: Vehicle[][] = [];
+    const result: SearchVehicle[][] = [];
     for (let i = 0; i < searchResult.vehicles.length; i += columns) {
       result.push(searchResult.vehicles.slice(i, i + columns));
     }
@@ -215,9 +215,9 @@ export function SearchResults({
                   gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
                 }}
               >
-                {row.map((vehicle: Vehicle) => (
+                {row.map((vehicle: SearchVehicle) => (
                   <VehicleCard
-                    key={`${vehicle.location.locationCode}-${vehicle.id}`}
+                    key={`${vehicle.locationCode}-${vehicle.id}`}
                     vehicle={vehicle}
                   />
                 ))}
