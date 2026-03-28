@@ -36,12 +36,11 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type {
-  Vehicle,
   DataSource,
   SearchResult as SearchResultType,
 } from "~/lib/types";
-import { calculateDistance } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
 // Module-level sort options — single source of truth for all sort mappings.
@@ -75,91 +74,6 @@ const KEY_TO_INDEX = Object.fromEntries(
   SORT_OPTIONS.map((o) => [o.key, o.indexName]),
 );
 const KNOWN_SORT_INDICES = new Set(SORT_OPTIONS.map((o) => o.indexName));
-
-/**
- * Map an Algolia hit to the Vehicle type expected by VehicleCard and other components.
- */
-function algoliaHitToVehicle(
-  hit: Record<string, unknown>,
-  userLocation?: { lat: number; lng: number },
-): Vehicle {
-  const geoloc = hit._geoloc as { lat: number; lng: number } | undefined;
-  const hitLat = geoloc?.lat ?? 0;
-  const hitLng = geoloc?.lng ?? 0;
-
-  // Calculate distance from user if location is available
-  const distance =
-    userLocation && geoloc !== null && geoloc !== undefined
-      ? calculateDistance(userLocation.lat, userLocation.lng, hitLat, hitLng)
-      : 0;
-  const missingSinceAtSeconds =
-    typeof hit.missingSinceAt === "number" ? hit.missingSinceAt : null;
-  const missingSinceAt =
-    missingSinceAtSeconds !== null
-      ? new Date(missingSinceAtSeconds * 1000).toISOString()
-      : undefined;
-
-  return {
-    id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
-    year: (hit.year as number) ?? 0,
-    make: (hit.make as string) ?? "",
-    model: (hit.model as string) ?? "",
-    color: (hit.color as string) ?? "",
-    vin: (hit.vin as string) ?? (hit.objectID as string) ?? "",
-    stockNumber: (hit.stockNumber as string) ?? "",
-    availableDate: (hit.availableDate as string) ?? "",
-    source: (hit.source as DataSource) ?? "pyp",
-    location: {
-      locationCode: (hit.locationCode as string) ?? "",
-      locationPageURL: "",
-      name: (hit.locationName as string) ?? "",
-      displayName: ((hit.locationName as string) ?? "")
-        .replace(/^Pick Your Part - /, "")
-        .replace(/^PICK-n-PULL /, "")
-        .replace(/^LKQ Pull-A-Part - /, ""),
-      address: "",
-      city: "",
-      state: (hit.state as string) ?? "",
-      stateAbbr: (hit.stateAbbr as string) ?? "",
-      zip: "",
-      phone: "",
-      lat: hitLat,
-      lng: hitLng,
-      distance,
-      legacyCode: "",
-      primo: "",
-      source: (hit.source as DataSource) ?? "pyp",
-      urls: {
-        store: "",
-        interchange: "",
-        inventory: "",
-        prices: (hit.pricesUrl as string) ?? "",
-        directions: "",
-        sellACar: "",
-        contact: "",
-        customerServiceChat: null,
-        carbuyChat: null,
-        deals: "",
-        parts: (hit.partsUrl as string) ?? "",
-      },
-    },
-    yardLocation: {
-      section: (hit.section as string) ?? "",
-      row: (hit.row as string) ?? "",
-      space: (hit.space as string) ?? "",
-    },
-    images: (hit.imageUrl as string) ? [{ url: hit.imageUrl as string }] : [],
-    detailsUrl: (hit.detailsUrl as string) ?? "",
-    partsUrl: (hit.partsUrl as string) ?? "",
-    pricesUrl: (hit.pricesUrl as string) ?? "",
-    engine: (hit.engine as string) ?? undefined,
-    trim: (hit.trim as string) ?? undefined,
-    transmission: (hit.transmission as string) ?? undefined,
-    isMissing: (hit.isMissing as boolean) ?? false,
-    missingSinceAt,
-    missingRunCount: (hit.missingRunCount as number) ?? 0,
-  };
-}
 
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
@@ -283,11 +197,14 @@ function AlgoliaSearchInner({
 
   // ── Derived state ──────────────────────────────────────────────────────
 
-  // Map Algolia hits to Vehicle[]
+  // Map Algolia hits to search-display vehicles.
   const vehicles = useMemo(
     () =>
       hits.map((hit) =>
-        algoliaHitToVehicle(hit as Record<string, unknown>, userLocation),
+        algoliaHitToSearchVehicle(
+          hit as Record<string, unknown>,
+          userLocation,
+        ),
       ),
     [hits, userLocation],
   );

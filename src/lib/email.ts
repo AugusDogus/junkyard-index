@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { Resend } from "resend";
 import { NewVehiclesAlert } from "~/emails/NewVehiclesAlert";
 import { env } from "~/env";
-import type { Vehicle } from "~/lib/types";
+import type { SearchVehicle } from "~/lib/types";
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -43,7 +43,7 @@ function buildUnsubscribeUrl(searchId: string): string {
 export interface EmailAlertData {
   searchName: string;
   query: string;
-  newVehicles: Vehicle[];
+  newVehicles: SearchVehicle[];
   searchUrl: string;
   searchId: string;
 }
