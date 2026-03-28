@@ -1,4 +1,8 @@
 import { AUTORECYCLER_ORIGIN } from "./autorecycler-client";
+import {
+  normalizeCanonicalColor,
+  parseAutorecyclerMakeModel,
+} from "./normalization";
 import type { CanonicalVehicle } from "./types";
 
 export type AutorecyclerOrgGeo = {
@@ -6,6 +10,7 @@ export type AutorecyclerOrgGeo = {
   lat: number;
   lng: number;
   locationName: string;
+  locationCity: string;
   state: string;
   stateAbbr: string;
   /** Full formatted address when present on `gps_location_geographic_address`. */
@@ -44,14 +49,11 @@ export function parseAutorecyclerNameText(
       const y = Number.parseInt(m[1], 10);
       const year = Number.isFinite(y) ? y : fallbackYear;
       const rest = m[2].trim();
-      const space = rest.indexOf(" ");
-      if (space === -1) {
-        return { year: year || fallbackYear, make: rest, model: rest };
-      }
+      const { make, model } = parseAutorecyclerMakeModel(rest);
       return {
         year: year || fallbackYear,
-        make: rest.slice(0, space),
-        model: rest.slice(space + 1).trim(),
+        make,
+        model,
       };
     }
   }
@@ -60,14 +62,11 @@ export function parseAutorecyclerNameText(
     return null;
   }
 
-  const space = trimmed.indexOf(" ");
-  if (space === -1) {
-    return { year: fallbackYear, make: trimmed, model: trimmed };
-  }
+  const { make, model } = parseAutorecyclerMakeModel(trimmed);
   return {
     year: fallbackYear,
-    make: trimmed.slice(0, space),
-    model: trimmed.slice(space + 1).trim(),
+    make,
+    model,
   };
 }
 
@@ -98,7 +97,7 @@ export function transformAutorecyclerMsearchHit(
 
   const color =
     typeof src.exterior_color_text === "string"
-      ? src.exterior_color_text.trim() || null
+      ? normalizeCanonicalColor(src.exterior_color_text)
       : null;
   const stock =
     typeof src.stock_number_text === "string"
@@ -123,6 +122,7 @@ export function transformAutorecyclerMsearchHit(
     availableDate: addedDateToIso(src.added_date_date),
     locationCode: org,
     locationName: orgGeo.locationName,
+    locationCity: orgGeo.locationCity,
     state: orgGeo.state,
     stateAbbr: orgGeo.stateAbbr,
     lat: orgGeo.lat,

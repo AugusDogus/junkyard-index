@@ -144,27 +144,40 @@ function waitForFinalTask(taskIds: number[]): Effect.Effect<void, Error> {
 export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     yield* Effect.logInfo("[Algolia] Configuring index settings...");
+    const primaryIndexSettings = {
+      searchableAttributes: [
+        "make",
+        "model",
+        "year",
+        "unordered(color)",
+        "unordered(vin)",
+      ],
+      attributesForFaceting: [
+        "source",
+        "searchable(make)",
+        "searchable(model)",
+        "searchable(color)",
+        "searchable(state)",
+        "filterOnly(stateAbbr)",
+        "searchable(locationName)",
+        "year",
+      ],
+      numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
+      // Typo tolerance settings
+      typoTolerance: true,
+      minWordSizefor1Typo: 3,
+      minWordSizefor2Typos: 7,
+      // Pagination — large page size so most queries load in 1-2 pages
+      hitsPerPage: 1000,
+      paginationLimitedTo: 10000,
+      // Unretrievable attributes (keep admin key out of search results)
+      unretrievableAttributes: ["firstSeenAt"],
+    } satisfies Record<string, unknown>;
+
     yield* setIndexSettingsEffect({
       indexName: ALGOLIA_INDEX_NAME,
       indexSettings: {
-        searchableAttributes: [
-          "make",
-          "model",
-          "year",
-          "unordered(color)",
-          "unordered(vin)",
-        ],
-        attributesForFaceting: [
-          "source",
-          "searchable(make)",
-          "searchable(model)",
-          "searchable(color)",
-          "searchable(state)",
-          "filterOnly(stateAbbr)",
-          "searchable(locationName)",
-          "year",
-        ],
-        numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
+        ...primaryIndexSettings,
         customRanking: ["desc(availableDateTs)"],
         // Virtual replicas for date/year sorts (share records with primary).
         // Standard replica for distance (needs its own ranking array with geo first).
@@ -174,15 +187,6 @@ export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
           "virtual(vehicles_year_asc)",
           "vehicles_distance",
         ],
-        // Typo tolerance settings
-        typoTolerance: true,
-        minWordSizefor1Typo: 3,
-        minWordSizefor2Typos: 7,
-        // Pagination — large page size so most queries load in 1-2 pages
-        hitsPerPage: 1000,
-        paginationLimitedTo: 10000,
-        // Unretrievable attributes (keep admin key out of search results)
-        unretrievableAttributes: ["firstSeenAt"],
       },
     });
     // Configure virtual replica sort orders.
@@ -210,6 +214,7 @@ export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
     yield* setIndexSettingsEffect({
       indexName: "vehicles_distance",
       indexSettings: {
+        ...primaryIndexSettings,
         ranking: [
           "typo",
           "geo",
@@ -221,7 +226,6 @@ export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
           "custom",
         ],
         customRanking: [],
-        hitsPerPage: 1000,
       },
     });
     yield* Effect.logInfo("[Algolia] Index settings configured");

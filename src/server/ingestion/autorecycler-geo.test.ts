@@ -28,7 +28,8 @@ describe("autorecycler geo", () => {
     expect(g!.lat).toBe(36.77);
     expect(g!.lng).toBe(-76.45);
     expect(g!.stateAbbr).toBe("VA");
-    expect(g!.locationName).toBe("Chesapeake");
+    expect(g!.locationName).toBe("AutoRecycler - Chesapeake");
+    expect(g!.locationCity).toBe("Chesapeake");
     expect(g!.address).toContain("Chesapeake");
   });
 

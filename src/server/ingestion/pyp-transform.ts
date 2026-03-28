@@ -1,4 +1,5 @@
 import type { Location } from "~/lib/types";
+import { normalizeCanonicalColor, normalizeCanonicalMake } from "./normalization";
 import type { CanonicalVehicle } from "./types";
 
 /**
@@ -58,13 +59,15 @@ export function transformPypVehicle(
   }
 
   const year = parseInt(v.Year) || 0;
+  const make = normalizeCanonicalMake(v.Make);
+  const color = normalizeCanonicalColor(v.Color);
 
   // Build URLs
   const modelSlug = v.Model.toLowerCase().split(" ").join("-");
   const inventoryPath = location.urls?.inventory ?? `/inventory/`;
-  const detailsUrl = `${PYP_BASE}${inventoryPath}${year}-${v.Make.toLowerCase()}-${modelSlug}/`;
+  const detailsUrl = `${PYP_BASE}${inventoryPath}${year}-${make.toLowerCase()}-${modelSlug}/`;
   const partsUrl = location.urls?.parts
-    ? `${PYP_BASE}${location.urls.parts}?year=${year}&make=${v.Make}&model=${v.Model}`
+    ? `${PYP_BASE}${location.urls.parts}?year=${year}&make=${make}&model=${v.Model}`
     : null;
   const pricesUrl = location.urls?.prices
     ? `${PYP_BASE}${location.urls.prices}`
@@ -74,14 +77,15 @@ export function transformPypVehicle(
     vin: v.Vin,
     source: "pyp",
     year,
-    make: v.Make,
+    make,
     model: v.Model,
-    color: v.Color || null,
+    color,
     stockNumber: v.StockNumber || null,
     imageUrl,
     availableDate,
     locationCode: v.YardCode,
     locationName: location.name,
+    locationCity: location.city,
     state: location.state,
     stateAbbr: location.stateAbbr,
     lat: location.lat,

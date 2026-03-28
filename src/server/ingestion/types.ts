@@ -14,6 +14,7 @@ export interface CanonicalVehicle {
   availableDate: string | null;
   locationCode: string;
   locationName: string;
+  locationCity: string;
   state: string;
   stateAbbr: string;
   lat: number;
@@ -49,6 +50,7 @@ export interface AlgoliaVehicleRecord {
   availableDateTs: number;
   locationCode: string;
   locationName: string;
+  locationCity: string;
   state: string;
   stateAbbr: string;
   section: string | null;
@@ -107,6 +109,7 @@ export function toAlgoliaRecord(
     availableDateTs,
     locationCode: vehicle.locationCode,
     locationName: vehicle.locationName,
+    locationCity: vehicle.locationCity,
     state: vehicle.state,
     stateAbbr: vehicle.stateAbbr,
     section: vehicle.section,

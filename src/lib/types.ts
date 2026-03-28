@@ -78,7 +78,7 @@ export interface SearchVehicle {
   source: DataSource;
   locationCode: string;
   locationName: string;
-  locationDisplayName: string;
+  locationCity: string;
   state: string;
   stateAbbr: string;
   lat: number;

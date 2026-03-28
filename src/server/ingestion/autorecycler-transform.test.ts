@@ -23,12 +23,31 @@ describe("autorecycler transform", () => {
     });
   });
 
+  test("parseAutorecyclerNameText keeps multi-word makes together", () => {
+    expect(
+      parseAutorecyclerNameText("2012 Land Rover Range Rover Sport", undefined),
+    ).toEqual({
+      year: 2012,
+      make: "Land Rover",
+      model: "Range Rover Sport",
+    });
+  });
+
+  test("parseAutorecyclerNameText buckets numeric junk makes into Other", () => {
+    expect(parseAutorecyclerNameText("2015 1963 Corvette", undefined)).toEqual({
+      year: 2015,
+      make: "Other",
+      model: "Corvette",
+    });
+  });
+
   test("transformAutorecyclerMsearchHit builds canonical vehicle", () => {
     const geo = {
       orgLookup: "ORG1",
       lat: 36.1,
       lng: -80.2,
-      locationName: "Winston-Salem",
+      locationName: "AutoRecycler - Winston-Salem",
+      locationCity: "Winston-Salem",
       state: "North Carolina",
       stateAbbr: "NC",
     };
@@ -52,7 +71,9 @@ describe("autorecycler transform", () => {
     expect(v!.detailsUrl).toContain("/details/1774437931255x929776907807752400");
     expect(v!.lat).toBe(36.1);
     expect(v!.lng).toBe(-80.2);
-    expect(v!.locationName).toBe("Winston-Salem");
+    expect(v!.locationName).toBe("AutoRecycler - Winston-Salem");
+    expect(v!.locationCity).toBe("Winston-Salem");
     expect(v!.stateAbbr).toBe("NC");
+    expect(v!.color).toBe("Gray");
   });
 });

@@ -145,6 +145,11 @@ function AlgoliaSearchInner({
   const { indexUiState, setIndexUiState, status, error } = useInstantSearch({
     catchError: true,
   });
+  const refinementList = (indexUiState.refinementList ?? {}) as Record<
+    string,
+    string[]
+  >;
+  const yearRangeState = (indexUiState.range ?? {}) as Record<string, string>;
   const query = (indexUiState.query as string) ?? "";
   const { hits, showMore, isLastPage } = useInfiniteHits();
   const { nbHits, processingTimeMS } = useStats();
@@ -170,7 +175,7 @@ function AlgoliaSearchInner({
     limit: 500,
     sortBy: ["name:asc"],
   });
-  const { items: sourceItems, refine: refineSource } = useRefinementList({
+  const { refine: refineSource } = useRefinementList({
     attribute: "source",
     limit: 10,
   });
@@ -209,7 +214,6 @@ function AlgoliaSearchInner({
     [hits, userLocation],
   );
 
-  // Build filter options from Algolia facets
   const filterOptions = useMemo(
     () => ({
       makes: makeItems.map((i) => i.value).sort(),
@@ -222,34 +226,50 @@ function AlgoliaSearchInner({
 
   // Selected filters
   const selectedMakes = useMemo(
-    () => makeItems.filter((i) => i.isRefined).map((i) => i.value),
-    [makeItems],
+    () => refinementList.make ?? [],
+    [refinementList],
   );
   const selectedColors = useMemo(
-    () => colorItems.filter((i) => i.isRefined).map((i) => i.value),
-    [colorItems],
+    () => refinementList.color ?? [],
+    [refinementList],
   );
   const selectedStates = useMemo(
-    () => stateItems.filter((i) => i.isRefined).map((i) => i.value),
-    [stateItems],
+    () => refinementList.state ?? [],
+    [refinementList],
   );
   const selectedLocations = useMemo(
-    () => locationItems.filter((i) => i.isRefined).map((i) => i.value),
-    [locationItems],
+    () => refinementList.locationName ?? [],
+    [refinementList],
   );
   const selectedSources = useMemo(
     () =>
-      sourceItems
-        .filter((i) => i.isRefined)
-        .map((i) => i.value) as DataSource[],
-    [sourceItems],
+      (refinementList.source ?? []).filter(
+        (value): value is DataSource =>
+          value === "pyp" || value === "row52" || value === "autorecycler",
+      ),
+    [refinementList],
   );
 
-  const yearMin = (yearBounds.min ?? 1900) as number;
-  const yearMax = (yearBounds.max ?? currentYear) as number;
+  const [routeMinYear, routeMaxYear] = (yearRangeState.year ?? "")
+    .split(":")
+    .map((value) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    });
+
+  const yearMin =
+    typeof yearBounds.min === "number" && Number.isFinite(yearBounds.min) && yearBounds.min > 0
+      ? yearBounds.min
+      : 1900;
+  const yearMax =
+    typeof yearBounds.max === "number" && Number.isFinite(yearBounds.max) && yearBounds.max > 0
+      ? yearBounds.max
+      : currentYear;
   const yearRange: [number, number] = [
-    Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin,
-    Number.isFinite(yearStart[1]) ? (yearStart[1] as number) : yearMax,
+    routeMinYear ??
+      (Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin),
+    routeMaxYear ??
+      (Number.isFinite(yearStart[1]) ? (yearStart[1] as number) : yearMax),
   ];
   const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
