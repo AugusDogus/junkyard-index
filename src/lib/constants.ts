@@ -19,6 +19,8 @@ export const API_ENDPOINTS = {
   ROW52_MAKES: "/odata/Makes",
   ROW52_MODELS: "/odata/Models",
   ROW52_LOCATIONS: "/odata/Locations",
+  ROW52_LOCATION_SEARCH:
+    "/odata/Locations/Row52.Search(postalCode='null', distance=0)",
   ROW52_CDN: "https://cdn.row52.com",
 } as const;
 

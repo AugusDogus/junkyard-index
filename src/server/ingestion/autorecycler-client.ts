@@ -1,12 +1,8 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   AUTORECYCLER_BUBBLE_APP_NAME,
   encryptBubbleObfuscatedBody,
 } from "./autorecycler-bubble-obfuscate";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import msearchTemplate from "./fixtures/msearch-inventory-page-template.json";
 
 export const AUTORECYCLER_ORIGIN = "https://app.autorecycler.io";
 
@@ -37,18 +33,8 @@ export type AutorecyclerInitDataRow = {
   data?: Record<string, unknown>;
 };
 
-function loadGlobalMsearchTemplate(): AutorecyclerMsearchInner {
-  const path = join(__dirname, "fixtures", "msearch-inventory-page-template.json");
-  return JSON.parse(readFileSync(path, "utf8")) as AutorecyclerMsearchInner;
-}
-
-let cachedTemplate: AutorecyclerMsearchInner | null = null;
-
 export function getGlobalMsearchTemplate(): AutorecyclerMsearchInner {
-  if (!cachedTemplate) {
-    cachedTemplate = structuredClone(loadGlobalMsearchTemplate());
-  }
-  return structuredClone(cachedTemplate);
+  return structuredClone(msearchTemplate) as AutorecyclerMsearchInner;
 }
 
 /** Template without per-org constraint (global inventory index). */
@@ -150,7 +136,8 @@ export async function postAutorecyclerElasticsearchMsearch(
         throw new Error(msg);
       }
 
-      return (await res.json()) as AutorecyclerMsearchResponse;
+      const body = (await res.json()) as AutorecyclerMsearchResponse;
+      return body;
     } catch (e) {
       if (isNonRetryableHttpClientError(e)) {
         throw e;

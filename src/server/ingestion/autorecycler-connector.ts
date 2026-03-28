@@ -154,6 +154,8 @@ export function streamAutorecyclerInventory<E, R>(options: {
   Database | R
 > {
   return Effect.gen(function* () {
+    yield* Effect.logInfo("[AutoRecycler] Starting stream");
+
     const geo = createAutorecyclerOrgGeoResolver();
     const progressEveryPages = Math.max(
       1,
@@ -166,6 +168,17 @@ export function streamAutorecyclerInventory<E, R>(options: {
     let fullyExhausted = false;
     let lastProgressPages = 0;
     const errors: string[] = [];
+
+    const logProgress = (force: boolean): Effect.Effect<void> => {
+      if (!force && pagesProcessed - lastProgressPages < progressEveryPages) {
+        return Effect.void;
+      }
+
+      const stats = geo.getStats();
+      return Effect.logInfo(
+        `[AutoRecycler] Progress pages=${pagesProcessed} vehicles=${totalCanonical} nextFrom=${from} geo_fetches=${stats.geoFetches} geo_db_hits=${stats.geoHitDb} geo_mem_hits=${stats.geoHitMemory} geo_misses=${stats.geoMissAfterFetch}`,
+      );
+    };
 
     const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
       if (!options.onProgress) return Effect.succeed(undefined);
@@ -203,7 +216,6 @@ export function streamAutorecyclerInventory<E, R>(options: {
       } else {
         const { r0, hits } = parsed;
 
-        /** Org -> representative inventory id for geo resolution */
         const seeds = new Map<string, string>();
         for (const h of hits) {
           const src = hitSource(h);
@@ -245,6 +257,7 @@ export function streamAutorecyclerInventory<E, R>(options: {
           done = true;
         }
 
+        yield* logProgress(done);
         yield* emitProgress(done);
       }
     }

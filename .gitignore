@@ -45,6 +45,7 @@ yarn-error.log*
 
 # Local scratchpad
 .scratchpad/
+/tmp/
 
 # idea files
 .idea
