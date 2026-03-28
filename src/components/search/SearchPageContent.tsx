@@ -74,6 +74,25 @@ const KEY_TO_INDEX = Object.fromEntries(
   SORT_OPTIONS.map((o) => [o.key, o.indexName]),
 );
 const KNOWN_SORT_INDICES = new Set(SORT_OPTIONS.map((o) => o.indexName));
+const ALLOWED_SOURCES: DataSource[] = ["pyp", "row52", "autorecycler"];
+
+function clampRouteYear(
+  value: number | null,
+  min: number,
+  max: number,
+): number | null {
+  if (value === null || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeSources(values: unknown): DataSource[] {
+  if (!Array.isArray(values)) return [];
+  return values.filter((value): value is DataSource =>
+    ALLOWED_SOURCES.includes(value as DataSource),
+  );
+}
 
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
@@ -242,29 +261,40 @@ function AlgoliaSearchInner({
     [refinementList],
   );
   const selectedSources = useMemo(
-    () =>
-      (refinementList.source ?? []).filter(
-        (value): value is DataSource =>
-          value === "pyp" || value === "row52" || value === "autorecycler",
-      ),
+    () => sanitizeSources(refinementList.source ?? []),
     [refinementList],
   );
 
-  const [routeMinYear, routeMaxYear] = (yearRangeState.year ?? "")
+  const parsedRouteYears = (yearRangeState.year ?? "")
     .split(":")
     .map((value) => {
       const parsed = Number.parseInt(value, 10);
       return Number.isFinite(parsed) ? parsed : null;
     });
+  const rawRouteMinYear = parsedRouteYears[0] ?? null;
+  const rawRouteMaxYear = parsedRouteYears[1] ?? null;
 
-  const yearMin =
-    typeof yearBounds.min === "number" && Number.isFinite(yearBounds.min) && yearBounds.min > 0
+  const yearMin: number =
+    typeof yearBounds.min === "number" &&
+    Number.isFinite(yearBounds.min) &&
+    yearBounds.min > 0
       ? yearBounds.min
       : 1900;
-  const yearMax =
-    typeof yearBounds.max === "number" && Number.isFinite(yearBounds.max) && yearBounds.max > 0
+  const yearMax: number =
+    typeof yearBounds.max === "number" &&
+    Number.isFinite(yearBounds.max) &&
+    yearBounds.max > 0
       ? yearBounds.max
       : currentYear;
+  let routeMinYear = clampRouteYear(rawRouteMinYear, yearMin, yearMax);
+  let routeMaxYear = clampRouteYear(rawRouteMaxYear, yearMin, yearMax);
+  if (
+    routeMinYear !== null &&
+    routeMaxYear !== null &&
+    routeMinYear > routeMaxYear
+  ) {
+    [routeMinYear, routeMaxYear] = [routeMaxYear, routeMinYear];
+  }
   const yearRange: [number, number] = [
     routeMinYear ??
       (Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin),
@@ -843,7 +873,8 @@ function createRouting(indexName: string) {
         if (state.colors) refinementList.color = state.colors as string[];
         if (state.states) refinementList.state = state.states as string[];
         if (state.yards) refinementList.locationName = state.yards as string[];
-        if (state.sources) refinementList.source = state.sources as string[];
+        const sources = sanitizeSources(state.sources);
+        if (sources.length > 0) refinementList.source = sources;
         if (Object.keys(refinementList).length > 0) {
           uiState.refinementList = refinementList;
         }

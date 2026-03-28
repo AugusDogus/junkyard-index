@@ -17,11 +17,11 @@ import pMap from "p-map";
 import pRetry, { AbortError } from "p-retry";
 import { API_ENDPOINTS } from "../src/lib/constants";
 import type {
-  Row52Image,
   Row52Location,
   Row52ODataResponse,
   Row52Vehicle,
 } from "../src/lib/types";
+import { transformRow52Vehicle as transformRow52VehicleProduction } from "../src/server/ingestion/row52-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
 
 const DEFAULT_PAGE_SIZE = 1000;
@@ -321,68 +321,11 @@ async function fetchVehicleCount(pageSize: number): Promise<number> {
   return data["@odata.count"] ?? data.value.length;
 }
 
-function buildImageUrl(image: Row52Image): string | null {
-  if (!image.isActive || !image.isVisible) return null;
-  if (!image.size1) return null;
-  const baseUrl = image.resourceUrl || `${API_ENDPOINTS.ROW52_CDN}/images/`;
-  const ext = image.extension || ".JPG";
-  return `${baseUrl}${image.size1}${ext}`;
-}
-
 function transformRow52Vehicle(
   vehicle: Row52Vehicle,
   locationMap: Map<number, Row52Location>,
 ): CanonicalVehicle | null {
-  const location = vehicle.location ?? locationMap.get(vehicle.locationId);
-  if (!location) return null;
-
-  const state = location.state;
-  const make = vehicle.model?.make?.name || "";
-  const model = vehicle.model?.name || "";
-
-  if (!vehicle.vin) return null;
-  if (!make || !model) return null;
-
-  let imageUrl: string | null = null;
-  if (vehicle.images && vehicle.images.length > 0) {
-    for (const image of vehicle.images) {
-      const url = buildImageUrl(image);
-      if (url) {
-        imageUrl = url;
-        break;
-      }
-    }
-  }
-
-  const partsPricingUrl = location.partsPricingUrl || "";
-
-  return {
-    vin: vehicle.vin,
-    source: "row52",
-    year: vehicle.year,
-    make,
-    model,
-    color: vehicle.color || null,
-    stockNumber: vehicle.barCodeNumber || null,
-    imageUrl,
-    availableDate: vehicle.dateAdded || null,
-    locationCode: location.id.toString(),
-    locationName: location.name,
-    locationCity: location.city,
-    state: state?.name || "",
-    stateAbbr: state?.abbreviation || "",
-    lat: location.latitude,
-    lng: location.longitude,
-    section: null,
-    row: vehicle.row || null,
-    space: vehicle.slot || null,
-    detailsUrl: `${API_ENDPOINTS.ROW52_WEB}/Vehicle/Index/${vehicle.vin}`,
-    partsUrl: partsPricingUrl,
-    pricesUrl: partsPricingUrl,
-    engine: vehicle.engine ?? null,
-    trim: vehicle.trim ?? null,
-    transmission: vehicle.transmission ?? null,
-  };
+  return transformRow52VehicleProduction(vehicle, locationMap);
 }
 
 async function fetchAndTransformPage(

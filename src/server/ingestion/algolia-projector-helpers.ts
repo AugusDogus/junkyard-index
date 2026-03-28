@@ -22,7 +22,7 @@ export function mapDbVehicleToCanonical(
     availableDate: row.availableDate,
     locationCode: row.locationCode,
     locationName: row.locationName,
-    locationCity: row.locationCity,
+    locationCity: row.locationCity ?? "Unknown",
     state: row.state,
     stateAbbr: row.stateAbbr,
     lat: row.lat,

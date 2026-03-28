@@ -125,7 +125,9 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         <div className="text-muted-foreground mt-3 flex items-center text-sm">
           <MapPin className="mr-1.5 h-4 w-4" />
           <span>
-            {vehicle.locationCity}, {vehicle.stateAbbr}
+            {vehicle.locationCity
+              ? `${vehicle.locationCity}, ${vehicle.stateAbbr}`
+              : vehicle.stateAbbr}
           </span>
         </div>
       </CardContent>

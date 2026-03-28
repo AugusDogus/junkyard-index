@@ -41,6 +41,7 @@ describe("toAlgoliaRecord", () => {
     expect(record.make).toBe("FORD");
     expect(record.model).toBe("FOCUS");
     expect(record.color).toBe("Red");
+    expect(record.locationCity).toBe("Sacramento");
     expect(record._geoloc).toEqual({ lat: 38.5816, lng: -121.4944 });
     expect(record.availableDateTs).toBe(
       Math.floor(new Date("2026-01-15T10:00:00.000Z").getTime() / 1000),
@@ -90,5 +91,6 @@ describe("toAlgoliaRecord", () => {
     expect(record.availableDateTs).toBe(0);
     expect(record.color).toBeNull();
     expect(record.imageUrl).toBeNull();
+    expect(record.locationCity).toBe("Sun Valley");
   });
 });
