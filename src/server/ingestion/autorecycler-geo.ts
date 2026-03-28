@@ -47,8 +47,8 @@ export function parseOrgGeoFromDetailsInitData(
       typeof geoUnknown.address === "string" ? geoUnknown.address : undefined;
 
     const locationName =
-      city && stateAbbr
-        ? `${city}, ${stateAbbr}`
+      city && city.trim().length > 0
+        ? city.trim()
         : address && address.length > 0
           ? address.split(",")[0]!.trim()
           : "AutoRecycler";
