@@ -43,6 +43,16 @@ describe("autorecycler transform", () => {
     });
   });
 
+  test("parseAutorecyclerNameText canonicalizes spaced multi-word makes", () => {
+    expect(
+      parseAutorecyclerNameText("1979 Rolls Royce Silver Shadow", undefined),
+    ).toEqual({
+      year: 1979,
+      make: "Rolls-Royce",
+      model: "Silver Shadow",
+    });
+  });
+
   test("parseAutorecyclerNameText buckets numeric junk makes into Other", () => {
     expect(parseAutorecyclerNameText("2015 1963 Corvette", undefined)).toEqual({
       year: 2015,

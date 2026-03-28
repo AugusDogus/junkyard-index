@@ -71,12 +71,67 @@ const REGION_ABBR_TO_NAME = new Map<string, string>(
   [...REGION_NAME_TO_ABBR.entries()].map(([name, abbr]) => [abbr, toTitleCase(name)]),
 );
 
-const MULTIWORD_MAKES = [
+const CANONICAL_MAKES = [
+  "Acura",
   "Alfa Romeo",
+  "AMC",
   "Aston Martin",
+  "Audi",
+  "BMW",
+  "Buick",
+  "Cadillac",
+  "Chevrolet",
+  "Chrysler",
+  "Daihatsu",
+  "Datsun",
+  "Daewoo",
+  "Dodge",
+  "Eagle",
+  "Fiat",
+  "Ford",
+  "Genesis",
+  "Geo",
+  "GMC",
+  "Honda",
+  "Hummer",
+  "Hyundai",
+  "Infiniti",
+  "International",
+  "Isuzu",
+  "Jaguar",
+  "Jeep",
+  "Kia",
   "Land Rover",
+  "Lexus",
+  "Lincoln",
+  "Mazda",
   "Mercedes-Benz",
+  "Mercury",
+  "MG",
+  "Mini",
+  "Mitsubishi",
+  "Nissan",
+  "Oldsmobile",
+  "Opel",
+  "Peugeot",
+  "Plymouth",
+  "Pontiac",
+  "Porsche",
+  "Qvale",
+  "Ram",
   "Rolls-Royce",
+  "Saab",
+  "Saturn",
+  "Scion",
+  "Subaru",
+  "Suzuki",
+  "Toyota",
+  "Triumph",
+  "VAM",
+  "Volkswagen",
+  "Volvo",
+  "VPG",
+  "Yugo",
 ] as const;
 
 const MAKE_DISPLAY_OVERRIDES: Record<string, string> = {
@@ -115,6 +170,52 @@ function toTitleCase(value: string): string {
 
 function toDisplayCase(value: string): string {
   return toTitleCase(value);
+}
+
+function normalizeComparableMake(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, " ");
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchCanonicalMake(value: string): string | null {
+  const comparable = normalizeComparableMake(value);
+  if (!comparable) return null;
+
+  for (const make of CANONICAL_MAKES) {
+    if (normalizeComparableMake(make) === comparable) {
+      return make;
+    }
+  }
+
+  return null;
+}
+
+function matchCanonicalMakePrefix(value: string): { make: string; end: number } | null {
+  const trimmed = value.trim();
+  for (const make of CANONICAL_MAKES) {
+    const pattern = new RegExp(
+      `^${make
+        .split(/[-\s]+/)
+        .map((part) => escapeRegex(part))
+        .join("[-\\s]+")}(?:\\s+|$)`,
+      "i",
+    );
+    const match = pattern.exec(trimmed);
+    if (match) {
+      return {
+        make,
+        end: match[0].length,
+      };
+    }
+  }
+
+  return null;
 }
 
 export function normalizeRegion(
@@ -158,6 +259,11 @@ export function normalizeCanonicalMake(value: string): string {
     return "Other";
   }
 
+  const canonical = matchCanonicalMake(trimmed);
+  if (canonical) {
+    return canonical;
+  }
+
   const normalized = trimmed.toLowerCase();
   return MAKE_DISPLAY_OVERRIDES[normalized] ?? toDisplayCase(trimmed);
 }
@@ -184,18 +290,13 @@ export function parseAutorecyclerMakeModel(rest: string): {
   model: string;
 } {
   const trimmed = rest.trim();
-  const upper = trimmed.toUpperCase();
-
-  for (const candidate of MULTIWORD_MAKES) {
-    const upperCandidate = candidate.toUpperCase();
-    if (upper === upperCandidate || upper.startsWith(`${upperCandidate} `)) {
-      const make = trimmed.slice(0, candidate.length).trim();
-      const model = trimmed.slice(candidate.length).trim();
-      return {
-        make: normalizeParsedMake(make),
-        model: model || make,
-      };
-    }
+  const canonicalPrefix = matchCanonicalMakePrefix(trimmed);
+  if (canonicalPrefix) {
+    const model = trimmed.slice(canonicalPrefix.end).trim();
+    return {
+      make: canonicalPrefix.make,
+      model: model || canonicalPrefix.make,
+    };
   }
 
   const space = trimmed.indexOf(" ");
