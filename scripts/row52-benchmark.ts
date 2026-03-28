@@ -368,6 +368,7 @@ function transformRow52Vehicle(
     availableDate: vehicle.dateAdded || null,
     locationCode: location.id.toString(),
     locationName: location.name,
+    locationCity: location.city,
     state: state?.name || "",
     stateAbbr: state?.abbreviation || "",
     lat: location.latitude,

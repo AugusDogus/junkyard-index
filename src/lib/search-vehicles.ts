@@ -8,11 +8,16 @@ function parseDataSource(value: unknown): DataSource {
   return "pyp";
 }
 
-function getLocationDisplayName(locationName: string): string {
+function getFallbackLocationCity(
+  locationName: string,
+  stateAbbr: string,
+): string {
   return locationName
+    .replace(/^AutoRecycler - /, "")
     .replace(/^Pick Your Part - /, "")
     .replace(/^PICK-n-PULL /, "")
-    .replace(/^LKQ Pull-A-Part - /, "");
+    .replace(/^LKQ Pull-A-Part - /, "")
+    .replace(new RegExp(`,\\s*${stateAbbr}$`, "i"), "");
 }
 
 export function algoliaHitToSearchVehicle(
@@ -24,6 +29,9 @@ export function algoliaHitToSearchVehicle(
   const lng = geoloc?.lng ?? 0;
   const source = parseDataSource(hit.source);
   const locationName = (hit.locationName as string) ?? "";
+  const stateAbbr = (hit.stateAbbr as string) ?? "";
+  const locationCity =
+    (hit.locationCity as string) ?? getFallbackLocationCity(locationName, stateAbbr);
   const missingSinceAtSeconds =
     typeof hit.missingSinceAt === "number" ? hit.missingSinceAt : null;
   const missingSinceAt =
@@ -43,9 +51,9 @@ export function algoliaHitToSearchVehicle(
     source,
     locationCode: (hit.locationCode as string) ?? "",
     locationName,
-    locationDisplayName: getLocationDisplayName(locationName),
+    locationCity,
     state: (hit.state as string) ?? "",
-    stateAbbr: (hit.stateAbbr as string) ?? "",
+    stateAbbr,
     lat,
     lng,
     distance:

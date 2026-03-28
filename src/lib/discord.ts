@@ -101,7 +101,12 @@ function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
   const fields: APIEmbed["fields"] = [
     {
       name: "Location",
-      value: `${vehicle.locationDisplayName}, ${vehicle.stateAbbr}`,
+      value: vehicle.locationName,
+      inline: true,
+    },
+    {
+      name: "Area",
+      value: `${vehicle.locationCity}, ${vehicle.stateAbbr}`,
       inline: true,
     },
   ];

@@ -104,7 +104,10 @@ export function NewVehiclesAlert({
                       </Text>
                     )}
                     <Text className="m-0 mt-1 text-xs text-gray-500">
-                      {vehicle.locationDisplayName}, {vehicle.stateAbbr}
+                      {vehicle.locationName}
+                    </Text>
+                    <Text className="m-0 text-xs text-gray-500">
+                      {vehicle.locationCity}, {vehicle.stateAbbr}
                     </Text>
                     {vehicle.row && (
                       <Text className="m-0 text-xs text-gray-500">

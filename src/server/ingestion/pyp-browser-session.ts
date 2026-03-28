@@ -9,6 +9,7 @@ import { Effect, Scope, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
 import { BrowserSessionError } from "./errors";
+import { normalizeRegion } from "./normalization";
 
 const PypPhotoSchema = Schema.Struct({
   PhotoPath: Schema.String,
@@ -487,6 +488,8 @@ function doClose(state: MutableSessionState): Effect.Effect<void, unknown> {
 }
 
 function mapRawLocation(raw: PypRawLocation): Location {
+  const region = normalizeRegion(raw.State, raw.StateAbbr);
+
   return {
     locationCode: raw.LocationCode,
     locationPageURL: raw.LocationPageURL,
@@ -494,8 +497,8 @@ function mapRawLocation(raw: PypRawLocation): Location {
     displayName: raw.DisplayName,
     address: raw.Address,
     city: raw.City,
-    state: raw.State,
-    stateAbbr: raw.StateAbbr,
+    state: region.state,
+    stateAbbr: region.stateAbbr,
     zip: raw.Zip,
     phone: raw.Phone,
     lat: raw.Lat,

@@ -12,6 +12,11 @@ import type {
 } from "~/lib/types";
 import { Row52ProviderError } from "./errors";
 import { fetchRow52OData } from "./row52-transport";
+import {
+  normalizeCanonicalColor,
+  normalizeCanonicalMake,
+  normalizeRegion,
+} from "./normalization";
 import type { CanonicalVehicle } from "./types";
 
 const PAGE_SIZE = 1000;
@@ -164,6 +169,10 @@ function fetchRow52LocationsEffect(): Effect.Effect<
 
       for (const loc of data.value) {
         if (!loc.isParticipating || !loc.isPublishable) continue;
+        const region = normalizeRegion(
+          loc.state,
+          loc.stateAbbreviation ?? loc.state,
+        );
         map.set(loc.locationId, {
           id: loc.locationId,
           accountId: "",
@@ -186,8 +195,8 @@ function fetchRow52LocationsEffect(): Effect.Effect<
           partsPricingUrl: loc.partsPricingUrl,
           state: {
             id: 0,
-            name: loc.state,
-            abbreviation: loc.stateAbbreviation ?? loc.state,
+            name: region.state,
+            abbreviation: region.stateAbbr,
             countryId: 0,
           },
         });
@@ -306,11 +315,12 @@ export function transformRow52Vehicle(
   if (!location) return null;
 
   const state = location.state;
-  const make = vehicle.model?.make?.name || "";
+  const rawMake = vehicle.model?.make?.name || "";
   const model = vehicle.model?.name || "";
+  const make = normalizeCanonicalMake(rawMake);
 
   if (!vehicle.vin) return null;
-  if (!make || !model) return null;
+  if (!rawMake || !model) return null;
 
   let imageUrl: string | null = null;
   if (vehicle.images && vehicle.images.length > 0) {
@@ -331,12 +341,13 @@ export function transformRow52Vehicle(
     year: vehicle.year,
     make,
     model,
-    color: vehicle.color || null,
+    color: normalizeCanonicalColor(vehicle.color),
     stockNumber: vehicle.barCodeNumber || null,
     imageUrl,
     availableDate: vehicle.dateAdded || null,
     locationCode: location.id.toString(),
     locationName: location.name,
+    locationCity: location.city,
     state: state?.name || "",
     stateAbbr: state?.abbreviation || "",
     lat: location.latitude,

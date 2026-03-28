@@ -141,6 +141,7 @@ function vehicleNeedsUpsert(
     existingVehicle.availableDate !== nextVehicle.availableDate ||
     existingVehicle.locationCode !== nextVehicle.locationCode ||
     existingVehicle.locationName !== nextVehicle.locationName ||
+    existingVehicle.locationCity !== nextVehicle.locationCity ||
     existingVehicle.state !== nextVehicle.state ||
     existingVehicle.stateAbbr !== nextVehicle.stateAbbr ||
     existingVehicle.lat !== nextVehicle.lat ||
@@ -467,6 +468,7 @@ function toVehicleRow(params: {
     availableDate: params.vehicle.availableDate,
     locationCode: params.vehicle.locationCode,
     locationName: params.vehicle.locationName,
+    locationCity: params.vehicle.locationCity,
     state: params.vehicle.state,
     stateAbbr: params.vehicle.stateAbbr,
     lat: params.vehicle.lat,
@@ -523,6 +525,7 @@ function upsertVehicles(
               availableDate: sql`excluded.available_date`,
               locationCode: sql`excluded.location_code`,
               locationName: sql`excluded.location_name`,
+              locationCity: sql`excluded.location_city`,
               state: sql`excluded.state`,
               stateAbbr: sql`excluded.state_abbr`,
               lat: sql`excluded.lat`,

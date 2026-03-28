@@ -4,6 +4,7 @@ import { autorecyclerOrgGeo } from "~/schema";
 import { AutorecyclerProviderError, PersistenceError } from "./errors";
 import { Database } from "./runtime";
 import { fetchAutorecyclerDetailsInitData } from "./autorecycler-client";
+import { normalizeRegion } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 
 export type { AutorecyclerOrgGeo };
@@ -46,22 +47,26 @@ export function parseOrgGeoFromDetailsInitData(
     const address =
       typeof geoUnknown.address === "string" ? geoUnknown.address : undefined;
 
-    const locationName =
+    const locationCity =
       city && city.trim().length > 0
         ? city.trim()
         : address && address.length > 0
           ? address.split(",")[0]!.trim()
-          : "AutoRecycler";
-
-    const stateOut = state || stateAbbr || "Unknown";
+          : "Unknown";
+    const region = normalizeRegion(state, stateAbbr);
+    const locationName =
+      locationCity === "Unknown"
+        ? "AutoRecycler"
+        : `AutoRecycler - ${locationCity}`;
 
     return {
       orgLookup: want,
       lat,
       lng,
       locationName,
-      state: stateOut,
-      stateAbbr,
+      locationCity,
+      state: region.state || "Unknown",
+      stateAbbr: region.stateAbbr,
       address,
     };
   }
@@ -127,6 +132,7 @@ export function createAutorecyclerOrgGeoResolver() {
           lat: existing.lat,
           lng: existing.lng,
           locationName: existing.locationName,
+          locationCity: existing.locationCity,
           state: existing.state,
           stateAbbr: existing.stateAbbr,
           address: existing.address ?? undefined,
@@ -169,6 +175,7 @@ export function createAutorecyclerOrgGeoResolver() {
               lat: parsed.lat,
               lng: parsed.lng,
               locationName: parsed.locationName,
+              locationCity: parsed.locationCity,
               state: parsed.state,
               stateAbbr: parsed.stateAbbr,
               address: parsed.address ?? null,
@@ -180,6 +187,7 @@ export function createAutorecyclerOrgGeoResolver() {
                 lat: sql`excluded.lat`,
                 lng: sql`excluded.lng`,
                 locationName: sql`excluded.location_name`,
+                locationCity: sql`excluded.location_city`,
                 state: sql`excluded.state`,
                 stateAbbr: sql`excluded.state_abbr`,
                 address: sql`excluded.address`,

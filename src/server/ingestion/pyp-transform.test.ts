@@ -67,7 +67,7 @@ describe("transformPypVehicle", () => {
     expect(result?.vin).toBe("2HGFC2F84LH554430");
     expect(result?.source).toBe("pyp");
     expect(result?.year).toBe(2020);
-    expect(result?.make).toBe("HONDA");
+    expect(result?.make).toBe("Honda");
     expect(result?.model).toBe("CIVIC");
     expect(result?.color).toBe("Blue");
     expect(result?.stockNumber).toBe("1229-36026");
@@ -76,6 +76,7 @@ describe("transformPypVehicle", () => {
     );
     expect(result?.availableDate).toBe("2026-02-05T14:07:19.000Z");
     expect(result?.locationName).toBe("Pick Your Part - Sun Valley");
+    expect(result?.locationCity).toBe("Sun Valley");
     expect(result?.state).toBe("California");
     expect(result?.stateAbbr).toBe("CA");
     expect(result?.lat).toBe(34.2284);
@@ -87,7 +88,7 @@ describe("transformPypVehicle", () => {
       "https://www.pyp.com/inventory/sun-valley-1229/2020-honda-civic/",
     );
     expect(result?.partsUrl).toBe(
-      "https://www.pyp.com/parts/sun-valley-1229/?year=2020&make=HONDA&model=CIVIC",
+      "https://www.pyp.com/parts/sun-valley-1229/?year=2020&make=Honda&model=CIVIC",
     );
     expect(result?.pricesUrl).toBe(
       "https://www.pyp.com/prices/sun-valley-1229/",
@@ -177,5 +178,26 @@ describe("transformPypVehicle", () => {
     expect(result?.row).toBeNull();
     expect(result?.space).toBeNull();
     expect(result?.availableDate).toBeNull();
+  });
+
+  test("normalizes make and color casing", () => {
+    const input: PypVehicleJson = {
+      YardCode: "1229",
+      Section: "A",
+      Row: "2",
+      SpaceNumber: "3",
+      Color: "[BLACK]",
+      Year: "2011",
+      Make: "BMW",
+      Model: "328I",
+      InYardDate: "2026-01-15T10:00:00Z",
+      StockNumber: "1229-99999",
+      Vin: "WBAKE5C58BE123456",
+      Photos: [],
+    };
+
+    const result = transformPypVehicle(input, locationMap);
+    expect(result?.make).toBe("BMW");
+    expect(result?.color).toBe("Black");
   });
 });

@@ -93,13 +93,20 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         {/* Vehicle Details */}
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
+            <span className="text-muted-foreground">Location:</span>
+            <span className="max-w-[65%] text-right text-xs">
+              {vehicle.locationName || "N/A"}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
             <span className="text-muted-foreground">VIN:</span>
             <span className="font-mono text-xs">{vehicle.vin || "N/A"}</span>
           </div>
 
           {(vehicle.section || vehicle.row || vehicle.space) && (
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Location:</span>
+              <span className="text-muted-foreground">Yard Spot:</span>
               <span className="text-xs">
                 {[vehicle.section, vehicle.row, vehicle.space]
                   .filter(Boolean)
@@ -118,7 +125,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         <div className="text-muted-foreground mt-3 flex items-center text-sm">
           <MapPin className="mr-1.5 h-4 w-4" />
           <span>
-            {vehicle.locationDisplayName}, {vehicle.stateAbbr}
+            {vehicle.locationCity}, {vehicle.stateAbbr}
           </span>
         </div>
       </CardContent>

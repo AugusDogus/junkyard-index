@@ -114,6 +114,7 @@ describe("transformRow52Vehicle", () => {
 
     expect(canonical).not.toBeNull();
     expect(canonical?.locationName).toBe("Authoritative Yard");
+    expect(canonical?.locationCity).toBe("Tulsa");
     expect(canonical?.state).toBe("Oklahoma");
     expect(canonical?.stateAbbr).toBe("OK");
   });

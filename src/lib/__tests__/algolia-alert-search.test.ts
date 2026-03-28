@@ -78,6 +78,7 @@ describe("algolia alert search helpers", () => {
       model: "Civic",
       source: "pyp",
       locationName: "PYP Sun Valley",
+      locationCity: "Sun Valley",
       locationCode: "SV",
       state: "California",
       stateAbbr: "CA",
@@ -88,6 +89,7 @@ describe("algolia alert search helpers", () => {
     expect(vehicle.vin).toBe("VIN123");
     expect(vehicle.make).toBe("Honda");
     expect(vehicle.locationName).toBe("PYP Sun Valley");
+    expect(vehicle.locationCity).toBe("Sun Valley");
     expect(vehicle.lat).toBe(34.2);
     expect(vehicle.imageUrl).toBe("https://example.com/image.jpg");
   });
@@ -99,7 +101,8 @@ describe("algolia alert search helpers", () => {
       make: "Ford",
       model: "Focus",
       source: "autorecycler",
-      locationName: "Tampa, FL",
+      locationName: "AutoRecycler - Tampa",
+      locationCity: "Tampa",
       locationCode: "org-1",
       state: "Florida",
       stateAbbr: "FL",
