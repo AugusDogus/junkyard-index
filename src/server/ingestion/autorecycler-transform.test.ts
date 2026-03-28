@@ -33,6 +33,16 @@ describe("autorecycler transform", () => {
     });
   });
 
+  test("parseAutorecyclerNameText keeps hyphenated multi-word makes together", () => {
+    expect(
+      parseAutorecyclerNameText("1999 Mercedes-Benz C230", undefined),
+    ).toEqual({
+      year: 1999,
+      make: "Mercedes-Benz",
+      model: "C230",
+    });
+  });
+
   test("parseAutorecyclerNameText buckets numeric junk makes into Other", () => {
     expect(parseAutorecyclerNameText("2015 1963 Corvette", undefined)).toEqual({
       year: 2015,

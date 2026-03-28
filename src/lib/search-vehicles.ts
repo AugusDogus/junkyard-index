@@ -12,12 +12,13 @@ function getFallbackLocationCity(
   locationName: string,
   stateAbbr: string,
 ): string {
+  const escapedStateAbbr = stateAbbr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return locationName
     .replace(/^AutoRecycler - /, "")
     .replace(/^Pick Your Part - /, "")
     .replace(/^PICK-n-PULL /, "")
     .replace(/^LKQ Pull-A-Part - /, "")
-    .replace(new RegExp(`,\\s*${stateAbbr}$`, "i"), "");
+    .replace(new RegExp(`,\\s*${escapedStateAbbr}$`, "i"), "");
 }
 
 export function algoliaHitToSearchVehicle(

@@ -75,6 +75,8 @@ const MULTIWORD_MAKES = [
   "Alfa Romeo",
   "Aston Martin",
   "Land Rover",
+  "Mercedes-Benz",
+  "Rolls-Royce",
 ] as const;
 
 const MAKE_DISPLAY_OVERRIDES: Record<string, string> = {
@@ -112,9 +114,7 @@ function toTitleCase(value: string): string {
 }
 
 function toDisplayCase(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return toTitleCase(value);
 }
 
 export function normalizeRegion(
