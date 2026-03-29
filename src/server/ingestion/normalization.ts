@@ -253,9 +253,16 @@ export function normalizeRegion(
   }
 
   const inferredAbbr = REGION_NAME_TO_ABBR.get(rawState.toLowerCase()) ?? "";
+  if (inferredAbbr) {
+    return {
+      state: REGION_ABBR_TO_NAME.get(inferredAbbr) ?? toTitleCase(rawState),
+      stateAbbr: inferredAbbr,
+    };
+  }
+
   return {
     state: rawState,
-    stateAbbr: inferredAbbr,
+    stateAbbr: "",
   };
 }
 
