@@ -15,6 +15,7 @@ import { normalizeRegion } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 
 export type { AutorecyclerOrgGeo };
+type DbClient = typeof import("~/lib/db").db;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -226,6 +227,50 @@ export function parseOrgGeoFromDetailsInitData(
   return null;
 }
 
+function upsertAndCacheOrgGeo(params: {
+  dbClient: DbClient;
+  memory: Map<string, AutorecyclerOrgGeo>;
+  geo: AutorecyclerOrgGeo;
+}): Effect.Effect<AutorecyclerOrgGeo, PersistenceError> {
+  const { dbClient, memory, geo } = params;
+  const now = new Date();
+
+  return Effect.tryPromise({
+    try: () =>
+      dbClient
+        .insert(autorecyclerOrgGeo)
+        .values({
+          orgLookup: geo.orgLookup,
+          lat: geo.lat,
+          lng: geo.lng,
+          locationName: geo.locationName,
+          locationCity: geo.locationCity,
+          state: geo.state,
+          stateAbbr: geo.stateAbbr,
+          address: geo.address ?? null,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: autorecyclerOrgGeo.orgLookup,
+          set: {
+            lat: sql`excluded.lat`,
+            lng: sql`excluded.lng`,
+            locationName: sql`excluded.location_name`,
+            locationCity: sql`excluded.location_city`,
+            state: sql`excluded.state`,
+            stateAbbr: sql`excluded.state_abbr`,
+            address: sql`excluded.address`,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        }),
+    catch: (cause) =>
+      new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
+  }).pipe(
+    Effect.tap(() => Effect.sync(() => memory.set(geo.orgLookup, geo))),
+    Effect.as(geo),
+  );
+}
+
 export function createAutorecyclerOrgGeoResolver() {
   const memory = new Map<string, AutorecyclerOrgGeo>();
   let geoLookupCount = 0;
@@ -318,37 +363,10 @@ export function createAutorecyclerOrgGeoResolver() {
           ?.map((doc) => parseOrgGeoFromOrganizationDoc(doc, orgLookup))
           .find((value) => value !== null) ?? null;
       if (parsedFromOrganization) {
-        const now = new Date();
-        yield* Effect.tryPromise({
-          try: () =>
-            dbClient
-              .insert(autorecyclerOrgGeo)
-              .values({
-                orgLookup: parsedFromOrganization.orgLookup,
-                lat: parsedFromOrganization.lat,
-                lng: parsedFromOrganization.lng,
-                locationName: parsedFromOrganization.locationName,
-                locationCity: parsedFromOrganization.locationCity,
-                state: parsedFromOrganization.state,
-                stateAbbr: parsedFromOrganization.stateAbbr,
-                address: parsedFromOrganization.address ?? null,
-                updatedAt: now,
-              })
-              .onConflictDoUpdate({
-                target: autorecyclerOrgGeo.orgLookup,
-                set: {
-                  lat: sql`excluded.lat`,
-                  lng: sql`excluded.lng`,
-                  locationName: sql`excluded.location_name`,
-                  locationCity: sql`excluded.location_city`,
-                  state: sql`excluded.state`,
-                  stateAbbr: sql`excluded.state_abbr`,
-                  address: sql`excluded.address`,
-                  updatedAt: sql`excluded.updated_at`,
-                },
-              }),
-          catch: (cause) =>
-            new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
+        return yield* upsertAndCacheOrgGeo({
+          dbClient,
+          memory,
+          geo: parsedFromOrganization,
         }).pipe(
           Effect.tapError((e) =>
             Effect.logError(
@@ -356,9 +374,6 @@ export function createAutorecyclerOrgGeoResolver() {
             ),
           ),
         );
-
-        memory.set(orgLookup, parsedFromOrganization);
-        return parsedFromOrganization;
       }
 
       const website = yield* Effect.tryPromise({
@@ -388,37 +403,10 @@ export function createAutorecyclerOrgGeoResolver() {
         ? parseOrgGeoFromWebsiteRecord(website, orgLookup)
         : null;
       if (parsedFromWebsite) {
-        const now = new Date();
-        yield* Effect.tryPromise({
-          try: () =>
-            dbClient
-              .insert(autorecyclerOrgGeo)
-              .values({
-                orgLookup: parsedFromWebsite.orgLookup,
-                lat: parsedFromWebsite.lat,
-                lng: parsedFromWebsite.lng,
-                locationName: parsedFromWebsite.locationName,
-                locationCity: parsedFromWebsite.locationCity,
-                state: parsedFromWebsite.state,
-                stateAbbr: parsedFromWebsite.stateAbbr,
-                address: parsedFromWebsite.address ?? null,
-                updatedAt: now,
-              })
-              .onConflictDoUpdate({
-                target: autorecyclerOrgGeo.orgLookup,
-                set: {
-                  lat: sql`excluded.lat`,
-                  lng: sql`excluded.lng`,
-                  locationName: sql`excluded.location_name`,
-                  locationCity: sql`excluded.location_city`,
-                  state: sql`excluded.state`,
-                  stateAbbr: sql`excluded.state_abbr`,
-                  address: sql`excluded.address`,
-                  updatedAt: sql`excluded.updated_at`,
-                },
-              }),
-          catch: (cause) =>
-            new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
+        return yield* upsertAndCacheOrgGeo({
+          dbClient,
+          memory,
+          geo: parsedFromWebsite,
         }).pipe(
           Effect.tapError((e) =>
             Effect.logError(
@@ -426,9 +414,6 @@ export function createAutorecyclerOrgGeoResolver() {
             ),
           ),
         );
-
-        memory.set(orgLookup, parsedFromWebsite);
-        return parsedFromWebsite;
       }
 
       const rows = yield* Effect.tryPromise({
@@ -453,37 +438,10 @@ export function createAutorecyclerOrgGeoResolver() {
         return null;
       }
 
-      const now = new Date();
-      yield* Effect.tryPromise({
-        try: () =>
-          dbClient
-            .insert(autorecyclerOrgGeo)
-            .values({
-              orgLookup: parsed.orgLookup,
-              lat: parsed.lat,
-              lng: parsed.lng,
-              locationName: parsed.locationName,
-              locationCity: parsed.locationCity,
-              state: parsed.state,
-              stateAbbr: parsed.stateAbbr,
-              address: parsed.address ?? null,
-              updatedAt: now,
-            })
-            .onConflictDoUpdate({
-              target: autorecyclerOrgGeo.orgLookup,
-              set: {
-                lat: sql`excluded.lat`,
-                lng: sql`excluded.lng`,
-                locationName: sql`excluded.location_name`,
-                locationCity: sql`excluded.location_city`,
-                state: sql`excluded.state`,
-                stateAbbr: sql`excluded.state_abbr`,
-                address: sql`excluded.address`,
-                updatedAt: sql`excluded.updated_at`,
-              },
-            }),
-        catch: (cause) =>
-          new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
+      return yield* upsertAndCacheOrgGeo({
+        dbClient,
+        memory,
+        geo: parsed,
       }).pipe(
         Effect.tapError((e) =>
           Effect.logError(
@@ -491,9 +449,6 @@ export function createAutorecyclerOrgGeoResolver() {
           ),
         ),
       );
-
-      memory.set(orgLookup, parsed);
-      return parsed;
     });
 
   /** Resolve many orgs; uses lazy sequential resolution to reduce rate-limit risk. */
