@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
+import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
 
 const DEBOUNCE_MS = 300;
@@ -14,7 +15,12 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
     const [inputValue, setInputValue] = useState(query);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const placeholderRef = useRef<HTMLDivElement>(null);
+    const mobileFormRef = useRef<HTMLDivElement>(null);
     const isMobile = useIsMobile();
+    const {
+      setSearchBarOffscreen,
+      registerSearchElement,
+    } = useSearchVisibility();
     const [style, setStyle] = useState<{
       top: number;
       left: number;
@@ -44,6 +50,28 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         refine("");
       }
     }, [urlQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+      if (!isMobile) return;
+      const el = mobileFormRef.current;
+      if (!el) return;
+
+      registerSearchElement(el);
+
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry) {
+            setSearchBarOffscreen(!entry.isIntersecting);
+          }
+        },
+        { threshold: 0 },
+      );
+      observer.observe(el);
+      return () => {
+        observer.disconnect();
+        setSearchBarOffscreen(false);
+      };
+    }, [isMobile, registerSearchElement, setSearchBarOffscreen]);
 
     useEffect(() => {
       if (isMobile) return;
@@ -176,11 +204,12 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       </div>
     );
 
-    // Mobile: static search bar
     if (isMobile) {
       return (
         <div ref={ref} className="mb-6">
-          <form onSubmit={handleSubmit}>{searchInput}</form>
+          <div ref={mobileFormRef}>
+            <form onSubmit={handleSubmit}>{searchInput}</form>
+          </div>
         </div>
       );
     }
