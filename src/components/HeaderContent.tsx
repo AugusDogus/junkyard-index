@@ -30,16 +30,16 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
             </Link>
           </div>
           <div className="flex-1" />
-          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
             {showMobileSearch && (
               <Button
                 variant="ghost"
-                size="icon"
-                className="sm:hidden"
+                size="sm"
+                className="h-8 w-8 p-0 sm:hidden"
                 aria-label="Search"
                 onClick={() => searchCtx?.scrollToSearch()}
               >
-                <Search className="h-5 w-5" />
+                <Search className="h-4 w-4" />
               </Button>
             )}
             {statusData && (
@@ -48,7 +48,7 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
                 <div className="bg-border h-5 w-px" aria-hidden="true" />
               </>
             )}
-            <div className={user ? "hidden sm:block" : ""}>
+            <div className={user ? "hidden sm:block" : showMobileSearch ? "hidden sm:block" : ""}>
               <ThemeToggle />
             </div>
             <HeaderAuthButtons user={user} />
