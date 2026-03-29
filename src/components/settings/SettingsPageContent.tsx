@@ -403,7 +403,7 @@ export function SettingsDashboard() {
                     inputMode="numeric"
                     autoComplete="postal-code"
                     maxLength={5}
-                    placeholder="32571"
+                    placeholder="90210"
                     value={locationZipCode}
                     onChange={(event) => setLocationZipCode(event.target.value)}
                   />
