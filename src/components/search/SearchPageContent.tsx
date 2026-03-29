@@ -37,6 +37,7 @@ import {
   SearchSummary,
 } from "~/components/search/SearchResults";
 import { Sidebar } from "~/components/search/Sidebar";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -179,6 +180,10 @@ function saveLocalLocationPreference(preference: StoredLocationPreference) {
     LOCATION_PREFERENCE_STORAGE_KEY,
     JSON.stringify(preference),
   );
+}
+
+function formatCoordinates(lat: number, lng: number): string {
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 
 interface DistancePreferenceDialogProps {
@@ -510,6 +515,89 @@ function AlgoliaSearchInner({
 
     return undefined;
   }, [browserLocation, effectiveLocationPreference, userLocation]);
+  const distanceLocationDebug = useMemo(() => {
+    if (!isDistanceSort) {
+      return null;
+    }
+
+    if (
+      effectiveLocationPreference?.mode === "zip" &&
+      hasFiniteCoordinates(effectiveLocationPreference)
+    ) {
+      return {
+        sourceLabel: `Saved ZIP ${effectiveLocationPreference.zipCode}`,
+        detail: `Using ZIP coordinates ${formatCoordinates(
+          effectiveLocationPreference.lat,
+          effectiveLocationPreference.lng,
+        )}.`,
+      };
+    }
+
+    if (
+      effectiveLocationPreference?.mode === "auto" &&
+      hasValidCoordinates(userLocation)
+    ) {
+      return {
+        sourceLabel: "Automatic detection via Vercel IP",
+        detail: `Using server coordinates ${formatCoordinates(
+          userLocation.lat,
+          userLocation.lng,
+        )}.`,
+      };
+    }
+
+    if (
+      effectiveLocationPreference?.mode === "auto" &&
+      hasValidCoordinates(browserLocation)
+    ) {
+      return {
+        sourceLabel: "Automatic detection via browser geolocation",
+        detail: `Using browser coordinates ${formatCoordinates(
+          browserLocation.lat,
+          browserLocation.lng,
+        )}.`,
+      };
+    }
+
+    if (effectiveLocationPreference?.mode === "auto") {
+      return {
+        sourceLabel: "Automatic detection via Algolia IP",
+        detail:
+          "Using Algolia IP-based location. Exact coordinates are not exposed to the browser.",
+      };
+    }
+
+    return {
+      sourceLabel: "Distance location not configured",
+      detail: "Choose a location source to sort by distance accurately.",
+    };
+  }, [
+    browserLocation,
+    effectiveLocationPreference,
+    isDistanceSort,
+    userLocation,
+  ]);
+
+  useEffect(() => {
+    if (!distanceLocationDebug) {
+      return;
+    }
+
+    console.info("[Distance location]", {
+      source: distanceLocationDebug.sourceLabel,
+      detail: distanceLocationDebug.detail,
+      resolvedUserLocation,
+      preference: effectiveLocationPreference,
+      hasServerLocation: hasValidCoordinates(userLocation),
+      hasBrowserLocation: hasValidCoordinates(browserLocation),
+    });
+  }, [
+    browserLocation,
+    distanceLocationDebug,
+    effectiveLocationPreference,
+    resolvedUserLocation,
+    userLocation,
+  ]);
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -1088,6 +1176,20 @@ function AlgoliaSearchInner({
                   <span>Results in {processingTimeMS}ms</span>
                 </div>
               ) : null}
+
+              {distanceLocationDebug && (
+                <Alert className="mb-6">
+                  <MapPin />
+                  <AlertTitle>{distanceLocationDebug.sourceLabel}</AlertTitle>
+                  <AlertDescription>
+                    <p>{distanceLocationDebug.detail}</p>
+                    <p>
+                      Open devtools console and look for `[Distance location]`
+                      for the full debug object.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
