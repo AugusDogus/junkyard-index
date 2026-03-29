@@ -292,6 +292,8 @@ function AlgoliaSearchInner({
   ] = useState(false);
   const [browserLocation, setBrowserLocation] =
     useState<SearchPageContentProps["userLocation"]>();
+  const [browserGeolocationPermission, setBrowserGeolocationPermission] =
+    useState<"granted" | "denied" | "prompt" | "unsupported">("unsupported");
   const [showDistancePreferenceDialog, setShowDistancePreferenceDialog] =
     useState(false);
   const [pendingDistanceSort, setPendingDistanceSort] = useState(false);
@@ -452,7 +454,52 @@ function AlgoliaSearchInner({
   const shouldUseBrowserFallback =
     isDistanceSort &&
     effectiveLocationPreference?.mode === "auto" &&
+    browserGeolocationPermission === "granted" &&
     !hasValidCoordinates(browserLocation);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      setBrowserGeolocationPermission("denied");
+      return;
+    }
+
+    if (!("permissions" in navigator)) {
+      setBrowserGeolocationPermission("unsupported");
+      return;
+    }
+
+    let cancelled = false;
+
+    void navigator.permissions
+      .query({ name: "geolocation" })
+      .then((status) => {
+        const syncState = () => {
+          if (cancelled) return;
+
+          if (
+            status.state === "granted" ||
+            status.state === "denied" ||
+            status.state === "prompt"
+          ) {
+            setBrowserGeolocationPermission(status.state);
+            return;
+          }
+
+          setBrowserGeolocationPermission("unsupported");
+        };
+
+        syncState();
+        status.onchange = syncState;
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBrowserGeolocationPermission("unsupported");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!shouldUseBrowserFallback) {
@@ -539,7 +586,9 @@ function AlgoliaSearchInner({
       return {
         sourceLabel: "Automatic detection via Algolia IP",
         detail:
-          "Using Algolia IP-based location first. Exact coordinates are not exposed to the browser.",
+          browserGeolocationPermission === "prompt"
+            ? "Using Algolia IP-based location first. Browser geolocation has not been requested."
+            : "Using Algolia IP-based location first. Exact coordinates are not exposed to the browser.",
       };
     }
 
@@ -547,7 +596,12 @@ function AlgoliaSearchInner({
       sourceLabel: "Distance location not configured",
       detail: "Choose a location source to sort by distance accurately.",
     };
-  }, [browserLocation, effectiveLocationPreference, isDistanceSort]);
+  }, [
+    browserGeolocationPermission,
+    browserLocation,
+    effectiveLocationPreference,
+    isDistanceSort,
+  ]);
 
   useEffect(() => {
     if (!distanceLocationDebug) {
@@ -559,9 +613,11 @@ function AlgoliaSearchInner({
       detail: distanceLocationDebug.detail,
       resolvedUserLocation,
       preference: effectiveLocationPreference,
+      browserGeolocationPermission,
       hasBrowserLocation: hasValidCoordinates(browserLocation),
     });
   }, [
+    browserGeolocationPermission,
     browserLocation,
     distanceLocationDebug,
     effectiveLocationPreference,
