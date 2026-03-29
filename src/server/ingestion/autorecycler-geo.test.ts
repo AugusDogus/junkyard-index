@@ -1,7 +1,35 @@
 import { describe, expect, test } from "bun:test";
-import { parseOrgGeoFromDetailsInitData } from "./autorecycler-geo";
+import {
+  parseOrgGeoFromDetailsInitData,
+  parseOrgGeoFromWebsiteRecord,
+} from "./autorecycler-geo";
 
 describe("autorecycler geo", () => {
+  test("parseOrgGeoFromWebsiteRecord reads authoritative website location data", () => {
+    const org = "1348695171700984260__LOOKUP__test";
+    const g = parseOrgGeoFromWebsiteRecord(
+      {
+        organization_custom_organization: org,
+        name_text: "Kiker's U Pull It",
+        address_geographic_address: {
+          lat: 30.4440304,
+          lng: -87.2515714,
+          address: "3010 W Fairfield Dr, Pensacola, FL 32505, USA",
+          components: {
+            city: "Pensacola",
+            state: "Florida",
+            "state code": "FL",
+          },
+        },
+      },
+      org,
+    );
+    expect(g).not.toBeNull();
+    expect(g!.locationName).toBe("Kiker's U Pull It");
+    expect(g!.locationCity).toBe("Pensacola");
+    expect(g!.stateAbbr).toBe("FL");
+  });
+
   test("parseOrgGeoFromDetailsInitData reads gps_location_geographic_address", () => {
     const org = "1348695171700984260__LOOKUP__test";
     const rows = [

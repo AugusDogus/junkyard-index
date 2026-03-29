@@ -3,7 +3,11 @@ import { eq, sql } from "drizzle-orm";
 import { autorecyclerOrgGeo } from "~/schema";
 import { AutorecyclerProviderError, PersistenceError } from "./errors";
 import { Database } from "./runtime";
-import { fetchAutorecyclerDetailsInitData } from "./autorecycler-client";
+import {
+  buildWebsiteLookupMsearchBody,
+  fetchAutorecyclerDetailsInitData,
+  postAutorecyclerElasticsearchMsearch,
+} from "./autorecycler-client";
 import { normalizeRegion } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 
@@ -41,6 +45,56 @@ function extractLocationNameFromSeoDescription(value: unknown): string | null {
   }
 
   return null;
+}
+
+export function parseOrgGeoFromWebsiteRecord(
+  src: Record<string, unknown>,
+  expectedOrg: string,
+): AutorecyclerOrgGeo | null {
+  const want = expectedOrg.trim();
+  if (want.length === 0) return null;
+
+  const orgRaw =
+    typeof src.organization_custom_organization === "string"
+      ? src.organization_custom_organization.trim()
+      : null;
+  if (!orgRaw || orgRaw !== want) return null;
+
+  const geoUnknown = src.address_geographic_address;
+  if (!isRecord(geoUnknown)) return null;
+  const lat = geoUnknown.lat;
+  const lng = geoUnknown.lng;
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+
+  const components = isRecord(geoUnknown.components) ? geoUnknown.components : {};
+  const state = typeof components.state === "string" ? components.state : "";
+  const stateAbbr =
+    typeof components["state code"] === "string" ? components["state code"] : "";
+  const city = typeof components.city === "string" ? components.city : "";
+  const address =
+    typeof geoUnknown.address === "string" ? geoUnknown.address : undefined;
+  const locationName =
+    typeof src.name_text === "string" && src.name_text.trim().length > 0
+      ? src.name_text.trim()
+      : "AutoRecycler";
+  const locationCity =
+    city && city.trim().length > 0
+      ? city.trim()
+      : address && address.length > 0
+        ? address.split(",")[0]!.trim()
+        : "Unknown";
+  const region = normalizeRegion(state, stateAbbr);
+
+  return {
+    orgLookup: want,
+    lat,
+    lng,
+    locationName,
+    locationCity,
+    state: region.state || "Unknown",
+    stateAbbr: region.stateAbbr,
+    address,
+  };
 }
 
 /** Extract yard geolocation from `init/data` rows for a vehicle details page. */
@@ -173,6 +227,76 @@ export function createAutorecyclerOrgGeoResolver() {
       }
 
       geoFetches++;
+
+      const website = yield* Effect.tryPromise({
+        try: async () => {
+          const res = await postAutorecyclerElasticsearchMsearch(
+            buildWebsiteLookupMsearchBody(orgLookup),
+          );
+          const src = res.responses?.[0]?.hits?.hits?.[0]?._source;
+          return src && typeof src === "object"
+            ? (src as Record<string, unknown>)
+            : null;
+        },
+        catch: (cause) =>
+          new AutorecyclerProviderError({
+            from: -1,
+            cause: new Error(`website msearch orgLookup=${orgLookup}: ${cause instanceof Error ? cause.message : String(cause)}`, {
+              cause,
+            }),
+          }),
+      }).pipe(
+        Effect.tapError((e) =>
+          Effect.logError(`[AutoRecycler geo] ${e.message}`),
+        ),
+      );
+
+      const parsedFromWebsite = website
+        ? parseOrgGeoFromWebsiteRecord(website, orgLookup)
+        : null;
+      if (parsedFromWebsite) {
+        const now = new Date();
+        yield* Effect.tryPromise({
+          try: () =>
+            dbClient
+              .insert(autorecyclerOrgGeo)
+              .values({
+                orgLookup: parsedFromWebsite.orgLookup,
+                lat: parsedFromWebsite.lat,
+                lng: parsedFromWebsite.lng,
+                locationName: parsedFromWebsite.locationName,
+                locationCity: parsedFromWebsite.locationCity,
+                state: parsedFromWebsite.state,
+                stateAbbr: parsedFromWebsite.stateAbbr,
+                address: parsedFromWebsite.address ?? null,
+                updatedAt: now,
+              })
+              .onConflictDoUpdate({
+                target: autorecyclerOrgGeo.orgLookup,
+                set: {
+                  lat: sql`excluded.lat`,
+                  lng: sql`excluded.lng`,
+                  locationName: sql`excluded.location_name`,
+                  locationCity: sql`excluded.location_city`,
+                  state: sql`excluded.state`,
+                  stateAbbr: sql`excluded.state_abbr`,
+                  address: sql`excluded.address`,
+                  updatedAt: sql`excluded.updated_at`,
+                },
+              }),
+          catch: (cause) =>
+            new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
+        }).pipe(
+          Effect.tapError((e) =>
+            Effect.logError(
+              `[AutoRecycler geo] DB upsert failed for org=${orgLookup}: ${e.message}`,
+            ),
+          ),
+        );
+
+        memory.set(orgLookup, parsedFromWebsite);
+        return parsedFromWebsite;
+      }
 
       const rows = yield* Effect.tryPromise({
         try: () => fetchAutorecyclerDetailsInitData(inventoryIdSeed),

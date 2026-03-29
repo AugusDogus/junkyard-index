@@ -59,6 +59,35 @@ export function buildGlobalMsearchBody(
   return inner;
 }
 
+export function buildWebsiteLookupMsearchBody(
+  orgLookup: string,
+): AutorecyclerMsearchInner {
+  const inner = getGlobalMsearchTemplate();
+  const search = inner.searches[0] as {
+    type?: string;
+    constraints?: Array<Record<string, unknown>>;
+    sorts_list?: Array<Record<string, unknown>>;
+    from?: number;
+    n?: number;
+  };
+  if (!search?.constraints) {
+    throw new Error("autorecycler: msearch template missing constraints");
+  }
+
+  search.type = "custom.website";
+  search.constraints = [
+    {
+      key: "organization_custom_organization",
+      value: [orgLookup],
+      constraint_type: "in",
+    },
+  ];
+  search.sorts_list = [];
+  search.from = 0;
+  search.n = 1;
+  return inner;
+}
+
 function isRetryableStatus(status: number): boolean {
   return status === 429 || status === 502 || status === 503 || status === 504;
 }
