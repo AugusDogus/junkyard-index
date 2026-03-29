@@ -1030,10 +1030,10 @@ function AlgoliaSearchInner({
         <MorphingSearchBar />
       </ErrorBoundary>
 
-      <div className="relative flex w-full gap-6">
+      <div className="relative flex w-full gap-4 md:gap-6">
         {/* Desktop Sidebar */}
         {!isMobile && showFilters && (
-          <div className="sticky top-24 h-fit max-h-[calc(100vh-112px)] overflow-y-auto">
+          <div className="sticky top-24 h-fit max-h-[calc(100vh-112px)] w-64 shrink-0 overflow-y-auto lg:w-80">
             <Sidebar
               showFilters={showFilters}
               setShowFilters={setShowFilters}
@@ -1058,7 +1058,7 @@ function AlgoliaSearchInner({
         )}
 
         {/* Main Content */}
-        <div className="w-full flex-1">
+        <div className="min-w-0 flex-1">
           {/* Search Results Header */}
           {(isSearching || searchResult) && (
             <div className="mb-6">

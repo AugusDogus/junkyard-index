@@ -59,7 +59,7 @@ export function Sidebar({
   return (
     <div>
       {showFilters && (
-        <div className="w-80 flex-shrink-0">
+        <div className="w-full flex-shrink-0">
           <Card className="max-h-[calc(100vh-3rem)] overflow-y-auto">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">

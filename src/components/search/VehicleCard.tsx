@@ -78,10 +78,9 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-4">
-        {/* Year Make Model */}
+      <CardContent className="flex-1 p-4">
         <div className="mb-3">
-          <h3 className="text-foreground text-lg font-semibold">
+          <h3 className="text-foreground truncate text-lg font-semibold">
             {vehicle.year} {vehicle.make} {vehicle.model}
           </h3>
           <p className="text-muted-foreground text-sm">
@@ -94,30 +93,28 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           )}
         </div>
 
-        {/* Vehicle Details */}
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Location:</span>
-            <span className="max-w-[65%] text-right text-xs">
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground shrink-0">Location:</span>
+            <span className="truncate text-right text-xs">
               {vehicle.locationName || "N/A"}
             </span>
           </div>
 
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">VIN:</span>
-            <span className="font-mono text-xs">{vehicle.vin || "N/A"}</span>
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground shrink-0">VIN:</span>
+            <span className="truncate font-mono text-xs">{vehicle.vin || "N/A"}</span>
           </div>
 
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Available:</span>
+          <div className="flex justify-between gap-2">
+            <span className="text-muted-foreground shrink-0">Available:</span>
             <span className="text-xs">{formatDate(vehicle.availableDate)}</span>
           </div>
         </div>
 
-        {/* Location */}
         <div className="text-muted-foreground mt-3 flex items-center text-sm">
-          <MapPin className="mr-1.5 h-4 w-4" />
-          <span>{geoLabel}</span>
+          <MapPin className="mr-1.5 h-4 w-4 shrink-0" />
+          <span className="truncate">{geoLabel}</span>
         </div>
       </CardContent>
 
