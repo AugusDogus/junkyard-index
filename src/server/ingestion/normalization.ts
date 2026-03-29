@@ -183,29 +183,32 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function matchCanonicalMake(value: string): string | null {
-  const comparable = normalizeComparableMake(value);
-  if (!comparable) return null;
+const COMPARABLE_CANONICAL_MAKES = new Map(
+  CANONICAL_MAKES.map((make) => [normalizeComparableMake(make), make] as const),
+);
 
-  for (const make of CANONICAL_MAKES) {
-    if (normalizeComparableMake(make) === comparable) {
-      return make;
-    }
-  }
-
-  return null;
-}
-
-function matchCanonicalMakePrefix(value: string): { make: string; end: number } | null {
-  const trimmed = value.trim();
-  for (const make of CANONICAL_MAKES) {
-    const pattern = new RegExp(
+const CANONICAL_MAKE_PREFIX_PATTERNS = [...CANONICAL_MAKES]
+  .sort((left, right) => right.length - left.length)
+  .map((make) => ({
+    make,
+    pattern: new RegExp(
       `^${make
         .split(/[-\s]+/)
         .map((part) => escapeRegex(part))
         .join("[-\\s]+")}(?:\\s+|$)`,
       "i",
-    );
+    ),
+  }));
+
+function matchCanonicalMake(value: string): string | null {
+  const comparable = normalizeComparableMake(value);
+  if (!comparable) return null;
+  return COMPARABLE_CANONICAL_MAKES.get(comparable) ?? null;
+}
+
+function matchCanonicalMakePrefix(value: string): { make: string; end: number } | null {
+  const trimmed = value.trim();
+  for (const { make, pattern } of CANONICAL_MAKE_PREFIX_PATTERNS) {
     const match = pattern.exec(trimmed);
     if (match) {
       return {
@@ -302,7 +305,7 @@ export function parseAutorecyclerMakeModel(rest: string): {
   const space = trimmed.indexOf(" ");
   if (space === -1) {
     const make = normalizeParsedMake(trimmed);
-    return { make, model: trimmed };
+    return { make, model: make };
   }
 
   const make = normalizeParsedMake(trimmed.slice(0, space));
