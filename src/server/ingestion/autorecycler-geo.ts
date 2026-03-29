@@ -106,9 +106,22 @@ export function parseOrgGeoFromOrganizationDoc(
 ): AutorecyclerOrgGeo | null {
   const want = expectedOrg.trim();
   if (want.length === 0) return null;
-  if (typeof doc._id !== "string" || doc._id.trim() !== want) return null;
   const src = doc._source;
   if (!isRecord(src)) return null;
+  const docId = typeof doc._id === "string" ? doc._id.trim() : "";
+  const parentOrg =
+    typeof src.parent_organization_custom_organization === "string"
+      ? src.parent_organization_custom_organization.trim()
+      : "";
+  const partnerOrgs = Array.isArray(src.partner_orgs_list_custom_organization)
+    ? src.partner_orgs_list_custom_organization
+    : [];
+  const hasPartnerOrg = partnerOrgs.some(
+    (value) => typeof value === "string" && value.trim() === want,
+  );
+  if (docId !== want && !hasPartnerOrg && parentOrg !== want) {
+    return null;
+  }
 
   const geoUnknown = src.address1_geographic_address;
   if (!isRecord(geoUnknown)) return null;
@@ -297,6 +310,7 @@ export function createAutorecyclerOrgGeoResolver() {
         Effect.tapError((e) =>
           Effect.logError(`[AutoRecycler geo] ${e.message}`),
         ),
+        Effect.catchAll(() => Effect.succeed({ docs: [] })),
       );
 
       const parsedFromOrganization =

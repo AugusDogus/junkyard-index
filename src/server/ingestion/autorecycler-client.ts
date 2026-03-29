@@ -151,13 +151,14 @@ async function fetchWithTimeout(
   }
 }
 
-export async function postAutorecyclerElasticsearchMsearch(
-  innerBody: AutorecyclerMsearchInner,
-): Promise<AutorecyclerMsearchResponse> {
+async function postAutorecyclerElasticsearch(
+  path: string,
+  innerBody: unknown,
+): Promise<unknown> {
   const encrypted = encryptBubbleObfuscatedBody(innerBody, AUTORECYCLER_BUBBLE_APP_NAME, {
     timestampMs: Date.now(),
   });
-  const url = `${AUTORECYCLER_ORIGIN}${MSSEARCH_PATH}`;
+  const url = `${AUTORECYCLER_ORIGIN}${path}`;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -184,15 +185,15 @@ export async function postAutorecyclerElasticsearchMsearch(
 
       if (!res.ok) {
         const text = await res.text();
-        const msg = `msearch HTTP ${res.status}: ${text.slice(0, 500)}`;
+        const endpoint = path.split("/").pop() ?? "request";
+        const msg = `${endpoint} HTTP ${res.status}: ${text.slice(0, 500)}`;
         if (!isRetryableStatus(res.status)) {
           throw new AutorecyclerNonRetryableHttpError(msg, res.status);
         }
         throw new Error(msg);
       }
 
-      const body = (await res.json()) as AutorecyclerMsearchResponse;
-      return body;
+      return await res.json();
     } catch (e) {
       if (isNonRetryableHttpClientError(e)) {
         throw e;
@@ -207,63 +208,22 @@ export async function postAutorecyclerElasticsearchMsearch(
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
+export async function postAutorecyclerElasticsearchMsearch(
+  innerBody: AutorecyclerMsearchInner,
+): Promise<AutorecyclerMsearchResponse> {
+  return (await postAutorecyclerElasticsearch(
+    MSSEARCH_PATH,
+    innerBody,
+  )) as AutorecyclerMsearchResponse;
+}
+
 export async function postAutorecyclerElasticsearchMget(
   innerBody: AutorecyclerMgetInner,
 ): Promise<AutorecyclerMgetResponse> {
-  const encrypted = encryptBubbleObfuscatedBody(
+  return (await postAutorecyclerElasticsearch(
+    MGET_PATH,
     innerBody,
-    AUTORECYCLER_BUBBLE_APP_NAME,
-    {
-      timestampMs: Date.now(),
-    },
-  );
-  const url = `${AUTORECYCLER_ORIGIN}${MGET_PATH}`;
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const res = await fetchWithTimeout(
-        url,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Origin: AUTORECYCLER_ORIGIN,
-            Referer: `${AUTORECYCLER_ORIGIN}/buy`,
-          },
-          body: JSON.stringify(encrypted),
-        },
-        FETCH_TIMEOUT_MS,
-      );
-
-      if (isRetryableStatus(res.status) && attempt < MAX_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * 2 ** attempt));
-        continue;
-      }
-
-      if (!res.ok) {
-        const text = await res.text();
-        const msg = `mget HTTP ${res.status}: ${text.slice(0, 500)}`;
-        if (!isRetryableStatus(res.status)) {
-          throw new AutorecyclerNonRetryableHttpError(msg, res.status);
-        }
-        throw new Error(msg);
-      }
-
-      return (await res.json()) as AutorecyclerMgetResponse;
-    } catch (e) {
-      if (isNonRetryableHttpClientError(e)) {
-        throw e;
-      }
-      lastError = e;
-      if (attempt < MAX_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * 2 ** attempt));
-      }
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  )) as AutorecyclerMgetResponse;
 }
 
 export async function fetchAutorecyclerInitDataForUrl(
