@@ -1,7 +1,10 @@
 "use client";
 
+import { Search } from "lucide-react";
 import Link from "next/link";
+import { Button } from "~/components/ui/button";
 import { ThemeToggle } from "~/components/theme/theme-toggle";
+import { useSearchVisibilityOptional } from "~/context/SearchVisibilityContext";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
 import {
   HeaderStatusIndicator,
@@ -14,6 +17,9 @@ interface HeaderContentProps {
 }
 
 export function HeaderContent({ user, statusData }: HeaderContentProps) {
+  const searchCtx = useSearchVisibilityOptional();
+  const showMobileSearch = searchCtx?.searchBarOffscreen ?? false;
+
   return (
     <header className="bg-card sticky top-0 z-50 border-b shadow-sm">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -25,13 +31,23 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
           </div>
           <div className="flex-1" />
           <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+            {showMobileSearch && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="sm:hidden"
+                aria-label="Search"
+                onClick={() => searchCtx?.scrollToSearch()}
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            )}
             {statusData && (
               <>
                 <HeaderStatusIndicator data={statusData} />
                 <div className="bg-border h-5 w-px" aria-hidden="true" />
               </>
             )}
-            {/* Theme toggle: always visible on desktop, only visible on mobile when logged out */}
             <div className={user ? "hidden sm:block" : ""}>
               <ThemeToggle />
             </div>
