@@ -41,6 +41,7 @@ interface MobileFiltersDrawerProps {
     min: number;
     max: number;
   };
+  iconOnly?: boolean;
 }
 
 export function MobileFiltersDrawer({
@@ -60,18 +61,21 @@ export function MobileFiltersDrawer({
   onSourcesChange,
   onYearRangeChange,
   yearRangeLimits,
+  iconOnly,
 }: MobileFiltersDrawerProps) {
   return (
     <Drawer>
       <DrawerTrigger asChild>
         <Button
           variant="outline"
+          size={iconOnly ? "sm" : "default"}
           className="flex items-center gap-2 bg-transparent"
+          aria-label={iconOnly ? `Filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}` : undefined}
         >
-          <Filter className="h-4 w-4" />
-          Filters
+          <Filter className={iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          {!iconOnly && "Filters"}
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className="ml-1 text-xs">
+            <Badge variant="secondary" className={iconOnly ? "text-[10px]" : "ml-1 text-xs"}>
               {activeFilterCount}
             </Badge>
           )}

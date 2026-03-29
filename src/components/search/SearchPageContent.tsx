@@ -53,7 +53,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile } from "~/hooks/use-media-query";
@@ -279,7 +278,7 @@ function DistancePreferenceDialog({
               inputMode="numeric"
               autoComplete="postal-code"
               maxLength={5}
-              placeholder="e.g. 32571"
+              placeholder="e.g. 90210"
               value={manualZipCode}
               onChange={(event) => onManualZipCodeChange(event.target.value)}
               disabled={isSubmitting}
@@ -1053,14 +1052,11 @@ function AlgoliaSearchInner({
 
                 {/* Filter buttons */}
                 {isMobile ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {isLoggedIn && <SavedSearchesDropdown />}
+                  <div className="flex items-center gap-1.5">
+                    {isLoggedIn && <SavedSearchesDropdown iconOnly />}
                     <Select value={sortBy} onValueChange={handleSortChange}>
                       <SelectTrigger size="sm" className="w-fit">
-                        <div className="flex items-center gap-2">
-                          <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
-                          <SelectValue />
-                        </div>
+                        <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="newest">Newest First</SelectItem>
@@ -1092,6 +1088,7 @@ function AlgoliaSearchInner({
                       isLoggedIn={isLoggedIn}
                       autoOpen={autoOpenSaveDialog}
                       onAutoOpenHandled={handleAutoOpenHandled}
+                      iconOnly
                     />
                     <MobileFiltersDrawer
                       activeFilterCount={activeFilterCount}
@@ -1110,6 +1107,7 @@ function AlgoliaSearchInner({
                       onSourcesChange={handleSourcesChange}
                       onYearRangeChange={handleYearRangeChange}
                       yearRangeLimits={{ min: yearMin, max: yearMax }}
+                      iconOnly
                     />
                   </div>
                 ) : (
