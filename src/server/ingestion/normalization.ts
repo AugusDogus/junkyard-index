@@ -195,6 +195,7 @@ const CANONICAL_MAKE_PREFIX_PATTERNS = [...CANONICAL_MAKES]
       "i",
     ),
   }));
+const MAX_MAKE_PARSE_INPUT_LENGTH = 100;
 
 function matchCanonicalMake(value: string): string | null {
   const comparable = normalizeComparableMake(value);
@@ -204,6 +205,9 @@ function matchCanonicalMake(value: string): string | null {
 
 function matchCanonicalMakePrefix(value: string): { make: string; end: number } | null {
   const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_MAKE_PARSE_INPUT_LENGTH) {
+    return null;
+  }
   for (const { make, pattern } of CANONICAL_MAKE_PREFIX_PATTERNS) {
     const match = pattern.exec(trimmed);
     if (match) {
