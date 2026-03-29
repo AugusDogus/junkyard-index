@@ -78,10 +78,15 @@ export function SettingsDashboard() {
       enabled: !!session?.user,
     });
 
-  const { data: locationPreference, isLoading: isLocationPreferenceLoading } =
-    api.user.getLocationPreference.useQuery(undefined, {
-      enabled: !!session?.user,
-    });
+  const {
+    data: locationPreference,
+    error: locationPreferenceError,
+    isError: isLocationPreferenceError,
+    isLoading: isLocationPreferenceLoading,
+    isSuccess: isLocationPreferenceSuccess,
+  } = api.user.getLocationPreference.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
 
   const disconnectMutation = api.user.disconnectDiscordApp.useMutation({
     onSuccess: () => {
@@ -177,13 +182,19 @@ export function SettingsDashboard() {
     notificationSettings?.discordAppInstalled;
 
   useEffect(() => {
-    if (!locationPreference?.hasPreference || !locationPreference.mode) {
+    if (!isLocationPreferenceSuccess) {
+      return;
+    }
+
+    if (!locationPreference.hasPreference || !locationPreference.mode) {
+      setLocationMode("auto");
+      setLocationZipCode("");
       return;
     }
 
     setLocationMode(locationPreference.mode);
     setLocationZipCode(locationPreference.zipCode ?? "");
-  }, [locationPreference]);
+  }, [isLocationPreferenceSuccess, locationPreference]);
 
   useEffect(() => {
     const discordInstalled = searchParams.get("discord_installed");
@@ -349,13 +360,23 @@ export function SettingsDashboard() {
     toggleEmailAlertsMutation.isPending ||
     toggleDiscordAlertsMutation.isPending ||
     deleteMutation.isPending;
-  const savedLocationMode = locationPreference?.mode ?? null;
-  const savedLocationZipCode = locationPreference?.zipCode ?? "";
-  const isLocationDirty =
-    locationMode !== savedLocationMode ||
-    (locationMode === "zip" &&
-      normalizeZipCode(locationZipCode) !==
-        normalizeZipCode(savedLocationZipCode));
+  const savedLocationMode = isLocationPreferenceSuccess
+    ? locationPreference.hasPreference && locationPreference.mode
+      ? locationPreference.mode
+      : "auto"
+    : null;
+  const savedLocationZipCode =
+    isLocationPreferenceSuccess &&
+    locationPreference.hasPreference &&
+    locationPreference.mode === "zip"
+      ? (locationPreference.zipCode ?? "")
+      : "";
+  const isLocationDirty = isLocationPreferenceSuccess
+    ? locationMode !== savedLocationMode ||
+      (locationMode === "zip" &&
+        normalizeZipCode(locationZipCode) !==
+          normalizeZipCode(savedLocationZipCode))
+    : false;
 
   return (
     <div className="space-y-6">
@@ -374,6 +395,11 @@ export function SettingsDashboard() {
         <CardContent className="space-y-4">
           {isLocationPreferenceLoading ? (
             <Skeleton className="h-28 w-full" />
+          ) : isLocationPreferenceError ? (
+            <p className="text-destructive text-sm">
+              {locationPreferenceError.message ||
+                "Could not load your saved search location right now."}
+            </p>
           ) : (
             <>
               <div className="grid gap-2 sm:grid-cols-2">
