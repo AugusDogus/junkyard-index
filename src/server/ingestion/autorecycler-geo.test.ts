@@ -1,10 +1,40 @@
 import { describe, expect, test } from "bun:test";
 import {
   parseOrgGeoFromDetailsInitData,
+  parseOrgGeoFromOrganizationDoc,
   parseOrgGeoFromWebsiteRecord,
 } from "./autorecycler-geo";
 
 describe("autorecycler geo", () => {
+  test("parseOrgGeoFromOrganizationDoc reads authoritative organization location data", () => {
+    const org = "1348695171700984260__LOOKUP__test";
+    const g = parseOrgGeoFromOrganizationDoc(
+      {
+        _id: org,
+        _type: "custom.organization",
+        _source: {
+          name_text: "Foss Winston-Salem",
+          address_city_text: "WINSTON-SALEM",
+          address1_geographic_address: {
+            lat: 36.0552047,
+            lng: -80.2069893,
+            address: "3459 Thomasville Rd, Winston-Salem, NC 27107, USA",
+            components: {
+              city: "Winston-Salem",
+              state: "North Carolina",
+              "state code": "NC",
+            },
+          },
+        },
+      },
+      org,
+    );
+    expect(g).not.toBeNull();
+    expect(g!.locationName).toBe("Foss Winston-Salem");
+    expect(g!.locationCity).toBe("Winston-Salem");
+    expect(g!.stateAbbr).toBe("NC");
+  });
+
   test("parseOrgGeoFromWebsiteRecord reads authoritative website location data", () => {
     const org = "1348695171700984260__LOOKUP__test";
     const g = parseOrgGeoFromWebsiteRecord(

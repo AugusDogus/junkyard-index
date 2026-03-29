@@ -4,9 +4,12 @@ import { autorecyclerOrgGeo } from "~/schema";
 import { AutorecyclerProviderError, PersistenceError } from "./errors";
 import { Database } from "./runtime";
 import {
+  buildMgetBody,
   buildWebsiteLookupMsearchBody,
   fetchAutorecyclerDetailsInitData,
+  postAutorecyclerElasticsearchMget,
   postAutorecyclerElasticsearchMsearch,
+  type AutorecyclerMgetDoc,
 } from "./autorecycler-client";
 import { normalizeRegion } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
@@ -71,6 +74,58 @@ export function parseOrgGeoFromWebsiteRecord(
   const stateAbbr =
     typeof components["state code"] === "string" ? components["state code"] : "";
   const city = typeof components.city === "string" ? components.city : "";
+  const address =
+    typeof geoUnknown.address === "string" ? geoUnknown.address : undefined;
+  const locationName =
+    typeof src.name_text === "string" && src.name_text.trim().length > 0
+      ? src.name_text.trim()
+      : "AutoRecycler";
+  const locationCity =
+    city && city.trim().length > 0
+      ? city.trim()
+      : address && address.length > 0
+        ? address.split(",")[0]!.trim()
+        : "Unknown";
+  const region = normalizeRegion(state, stateAbbr);
+
+  return {
+    orgLookup: want,
+    lat,
+    lng,
+    locationName,
+    locationCity,
+    state: region.state || "Unknown",
+    stateAbbr: region.stateAbbr,
+    address,
+  };
+}
+
+export function parseOrgGeoFromOrganizationDoc(
+  doc: AutorecyclerMgetDoc,
+  expectedOrg: string,
+): AutorecyclerOrgGeo | null {
+  const want = expectedOrg.trim();
+  if (want.length === 0) return null;
+  if (typeof doc._id !== "string" || doc._id.trim() !== want) return null;
+  const src = doc._source;
+  if (!isRecord(src)) return null;
+
+  const geoUnknown = src.address1_geographic_address;
+  if (!isRecord(geoUnknown)) return null;
+  const lat = geoUnknown.lat;
+  const lng = geoUnknown.lng;
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+
+  const components = isRecord(geoUnknown.components) ? geoUnknown.components : {};
+  const state = typeof components.state === "string" ? components.state : "";
+  const stateAbbr =
+    typeof components["state code"] === "string" ? components["state code"] : "";
+  const city =
+    typeof components.city === "string"
+      ? components.city
+      : typeof src.address_city_text === "string"
+        ? src.address_city_text
+        : "";
   const address =
     typeof geoUnknown.address === "string" ? geoUnknown.address : undefined;
   const locationName =
@@ -227,6 +282,70 @@ export function createAutorecyclerOrgGeoResolver() {
       }
 
       geoFetches++;
+
+      const mget = yield* Effect.tryPromise({
+        try: () => postAutorecyclerElasticsearchMget(buildMgetBody([inventoryIdSeed])),
+        catch: (cause) =>
+          new AutorecyclerProviderError({
+            from: -1,
+            cause: new Error(
+              `details mget inventoryId=${inventoryIdSeed}: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { cause },
+            ),
+          }),
+      }).pipe(
+        Effect.tapError((e) =>
+          Effect.logError(`[AutoRecycler geo] ${e.message}`),
+        ),
+      );
+
+      const parsedFromOrganization =
+        mget.docs
+          ?.map((doc) => parseOrgGeoFromOrganizationDoc(doc, orgLookup))
+          .find((value) => value !== null) ?? null;
+      if (parsedFromOrganization) {
+        const now = new Date();
+        yield* Effect.tryPromise({
+          try: () =>
+            dbClient
+              .insert(autorecyclerOrgGeo)
+              .values({
+                orgLookup: parsedFromOrganization.orgLookup,
+                lat: parsedFromOrganization.lat,
+                lng: parsedFromOrganization.lng,
+                locationName: parsedFromOrganization.locationName,
+                locationCity: parsedFromOrganization.locationCity,
+                state: parsedFromOrganization.state,
+                stateAbbr: parsedFromOrganization.stateAbbr,
+                address: parsedFromOrganization.address ?? null,
+                updatedAt: now,
+              })
+              .onConflictDoUpdate({
+                target: autorecyclerOrgGeo.orgLookup,
+                set: {
+                  lat: sql`excluded.lat`,
+                  lng: sql`excluded.lng`,
+                  locationName: sql`excluded.location_name`,
+                  locationCity: sql`excluded.location_city`,
+                  state: sql`excluded.state`,
+                  stateAbbr: sql`excluded.state_abbr`,
+                  address: sql`excluded.address`,
+                  updatedAt: sql`excluded.updated_at`,
+                },
+              }),
+          catch: (cause) =>
+            new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
+        }).pipe(
+          Effect.tapError((e) =>
+            Effect.logError(
+              `[AutoRecycler geo] DB upsert failed for org=${orgLookup}: ${e.message}`,
+            ),
+          ),
+        );
+
+        memory.set(orgLookup, parsedFromOrganization);
+        return parsedFromOrganization;
+      }
 
       const website = yield* Effect.tryPromise({
         try: async () => {
