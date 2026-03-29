@@ -236,11 +236,12 @@ export function normalizeRegion(
   }
 
   if (rawStateAbbr.length > 0) {
+    const hasKnownStateAbbr = REGION_ABBR_TO_NAME.has(rawStateAbbr);
     return {
       state:
         REGION_ABBR_TO_NAME.get(rawStateAbbr) ??
         (rawState || rawStateAbbr),
-      stateAbbr: rawStateAbbr,
+      stateAbbr: hasKnownStateAbbr ? rawStateAbbr : "",
     };
   }
 
