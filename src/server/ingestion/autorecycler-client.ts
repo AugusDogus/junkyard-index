@@ -6,10 +6,17 @@ import msearchTemplate from "./fixtures/msearch-inventory-page-template.json";
 
 export const AUTORECYCLER_ORIGIN = "https://app.autorecycler.io";
 
+const MGET_PATH = "/elasticsearch/mget";
 const MSSEARCH_PATH = "/elasticsearch/msearch";
 const FETCH_TIMEOUT_MS = 45_000;
 const MAX_RETRIES = 4;
 const RETRY_BASE_MS = 400;
+
+export type AutorecyclerMgetInner = {
+  appname: string;
+  app_version: string;
+  ids: string[];
+};
 
 export type AutorecyclerMsearchInner = {
   appname: string;
@@ -26,6 +33,17 @@ export type AutorecyclerMsearchResponse = {
     hits?: { hits?: AutorecyclerMsearchHit[]; total?: number | string };
     at_end?: boolean;
   }>;
+};
+
+export type AutorecyclerMgetDoc = {
+  _id?: string;
+  _type?: string;
+  _source?: Record<string, unknown>;
+  found?: boolean;
+};
+
+export type AutorecyclerMgetResponse = {
+  docs?: AutorecyclerMgetDoc[];
 };
 
 export type AutorecyclerInitDataRow = {
@@ -86,6 +104,14 @@ export function buildWebsiteLookupMsearchBody(
   search.from = 0;
   search.n = 1;
   return inner;
+}
+
+export function buildMgetBody(ids: string[]): AutorecyclerMgetInner {
+  return {
+    appname: AUTORECYCLER_BUBBLE_APP_NAME,
+    app_version: "live",
+    ids,
+  };
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -167,6 +193,65 @@ export async function postAutorecyclerElasticsearchMsearch(
 
       const body = (await res.json()) as AutorecyclerMsearchResponse;
       return body;
+    } catch (e) {
+      if (isNonRetryableHttpClientError(e)) {
+        throw e;
+      }
+      lastError = e;
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * 2 ** attempt));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+export async function postAutorecyclerElasticsearchMget(
+  innerBody: AutorecyclerMgetInner,
+): Promise<AutorecyclerMgetResponse> {
+  const encrypted = encryptBubbleObfuscatedBody(
+    innerBody,
+    AUTORECYCLER_BUBBLE_APP_NAME,
+    {
+      timestampMs: Date.now(),
+    },
+  );
+  const url = `${AUTORECYCLER_ORIGIN}${MGET_PATH}`;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetchWithTimeout(
+        url,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Origin: AUTORECYCLER_ORIGIN,
+            Referer: `${AUTORECYCLER_ORIGIN}/buy`,
+          },
+          body: JSON.stringify(encrypted),
+        },
+        FETCH_TIMEOUT_MS,
+      );
+
+      if (isRetryableStatus(res.status) && attempt < MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * 2 ** attempt));
+        continue;
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        const msg = `mget HTTP ${res.status}: ${text.slice(0, 500)}`;
+        if (!isRetryableStatus(res.status)) {
+          throw new AutorecyclerNonRetryableHttpError(msg, res.status);
+        }
+        throw new Error(msg);
+      }
+
+      return (await res.json()) as AutorecyclerMgetResponse;
     } catch (e) {
       if (isNonRetryableHttpClientError(e)) {
         throw e;
