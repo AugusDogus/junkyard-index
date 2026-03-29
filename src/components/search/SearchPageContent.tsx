@@ -181,6 +181,17 @@ function saveLocalLocationPreference(preference: StoredLocationPreference) {
   );
 }
 
+function isUsableLocationPreference(
+  preference: StoredLocationPreference | null | undefined,
+): preference is StoredLocationPreference {
+  return (
+    preference?.mode === "auto" ||
+    (preference?.mode === "zip" &&
+      preference.zipCode !== null &&
+      hasFiniteCoordinates(preference))
+  );
+}
+
 interface DistancePreferenceDialogProps {
   open: boolean;
   manualZipCode: string;
@@ -237,7 +248,7 @@ function DistancePreferenceDialog({
             </div>
             <div>
               <p className="text-sm font-medium">Automatic</p>
-              <p className="text-muted-foreground text-pretty text-xs">
+              <p className="text-muted-foreground text-xs text-pretty">
                 Approximate location based on your IP address
               </p>
             </div>
@@ -266,7 +277,7 @@ function DistancePreferenceDialog({
             </div>
             <div>
               <p className="text-sm font-medium">ZIP Code</p>
-              <p className="text-muted-foreground text-pretty text-xs">
+              <p className="text-muted-foreground text-xs text-pretty">
                 Enter a ZIP code for precise distance results
               </p>
             </div>
@@ -457,20 +468,29 @@ function AlgoliaSearchInner({
     hasLoadedLocalLocationPreference && !isAccountLocationPreferenceLoading;
 
   const effectiveLocationPreference = useMemo(() => {
-    if (
-      accountLocationPreference?.hasPreference &&
-      accountLocationPreference.mode
-    ) {
-      return {
-        mode: accountLocationPreference.mode,
-        zipCode: accountLocationPreference.zipCode,
-        lat: accountLocationPreference.lat,
-        lng: accountLocationPreference.lng,
-      } satisfies StoredLocationPreference;
+    const accountPreference =
+      accountLocationPreference?.hasPreference && accountLocationPreference.mode
+        ? ({
+            mode: accountLocationPreference.mode,
+            zipCode: accountLocationPreference.zipCode,
+            lat: accountLocationPreference.lat,
+            lng: accountLocationPreference.lng,
+          } satisfies StoredLocationPreference)
+        : null;
+
+    if (isUsableLocationPreference(accountPreference)) {
+      return accountPreference;
     }
 
-    return localLocationPreference;
+    if (isUsableLocationPreference(localLocationPreference)) {
+      return localLocationPreference;
+    }
+
+    return null;
   }, [accountLocationPreference, localLocationPreference]);
+  const hasUsableLocationPreference = isUsableLocationPreference(
+    effectiveLocationPreference,
+  );
 
   const isDistanceSort = sortBy === "distance";
   const shouldUseBrowserFallback =
@@ -571,8 +591,15 @@ function AlgoliaSearchInner({
       };
     }
 
+    if (
+      effectiveLocationPreference?.mode === "auto" &&
+      hasValidCoordinates(browserLocation)
+    ) {
+      return browserLocation;
+    }
+
     return undefined;
-  }, [effectiveLocationPreference]);
+  }, [browserLocation, effectiveLocationPreference]);
   // ── Derived state ──────────────────────────────────────────────────────
 
   // Map Algolia hits to search-display vehicles.
@@ -721,12 +748,12 @@ function AlgoliaSearchInner({
           lng: null,
         };
 
-        saveLocalLocationPreference(preference);
-        setLocalLocationPreference(preference);
-
         if (isLoggedIn) {
           await updateLocationPreferenceMutation.mutateAsync({ mode: "auto" });
         }
+
+        saveLocalLocationPreference(preference);
+        setLocalLocationPreference(preference);
 
         return;
       }
@@ -808,7 +835,7 @@ function AlgoliaSearchInner({
           return;
         }
 
-        if (!effectiveLocationPreference) {
+        if (!hasUsableLocationPreference) {
           setSelectedDistanceMode("auto");
           setManualZipCode("");
           setPendingDistanceSort(true);
@@ -821,7 +848,7 @@ function AlgoliaSearchInner({
       refineSortBy(KEY_TO_INDEX[value] ?? ALGOLIA_INDEX_NAME);
     },
     [
-      effectiveLocationPreference,
+      hasUsableLocationPreference,
       locationPreferenceReady,
       refineSortBy,
       setManualZipCode,
@@ -915,7 +942,7 @@ function AlgoliaSearchInner({
       return;
     }
 
-    if (sortBy !== "distance" || effectiveLocationPreference) {
+    if (sortBy !== "distance" || hasUsableLocationPreference) {
       return;
     }
 
@@ -925,7 +952,7 @@ function AlgoliaSearchInner({
     setShowDistancePreferenceDialog(true);
     refineSortBy(ALGOLIA_INDEX_NAME);
   }, [
-    effectiveLocationPreference,
+    hasUsableLocationPreference,
     locationPreferenceReady,
     refineSortBy,
     sortBy,
@@ -962,7 +989,9 @@ function AlgoliaSearchInner({
       ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
       : undefined;
   const useAlgoliaIpLocation =
-    isDistanceSort && effectiveLocationPreference?.mode === "auto";
+    isDistanceSort &&
+    effectiveLocationPreference?.mode === "auto" &&
+    !resolvedUserLocation;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
@@ -1059,17 +1088,11 @@ function AlgoliaSearchInner({
                         <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="newest">Newest First</SelectItem>
-                        <SelectItem value="oldest">Oldest First</SelectItem>
-                        <SelectItem value="year-desc">
-                          Year (High to Low)
-                        </SelectItem>
-                        <SelectItem value="year-asc">
-                          Year (Low to High)
-                        </SelectItem>
-                        <SelectItem value="distance">
-                          Distance (Nearest)
-                        </SelectItem>
+                        {SORT_OPTIONS.map(({ key, label }) => (
+                          <SelectItem key={key} value={key}>
+                            {label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <SaveSearchDialog
@@ -1147,7 +1170,6 @@ function AlgoliaSearchInner({
                   <span>Results in {processingTimeMS}ms</span>
                 </div>
               ) : null}
-
             </div>
           )}
 

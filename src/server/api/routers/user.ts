@@ -24,62 +24,75 @@ async function resolveZipCode(zipCode: string) {
     });
   }
 
-  const response = await fetch(
-    `https://api.zippopotam.us/us/${normalizedZipCode}`,
-    {
-      signal: AbortSignal.timeout(5000),
-      headers: { Accept: "application/json" },
-    },
-  );
+  try {
+    const response = await fetch(
+      `https://api.zippopotam.us/us/${normalizedZipCode}`,
+      {
+        signal: AbortSignal.timeout(5000),
+        headers: { Accept: "application/json" },
+      },
+    );
 
-  if (response.status === 404) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Enter a valid 5-digit US ZIP code.",
-    });
-  }
+    if (response.status === 404) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Enter a valid 5-digit US ZIP code.",
+      });
+    }
 
-  if (!response.ok) {
+    if (!response.ok) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not verify that ZIP code right now.",
+      });
+    }
+
+    const data = (await response.json()) as {
+      places?: Array<{
+        latitude?: string;
+        longitude?: string;
+        "place name"?: string;
+        state?: string;
+        "state abbreviation"?: string;
+      }>;
+    };
+
+    const place = data.places?.[0];
+    const lat = place?.latitude
+      ? Number.parseFloat(place.latitude)
+      : Number.NaN;
+    const lng = place?.longitude
+      ? Number.parseFloat(place.longitude)
+      : Number.NaN;
+
+    if (!place || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not verify that ZIP code right now.",
+      });
+    }
+
+    return {
+      zipCode: normalizedZipCode,
+      lat,
+      lng,
+      city: place["place name"] ?? "",
+      state: place.state ?? "",
+      stateAbbr: place["state abbreviation"] ?? "",
+      label: [place["place name"], place["state abbreviation"]]
+        .filter(Boolean)
+        .join(", "),
+    };
+  } catch (error) {
+    if (error instanceof TRPCError) {
+      throw error;
+    }
+
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
       message: "Could not verify that ZIP code right now.",
     });
   }
-
-  const data = (await response.json()) as {
-    places?: Array<{
-      latitude?: string;
-      longitude?: string;
-      "place name"?: string;
-      state?: string;
-      "state abbreviation"?: string;
-    }>;
-  };
-
-  const place = data.places?.[0];
-  const lat = place?.latitude ? Number.parseFloat(place.latitude) : Number.NaN;
-  const lng = place?.longitude
-    ? Number.parseFloat(place.longitude)
-    : Number.NaN;
-
-  if (!place || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Could not verify that ZIP code right now.",
-    });
-  }
-
-  return {
-    zipCode: normalizedZipCode,
-    lat,
-    lng,
-    city: place["place name"] ?? "",
-    state: place.state ?? "",
-    stateAbbr: place["state abbreviation"] ?? "",
-    label: [place["place name"], place["state abbreviation"]]
-      .filter(Boolean)
-      .join(", "),
-  };
 }
 
 function toLocationPreference(
