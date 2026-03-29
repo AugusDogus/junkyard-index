@@ -279,7 +279,7 @@ function DistancePreferenceDialog({
  */
 function AlgoliaSearchInner({
   isLoggedIn,
-  userLocation,
+  userLocation: _userLocation,
 }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
@@ -452,7 +452,6 @@ function AlgoliaSearchInner({
   const shouldUseBrowserFallback =
     isDistanceSort &&
     effectiveLocationPreference?.mode === "auto" &&
-    !hasValidCoordinates(userLocation) &&
     !hasValidCoordinates(browserLocation);
 
   useEffect(() => {
@@ -503,18 +502,8 @@ function AlgoliaSearchInner({
       };
     }
 
-    if (effectiveLocationPreference?.mode === "auto") {
-      if (hasValidCoordinates(userLocation)) {
-        return userLocation;
-      }
-
-      if (hasValidCoordinates(browserLocation)) {
-        return browserLocation;
-      }
-    }
-
     return undefined;
-  }, [browserLocation, effectiveLocationPreference, userLocation]);
+  }, [effectiveLocationPreference]);
   const distanceLocationDebug = useMemo(() => {
     if (!isDistanceSort) {
       return null;
@@ -535,27 +524,14 @@ function AlgoliaSearchInner({
 
     if (
       effectiveLocationPreference?.mode === "auto" &&
-      hasValidCoordinates(userLocation)
-    ) {
-      return {
-        sourceLabel: "Automatic detection via Vercel IP",
-        detail: `Using server coordinates ${formatCoordinates(
-          userLocation.lat,
-          userLocation.lng,
-        )}.`,
-      };
-    }
-
-    if (
-      effectiveLocationPreference?.mode === "auto" &&
       hasValidCoordinates(browserLocation)
     ) {
       return {
-        sourceLabel: "Automatic detection via browser geolocation",
-        detail: `Using browser coordinates ${formatCoordinates(
+        sourceLabel: "Automatic detection fallback available",
+        detail: `Browser geolocation is available at ${formatCoordinates(
           browserLocation.lat,
           browserLocation.lng,
-        )}.`,
+        )}. Current sorting still uses Algolia IP first.`,
       };
     }
 
@@ -563,7 +539,7 @@ function AlgoliaSearchInner({
       return {
         sourceLabel: "Automatic detection via Algolia IP",
         detail:
-          "Using Algolia IP-based location. Exact coordinates are not exposed to the browser.",
+          "Using Algolia IP-based location first. Exact coordinates are not exposed to the browser.",
       };
     }
 
@@ -571,12 +547,7 @@ function AlgoliaSearchInner({
       sourceLabel: "Distance location not configured",
       detail: "Choose a location source to sort by distance accurately.",
     };
-  }, [
-    browserLocation,
-    effectiveLocationPreference,
-    isDistanceSort,
-    userLocation,
-  ]);
+  }, [browserLocation, effectiveLocationPreference, isDistanceSort]);
 
   useEffect(() => {
     if (!distanceLocationDebug) {
@@ -588,7 +559,6 @@ function AlgoliaSearchInner({
       detail: distanceLocationDebug.detail,
       resolvedUserLocation,
       preference: effectiveLocationPreference,
-      hasServerLocation: hasValidCoordinates(userLocation),
       hasBrowserLocation: hasValidCoordinates(browserLocation),
     });
   }, [
@@ -596,7 +566,6 @@ function AlgoliaSearchInner({
     distanceLocationDebug,
     effectiveLocationPreference,
     resolvedUserLocation,
-    userLocation,
   ]);
 
   // ── Derived state ──────────────────────────────────────────────────────
@@ -988,9 +957,7 @@ function AlgoliaSearchInner({
       ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
       : undefined;
   const useAlgoliaIpLocation =
-    isDistanceSort &&
-    effectiveLocationPreference?.mode === "auto" &&
-    !resolvedUserLocation;
+    isDistanceSort && effectiveLocationPreference?.mode === "auto";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
