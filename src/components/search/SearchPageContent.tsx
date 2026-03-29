@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowUpDown,
   Calendar,
+  LocateFixed,
   MapPin,
   Search,
 } from "lucide-react";
@@ -37,7 +38,6 @@ import {
   SearchSummary,
 } from "~/components/search/SearchResults";
 import { Sidebar } from "~/components/search/Sidebar";
-import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -48,7 +48,6 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -68,6 +67,7 @@ import {
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { api } from "~/trpc/react";
 
@@ -182,10 +182,6 @@ function saveLocalLocationPreference(preference: StoredLocationPreference) {
   );
 }
 
-function formatCoordinates(lat: number, lng: number): string {
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-}
-
 interface DistancePreferenceDialogProps {
   open: boolean;
   manualZipCode: string;
@@ -209,64 +205,91 @@ function DistancePreferenceDialog({
 }: DistancePreferenceDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Choose Distance Location</DialogTitle>
-          <DialogDescription>
-            Distance sorting needs a location. Choose automatic detection or
-            enter a ZIP code. You can update this later from Settings.
+          <DialogTitle>Distance Location</DialogTitle>
+          <DialogDescription className="text-pretty">
+            Choose how to determine your location when sorting by distance. You
+            can change this anytime in Settings.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
-          <Button
+          <button
             type="button"
-            variant={selectedMode === "auto" ? "default" : "outline"}
-            className="justify-start"
             onClick={() => onModeChange("auto")}
             disabled={isSubmitting}
+            className={cn(
+              "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+              selectedMode === "auto"
+                ? "border-primary bg-primary/5"
+                : "hover:border-muted-foreground/25",
+            )}
           >
-            Use Automatic Detection
-          </Button>
-          <p className="text-muted-foreground text-sm">
-            Automatic detection tries your saved server location first, then
-            search IP detection, then browser geolocation if needed.
-          </p>
+            <div
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-md",
+                selectedMode === "auto"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              <LocateFixed className="size-4" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Automatic</p>
+              <p className="text-muted-foreground text-pretty text-xs">
+                Approximate location based on your IP address
+              </p>
+            </div>
+          </button>
 
-          <Button
+          <button
             type="button"
-            variant={selectedMode === "zip" ? "default" : "outline"}
-            className="justify-start"
             onClick={() => onModeChange("zip")}
             disabled={isSubmitting}
+            className={cn(
+              "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+              selectedMode === "zip"
+                ? "border-primary bg-primary/5"
+                : "hover:border-muted-foreground/25",
+            )}
           >
-            Enter ZIP Code
-          </Button>
+            <div
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-md",
+                selectedMode === "zip"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              <MapPin className="size-4" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">ZIP Code</p>
+              <p className="text-muted-foreground text-pretty text-xs">
+                Enter a ZIP code for precise distance results
+              </p>
+            </div>
+          </button>
 
           {selectedMode === "zip" && (
-            <div className="grid gap-2">
-              <Label htmlFor="distance-zip-code">ZIP Code</Label>
-              <Input
-                id="distance-zip-code"
-                inputMode="numeric"
-                autoComplete="postal-code"
-                maxLength={5}
-                placeholder="32571"
-                value={manualZipCode}
-                onChange={(event) => onManualZipCodeChange(event.target.value)}
-                disabled={isSubmitting}
-              />
-            </div>
+            <Input
+              id="distance-zip-code"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              maxLength={5}
+              placeholder="e.g. 32571"
+              value={manualZipCode}
+              onChange={(event) => onManualZipCodeChange(event.target.value)}
+              disabled={isSubmitting}
+            />
           )}
         </div>
 
         <DialogFooter>
           <Button onClick={onConfirm} disabled={isSubmitting}>
-            {isSubmitting
-              ? "Saving..."
-              : selectedMode === "auto"
-                ? "Use Automatic Detection"
-                : "Save ZIP Code"}
+            {isSubmitting ? "Saving..." : "Continue"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -551,79 +574,6 @@ function AlgoliaSearchInner({
 
     return undefined;
   }, [effectiveLocationPreference]);
-  const distanceLocationDebug = useMemo(() => {
-    if (!isDistanceSort) {
-      return null;
-    }
-
-    if (
-      effectiveLocationPreference?.mode === "zip" &&
-      hasFiniteCoordinates(effectiveLocationPreference)
-    ) {
-      return {
-        sourceLabel: `Saved ZIP ${effectiveLocationPreference.zipCode}`,
-        detail: `Using ZIP coordinates ${formatCoordinates(
-          effectiveLocationPreference.lat,
-          effectiveLocationPreference.lng,
-        )}.`,
-      };
-    }
-
-    if (
-      effectiveLocationPreference?.mode === "auto" &&
-      hasValidCoordinates(browserLocation)
-    ) {
-      return {
-        sourceLabel: "Automatic detection fallback available",
-        detail: `Browser geolocation is available at ${formatCoordinates(
-          browserLocation.lat,
-          browserLocation.lng,
-        )}. Current sorting still uses Algolia IP first.`,
-      };
-    }
-
-    if (effectiveLocationPreference?.mode === "auto") {
-      return {
-        sourceLabel: "Automatic detection via Algolia IP",
-        detail:
-          browserGeolocationPermission === "prompt"
-            ? "Using Algolia IP-based location first. Browser geolocation has not been requested."
-            : "Using Algolia IP-based location first. Exact coordinates are not exposed to the browser.",
-      };
-    }
-
-    return {
-      sourceLabel: "Distance location not configured",
-      detail: "Choose a location source to sort by distance accurately.",
-    };
-  }, [
-    browserGeolocationPermission,
-    browserLocation,
-    effectiveLocationPreference,
-    isDistanceSort,
-  ]);
-
-  useEffect(() => {
-    if (!distanceLocationDebug) {
-      return;
-    }
-
-    console.info("[Distance location]", {
-      source: distanceLocationDebug.sourceLabel,
-      detail: distanceLocationDebug.detail,
-      resolvedUserLocation,
-      preference: effectiveLocationPreference,
-      browserGeolocationPermission,
-      hasBrowserLocation: hasValidCoordinates(browserLocation),
-    });
-  }, [
-    browserGeolocationPermission,
-    browserLocation,
-    distanceLocationDebug,
-    effectiveLocationPreference,
-    resolvedUserLocation,
-  ]);
-
   // ── Derived state ──────────────────────────────────────────────────────
 
   // Map Algolia hits to search-display vehicles.
@@ -1200,19 +1150,6 @@ function AlgoliaSearchInner({
                 </div>
               ) : null}
 
-              {distanceLocationDebug && (
-                <Alert className="mb-6">
-                  <MapPin />
-                  <AlertTitle>{distanceLocationDebug.sourceLabel}</AlertTitle>
-                  <AlertDescription>
-                    <p>{distanceLocationDebug.detail}</p>
-                    <p>
-                      Open devtools console and look for `[Distance location]`
-                      for the full debug object.
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
           )}
 
