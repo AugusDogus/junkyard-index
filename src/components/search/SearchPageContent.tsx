@@ -297,9 +297,19 @@ function AlgoliaSearchInner({
   }
   const yearRange: [number, number] = [
     routeMinYear ??
-      (Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin),
+      clampRouteYear(
+        Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin,
+        yearMin,
+        yearMax,
+      ) ??
+      yearMin,
     routeMaxYear ??
-      (Number.isFinite(yearStart[1]) ? (yearStart[1] as number) : yearMax),
+      clampRouteYear(
+        Number.isFinite(yearStart[1]) ? (yearStart[1] as number) : yearMax,
+        yearMin,
+        yearMax,
+      ) ??
+      yearMax,
   ];
   const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
