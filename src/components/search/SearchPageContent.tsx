@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertCircle, Search } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowUpDown,
+  Calendar,
+  MapPin,
+  Search,
+} from "lucide-react";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -32,15 +38,36 @@ import {
 } from "~/components/search/SearchResults";
 import { Sidebar } from "~/components/search/Sidebar";
 import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import {
+  hasFiniteCoordinates,
+  LOCATION_PREFERENCE_STORAGE_KEY,
+  normalizeZipCode,
+  parseStoredLocationPreference,
+  type StoredLocationPreference,
+} from "~/lib/location-preferences";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
-import type {
-  DataSource,
-  SearchResult as SearchResultType,
-} from "~/lib/types";
+import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { api } from "~/trpc/react";
 
 // Module-level sort options — single source of truth for all sort mappings.
@@ -99,6 +126,149 @@ interface SearchPageContentProps {
   userLocation?: { lat: number; lng: number };
 }
 
+function hasValidCoordinates(
+  value: SearchPageContentProps["userLocation"],
+): value is { lat: number; lng: number } {
+  return Boolean(
+    value &&
+    Number.isFinite(value.lat) &&
+    Number.isFinite(value.lng) &&
+    Math.abs(value.lat) <= 90 &&
+    Math.abs(value.lng) <= 180,
+  );
+}
+
+function getSortIcon(sortOption: string) {
+  switch (sortOption) {
+    case "newest":
+    case "oldest":
+      return Calendar;
+    case "year-desc":
+    case "year-asc":
+      return ArrowUpDown;
+    case "distance":
+      return MapPin;
+    default:
+      return ArrowUpDown;
+  }
+}
+
+function loadLocalLocationPreference(): StoredLocationPreference | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOCATION_PREFERENCE_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    return parseStoredLocationPreference(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalLocationPreference(preference: StoredLocationPreference) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    LOCATION_PREFERENCE_STORAGE_KEY,
+    JSON.stringify(preference),
+  );
+}
+
+interface DistancePreferenceDialogProps {
+  open: boolean;
+  manualZipCode: string;
+  selectedMode: "auto" | "zip";
+  isSubmitting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onModeChange: (mode: "auto" | "zip") => void;
+  onManualZipCodeChange: (value: string) => void;
+  onConfirm: () => void;
+}
+
+function DistancePreferenceDialog({
+  open,
+  manualZipCode,
+  selectedMode,
+  isSubmitting,
+  onOpenChange,
+  onModeChange,
+  onManualZipCodeChange,
+  onConfirm,
+}: DistancePreferenceDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Choose Distance Location</DialogTitle>
+          <DialogDescription>
+            Distance sorting needs a location. Choose automatic detection or
+            enter a ZIP code. You can update this later from Settings.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-3">
+          <Button
+            type="button"
+            variant={selectedMode === "auto" ? "default" : "outline"}
+            className="justify-start"
+            onClick={() => onModeChange("auto")}
+            disabled={isSubmitting}
+          >
+            Use Automatic Detection
+          </Button>
+          <p className="text-muted-foreground text-sm">
+            Automatic detection tries your saved server location first, then
+            search IP detection, then browser geolocation if needed.
+          </p>
+
+          <Button
+            type="button"
+            variant={selectedMode === "zip" ? "default" : "outline"}
+            className="justify-start"
+            onClick={() => onModeChange("zip")}
+            disabled={isSubmitting}
+          >
+            Enter ZIP Code
+          </Button>
+
+          {selectedMode === "zip" && (
+            <div className="grid gap-2">
+              <Label htmlFor="distance-zip-code">ZIP Code</Label>
+              <Input
+                id="distance-zip-code"
+                inputMode="numeric"
+                autoComplete="postal-code"
+                maxLength={5}
+                placeholder="32571"
+                value={manualZipCode}
+                onChange={(event) => onManualZipCodeChange(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button onClick={onConfirm} disabled={isSubmitting}>
+            {isSubmitting
+              ? "Saving..."
+              : selectedMode === "auto"
+                ? "Use Automatic Detection"
+                : "Save ZIP Code"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /**
  * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
  */
@@ -109,6 +279,41 @@ function AlgoliaSearchInner({
   const currentYear = new Date().getFullYear();
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
+  const [localLocationPreference, setLocalLocationPreference] =
+    useState<StoredLocationPreference | null>(null);
+  const [
+    hasLoadedLocalLocationPreference,
+    setHasLoadedLocalLocationPreference,
+  ] = useState(false);
+  const [browserLocation, setBrowserLocation] =
+    useState<SearchPageContentProps["userLocation"]>();
+  const [showDistancePreferenceDialog, setShowDistancePreferenceDialog] =
+    useState(false);
+  const [pendingDistanceSort, setPendingDistanceSort] = useState(false);
+  const [selectedDistanceMode, setSelectedDistanceMode] = useState<
+    "auto" | "zip"
+  >("auto");
+  const [manualZipCode, setManualZipCode] = useState("");
+
+  const utils = api.useUtils();
+  const {
+    data: accountLocationPreference,
+    isLoading: isAccountLocationPreferenceLoading,
+  } = api.user.getLocationPreference.useQuery(undefined, {
+    retry: false,
+  });
+  const resolveZipCodeMutation = api.user.resolveZipCode.useMutation();
+  const updateLocationPreferenceMutation =
+    api.user.updateLocationPreference.useMutation({
+      onSuccess: async () => {
+        await utils.user.getLocationPreference.invalidate();
+      },
+    });
+
+  useEffect(() => {
+    setLocalLocationPreference(loadLocalLocationPreference());
+    setHasLoadedLocalLocationPreference(true);
+  }, []);
 
   // Prefetch saved searches
   api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
@@ -218,6 +423,93 @@ function AlgoliaSearchInner({
     () => INDEX_TO_KEY[currentSortIndex] ?? "newest",
     [currentSortIndex],
   );
+  const SortIcon = getSortIcon(sortBy);
+  const locationPreferenceReady =
+    hasLoadedLocalLocationPreference && !isAccountLocationPreferenceLoading;
+
+  const effectiveLocationPreference = useMemo(() => {
+    if (
+      accountLocationPreference?.hasPreference &&
+      accountLocationPreference.mode
+    ) {
+      return {
+        mode: accountLocationPreference.mode,
+        zipCode: accountLocationPreference.zipCode,
+        lat: accountLocationPreference.lat,
+        lng: accountLocationPreference.lng,
+      } satisfies StoredLocationPreference;
+    }
+
+    return localLocationPreference;
+  }, [accountLocationPreference, localLocationPreference]);
+
+  const isDistanceSort = sortBy === "distance";
+  const shouldUseBrowserFallback =
+    isDistanceSort &&
+    effectiveLocationPreference?.mode === "auto" &&
+    !hasValidCoordinates(userLocation) &&
+    !hasValidCoordinates(browserLocation);
+
+  useEffect(() => {
+    if (!shouldUseBrowserFallback) {
+      return;
+    }
+
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (cancelled) return;
+          setBrowserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        () => {
+          if (cancelled) return;
+          setBrowserLocation(undefined);
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 5000,
+          maximumAge: 15 * 60 * 1000,
+        },
+      );
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [shouldUseBrowserFallback]);
+
+  const resolvedUserLocation = useMemo(() => {
+    if (
+      effectiveLocationPreference?.mode === "zip" &&
+      hasFiniteCoordinates(effectiveLocationPreference)
+    ) {
+      return {
+        lat: effectiveLocationPreference.lat,
+        lng: effectiveLocationPreference.lng,
+      };
+    }
+
+    if (effectiveLocationPreference?.mode === "auto") {
+      if (hasValidCoordinates(userLocation)) {
+        return userLocation;
+      }
+
+      if (hasValidCoordinates(browserLocation)) {
+        return browserLocation;
+      }
+    }
+
+    return undefined;
+  }, [browserLocation, effectiveLocationPreference, userLocation]);
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -227,10 +519,10 @@ function AlgoliaSearchInner({
       hits.map((hit) =>
         algoliaHitToSearchVehicle(
           hit as Record<string, unknown>,
-          userLocation,
+          resolvedUserLocation,
         ),
       ),
-    [hits, userLocation],
+    [hits, resolvedUserLocation],
   );
 
   const filterOptions = useMemo(
@@ -357,12 +649,123 @@ function AlgoliaSearchInner({
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
+  const applyDistancePreference = useCallback(
+    async (mode: "auto" | "zip") => {
+      if (mode === "auto") {
+        const preference: StoredLocationPreference = {
+          mode: "auto",
+          zipCode: null,
+          lat: null,
+          lng: null,
+        };
+
+        saveLocalLocationPreference(preference);
+        setLocalLocationPreference(preference);
+
+        if (isLoggedIn) {
+          await updateLocationPreferenceMutation.mutateAsync({ mode: "auto" });
+        }
+
+        return;
+      }
+
+      const normalizedZipCode = normalizeZipCode(manualZipCode);
+      if (!normalizedZipCode) {
+        throw new Error("Enter a valid 5-digit ZIP code.");
+      }
+
+      if (isLoggedIn) {
+        const preference = await updateLocationPreferenceMutation.mutateAsync({
+          mode: "zip",
+          zipCode: normalizedZipCode,
+        });
+        const localPreference: StoredLocationPreference = {
+          mode: "zip",
+          zipCode: preference.zipCode,
+          lat: preference.lat,
+          lng: preference.lng,
+        };
+        saveLocalLocationPreference(localPreference);
+        setLocalLocationPreference(localPreference);
+        return;
+      }
+
+      const resolved = await resolveZipCodeMutation.mutateAsync({
+        zipCode: normalizedZipCode,
+      });
+      const preference: StoredLocationPreference = {
+        mode: "zip",
+        zipCode: resolved.zipCode,
+        lat: resolved.lat,
+        lng: resolved.lng,
+      };
+      saveLocalLocationPreference(preference);
+      setLocalLocationPreference(preference);
+    },
+    [
+      isLoggedIn,
+      manualZipCode,
+      resolveZipCodeMutation,
+      updateLocationPreferenceMutation,
+    ],
+  );
+
+  const handleDistancePreferenceConfirm = useCallback(async () => {
+    try {
+      await applyDistancePreference(selectedDistanceMode);
+      setShowDistancePreferenceDialog(false);
+      toast.success(
+        isLoggedIn
+          ? "Distance location saved. You can update it later from Settings."
+          : "Distance location saved for this browser. You can update it later from account settings.",
+      );
+
+      if (pendingDistanceSort) {
+        refineSortBy("vehicles_distance");
+        setPendingDistanceSort(false);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not save your distance location.";
+      toast.error(message);
+    }
+  }, [
+    applyDistancePreference,
+    isLoggedIn,
+    pendingDistanceSort,
+    refineSortBy,
+    selectedDistanceMode,
+  ]);
+
   const handleSortChange = useCallback(
     (value: string) => {
+      if (value === "distance") {
+        if (!locationPreferenceReady) {
+          return;
+        }
+
+        if (!effectiveLocationPreference) {
+          setSelectedDistanceMode("auto");
+          setManualZipCode("");
+          setPendingDistanceSort(true);
+          setShowDistancePreferenceDialog(true);
+          return;
+        }
+      }
+
       posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
       refineSortBy(KEY_TO_INDEX[value] ?? ALGOLIA_INDEX_NAME);
     },
-    [refineSortBy],
+    [
+      effectiveLocationPreference,
+      locationPreferenceReady,
+      refineSortBy,
+      setManualZipCode,
+      setPendingDistanceSort,
+      setShowDistancePreferenceDialog,
+    ],
   );
 
   const handleToggleFilters = useCallback(
@@ -445,6 +848,27 @@ function AlgoliaSearchInner({
     }
   }, [query, isSearching, error, nbHits, processingTimeMS]);
 
+  useEffect(() => {
+    if (!locationPreferenceReady) {
+      return;
+    }
+
+    if (sortBy !== "distance" || effectiveLocationPreference) {
+      return;
+    }
+
+    setSelectedDistanceMode("auto");
+    setManualZipCode("");
+    setPendingDistanceSort(true);
+    setShowDistancePreferenceDialog(true);
+    refineSortBy(ALGOLIA_INDEX_NAME);
+  }, [
+    effectiveLocationPreference,
+    locationPreferenceReady,
+    refineSortBy,
+    sortBy,
+  ]);
+
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, F to toggle filters
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -471,11 +895,14 @@ function AlgoliaSearchInner({
   // Only send geo params when distance sort is active.
   // The distance replica has a geo-dominant ranking array.
   // Other sorts must NOT send aroundLatLng or geo would override customRanking.
-  const isDistanceSort = sortBy === "distance";
   const aroundLatLng =
-    isDistanceSort && userLocation
-      ? `${userLocation.lat}, ${userLocation.lng}`
+    isDistanceSort && resolvedUserLocation
+      ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
       : undefined;
+  const useAlgoliaIpLocation =
+    isDistanceSort &&
+    effectiveLocationPreference?.mode === "auto" &&
+    !resolvedUserLocation;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
@@ -487,8 +914,28 @@ function AlgoliaSearchInner({
         // queries complete in 1-2 API calls.
         hitsPerPage={1000}
         aroundLatLng={aroundLatLng}
-        aroundLatLngViaIP={isDistanceSort && !userLocation}
+        aroundLatLngViaIP={useAlgoliaIpLocation}
         aroundRadius={isDistanceSort ? "all" : undefined}
+      />
+      <DistancePreferenceDialog
+        open={showDistancePreferenceDialog}
+        manualZipCode={manualZipCode}
+        selectedMode={selectedDistanceMode}
+        isSubmitting={
+          resolveZipCodeMutation.isPending ||
+          updateLocationPreferenceMutation.isPending
+        }
+        onOpenChange={(open) => {
+          setShowDistancePreferenceDialog(open);
+          if (!open) {
+            setPendingDistanceSort(false);
+          }
+        }}
+        onModeChange={setSelectedDistanceMode}
+        onManualZipCodeChange={setManualZipCode}
+        onConfirm={() => {
+          void handleDistancePreferenceConfirm();
+        }}
       />
       <ErrorBoundary>
         <MorphingSearchBar />
@@ -545,8 +992,29 @@ function AlgoliaSearchInner({
 
                 {/* Filter buttons */}
                 {isMobile ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {isLoggedIn && <SavedSearchesDropdown />}
+                    <Select value={sortBy} onValueChange={handleSortChange}>
+                      <SelectTrigger size="sm" className="w-fit">
+                        <div className="flex items-center gap-2">
+                          <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="newest">Newest First</SelectItem>
+                        <SelectItem value="oldest">Oldest First</SelectItem>
+                        <SelectItem value="year-desc">
+                          Year (High to Low)
+                        </SelectItem>
+                        <SelectItem value="year-asc">
+                          Year (Low to High)
+                        </SelectItem>
+                        <SelectItem value="distance">
+                          Distance (Nearest)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                     <SaveSearchDialog
                       query={query}
                       filters={{

@@ -27,8 +27,7 @@ export default async function SearchPage() {
       } catch {
         // Not on Vercel or geolocation unavailable
       }
-      // Default: geographic center of contiguous US
-      return { lat: 39.8283, lng: -98.5795 };
+      return undefined;
     }),
   ]);
 
