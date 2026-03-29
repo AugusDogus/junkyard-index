@@ -36,5 +36,13 @@ describe("normalization helpers", () => {
       state: "British Columbia",
       stateAbbr: "BC",
     });
+    expect(normalizeRegion("", null)).toEqual({
+      state: "Unknown",
+      stateAbbr: "",
+    });
+    expect(normalizeRegion("", "")).toEqual({
+      state: "Unknown",
+      stateAbbr: "",
+    });
   });
 });

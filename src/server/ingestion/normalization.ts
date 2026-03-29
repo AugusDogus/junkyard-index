@@ -168,10 +168,6 @@ function toTitleCase(value: string): string {
   return value.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function toDisplayCase(value: string): string {
-  return toTitleCase(value);
-}
-
 function normalizeComparableMake(value: string): string {
   return value
     .trim()
@@ -228,6 +224,13 @@ export function normalizeRegion(
   const rawState = state.trim();
   const rawStateAbbr = stateAbbr?.trim().toUpperCase() ?? "";
 
+  if (rawState.length === 0 && rawStateAbbr.length === 0) {
+    return {
+      state: "Unknown",
+      stateAbbr: "",
+    };
+  }
+
   if (rawStateAbbr.length > 0) {
     return {
       state:
@@ -268,7 +271,7 @@ export function normalizeCanonicalMake(value: string): string {
   }
 
   const normalized = trimmed.toLowerCase();
-  return MAKE_DISPLAY_OVERRIDES[normalized] ?? toDisplayCase(trimmed);
+  return MAKE_DISPLAY_OVERRIDES[normalized] ?? toTitleCase(trimmed);
 }
 
 export function normalizeCanonicalColor(value: string | null): string | null {
@@ -285,7 +288,7 @@ export function normalizeCanonicalColor(value: string | null): string | null {
     return null;
   }
 
-  return COLOR_ALIASES[normalized] ?? toDisplayCase(unwrapped);
+  return COLOR_ALIASES[normalized] ?? toTitleCase(unwrapped);
 }
 
 export function parseAutorecyclerMakeModel(rest: string): {
