@@ -23,6 +23,14 @@ describe("autorecycler transform", () => {
     });
   });
 
+  test("parseAutorecyclerNameText uses canonical make as model when only a make is present", () => {
+    expect(parseAutorecyclerNameText("BMW", 2001)).toEqual({
+      year: 2001,
+      make: "BMW",
+      model: "BMW",
+    });
+  });
+
   test("parseAutorecyclerNameText keeps multi-word makes together", () => {
     expect(
       parseAutorecyclerNameText("2012 Land Rover Range Rover Sport", undefined),
