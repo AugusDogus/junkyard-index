@@ -21,6 +21,10 @@ export const user = sqliteTable("user", {
   discordAppInstalled: integer("discord_app_installed", { mode: "boolean" })
     .default(false)
     .notNull(),
+  locationPreferenceMode: text("location_preference_mode"),
+  locationZipCode: text("location_zip_code"),
+  locationLat: real("location_lat"),
+  locationLng: real("location_lng"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),

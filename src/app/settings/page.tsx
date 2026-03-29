@@ -13,7 +13,8 @@ export default function SettingsPage() {
         <div className="mb-8">
           <h1 className="mb-2 text-3xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground">
-            Manage your subscription and notification preferences.
+            Manage your subscription, notification, and search location
+            preferences.
           </p>
         </div>
 

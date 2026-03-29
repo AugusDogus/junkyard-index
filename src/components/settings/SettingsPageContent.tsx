@@ -10,6 +10,7 @@ import {
   Link2Off,
   LogIn,
   Mail,
+  MapPin,
   Search,
   Trash2,
   UserX,
@@ -35,10 +36,13 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { DiscordIcon } from "~/components/ui/icons";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import { Skeleton } from "~/components/ui/skeleton";
 import { env } from "~/env";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient, signIn, signOut, useSession } from "~/lib/auth-client";
+import { normalizeZipCode } from "~/lib/location-preferences";
 import posthog from "posthog-js";
 import { api } from "~/trpc/react";
 
@@ -51,6 +55,8 @@ export function SettingsDashboard() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [hasClickedInstall, setHasClickedInstall] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [locationMode, setLocationMode] = useState<"auto" | "zip">("auto");
+  const [locationZipCode, setLocationZipCode] = useState("");
 
   const utils = api.useUtils();
 
@@ -69,6 +75,11 @@ export function SettingsDashboard() {
 
   const { data: savedSearches, isLoading: isSavedSearchesLoading } =
     api.savedSearches.list.useQuery(undefined, {
+      enabled: !!session?.user,
+    });
+
+  const { data: locationPreference, isLoading: isLocationPreferenceLoading } =
+    api.user.getLocationPreference.useQuery(undefined, {
       enabled: !!session?.user,
     });
 
@@ -144,11 +155,35 @@ export function SettingsDashboard() {
     },
   });
 
+  const updateLocationPreferenceMutation =
+    api.user.updateLocationPreference.useMutation({
+      onSuccess: async (preference) => {
+        await utils.user.getLocationPreference.invalidate();
+        setLocationMode(preference.mode);
+        setLocationZipCode(preference.zipCode ?? "");
+        toast.success(
+          "Search location saved. You can use this for distance sorting.",
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to save search location.");
+      },
+    });
+
   const hasActiveSubscription =
     subscriptionData?.hasActiveSubscription ?? false;
   const canUseDiscord =
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;
+
+  useEffect(() => {
+    if (!locationPreference?.hasPreference || !locationPreference.mode) {
+      return;
+    }
+
+    setLocationMode(locationPreference.mode);
+    setLocationZipCode(locationPreference.zipCode ?? "");
+  }, [locationPreference]);
 
   useEffect(() => {
     const discordInstalled = searchParams.get("discord_installed");
@@ -262,6 +297,24 @@ export function SettingsDashboard() {
     deleteAccountMutation.mutate();
   };
 
+  const handleSaveLocationPreference = () => {
+    if (locationMode === "auto") {
+      updateLocationPreferenceMutation.mutate({ mode: "auto" });
+      return;
+    }
+
+    const normalizedZipCode = normalizeZipCode(locationZipCode);
+    if (!normalizedZipCode) {
+      toast.error("Enter a valid 5-digit ZIP code.");
+      return;
+    }
+
+    updateLocationPreferenceMutation.mutate({
+      mode: "zip",
+      zipCode: normalizedZipCode,
+    });
+  };
+
   if (isSessionLoading) {
     return (
       <div className="space-y-6">
@@ -296,9 +349,90 @@ export function SettingsDashboard() {
     toggleEmailAlertsMutation.isPending ||
     toggleDiscordAlertsMutation.isPending ||
     deleteMutation.isPending;
+  const savedLocationMode = locationPreference?.mode ?? null;
+  const savedLocationZipCode = locationPreference?.zipCode ?? "";
+  const isLocationDirty =
+    locationMode !== savedLocationMode ||
+    (locationMode === "zip" &&
+      normalizeZipCode(locationZipCode) !==
+        normalizeZipCode(savedLocationZipCode));
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            Search Location
+          </CardTitle>
+          <CardDescription>
+            Choose how distance sorting finds your location. Automatic detection
+            uses Vercel IP first, then search IP detection, then browser
+            geolocation if needed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLocationPreferenceLoading ? (
+            <Skeleton className="h-28 w-full" />
+          ) : (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant={locationMode === "auto" ? "default" : "outline"}
+                  className="justify-start"
+                  onClick={() => setLocationMode("auto")}
+                >
+                  Use Automatic Detection
+                </Button>
+                <Button
+                  type="button"
+                  variant={locationMode === "zip" ? "default" : "outline"}
+                  className="justify-start"
+                  onClick={() => setLocationMode("zip")}
+                >
+                  Use ZIP Code
+                </Button>
+              </div>
+
+              {locationMode === "zip" && (
+                <div className="grid gap-2">
+                  <Label htmlFor="settings-location-zip">ZIP Code</Label>
+                  <Input
+                    id="settings-location-zip"
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    maxLength={5}
+                    placeholder="32571"
+                    value={locationZipCode}
+                    onChange={(event) => setLocationZipCode(event.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-muted-foreground text-sm">
+                  This preference is used when you sort search results by
+                  distance.
+                </p>
+                <Button
+                  type="button"
+                  onClick={handleSaveLocationPreference}
+                  disabled={
+                    !isLocationDirty ||
+                    updateLocationPreferenceMutation.isPending
+                  }
+                >
+                  {updateLocationPreferenceMutation.isPending
+                    ? "Saving..."
+                    : "Save Location"}
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
