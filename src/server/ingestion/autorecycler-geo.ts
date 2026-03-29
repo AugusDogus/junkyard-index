@@ -13,6 +13,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function extractLocationNameFromSeoDescription(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const text = decodeHtmlEntities(value).trim();
+  if (!text) return null;
+
+  const patterns = [
+    /look no further than\s+([^!.]+?)(?:!|,|\s+your\b)/i,
+    /find the(?: used car)? parts you need at\s+([^!.]+?)(?:!|,| today\b|\.)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    const name = match?.[1]?.trim();
+    if (name) {
+      return name;
+    }
+  }
+
+  return null;
+}
+
 /** Extract yard geolocation from `init/data` rows for a vehicle details page. */
 export function parseOrgGeoFromDetailsInitData(
   rows: Array<{ type?: string; data?: Record<string, unknown> }>,
@@ -55,9 +85,10 @@ export function parseOrgGeoFromDetailsInitData(
           : "Unknown";
     const region = normalizeRegion(state, stateAbbr);
     const locationName =
-      locationCity === "Unknown"
+      extractLocationNameFromSeoDescription(d.seo_description_text) ??
+      (locationCity === "Unknown"
         ? "AutoRecycler"
-        : `AutoRecycler - ${locationCity}`;
+        : `AutoRecycler - ${locationCity}`);
 
     return {
       orgLookup: want,

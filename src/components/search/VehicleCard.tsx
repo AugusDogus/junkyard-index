@@ -18,6 +18,10 @@ import type { VehicleCardProps } from "~/lib/types";
 
 function VehicleCardComponent({ vehicle }: VehicleCardProps) {
   const primaryImage = vehicle.imageUrl;
+  const geoLabel =
+    vehicle.locationCity && vehicle.locationCity !== "Unknown"
+      ? `${vehicle.locationCity}, ${vehicle.stateAbbr}`
+      : vehicle.stateAbbr || "Unknown";
 
   const handleDetailsClick = useCallback(() => {
     posthog.capture(AnalyticsEvents.VEHICLE_DETAILS_CLICKED, {
@@ -104,17 +108,6 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
             <span className="font-mono text-xs">{vehicle.vin || "N/A"}</span>
           </div>
 
-          {(vehicle.section || vehicle.row || vehicle.space) && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Yard Spot:</span>
-              <span className="text-xs">
-                {[vehicle.section, vehicle.row, vehicle.space]
-                  .filter(Boolean)
-                  .join("-") || "N/A"}
-              </span>
-            </div>
-          )}
-
           <div className="flex justify-between">
             <span className="text-muted-foreground">Available:</span>
             <span className="text-xs">{formatDate(vehicle.availableDate)}</span>
@@ -124,11 +117,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         {/* Location */}
         <div className="text-muted-foreground mt-3 flex items-center text-sm">
           <MapPin className="mr-1.5 h-4 w-4" />
-          <span>
-            {vehicle.locationCity
-              ? `${vehicle.locationCity}, ${vehicle.stateAbbr}`
-              : vehicle.stateAbbr}
-          </span>
+          <span>{geoLabel}</span>
         </div>
       </CardContent>
 

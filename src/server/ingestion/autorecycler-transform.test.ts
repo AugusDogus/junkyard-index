@@ -74,7 +74,7 @@ describe("autorecycler transform", () => {
       orgLookup: "ORG1",
       lat: 36.1,
       lng: -80.2,
-      locationName: "AutoRecycler - Winston-Salem",
+      locationName: "Foss Winston-Salem",
       locationCity: "Winston-Salem",
       state: "North Carolina",
       stateAbbr: "NC",
@@ -99,7 +99,7 @@ describe("autorecycler transform", () => {
     expect(v!.detailsUrl).toContain("/details/1774437931255x929776907807752400");
     expect(v!.lat).toBe(36.1);
     expect(v!.lng).toBe(-80.2);
-    expect(v!.locationName).toBe("AutoRecycler - Winston-Salem");
+    expect(v!.locationName).toBe("Foss Winston-Salem");
     expect(v!.locationCity).toBe("Winston-Salem");
     expect(v!.stateAbbr).toBe("NC");
     expect(v!.color).toBe("Gray");
