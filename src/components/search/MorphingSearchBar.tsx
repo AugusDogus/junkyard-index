@@ -69,6 +69,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       observer.observe(el);
       return () => {
         observer.disconnect();
+        registerSearchElement(null);
         setSearchBarOffscreen(false);
       };
     }, [isMobile, registerSearchElement, setSearchBarOffscreen]);

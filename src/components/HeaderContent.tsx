@@ -35,7 +35,7 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 sm:hidden"
+                className="h-8 w-8 p-0 md:hidden"
                 aria-label="Search"
                 onClick={() => searchCtx?.scrollToSearch()}
               >
@@ -48,7 +48,7 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
                 <div className="bg-border h-5 w-px" aria-hidden="true" />
               </>
             )}
-            <div className={user ? "hidden sm:block" : showMobileSearch ? "hidden sm:block" : ""}>
+            <div className={user || showMobileSearch ? "hidden sm:block" : ""}>
               <ThemeToggle />
             </div>
             <HeaderAuthButtons user={user} />
