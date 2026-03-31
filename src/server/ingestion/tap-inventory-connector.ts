@@ -1,10 +1,8 @@
 import { Effect } from "effect";
 import {
-  fetchTapModels,
   fetchTapStores,
   searchTapInventory,
   UPULLITNE_SITE_CONFIG,
-  type TapStoreOption,
 } from "./tap-inventory-client";
 import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
 import { TapInventoryProviderError } from "./errors";
@@ -30,10 +28,6 @@ type TapProgress = {
   stopped: boolean;
   errors: string[];
 };
-
-function makeTapCursor(store: string, make: string): string {
-  return `${store}:${make}`;
-}
 
 export function streamTapInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
@@ -95,69 +89,46 @@ export function streamTapInventory<E, R>(options: {
         break;
       }
 
-      const makes = UPULLITNE_SITE_CONFIG.makes;
+      nextCursor = `${store.value}:store`;
 
-      for (
-        let makeIndex = 0;
-        makeIndex < makes.length && !stopped;
-        makeIndex += 1
-      ) {
-        const make = makes[makeIndex]!;
-        nextCursor = makeTapCursor(store.value, make);
+      const result = yield* searchTapInventory({
+        config: UPULLITNE_SITE_CONFIG,
+        store: store.value,
+        make: "Any",
+        model: "Any",
+      }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new TapInventoryProviderError({
+              cursor: nextCursor,
+              cause,
+            }),
+        ),
+      );
 
-        const models = yield* fetchTapModels(UPULLITNE_SITE_CONFIG, make).pipe(
-          Effect.mapError(
-            (cause) =>
-              new TapInventoryProviderError({
-                cursor: `${nextCursor}:models`,
-                cause,
-              }),
-          ),
+      const seen = new Map<string, CanonicalVehicle>();
+      for (const product of result.products) {
+        const transformed = transformTapInventoryProduct(
+          product,
+          storeConfig,
+          UPULLITNE_SITE_CONFIG,
         );
-
-        const modelValues = ["Any", ...models.map((model) => model.value)];
-        const seen = new Map<string, CanonicalVehicle>();
-
-        for (const modelValue of modelValues) {
-          const result = yield* searchTapInventory({
-            config: UPULLITNE_SITE_CONFIG,
-            store: store.value,
-            make,
-            model: modelValue,
-          }).pipe(
-            Effect.mapError(
-              (cause) =>
-                new TapInventoryProviderError({
-                  cursor: `${nextCursor}:${modelValue}`,
-                  cause,
-                }),
-            ),
-          );
-
-          for (const product of result.products) {
-            const transformed = transformTapInventoryProduct(
-              product,
-              storeConfig,
-              UPULLITNE_SITE_CONFIG,
-            );
-            if (!transformed) continue;
-            seen.set(transformed.vin, transformed);
-          }
-        }
-
-        const batch = [...seen.values()];
-        if (batch.length > 0) {
-          yield* options.onBatch(batch);
-        }
-
-        vehiclesProcessed += batch.length;
-        pagesProcessed += 1;
-
-        yield* Effect.logInfo(
-          `[TAP/upullitne] Store ${store.value} make ${make}: ${batch.length} vehicles`,
-        );
-        yield* emitProgress(false);
+        if (!transformed) continue;
+        seen.set(transformed.vin, transformed);
       }
+
+      const batch = [...seen.values()];
+      if (batch.length > 0) {
+        yield* options.onBatch(batch);
+      }
+
+      vehiclesProcessed += batch.length;
+      pagesProcessed += 1;
+
+      yield* Effect.logInfo(
+        `[TAP/upullitne] Store ${store.value}: ${batch.length} vehicles`,
+      );
+      yield* emitProgress(false);
     }
 
     if (!stopped) {
