@@ -18,6 +18,7 @@ interface FilterOptions {
 
 const SOURCE_LABELS: Record<DataSource, string> = {
   pyp: "Pick Your Part (PYP)",
+  pullapart: "Pull-A-Part / U-Pull-&-Pay",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",
 };
@@ -58,7 +59,12 @@ export function SidebarContent({
   onYearRangeChange,
   yearRangeLimits,
 }: SidebarContentProps) {
-  const availableSources: DataSource[] = ["pyp", "row52", "autorecycler"];
+  const availableSources: DataSource[] = [
+    "pyp",
+    "pullapart",
+    "row52",
+    "autorecycler",
+  ];
 
   return (
     <div className="space-y-6">

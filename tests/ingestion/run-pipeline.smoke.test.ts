@@ -11,10 +11,12 @@ describe("ingestion smoke", () => {
     expect(result.totalUpserted).toBeGreaterThanOrEqual(0);
     expect(result.totalDeleted).toBeGreaterThanOrEqual(0);
     expect(result.pypCount).toBeGreaterThanOrEqual(0);
+    expect(result.pullapartCount).toBeGreaterThanOrEqual(0);
     expect(result.row52Count).toBeGreaterThanOrEqual(0);
     expect(result.autorecyclerCount).toBeGreaterThanOrEqual(0);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(result.timingsMs.sourcesParallelMs).toBeGreaterThanOrEqual(0);
+    expect(result.timingsMs.pullapartFetchMs).toBeGreaterThanOrEqual(0);
     expect(result.timingsMs.row52FetchMs).toBeGreaterThanOrEqual(0);
     expect(result.timingsMs.pypFetchMs).toBeGreaterThanOrEqual(0);
     expect(result.timingsMs.autorecyclerFetchMs).toBeGreaterThanOrEqual(0);

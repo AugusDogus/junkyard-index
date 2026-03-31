@@ -11,12 +11,14 @@ describe("pipeline policy", () => {
       { source: "row52", count: 120000, errors: [] },
       { source: "pyp", count: 70000, errors: [] },
       { source: "autorecycler", count: 5000, errors: [] },
+      { source: "pullapart", count: 25000, errors: [] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([
       "row52",
       "pyp",
       "autorecycler",
+      "pullapart",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(true);
   });
@@ -30,9 +32,14 @@ describe("pipeline policy", () => {
         errors: ["PYP returned only 0 locations (expected 20+)"],
       },
       { source: "autorecycler", count: 100, errors: [] },
+      { source: "pullapart", count: 25000, errors: [] },
     ];
 
-    expect(determineHealthySources(outcomes)).toEqual(["row52", "autorecycler"]);
+    expect(determineHealthySources(outcomes)).toEqual([
+      "row52",
+      "autorecycler",
+      "pullapart",
+    ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(false);
   });
 
@@ -41,6 +48,7 @@ describe("pipeline policy", () => {
       { source: "row52", count: 0, errors: ["Row52 failed"] },
       { source: "pyp", count: 0, errors: ["PYP failed"] },
       { source: "autorecycler", count: 0, errors: ["AutoRecycler failed"] },
+      { source: "pullapart", count: 0, errors: ["Pull-A-Part failed"] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([]);

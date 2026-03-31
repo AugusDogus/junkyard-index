@@ -60,6 +60,17 @@ export class AutorecyclerProviderError extends Data.TaggedError(
   }
 }
 
+export class PullapartProviderError extends Data.TaggedError(
+  "PullapartProviderError",
+)<{
+  queryIndex: number;
+  cause: unknown;
+}> {
+  override get message() {
+    return `Pull-A-Part at query=${this.queryIndex}: ${getCauseMessage(this.cause)}`;
+  }
+}
+
 export class BrowserSessionError extends Data.TaggedError(
   "BrowserSessionError",
 )<{
@@ -103,6 +114,7 @@ export type IngestionError =
   | PypProviderError
   | Row52ProviderError
   | AutorecyclerProviderError
+  | PullapartProviderError
   | BrowserSessionError
   | ReconcileError
   | PersistenceError

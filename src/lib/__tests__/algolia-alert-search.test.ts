@@ -24,7 +24,7 @@ describe("algolia alert search helpers", () => {
       {
         makes: ["Honda", "Toyota"],
         states: ["California", "Nevada"],
-        sources: ["pyp", "row52", "autorecycler", "ignore-me"],
+        sources: ["pyp", "row52", "autorecycler", "pullapart", "ignore-me"],
       },
       null,
     );
@@ -32,7 +32,7 @@ describe("algolia alert search helpers", () => {
     expect(filters).toContain('(make:"Honda" OR make:"Toyota")');
     expect(filters).toContain('(state:"California" OR state:"Nevada")');
     expect(filters).toContain(
-      '(source:"pyp" OR source:"row52" OR source:"autorecycler")',
+      '(source:"pyp" OR source:"row52" OR source:"autorecycler" OR source:"pullapart")',
     );
     expect(filters).not.toContain("ignore-me");
   });

@@ -2,7 +2,12 @@ import { calculateDistance } from "~/lib/utils";
 import type { DataSource, SearchVehicle } from "~/lib/types";
 
 function parseDataSource(value: unknown): DataSource {
-  if (value === "pyp" || value === "row52" || value === "autorecycler") {
+  if (
+    value === "pyp" ||
+    value === "row52" ||
+    value === "autorecycler" ||
+    value === "pullapart"
+  ) {
     return value;
   }
   return "pyp";
