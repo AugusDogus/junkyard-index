@@ -70,11 +70,13 @@ export function buildFinalInventoryByVin(params: {
   pypByVin: Map<string, CanonicalVehicle>;
   autorecyclerByVin: Map<string, CanonicalVehicle>;
   pullapartByVin: Map<string, CanonicalVehicle>;
+  upullitneByVin: Map<string, CanonicalVehicle>;
 }): Map<string, CanonicalVehicle> {
   const row52Healthy = params.healthySources.includes("row52");
   const pypHealthy = params.healthySources.includes("pyp");
   const autorecyclerHealthy = params.healthySources.includes("autorecycler");
   const pullapartHealthy = params.healthySources.includes("pullapart");
+  const upullitneHealthy = params.healthySources.includes("upullitne");
 
   const mergeSourceHoles = (
     into: Map<string, CanonicalVehicle>,
@@ -97,12 +99,20 @@ export function buildFinalInventoryByVin(params: {
     mergeSourceHoles(into, params.pullapartByVin);
   };
 
+  const mergeUpullitneHoles = (into: Map<string, CanonicalVehicle>) => {
+    if (!upullitneHealthy) return;
+    mergeSourceHoles(into, params.upullitneByVin);
+  };
+
   if (row52Healthy && pypHealthy) {
-    // Row52 wins overlaps; PYP fills holes; Pull-A-Part and AutoRecycler fill remaining holes.
+    // Row52 wins overlaps; PYP fills holes; Pull-A-Part, U Pull-It Nebraska,
+    // and AutoRecycler fill remaining holes.
     mergeSourceHoles(params.row52ByVin, params.pypByVin);
     params.pypByVin.clear();
     mergePullapartHoles(params.row52ByVin);
     params.pullapartByVin.clear();
+    mergeUpullitneHoles(params.row52ByVin);
+    params.upullitneByVin.clear();
     mergeAutorecyclerHoles(params.row52ByVin);
     params.autorecyclerByVin.clear();
     return params.row52ByVin;
@@ -110,34 +120,50 @@ export function buildFinalInventoryByVin(params: {
 
   if (row52Healthy) {
     mergePullapartHoles(params.row52ByVin);
+    mergeUpullitneHoles(params.row52ByVin);
     mergeAutorecyclerHoles(params.row52ByVin);
     params.pypByVin.clear();
     params.pullapartByVin.clear();
+    params.upullitneByVin.clear();
     params.autorecyclerByVin.clear();
     return params.row52ByVin;
   }
 
   if (pypHealthy) {
     mergePullapartHoles(params.pypByVin);
+    mergeUpullitneHoles(params.pypByVin);
     mergeAutorecyclerHoles(params.pypByVin);
     params.row52ByVin.clear();
     params.pullapartByVin.clear();
+    params.upullitneByVin.clear();
     params.autorecyclerByVin.clear();
     return params.pypByVin;
   }
 
   if (pullapartHealthy) {
+    mergeUpullitneHoles(params.pullapartByVin);
     mergeAutorecyclerHoles(params.pullapartByVin);
     params.row52ByVin.clear();
     params.pypByVin.clear();
+    params.upullitneByVin.clear();
     params.autorecyclerByVin.clear();
     return params.pullapartByVin;
+  }
+
+  if (upullitneHealthy) {
+    mergeAutorecyclerHoles(params.upullitneByVin);
+    params.row52ByVin.clear();
+    params.pypByVin.clear();
+    params.pullapartByVin.clear();
+    params.autorecyclerByVin.clear();
+    return params.upullitneByVin;
   }
 
   if (autorecyclerHealthy) {
     params.row52ByVin.clear();
     params.pypByVin.clear();
     params.pullapartByVin.clear();
+    params.upullitneByVin.clear();
     return params.autorecyclerByVin;
   }
 
@@ -145,6 +171,7 @@ export function buildFinalInventoryByVin(params: {
   params.pypByVin.clear();
   params.autorecyclerByVin.clear();
   params.pullapartByVin.clear();
+  params.upullitneByVin.clear();
   return new Map<string, CanonicalVehicle>();
 }
 

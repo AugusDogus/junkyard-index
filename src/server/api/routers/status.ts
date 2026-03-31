@@ -11,7 +11,13 @@ import {
   type IngestionStatus,
 } from "./status-utils";
 
-const SOURCES = ["pyp", "row52", "autorecycler", "pullapart"] as const;
+const SOURCES = [
+  "pyp",
+  "row52",
+  "autorecycler",
+  "pullapart",
+  "upullitne",
+] as const;
 type SourceKey = (typeof SOURCES)[number];
 
 const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
@@ -19,6 +25,7 @@ const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
   row52: "Row52",
   autorecycler: "AutoRecycler.io",
   pullapart: "Pull-A-Part / U-Pull-&-Pay",
+  upullitne: "U Pull-It Nebraska",
 };
 
 interface ProviderStatus {

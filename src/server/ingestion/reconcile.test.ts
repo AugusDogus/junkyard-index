@@ -155,6 +155,25 @@ describe("reconcile helpers", () => {
     expect(finalInventory.get("VIN_P")).toEqual(pullapartVehicle);
   });
 
+  test("fills U Pull-It-only VINs after higher-priority sources merge", () => {
+    const row52Vehicle = makeCanonicalVehicle("VIN_A", "row52");
+    const upullitneVehicle = makeCanonicalVehicle("VIN_U", "upullitne", {
+      stockNumber: "UPI-1",
+    });
+
+    const finalInventory = buildFinalInventoryByVin({
+      healthySources: ["row52", "pyp", "pullapart", "upullitne"],
+      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
+      pypByVin: new Map(),
+      autorecyclerByVin: new Map(),
+      pullapartByVin: new Map(),
+      upullitneByVin: new Map([[upullitneVehicle.vin, upullitneVehicle]]),
+    });
+
+    expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
+    expect(finalInventory.get("VIN_U")).toEqual(upullitneVehicle);
+  });
+
   test("treats reappearing vehicles as changed so missing state is cleared", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
     const finalInventory = new Map([

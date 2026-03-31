@@ -228,11 +228,17 @@ export function SaveSearchDialog({
     const normalizedSources = (filters.sources ?? []).filter(
       (
         source,
-      ): source is "pyp" | "row52" | "autorecycler" | "pullapart" =>
+      ): source is
+        | "pyp"
+        | "row52"
+        | "autorecycler"
+        | "pullapart"
+        | "upullitne" =>
         source === "pyp" ||
         source === "row52" ||
         source === "autorecycler" ||
-        source === "pullapart",
+        source === "pullapart" ||
+        source === "upullitne",
     );
     const restFilters = {
       makes: filters.makes,

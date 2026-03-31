@@ -173,7 +173,7 @@ export const vehicle = sqliteTable(
   "vehicle",
   {
     vin: text("vin").primaryKey(),
-    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart"
+    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne"
     year: integer("year").notNull(),
     make: text("make").notNull(),
     model: text("model").notNull(),
@@ -216,7 +216,7 @@ export const vehicle = sqliteTable(
 
 export const ingestionRun = sqliteTable("ingestion_run", {
   id: text("id").primaryKey(),
-  source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart" | "all"
+  source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne" | "all"
   status: text("status").notNull(), // "running" | "success" | "error"
   vehiclesUpserted: integer("vehicles_upserted").default(0),
   vehiclesDeleted: integer("vehicles_deleted").default(0),
@@ -232,7 +232,7 @@ export const ingestionSourceRun = sqliteTable(
     runId: text("run_id")
       .notNull()
       .references(() => ingestionRun.id, { onDelete: "cascade" }),
-    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart"
+    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne"
     status: text("status").notNull(), // "running" | "success" | "error" | "partial"
     startCursor: text("start_cursor"),
     nextCursor: text("next_cursor"),
@@ -255,7 +255,7 @@ export const vehicleSnapshot = sqliteTable(
     runId: text("run_id")
       .notNull()
       .references(() => ingestionRun.id, { onDelete: "cascade" }),
-    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart"
+    source: text("source").notNull(), // "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne"
     vin: text("vin").notNull(),
     year: integer("year").notNull(),
     make: text("make").notNull(),

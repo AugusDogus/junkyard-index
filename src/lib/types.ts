@@ -1,4 +1,9 @@
-export type DataSource = "pyp" | "row52" | "autorecycler" | "pullapart";
+export type DataSource =
+  | "pyp"
+  | "row52"
+  | "autorecycler"
+  | "pullapart"
+  | "upullitne";
 
 // Location types based on the PYP _locationList structure
 export interface Location {

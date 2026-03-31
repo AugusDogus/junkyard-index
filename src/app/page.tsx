@@ -154,7 +154,7 @@ export default async function Home() {
       <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="mb-4 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Four networks. One search.
+            Five networks. One search.
           </h2>
           <p className="text-muted-foreground mx-auto mb-12 max-w-xl text-pretty">
             We pull inventory from each source daily and combine it into a
@@ -165,6 +165,7 @@ export default async function Home() {
             {[
               "LKQ Pick Your Part",
               "Pull-A-Part / U-Pull-&-Pay",
+              "U Pull-It Nebraska",
               "Row52",
               "AutoRecycler",
             ].map((name) => (
@@ -186,7 +187,7 @@ export default async function Home() {
               value={formatYardBadgeCount(liveStats.yardCount)}
               label="Yards Nationwide"
             />
-            <StatCard value="4" label="Yard Networks" />
+            <StatCard value="5" label="Yard Networks" />
           </div>
         </div>
       </section>

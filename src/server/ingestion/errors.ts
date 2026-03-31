@@ -71,6 +71,17 @@ export class PullapartProviderError extends Data.TaggedError(
   }
 }
 
+export class TapInventoryProviderError extends Data.TaggedError(
+  "TapInventoryProviderError",
+)<{
+  cursor: string;
+  cause: unknown;
+}> {
+  override get message() {
+    return `TAP inventory at ${this.cursor}: ${getCauseMessage(this.cause)}`;
+  }
+}
+
 export class BrowserSessionError extends Data.TaggedError(
   "BrowserSessionError",
 )<{
@@ -115,6 +126,7 @@ export type IngestionError =
   | Row52ProviderError
   | AutorecyclerProviderError
   | PullapartProviderError
+  | TapInventoryProviderError
   | BrowserSessionError
   | ReconcileError
   | PersistenceError

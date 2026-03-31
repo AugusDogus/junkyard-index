@@ -12,6 +12,7 @@ describe("pipeline policy", () => {
       { source: "pyp", count: 70000, errors: [] },
       { source: "autorecycler", count: 5000, errors: [] },
       { source: "pullapart", count: 25000, errors: [] },
+      { source: "upullitne", count: 2486, errors: [] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([
@@ -19,6 +20,7 @@ describe("pipeline policy", () => {
       "pyp",
       "autorecycler",
       "pullapart",
+      "upullitne",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(true);
   });
@@ -33,12 +35,14 @@ describe("pipeline policy", () => {
       },
       { source: "autorecycler", count: 100, errors: [] },
       { source: "pullapart", count: 25000, errors: [] },
+      { source: "upullitne", count: 2486, errors: [] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([
       "row52",
       "autorecycler",
       "pullapart",
+      "upullitne",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(false);
   });
@@ -49,6 +53,7 @@ describe("pipeline policy", () => {
       { source: "pyp", count: 0, errors: ["PYP failed"] },
       { source: "autorecycler", count: 0, errors: ["AutoRecycler failed"] },
       { source: "pullapart", count: 0, errors: ["Pull-A-Part failed"] },
+      { source: "upullitne", count: 0, errors: ["U Pull-It Nebraska failed"] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([]);
