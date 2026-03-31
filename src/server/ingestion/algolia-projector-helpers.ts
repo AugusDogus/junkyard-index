@@ -7,6 +7,8 @@ export function mapDbVehicleToCanonical(
   const source: CanonicalVehicle["source"] =
     row.source === "row52"
       ? "row52"
+      : row.source === "pullapart"
+        ? "pullapart"
       : row.source === "autorecycler"
         ? "autorecycler"
         : "pyp";

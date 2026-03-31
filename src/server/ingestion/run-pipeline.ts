@@ -16,6 +16,7 @@ import {
   reconcileFromFinalInventory,
 } from "./reconcile";
 import { streamAutorecyclerInventory } from "./autorecycler-connector";
+import { streamPullapartInventory } from "./pullapart-connector";
 import { streamRow52Inventory } from "./row52-connector";
 import {
   PersistenceError,
@@ -36,6 +37,7 @@ const EMPTY_TIMINGS = {
   row52FetchMs: 0,
   pypFetchMs: 0,
   autorecyclerFetchMs: 0,
+  pullapartFetchMs: 0,
   upsertFlushMs: 0,
   staleDeleteMs: 0,
   algoliaPrepMs: 0,
@@ -51,6 +53,7 @@ export interface IngestionPipelineResult {
   pypCount: number;
   row52Count: number;
   autorecyclerCount: number;
+  pullapartCount: number;
   errors: string[];
   durationMs: number;
   timingsMs: {
@@ -58,6 +61,7 @@ export interface IngestionPipelineResult {
     row52FetchMs: number;
     pypFetchMs: number;
     autorecyclerFetchMs: number;
+    pullapartFetchMs: number;
     upsertFlushMs: number;
     staleDeleteMs: number;
     algoliaPrepMs: number;
@@ -232,7 +236,12 @@ function parseSourceErrors(errorsJson: string | null): string[] {
 }
 
 function isSourceName(value: string): value is SourceName {
-  return value === "row52" || value === "pyp" || value === "autorecycler";
+  return (
+    value === "row52" ||
+    value === "pyp" ||
+    value === "autorecycler" ||
+    value === "pullapart"
+  );
 }
 
 const finalizePendingSourceRuns = (
@@ -748,6 +757,7 @@ export const ingestionPipeline: Effect.Effect<
       pypCount: 0,
       row52Count: 0,
       autorecyclerCount: 0,
+      pullapartCount: 0,
       errors: [msg],
       durationMs,
       timingsMs: EMPTY_TIMINGS,
@@ -759,15 +769,18 @@ export const ingestionPipeline: Effect.Effect<
       initSourceRun(runId, "row52", runTimestamp),
       initSourceRun(runId, "pyp", runTimestamp),
       initSourceRun(runId, "autorecycler", runTimestamp),
+      initSourceRun(runId, "pullapart", runTimestamp),
     ]);
 
     const row52ByVin = new Map<string, CanonicalVehicle>();
     const pypByVin = new Map<string, CanonicalVehicle>();
     const autorecyclerByVin = new Map<string, CanonicalVehicle>();
+    const pullapartByVin = new Map<string, CanonicalVehicle>();
 
     const sourcesStart = Date.now();
 
-    const [row52Result, pypResult, autorecyclerResult] = yield* Effect.all(
+    const [row52Result, pypResult, autorecyclerResult, pullapartResult] =
+      yield* Effect.all(
       [
         fetchRow52Source(runId, row52ByVin, {
           pyp: pypByVin,
@@ -781,8 +794,13 @@ export const ingestionPipeline: Effect.Effect<
           row52: row52ByVin,
           pyp: pypByVin,
         }),
+        fetchPullapartSource(runId, pullapartByVin, {
+          row52: row52ByVin,
+          pyp: pypByVin,
+          autorecycler: autorecyclerByVin,
+        }),
       ],
-      { concurrency: 3 },
+      { concurrency: 4 },
     );
 
     const sourcesParallelMs = Date.now() - sourcesStart;
@@ -790,12 +808,14 @@ export const ingestionPipeline: Effect.Effect<
       ...row52Result.errors,
       ...pypResult.errors,
       ...autorecyclerResult.errors,
+      ...pullapartResult.errors,
     );
 
     const sourceOutcomes: SourceOutcome[] = [
       row52Result,
       pypResult,
       autorecyclerResult,
+      pullapartResult,
     ];
     const healthySources = determineHealthySources(sourceOutcomes);
     const reconcileTimestamp = new Date();
@@ -805,6 +825,7 @@ export const ingestionPipeline: Effect.Effect<
         row52Vins: row52ByVin.size,
         pypVins: pypByVin.size,
         autorecyclerVins: autorecyclerByVin.size,
+        pullapartVins: pullapartByVin.size,
         healthySources: healthySources.join(",") || "none",
       }),
     );
@@ -814,6 +835,7 @@ export const ingestionPipeline: Effect.Effect<
       row52ByVin,
       pypByVin,
       autorecyclerByVin,
+      pullapartByVin,
     });
     const finalizedInventoryCount = finalInventoryByVin.size;
 
@@ -823,6 +845,7 @@ export const ingestionPipeline: Effect.Effect<
         row52Vins: row52ByVin.size,
         pypVins: pypByVin.size,
         autorecyclerVins: autorecyclerByVin.size,
+        pullapartVins: pullapartByVin.size,
       }),
     );
 
@@ -856,6 +879,7 @@ export const ingestionPipeline: Effect.Effect<
       row52FetchMs: row52Result.fetchMs,
       pypFetchMs: pypResult.fetchMs,
       autorecyclerFetchMs: autorecyclerResult.fetchMs,
+      pullapartFetchMs: pullapartResult.fetchMs,
       upsertFlushMs,
       staleDeleteMs,
       algoliaPrepMs: 0,
@@ -871,7 +895,7 @@ export const ingestionPipeline: Effect.Effect<
     );
 
     yield* Effect.logInfo(
-      `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles, AutoRecycler: ${autorecyclerResult.count} vehicles`,
+      `[Ingestion] PYP: ${pypResult.count} vehicles, Row52: ${row52Result.count} vehicles, AutoRecycler: ${autorecyclerResult.count} vehicles, Pull-A-Part: ${pullapartResult.count} vehicles`,
     );
     yield* Effect.logInfo(
       `[Ingestion] Finalized ${finalizedInventoryCount} canonical vehicles from healthy sources`,
@@ -880,7 +904,7 @@ export const ingestionPipeline: Effect.Effect<
       `[Ingestion] Reconcile complete: ${reconcileResult.upsertedCount} upserted, ${reconcileResult.deletedCount} deleted, ${reconcileResult.missingUpdatedCount} marked missing`,
     );
     yield* Effect.logInfo(
-      `[Ingestion] Source timings: row52=${row52Result.fetchMs}ms pyp=${pypResult.fetchMs}ms autorecycler=${autorecyclerResult.fetchMs}ms parallel_window=${sourcesParallelMs}ms`,
+      `[Ingestion] Source timings: row52=${row52Result.fetchMs}ms pyp=${pypResult.fetchMs}ms autorecycler=${autorecyclerResult.fetchMs}ms pullapart=${pullapartResult.fetchMs}ms parallel_window=${sourcesParallelMs}ms`,
     );
     yield* Effect.logInfo(
       `[Ingestion] Stage timings: inventory_diff_upsert=${upsertFlushMs}ms missing_delete=${staleDeleteMs}ms algolia_prep=0ms algolia_sync=0ms`,
@@ -902,6 +926,7 @@ export const ingestionPipeline: Effect.Effect<
       pypCount: pypResult.count,
       row52Count: row52Result.count,
       autorecyclerCount: autorecyclerResult.count,
+      pullapartCount: pullapartResult.count,
       errors: allErrors,
       durationMs,
       timingsMs,

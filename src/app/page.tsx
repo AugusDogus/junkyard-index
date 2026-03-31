@@ -154,7 +154,7 @@ export default async function Home() {
       <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="mb-4 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Three networks. One search.
+            Four networks. One search.
           </h2>
           <p className="text-muted-foreground mx-auto mb-12 max-w-xl text-pretty">
             We pull inventory from each source daily and combine it into a
@@ -162,7 +162,12 @@ export default async function Home() {
           </p>
 
           <div className="mb-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {["LKQ Pick Your Part", "Row52", "AutoRecycler"].map((name) => (
+            {[
+              "LKQ Pick Your Part",
+              "Pull-A-Part / U-Pull-&-Pay",
+              "Row52",
+              "AutoRecycler",
+            ].map((name) => (
               <div key={name} className="flex items-center gap-2.5">
                 <div className="bg-muted flex size-8 items-center justify-center rounded-md">
                   <Car className="text-muted-foreground size-4" />
@@ -181,7 +186,7 @@ export default async function Home() {
               value={formatYardBadgeCount(liveStats.yardCount)}
               label="Yards Nationwide"
             />
-            <StatCard value="3" label="Yard Networks" />
+            <StatCard value="4" label="Yard Networks" />
           </div>
         </div>
       </section>

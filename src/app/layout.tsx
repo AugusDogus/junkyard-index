@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s | Junkyard Index",
   },
   description:
-    "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Row52, and more. Save searches and get email alerts when new vehicles arrive.",
+    "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Pull-A-Part, Row52, and more. Save searches and get email alerts when new vehicles arrive.",
   keywords: [
     "junkyard",
     "salvage yard",
@@ -41,13 +41,13 @@ export const metadata: Metadata = {
     siteName: "Junkyard Index",
     title: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
     description:
-      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Row52, and more.",
+      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Pull-A-Part, Row52, and more.",
   },
   twitter: {
     card: "summary_large_image",
     title: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
     description:
-      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Row52, and more.",
+      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Pull-A-Part, Row52, and more.",
   },
   robots: {
     index: true,

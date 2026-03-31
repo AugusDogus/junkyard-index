@@ -12,6 +12,12 @@ export const API_ENDPOINTS = {
   VEHICLE_INVENTORY:
     "/DesktopModules/pyp_vehicleInventory/getVehicleInventory.aspx",
   LOCATION_PAGE: "/inventory/",
+  PULLAPART_WEB: "https://www.pullapart.com",
+  UPULLANDPAY_WEB: "https://www.upullandpay.com",
+  PULLAPART_INVENTORY_BASE: "https://inventoryservice.pullapart.com",
+  PULLAPART_ENTERPRISE_BASE: "https://enterpriseservice.pullapart.com",
+  PULLAPART_EXTERNAL_INTERCHANGE_BASE:
+    "https://externalinterchangeservice.pullapart.com",
   ROW52_BASE: "https://api.row52.com",
   ROW52_WEB: "https://row52.com",
   PYP_FILTER_INVENTORY: "/DesktopModules/pyp_api/api/Inventory/Filter",

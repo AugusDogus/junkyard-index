@@ -92,6 +92,7 @@ describe("reconcile helpers", () => {
       row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
       pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
       autorecyclerByVin: new Map(),
+      pullapartByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(row52Vehicle);
@@ -112,6 +113,7 @@ describe("reconcile helpers", () => {
       row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
       pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
       autorecyclerByVin: new Map(),
+      pullapartByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(pypVehicle);
@@ -128,10 +130,29 @@ describe("reconcile helpers", () => {
       row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
       pypByVin: new Map(),
       autorecyclerByVin: new Map([[arVehicle.vin, arVehicle]]),
+      pullapartByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
     expect(finalInventory.get("VIN_B")).toEqual(arVehicle);
+  });
+
+  test("fills Pull-A-Part-only VINs after higher-priority sources merge", () => {
+    const row52Vehicle = makeCanonicalVehicle("VIN_A", "row52");
+    const pullapartVehicle = makeCanonicalVehicle("VIN_P", "pullapart", {
+      stockNumber: "PA-1",
+    });
+
+    const finalInventory = buildFinalInventoryByVin({
+      healthySources: ["row52", "pyp", "pullapart"],
+      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
+      pypByVin: new Map(),
+      autorecyclerByVin: new Map(),
+      pullapartByVin: new Map([[pullapartVehicle.vin, pullapartVehicle]]),
+    });
+
+    expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
+    expect(finalInventory.get("VIN_P")).toEqual(pullapartVehicle);
   });
 
   test("treats reappearing vehicles as changed so missing state is cleared", () => {

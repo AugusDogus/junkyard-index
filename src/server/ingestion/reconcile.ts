@@ -69,56 +69,82 @@ export function buildFinalInventoryByVin(params: {
   row52ByVin: Map<string, CanonicalVehicle>;
   pypByVin: Map<string, CanonicalVehicle>;
   autorecyclerByVin: Map<string, CanonicalVehicle>;
+  pullapartByVin: Map<string, CanonicalVehicle>;
 }): Map<string, CanonicalVehicle> {
   const row52Healthy = params.healthySources.includes("row52");
   const pypHealthy = params.healthySources.includes("pyp");
   const autorecyclerHealthy = params.healthySources.includes("autorecycler");
+  const pullapartHealthy = params.healthySources.includes("pullapart");
 
-  const mergeAutorecyclerHoles = (into: Map<string, CanonicalVehicle>) => {
-    if (!autorecyclerHealthy) return;
-    for (const [vin, vehicle] of params.autorecyclerByVin) {
+  const mergeSourceHoles = (
+    into: Map<string, CanonicalVehicle>,
+    from: Map<string, CanonicalVehicle>,
+  ) => {
+    for (const [vin, vehicle] of from) {
       if (!into.has(vin)) {
         into.set(vin, vehicle);
       }
     }
   };
 
+  const mergeAutorecyclerHoles = (into: Map<string, CanonicalVehicle>) => {
+    if (!autorecyclerHealthy) return;
+    mergeSourceHoles(into, params.autorecyclerByVin);
+  };
+
+  const mergePullapartHoles = (into: Map<string, CanonicalVehicle>) => {
+    if (!pullapartHealthy) return;
+    mergeSourceHoles(into, params.pullapartByVin);
+  };
+
   if (row52Healthy && pypHealthy) {
-    // Row52 wins overlaps; PYP fills holes; AutoRecycler fills remaining holes.
-    for (const [vin, vehicle] of params.pypByVin) {
-      if (!params.row52ByVin.has(vin)) {
-        params.row52ByVin.set(vin, vehicle);
-      }
-    }
+    // Row52 wins overlaps; PYP fills holes; Pull-A-Part and AutoRecycler fill remaining holes.
+    mergeSourceHoles(params.row52ByVin, params.pypByVin);
     params.pypByVin.clear();
+    mergePullapartHoles(params.row52ByVin);
+    params.pullapartByVin.clear();
     mergeAutorecyclerHoles(params.row52ByVin);
     params.autorecyclerByVin.clear();
     return params.row52ByVin;
   }
 
   if (row52Healthy) {
+    mergePullapartHoles(params.row52ByVin);
     mergeAutorecyclerHoles(params.row52ByVin);
     params.pypByVin.clear();
+    params.pullapartByVin.clear();
     params.autorecyclerByVin.clear();
     return params.row52ByVin;
   }
 
   if (pypHealthy) {
+    mergePullapartHoles(params.pypByVin);
     mergeAutorecyclerHoles(params.pypByVin);
     params.row52ByVin.clear();
+    params.pullapartByVin.clear();
     params.autorecyclerByVin.clear();
     return params.pypByVin;
+  }
+
+  if (pullapartHealthy) {
+    mergeAutorecyclerHoles(params.pullapartByVin);
+    params.row52ByVin.clear();
+    params.pypByVin.clear();
+    params.autorecyclerByVin.clear();
+    return params.pullapartByVin;
   }
 
   if (autorecyclerHealthy) {
     params.row52ByVin.clear();
     params.pypByVin.clear();
+    params.pullapartByVin.clear();
     return params.autorecyclerByVin;
   }
 
   params.row52ByVin.clear();
   params.pypByVin.clear();
   params.autorecyclerByVin.clear();
+  params.pullapartByVin.clear();
   return new Map<string, CanonicalVehicle>();
 }
 

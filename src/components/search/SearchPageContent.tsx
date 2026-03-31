@@ -101,7 +101,12 @@ const KEY_TO_INDEX = Object.fromEntries(
   SORT_OPTIONS.map((o) => [o.key, o.indexName]),
 );
 const KNOWN_SORT_INDICES = new Set(SORT_OPTIONS.map((o) => o.indexName));
-const ALLOWED_SOURCES: DataSource[] = ["pyp", "row52", "autorecycler"];
+const ALLOWED_SOURCES: DataSource[] = [
+  "pyp",
+  "row52",
+  "autorecycler",
+  "pullapart",
+];
 
 function clampRouteYear(
   value: number | null,

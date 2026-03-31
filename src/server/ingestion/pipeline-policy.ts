@@ -1,4 +1,8 @@
-export type PipelineSourceName = "pyp" | "row52" | "autorecycler";
+export type PipelineSourceName =
+  | "pyp"
+  | "row52"
+  | "autorecycler"
+  | "pullapart";
 
 export interface PipelineSourceOutcome {
   source: PipelineSourceName;

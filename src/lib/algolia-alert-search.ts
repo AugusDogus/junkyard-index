@@ -66,7 +66,11 @@ export function buildAlertFiltersString(
   const sourcesClause = buildStringOrFilter(
     "source",
     (filters.sources ?? []).filter(
-      (s) => s === "pyp" || s === "row52" || s === "autorecycler",
+      (s) =>
+        s === "pyp" ||
+        s === "row52" ||
+        s === "autorecycler" ||
+        s === "pullapart",
     ),
   );
   if (sourcesClause) clauses.push(sourcesClause);
