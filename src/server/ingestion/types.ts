@@ -4,7 +4,7 @@
  */
 export interface CanonicalVehicle {
   vin: string;
-  source: "pyp" | "row52" | "autorecycler" | "pullapart";
+  source: "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne";
   year: number;
   make: string;
   model: string;
@@ -39,7 +39,7 @@ export interface CanonicalVehicle {
  */
 export interface AlgoliaVehicleRecord {
   objectID: string;
-  source: "pyp" | "row52" | "autorecycler" | "pullapart";
+  source: "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne";
   year: number;
   make: string;
   model: string;

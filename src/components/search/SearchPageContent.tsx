@@ -106,6 +106,7 @@ const ALLOWED_SOURCES: DataSource[] = [
   "row52",
   "autorecycler",
   "pullapart",
+  "upullitne",
 ];
 
 function clampRouteYear(

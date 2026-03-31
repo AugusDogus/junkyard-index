@@ -9,6 +9,8 @@ export function mapDbVehicleToCanonical(
       ? "row52"
       : row.source === "pullapart"
         ? "pullapart"
+      : row.source === "upullitne"
+        ? "upullitne"
       : row.source === "autorecycler"
         ? "autorecycler"
         : "pyp";

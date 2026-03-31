@@ -70,7 +70,8 @@ export function buildAlertFiltersString(
         s === "pyp" ||
         s === "row52" ||
         s === "autorecycler" ||
-        s === "pullapart",
+        s === "pullapart" ||
+        s === "upullitne",
     ),
   );
   if (sourcesClause) clauses.push(sourcesClause);

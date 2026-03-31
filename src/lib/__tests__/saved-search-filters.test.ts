@@ -33,7 +33,7 @@ describe("saved search filters schema", () => {
     const result = filtersSchema.safeParse({
       minYear: 2012,
       maxYear: nextYear,
-      sources: ["pyp", "row52", "pullapart"],
+      sources: ["pyp", "row52", "pullapart", "upullitne"],
     });
 
     expect(result.success).toBe(true);

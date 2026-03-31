@@ -6,7 +6,8 @@ function parseDataSource(value: unknown): DataSource {
     value === "pyp" ||
     value === "row52" ||
     value === "autorecycler" ||
-    value === "pullapart"
+    value === "pullapart" ||
+    value === "upullitne"
   ) {
     return value;
   }
