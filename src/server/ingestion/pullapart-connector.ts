@@ -1,5 +1,7 @@
+import { HttpClient } from "@effect/platform";
 import { Effect } from "effect";
 import {
+  fetchZipGeo,
   fetchPullapartLocations,
   fetchPullapartMakesOnYard,
   searchPullapartVehicles,
@@ -38,8 +40,11 @@ export function streamPullapartInventory<E, R>(options: {
 }): Effect.Effect<
   PullapartStreamResult,
   PullapartProviderError | E,
-  R | import("@effect/platform").HttpClient.HttpClient
+  R | HttpClient.HttpClient
 > {
+  const makeQueryIndex = (locationIndex: number, makeIndex: number) =>
+    locationIndex * 1000 + makeIndex;
+
   return Effect.gen(function* () {
     const progressEveryPages = Math.max(
       1,
@@ -52,6 +57,7 @@ export function streamPullapartInventory<E, R>(options: {
     let stopped = false;
     let lastProgressPages = 0;
     const errors: string[] = [];
+    const geoByZip = new Map<string, { lat: number; lng: number }>();
 
     const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
       if (!options.onProgress) return Effect.succeed(undefined);
@@ -91,7 +97,7 @@ export function streamPullapartInventory<E, R>(options: {
         Effect.mapError(
           (cause) =>
             new PullapartProviderError({
-              cursor: `${cursorPrefix}:makes`,
+              cursor: `${cursorPrefix}:makes:${makeQueryIndex(locationIndex, -1)}`,
               cause,
             }),
         ),
@@ -116,7 +122,7 @@ export function streamPullapartInventory<E, R>(options: {
           Effect.mapError(
             (cause) =>
               new PullapartProviderError({
-                cursor: `${cursorPrefix}:make:${make.makeID}`,
+                cursor: `${cursorPrefix}:make:${make.makeID}:${makeQueryIndex(locationIndex, makeIndex)}`,
                 cause,
               }),
           ),
@@ -129,10 +135,23 @@ export function streamPullapartInventory<E, R>(options: {
           ...(groupedResult?.exact ?? []),
           ...(groupedResult?.other ?? []),
         ];
+        let geo = geoByZip.get(location.zipCode);
+        if (!geo) {
+          geo = yield* fetchZipGeo(location.zipCode).pipe(
+            Effect.mapError(
+              (cause) =>
+                new PullapartProviderError({
+                  cursor: `${cursorPrefix}:geo`,
+                  cause,
+                }),
+            ),
+          );
+          geoByZip.set(location.zipCode, geo);
+        }
 
         const uniqueByVin = new Map<string, CanonicalVehicle>();
         for (const row of rows) {
-          const transformed = transformPullapartVehicle(row, location);
+          const transformed = transformPullapartVehicle(row, location, geo);
           if (!transformed) continue;
           uniqueByVin.set(transformed.vin, transformed);
         }

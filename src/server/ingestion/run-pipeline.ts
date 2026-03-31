@@ -728,6 +728,131 @@ function fetchAutorecyclerSource(
   });
 }
 
+function fetchPullapartSource(
+  runId: string,
+  vehicleMap: Map<string, CanonicalVehicle>,
+  peerMaps: {
+    row52: Map<string, CanonicalVehicle>;
+    pyp: Map<string, CanonicalVehicle>;
+    autorecycler: Map<string, CanonicalVehicle>;
+  },
+): Effect.Effect<
+  SourceOutcome & { fetchMs: number },
+  PersistenceError,
+  HttpClient.HttpClient
+> {
+  return Effect.gen(function* () {
+    const startedAt = Date.now();
+    let latestNextCursor = "0:0";
+    let latestPagesProcessed = 0;
+    let latestVehiclesProcessed = 0;
+    let latestProgressErrors: string[] = [];
+
+    const reportProgress = (progress: {
+      nextCursor: string;
+      pagesProcessed: number;
+      vehiclesProcessed: number;
+      errors: string[];
+    }) => {
+      latestNextCursor = progress.nextCursor;
+      latestPagesProcessed = progress.pagesProcessed;
+      latestVehiclesProcessed = progress.vehiclesProcessed;
+      latestProgressErrors = progress.errors;
+      return updateSourceRunProgress({
+        runId,
+        source: "pullapart",
+        nextCursor: progress.nextCursor,
+        pagesProcessed: progress.pagesProcessed,
+        vehiclesProcessed: progress.vehiclesProcessed,
+        errors: progress.errors,
+      }).pipe(
+        Effect.catchAll((error) =>
+          Effect.logWarning(
+            `[Ingestion] Pull-A-Part progress update failed: ${error.message}${
+              progress.errors.length > 0
+                ? ` (provider: ${progress.errors.join("; ")})`
+                : ""
+            }`,
+          ),
+        ),
+      );
+    };
+
+    const result = yield* streamPullapartInventory({
+      onBatch: (vehicles) =>
+        Effect.sync(() => {
+          accumulateVehicles(vehicleMap, vehicles);
+        }),
+      pagesPerChunk: SOURCE_CHUNK_PAGES,
+      onProgress: reportProgress,
+    }).pipe(
+      Effect.tap((result) => {
+        latestNextCursor = result.nextCursor;
+        latestPagesProcessed = result.pagesProcessed;
+        latestVehiclesProcessed = result.count;
+        return completeSourceRun({
+          runId,
+          source: "pullapart",
+          nextCursor: result.nextCursor,
+          pagesProcessed: result.pagesProcessed,
+          vehiclesProcessed: result.count,
+          errors: result.errors,
+        });
+      }),
+      Effect.tap(() =>
+        Effect.logDebug(
+          formatMemoryUsage("after_pullapart_fetch", {
+            pullapartVins: vehicleMap.size,
+            peerRow52Vins: peerMaps.row52.size,
+            peerPypVins: peerMaps.pyp.size,
+            peerAutorecyclerVins: peerMaps.autorecycler.size,
+          }),
+        ),
+      ),
+      Effect.catchAll((error) => {
+        if (error instanceof PersistenceError) {
+          return Effect.fail(error);
+        }
+        const msg = `Pull-A-Part ingestion failed: ${error.message}`;
+        return completeSourceRun({
+          runId,
+          source: "pullapart",
+          nextCursor: latestNextCursor,
+          pagesProcessed: latestPagesProcessed,
+          vehiclesProcessed: latestVehiclesProcessed,
+          errors:
+            latestProgressErrors.length > 0
+              ? [...latestProgressErrors, msg]
+              : [msg],
+        }).pipe(
+          Effect.catchAll((err) =>
+            Effect.logWarning(
+              `[Ingestion] completeSourceRun failed for source=pullapart runId=${runId}: ${err.message}`,
+            ),
+          ),
+          Effect.map(() => ({
+            source: "pullapart" as const,
+            count: latestVehiclesProcessed,
+            errors: [msg],
+            pagesProcessed: latestPagesProcessed,
+            nextCursor: latestNextCursor,
+            done: false,
+            fullyExhausted: false,
+            stopped: true,
+          })),
+        );
+      }),
+    );
+
+    return {
+      source: "pullapart" as const,
+      count: result.count,
+      errors: result.errors,
+      fetchMs: Date.now() - startedAt,
+    };
+  });
+}
+
 /**
  * Main ingestion pipeline as an Effect program.
  */
