@@ -56,7 +56,11 @@ function pullapartJsonRequest<T, I, R>(params: {
           : new Error(String(cause)),
     });
 
-    if (DEFAULT_RETRYABLE_STATUS_CODES.includes(response.status)) {
+    if (
+      DEFAULT_RETRYABLE_STATUS_CODES.includes(
+        response.status as (typeof DEFAULT_RETRYABLE_STATUS_CODES)[number],
+      )
+    ) {
       return yield* Effect.fail(
         new RetryableHttpStatusError({
           context: params.context,
@@ -138,7 +142,7 @@ export const PullapartVehicleSchema = Schema.Struct({
   modelYear: Schema.Number,
   row: Schema.Union(Schema.Number, Schema.String),
   vin: Schema.String,
-  dateYardOn: Schema.String,
+  dateYardOn: Schema.NullOr(Schema.String),
   vinDecodedId: Schema.NullOr(Schema.Number),
   extendedInfo: Schema.NullOr(Schema.Unknown),
 });
@@ -187,7 +191,7 @@ export function fetchPullapartLocations(): Effect.Effect<
     url: `${API_ENDPOINTS.PULLAPART_EXTERNAL_INTERCHANGE_BASE}/interchange/GetLocations`,
     context: "Pull-A-Part locations",
     schema: Schema.Array(PullapartLocationSchema),
-  });
+  }).pipe(Effect.map((locations) => [...locations]));
 }
 
 export function fetchPullapartMakesOnYard(
@@ -201,7 +205,7 @@ export function fetchPullapartMakesOnYard(
     url: url.toString(),
     context: `Pull-A-Part makes on yard for location=${locationId}`,
     schema: Schema.Array(PullapartMakeSchema),
-  });
+  }).pipe(Effect.map((makes) => [...makes]));
 }
 
 export function searchPullapartVehicles(params: {
@@ -219,7 +223,7 @@ export function searchPullapartVehicles(params: {
       Models: [],
       Years: [],
     }),
-  });
+  }).pipe(Effect.map((groups) => [...groups]));
 }
 
 export const fetchPullapartVehiclesByMake = searchPullapartVehicles;
@@ -227,7 +231,7 @@ export const fetchPullapartVehiclesByMake = searchPullapartVehicles;
 export function fetchZipGeo(
   zipCode: string,
 ): Effect.Effect<PullapartZipGeo, Error> {
-  const normalizedZipCode = zipCode.trim();
+  const normalizedZipCode = zipCode.trim().slice(0, 5);
   return Effect.gen(function* () {
     const response = yield* pullapartJsonRequest({
       url: `https://api.zippopotam.us/us/${normalizedZipCode}`,

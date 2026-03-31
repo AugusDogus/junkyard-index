@@ -11,6 +11,25 @@ import type {
 } from "./pullapart-client";
 import type { CanonicalVehicle } from "./types";
 
+function readExtendedInfoField(
+  extendedInfo: unknown,
+  keys: ReadonlyArray<string>,
+): string | null {
+  if (!extendedInfo || typeof extendedInfo !== "object") {
+    return null;
+  }
+
+  const record = extendedInfo as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
 function buildDetailsUrl(
   location: PullapartLocation,
   vehicle: PullapartVehicle,
@@ -49,7 +68,7 @@ export function transformPullapartVehicle(
     make: normalizeCanonicalMake(vehicle.makeName),
     model: vehicle.modelName.trim(),
     color: normalizeCanonicalColor(
-      vehicle.extendedInfo?.color ?? vehicle.extendedInfo?.exteriorColor ?? null,
+      readExtendedInfoField(vehicle.extendedInfo, ["color", "exteriorColor"]),
     ),
     stockNumber: String(vehicle.ticketID),
     imageUrl: null,
@@ -70,12 +89,14 @@ export function transformPullapartVehicle(
     detailsUrl: buildDetailsUrl(location, vehicle),
     partsUrl: null,
     pricesUrl: null,
-    engine:
-      vehicle.extendedInfo?.engine ?? vehicle.extendedInfo?.engineDescription ?? null,
-    trim: vehicle.extendedInfo?.trim ?? null,
-    transmission:
-      vehicle.extendedInfo?.transmission ??
-      vehicle.extendedInfo?.transmissionDescription ??
-      null,
+    engine: readExtendedInfoField(vehicle.extendedInfo, [
+      "engine",
+      "engineDescription",
+    ]),
+    trim: readExtendedInfoField(vehicle.extendedInfo, ["trim"]),
+    transmission: readExtendedInfoField(vehicle.extendedInfo, [
+      "transmission",
+      "transmissionDescription",
+    ]),
   };
 }

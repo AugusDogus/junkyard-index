@@ -63,11 +63,11 @@ export class AutorecyclerProviderError extends Data.TaggedError(
 export class PullapartProviderError extends Data.TaggedError(
   "PullapartProviderError",
 )<{
-  queryIndex: number;
+  cursor: string;
   cause: unknown;
 }> {
   override get message() {
-    return `Pull-A-Part at query=${this.queryIndex}: ${getCauseMessage(this.cause)}`;
+    return `Pull-A-Part at ${this.cursor}: ${getCauseMessage(this.cause)}`;
   }
 }
 
