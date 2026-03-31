@@ -1,6 +1,6 @@
 import { normalizeCanonicalColor, normalizeCanonicalMake } from "./normalization";
 import type {
-  TapInventoryProduct,
+  TapInventorySearchProduct,
   TapInventorySiteConfig,
   TapInventoryStoreConfig,
 } from "./tap-inventory-client";
@@ -16,7 +16,7 @@ function extractImageUrl(rawHtml: string): string | null {
 }
 
 export function transformTapInventoryProduct(
-  product: TapInventoryProduct,
+  product: TapInventorySearchProduct,
   store: TapInventoryStoreConfig,
   site: TapInventorySiteConfig,
 ): CanonicalVehicle | null {
@@ -36,8 +36,8 @@ export function transformTapInventoryProduct(
   const imageUrl = extractImageUrl(product.image_url);
   const detailsUrl =
     stockNumber.length > 0
-      ? `${site.baseUrl}/search-inventory/?stock=${encodeURIComponent(stockNumber)}`
-      : `${site.baseUrl}/search-inventory/`;
+      ? `${site.inventoryPageUrl}?stock=${encodeURIComponent(stockNumber)}`
+      : site.inventoryPageUrl;
 
   return {
     vin,
@@ -60,8 +60,8 @@ export function transformTapInventoryProduct(
     row: product.vehicle_row.trim() || null,
     space: null,
     detailsUrl,
-    partsUrl: `${site.baseUrl}/parts-pricelist/`,
-    pricesUrl: `${site.baseUrl}/parts-pricelist/`,
+    partsUrl: `${new URL("/parts-pricelist/", site.inventoryPageUrl).toString()}`,
+    pricesUrl: `${new URL("/parts-pricelist/", site.inventoryPageUrl).toString()}`,
     engine: null,
     trim: null,
     transmission: null,

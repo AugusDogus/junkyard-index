@@ -26,15 +26,17 @@ function buildRetrySchedule() {
 export interface TapInventorySiteConfig {
   source: "upullitne";
   siteName: string;
+  baseUrl: string;
   inventoryPageUrl: string;
   ajaxUrl: string;
   pluginUrl: string;
   nonce: string;
-  stores: Record<
+  storeLocations: Record<
     string,
     {
+      code: string;
       locationName: string;
-      locationCity: string;
+      city: string;
       state: string;
       stateAbbr: string;
       zipCode: string;
@@ -44,6 +46,7 @@ export interface TapInventorySiteConfig {
       lng: number;
     }
   >;
+  makes: string[];
 }
 
 function tapRequest<T, I, R>(params: {
@@ -133,7 +136,7 @@ export const TapInventorySearchProductSchema = Schema.Struct({
   hol_model: Schema.String,
   vehicle_row: Schema.String,
   yard_date: Schema.String,
-  yard_in_date: Schema.String,
+  yard_in_date: Schema.optional(Schema.String),
   batch_number: Schema.String,
   lastupdate: Schema.String,
   color: Schema.String,
@@ -195,6 +198,11 @@ function decodeHtmlOptions(text: string) {
   return Schema.decodeUnknownSync(HtmlOptionsSchema)(options);
 }
 
+export type TapInventoryOption = ReturnType<typeof decodeHtmlOptions>[number];
+export type TapStoreOption = TapInventoryOption;
+export type TapInventoryStoreConfig =
+  TapInventorySiteConfig["storeLocations"][string];
+
 export function fetchTapOptions(params: {
   ajaxUrl: string;
   nonce: string;
@@ -217,7 +225,27 @@ export function fetchTapOptions(params: {
       sif_verify_request: params.nonce,
       ...(params.extra ?? {}),
     },
-  }).pipe(Effect.map(decodeHtmlOptions));
+  }).pipe(Effect.map((options) => [...decodeHtmlOptions(options)]));
+}
+
+export function fetchTapStores(config: TapInventorySiteConfig) {
+  return fetchTapOptions({
+    ajaxUrl: config.ajaxUrl,
+    nonce: config.nonce,
+    action: "sif_get_stores",
+  });
+}
+
+export function fetchTapModels(config: TapInventorySiteConfig, make: string) {
+  return fetchTapOptions({
+    ajaxUrl: config.ajaxUrl,
+    nonce: config.nonce,
+    action: "sif_update_models",
+    extra: {
+      make,
+      state: "0",
+    },
+  });
 }
 
 export function searchTapInventory(params: {
@@ -242,3 +270,106 @@ export function searchTapInventory(params: {
     },
   }).pipe(Effect.map(decodeSearchResponse));
 }
+
+export const UPULLITNE_SITE_CONFIG: TapInventorySiteConfig = {
+  source: "upullitne",
+  siteName: "U Pull-It Nebraska",
+  baseUrl: "https://upullitne.com",
+  inventoryPageUrl: "https://upullitne.com/search-inventory/",
+  ajaxUrl: "https://upullitne.com/wp-admin/admin-ajax.php",
+  pluginUrl:
+    "https://upullitne.com/wp-content/plugins/tap-inventory-search-system/",
+  nonce: "2ff54e61b2",
+  storeLocations: {
+    LINCOLN: {
+      code: "LINCOLN",
+      locationName: "U Pull-It Nebraska - Lincoln",
+      city: "Lincoln",
+      state: "Nebraska",
+      stateAbbr: "NE",
+      zipCode: "68507",
+      phone: "402-467-4101",
+      address: "6300 N. 70th Street",
+      lat: 40.8715,
+      lng: -96.6256,
+    },
+    "OMAHA NORTH": {
+      code: "OMAHA NORTH",
+      locationName: "U Pull-It Nebraska - Omaha North",
+      city: "Omaha",
+      state: "Nebraska",
+      stateAbbr: "NE",
+      zipCode: "68110",
+      phone: "402-342-0831",
+      address: "1405 Grace Street",
+      lat: 41.2801,
+      lng: -95.9658,
+    },
+    "OMAHA SOUTH": {
+      code: "OMAHA SOUTH",
+      locationName: "U Pull-It Nebraska - Omaha South",
+      city: "Omaha",
+      state: "Nebraska",
+      stateAbbr: "NE",
+      zipCode: "68117",
+      phone: "402-734-6029",
+      address: "5600 S. 60th Street",
+      lat: 41.2042,
+      lng: -96.0011,
+    },
+    "DES MOINES": {
+      code: "DES MOINES",
+      locationName: "U Pull-It Nebraska - Des Moines",
+      city: "Des Moines",
+      state: "Iowa",
+      stateAbbr: "IA",
+      zipCode: "50313",
+      phone: "515-528-3600",
+      address: "1600 NE 44th Ave",
+      lat: 41.6387,
+      lng: -93.5566,
+    },
+  },
+  makes: [
+    "ACURA",
+    "AUDI",
+    "BMW",
+    "BUICK",
+    "CADILLAC",
+    "CHEVROLET",
+    "CHRYSLER",
+    "DODGE",
+    "FIAT",
+    "FORD",
+    "GEO",
+    "GMC",
+    "HONDA",
+    "HUMMER",
+    "HYUNDAI",
+    "INFINITI",
+    "ISUZU",
+    "JAGUAR",
+    "JEEP",
+    "KIA",
+    "LAND ROVER",
+    "LEXUS",
+    "LINCOLN",
+    "MAZDA",
+    "MERCEDES-BENZ",
+    "MERCURY",
+    "MINI",
+    "MITSUBISHI",
+    "NISSAN",
+    "OLDSMOBILE",
+    "PLYMOUTH",
+    "PONTIAC",
+    "SAAB",
+    "SATURN",
+    "SCION",
+    "SUBARU",
+    "SUZUKI",
+    "TOYOTA",
+    "VOLKSWAGEN",
+    "VOLVO",
+  ],
+};

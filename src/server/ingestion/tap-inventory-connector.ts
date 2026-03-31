@@ -7,7 +7,7 @@ import {
   type TapStoreOption,
 } from "./tap-inventory-client";
 import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
-import { TapProviderError } from "./errors";
+import { TapInventoryProviderError } from "./errors";
 import { transformTapInventoryProduct } from "./tap-inventory-transform";
 import type { CanonicalVehicle } from "./types";
 
@@ -39,7 +39,7 @@ export function streamTapInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   pagesPerChunk?: number;
   onProgress?: (progress: TapProgress) => Effect.Effect<void, E, R>;
-}): Effect.Effect<TapStreamResult, TapProviderError | E, R> {
+}): Effect.Effect<TapStreamResult, TapInventoryProviderError | E, R> {
   return Effect.gen(function* () {
     const progressEveryPages = Math.max(
       1,
@@ -71,7 +71,7 @@ export function streamTapInventory<E, R>(options: {
 
     const stores = yield* fetchTapStores(UPULLITNE_SITE_CONFIG).pipe(
       Effect.mapError(
-        (cause) => new TapProviderError({ cursor: "stores", cause }),
+        (cause) => new TapInventoryProviderError({ cursor: "stores", cause }),
       ),
     );
 
@@ -108,7 +108,7 @@ export function streamTapInventory<E, R>(options: {
         const models = yield* fetchTapModels(UPULLITNE_SITE_CONFIG, make).pipe(
           Effect.mapError(
             (cause) =>
-              new TapProviderError({
+              new TapInventoryProviderError({
                 cursor: `${nextCursor}:models`,
                 cause,
               }),
@@ -119,14 +119,15 @@ export function streamTapInventory<E, R>(options: {
         const seen = new Map<string, CanonicalVehicle>();
 
         for (const modelValue of modelValues) {
-          const result = yield* searchTapInventory(UPULLITNE_SITE_CONFIG, {
+          const result = yield* searchTapInventory({
+            config: UPULLITNE_SITE_CONFIG,
             store: store.value,
             make,
             model: modelValue,
           }).pipe(
             Effect.mapError(
               (cause) =>
-                new TapProviderError({
+                new TapInventoryProviderError({
                   cursor: `${nextCursor}:${modelValue}`,
                   cause,
                 }),
@@ -137,6 +138,7 @@ export function streamTapInventory<E, R>(options: {
             const transformed = transformTapInventoryProduct(
               product,
               storeConfig,
+              UPULLITNE_SITE_CONFIG,
             );
             if (!transformed) continue;
             seen.set(transformed.vin, transformed);

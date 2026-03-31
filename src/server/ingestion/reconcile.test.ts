@@ -93,6 +93,7 @@ describe("reconcile helpers", () => {
       pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
       autorecyclerByVin: new Map(),
       pullapartByVin: new Map(),
+      upullitneByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(row52Vehicle);
@@ -114,6 +115,7 @@ describe("reconcile helpers", () => {
       pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
       autorecyclerByVin: new Map(),
       pullapartByVin: new Map(),
+      upullitneByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(pypVehicle);
@@ -131,6 +133,7 @@ describe("reconcile helpers", () => {
       pypByVin: new Map(),
       autorecyclerByVin: new Map([[arVehicle.vin, arVehicle]]),
       pullapartByVin: new Map(),
+      upullitneByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
@@ -149,6 +152,7 @@ describe("reconcile helpers", () => {
       pypByVin: new Map(),
       autorecyclerByVin: new Map(),
       pullapartByVin: new Map([[pullapartVehicle.vin, pullapartVehicle]]),
+      upullitneByVin: new Map(),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);

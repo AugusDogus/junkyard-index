@@ -17,7 +17,7 @@ import {
 } from "./reconcile";
 import { streamAutorecyclerInventory } from "./autorecycler-connector";
 import { streamPullapartInventory } from "./pullapart-connector";
-import { streamUpullitneInventory } from "./tap-inventory-connector";
+import { streamTapInventory } from "./tap-inventory-connector";
 import { streamRow52Inventory } from "./row52-connector";
 import {
   PersistenceError,
@@ -904,7 +904,7 @@ function fetchUpullitneSource(
       );
     };
 
-    const result = yield* streamUpullitneInventory({
+    const result = yield* streamTapInventory({
       onBatch: (vehicles) =>
         Effect.sync(() => {
           accumulateVehicles(vehicleMap, vehicles);
@@ -912,17 +912,17 @@ function fetchUpullitneSource(
       pagesPerChunk: SOURCE_CHUNK_PAGES,
       onProgress: reportProgress,
     }).pipe(
-      Effect.tap((result) => {
-        latestNextCursor = result.nextCursor;
-        latestPagesProcessed = result.pagesProcessed;
-        latestVehiclesProcessed = result.count;
+      Effect.tap((tapResult) => {
+        latestNextCursor = tapResult.nextCursor;
+        latestPagesProcessed = tapResult.pagesProcessed;
+        latestVehiclesProcessed = tapResult.count;
         return completeSourceRun({
           runId,
           source: "upullitne",
-          nextCursor: result.nextCursor,
-          pagesProcessed: result.pagesProcessed,
-          vehiclesProcessed: result.count,
-          errors: result.errors,
+          nextCursor: tapResult.nextCursor,
+          pagesProcessed: tapResult.pagesProcessed,
+          vehiclesProcessed: tapResult.count,
+          errors: tapResult.errors,
         });
       }),
       Effect.tap(() =>
@@ -936,11 +936,11 @@ function fetchUpullitneSource(
           }),
         ),
       ),
-      Effect.catchAll((error) => {
+      Effect.catchAll((error: unknown) => {
         if (error instanceof PersistenceError) {
           return Effect.fail(error);
         }
-        const msg = `U Pull-It Nebraska ingestion failed: ${error.message}`;
+        const msg = `U Pull-It Nebraska ingestion failed: ${error instanceof Error ? error.message : String(error)}`;
         return completeSourceRun({
           runId,
           source: "upullitne",
