@@ -30,7 +30,6 @@ export interface TapInventorySiteConfig {
   inventoryPageUrl: string;
   ajaxUrl: string;
   pluginUrl: string;
-  nonce: string;
   storeLocations: Record<
     string,
     {
@@ -118,6 +117,57 @@ function tapRequest<T, I, R>(params: {
   );
 }
 
+const TapInventoryBootstrapSchema = Schema.Struct({
+  ajaxUrl: Schema.String,
+  nonce: Schema.String,
+  pluginUrl: Schema.String,
+});
+
+export type TapInventoryBootstrap = Schema.Schema.Type<
+  typeof TapInventoryBootstrapSchema
+>;
+
+export function fetchTapBootstrap(
+  config: Pick<TapInventorySiteConfig, "inventoryPageUrl">,
+): Effect.Effect<TapInventoryBootstrap, Error> {
+  return Effect.tryPromise({
+    try: async () => {
+      const response = await fetch(config.inventoryPageUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `TAP inventory page bootstrap error: HTTP ${response.status}`,
+        );
+      }
+
+      const html = await response.text();
+      const match =
+        /var\s+sif_ajax_object\s*=\s*\{"sif_ajax_url":"([^"]+)","sif_ajax_nonce":"([^"]+)","sif_plugin_url":"([^"]+)"\}/.exec(
+          html,
+        );
+
+      if (!match?.[1] || !match[2] || !match[3]) {
+        throw new Error("TAP inventory bootstrap payload not found in page HTML");
+      }
+
+      return Schema.decodeUnknownSync(TapInventoryBootstrapSchema)({
+        ajaxUrl: match[1],
+        nonce: match[2],
+        pluginUrl: match[3],
+      });
+    },
+    catch: (cause) =>
+      cause instanceof Error ? cause : new Error(String(cause)),
+  });
+}
+
 export const TapInventorySearchProductSchema = Schema.Struct({
   s3clientid: Schema.String,
   crush_version: Schema.String,
@@ -130,10 +180,10 @@ export const TapInventorySearchProductSchema = Schema.Struct({
   iyear: Schema.String,
   make: Schema.String,
   model: Schema.String,
-  hol_year: Schema.String,
-  hol_mfr_code: Schema.String,
-  hol_mfr_name: Schema.String,
-  hol_model: Schema.String,
+  hol_year: Schema.optional(Schema.String),
+  hol_mfr_code: Schema.optional(Schema.String),
+  hol_mfr_name: Schema.optional(Schema.String),
+  hol_model: Schema.optional(Schema.String),
   vehicle_row: Schema.String,
   yard_date: Schema.String,
   yard_in_date: Schema.optional(Schema.String),
@@ -160,14 +210,18 @@ export type TapInventorySearchResponse = Schema.Schema.Type<
   typeof TapInventorySearchResponseSchema
 >;
 
-function decodeSearchResponse(text: string): TapInventorySearchResponse {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`TAP inventory search returned invalid JSON: ${String(error)}`);
-  }
-  return Schema.decodeUnknownSync(TapInventorySearchResponseSchema)(parsed);
+function decodeSearchResponse(
+  text: string,
+): Effect.Effect<TapInventorySearchResponse, Error> {
+  return Effect.try({
+    try: () => JSON.parse(text) as unknown,
+    catch: (cause) =>
+      new Error(`TAP inventory search returned invalid JSON: ${String(cause)}`),
+  }).pipe(
+    Effect.flatMap((parsed) =>
+      Schema.decodeUnknown(TapInventorySearchResponseSchema)(parsed),
+    ),
+  );
 }
 
 const HtmlOptionsSchema = Schema.Array(
@@ -229,23 +283,31 @@ export function fetchTapOptions(params: {
 }
 
 export function fetchTapStores(config: TapInventorySiteConfig) {
-  return fetchTapOptions({
-    ajaxUrl: config.ajaxUrl,
-    nonce: config.nonce,
-    action: "sif_get_stores",
-  });
+  return fetchTapBootstrap(config).pipe(
+    Effect.flatMap((bootstrap) =>
+      fetchTapOptions({
+        ajaxUrl: bootstrap.ajaxUrl,
+        nonce: bootstrap.nonce,
+        action: "sif_get_stores",
+      }),
+    ),
+  );
 }
 
 export function fetchTapModels(config: TapInventorySiteConfig, make: string) {
-  return fetchTapOptions({
-    ajaxUrl: config.ajaxUrl,
-    nonce: config.nonce,
-    action: "sif_update_models",
-    extra: {
-      make,
-      state: "0",
-    },
-  });
+  return fetchTapBootstrap(config).pipe(
+    Effect.flatMap((bootstrap) =>
+      fetchTapOptions({
+        ajaxUrl: bootstrap.ajaxUrl,
+        nonce: bootstrap.nonce,
+        action: "sif_update_models",
+        extra: {
+          make,
+          state: "0",
+        },
+      }),
+    ),
+  );
 }
 
 export function searchTapInventory(params: {
@@ -254,21 +316,25 @@ export function searchTapInventory(params: {
   make: string;
   model: string;
 }): Effect.Effect<TapInventorySearchResponse, Error> {
-  return tapRequest({
-    url: params.config.ajaxUrl,
-    context: `TAP inventory search store=${params.store} make=${params.make} model=${params.model}`,
-    schema: Schema.String,
-    formData: {
-      action: "sif_search_products",
-      sif_verify_request: params.config.nonce,
-      sif_form_field_store: params.store,
-      sif_form_field_make: params.make,
-      sif_form_field_model: params.model,
-      "sorting[key]": "iyear",
-      "sorting[state]": "0",
-      "sorting[type]": "int",
-    },
-  }).pipe(Effect.map(decodeSearchResponse));
+  return fetchTapBootstrap(params.config).pipe(
+    Effect.flatMap((bootstrap) =>
+      tapRequest({
+        url: bootstrap.ajaxUrl,
+        context: `TAP inventory search store=${params.store} make=${params.make} model=${params.model}`,
+        schema: Schema.String,
+        formData: {
+          action: "sif_search_products",
+          sif_verify_request: bootstrap.nonce,
+          sif_form_field_store: params.store,
+          sif_form_field_make: params.make,
+          sif_form_field_model: params.model,
+          "sorting[key]": "iyear",
+          "sorting[state]": "0",
+          "sorting[type]": "int",
+        },
+      }).pipe(Effect.flatMap(decodeSearchResponse)),
+    ),
+  );
 }
 
 export const UPULLITNE_SITE_CONFIG: TapInventorySiteConfig = {
@@ -279,7 +345,6 @@ export const UPULLITNE_SITE_CONFIG: TapInventorySiteConfig = {
   ajaxUrl: "https://upullitne.com/wp-admin/admin-ajax.php",
   pluginUrl:
     "https://upullitne.com/wp-content/plugins/tap-inventory-search-system/",
-  nonce: "2ff54e61b2",
   storeLocations: {
     LINCOLN: {
       code: "LINCOLN",

@@ -60,6 +60,7 @@ export function transformTapInventoryProduct(
     row: product.vehicle_row.trim() || null,
     space: null,
     detailsUrl,
+    // The site exposes a single parts pricing page rather than separate parts/prices routes.
     partsUrl: `${new URL("/parts-pricelist/", site.inventoryPageUrl).toString()}`,
     pricesUrl: `${new URL("/parts-pricelist/", site.inventoryPageUrl).toString()}`,
     engine: null,

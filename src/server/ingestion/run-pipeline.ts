@@ -244,7 +244,8 @@ function isSourceName(value: string): value is SourceName {
     value === "row52" ||
     value === "pyp" ||
     value === "autorecycler" ||
-    value === "pullapart"
+    value === "pullapart" ||
+    value === "upullitne"
   );
 }
 
