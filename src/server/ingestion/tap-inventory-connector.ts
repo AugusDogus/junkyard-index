@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import {
+  fetchTapBootstrap,
   fetchTapStores,
   searchTapInventory,
   UPULLITNE_SITE_CONFIG,
@@ -34,7 +35,22 @@ export function streamTapInventory<E, R>(options: {
   pagesPerChunk?: number;
   onProgress?: (progress: TapProgress) => Effect.Effect<void, E, R>;
 }): Effect.Effect<TapStreamResult, TapInventoryProviderError | E, R> {
+  const loadConfig: Effect.Effect<
+    typeof UPULLITNE_SITE_CONFIG,
+    TapInventoryProviderError
+  > = fetchTapBootstrap(UPULLITNE_SITE_CONFIG).pipe(
+    Effect.mapError(
+      (cause) => new TapInventoryProviderError({ cursor: "site-config", cause }),
+    ),
+    Effect.map((bootstrap) => ({
+      ...UPULLITNE_SITE_CONFIG,
+      ajaxUrl: bootstrap.ajaxUrl,
+      pluginUrl: bootstrap.pluginUrl,
+    })),
+  );
+
   return Effect.gen(function* () {
+    const config = yield* loadConfig;
     const progressEveryPages = Math.max(
       1,
       options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
@@ -46,6 +62,7 @@ export function streamTapInventory<E, R>(options: {
     let stopped = false;
     let lastProgressPages = 0;
     const errors: string[] = [];
+    const globalSeen = new Map<string, CanonicalVehicle>();
 
     const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
       if (!options.onProgress) return Effect.succeed(undefined);
@@ -63,7 +80,7 @@ export function streamTapInventory<E, R>(options: {
       });
     };
 
-    const stores = yield* fetchTapStores(UPULLITNE_SITE_CONFIG).pipe(
+    const stores = yield* fetchTapStores(config).pipe(
       Effect.mapError(
         (cause) => new TapInventoryProviderError({ cursor: "stores", cause }),
       ),
@@ -81,7 +98,7 @@ export function streamTapInventory<E, R>(options: {
       const store = stores[storeIndex]!;
       if (store.value === "Any") continue;
 
-      const storeConfig = UPULLITNE_SITE_CONFIG.storeLocations[store.value];
+      const storeConfig = config.storeLocations[store.value];
       if (!storeConfig) {
         const msg = `[TAP/upullitne] Missing store config for ${store.value}`;
         errors.push(msg);
@@ -92,7 +109,7 @@ export function streamTapInventory<E, R>(options: {
       nextCursor = `${store.value}:store`;
 
       const result = yield* searchTapInventory({
-        config: UPULLITNE_SITE_CONFIG,
+        config,
         store: store.value,
         make: "Any",
         model: "Any",
@@ -106,18 +123,23 @@ export function streamTapInventory<E, R>(options: {
         ),
       );
 
-      const seen = new Map<string, CanonicalVehicle>();
+      const storeSeen = new Map<string, CanonicalVehicle>();
       for (const product of result.products) {
         const transformed = transformTapInventoryProduct(
           product,
           storeConfig,
-          UPULLITNE_SITE_CONFIG,
+          config,
         );
         if (!transformed) continue;
-        seen.set(transformed.vin, transformed);
+        storeSeen.set(transformed.vin, transformed);
       }
 
-      const batch = [...seen.values()];
+      const batch: CanonicalVehicle[] = [];
+      for (const [vin, vehicle] of storeSeen) {
+        if (globalSeen.has(vin)) continue;
+        globalSeen.set(vin, vehicle);
+        batch.push(vehicle);
+      }
       if (batch.length > 0) {
         yield* options.onBatch(batch);
       }

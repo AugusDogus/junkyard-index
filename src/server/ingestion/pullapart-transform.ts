@@ -59,7 +59,7 @@ export function transformPullapartVehicle(
   if (!vehicle.vin?.trim()) return null;
   if (!vehicle.makeName?.trim() || !vehicle.modelName?.trim()) return null;
 
-  const region = normalizeRegion(location.stateName, location.stateName);
+  const region = normalizeRegion(location.stateName, null);
 
   return {
     vin: vehicle.vin.trim(),
