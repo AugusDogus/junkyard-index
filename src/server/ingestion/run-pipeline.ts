@@ -1087,6 +1087,11 @@ export const ingestionPipeline: Effect.Effect<
       pullapartResult,
       upullitneResult,
     ];
+    const coreSourceOutcomes: SourceOutcome[] = [
+      row52Result,
+      pypResult,
+      autorecyclerResult,
+    ];
     const healthySources = determineHealthySources(sourceOutcomes);
     const reconcileTimestamp = new Date();
 
@@ -1126,7 +1131,8 @@ export const ingestionPipeline: Effect.Effect<
       runId,
       runTimestamp: reconcileTimestamp,
       finalInventoryByVin,
-      allowAdvanceMissingState: shouldAdvanceMissingState(sourceOutcomes),
+      allowAdvanceMissingState:
+        shouldAdvanceMissingState(coreSourceOutcomes),
       missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
       missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
     }).pipe(
