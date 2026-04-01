@@ -332,7 +332,18 @@ export function searchTapInventory(params: {
           "sorting[state]": "0",
           "sorting[type]": "int",
         },
-      }).pipe(Effect.flatMap(decodeSearchResponse)),
+      }).pipe(
+        Effect.flatMap(decodeSearchResponse),
+        Effect.flatMap((response) =>
+          response.success
+            ? Effect.succeed(response)
+            : Effect.fail(
+                new Error(
+                  `TAP inventory search failed for store=${params.store} make=${params.make} model=${params.model}: ${response.message || "unknown provider error"}`,
+                ),
+              ),
+        ),
+      ),
     ),
   );
 }

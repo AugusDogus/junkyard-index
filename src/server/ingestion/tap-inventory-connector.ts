@@ -85,18 +85,27 @@ export function streamTapInventory<E, R>(options: {
         (cause) => new TapInventoryProviderError({ cursor: "stores", cause }),
       ),
     );
+    const concreteStores = stores.filter((store) => store.value !== "Any");
+
+    if (concreteStores.length === 0) {
+      return yield* Effect.fail(
+        new TapInventoryProviderError({
+          cursor: "stores",
+          cause: new Error("TAP returned no concrete stores"),
+        }),
+      );
+    }
 
     yield* Effect.logInfo(
-      `[TAP/upullitne] Streaming inventory from ${stores.length} stores`,
+      `[TAP/upullitne] Streaming inventory from ${concreteStores.length} stores`,
     );
 
     for (
       let storeIndex = 0;
-      storeIndex < stores.length && !stopped;
+      storeIndex < concreteStores.length && !stopped;
       storeIndex += 1
     ) {
-      const store = stores[storeIndex]!;
-      if (store.value === "Any") continue;
+      const store = concreteStores[storeIndex]!;
 
       const storeConfig = config.storeLocations[store.value];
       if (!storeConfig) {
