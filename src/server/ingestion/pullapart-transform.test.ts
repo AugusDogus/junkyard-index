@@ -116,4 +116,51 @@ describe("transformPullapartVehicle", () => {
     expect(result?.trim).toBe("Base");
     expect(result?.transmission).toBe("Automatic");
   });
+
+  test("prefers structured detail values over extendedInfo fallbacks", () => {
+    const result = transformPullapartVehicle(
+      {
+        ...vehicle,
+        extendedInfo: {
+          engineDescription: "Legacy engine",
+          transmissionDescription: "Legacy transmission",
+        },
+      },
+      location,
+      geo,
+      {
+        detail: {
+          trim: null,
+          driveType: null,
+          fuelType: null,
+          engineBlock: "V",
+          engineCylinders: 6,
+          engineSize: 3.7,
+          engineAspiration: "Turbo",
+          transType: "A",
+          transSpeeds: 6,
+          style: null,
+          color: null,
+        },
+      },
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.engine).toBe("3.7L V6 Turbo");
+    expect(result?.transmission).toBe("6-Speed Automatic");
+  });
+
+  test("returns null for invalid dateOnlyMatch values", () => {
+    const result = transformPullapartVehicle(
+      {
+        ...vehicle,
+        dateYardOn: "2026-02-31",
+      },
+      location,
+      geo,
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.availableDate).toBeNull();
+  });
 });
