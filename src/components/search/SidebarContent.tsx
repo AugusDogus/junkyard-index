@@ -19,7 +19,7 @@ interface FilterOptions {
 const SOURCE_LABELS: Record<DataSource, string> = {
   pyp: "Pick Your Part (PYP)",
   pullapart: "Pull-A-Part / U-Pull-&-Pay",
-  upullitne: "U Pull-It Nebraska",
+  upullitne: "U Pull-It (NE/IA)",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",
 };
