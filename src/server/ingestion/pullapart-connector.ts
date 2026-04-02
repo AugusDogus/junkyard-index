@@ -167,37 +167,28 @@ export function streamPullapartInventory<E, R>(options: {
                 locationId: row.locID,
                 ticketId: row.ticketID,
                 lineId: row.lineID,
-              }).pipe(
-                Effect.catchAll((error) =>
-                  Effect.gen(function* () {
-                    yield* Effect.logWarning(
-                      `[Pull-A-Part] VehicleExtendedInfo failed loc=${row.locID} ticket=${row.ticketID} line=${row.lineID}: ${error.message}`,
-                    );
-                    return null;
-                  }),
-                ),
-              );
+              });
 
               const imageUrl = yield* fetchPullapartVehicleImage({
                 locationId: row.locID,
                 ticketId: row.ticketID,
                 lineId: row.lineID,
-              }).pipe(
-                Effect.catchAll((error) =>
-                  Effect.gen(function* () {
-                    yield* Effect.logWarning(
-                      `[Pull-A-Part] image fetch failed loc=${row.locID} ticket=${row.ticketID} line=${row.lineID}: ${error.message}`,
-                    );
-                    return null;
-                  }),
-                ),
-              );
+              });
 
               return transformPullapartVehicle(row, location, geo, {
                 detail,
                 imageUrl,
               });
-            }),
+            }).pipe(
+              Effect.catchAll((error) =>
+                Effect.gen(function* () {
+                  const message = `[Pull-A-Part] Vehicle enrichment failed loc=${row.locID} ticket=${row.ticketID} line=${row.lineID}: ${error.message}`;
+                  yield* Effect.logWarning(message);
+                  errors.push(message);
+                  return null;
+                }),
+              ),
+            ),
           ),
           { concurrency: VEHICLE_ENRICH_CONCURRENCY },
         );

@@ -1,4 +1,4 @@
-import { Duration, Effect, Schedule, Schema } from "effect";
+import { Data, Duration, Effect, Schedule, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import {
   RequestTimeoutError,
@@ -9,6 +9,14 @@ const DEFAULT_RETRYABLE_STATUS_CODES = [429, 502, 503, 504] as const;
 const FETCH_TIMEOUT_MS = 30_000;
 const RETRY_LIMIT = 2;
 const RETRY_BASE_DELAY_MS = 1_000;
+
+class PullapartNoDataError extends Data.TaggedError("PullapartNoDataError")<{
+  context: string;
+}> {
+  override get message() {
+    return `${this.context} returned no data`;
+  }
+}
 
 function isRetryablePullapartError(error: unknown): boolean {
   return (
@@ -30,6 +38,7 @@ function pullapartJsonRequest<T, I, R>(params: {
   schema: Schema.Schema<T, I, R>;
   method?: "GET" | "POST";
   body?: string;
+  notFoundIsNoData?: boolean;
 }): Effect.Effect<T, Error, R> {
   const retrySchedule = buildRetrySchedule();
 
@@ -66,6 +75,12 @@ function pullapartJsonRequest<T, I, R>(params: {
           context: params.context,
           status: response.status,
         }),
+      );
+    }
+
+    if (response.status === 404 && params.notFoundIsNoData) {
+      return yield* Effect.fail(
+        new PullapartNoDataError({ context: params.context }),
       );
     }
 
@@ -265,12 +280,15 @@ export function fetchPullapartVehicleExtendedInfo(params: {
   locationId: number;
   ticketId: number;
   lineId: number;
-}): Effect.Effect<PullapartVehicleExtendedInfo, Error> {
+}): Effect.Effect<PullapartVehicleExtendedInfo | null, Error> {
   return pullapartJsonRequest({
     url: `${API_ENDPOINTS.PULLAPART_INVENTORY_BASE}/VehicleExtendedInfo/${params.locationId}/${params.ticketId}/${params.lineId}`,
     context: `Pull-A-Part vehicle extended info location=${params.locationId} ticket=${params.ticketId} line=${params.lineId}`,
     schema: PullapartVehicleExtendedInfoSchema,
-  });
+    notFoundIsNoData: true,
+  }).pipe(
+    Effect.catchTag("PullapartNoDataError", () => Effect.succeed(null)),
+  );
 }
 
 export function fetchPullapartVehicleImage(params: {
@@ -289,11 +307,13 @@ export function fetchPullapartVehicleImage(params: {
     url: url.toString(),
     context: `Pull-A-Part vehicle image location=${params.locationId} ticket=${params.ticketId} line=${params.lineId}`,
     schema: PullapartImageResponseSchema,
+    notFoundIsNoData: true,
   }).pipe(
     Effect.map((response: PullapartImageResponse) => {
       const webPath = response.webPath.trim();
       return webPath && webPath !== "Error retrieving image" ? webPath : null;
     }),
+    Effect.catchTag("PullapartNoDataError", () => Effect.succeed(null)),
   );
 }
 
