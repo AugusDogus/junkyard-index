@@ -18,6 +18,12 @@ class PullapartNoDataError extends Data.TaggedError("PullapartNoDataError")<{
   }
 }
 
+export function isPullapartNoDataError(
+  error: unknown,
+): error is PullapartNoDataError {
+  return error instanceof PullapartNoDataError;
+}
+
 function isRetryablePullapartError(error: unknown): boolean {
   return (
     error instanceof RetryableHttpStatusError ||
@@ -287,10 +293,7 @@ export function fetchPullapartVehicleExtendedInfo(params: {
     schema: PullapartVehicleExtendedInfoSchema,
     notFoundIsNoData: true,
   }).pipe(
-    Effect.catchIf(
-      (error): error is PullapartNoDataError => error instanceof PullapartNoDataError,
-      () => Effect.succeed(null),
-    ),
+    Effect.catchIf(isPullapartNoDataError, () => Effect.succeed(null)),
   );
 }
 
@@ -316,10 +319,7 @@ export function fetchPullapartVehicleImage(params: {
       const webPath = response.webPath.trim();
       return webPath && webPath !== "Error retrieving image" ? webPath : null;
     }),
-    Effect.catchIf(
-      (error): error is PullapartNoDataError => error instanceof PullapartNoDataError,
-      () => Effect.succeed(null),
-    ),
+    Effect.catchIf(isPullapartNoDataError, () => Effect.succeed(null)),
   );
 }
 
