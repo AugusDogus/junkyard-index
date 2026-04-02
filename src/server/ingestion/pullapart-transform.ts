@@ -7,6 +7,7 @@ import {
 import type {
   PullapartLocation,
   PullapartVehicle,
+  PullapartVehicleExtendedInfo,
   PullapartZipGeo,
 } from "./pullapart-client";
 import type { CanonicalVehicle } from "./types";
@@ -49,10 +50,106 @@ function buildDetailsUrl(
   return `${baseHost}/inventory/search/?${query.toString()}#results`;
 }
 
+function readDetailString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readDetailNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function formatPullapartEngine(
+  detail: PullapartVehicleExtendedInfo | null,
+  extendedInfo: unknown,
+): string | null {
+  const fallback = readExtendedInfoField(extendedInfo, [
+    "engine",
+    "engineDescription",
+  ]);
+  if (fallback) return fallback;
+  if (!detail) return null;
+
+  const size = readDetailNumber(detail.engineSize);
+  const block = readDetailString(detail.engineBlock);
+  const cylinders = readDetailNumber(detail.engineCylinders);
+  const aspiration = readDetailString(detail.engineAspiration);
+
+  const family =
+    block && cylinders !== null
+      ? `${block}${Math.trunc(cylinders)}`
+      : block ?? (cylinders !== null ? String(Math.trunc(cylinders)) : null);
+  const parts = [
+    size !== null ? `${size}L` : null,
+    family,
+    aspiration && aspiration !== "N/A" ? aspiration : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+function formatPullapartTransmission(
+  detail: PullapartVehicleExtendedInfo | null,
+  extendedInfo: unknown,
+): string | null {
+  const fallback = readExtendedInfoField(extendedInfo, [
+    "transmission",
+    "transmissionDescription",
+  ]);
+  if (fallback) return fallback;
+  if (!detail) return null;
+
+  const speeds = readDetailNumber(detail.transSpeeds);
+  const transType = readDetailString(detail.transType);
+  const transTypeLabel =
+    transType === "A"
+      ? "Automatic"
+      : transType === "M"
+        ? "Manual"
+        : transType === "CVT"
+          ? "CVT"
+          : transType;
+
+  if (speeds !== null && transTypeLabel) {
+    return `${Math.trunc(speeds)}-Speed ${transTypeLabel}`;
+  }
+
+  return transTypeLabel ?? null;
+}
+
+function normalizePullapartAvailableDate(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  const dateOnlyMatch = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
+  if (dateOnlyMatch?.[1]) {
+    return `${dateOnlyMatch[1]}T00:00:00.000Z`;
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
 export function transformPullapartVehicle(
   vehicle: PullapartVehicle,
   location: PullapartLocation | undefined,
   geo: PullapartZipGeo | undefined,
+  options?: {
+    detail?: PullapartVehicleExtendedInfo | null;
+    imageUrl?: string | null;
+  },
 ): CanonicalVehicle | null {
   if (!location) return null;
   if (!geo) return null;
@@ -60,6 +157,9 @@ export function transformPullapartVehicle(
   if (!vehicle.makeName?.trim() || !vehicle.modelName?.trim()) return null;
 
   const region = normalizeRegion(location.stateName, null);
+  const detail = options?.detail ?? null;
+  const locationName = location.locationName.trim() || vehicle.locName.trim();
+  const locationCity = location.cityName.trim() || "Unknown";
 
   return {
     vin: vehicle.vin.trim(),
@@ -68,14 +168,15 @@ export function transformPullapartVehicle(
     make: normalizeCanonicalMake(vehicle.makeName),
     model: vehicle.modelName.trim(),
     color: normalizeCanonicalColor(
-      readExtendedInfoField(vehicle.extendedInfo, ["color", "exteriorColor"]),
+      readDetailString(detail?.color) ??
+        readExtendedInfoField(vehicle.extendedInfo, ["color", "exteriorColor"]),
     ),
     stockNumber: String(vehicle.ticketID),
-    imageUrl: null,
-    availableDate: vehicle.dateYardOn || null,
+    imageUrl: options?.imageUrl ?? null,
+    availableDate: normalizePullapartAvailableDate(vehicle.dateYardOn),
     locationCode: String(location.locationID),
-    locationName: location.locationName.trim(),
-    locationCity: location.cityName.trim() || "Unknown",
+    locationName,
+    locationCity,
     state: region.state,
     stateAbbr: region.stateAbbr,
     lat: geo.lat,
@@ -89,14 +190,10 @@ export function transformPullapartVehicle(
     detailsUrl: buildDetailsUrl(location, vehicle),
     partsUrl: null,
     pricesUrl: null,
-    engine: readExtendedInfoField(vehicle.extendedInfo, [
-      "engine",
-      "engineDescription",
-    ]),
-    trim: readExtendedInfoField(vehicle.extendedInfo, ["trim"]),
-    transmission: readExtendedInfoField(vehicle.extendedInfo, [
-      "transmission",
-      "transmissionDescription",
-    ]),
+    engine: formatPullapartEngine(detail, vehicle.extendedInfo),
+    trim:
+      readDetailString(detail?.trim) ??
+      readExtendedInfoField(vehicle.extendedInfo, ["trim"]),
+    transmission: formatPullapartTransmission(detail, vehicle.extendedInfo),
   };
 }

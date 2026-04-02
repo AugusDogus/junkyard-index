@@ -150,6 +150,39 @@ export const PullapartVehicleSchema = Schema.Struct({
 export type PullapartVehicle = Schema.Schema.Type<typeof PullapartVehicleSchema>;
 export type PullapartSearchVehicle = PullapartVehicle;
 
+export const PullapartVehicleExtendedInfoSchema = Schema.Struct({
+  trim: Schema.optional(Schema.NullOr(Schema.String)),
+  driveType: Schema.optional(Schema.NullOr(Schema.String)),
+  fuelType: Schema.optional(Schema.NullOr(Schema.String)),
+  engineBlock: Schema.optional(Schema.NullOr(Schema.String)),
+  engineCylinders: Schema.optional(
+    Schema.NullOr(Schema.Union(Schema.Number, Schema.String)),
+  ),
+  engineSize: Schema.optional(
+    Schema.NullOr(Schema.Union(Schema.Number, Schema.String)),
+  ),
+  engineAspiration: Schema.optional(Schema.NullOr(Schema.String)),
+  transType: Schema.optional(Schema.NullOr(Schema.String)),
+  transSpeeds: Schema.optional(
+    Schema.NullOr(Schema.Union(Schema.Number, Schema.String)),
+  ),
+  style: Schema.optional(Schema.NullOr(Schema.String)),
+  color: Schema.optional(Schema.NullOr(Schema.String)),
+});
+
+export type PullapartVehicleExtendedInfo = Schema.Schema.Type<
+  typeof PullapartVehicleExtendedInfoSchema
+>;
+
+const PullapartImageResponseSchema = Schema.Struct({
+  webPath: Schema.String,
+  filePath: Schema.String,
+});
+
+type PullapartImageResponse = Schema.Schema.Type<
+  typeof PullapartImageResponseSchema
+>;
+
 export const PullapartVehicleSearchGroupSchema = Schema.Struct({
   locationID: Schema.Number,
   exact: Schema.Array(PullapartVehicleSchema),
@@ -227,6 +260,42 @@ export function searchPullapartVehicles(params: {
 }
 
 export const fetchPullapartVehiclesByMake = searchPullapartVehicles;
+
+export function fetchPullapartVehicleExtendedInfo(params: {
+  locationId: number;
+  ticketId: number;
+  lineId: number;
+}): Effect.Effect<PullapartVehicleExtendedInfo, Error> {
+  return pullapartJsonRequest({
+    url: `${API_ENDPOINTS.PULLAPART_INVENTORY_BASE}/VehicleExtendedInfo/${params.locationId}/${params.ticketId}/${params.lineId}`,
+    context: `Pull-A-Part vehicle extended info location=${params.locationId} ticket=${params.ticketId} line=${params.lineId}`,
+    schema: PullapartVehicleExtendedInfoSchema,
+  });
+}
+
+export function fetchPullapartVehicleImage(params: {
+  locationId: number;
+  ticketId: number;
+  lineId: number;
+}): Effect.Effect<string | null, Error> {
+  const url = new URL("https://imageservice.pullapart.com/img/retrieveimage/");
+  url.searchParams.set("locID", String(params.locationId));
+  url.searchParams.set("ticketID", String(params.ticketId));
+  url.searchParams.set("lineID", String(params.lineId));
+  url.searchParams.set("programID", "35");
+  url.searchParams.set("imageIndex", "1");
+
+  return pullapartJsonRequest({
+    url: url.toString(),
+    context: `Pull-A-Part vehicle image location=${params.locationId} ticket=${params.ticketId} line=${params.lineId}`,
+    schema: PullapartImageResponseSchema,
+  }).pipe(
+    Effect.map((response: PullapartImageResponse) => {
+      const webPath = response.webPath.trim();
+      return webPath && webPath !== "Error retrieving image" ? webPath : null;
+    }),
+  );
+}
 
 export function fetchZipGeo(
   zipCode: string,

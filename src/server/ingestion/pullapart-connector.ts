@@ -1,6 +1,8 @@
 import { HttpClient } from "@effect/platform";
 import { Effect } from "effect";
 import {
+  fetchPullapartVehicleExtendedInfo,
+  fetchPullapartVehicleImage,
   fetchZipGeo,
   fetchPullapartLocations,
   fetchPullapartMakesOnYard,
@@ -10,6 +12,8 @@ import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
 import { PullapartProviderError } from "./errors";
 import { transformPullapartVehicle } from "./pullapart-transform";
 import type { CanonicalVehicle } from "./types";
+
+const VEHICLE_ENRICH_CONCURRENCY = 8;
 
 export interface PullapartStreamResult {
   source: "pullapart";
@@ -149,14 +153,58 @@ export function streamPullapartInventory<E, R>(options: {
           geoByZip.set(location.zipCode, geo);
         }
 
-        const uniqueByVin = new Map<string, CanonicalVehicle>();
+        const uniqueRowsByVin = new Map<string, (typeof rows)[number]>();
         for (const row of rows) {
-          const transformed = transformPullapartVehicle(row, location, geo);
-          if (!transformed) continue;
-          uniqueByVin.set(transformed.vin, transformed);
+          const vin = row.vin?.trim();
+          if (!vin || uniqueRowsByVin.has(vin)) continue;
+          uniqueRowsByVin.set(vin, row);
         }
 
-        const batch = [...uniqueByVin.values()];
+        const enriched = yield* Effect.all(
+          [...uniqueRowsByVin.values()].map((row) =>
+            Effect.gen(function* () {
+              const detail = yield* fetchPullapartVehicleExtendedInfo({
+                locationId: row.locID,
+                ticketId: row.ticketID,
+                lineId: row.lineID,
+              }).pipe(
+                Effect.catchAll((error) =>
+                  Effect.gen(function* () {
+                    yield* Effect.logWarning(
+                      `[Pull-A-Part] VehicleExtendedInfo failed loc=${row.locID} ticket=${row.ticketID} line=${row.lineID}: ${error.message}`,
+                    );
+                    return null;
+                  }),
+                ),
+              );
+
+              const imageUrl = yield* fetchPullapartVehicleImage({
+                locationId: row.locID,
+                ticketId: row.ticketID,
+                lineId: row.lineID,
+              }).pipe(
+                Effect.catchAll((error) =>
+                  Effect.gen(function* () {
+                    yield* Effect.logWarning(
+                      `[Pull-A-Part] image fetch failed loc=${row.locID} ticket=${row.ticketID} line=${row.lineID}: ${error.message}`,
+                    );
+                    return null;
+                  }),
+                ),
+              );
+
+              return transformPullapartVehicle(row, location, geo, {
+                detail,
+                imageUrl,
+              });
+            }),
+          ),
+          { concurrency: VEHICLE_ENRICH_CONCURRENCY },
+        );
+
+        const batch = enriched.filter(
+          (vehicle): vehicle is CanonicalVehicle => vehicle !== null,
+        );
         if (batch.length > 0) {
           yield* options.onBatch(batch);
         }
