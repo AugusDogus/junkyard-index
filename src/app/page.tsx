@@ -161,11 +161,11 @@ export default async function Home() {
             single index—same filters, sorts, and alerts everywhere.
           </p>
 
-          <div className="mb-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+          <div className="mx-auto mb-16 flex max-w-2xl flex-wrap items-center justify-center gap-x-10 gap-y-4">
             {[
               "LKQ Pick Your Part",
               "Pull-A-Part / U-Pull-&-Pay",
-              "U Pull-It Nebraska",
+              "U Pull-It (NE/IA)",
               "Row52",
               "AutoRecycler",
             ].map((name) => (
