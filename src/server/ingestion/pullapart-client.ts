@@ -287,7 +287,10 @@ export function fetchPullapartVehicleExtendedInfo(params: {
     schema: PullapartVehicleExtendedInfoSchema,
     notFoundIsNoData: true,
   }).pipe(
-    Effect.catchTag("PullapartNoDataError", () => Effect.succeed(null)),
+    Effect.catchIf(
+      (error): error is PullapartNoDataError => error instanceof PullapartNoDataError,
+      () => Effect.succeed(null),
+    ),
   );
 }
 
@@ -313,7 +316,10 @@ export function fetchPullapartVehicleImage(params: {
       const webPath = response.webPath.trim();
       return webPath && webPath !== "Error retrieving image" ? webPath : null;
     }),
-    Effect.catchTag("PullapartNoDataError", () => Effect.succeed(null)),
+    Effect.catchIf(
+      (error): error is PullapartNoDataError => error instanceof PullapartNoDataError,
+      () => Effect.succeed(null),
+    ),
   );
 }
 

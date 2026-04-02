@@ -1,3 +1,4 @@
+import { FetchHttpClient } from "@effect/platform";
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamPullapartInventory } from "./pullapart-connector";
@@ -96,7 +97,7 @@ function installPullapartFetchMock(options?: {
   detailResponse?: () => Response | Promise<Response>;
   imageResponse?: () => Response | Promise<Response>;
 }) {
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = (async (input) => {
     const url =
       typeof input === "string"
         ? input
@@ -138,7 +139,7 @@ function installPullapartFetchMock(options?: {
     }
 
     throw new Error(`Unexpected fetch: ${url}`);
-  };
+  }) as typeof fetch;
 }
 
 afterEach(() => {
@@ -156,11 +157,7 @@ describe("streamPullapartInventory enrichment handling", () => {
           Effect.sync(() => {
             batches.push(vehicles);
           }),
-      }) as Effect.Effect<
-        Awaited<ReturnType<typeof streamPullapartInventory>>,
-        Error,
-        never
-      >,
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
     );
 
     expect(result.errors).toEqual([]);
@@ -186,11 +183,7 @@ describe("streamPullapartInventory enrichment handling", () => {
           Effect.sync(() => {
             batches.push(vehicles);
           }),
-      }) as Effect.Effect<
-        Awaited<ReturnType<typeof streamPullapartInventory>>,
-        Error,
-        never
-      >,
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
     );
 
     expect(result.count).toBe(0);
