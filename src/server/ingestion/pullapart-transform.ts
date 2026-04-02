@@ -75,58 +75,59 @@ function formatPullapartEngine(
   detail: PullapartVehicleExtendedInfo | null,
   extendedInfo: unknown,
 ): string | null {
-  const fallback = readExtendedInfoField(extendedInfo, [
-    "engine",
-    "engineDescription",
-  ]);
-  if (fallback) return fallback;
-  if (!detail) return null;
+  if (detail) {
+    const size = readDetailNumber(detail.engineSize);
+    const block = readDetailString(detail.engineBlock);
+    const cylinders = readDetailNumber(detail.engineCylinders);
+    const aspiration = readDetailString(detail.engineAspiration);
 
-  const size = readDetailNumber(detail.engineSize);
-  const block = readDetailString(detail.engineBlock);
-  const cylinders = readDetailNumber(detail.engineCylinders);
-  const aspiration = readDetailString(detail.engineAspiration);
+    const family =
+      block && cylinders !== null
+        ? `${block}${Math.trunc(cylinders)}`
+        : block ?? (cylinders !== null ? String(Math.trunc(cylinders)) : null);
+    const detailParts = [
+      size !== null ? `${size}L` : null,
+      family,
+      aspiration && aspiration !== "N/A" ? aspiration : null,
+    ].filter((part): part is string => Boolean(part));
 
-  const family =
-    block && cylinders !== null
-      ? `${block}${Math.trunc(cylinders)}`
-      : block ?? (cylinders !== null ? String(Math.trunc(cylinders)) : null);
-  const parts = [
-    size !== null ? `${size}L` : null,
-    family,
-    aspiration && aspiration !== "N/A" ? aspiration : null,
-  ].filter((part): part is string => Boolean(part));
+    if (detailParts.length > 0) {
+      return detailParts.join(" ");
+    }
+  }
 
-  return parts.length > 0 ? parts.join(" ") : null;
+  return readExtendedInfoField(extendedInfo, ["engine", "engineDescription"]);
 }
 
 function formatPullapartTransmission(
   detail: PullapartVehicleExtendedInfo | null,
   extendedInfo: unknown,
 ): string | null {
-  const fallback = readExtendedInfoField(extendedInfo, [
+  if (detail) {
+    const speeds = readDetailNumber(detail.transSpeeds);
+    const transType = readDetailString(detail.transType);
+    const transTypeLabel =
+      transType === "A"
+        ? "Automatic"
+        : transType === "M"
+          ? "Manual"
+          : transType === "CVT"
+            ? "CVT"
+            : transType;
+
+    if (speeds !== null && transTypeLabel) {
+      return `${Math.trunc(speeds)}-Speed ${transTypeLabel}`;
+    }
+
+    if (transTypeLabel) {
+      return transTypeLabel;
+    }
+  }
+
+  return readExtendedInfoField(extendedInfo, [
     "transmission",
     "transmissionDescription",
   ]);
-  if (fallback) return fallback;
-  if (!detail) return null;
-
-  const speeds = readDetailNumber(detail.transSpeeds);
-  const transType = readDetailString(detail.transType);
-  const transTypeLabel =
-    transType === "A"
-      ? "Automatic"
-      : transType === "M"
-        ? "Manual"
-        : transType === "CVT"
-          ? "CVT"
-          : transType;
-
-  if (speeds !== null && transTypeLabel) {
-    return `${Math.trunc(speeds)}-Speed ${transTypeLabel}`;
-  }
-
-  return transTypeLabel ?? null;
 }
 
 function normalizePullapartAvailableDate(value: string | null): string | null {
@@ -135,7 +136,12 @@ function normalizePullapartAvailableDate(value: string | null): string | null {
 
   const dateOnlyMatch = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
   if (dateOnlyMatch?.[1]) {
-    return `${dateOnlyMatch[1]}T00:00:00.000Z`;
+    const isoCandidate = `${dateOnlyMatch[1]}T00:00:00.000Z`;
+    const parsed = new Date(isoCandidate);
+    return Number.isNaN(parsed.getTime()) ||
+        parsed.toISOString().slice(0, 10) !== dateOnlyMatch[1]
+      ? null
+      : parsed.toISOString();
   }
 
   const parsed = new Date(trimmed);
