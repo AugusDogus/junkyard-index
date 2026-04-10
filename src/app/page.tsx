@@ -37,13 +37,14 @@ export default async function Home() {
       <Header />
 
       <main className="flex-1">
+        {/* Hero */}
         <section className="px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
           <div className="mx-auto grid max-w-6xl gap-8 sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
               <Badge variant="outline" className="mb-4 gap-2 px-3 py-1 sm:mb-5">
-                <span className="bg-primary inline-flex size-2 rounded-full" />
-                Search is free. Alerts are ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
-                /mo.
+                <span className="inline-flex size-2 rounded-full bg-green-500" />
+                Search is free. Alerts are $
+                {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.
               </Badge>
               <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
                 Search salvage yard inventory before the right donor vehicle is
@@ -58,9 +59,27 @@ export default async function Home() {
               <div className="mt-6 sm:mt-8">
                 <HomeSearchHero />
               </div>
+
+              {/* Mobile proof stats — compact inline row */}
+              <div className="text-muted-foreground mt-5 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums sm:hidden">
+                <p>
+                  <span className="text-foreground font-medium">
+                    {formatVehicleCount(liveStats.vehicleCount)}
+                  </span>{" "}
+                  vehicles
+                </p>
+                <p>
+                  <span className="text-foreground font-medium">
+                    {formatYardCount(liveStats.yardCount)}
+                  </span>{" "}
+                  yards
+                </p>
+                <p>Free to search</p>
+              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-1">
+            {/* Desktop/tablet proof cards */}
+            <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-1">
               <ProofCard
                 title={`${formatVehicleCount(liveStats.vehicleCount)} vehicles tracked`}
                 description="Inventory from multiple salvage networks, updated into one searchable index."
@@ -77,6 +96,7 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* How it works */}
         <section className="border-t px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="mx-auto max-w-6xl">
             <div className="mb-6 max-w-2xl sm:mb-10">
@@ -109,6 +129,7 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Pricing comparison */}
         <section className="border-t px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="mx-auto max-w-6xl">
             <div className="mb-6 max-w-2xl sm:mb-8">
@@ -152,6 +173,7 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* Bottom CTA */}
         <section className="border-t px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
@@ -194,11 +216,11 @@ function ProofCard({
   description: string;
 }) {
   return (
-    <div className="rounded-lg border p-4 sm:p-6">
-      <p className="text-lg font-semibold tracking-tight tabular-nums sm:text-xl">
+    <div className="rounded-lg border p-5">
+      <p className="text-lg font-semibold tracking-tight tabular-nums">
         {title}
       </p>
-      <p className="text-muted-foreground mt-1 text-sm text-pretty sm:mt-2">
+      <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
         {description}
       </p>
     </div>
@@ -215,14 +237,16 @@ function ValueCard({
   description: string;
 }) {
   return (
-    <div className="rounded-lg border p-4 sm:p-6">
-      <div className="bg-muted mb-3 flex size-9 items-center justify-center rounded-md sm:mb-4 sm:size-10">
+    <div className="flex gap-3 rounded-lg border p-4 sm:block sm:p-6">
+      <div className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md sm:mb-4 sm:size-10">
         {icon}
       </div>
-      <h3 className="font-semibold">{title}</h3>
-      <p className="text-muted-foreground mt-1 text-sm text-pretty sm:mt-2">
-        {description}
-      </p>
+      <div className="min-w-0">
+        <h3 className="font-semibold">{title}</h3>
+        <p className="text-muted-foreground mt-1 text-sm text-pretty sm:mt-2">
+          {description}
+        </p>
+      </div>
     </div>
   );
 }

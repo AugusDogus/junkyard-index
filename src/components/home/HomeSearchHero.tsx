@@ -35,39 +35,38 @@ export function HomeSearchHero() {
           event.preventDefault();
           submitSearch(query, "typed");
         }}
-        className="space-y-4"
+        className="space-y-3"
       >
         <div className="relative">
           <label htmlFor="home-search" className="sr-only">
             Search salvage yard inventory
           </label>
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2" />
           <input
             id="home-search"
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search year, make, or model"
-            className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background h-12 w-full rounded-md border px-4 pr-14 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:pr-34"
+            className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background h-11 w-full rounded-lg border py-2 pr-11 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:h-12 sm:pr-12 sm:pl-11 sm:text-lg"
           />
-          <Button
+          <button
             type="submit"
-            size="lg"
-            className="absolute top-1 right-1 h-10 px-3 sm:px-4"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md transition-colors duration-150 ease-out active:scale-[0.95] sm:size-9"
             aria-label="Search"
           >
-            <Search className="size-4" />
-            <span className="hidden sm:inline">Search Free</span>
-          </Button>
+            <ArrowRight className="size-4" />
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-1.5 text-sm sm:gap-2">
           <span className="text-muted-foreground">Try:</span>
           {SAMPLE_QUERIES.map((sample) => (
             <button
               key={sample}
               type="button"
               onClick={() => submitSearch(sample, "sample")}
-              className="bg-muted hover:bg-muted/80 rounded-md px-3 py-1.5 font-medium transition-colors"
+              className="bg-muted hover:bg-muted/80 rounded-md px-3 py-1.5 font-medium transition-colors duration-150 ease-out active:scale-[0.97]"
             >
               {sample}
             </button>
