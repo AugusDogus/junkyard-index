@@ -152,7 +152,7 @@ export function SignUpForm() {
         className="w-full"
         disabled={isLoading || isDiscordLoading}
       >
-        {isLoading ? "Creating account..." : "Sign Up"}
+        {isLoading ? "Creating free account..." : "Create Free Account"}
       </Button>
 
       <div className="relative">
@@ -176,6 +176,10 @@ export function SignUpForm() {
         <DiscordIcon className="mr-2 h-4 w-4" />
         {isDiscordLoading ? "Connecting..." : "Discord"}
       </Button>
+
+      <div className="text-muted-foreground text-center text-sm">
+        Save searches now. Upgrade to alerts later.
+      </div>
 
       <div className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}

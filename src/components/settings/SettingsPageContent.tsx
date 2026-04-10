@@ -42,6 +42,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { env } from "~/env";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient, signIn, signOut, useSession } from "~/lib/auth-client";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { normalizeZipCode } from "~/lib/location-preferences";
 import posthog from "posthog-js";
 import { api } from "~/trpc/react";
@@ -232,7 +233,7 @@ export function SettingsDashboard() {
     posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, { source: "settings" });
     try {
       await authClient.checkout({
-        slug: "Email-Notifications",
+        slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
       });
     } catch (error) {
       console.error("Failed to open checkout:", error);
@@ -466,7 +467,13 @@ export function SettingsDashboard() {
             Subscription
           </CardTitle>
           <CardDescription>
-            A subscription is required to receive vehicle alerts.
+            Alerts Plan includes unlimited saved searches plus email and
+            Discord alerts for $
+            {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.{" "}
+            <Link href="/pricing" className="text-primary hover:underline">
+              Compare plans
+            </Link>
+            .
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -493,7 +500,7 @@ export function SettingsDashboard() {
                 <span>No active subscription</span>
               </div>
               <Button size="sm" onClick={handleSubscribe}>
-                Subscribe ($3/mo)
+                Subscribe (${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo)
               </Button>
             </div>
           )}

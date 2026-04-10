@@ -19,6 +19,7 @@ import {
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient, signOut, useSession } from "~/lib/auth-client";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { api } from "~/trpc/react";
 
 interface UserMenuProps {
@@ -58,7 +59,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
     });
     try {
       await authClient.checkout({
-        slug: "Email-Notifications",
+        slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
       });
     } catch (error) {
       console.error("Failed to open checkout:", error);
@@ -175,7 +176,10 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
         ) : (
           <DropdownMenuItem onClick={handleSubscribe}>
             <CreditCard className="mr-2 h-4 w-4" />
-            <span>Subscribe to Alerts</span>
+            <span>
+              Subscribe to Alerts (${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
+              /mo)
+            </span>
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />

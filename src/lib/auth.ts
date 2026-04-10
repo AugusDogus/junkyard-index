@@ -14,6 +14,7 @@ import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { db } from "~/lib/db";
 import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
@@ -82,7 +83,7 @@ export const auth = betterAuth({
           products: [
             {
               productId: env.POLAR_PRODUCT_ID,
-              slug: "Email-Notifications",
+              slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
             },
           ],
           successUrl: `${env.NEXT_PUBLIC_APP_URL}/search?subscription=success`,

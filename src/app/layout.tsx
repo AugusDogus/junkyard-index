@@ -15,11 +15,11 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://junkyardindex.com";
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
+    default: "Junkyard Index",
     template: "%s | Junkyard Index",
   },
   description:
-    "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Pull-A-Part, U Pull-It (NE/IA), Row52, and more. Save searches and get email alerts when new vehicles arrive.",
+    "Search salvage yard inventory across major yard networks, save searches, and get alerts when new donor vehicles arrive.",
   keywords: [
     "junkyard",
     "salvage yard",
@@ -39,15 +39,15 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: APP_URL,
     siteName: "Junkyard Index",
-    title: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
+    title: "Junkyard Index",
     description:
-      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Pull-A-Part, U Pull-It (NE/IA), Row52, and more.",
+      "Search salvage yard inventory across major yard networks, save searches, and get alerts when new donor vehicles arrive.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Junkyard Index - Search Salvage Yard Inventory Nationwide",
+    title: "Junkyard Index",
     description:
-      "Search salvage yard inventory across the nation. Find used auto parts from LKQ Pick Your Part, Pull-A-Part, U Pull-It (NE/IA), Row52, and more.",
+      "Search salvage yard inventory across major yard networks, save searches, and get alerts when new donor vehicles arrive.",
   },
   robots: {
     index: true,

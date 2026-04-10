@@ -3,7 +3,6 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { ThemeToggle } from "~/components/theme/theme-toggle";
 import { useSearchVisibilityOptional } from "~/context/SearchVisibilityContext";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
 import {
@@ -25,7 +24,11 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center gap-4">
           <div className="flex shrink-0 items-center">
-            <Link href="/search" className="text-foreground text-2xl font-bold">
+            <Link
+              href="/"
+              data-brand-link
+              className="text-foreground text-2xl font-bold"
+            >
               Junkyard Index
             </Link>
           </div>
@@ -48,9 +51,6 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
                 <div className="bg-border h-5 w-px" aria-hidden="true" />
               </>
             )}
-            <div className={user || showMobileSearch ? "hidden sm:block" : ""}>
-              <ThemeToggle />
-            </div>
             <HeaderAuthButtons user={user} />
           </div>
         </div>

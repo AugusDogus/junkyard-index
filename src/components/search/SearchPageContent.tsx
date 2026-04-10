@@ -8,6 +8,8 @@ import {
   MapPin,
   Search,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -30,6 +32,7 @@ import { MorphingSearchBar } from "~/components/search/MorphingSearchBar";
 import {
   clearPendingSaveSearch,
   SaveSearchDialog,
+  storePendingSaveSearch,
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SavedSearchesList } from "~/components/search/SavedSearchesList";
@@ -58,6 +61,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -321,8 +325,11 @@ function AlgoliaSearchInner({
   userLocation: _userLocation,
 }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
+  const lastTrackedResultCapQuery = useRef("");
   const [localLocationPreference, setLocalLocationPreference] =
     useState<StoredLocationPreference | null>(null);
   const [
@@ -409,6 +416,22 @@ function AlgoliaSearchInner({
   const handleAutoOpenHandled = useCallback(() => {
     setAutoOpenSaveDialog(false);
   }, []);
+
+  const currentPathWithQuery = useMemo(() => {
+    const queryString = searchParams.toString();
+    return queryString ? `${pathname}?${queryString}` : pathname;
+  }, [pathname, searchParams]);
+
+  const signUpHref = useMemo(
+    () => `/auth/sign-up?returnTo=${encodeURIComponent(currentPathWithQuery)}`,
+    [currentPathWithQuery],
+  );
+
+  const saveSearchSignUpHref = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("saveSearch", "1");
+    return `/auth/sign-up?returnTo=${encodeURIComponent(`${pathname}?${params.toString()}`)}`;
+  }, [pathname, searchParams]);
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
@@ -708,12 +731,50 @@ function AlgoliaSearchInner({
     selectedSources.length +
     (isYearFiltered ? 1 : 0);
 
+  const currentSaveSearchFilters = useMemo(
+    () => ({
+      makes: selectedMakes,
+      colors: selectedColors,
+      states: selectedStates,
+      salvageYards: selectedLocations,
+      sources: selectedSources,
+      minYear: yearRange[0],
+      maxYear: yearRange[1],
+      sortBy,
+    }),
+    [
+      selectedMakes,
+      selectedColors,
+      selectedStates,
+      selectedLocations,
+      selectedSources,
+      yearRange,
+      sortBy,
+    ],
+  );
+
   // Only show results when there's a non-empty search query
   const hasActiveSearch = query.length > 0;
 
   // Loading = Algolia is actively fetching (not stale "0 results")
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
+
+  const anonymousVisibleLimit = isMobile
+    ? 4
+    : MONETIZATION_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
+  const anonymousClearRows = isMobile ? 3 : 1;
+
+  const isAnonymousCapped =
+    !isLoggedIn && !isSearching && nbHits > anonymousVisibleLimit;
+
+  const visibleVehicles = useMemo(
+    () =>
+      isAnonymousCapped
+        ? vehicles.slice(0, anonymousVisibleLimit)
+        : vehicles,
+    [isAnonymousCapped, vehicles, anonymousVisibleLimit],
+  );
 
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
@@ -724,23 +785,79 @@ function AlgoliaSearchInner({
     )
       return null;
     return {
-      vehicles,
+      vehicles: visibleVehicles,
       totalCount: nbHits,
       page: 1,
-      hasMore: !isLastPage,
+      hasMore: isAnonymousCapped ? false : !isLastPage,
       searchTime: processingTimeMS,
       locationsCovered: 0,
       locationsWithErrors: [],
     };
   }, [
-    vehicles,
+    visibleVehicles,
     nbHits,
     isLastPage,
     processingTimeMS,
     hasActiveSearch,
     status,
     hits.length,
+    isAnonymousCapped,
   ]);
+
+  const anonymousResultsOverlay = useMemo(() => {
+    if (!isAnonymousCapped || !searchResult) {
+      return null;
+    }
+
+    return (
+      <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
+        <p className="text-sm font-medium">Want the rest of the results?</p>
+        <h3 className="mt-2 text-xl font-semibold tracking-tight text-balance">
+          Create a free account to unlock full search results.
+        </h3>
+        <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
+          You can keep searching for free, save up to{" "}
+          {MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} searches, and upgrade to
+          Alerts Plan for ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo when
+          you want email or Discord alerts for new matches.
+        </p>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <Button asChild>
+            <Link
+              href={signUpHref}
+              onClick={() =>
+                posthog.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
+                  source_page: "search",
+                  cta_location: "result_cap",
+                  query,
+                  result_count: searchResult.totalCount,
+                  visible_result_count: anonymousVisibleLimit,
+                })
+              }
+            >
+              Create Free Account
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link
+              href="/pricing"
+              onClick={() =>
+                posthog.capture(AnalyticsEvents.RESULT_CAP_PRICING_CLICKED, {
+                  source_page: "search",
+                  cta_location: "result_cap",
+                  query,
+                  result_count: searchResult.totalCount,
+                  visible_result_count: anonymousVisibleLimit,
+                })
+              }
+            >
+              See Pricing
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }, [isAnonymousCapped, query, searchResult, signUpHref]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -944,6 +1061,21 @@ function AlgoliaSearchInner({
   }, [query, isSearching, error, nbHits, processingTimeMS]);
 
   useEffect(() => {
+    if (!query || !isAnonymousCapped || isSearching || error) return;
+    if (lastTrackedResultCapQuery.current === query) return;
+    lastTrackedResultCapQuery.current = query;
+
+    posthog.capture(AnalyticsEvents.RESULT_CAP_REACHED, {
+      source_page: "search",
+      query,
+      query_length: query.trim().length,
+      result_count: nbHits,
+      visible_result_count: anonymousVisibleLimit,
+      is_logged_in: false,
+    });
+  }, [query, isAnonymousCapped, isSearching, error, nbHits]);
+
+  useEffect(() => {
     if (!locationPreferenceReady) {
       return;
     }
@@ -1080,7 +1212,9 @@ function AlgoliaSearchInner({
                       Search Results
                     </h2>
                     <p className="text-muted-foreground">
-                      {searchResult.totalCount.toLocaleString()} vehicles found
+                      {isAnonymousCapped
+                        ? `Showing ${anonymousVisibleLimit} of ${searchResult.totalCount.toLocaleString()} vehicles`
+                        : `${searchResult.totalCount.toLocaleString()} vehicles found`}
                     </p>
                   </div>
                 ) : null}
@@ -1103,16 +1237,7 @@ function AlgoliaSearchInner({
                     </Select>
                     <SaveSearchDialog
                       query={query}
-                      filters={{
-                        makes: selectedMakes,
-                        colors: selectedColors,
-                        states: selectedStates,
-                        salvageYards: selectedLocations,
-                        sources: selectedSources,
-                        minYear: yearRange[0],
-                        maxYear: yearRange[1],
-                        sortBy,
-                      }}
+                      filters={currentSaveSearchFilters}
                       disabled={!query}
                       isLoggedIn={isLoggedIn}
                       autoOpen={autoOpenSaveDialog}
@@ -1148,16 +1273,7 @@ function AlgoliaSearchInner({
                     showFilters={showFilters}
                     onToggleFilters={handleToggleFilters}
                     isLoggedIn={isLoggedIn}
-                    filters={{
-                      makes: selectedMakes,
-                      colors: selectedColors,
-                      states: selectedStates,
-                      salvageYards: selectedLocations,
-                      sources: selectedSources,
-                      minYear: yearRange[0],
-                      maxYear: yearRange[1],
-                      sortBy,
-                    }}
+                    filters={currentSaveSearchFilters}
                     autoOpenSaveDialog={autoOpenSaveDialog}
                     onAutoOpenHandled={handleAutoOpenHandled}
                     disabled={!query}
@@ -1242,8 +1358,20 @@ function AlgoliaSearchInner({
               isLoading={isSearching && hits.length === 0}
               sidebarOpen={!isMobile && showFilters}
               showMore={showMore}
-              isLastPage={isLastPage}
-              isFetchingNextPage={status === "loading" || status === "stalled"}
+              isLastPage={isAnonymousCapped ? true : isLastPage}
+              isFetchingNextPage={
+                isAnonymousCapped
+                  ? false
+                  : status === "loading" || status === "stalled"
+              }
+              lockedPreview={
+                anonymousResultsOverlay
+                  ? {
+                      clearRows: anonymousClearRows,
+                      overlay: anonymousResultsOverlay,
+                    }
+                  : undefined
+              }
             />
           )}
 
@@ -1280,17 +1408,75 @@ function AlgoliaSearchInner({
                     ? "No vehicles match your current filters. Try adjusting your filters."
                     : "No vehicles match your search. Try different search terms."}
                 </p>
-                {activeFilterCount > 0 && (
-                  <Button onClick={clearAllFilters} variant="outline">
-                    Clear All Filters
+                <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                  {activeFilterCount > 0 && (
+                    <Button onClick={clearAllFilters} variant="outline">
+                      Clear All Filters
+                    </Button>
+                  )}
+                  {isLoggedIn ? (
+                    <SaveSearchDialog
+                      query={query}
+                      filters={currentSaveSearchFilters}
+                      disabled={!query}
+                      isLoggedIn={isLoggedIn}
+                    />
+                  ) : (
+                    <Button asChild>
+                      <Link
+                        href={saveSearchSignUpHref}
+                        onClick={() => {
+                          storePendingSaveSearch(query, currentSaveSearchFilters);
+                          posthog.capture(
+                            AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED,
+                            {
+                              source_page: "search",
+                              cta_location: "no_results",
+                              query,
+                              result_count: 0,
+                              visible_result_count: 0,
+                            },
+                          );
+                        }}
+                      >
+                        Create free account to save this search
+                      </Link>
+                    </Button>
+                  )}
+                  <Button asChild variant="outline">
+                    <Link
+                      href="/pricing"
+                      onClick={() =>
+                        posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                          source_page: "search",
+                          cta_location: "no_results",
+                          query,
+                          result_count: 0,
+                          visible_result_count: 0,
+                          is_logged_in: isLoggedIn,
+                        })
+                      }
+                    >
+                      Get alerts for $
+                      {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo
+                    </Link>
                   </Button>
-                )}
+                </div>
               </div>
             )}
         </div>
       </div>
 
-      {searchResult && <SearchSummary searchResult={searchResult} />}
+      {searchResult && (
+        <SearchSummary
+          searchResult={searchResult}
+          visibleCount={
+            isAnonymousCapped
+              ? anonymousVisibleLimit
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

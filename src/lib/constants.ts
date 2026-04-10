@@ -6,6 +6,14 @@ export const SEARCH_CONFIG = {
   DEBOUNCE_DELAY: 300,
 } as const;
 
+// Growth / monetization configuration
+export const MONETIZATION_CONFIG = {
+  ALERTS_PLAN_PRICE_MONTHLY: 3,
+  ANONYMOUS_VISIBLE_RESULTS_LIMIT: 6,
+  FREE_SAVED_SEARCH_LIMIT: 3,
+  CHECKOUT_SLUG: "Email-Notifications",
+} as const;
+
 // API endpoints
 export const API_ENDPOINTS = {
   PYP_BASE: "https://www.pyp.com",

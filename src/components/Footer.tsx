@@ -14,11 +14,20 @@ export function Footer() {
           </p>
         </div>
         <div className="text-muted-foreground flex flex-wrap justify-center gap-6 text-sm">
+          <Link href="/" className="hover:text-foreground transition-colors">
+            Home
+          </Link>
           <Link
             href="/search"
             className="hover:text-foreground transition-colors"
           >
             Search
+          </Link>
+          <Link
+            href="/pricing"
+            className="hover:text-foreground transition-colors"
+          >
+            Pricing
           </Link>
           <Link
             href="/privacy"
