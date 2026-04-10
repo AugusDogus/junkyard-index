@@ -1,235 +1,209 @@
-import { ArrowRight, Bell, Car, MapPin, Search, Zap } from "lucide-react";
+import { ArrowRight, Bell, Car, Search } from "lucide-react";
+import { type Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "~/components/Footer";
+import { Header } from "~/components/Header";
+import { HomeSearchHero } from "~/components/home/HomeSearchHero";
+import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { api } from "~/trpc/server";
 
+export const metadata: Metadata = {
+  title: "Search Salvage Yard Inventory Nationwide",
+  description:
+    "Search salvage yard inventory across LKQ, Row52, Pull-A-Part, and more. Find donor vehicles for parts, save searches, and get alerts when new matches arrive.",
+  alternates: {
+    canonical: "/",
+  },
+};
+
 const numberFormatter = new Intl.NumberFormat("en-US");
-const compactFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
-function formatVehicleBadgeCount(count: number): string {
-  if (count < 1000) {
-    return `${numberFormatter.format(count)}+`;
-  }
-
-  return `${compactFormatter.format(count).toLowerCase()}+`;
+function formatVehicleCount(count: number): string {
+  return numberFormatter.format(count);
 }
 
-function formatYardBadgeCount(count: number): string {
-  if (count < 100) {
-    return `${numberFormatter.format(count)}+`;
-  }
-
-  const roundedDownToNearestTen = Math.floor(count / 10) * 10;
-  return `${numberFormatter.format(roundedDownToNearestTen)}+`;
+function formatYardCount(count: number): string {
+  return numberFormatter.format(count);
 }
 
 export default async function Home() {
   const liveStats = await api.stats.live();
 
-  const badgeText = `Tracking ${formatVehicleBadgeCount(liveStats.vehicleCount)} vehicles across ${formatYardBadgeCount(liveStats.yardCount)} yards`;
-
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* Hero Section */}
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl">
-          {/* Badge */}
-          <div className="bg-card/50 text-muted-foreground mb-8 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm backdrop-blur-sm">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-green-500" />
-            </span>
-            {badgeText}
-          </div>
+    <div className="bg-background flex min-h-dvh flex-col">
+      <Header />
 
-          {/* Headline */}
-          <h1 className="mb-6 text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-            Find your part.
-            <br />
-            <span className="from-primary to-primary/60 bg-gradient-to-r bg-clip-text text-transparent">
-              Before it&apos;s gone.
-            </span>
-          </h1>
+      <main className="flex-1">
+        <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div>
+              <Badge variant="outline" className="mb-5 gap-2 px-3 py-1">
+                <span className="bg-primary inline-flex size-2 rounded-full" />
+                Search is free. Alerts are ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
+                /mo.
+              </Badge>
+              <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+                Search salvage yard inventory before the right donor vehicle is
+                gone.
+              </h1>
+              <p className="text-muted-foreground mt-5 max-w-2xl text-lg text-pretty sm:text-xl">
+                Search across major yard networks in one place. See full results
+                with a free account, then upgrade to alerts when you want new
+                matches delivered automatically.
+              </p>
 
-          {/* Subheadline */}
-          <p className="text-muted-foreground mx-auto mb-10 max-w-lg text-lg text-pretty sm:text-xl">
-            Search salvage yard inventory across the nation. Save searches, get
-            alerts when new vehicles arrive, and never miss a part again.
-          </p>
-
-          {/* CTA */}
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/search">
-                <Search className="mr-2 size-4" />
-                Start Searching
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className="w-full sm:w-auto"
-            >
-              <Link href="/auth/sign-up">Create Free Account</Link>
-            </Button>
-          </div>
-        </div>
-      </main>
-
-      {/* Features Section */}
-      <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-muted-foreground mb-3 text-center text-sm font-medium">
-            Why Junkyard Index
-          </p>
-          <h2 className="mb-4 text-center text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Everything you need to find parts
-          </h2>
-          <p className="text-muted-foreground mx-auto mb-16 max-w-2xl text-center text-pretty">
-            No more opening a dozen browser tabs. Search once across every major
-            self-service yard network.
-          </p>
-
-          <div className="bg-border grid gap-px overflow-hidden rounded-xl border sm:grid-cols-2">
-            <FeatureCard
-              icon={<Search className="size-5" />}
-              title="Unified Search"
-              description="Search multiple salvage yards at once. No more checking each site individually."
-            />
-            <FeatureCard
-              icon={<MapPin className="size-5" />}
-              title="Distance Sorting"
-              description="Find the closest vehicles to you. Enter your zip code and results sort by distance."
-            />
-            <FeatureCard
-              icon={<Bell className="size-5" />}
-              title="Email Alerts"
-              description="Save a search and get notified the moment a matching vehicle arrives at any yard."
-            />
-            <FeatureCard
-              icon={<Zap className="size-5" />}
-              title="Real-Time Data"
-              description="Inventory updates daily. See what's available right now, not last week."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl">
-          <p className="text-muted-foreground mb-3 text-center text-sm font-medium">
-            How It Works
-          </p>
-          <h2 className="mb-16 text-center text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Three steps to the part you need
-          </h2>
-
-          <div className="grid gap-12 sm:grid-cols-3 sm:gap-8">
-            <StepCard
-              step={1}
-              title="Search"
-              description="Enter a year, make, and model. We search every yard in our network instantly."
-            />
-            <StepCard
-              step={2}
-              title="Find"
-              description="Browse results sorted by distance. See yard details, row numbers, and dates added."
-            />
-            <StepCard
-              step={3}
-              title="Save"
-              description="Create an alert for your search. We email you when new matching vehicles arrive."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Data sources + live stats */}
-      <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center">
-          <h2 className="mb-4 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Five networks. One search.
-          </h2>
-          <p className="text-muted-foreground mx-auto mb-12 max-w-xl text-pretty">
-            We pull inventory from each source daily and combine it into a
-            single index—same filters, sorts, and alerts everywhere.
-          </p>
-
-          <div className="mx-auto mb-16 flex max-w-2xl flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {[
-              "LKQ Pick Your Part",
-              "Pull-A-Part / U-Pull-&-Pay",
-              "U Pull-It (NE/IA)",
-              "Row52",
-              "AutoRecycler",
-            ].map((name) => (
-              <div key={name} className="flex items-center gap-2.5">
-                <div className="bg-muted flex size-8 items-center justify-center rounded-md">
-                  <Car className="text-muted-foreground size-4" />
-                </div>
-                <span className="text-sm font-medium">{name}</span>
+              <div className="mt-8">
+                <HomeSearchHero />
               </div>
-            ))}
-          </div>
+            </div>
 
-          <div className="grid grid-cols-3 divide-x">
-            <StatCard
-              value={formatVehicleBadgeCount(liveStats.vehicleCount)}
-              label="Vehicles Tracked"
-            />
-            <StatCard
-              value={formatYardBadgeCount(liveStats.yardCount)}
-              label="Yards Nationwide"
-            />
-            <StatCard value="5" label="Yard Networks" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <ProofCard
+                title={`${formatVehicleCount(liveStats.vehicleCount)} vehicles tracked`}
+                description="Inventory from multiple salvage networks, updated into one searchable index."
+              />
+              <ProofCard
+                title={`${formatYardCount(liveStats.yardCount)} yards nationwide`}
+                description="Find donor vehicles near you or widen the search when the local yards come up empty."
+              />
+              <ProofCard
+                title="Free search, paid tracking"
+                description="Search anonymously, create a free account to save work, and use Alerts Plan when timing matters."
+              />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Final CTA Section */}
-      <section className="border-t px-4 py-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="mb-4 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Ready to find your part?
-          </h2>
-          <p className="text-muted-foreground mb-8 text-pretty">
-            Stop checking multiple sites. Search once, find everything. Free to
-            use, no credit card required.
-          </p>
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/search">
-                <Search className="mr-2 size-4" />
-                Search Inventory
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className="w-full sm:w-auto"
-            >
-              <Link href="/auth/sign-up">
-                Create Free Account
-                <ArrowRight className="ml-2 size-4" />
-              </Link>
-            </Button>
+        <section className="border-t px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-10 max-w-2xl">
+              <p className="text-muted-foreground mb-2 text-sm font-medium">
+                How it works
+              </p>
+              <h2 className="text-3xl font-semibold tracking-tight text-balance">
+                Start free, pay only when tracking inventory for you becomes the
+                valuable part.
+              </h2>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <ValueCard
+                icon={<Search className="size-5" />}
+                title="Search across networks"
+                description="Run one search across LKQ, Row52, Pull-A-Part, AutoRecycler, and more instead of checking each site separately."
+              />
+              <ValueCard
+                icon={<Car className="size-5" />}
+                title="See the right donor vehicles"
+                description="Filter by make, state, yard, color, and year to zero in on vehicles likely to have the part you need."
+              />
+              <ValueCard
+                icon={<Bell className="size-5" />}
+                title="Upgrade when timing matters"
+                description={`Use Alerts Plan for $${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo to get email or Discord alerts when new matches arrive.`}
+              />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section className="border-t px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-8 max-w-2xl">
+              <p className="text-muted-foreground mb-2 text-sm font-medium">
+                Free vs Paid
+              </p>
+              <h2 className="text-3xl font-semibold tracking-tight text-balance">
+                Simple pricing for parts hunters who need speed, not enterprise
+                plans.
+              </h2>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <PlanCard
+                eyebrow="Free account"
+                title="Full results and saved searches"
+                items={[
+                  "Search salvage yard inventory for free",
+                  "See full results after creating a free account",
+                  `Create up to ${MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} saved searches`,
+                  "No credit card required",
+                ]}
+                ctaHref="/auth/sign-up"
+                ctaLabel="Create Free Account"
+              />
+              <PlanCard
+                eyebrow="Alerts Plan"
+                title={`$${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo for inventory tracking`}
+                items={[
+                  "Unlimited saved searches",
+                  "Email alerts for new matches",
+                  "Discord alerts for new matches",
+                  "Best fit for repeat searches and fast-moving inventory",
+                ]}
+                ctaHref="/pricing"
+                ctaLabel="See Pricing"
+                trackPricing
+                featured
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-3xl font-semibold tracking-tight text-balance">
+              Stop checking yard sites one by one.
+            </h2>
+            <p className="text-muted-foreground mt-4 text-lg text-pretty">
+              Search free today. Create an account when you want continuity.
+              Upgrade when you want the inventory tracked for you.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button asChild size="lg">
+                <Link href="/search">
+                  Search Inventory
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <TrackedPricingButton
+                href="/pricing"
+                label="Compare Free and Alerts Plan"
+                sourcePage="home"
+                ctaLocation="bottom_compare_plans"
+                variant="outline"
+                size="lg"
+              />
+            </div>
+          </div>
+        </section>
+      </main>
 
       <Footer />
     </div>
   );
 }
 
-function FeatureCard({
+function ProofCard({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-lg border p-6">
+      <p className="text-xl font-semibold tracking-tight">{title}</p>
+      <p className="text-muted-foreground mt-2 text-sm text-pretty">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function ValueCard({
   icon,
   title,
   description,
@@ -239,41 +213,71 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="bg-background flex flex-col gap-3 p-6 sm:p-8">
-      <div className="bg-muted text-foreground flex size-10 items-center justify-center rounded-lg">
+    <div className="rounded-lg border p-6">
+      <div className="bg-muted mb-4 flex size-10 items-center justify-center rounded-md">
         {icon}
       </div>
       <h3 className="font-semibold">{title}</h3>
-      <p className="text-muted-foreground text-sm text-pretty">{description}</p>
+      <p className="text-muted-foreground mt-2 text-sm text-pretty">
+        {description}
+      </p>
     </div>
   );
 }
 
-function StepCard({
-  step,
+function PlanCard({
+  eyebrow,
   title,
-  description,
+  items,
+  ctaHref,
+  ctaLabel,
+  trackPricing = false,
+  featured = false,
 }: {
-  step: number;
+  eyebrow: string;
   title: string;
-  description: string;
+  items: string[];
+  ctaHref: string;
+  ctaLabel: string;
+  trackPricing?: boolean;
+  featured?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center text-center">
-      <div className="border-foreground mb-4 flex size-10 items-center justify-center rounded-full border-2 text-sm font-semibold tabular-nums">
-        {step}
-      </div>
-      <h3 className="mb-2 font-semibold">{title}</h3>
-      <p className="text-muted-foreground text-sm text-pretty">{description}</p>
-    </div>
-  );
-}
-
-function StatCard({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1 py-2">
-      <p className="text-2xl font-bold tabular-nums sm:text-3xl">{value}</p>
-      <p className="text-muted-foreground text-xs sm:text-sm">{label}</p>
+    <div
+      className={`rounded-lg border p-6 ${featured ? "border-primary bg-primary/5" : ""}`}
+    >
+      <p className="text-muted-foreground text-sm font-medium">{eyebrow}</p>
+      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-balance">
+        {title}
+      </h3>
+      <ul className="mt-6 space-y-3 text-sm">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="text-primary mt-0.5 inline-flex size-4 shrink-0 items-center justify-center">
+              •
+            </span>
+            <span className="text-muted-foreground">{item}</span>
+          </li>
+        ))}
+      </ul>
+      {trackPricing ? (
+        <TrackedPricingButton
+          href={ctaHref}
+          label={ctaLabel}
+          sourcePage="home"
+          ctaLocation="plan_card"
+          variant={featured ? "default" : "outline"}
+          className="mt-6 w-full"
+        />
+      ) : (
+        <Button
+          asChild
+          className="mt-6 w-full"
+          variant={featured ? "default" : "outline"}
+        >
+          <Link href={ctaHref}>{ctaLabel}</Link>
+        </Button>
+      )}
     </div>
   );
 }

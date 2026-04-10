@@ -149,7 +149,7 @@ export function SignInForm() {
         disabled={isLoading || isDiscordLoading}
         tabIndex={3}
       >
-        {isLoading ? "Signing in..." : "Sign In"}
+        {isLoading ? "Signing in..." : "Continue Tracking"}
       </Button>
 
       <div className="relative">
@@ -174,6 +174,10 @@ export function SignInForm() {
         <DiscordIcon className="mr-2 h-4 w-4" />
         {isDiscordLoading ? "Connecting..." : "Discord"}
       </Button>
+
+      <div className="text-muted-foreground text-center text-sm">
+        Your saved searches and inventory tracking pick up where you left off.
+      </div>
 
       <div className="text-muted-foreground text-center text-sm">
         Don't have an account?{" "}

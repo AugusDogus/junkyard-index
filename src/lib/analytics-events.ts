@@ -7,12 +7,19 @@ interface SearchContext {
 }
 
 export const AnalyticsEvents = {
+  // Landing / marketing
+  LANDING_SEARCH_SUBMITTED: "landing_search_submitted",
+  PRICING_CTA_CLICKED: "pricing_cta_clicked",
+
   // Search
   SEARCH_SUBMITTED: "search_submitted",
   SEARCH_COMPLETED: "search_completed",
   SEARCH_EMPTY: "search_empty",
   SEARCH_FAILED: "search_failed",
   SEARCH_SUGGESTION_CLICKED: "search_suggestion_clicked",
+  RESULT_CAP_REACHED: "result_cap_reached",
+  RESULT_CAP_SIGNUP_CLICKED: "result_cap_signup_clicked",
+  RESULT_CAP_PRICING_CLICKED: "result_cap_pricing_clicked",
 
   // Filters & Sort
   FILTER_APPLIED: "filter_applied",
@@ -39,6 +46,8 @@ export const AnalyticsEvents = {
   SIGN_UP_SUBMITTED: "sign_up_submitted",
   SIGN_UP_SUCCEEDED: "sign_up_succeeded",
   SIGN_UP_FAILED: "sign_up_failed",
+  SIGN_IN_VIEWED: "sign_in_viewed",
+  SIGN_UP_VIEWED: "sign_up_viewed",
   SIGN_OUT_CLICKED: "sign_out_clicked",
   FORGOT_PASSWORD_CLICKED: "forgot_password_clicked",
 
@@ -67,6 +76,9 @@ export const AnalyticsEvents = {
   ALERT_CRON_COMPLETED: "alert_cron_completed",
   ALERT_NOTIFICATION_SENT: "alert_notification_sent",
   ALERT_SUBSCRIPTION_EXPIRED: "alert_subscription_expired",
+
+  // Monetization
+  SAVED_SEARCH_LIMIT_REACHED: "saved_search_limit_reached",
 } as const;
 
 export type AnalyticsEventName =

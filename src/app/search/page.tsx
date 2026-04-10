@@ -1,4 +1,5 @@
 import { geolocation } from "@vercel/functions";
+import { type Metadata } from "next";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
@@ -8,6 +9,15 @@ import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
+
+export const metadata: Metadata = {
+  title: "Search Salvage Yard Inventory",
+  description:
+    "Search donor vehicles across salvage yard networks, compare results by yard and distance, and create saved searches for ongoing inventory tracking.",
+  alternates: {
+    canonical: "/search",
+  },
+};
 
 export default async function SearchPage() {
   const reqHeaders = await headers();

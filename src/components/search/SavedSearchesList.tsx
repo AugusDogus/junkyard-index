@@ -21,6 +21,7 @@ import {
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient } from "~/lib/auth-client";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
 
@@ -151,7 +152,7 @@ export function SavedSearchesList() {
       });
       try {
         await authClient.checkout({
-          slug: "Email-Notifications",
+          slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
         });
       } catch (error) {
         toast.error("Failed to open checkout. Please try again.");
@@ -185,7 +186,7 @@ export function SavedSearchesList() {
       });
       try {
         await authClient.checkout({
-          slug: "Email-Notifications",
+          slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
         });
       } catch (error) {
         toast.error("Failed to open checkout. Please try again.");
@@ -279,6 +280,11 @@ export function SavedSearchesList() {
             <Bookmark className="text-muted-foreground h-4 w-4" />
             <h3 className="text-foreground text-sm font-semibold">
               Saved Searches
+              {!hasActiveSubscription && (
+                <span className="text-muted-foreground ml-1 font-normal">
+                  ({savedSearches.length}/{MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} free)
+                </span>
+              )}
             </h3>
           </div>
           <Link href="/settings">

@@ -10,7 +10,7 @@
  */
 
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useMemo } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -24,10 +24,14 @@ import { VehicleCard } from "./VehicleCard";
 
 interface SearchSummaryProps {
   searchResult: SearchResult;
+  visibleCount?: number;
 }
 
-export function SearchSummary({ searchResult }: SearchSummaryProps) {
-  const loaded = searchResult.vehicles.length;
+export function SearchSummary({
+  searchResult,
+  visibleCount,
+}: SearchSummaryProps) {
+  const loaded = visibleCount ?? searchResult.vehicles.length;
   const total = searchResult.totalCount;
   const allLoaded = loaded >= total;
 
@@ -49,6 +53,10 @@ interface SearchResultsProps {
   showMore?: () => void;
   isLastPage?: boolean;
   isFetchingNextPage?: boolean;
+  lockedPreview?: {
+    clearRows: number;
+    overlay: ReactNode;
+  };
 }
 
 export function SearchResults({
@@ -58,6 +66,7 @@ export function SearchResults({
   showMore,
   isLastPage = true,
   isFetchingNextPage = false,
+  lockedPreview,
 }: SearchResultsProps) {
   const isMobile = useIsMobile();
   const isMediumScreen = useIsMediumScreen();
@@ -120,6 +129,31 @@ export function SearchResults({
 
   const amountOfSkeletons = isMobile ? 1 : isMediumScreen ? 2 : 6;
 
+  const renderGridRow = useCallback(
+    (row: SearchVehicle[], keyPrefix: string, className?: string) => (
+      <div
+        key={keyPrefix}
+        className={className ?? "grid w-full gap-6 pb-6"}
+        style={{
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        }}
+      >
+        {row.map((vehicle: SearchVehicle) => (
+          <VehicleCard
+            key={`${keyPrefix}-${vehicle.locationCode}-${vehicle.id}`}
+            vehicle={vehicle}
+          />
+        ))}
+        {Array.from({
+          length: Math.max(0, columns - row.length),
+        }).map((_, index) => (
+          <div key={`${keyPrefix}-empty-${index}`} />
+        ))}
+      </div>
+    ),
+    [columns],
+  );
+
   if (isLoading) {
     return (
       <div
@@ -167,6 +201,50 @@ export function SearchResults({
     );
   }
 
+  if (lockedPreview) {
+    const visibleRows = Math.max(
+      0,
+      Math.min(lockedPreview.clearRows, rows.length),
+    );
+    const clearRows = rows.slice(0, visibleRows);
+    const lockedRows = rows.slice(visibleRows);
+
+    return (
+      <div className="space-y-0">
+        {clearRows.map((row, rowIndex) =>
+          renderGridRow(row, `preview-clear-${rowIndex}`),
+        )}
+
+        {lockedRows.length > 0 && (
+          <div className="relative">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none select-none space-y-0"
+            >
+              {lockedRows.map((row, rowIndex) => (
+                <div
+                  key={`preview-locked-wrapper-${rowIndex}`}
+                  className="relative overflow-hidden rounded-xl"
+                >
+                  {renderGridRow(
+                    row,
+                    `preview-locked-${rowIndex}`,
+                    "grid w-full gap-6 pb-6 opacity-45 blur-sm",
+                  )}
+                  <div className="bg-background/55 absolute inset-0" />
+                </div>
+              ))}
+            </div>
+
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 sm:p-6">
+              {lockedPreview.overlay}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -197,24 +275,7 @@ export function SearchResults({
                 Loading more vehicles...
               </div>
             ) : row ? (
-              <div
-                className="grid w-full gap-6 pb-6"
-                style={{
-                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                }}
-              >
-                {row.map((vehicle: SearchVehicle) => (
-                  <VehicleCard
-                    key={`${vehicle.locationCode}-${vehicle.id}`}
-                    vehicle={vehicle}
-                  />
-                ))}
-                {Array.from({
-                  length: Math.max(0, columns - row.length),
-                }).map((_, index) => (
-                  <div key={`empty-${index}`} />
-                ))}
-              </div>
+              renderGridRow(row, `row-${virtualRow.index}`)
             ) : null}
           </div>
         );

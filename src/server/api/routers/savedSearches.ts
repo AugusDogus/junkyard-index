@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -6,6 +6,7 @@ import {
   parseSavedSearchFilters,
 } from "~/lib/saved-search-filters";
 import { polarClient } from "~/lib/auth";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { savedSearch, user } from "~/schema";
@@ -45,6 +46,35 @@ export const savedSearchesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      let hasActiveSubscription = false;
+      try {
+        const customerState = await polarClient.customers.getStateExternal({
+          externalId: ctx.user.id,
+        });
+        hasActiveSubscription = customerState.activeSubscriptions.length > 0;
+      } catch {
+        hasActiveSubscription = false;
+      }
+
+      if (!hasActiveSubscription) {
+        const [savedSearchCount] = await ctx.db
+          .select({
+            total: sql<number>`count(*)`,
+          })
+          .from(savedSearch)
+          .where(eq(savedSearch.userId, ctx.user.id));
+
+        if (
+          (savedSearchCount?.total ?? 0) >=
+          MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Free accounts can save up to ${MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} searches. Upgrade to Alerts Plan to save more.`,
+          });
+        }
+      }
+
       const id = crypto.randomUUID();
       const now = new Date();
       const alertsEnabled =

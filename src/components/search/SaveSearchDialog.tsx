@@ -28,6 +28,7 @@ import { Switch } from "~/components/ui/switch";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient } from "~/lib/auth-client";
+import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
@@ -163,6 +164,36 @@ export function SaveSearchDialog({
       if (context?.previousSearches) {
         utils.savedSearches.list.setData(undefined, context.previousSearches);
       }
+      if (
+        error.data?.code === "FORBIDDEN" &&
+        error.message.includes("saved searches")
+      ) {
+        posthog.capture(AnalyticsEvents.SAVED_SEARCH_LIMIT_REACHED, {
+          source_page: "search",
+          cta_location: "save_search_dialog",
+        });
+        toast.error(error.message, {
+          action: {
+            label: "Upgrade",
+            onClick: async () => {
+              posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                source_page: "search",
+                cta_location: "saved_search_limit_to_checkout",
+                is_logged_in: true,
+              });
+              try {
+                await authClient.checkout({
+                  slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
+                });
+              } catch (checkoutError) {
+                console.error("Failed to open checkout:", checkoutError);
+                toast.error("Failed to open checkout. Please try again.");
+              }
+            },
+          },
+        });
+        return;
+      }
       toast.error(error.message || "Failed to save search");
       setIsRedirecting(false);
       if (!needsCheckout) {
@@ -188,7 +219,7 @@ export function SaveSearchDialog({
         });
         try {
           await authClient.checkout({
-            slug: "Email-Notifications",
+            slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
           });
         } catch (error) {
           console.error("Failed to redirect to checkout:", error);
@@ -305,6 +336,7 @@ export function SaveSearchDialog({
           variant="outline"
           size={compact || iconOnly ? "sm" : "default"}
           className={compact || iconOnly ? "h-8 text-xs" : ""}
+          aria-label={iconOnly ? "Save search" : undefined}
           disabled={disabled || !query || isNavigatingToAuth}
           onClick={(e) => {
             if (!isLoggedIn) {
@@ -316,14 +348,19 @@ export function SaveSearchDialog({
           <Bookmark
             className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
           />
-          {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
+          {!iconOnly &&
+            (isNavigatingToAuth
+              ? "Redirecting..."
+              : "Save Search")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Save Search</DialogTitle>
           <DialogDescription>
-            Save this search to quickly access it later.
+            Save this search to revisit it later. Upgrade to alerts for $
+            {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo when you want new
+            matches delivered automatically.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -389,7 +426,7 @@ export function SaveSearchDialog({
                     Enable notifications
                     {!hasActiveSubscription && (
                       <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                        ($3/mo)
+                        (${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo)
                       </span>
                     )}
                   </Label>
@@ -511,7 +548,7 @@ export function SaveSearchDialog({
               ? "Redirecting to checkout..."
               : createMutation.isPending
                 ? "Saving..."
-                : "Save"}
+                : "Save Search"}
           </Button>
         </DialogFooter>
       </DialogContent>

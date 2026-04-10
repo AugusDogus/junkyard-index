@@ -84,7 +84,7 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
         const rect = placeholder.getBoundingClientRect();
         const scrollY = window.scrollY;
 
-        const logo = document.querySelector('header a[href="/search"]');
+        const logo = document.querySelector("header [data-brand-link]");
         const logoRect = logo?.getBoundingClientRect();
 
         const filterBar = document.querySelector("[data-morphing-filter-bar]");
