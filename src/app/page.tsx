@@ -37,30 +37,30 @@ export default async function Home() {
       <Header />
 
       <main className="flex-1">
-        <section className="px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <section className="px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+          <div className="mx-auto grid max-w-6xl gap-8 sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
-              <Badge variant="outline" className="mb-5 gap-2 px-3 py-1">
+              <Badge variant="outline" className="mb-4 gap-2 px-3 py-1 sm:mb-5">
                 <span className="bg-primary inline-flex size-2 rounded-full" />
                 Search is free. Alerts are ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
                 /mo.
               </Badge>
-              <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+              <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
                 Search salvage yard inventory before the right donor vehicle is
                 gone.
               </h1>
-              <p className="text-muted-foreground mt-5 max-w-2xl text-lg text-pretty sm:text-xl">
+              <p className="text-muted-foreground mt-4 max-w-2xl text-base text-pretty sm:mt-5 sm:text-lg md:text-xl">
                 Search across major yard networks in one place. See full results
                 with a free account, then upgrade to alerts when you want new
                 matches delivered automatically.
               </p>
 
-              <div className="mt-8">
+              <div className="mt-6 sm:mt-8">
                 <HomeSearchHero />
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-1">
               <ProofCard
                 title={`${formatVehicleCount(liveStats.vehicleCount)} vehicles tracked`}
                 description="Inventory from multiple salvage networks, updated into one searchable index."
@@ -77,19 +77,19 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="border-t px-4 py-16 sm:px-6 lg:px-8">
+        <section className="border-t px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="mb-10 max-w-2xl">
+            <div className="mb-6 max-w-2xl sm:mb-10">
               <p className="text-muted-foreground mb-2 text-sm font-medium">
                 How it works
               </p>
-              <h2 className="text-3xl font-semibold tracking-tight text-balance">
+              <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
                 Start free, pay only when tracking inventory for you becomes the
                 valuable part.
               </h2>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
               <ValueCard
                 icon={<Search className="size-5" />}
                 title="Search across networks"
@@ -109,19 +109,19 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="border-t px-4 py-16 sm:px-6 lg:px-8">
+        <section className="border-t px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="mb-8 max-w-2xl">
+            <div className="mb-6 max-w-2xl sm:mb-8">
               <p className="text-muted-foreground mb-2 text-sm font-medium">
                 Free vs Paid
               </p>
-              <h2 className="text-3xl font-semibold tracking-tight text-balance">
+              <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
                 Simple pricing for parts hunters who need speed, not enterprise
                 plans.
               </h2>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
               <PlanCard
                 eyebrow="Free account"
                 title="Full results and saved searches"
@@ -152,16 +152,16 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="border-t px-4 py-16 sm:px-6 lg:px-8">
+        <section className="border-t px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className="text-3xl font-semibold tracking-tight text-balance">
+            <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
               Stop checking yard sites one by one.
             </h2>
-            <p className="text-muted-foreground mt-4 text-lg text-pretty">
+            <p className="text-muted-foreground mt-3 text-base text-pretty sm:mt-4 sm:text-lg">
               Search free today. Create an account when you want continuity.
               Upgrade when you want the inventory tracked for you.
             </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:mt-8 sm:flex-row">
               <Button asChild size="lg">
                 <Link href="/search">
                   Search Inventory
@@ -194,9 +194,11 @@ function ProofCard({
   description: string;
 }) {
   return (
-    <div className="rounded-lg border p-6">
-      <p className="text-xl font-semibold tracking-tight">{title}</p>
-      <p className="text-muted-foreground mt-2 text-sm text-pretty">
+    <div className="rounded-lg border p-4 sm:p-6">
+      <p className="text-lg font-semibold tracking-tight tabular-nums sm:text-xl">
+        {title}
+      </p>
+      <p className="text-muted-foreground mt-1 text-sm text-pretty sm:mt-2">
         {description}
       </p>
     </div>
@@ -213,12 +215,12 @@ function ValueCard({
   description: string;
 }) {
   return (
-    <div className="rounded-lg border p-6">
-      <div className="bg-muted mb-4 flex size-10 items-center justify-center rounded-md">
+    <div className="rounded-lg border p-4 sm:p-6">
+      <div className="bg-muted mb-3 flex size-9 items-center justify-center rounded-md sm:mb-4 sm:size-10">
         {icon}
       </div>
       <h3 className="font-semibold">{title}</h3>
-      <p className="text-muted-foreground mt-2 text-sm text-pretty">
+      <p className="text-muted-foreground mt-1 text-sm text-pretty sm:mt-2">
         {description}
       </p>
     </div>
@@ -244,13 +246,13 @@ function PlanCard({
 }) {
   return (
     <div
-      className={`rounded-lg border p-6 ${featured ? "border-primary bg-primary/5" : ""}`}
+      className={`rounded-lg border p-4 sm:p-6 ${featured ? "border-primary bg-primary/5" : ""}`}
     >
       <p className="text-muted-foreground text-sm font-medium">{eyebrow}</p>
-      <h3 className="mt-2 text-2xl font-semibold tracking-tight text-balance">
+      <h3 className="mt-1.5 text-xl font-semibold tracking-tight text-balance sm:mt-2 sm:text-2xl">
         {title}
       </h3>
-      <ul className="mt-6 space-y-3 text-sm">
+      <ul className="mt-4 space-y-2.5 text-sm sm:mt-6 sm:space-y-3">
         {items.map((item) => (
           <li key={item} className="flex gap-2">
             <span className="text-primary mt-0.5 inline-flex size-4 shrink-0 items-center justify-center">
@@ -267,12 +269,12 @@ function PlanCard({
           sourcePage="home"
           ctaLocation="plan_card"
           variant={featured ? "default" : "outline"}
-          className="mt-6 w-full"
+          className="mt-4 w-full sm:mt-6"
         />
       ) : (
         <Button
           asChild
-          className="mt-6 w-full"
+          className="mt-4 w-full sm:mt-6"
           variant={featured ? "default" : "outline"}
         >
           <Link href={ctaHref}>{ctaLabel}</Link>
