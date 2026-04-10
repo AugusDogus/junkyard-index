@@ -47,15 +47,16 @@ export function HomeSearchHero() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search year, make, or model"
-            className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background h-12 w-full rounded-md border px-4 pr-34 text-base shadow-sm outline-none focus-visible:ring-[3px]"
+            className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background h-12 w-full rounded-md border px-4 pr-14 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:pr-34"
           />
           <Button
             type="submit"
             size="lg"
-            className="absolute top-1 right-1 h-10 px-4"
+            className="absolute top-1 right-1 h-10 px-3 sm:px-4"
+            aria-label="Search"
           >
             <Search className="size-4" />
-            Search Free
+            <span className="hidden sm:inline">Search Free</span>
           </Button>
         </div>
 
@@ -74,11 +75,11 @@ export function HomeSearchHero() {
         </div>
       </form>
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <Button asChild variant="outline" size="lg" className="sm:w-auto">
+      <div className="mt-6 hidden gap-3 sm:flex sm:flex-row">
+        <Button asChild variant="outline" size="lg">
           <Link href="/auth/sign-up">Create Free Account</Link>
         </Button>
-        <Button asChild variant="ghost" size="lg" className="sm:w-auto">
+        <Button asChild variant="ghost" size="lg">
           <Link
             href="/pricing"
             onClick={() =>
