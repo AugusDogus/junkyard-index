@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import { Badge } from "~/components/ui/badge";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
   Collapsible,
@@ -8,6 +9,7 @@ import {
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
 import type { DataSource } from "~/lib/types";
+import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 interface FilterOptions {
   makes: string[];
@@ -121,28 +123,26 @@ export function SidebarContent({
       {filterOptions.makes.length > 1 && (
         <Collapsible defaultOpen>
           <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-            <span className="font-medium">Make</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Make</span>
+              {makes.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] tabular-nums">
+                  {makes.length}
+                </Badge>
+              )}
+            </div>
             <ChevronDown className="h-4 w-4" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2 space-y-2">
-            {filterOptions.makes.map((make) => (
-              <div key={make} className="flex items-center space-x-2 pr-3 pl-3">
-                <Checkbox
-                  id={`make-${make}`}
-                  checked={makes.includes(make)}
-                  onCheckedChange={() => {
-                    if (makes.includes(make)) {
-                      onMakesChange(makes.filter((m) => m !== make));
-                    } else {
-                      onMakesChange([...makes, make]);
-                    }
-                  }}
-                />
-                <Label htmlFor={`make-${make}`} className="text-sm">
-                  {make}
-                </Label>
-              </div>
-            ))}
+          <CollapsibleContent className="mt-2">
+            <SearchableCheckboxList
+              name="make"
+              options={filterOptions.makes}
+              selected={makes}
+              onChange={onMakesChange}
+              searchPlaceholder="Search makes…"
+              searchThreshold={10}
+              maxHeight={220}
+            />
           </CollapsibleContent>
         </Collapsible>
       )}
@@ -177,84 +177,76 @@ export function SidebarContent({
 
       <Collapsible>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <span className="font-medium">Color</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">Color</span>
+            {colors.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] tabular-nums">
+                {colors.length}
+              </Badge>
+            )}
+          </div>
           <ChevronDown className="h-4 w-4" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 space-y-2">
-          {filterOptions.colors.map((color) => (
-            <div key={color} className="flex items-center space-x-2 pr-3 pl-3">
-              <Checkbox
-                id={`color-${color}`}
-                checked={colors.includes(color)}
-                onCheckedChange={() => {
-                  if (colors.includes(color)) {
-                    onColorsChange(colors.filter((c) => c !== color));
-                  } else {
-                    onColorsChange([...colors, color]);
-                  }
-                }}
-              />
-              <Label htmlFor={`color-${color}`} className="text-sm">
-                {color}
-              </Label>
-            </div>
-          ))}
+        <CollapsibleContent className="mt-2">
+            <SearchableCheckboxList
+              name="color"
+              options={filterOptions.colors}
+              selected={colors}
+              onChange={onColorsChange}
+              searchPlaceholder="Search colors…"
+              searchThreshold={12}
+              maxHeight={200}
+            />
         </CollapsibleContent>
       </Collapsible>
 
       <Collapsible>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <span className="font-medium">State</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">State</span>
+            {states.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] tabular-nums">
+                {states.length}
+              </Badge>
+            )}
+          </div>
           <ChevronDown className="h-4 w-4" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 space-y-2">
-          {filterOptions.states.map((state) => (
-            <div key={state} className="flex items-center space-x-2 pr-3 pl-3">
-              <Checkbox
-                id={`state-${state}`}
-                checked={states.includes(state)}
-                onCheckedChange={() => {
-                  if (states.includes(state)) {
-                    onStatesChange(states.filter((s) => s !== state));
-                  } else {
-                    onStatesChange([...states, state]);
-                  }
-                }}
-              />
-              <Label htmlFor={`state-${state}`} className="text-sm">
-                {state}
-              </Label>
-            </div>
-          ))}
+        <CollapsibleContent className="mt-2">
+            <SearchableCheckboxList
+              name="state"
+              options={filterOptions.states}
+              selected={states}
+              onChange={onStatesChange}
+              searchPlaceholder="Search states…"
+              searchThreshold={6}
+              maxHeight={240}
+            />
         </CollapsibleContent>
       </Collapsible>
 
       <Collapsible>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <span className="font-medium">Lot</span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">Lot</span>
+            {salvageYards.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] tabular-nums">
+                {salvageYards.length}
+              </Badge>
+            )}
+          </div>
           <ChevronDown className="h-4 w-4" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 space-y-2">
-          {filterOptions.salvageYards.map((yard) => (
-            <div key={yard} className="flex items-center space-x-2 pr-3 pl-3">
-              <Checkbox
-                id={`yard-${yard}`}
-                checked={salvageYards.includes(yard)}
-                onCheckedChange={() => {
-                  if (salvageYards.includes(yard)) {
-                    onSalvageYardsChange(
-                      salvageYards.filter((y) => y !== yard),
-                    );
-                  } else {
-                    onSalvageYardsChange([...salvageYards, yard]);
-                  }
-                }}
-              />
-              <Label htmlFor={`yard-${yard}`} className="text-sm">
-                {yard}
-              </Label>
-            </div>
-          ))}
+        <CollapsibleContent className="mt-2">
+            <SearchableCheckboxList
+              name="yard"
+              options={filterOptions.salvageYards}
+              selected={salvageYards}
+              onChange={onSalvageYardsChange}
+              searchPlaceholder="Search lots…"
+              searchThreshold={6}
+              maxHeight={240}
+            />
         </CollapsibleContent>
       </Collapsible>
     </div>
