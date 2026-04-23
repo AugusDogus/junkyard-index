@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  MAX_VEHICLE_YEAR,
+  MIN_VEHICLE_YEAR,
+} from "~/lib/search-filter-bounds";
 
 const SOURCE_VALUES = [
   "pyp",
@@ -7,8 +11,6 @@ const SOURCE_VALUES = [
   "pullapart",
   "upullitne",
 ] as const;
-const MIN_VEHICLE_YEAR = 1886;
-const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 
 export const filtersSchema = z.object({
   makes: z.array(z.string()).optional(),

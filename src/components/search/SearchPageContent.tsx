@@ -69,6 +69,12 @@ import {
   parseStoredLocationPreference,
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
+import {
+  MAX_VEHICLE_YEAR,
+  mergeSelectedFilterOptions,
+  MIN_VEHICLE_YEAR,
+  normalizeVehicleYearFilter,
+} from "~/lib/search-filter-bounds";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
@@ -112,17 +118,6 @@ const ALLOWED_SOURCES: DataSource[] = [
   "pullapart",
   "upullitne",
 ];
-
-function clampRouteYear(
-  value: number | null,
-  min: number,
-  max: number,
-): number | null {
-  if (value === null || !Number.isFinite(value) || value <= 0) {
-    return null;
-  }
-  return Math.min(max, Math.max(min, value));
-}
 
 function sanitizeSources(values: unknown): DataSource[] {
   if (!Array.isArray(values)) return [];
@@ -324,7 +319,6 @@ function AlgoliaSearchInner({
   isLoggedIn,
   userLocation: _userLocation,
 }: SearchPageContentProps) {
-  const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
@@ -474,11 +468,7 @@ function AlgoliaSearchInner({
   });
 
   // Year range
-  const {
-    range: yearBounds,
-    start: yearStart,
-    refine: refineYear,
-  } = useRange({
+  const { refine: refineYear } = useRange({
     attribute: "year",
   });
 
@@ -643,16 +633,6 @@ function AlgoliaSearchInner({
     [hits, resolvedUserLocation],
   );
 
-  const filterOptions = useMemo(
-    () => ({
-      makes: makeItems.map((i) => i.value).sort(),
-      colors: colorItems.map((i) => i.value).sort(),
-      states: stateItems.map((i) => i.value).sort(),
-      salvageYards: locationItems.map((i) => i.value).sort(),
-    }),
-    [makeItems, colorItems, stateItems, locationItems],
-  );
-
   // Selected filters
   const selectedMakes = useMemo(
     () => refinementList.make ?? [],
@@ -674,6 +654,36 @@ function AlgoliaSearchInner({
     () => sanitizeSources(refinementList.source ?? []),
     [refinementList],
   );
+  const filterOptions = useMemo(
+    () => ({
+      makes: mergeSelectedFilterOptions(
+        makeItems.map((item) => item.value),
+        selectedMakes,
+      ),
+      colors: mergeSelectedFilterOptions(
+        colorItems.map((item) => item.value),
+        selectedColors,
+      ),
+      states: mergeSelectedFilterOptions(
+        stateItems.map((item) => item.value),
+        selectedStates,
+      ),
+      salvageYards: mergeSelectedFilterOptions(
+        locationItems.map((item) => item.value),
+        selectedLocations,
+      ),
+    }),
+    [
+      colorItems,
+      locationItems,
+      makeItems,
+      selectedColors,
+      selectedLocations,
+      selectedMakes,
+      selectedStates,
+      stateItems,
+    ],
+  );
 
   const parsedRouteYears = (yearRangeState.year ?? "")
     .split(":")
@@ -683,45 +693,14 @@ function AlgoliaSearchInner({
     });
   const rawRouteMinYear = parsedRouteYears[0] ?? null;
   const rawRouteMaxYear = parsedRouteYears[1] ?? null;
-
-  const yearMin: number =
-    typeof yearBounds.min === "number" &&
-    Number.isFinite(yearBounds.min) &&
-    yearBounds.min > 0
-      ? yearBounds.min
-      : 1900;
-  const yearMax: number =
-    typeof yearBounds.max === "number" &&
-    Number.isFinite(yearBounds.max) &&
-    yearBounds.max > 0
-      ? yearBounds.max
-      : currentYear;
-  let routeMinYear = clampRouteYear(rawRouteMinYear, yearMin, yearMax);
-  let routeMaxYear = clampRouteYear(rawRouteMaxYear, yearMin, yearMax);
-  if (
-    routeMinYear !== null &&
-    routeMaxYear !== null &&
-    routeMinYear > routeMaxYear
-  ) {
-    [routeMinYear, routeMaxYear] = [routeMaxYear, routeMinYear];
-  }
-  const yearRange: [number, number] = [
-    routeMinYear ??
-      clampRouteYear(
-        Number.isFinite(yearStart[0]) ? (yearStart[0] as number) : yearMin,
-        yearMin,
-        yearMax,
-      ) ??
-      yearMin,
-    routeMaxYear ??
-      clampRouteYear(
-        Number.isFinite(yearStart[1]) ? (yearStart[1] as number) : yearMax,
-        yearMin,
-        yearMax,
-      ) ??
-      yearMax,
-  ];
-  const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
+  const normalizedRouteYearFilter = normalizeVehicleYearFilter(
+    rawRouteMinYear,
+    rawRouteMaxYear,
+  );
+  const yearMin = MIN_VEHICLE_YEAR;
+  const yearMax = MAX_VEHICLE_YEAR;
+  const yearRange = normalizedRouteYearFilter.range;
+  const isYearFiltered = normalizedRouteYearFilter.isFiltered;
 
   const activeFilterCount =
     selectedMakes.length +
@@ -738,17 +717,18 @@ function AlgoliaSearchInner({
       states: selectedStates,
       salvageYards: selectedLocations,
       sources: selectedSources,
-      minYear: yearRange[0],
-      maxYear: yearRange[1],
+      minYear: normalizedRouteYearFilter.minYear,
+      maxYear: normalizedRouteYearFilter.maxYear,
       sortBy,
     }),
     [
+      normalizedRouteYearFilter.maxYear,
+      normalizedRouteYearFilter.minYear,
       selectedMakes,
       selectedColors,
       selectedStates,
       selectedLocations,
       selectedSources,
-      yearRange,
       sortBy,
     ],
   );

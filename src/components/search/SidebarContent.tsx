@@ -7,6 +7,10 @@ import {
 } from "~/components/ui/collapsible";
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
+import {
+  MAX_VEHICLE_YEAR,
+  MIN_VEHICLE_YEAR,
+} from "~/lib/search-filter-bounds";
 import type { DataSource } from "~/lib/types";
 
 interface FilterOptions {
@@ -164,8 +168,8 @@ export function SidebarContent({
                 const [min, max] = value as [number, number];
                 onYearRangeChange([min, max]);
               }}
-              min={yearRangeLimits?.min ?? 1900}
-              max={yearRangeLimits?.max ?? new Date().getFullYear()}
+              min={yearRangeLimits?.min ?? MIN_VEHICLE_YEAR}
+              max={yearRangeLimits?.max ?? MAX_VEHICLE_YEAR}
               step={1}
               className="w-full"
               onPointerDown={(e) => e.stopPropagation()}
