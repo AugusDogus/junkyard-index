@@ -122,7 +122,7 @@ export function SidebarContent({
         </CollapsibleContent>
       </Collapsible>
 
-      {filterOptions.makes.length > 1 && (
+      {filterOptions.makes.length > 0 && (
         <Collapsible defaultOpen>
           <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
             <span className="font-medium">Make</span>
