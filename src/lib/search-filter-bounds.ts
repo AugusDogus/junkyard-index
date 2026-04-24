@@ -1,10 +1,13 @@
 export const MIN_VEHICLE_YEAR = 1886;
-export const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
+
+export function getMaxVehicleYear(): number {
+  return new Date().getUTCFullYear() + 1;
+}
 
 export function clampVehicleYear(
   value: number | null | undefined,
   min = MIN_VEHICLE_YEAR,
-  max = MAX_VEHICLE_YEAR,
+  max = getMaxVehicleYear(),
 ): number | undefined {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return undefined;
@@ -17,7 +20,7 @@ export function normalizeVehicleYearFilter(
   minYear: number | null | undefined,
   maxYear: number | null | undefined,
   min = MIN_VEHICLE_YEAR,
-  max = MAX_VEHICLE_YEAR,
+  max = getMaxVehicleYear(),
 ): {
   minYear: number | undefined;
   maxYear: number | undefined;

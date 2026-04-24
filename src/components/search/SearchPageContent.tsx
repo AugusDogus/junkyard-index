@@ -70,7 +70,7 @@ import {
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
 import {
-  MAX_VEHICLE_YEAR,
+  getMaxVehicleYear,
   mergeSelectedFilterOptions,
   MIN_VEHICLE_YEAR,
   normalizeVehicleYearFilter,
@@ -685,20 +685,20 @@ function AlgoliaSearchInner({
     ],
   );
 
-  const parsedRouteYears = (yearRangeState.year ?? "")
-    .split(":")
-    .map((value) => {
-      const parsed = Number.parseInt(value, 10);
-      return Number.isFinite(parsed) ? parsed : null;
-    });
-  const rawRouteMinYear = parsedRouteYears[0] ?? null;
-  const rawRouteMaxYear = parsedRouteYears[1] ?? null;
-  const normalizedRouteYearFilter = normalizeVehicleYearFilter(
-    rawRouteMinYear,
-    rawRouteMaxYear,
-  );
+  const normalizedRouteYearFilter = useMemo(() => {
+    const parsedRouteYears = (yearRangeState.year ?? "")
+      .split(":")
+      .map((value) => {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : null;
+      });
+    const rawRouteMinYear = parsedRouteYears[0] ?? null;
+    const rawRouteMaxYear = parsedRouteYears[1] ?? null;
+
+    return normalizeVehicleYearFilter(rawRouteMinYear, rawRouteMaxYear);
+  }, [yearRangeState.year]);
   const yearMin = MIN_VEHICLE_YEAR;
-  const yearMax = MAX_VEHICLE_YEAR;
+  const yearMax = getMaxVehicleYear();
   const yearRange = normalizedRouteYearFilter.range;
   const isYearFiltered = normalizedRouteYearFilter.isFiltered;
 

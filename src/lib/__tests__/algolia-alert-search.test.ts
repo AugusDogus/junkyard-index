@@ -5,7 +5,10 @@ import {
   getAlertMatchStats,
 } from "~/lib/algolia-alert-search";
 import { searchClient } from "~/lib/algolia-search";
-import { MAX_VEHICLE_YEAR, MIN_VEHICLE_YEAR } from "~/lib/search-filter-bounds";
+import {
+  getMaxVehicleYear,
+  MIN_VEHICLE_YEAR,
+} from "~/lib/search-filter-bounds";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 
 describe("algolia alert search helpers", () => {
@@ -79,10 +82,11 @@ describe("algolia alert search helpers", () => {
   });
 
   test("clamps years to sane vehicle bounds", () => {
+    const maxVehicleYear = getMaxVehicleYear();
     const filters = buildAlertFiltersString(
       {
         minYear: MIN_VEHICLE_YEAR - 20,
-        maxYear: MAX_VEHICLE_YEAR + 50,
+        maxYear: maxVehicleYear + 50,
       },
       null,
     );

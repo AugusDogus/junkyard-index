@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { filtersSchema } from "~/lib/saved-search-filters";
 import {
-  MAX_VEHICLE_YEAR,
+  getMaxVehicleYear,
   MIN_VEHICLE_YEAR,
 } from "~/lib/search-filter-bounds";
 
@@ -23,17 +23,19 @@ describe("saved search filters schema", () => {
   });
 
   test("rejects years outside supported bounds", () => {
+    const maxVehicleYear = getMaxVehicleYear();
     const tooOld = filtersSchema.safeParse({ minYear: MIN_VEHICLE_YEAR - 1 });
-    const tooNew = filtersSchema.safeParse({ maxYear: MAX_VEHICLE_YEAR + 1 });
+    const tooNew = filtersSchema.safeParse({ maxYear: maxVehicleYear + 1 });
 
     expect(tooOld.success).toBe(false);
     expect(tooNew.success).toBe(false);
   });
 
   test("accepts valid integer years and known sources", () => {
+    const maxVehicleYear = getMaxVehicleYear();
     const result = filtersSchema.safeParse({
       minYear: 2012,
-      maxYear: MAX_VEHICLE_YEAR,
+      maxYear: maxVehicleYear,
       sources: ["pyp", "row52", "pullapart", "upullitne"],
     });
 
@@ -41,11 +43,16 @@ describe("saved search filters schema", () => {
   });
 
   test("accepts very old but still valid vehicle years", () => {
-    const result = filtersSchema.safeParse({
+    const historicalResult = filtersSchema.safeParse({
       minYear: MIN_VEHICLE_YEAR,
-      maxYear: 1908,
+      maxYear: MIN_VEHICLE_YEAR + 22,
+    });
+    const currentMaxYearResult = filtersSchema.safeParse({
+      minYear: getMaxVehicleYear() - 5,
+      maxYear: getMaxVehicleYear(),
     });
 
-    expect(result.success).toBe(true);
+    expect(historicalResult.success).toBe(true);
+    expect(currentMaxYearResult.success).toBe(true);
   });
 });

@@ -8,7 +8,7 @@ import {
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
 import {
-  MAX_VEHICLE_YEAR,
+  getMaxVehicleYear,
   MIN_VEHICLE_YEAR,
 } from "~/lib/search-filter-bounds";
 import type { DataSource } from "~/lib/types";
@@ -169,7 +169,7 @@ export function SidebarContent({
                 onYearRangeChange([min, max]);
               }}
               min={yearRangeLimits?.min ?? MIN_VEHICLE_YEAR}
-              max={yearRangeLimits?.max ?? MAX_VEHICLE_YEAR}
+              max={yearRangeLimits?.max ?? getMaxVehicleYear()}
               step={1}
               className="w-full"
               onPointerDown={(e) => e.stopPropagation()}
