@@ -95,9 +95,11 @@ export function SearchableCheckboxList({
         style={{ maxHeight }}
       >
         {sorted.length === 0 ? (
-          <p className="text-muted-foreground px-3 py-2 text-sm">
-            No matches
-          </p>
+          query ? (
+            <p className="text-muted-foreground px-3 py-2 text-sm" role="status" aria-live="polite">
+              No matches
+            </p>
+          ) : null
         ) : (
           sorted.map((option) => (
             <div
