@@ -1397,23 +1397,30 @@ function AlgoliaSearchInner({
             !isSearching &&
             !error && (
               <div className="py-12 text-center">
-                <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-                  <AlertCircle className="text-muted-foreground h-12 w-12" />
+                <div className="bg-muted mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+                  <AlertCircle className="text-muted-foreground h-8 w-8" />
                 </div>
                 <h2 className="text-foreground mb-2 text-lg font-medium">
                   No vehicles found
                 </h2>
-                <p className="text-muted-foreground mx-auto mb-6 max-w-md">
+                <p className="text-muted-foreground mx-auto max-w-sm text-sm">
                   {activeFilterCount > 0
-                    ? "No vehicles match your current filters. Try adjusting your filters."
-                    : "No vehicles match your search. Try different search terms."}
+                    ? "No vehicles match your current filters. Try broadening your search."
+                    : "No vehicles match your search. Try different terms."}
                 </p>
-                <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-                  {activeFilterCount > 0 && (
-                    <Button onClick={clearAllFilters} variant="outline">
-                      Clear All Filters
-                    </Button>
-                  )}
+
+                {activeFilterCount > 0 && (
+                  <Button
+                    onClick={clearAllFilters}
+                    variant="outline"
+                    size="sm"
+                    className="mt-5"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+
+                <p className="text-muted-foreground mt-6 text-xs">
                   {isLoggedIn ? (
                     <SaveSearchDialog
                       query={query}
@@ -1422,46 +1429,44 @@ function AlgoliaSearchInner({
                       isLoggedIn={isLoggedIn}
                     />
                   ) : (
-                    <Button asChild>
-                      <Link
-                        href={saveSearchSignUpHref}
-                        onClick={() => {
-                          storePendingSaveSearch(query, currentSaveSearchFilters);
-                          posthog.capture(
-                            AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED,
-                            {
-                              source_page: "search",
-                              cta_location: "no_results",
-                              query,
-                              result_count: 0,
-                              visible_result_count: 0,
-                            },
-                          );
-                        }}
-                      >
-                        Create free account to save this search
-                      </Link>
-                    </Button>
-                  )}
-                  <Button asChild variant="outline">
                     <Link
-                      href="/pricing"
-                      onClick={() =>
-                        posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
-                          source_page: "search",
-                          cta_location: "no_results",
-                          query,
-                          result_count: 0,
-                          visible_result_count: 0,
-                          is_logged_in: isLoggedIn,
-                        })
-                      }
+                      href={saveSearchSignUpHref}
+                      className="hover:text-foreground underline underline-offset-2"
+                      onClick={() => {
+                        storePendingSaveSearch(query, currentSaveSearchFilters);
+                        posthog.capture(
+                          AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED,
+                          {
+                            source_page: "search",
+                            cta_location: "no_results",
+                            query,
+                            result_count: 0,
+                            visible_result_count: 0,
+                          },
+                        );
+                      }}
                     >
-                      Get alerts for $
-                      {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo
+                      Save this search
                     </Link>
-                  </Button>
-                </div>
+                  )}{" "}
+                  ·{" "}
+                  <Link
+                    href="/pricing"
+                    className="hover:text-foreground underline underline-offset-2"
+                    onClick={() =>
+                      posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                        source_page: "search",
+                        cta_location: "no_results",
+                        query,
+                        result_count: 0,
+                        visible_result_count: 0,
+                        is_logged_in: isLoggedIn,
+                      })
+                    }
+                  >
+                    Get alerts
+                  </Link>
+                </p>
               </div>
             )}
         </div>
