@@ -124,3 +124,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+@utility scrollbar-thin-themed {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-muted-foreground) transparent;
+}

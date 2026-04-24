@@ -91,12 +91,8 @@ export function SearchableCheckboxList({
       )}
 
       <div
-        className="overflow-y-auto overscroll-contain"
-        style={{
-          maxHeight,
-          scrollbarWidth: "thin",
-          scrollbarColor: "var(--color-muted-foreground) transparent",
-        }}
+        className="scrollbar-thin-themed overflow-y-auto overscroll-contain"
+        style={{ maxHeight }}
       >
         {sorted.length === 0 ? (
           <p className="text-muted-foreground px-3 py-2 text-sm">

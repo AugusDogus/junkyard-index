@@ -92,15 +92,8 @@ export function Sidebar({
               )}
             </CardHeader>
 
-            <CardContent
-              className="ml-2 max-h-[calc(100vh-200px)]"
-              style={{
-                overflowY: "auto",
-                scrollbarGutter: "stable",
-                scrollbarWidth: "thin",
-                scrollbarColor: "var(--color-muted-foreground) transparent",
-              }}
-            >
+            <CardContent className="scrollbar-thin-themed ml-2 max-h-[calc(100vh-200px)] overflow-y-auto [scrollbar-gutter:stable]">
+
               <SidebarContent
                 makes={makes}
                 colors={colors}
