@@ -98,7 +98,7 @@ export function Sidebar({
                 overflowY: "auto",
                 scrollbarGutter: "stable",
                 scrollbarWidth: "thin",
-                scrollbarColor: "rgb(203 213 225) transparent",
+                scrollbarColor: "var(--color-muted-foreground) transparent",
               }}
             >
               <SidebarContent
