@@ -1020,9 +1020,30 @@ function AlgoliaSearchInner({
 
   const handleYearRangeChange = useCallback(
     (range: [number, number]) => {
-      refineYear(range);
+      const normalizedRange = normalizeVehicleYearFilter(range[0], range[1]);
+
+      setIndexUiState((prev) => {
+        const nextRangeState = {
+          ...((prev.range ?? {}) as Record<string, string>),
+        };
+
+        if (
+          normalizedRange.minYear === undefined &&
+          normalizedRange.maxYear === undefined
+        ) {
+          delete nextRangeState.year;
+        } else {
+          nextRangeState.year = `${normalizedRange.minYear ?? ""}:${normalizedRange.maxYear ?? ""}`;
+        }
+
+        return {
+          ...prev,
+          range:
+            Object.keys(nextRangeState).length > 0 ? nextRangeState : undefined,
+        };
+      });
     },
-    [refineYear],
+    [setIndexUiState],
   );
 
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
