@@ -71,11 +71,13 @@ export function SearchableCheckboxList({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
             className="border-input placeholder:text-muted-foreground focus-visible:ring-ring/50 focus-visible:border-ring h-8 w-full rounded-md border bg-transparent pr-7 pl-8 text-sm outline-none focus-visible:ring-[3px]"
           />
           {query && (
             <button
               type="button"
+              aria-label="Clear search"
               onClick={() => {
                 setQuery("");
                 inputRef.current?.focus();
@@ -93,7 +95,7 @@ export function SearchableCheckboxList({
         style={{
           maxHeight,
           scrollbarWidth: "thin",
-          scrollbarColor: "rgb(203 213 225) transparent",
+          scrollbarColor: "var(--color-muted-foreground) transparent",
         }}
       >
         {sorted.length === 0 ? (
