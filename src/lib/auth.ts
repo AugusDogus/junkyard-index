@@ -25,13 +25,21 @@ export const polarClient = new Polar({
   accessToken: env.POLAR_ACCESS_TOKEN,
 });
 
+const productionURL = env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : env.NEXT_PUBLIC_APP_URL;
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "sqlite",
     schema,
   }),
   baseURL: env.NEXT_PUBLIC_APP_URL,
-  trustedOrigins: [env.NEXT_PUBLIC_APP_URL],
+  trustedOrigins: [
+    env.NEXT_PUBLIC_APP_URL,
+    productionURL,
+    "https://*.vercel.app",
+  ],
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
@@ -53,7 +61,7 @@ export const auth = betterAuth({
     discord: {
       clientId: env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
       clientSecret: env.DISCORD_CLIENT_SECRET,
-      redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/callback/discord`,
+      redirectURI: `${productionURL}/api/auth/callback/discord`,
     },
   },
   databaseHooks: {
@@ -74,7 +82,7 @@ export const auth = betterAuth({
   },
   secret: env.BETTER_AUTH_SECRET,
   plugins: [
-    oAuthProxy(),
+    oAuthProxy({ productionURL }),
     polar({
       client: polarClient,
       createCustomerOnSignUp: true,

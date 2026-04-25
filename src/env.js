@@ -31,6 +31,7 @@ export const env = createEnv({
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
     // Hyperbrowser (remote browser for PYP scraping, only needed in Trigger.dev worker)
     HYPERBROWSER_API_KEY: z.string().optional(),
+    VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
   },
 
   /**
@@ -77,6 +78,7 @@ export const env = createEnv({
     ALGOLIA_WRITE_API_KEY: process.env.ALGOLIA_WRITE_API_KEY,
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
+    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
     NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY:
       process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
