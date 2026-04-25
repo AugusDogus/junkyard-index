@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { env } from "~/env";
 
+const CURRENT_YEAR = new Date().getUTCFullYear();
+
 export function Footer() {
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
 
@@ -53,7 +55,7 @@ export function Footer() {
           )}
         </div>
         <p className="text-muted-foreground text-xs">
-          &copy; {new Date().getFullYear()} Junkyard Index. All rights reserved.
+          &copy; {CURRENT_YEAR} Junkyard Index. All rights reserved.
         </p>
       </div>
     </footer>
