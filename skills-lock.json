@@ -181,6 +181,11 @@
       "sourceType": "github",
       "computedHash": "1eef04180a5278a6869fab117c75fa2acf512bfda0a4b16569409b88b7bcb343"
     },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "computedHash": "2bc6cf38ec7b4a5778a43fabb3e87642c9897ad45e9eb42438b57fd2def6cca8"
+    },
     "signup-flow-cro": {
       "source": "coreyhaines31/marketingskills",
       "sourceType": "github",
