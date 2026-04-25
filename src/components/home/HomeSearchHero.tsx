@@ -4,7 +4,7 @@ import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
@@ -13,6 +13,10 @@ const SAMPLE_QUERIES = ["Honda Civic", "Toyota Camry", "Ford F-150"];
 export function HomeSearchHero() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    router.prefetch("/search");
+  }, [router]);
 
   const submitSearch = (value: string, source: "typed" | "sample") => {
     const trimmed = value.trim();

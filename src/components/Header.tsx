@@ -1,36 +1,30 @@
-import { headers } from "next/headers";
-import { auth } from "~/lib/auth";
-import { api } from "~/trpc/server";
+import { Suspense } from "react";
+import { Skeleton } from "~/components/ui/skeleton";
 import { HeaderContent } from "./HeaderContent";
-import type { HeaderStatusData } from "./HeaderStatusIndicator";
+import { HeaderAuthSlot, HeaderStatusSlot } from "./HeaderServerSlots";
 
-export async function Header() {
-  const [session, statusData] = await Promise.all([
-    auth.api.getSession({ headers: await headers() }),
-    api.status.providers().then((data): HeaderStatusData | null => {
-      if (data.aggregateStatus === "operational") return null;
-
-      const affected = data.providers
-        .filter((p) => p.status !== "operational")
-        .map((p) => p.name);
-
-      const message =
-        data.aggregateStatus === "in_progress"
-          ? "Ingestion is currently running."
-          : data.aggregateStatus === "degraded"
-          ? "Some yard data may be incomplete."
-          : "Some yard data is temporarily unavailable.";
-
-      return {
-        aggregateStatus: data.aggregateStatus,
-        message,
-        affected: affected.join(", "),
-        statusPageUrl: data.statusPageUrl,
-      };
-    }),
-  ]);
-
+export function Header() {
   return (
-    <HeaderContent user={session?.user ?? null} statusData={statusData} />
+    <HeaderContent
+      statusSlot={
+        <Suspense fallback={null}>
+          <HeaderStatusSlot />
+        </Suspense>
+      }
+      authSlot={
+        <Suspense fallback={<HeaderAuthSkeleton />}>
+          <HeaderAuthSlot />
+        </Suspense>
+      }
+    />
+  );
+}
+
+function HeaderAuthSkeleton() {
+  return (
+    <div className="flex items-center gap-2">
+      <Skeleton className="hidden h-8 w-16 sm:block" />
+      <Skeleton className="h-8 w-32" />
+    </div>
   );
 }

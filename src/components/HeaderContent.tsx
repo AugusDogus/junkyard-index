@@ -4,18 +4,18 @@ import { Search } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { useSearchVisibilityOptional } from "~/context/SearchVisibilityContext";
-import { HeaderAuthButtons } from "./HeaderAuthButtons";
-import {
-  HeaderStatusIndicator,
-  type HeaderStatusData,
-} from "./HeaderStatusIndicator";
 
 interface HeaderContentProps {
-  user: { name: string; email: string; image?: string | null } | null;
-  statusData?: HeaderStatusData | null;
+  authSlot?: React.ReactNode;
+  statusSlot?: React.ReactNode;
+  statusSeparatorSlot?: React.ReactNode;
 }
 
-export function HeaderContent({ user, statusData }: HeaderContentProps) {
+export function HeaderContent({
+  authSlot,
+  statusSlot,
+  statusSeparatorSlot,
+}: HeaderContentProps) {
   const searchCtx = useSearchVisibilityOptional();
   const showMobileSearch = searchCtx?.searchBarOffscreen ?? false;
 
@@ -45,13 +45,9 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
                 <Search className="h-4 w-4" />
               </Button>
             )}
-            {statusData && (
-              <>
-                <HeaderStatusIndicator data={statusData} />
-                <div className="bg-border h-5 w-px" aria-hidden="true" />
-              </>
-            )}
-            <HeaderAuthButtons user={user} />
+            {statusSlot}
+            {statusSeparatorSlot}
+            {authSlot}
           </div>
         </div>
       </div>

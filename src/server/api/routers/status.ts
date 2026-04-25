@@ -1,5 +1,5 @@
-import { eq, desc } from "drizzle-orm";
-import { unstable_cache } from "next/cache";
+import { desc, eq } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
 import { env } from "~/env";
 import { db } from "~/lib/db";
 import { ingestionSourceRun } from "~/schema";
@@ -91,11 +91,18 @@ async function getProviderStatusInternal(): Promise<StatusResponse> {
   };
 }
 
-const getProviderStatus = unstable_cache(
-  getProviderStatusInternal,
-  ["provider-status"],
-  { revalidate: 10 },
-);
+export async function getProviderStatus(): Promise<StatusResponse> {
+  "use cache";
+
+  cacheTag("provider-status");
+  cacheLife({
+    stale: 10,
+    revalidate: 10,
+    expire: 60,
+  });
+
+  return getProviderStatusInternal();
+}
 
 export const statusRouter = createTRPCRouter({
   providers: publicProcedure.query(async () => {

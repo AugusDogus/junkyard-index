@@ -1,14 +1,15 @@
 import { ArrowRight, Bell, Car, Search } from "lucide-react";
 import { type Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
+import { HomeLiveStats, HomeLiveStatsSkeleton } from "~/components/home/HomeLiveStats";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
-import { api } from "~/trpc/server";
 
 export const metadata: Metadata = {
   title: "Search Salvage Yard Inventory Nationwide",
@@ -19,19 +20,7 @@ export const metadata: Metadata = {
   },
 };
 
-const numberFormatter = new Intl.NumberFormat("en-US");
-
-function formatVehicleCount(count: number): string {
-  return numberFormatter.format(count);
-}
-
-function formatYardCount(count: number): string {
-  return numberFormatter.format(count);
-}
-
 export default async function Home() {
-  const liveStats = await api.stats.live();
-
   return (
     <div className="bg-background flex min-h-dvh flex-col">
       <Header />
@@ -60,39 +49,14 @@ export default async function Home() {
                 <HomeSearchHero />
               </div>
 
-              {/* Mobile proof stats — compact inline row */}
-              <div className="text-muted-foreground mt-5 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums sm:hidden">
-                <p>
-                  <span className="text-foreground font-medium">
-                    {formatVehicleCount(liveStats.vehicleCount)}
-                  </span>{" "}
-                  vehicles
-                </p>
-                <p>
-                  <span className="text-foreground font-medium">
-                    {formatYardCount(liveStats.yardCount)}
-                  </span>{" "}
-                  yards
-                </p>
-                <p>Free to search</p>
-              </div>
+              <Suspense fallback={<HomeLiveStatsSkeleton variant="mobile" />}>
+                <HomeLiveStats variant="mobile" />
+              </Suspense>
             </div>
 
-            {/* Desktop/tablet proof cards */}
-            <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-1">
-              <ProofCard
-                title={`${formatVehicleCount(liveStats.vehicleCount)} vehicles tracked`}
-                description="Inventory from multiple salvage networks, updated into one searchable index."
-              />
-              <ProofCard
-                title={`${formatYardCount(liveStats.yardCount)} yards nationwide`}
-                description="Find donor vehicles near you or widen the search when the local yards come up empty."
-              />
-              <ProofCard
-                title="Free search, paid tracking"
-                description="Search anonymously, create a free account to save work, and use Alerts Plan when timing matters."
-              />
-            </div>
+            <Suspense fallback={<HomeLiveStatsSkeleton variant="desktop" />}>
+              <HomeLiveStats variant="desktop" />
+            </Suspense>
           </div>
         </section>
 
@@ -204,25 +168,6 @@ export default async function Home() {
       </main>
 
       <Footer />
-    </div>
-  );
-}
-
-function ProofCard({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-lg border p-5">
-      <p className="text-lg font-semibold tracking-tight tabular-nums">
-        {title}
-      </p>
-      <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
-        {description}
-      </p>
     </div>
   );
 }
