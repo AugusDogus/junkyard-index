@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { unstable_cache } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { db } from "~/lib/db";
 import { vehicle } from "~/schema";
 
@@ -24,11 +24,11 @@ async function getLiveHomepageStatsInternal(): Promise<HomepageLiveStats> {
   };
 }
 
-export const getLiveHomepageStats = unstable_cache(
-  getLiveHomepageStatsInternal,
-  ["homepage-live-stats"],
-  {
-    revalidate: 3600,
-    tags: ["homepage-live-stats"],
-  },
-);
+export async function getLiveHomepageStats(): Promise<HomepageLiveStats> {
+  "use cache";
+
+  cacheTag("homepage-live-stats");
+  cacheLife("hours");
+
+  return getLiveHomepageStatsInternal();
+}
