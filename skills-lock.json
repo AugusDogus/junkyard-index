@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "1ad3893d31e5df78cb4b4e16801f49acbdf82daed5f775748859ca7dc638d6d0"
     },
+    "better-auth-best-practices": {
+      "source": "better-auth/skills",
+      "sourceType": "github",
+      "computedHash": "a4c830509e85557b59339d8d93a4e243e9e59c686e7678854d39230e12c2a6dc"
+    },
     "churn-prevention": {
       "source": "coreyhaines31/marketingskills",
       "sourceType": "github",
