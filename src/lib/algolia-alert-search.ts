@@ -1,4 +1,5 @@
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import { normalizeVehicleYearFilter } from "~/lib/search-filter-bounds";
 import type { SearchVehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 
@@ -76,12 +77,10 @@ export function buildAlertFiltersString(
   );
   if (sourcesClause) clauses.push(sourcesClause);
 
-  let minYear = Number.isFinite(filters.minYear) ? filters.minYear : undefined;
-  let maxYear = Number.isFinite(filters.maxYear) ? filters.maxYear : undefined;
-
-  if (minYear !== undefined && maxYear !== undefined && minYear > maxYear) {
-    [minYear, maxYear] = [maxYear, minYear];
-  }
+  const { minYear, maxYear } = normalizeVehicleYearFilter(
+    filters.minYear,
+    filters.maxYear,
+  );
 
   if (minYear !== undefined) {
     clauses.push(`year >= ${minYear}`);
