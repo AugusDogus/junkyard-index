@@ -1,7 +1,11 @@
 import Link from "next/link";
+import { cacheLife } from "next/cache";
 import { env } from "~/env";
 
-export function Footer() {
+export async function Footer() {
+  "use cache";
+  cacheLife("days");
+
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
 
   return (

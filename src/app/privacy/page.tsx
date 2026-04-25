@@ -1,7 +1,7 @@
 import { type Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { StaticHeader } from "~/components/StaticHeader";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <div className="bg-background min-h-screen">
-      <Header />
+      <StaticHeader />
 
       {/* Content */}
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">

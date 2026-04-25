@@ -1,7 +1,7 @@
 import { type Metadata } from "next";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
+import { StaticHeader } from "~/components/StaticHeader";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 
 export const metadata: Metadata = {
@@ -16,9 +16,9 @@ export const metadata: Metadata = {
 export default function PricingPage() {
   return (
     <div className="bg-background flex min-h-dvh flex-col">
-      <Header />
+      <StaticHeader />
 
-      <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
+        <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-5xl">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-muted-foreground text-sm font-medium">
@@ -94,7 +94,7 @@ export default function PricingPage() {
             </div>
           </div>
         </div>
-      </main>
+        </main>
 
       <Footer />
     </div>

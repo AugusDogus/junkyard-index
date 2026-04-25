@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { db } from "~/lib/db";
 import { verifyUnsubscribeToken } from "~/lib/email";
 import { savedSearch } from "~/schema";
@@ -12,6 +13,14 @@ interface UnsubscribePageProps {
 export default async function UnsubscribePage({
   searchParams,
 }: UnsubscribePageProps) {
+  return (
+    <Suspense fallback={<UnsubscribeLoading />}>
+      <UnsubscribeContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function UnsubscribeContent({ searchParams }: UnsubscribePageProps) {
   const { id: searchId, token, done } = await searchParams;
 
   // Validate token using HMAC verification
@@ -137,6 +146,17 @@ export default async function UnsubscribePage({
       >
         Cancel
       </Link>
+    </div>
+  );
+}
+
+function UnsubscribeLoading() {
+  return (
+    <div className="mx-auto max-w-md px-4 py-24 text-center">
+      <h1 className="mb-4 text-2xl font-semibold">Loading unsubscribe link...</h1>
+      <p className="text-muted-foreground mb-8">
+        Checking your alert preferences.
+      </p>
     </div>
   );
 }

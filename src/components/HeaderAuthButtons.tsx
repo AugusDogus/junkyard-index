@@ -7,6 +7,7 @@ import { UserMenu } from "~/components/auth/UserMenu";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { useSession } from "~/lib/auth-client";
+import { TRPCReactProvider } from "~/trpc/react";
 
 interface HeaderAuthButtonsProps {
   user: { name: string; email: string; image?: string | null } | null;
@@ -18,7 +19,11 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   const currentUser = session?.user ?? user;
 
   if (currentUser) {
-    return <UserMenu user={currentUser} />;
+    return (
+      <TRPCReactProvider>
+        <UserMenu user={currentUser} />
+      </TRPCReactProvider>
+    );
   }
 
   if (isSessionLoading && !user) {

@@ -2,7 +2,7 @@
 
 import posthog from "posthog-js";
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { AuthCard } from "~/components/auth/AuthCard";
 import { ForgotPasswordForm } from "~/components/auth/ForgotPasswordForm";
 import { ResetPasswordForm } from "~/components/auth/ResetPasswordForm";
@@ -40,6 +40,14 @@ const routeConfig: Record<
 };
 
 export default function AuthPage() {
+  return (
+    <Suspense fallback={<AuthPageFallback />}>
+      <AuthPageContent />
+    </Suspense>
+  );
+}
+
+function AuthPageContent() {
   const params = useParams<{ pathname: string[] }>();
   const pathname = (params.pathname?.join("/") || "sign-in") as AuthRoute;
 
@@ -78,6 +86,21 @@ export default function AuthPage() {
         <AuthCard title={title} description={description}>
           <Form />
         </AuthCard>
+      </div>
+    </div>
+  );
+}
+
+function AuthPageFallback() {
+  return (
+    <div className="flex min-h-svh flex-col sm:items-center sm:justify-center sm:p-4">
+      <div className="flex flex-1 flex-col px-6 pt-16 pb-8 sm:hidden">
+        <div className="bg-muted mb-4 h-9 w-48 rounded" />
+        <div className="bg-muted h-5 w-64 rounded" />
+      </div>
+      <div className="bg-card hidden w-full max-w-md rounded-lg border p-8 sm:block">
+        <div className="bg-muted mx-auto mb-3 h-8 w-40 rounded" />
+        <div className="bg-muted mx-auto h-4 w-56 rounded" />
       </div>
     </div>
   );

@@ -1,13 +1,13 @@
 import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
-import { SettingsDashboard } from "~/components/settings/SettingsDashboard";
+import { StaticHeader } from "~/components/StaticHeader";
+import { SettingsDashboardWithProviders } from "~/components/settings/SettingsDashboardWithProviders";
 import { Skeleton } from "~/components/ui/skeleton";
 
 export default function SettingsPage() {
   return (
     <div className="bg-background min-h-screen">
-      <Header />
+      <StaticHeader />
 
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-8">
@@ -26,7 +26,7 @@ export default function SettingsPage() {
             </div>
           }
         >
-          <SettingsDashboard />
+          <SettingsDashboardWithProviders />
         </Suspense>
       </main>
 

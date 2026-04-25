@@ -1,8 +1,9 @@
 import { ArrowRight, Bell, Car, Search } from "lucide-react";
 import { type Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { StaticHeader } from "~/components/StaticHeader";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { Badge } from "~/components/ui/badge";
@@ -30,13 +31,35 @@ function formatYardCount(count: number): string {
 }
 
 export default async function Home() {
-  const liveStats = await api.stats.live();
-
   return (
     <div className="bg-background flex min-h-dvh flex-col">
-      <Header />
+      <StaticHeader />
 
       <main className="flex-1">
+        <Suspense fallback={<HomeContent />}>
+          <HomeContentWithLiveStats />
+        </Suspense>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}
+
+async function HomeContentWithLiveStats() {
+  const liveStats = await api.stats.live();
+
+  return <HomeContent liveStats={liveStats} />;
+}
+
+function HomeContent({
+  liveStats = { vehicleCount: 0, yardCount: 0 },
+}: {
+  liveStats?: { vehicleCount: number; yardCount: number };
+}) {
+
+  return (
+    <>
         {/* Hero */}
         <section className="px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
           <div className="mx-auto grid max-w-6xl gap-8 sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
@@ -201,10 +224,7 @@ export default async function Home() {
             </div>
           </div>
         </section>
-      </main>
-
-      <Footer />
-    </div>
+    </>
   );
 }
 

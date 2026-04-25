@@ -13,8 +13,10 @@ import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import historyRouter from "instantsearch.js/es/lib/routers/history";
 import {
   Configure,
+  InstantSearch,
   useClearRefinements,
   useInfiniteHits,
   useInstantSearch,
@@ -23,7 +25,6 @@ import {
   useSortBy,
   useStats,
 } from "react-instantsearch";
-import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
@@ -1497,8 +1498,9 @@ function AlgoliaSearchInner({
  */
 function createRouting(indexName: string) {
   return {
-    router: {
+    router: historyRouter({
       cleanUrlOnDispose: false,
+      writeDelay: 400,
       createURL({
         routeState,
         location,
@@ -1571,7 +1573,7 @@ function createRouting(indexName: string) {
 
         return { [indexName]: state };
       },
-    },
+    }),
     stateMapping: {
       stateToRoute(uiState: Record<string, Record<string, unknown>>) {
         const indexState = uiState[indexName] ?? {};
@@ -1665,7 +1667,7 @@ export function SearchPageContent({
   const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
 
   return (
-    <InstantSearchNext
+    <InstantSearch
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
@@ -1677,6 +1679,6 @@ export function SearchPageContent({
           userLocation={userLocation}
         />
       </ErrorBoundary>
-    </InstantSearchNext>
+    </InstantSearch>
   );
 }

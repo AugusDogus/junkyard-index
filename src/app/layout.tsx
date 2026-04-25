@@ -3,12 +3,9 @@ import "~/styles/globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Toaster } from "~/components/ui/sonner";
 
 import { TailwindIndicator } from "~/components/tailwind-indicator";
-import { ThemeProvider } from "~/components/theme/theme-provider";
-import { TRPCReactProvider } from "~/trpc/react";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://junkyardindex.com";
 
@@ -74,20 +71,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable}`} suppressHydrationWarning>
       <body>
-        <NuqsAdapter>
-          <TRPCReactProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-              <Analytics />
-              <TailwindIndicator />
-            </ThemeProvider>
-          </TRPCReactProvider>
-        </NuqsAdapter>
+        {children}
+        <Analytics />
+        <TailwindIndicator />
         <Toaster />
       </body>
     </html>
