@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { UserMenu } from "~/components/auth/UserMenu";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { useSession } from "~/lib/auth-client";
 
 interface HeaderAuthButtonsProps {
   user: { name: string; email: string; image?: string | null } | null;
@@ -13,9 +14,15 @@ interface HeaderAuthButtonsProps {
 
 export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   const pathname = usePathname();
+  const { data: session, isPending: isSessionLoading } = useSession();
+  const currentUser = session?.user ?? user;
 
-  if (user) {
-    return <UserMenu user={user} />;
+  if (currentUser) {
+    return <UserMenu user={currentUser} />;
+  }
+
+  if (isSessionLoading && !user) {
+    return null;
   }
 
   const showPricing = pathname === "/";

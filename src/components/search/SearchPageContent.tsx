@@ -61,6 +61,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { useSession } from "~/lib/auth-client";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import {
   hasFiniteCoordinates,
@@ -324,6 +325,8 @@ function AlgoliaSearchInner({
   isLoggedIn,
   userLocation: _userLocation,
 }: SearchPageContentProps) {
+  const { data: session, isPending: isSessionLoading } = useSession();
+  const isAuthenticated = isLoggedIn ?? !!session?.user;
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -352,9 +355,7 @@ function AlgoliaSearchInner({
   const {
     data: accountLocationPreference,
     isLoading: isAccountLocationPreferenceLoading,
-  } = api.user.getLocationPreference.useQuery(undefined, {
-    retry: false,
-  });
+  } = api.user.getLocationPreference.useQuery(undefined, { retry: false });
   const resolveZipCodeMutation = api.user.resolveZipCode.useMutation();
   const updateLocationPreferenceMutation =
     api.user.updateLocationPreference.useMutation({
@@ -369,7 +370,7 @@ function AlgoliaSearchInner({
   }, []);
 
   // Prefetch saved searches
-  api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
+  api.savedSearches.list.useQuery(undefined, { enabled: isAuthenticated });
 
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
@@ -379,12 +380,12 @@ function AlgoliaSearchInner({
   const [autoOpenSaveDialog, setAutoOpenSaveDialog] = useState(false);
 
   useEffect(() => {
-    if (saveSearchParam && isLoggedIn) {
+    if (saveSearchParam && isAuthenticated) {
       setAutoOpenSaveDialog(true);
       void setSaveSearchParam(null);
       clearPendingSaveSearch();
     }
-  }, [saveSearchParam, isLoggedIn, setSaveSearchParam]);
+  }, [saveSearchParam, isAuthenticated, setSaveSearchParam]);
 
   // Handle subscription success
   const [subscriptionParam, setSubscriptionParam] =
@@ -766,7 +767,10 @@ function AlgoliaSearchInner({
   const anonymousClearRows = isMobile ? 3 : 1;
 
   const isAnonymousCapped =
-    !isLoggedIn && !isSearching && nbHits > anonymousVisibleLimit;
+    !isAuthenticated &&
+    !isSessionLoading &&
+    !isSearching &&
+    nbHits > anonymousVisibleLimit;
 
   const visibleVehicles = useMemo(
     () =>
@@ -871,7 +875,7 @@ function AlgoliaSearchInner({
           lng: null,
         };
 
-        if (isLoggedIn) {
+        if (isAuthenticated) {
           await updateLocationPreferenceMutation.mutateAsync({ mode: "auto" });
         }
 
@@ -886,7 +890,7 @@ function AlgoliaSearchInner({
         throw new Error("Enter a valid 5-digit ZIP code.");
       }
 
-      if (isLoggedIn) {
+      if (isAuthenticated) {
         const preference = await updateLocationPreferenceMutation.mutateAsync({
           mode: "zip",
           zipCode: normalizedZipCode,
@@ -915,7 +919,7 @@ function AlgoliaSearchInner({
       setLocalLocationPreference(preference);
     },
     [
-      isLoggedIn,
+      isAuthenticated,
       manualZipCode,
       resolveZipCodeMutation,
       updateLocationPreferenceMutation,
@@ -927,7 +931,7 @@ function AlgoliaSearchInner({
       await applyDistancePreference(selectedDistanceMode);
       setShowDistancePreferenceDialog(false);
       toast.success(
-        isLoggedIn
+        isAuthenticated
           ? "Distance location saved. You can update it later from Settings."
           : "Distance location saved for this browser. You can update it later from account settings.",
       );
@@ -945,7 +949,7 @@ function AlgoliaSearchInner({
     }
   }, [
     applyDistancePreference,
-    isLoggedIn,
+    isAuthenticated,
     pendingDistanceSort,
     refineSortBy,
     selectedDistanceMode,
@@ -1222,7 +1226,7 @@ function AlgoliaSearchInner({
                 {/* Filter buttons */}
                 {isMobile ? (
                   <div className="flex items-center gap-1.5">
-                    {isLoggedIn && <SavedSearchesDropdown iconOnly />}
+                    {isAuthenticated && <SavedSearchesDropdown iconOnly />}
                     <Select value={sortBy} onValueChange={handleSortChange}>
                       <SelectTrigger size="sm" className="w-fit">
                         <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
@@ -1239,7 +1243,7 @@ function AlgoliaSearchInner({
                       query={query}
                       filters={currentSaveSearchFilters}
                       disabled={!query}
-                      isLoggedIn={isLoggedIn}
+                      isLoggedIn={isAuthenticated}
                       autoOpen={autoOpenSaveDialog}
                       onAutoOpenHandled={handleAutoOpenHandled}
                       iconOnly
@@ -1272,7 +1276,7 @@ function AlgoliaSearchInner({
                     activeFilterCount={activeFilterCount}
                     showFilters={showFilters}
                     onToggleFilters={handleToggleFilters}
-                    isLoggedIn={isLoggedIn}
+                    isLoggedIn={isAuthenticated}
                     filters={currentSaveSearchFilters}
                     autoOpenSaveDialog={autoOpenSaveDialog}
                     onAutoOpenHandled={handleAutoOpenHandled}
@@ -1322,7 +1326,7 @@ function AlgoliaSearchInner({
                     </button>
                   ))}
                 </div>
-                {isLoggedIn && <SavedSearchesList />}
+                {isAuthenticated && <SavedSearchesList />}
               </div>
 
               <div className="hidden text-center sm:block">
@@ -1336,7 +1340,7 @@ function AlgoliaSearchInner({
                   Enter a year, make, model, or any combination to search across
                   all available salvage yard locations.
                 </p>
-                {isLoggedIn && <SavedSearchesList />}
+                {isAuthenticated && <SavedSearchesList />}
               </div>
             </div>
           )}
@@ -1421,12 +1425,12 @@ function AlgoliaSearchInner({
                 )}
 
                 <p className="text-muted-foreground mt-6 text-xs">
-                  {isLoggedIn ? (
+                  {isAuthenticated ? (
                     <SaveSearchDialog
                       query={query}
                       filters={currentSaveSearchFilters}
                       disabled={!query}
-                      isLoggedIn={isLoggedIn}
+                      isLoggedIn={isAuthenticated}
                     />
                   ) : (
                     <Link
@@ -1460,7 +1464,7 @@ function AlgoliaSearchInner({
                         query,
                         result_count: 0,
                         visible_result_count: 0,
-                        is_logged_in: isLoggedIn,
+                        is_logged_in: isAuthenticated,
                       })
                     }
                   >
