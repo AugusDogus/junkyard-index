@@ -4,7 +4,7 @@ import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
@@ -13,6 +13,10 @@ const SAMPLE_QUERIES = ["Honda Civic", "Toyota Camry", "Ford F-150"];
 export function HomeSearchHero() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    router.prefetch("/search");
+  }, [router]);
 
   const submitSearch = (value: string, source: "typed" | "sample") => {
     const trimmed = value.trim();
@@ -47,11 +51,14 @@ export function HomeSearchHero() {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => router.prefetch("/search")}
             placeholder="Search year, make, or model"
             className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 bg-background h-11 w-full rounded-lg border py-2 pr-11 pl-10 text-base shadow-sm outline-none focus-visible:ring-[3px] sm:h-12 sm:pr-12 sm:pl-11 sm:text-lg"
           />
           <button
             type="submit"
+            onMouseEnter={() => router.prefetch("/search")}
+            onFocus={() => router.prefetch("/search")}
             className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md transition-colors duration-150 ease-out active:scale-[0.95] sm:size-9"
             aria-label="Search"
           >
@@ -65,6 +72,8 @@ export function HomeSearchHero() {
             <button
               key={sample}
               type="button"
+              onMouseEnter={() => router.prefetch("/search")}
+              onFocus={() => router.prefetch("/search")}
               onClick={() => submitSearch(sample, "sample")}
               className="bg-muted hover:bg-muted/80 rounded-md px-3 py-1.5 font-medium transition-colors duration-150 ease-out active:scale-[0.97]"
             >
