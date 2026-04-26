@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { debugLogClient } from "~/lib/debug-log-client";
 
 export default function SearchError({
   error,
@@ -13,18 +12,7 @@ export default function SearchError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // #region agent log
-    debugLogClient({
-      hypothesisId: "E",
-      location: "src/app/search/error.tsx:11",
-      message: "Search route error boundary rendered",
-      data: {
-        name: error.name,
-        message: error.message,
-        digest: error.digest,
-      },
-    });
-    // #endregion
+    console.error("Search route error boundary rendered", error);
   }, [error]);
 
   return (

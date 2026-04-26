@@ -6,7 +6,6 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
-import { debugLogClient } from "~/lib/debug-log-client";
 
 const DEBOUNCE_MS = 300;
 
@@ -52,43 +51,10 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
       }
 
       if (!urlQuery && inputValueRef.current) {
-        // #region agent log
-        debugLogClient({
-          hypothesisId: "B",
-          location: "MorphingSearchBar.tsx:48",
-          message: "Clearing search due to empty urlQuery",
-          data: {
-            pathname,
-            inputValue: inputValueRef.current,
-            query,
-            urlQuery,
-          },
-        });
-        // #endregion
         setInputValue("");
         refine("");
       }
     }, [pathname, query, refine, urlQuery]);
-
-    useEffect(() => {
-      if (query === urlQuery) {
-        return;
-      }
-
-      // #region agent log
-      debugLogClient({
-        hypothesisId: "B",
-        location: "MorphingSearchBar.tsx:56",
-        message: "Query and URL query diverged",
-        data: {
-          pathname,
-          query,
-          urlQuery,
-          inputValue: inputValueRef.current,
-        },
-      });
-      // #endregion
-    }, [pathname, query, urlQuery]);
 
     useEffect(() => {
       if (!isMobile) return;

@@ -5,7 +5,6 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import React from "react";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { debugLogClient } from "~/lib/debug-log-client";
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -32,18 +31,6 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
-    // #region agent log
-    debugLogClient({
-      hypothesisId: "E",
-      location: "ErrorBoundary.tsx:32",
-      message: "Client error boundary caught error",
-      data: {
-        name: error.name,
-        message: error.message,
-        componentStack: errorInfo.componentStack?.slice(0, 500),
-      },
-    });
-    // #endregion
     Sentry.captureException(error, {
       extra: { componentStack: errorInfo.componentStack },
     });
