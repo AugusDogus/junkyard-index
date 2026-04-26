@@ -1,6 +1,5 @@
 import { type Metadata } from "next";
 import { Suspense } from "react";
-import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
@@ -23,11 +22,9 @@ export default function SearchPage() {
       <div className="bg-background flex min-h-svh flex-col">
         <Header />
         <div className="flex-1">
-          <ErrorBoundary>
-            <Suspense fallback={<SearchPageShell />}>
-              <SearchPageBootstrap />
-            </Suspense>
-          </ErrorBoundary>
+          <Suspense fallback={<SearchPageShell />}>
+            <SearchPageBootstrap />
+          </Suspense>
         </div>
         <Footer />
         <ScrollToTop />

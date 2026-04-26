@@ -62,6 +62,7 @@ import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { debugLogClient } from "~/lib/debug-log-client";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -347,6 +348,7 @@ function AlgoliaSearchInner({
     "auto" | "zip"
   >("auto");
   const [manualZipCode, setManualZipCode] = useState("");
+  const urlQuery = searchParams.get("q") ?? "";
 
   const utils = api.useUtils();
   const {
@@ -366,6 +368,35 @@ function AlgoliaSearchInner({
   useEffect(() => {
     setLocalLocationPreference(loadLocalLocationPreference());
     setHasLoadedLocalLocationPreference(true);
+  }, []);
+
+  useEffect(() => {
+    // #region agent log
+    debugLogClient({
+      hypothesisId: "B",
+      location: "SearchPageContent.tsx:370",
+      message: "Search page client mounted",
+      data: {
+        route: window.location.pathname,
+        urlQuery: new URLSearchParams(window.location.search).get("q") ?? "",
+        preserveSharedStateOnUnmount: true,
+      },
+    });
+    // #endregion
+
+    return () => {
+      // #region agent log
+      debugLogClient({
+        hypothesisId: "D",
+        location: "SearchPageContent.tsx:381",
+        message: "Search page client unmounted",
+        data: {
+          route: window.location.pathname,
+          urlQuery: new URLSearchParams(window.location.search).get("q") ?? "",
+        },
+      });
+      // #endregion
+    };
   }, []);
 
   // Prefetch saved searches
@@ -1061,6 +1092,27 @@ function AlgoliaSearchInner({
   }, [query, isSearching, error, nbHits, processingTimeMS]);
 
   useEffect(() => {
+    if (urlQuery === query) {
+      return;
+    }
+
+    // #region agent log
+    debugLogClient({
+      hypothesisId: "C",
+      location: "SearchPageContent.tsx:1065",
+      message: "URL and InstantSearch query diverged",
+      data: {
+        urlQuery,
+        query,
+        status,
+        hasError: !!error,
+        hitsLength: hits.length,
+      },
+    });
+    // #endregion
+  }, [urlQuery, query, status, error, hits.length]);
+
+  useEffect(() => {
     if (!query || !isAnonymousCapped || isSearching || error) return;
     if (lastTrackedResultCapQuery.current === query) return;
     lastTrackedResultCapQuery.current = query;
@@ -1649,8 +1701,6 @@ function createRouting(indexName: string) {
   };
 }
 
-const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
-
 /**
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
@@ -1665,7 +1715,6 @@ export function SearchPageContent({
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
-      future={INSTANT_SEARCH_FUTURE}
     >
       <ErrorBoundary>
         <AlgoliaSearchInner

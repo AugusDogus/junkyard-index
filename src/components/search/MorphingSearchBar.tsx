@@ -1,11 +1,12 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
+import { debugLogClient } from "~/lib/debug-log-client";
 
 const DEBOUNCE_MS = 300;
 
@@ -42,14 +43,52 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
 
     // Also sync when Next.js navigates (e.g. clicking logo to /search clears URL)
     // Algolia's history router doesn't detect pushState, so we watch URL params directly
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const urlQuery = searchParams.get("q") ?? "";
     useEffect(() => {
+      if (pathname !== "/search" || urlQuery || !inputValueRef.current) {
+        return;
+      }
+
       if (!urlQuery && inputValueRef.current) {
+        // #region agent log
+        debugLogClient({
+          hypothesisId: "B",
+          location: "MorphingSearchBar.tsx:48",
+          message: "Clearing search due to empty urlQuery",
+          data: {
+            pathname,
+            inputValue: inputValueRef.current,
+            query,
+            urlQuery,
+          },
+        });
+        // #endregion
         setInputValue("");
         refine("");
       }
-    }, [urlQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [pathname, query, refine, urlQuery]);
+
+    useEffect(() => {
+      if (query === urlQuery) {
+        return;
+      }
+
+      // #region agent log
+      debugLogClient({
+        hypothesisId: "B",
+        location: "MorphingSearchBar.tsx:56",
+        message: "Query and URL query diverged",
+        data: {
+          pathname,
+          query,
+          urlQuery,
+          inputValue: inputValueRef.current,
+        },
+      });
+      // #endregion
+    }, [pathname, query, urlQuery]);
 
     useEffect(() => {
       if (!isMobile) return;

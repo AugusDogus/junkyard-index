@@ -9,6 +9,7 @@
  * following the TanStack Virtual infinite scroll pattern.
  */
 
+import { useSearchParams } from "next/navigation";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import {
@@ -70,6 +71,7 @@ export function SearchResults({
 }: SearchResultsProps) {
   const isMobile = useIsMobile();
   const isMediumScreen = useIsMediumScreen();
+  const searchParams = useSearchParams();
 
   const getGridColumns = useCallback(() => {
     if (isMobile) return 1;
@@ -128,6 +130,9 @@ export function SearchResults({
   }, [columns, rowVirtualizer]);
 
   const amountOfSkeletons = isMobile ? 1 : isMediumScreen ? 2 : 6;
+  const resultsKey = `${searchParams.toString()}::${searchResult.totalCount}::${searchResult.vehicles
+    .map((vehicle) => `${vehicle.locationCode}-${vehicle.id}`)
+    .join("|")}`;
 
   const renderGridRow = useCallback(
     (row: SearchVehicle[], keyPrefix: string, className?: string) => (
@@ -247,6 +252,7 @@ export function SearchResults({
 
   return (
     <div
+      key={resultsKey}
       style={{
         height: `${rowVirtualizer.getTotalSize()}px`,
         width: "100%",
