@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Skeleton } from "~/components/ui/skeleton";
+import { HeaderAuthButtons } from "./HeaderAuthButtons";
 import { HeaderContent } from "./HeaderContent";
 import { HeaderAuthSlot, HeaderStatusSlot } from "./HeaderServerSlots";
 
@@ -12,19 +12,10 @@ export function Header() {
         </Suspense>
       }
       authSlot={
-        <Suspense fallback={<HeaderAuthSkeleton />}>
+        <Suspense fallback={<HeaderAuthButtons user={null} />}>
           <HeaderAuthSlot />
         </Suspense>
       }
     />
-  );
-}
-
-function HeaderAuthSkeleton() {
-  return (
-    <div className="flex items-center gap-2">
-      <Skeleton className="hidden h-8 w-16 sm:block" />
-      <Skeleton className="h-8 w-32" />
-    </div>
   );
 }

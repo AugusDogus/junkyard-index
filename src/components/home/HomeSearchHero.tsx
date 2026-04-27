@@ -2,15 +2,22 @@
 
 import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
 const SAMPLE_QUERIES = ["Honda Civic", "Toyota Camry", "Ford F-150"];
 
 export function HomeSearchHero() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    router.prefetch("/search");
+  }, [router]);
 
   const submitSearch = (value: string, source: "typed" | "sample") => {
     const trimmed = value.trim();
@@ -23,7 +30,9 @@ export function HomeSearchHero() {
       submit_source: source,
     });
 
-    window.location.assign(`/search?q=${encodeURIComponent(trimmed)}`);
+    startTransition(() => {
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    });
   };
 
   return (

@@ -348,7 +348,6 @@ function AlgoliaSearchInner({
     "auto" | "zip"
   >("auto");
   const [manualZipCode, setManualZipCode] = useState("");
-
   const utils = api.useUtils();
   const {
     data: accountLocationPreference,
