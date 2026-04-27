@@ -62,7 +62,6 @@ import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
-import { debugLogClient } from "~/lib/debug-log-client";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -325,7 +324,6 @@ function DistancePreferenceDialog({
 function AlgoliaSearchInner({
   isLoggedIn,
   userLocation: _userLocation,
-  initialQuery,
 }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
@@ -350,34 +348,6 @@ function AlgoliaSearchInner({
     "auto" | "zip"
   >("auto");
   const [manualZipCode, setManualZipCode] = useState("");
-
-  useEffect(() => {
-    // #region agent log
-    debugLogClient({
-      hypothesisId: "B",
-      location: "SearchPageContent.tsx:350",
-      message: "Search page client mounted",
-      data: {
-        route: window.location.pathname,
-        urlQuery: new URLSearchParams(window.location.search).get("q") ?? "",
-      },
-    });
-    // #endregion
-
-    return () => {
-      // #region agent log
-      debugLogClient({
-        hypothesisId: "B",
-        location: "SearchPageContent.tsx:360",
-        message: "Search page client unmounted",
-        data: {
-          route: window.location.pathname,
-          urlQuery: new URLSearchParams(window.location.search).get("q") ?? "",
-        },
-      });
-      // #endregion
-    };
-  }, []);
 
   const utils = api.useUtils();
   const {
@@ -466,9 +436,10 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState, status, error } = useInstantSearch({
+  const { indexUiState, setIndexUiState, results, status, error } =
+    useInstantSearch({
     catchError: true,
-  });
+    });
   const refinementList = (indexUiState.refinementList ?? {}) as Record<
     string,
     string[]
@@ -787,38 +758,16 @@ function AlgoliaSearchInner({
   // Only show results when there's a non-empty search query
   const hasActiveSearch = query.length > 0;
 
-  // Loading = Algolia is actively fetching (not stale "0 results")
+  const resultsQuery = typeof results?.query === "string" ? results.query : "";
+  const hasResolvedCurrentQuery = !hasActiveSearch || resultsQuery === query;
+
+  // Loading = Algolia is actively fetching, or the current payload still belongs
+  // to an older query and shouldn't be shown yet.
   const isSearching =
-    hasActiveSearch && (status === "loading" || status === "stalled");
-  const [settledQuery, setSettledQuery] = useState(initialQuery ?? "");
-  const [startedQuery, setStartedQuery] = useState(initialQuery ?? "");
-
-  useEffect(() => {
-    if (!query) {
-      setStartedQuery("");
-      return;
-    }
-
-    if (status === "loading" || status === "stalled" || status === "idle") {
-      setStartedQuery((prev: string) => (prev === query ? prev : query));
-    }
-  }, [query, status]);
-
-  useEffect(() => {
-    if (!query) {
-      setSettledQuery("");
-      return;
-    }
-
-    if (isSearching || error) {
-      return;
-    }
-
-    setSettledQuery((prev: string) => (prev === query ? prev : query));
-  }, [query, isSearching, error]);
-
-  const hasSettledCurrentQuery = !hasActiveSearch || settledQuery === query;
-  const hasStartedCurrentQuery = !hasActiveSearch || startedQuery === query;
+    hasActiveSearch &&
+    (status === "loading" ||
+      status === "stalled" ||
+      !hasResolvedCurrentQuery);
 
   const anonymousVisibleLimit = isMobile
     ? 4
@@ -839,8 +788,7 @@ function AlgoliaSearchInner({
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
-    if (!hasStartedCurrentQuery) return null;
-    if (!hasSettledCurrentQuery) return null;
+    if (!hasResolvedCurrentQuery) return null;
     if (
       (status === "loading" || status === "stalled" || status === "error") &&
       hits.length === 0
@@ -861,8 +809,7 @@ function AlgoliaSearchInner({
     isLastPage,
     processingTimeMS,
     hasActiveSearch,
-    hasStartedCurrentQuery,
-    hasSettledCurrentQuery,
+    hasResolvedCurrentQuery,
     status,
     hits.length,
     isAnonymousCapped,
