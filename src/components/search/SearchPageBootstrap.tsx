@@ -3,7 +3,11 @@ import { headers } from "next/headers";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { auth } from "~/lib/auth";
 
-export async function SearchPageBootstrap() {
+export async function SearchPageBootstrap({
+  initialQuery,
+}: {
+  initialQuery?: string;
+}) {
   const reqHeaders = await headers();
 
   const [session, geo] = await Promise.all([
@@ -26,5 +30,11 @@ export async function SearchPageBootstrap() {
     }),
   ]);
 
-  return <SearchPageContent isLoggedIn={!!session?.user} userLocation={geo} />;
+  return (
+    <SearchPageContent
+      isLoggedIn={!!session?.user}
+      userLocation={geo}
+      initialQuery={initialQuery}
+    />
+  );
 }

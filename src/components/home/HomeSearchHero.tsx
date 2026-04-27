@@ -6,6 +6,7 @@ import posthog from "posthog-js";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { debugLogClient } from "~/lib/debug-log-client";
 
 const SAMPLE_QUERIES = ["Honda Civic", "Toyota Camry", "Ford F-150"];
 
@@ -22,6 +23,19 @@ export function HomeSearchHero() {
       query_length: trimmed.length,
       submit_source: source,
     });
+
+    // #region agent log
+    debugLogClient({
+      hypothesisId: "A",
+      location: "HomeSearchHero.tsx:26",
+      message: "Landing search navigation started",
+      data: {
+        query: trimmed,
+        source,
+        href: `/search?q=${encodeURIComponent(trimmed)}`,
+      },
+    });
+    // #endregion
 
     window.location.assign(`/search?q=${encodeURIComponent(trimmed)}`);
   };

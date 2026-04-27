@@ -62,6 +62,7 @@ import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { debugLogClient } from "~/lib/debug-log-client";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -134,6 +135,7 @@ function sanitizeSources(values: unknown): DataSource[] {
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
   userLocation?: { lat: number; lng: number };
+  initialQuery?: string;
 }
 
 function hasValidCoordinates(
@@ -323,6 +325,7 @@ function DistancePreferenceDialog({
 function AlgoliaSearchInner({
   isLoggedIn,
   userLocation: _userLocation,
+  initialQuery,
 }: SearchPageContentProps) {
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
@@ -347,6 +350,34 @@ function AlgoliaSearchInner({
     "auto" | "zip"
   >("auto");
   const [manualZipCode, setManualZipCode] = useState("");
+
+  useEffect(() => {
+    // #region agent log
+    debugLogClient({
+      hypothesisId: "B",
+      location: "SearchPageContent.tsx:350",
+      message: "Search page client mounted",
+      data: {
+        route: window.location.pathname,
+        urlQuery: new URLSearchParams(window.location.search).get("q") ?? "",
+      },
+    });
+    // #endregion
+
+    return () => {
+      // #region agent log
+      debugLogClient({
+        hypothesisId: "B",
+        location: "SearchPageContent.tsx:360",
+        message: "Search page client unmounted",
+        data: {
+          route: window.location.pathname,
+          urlQuery: new URLSearchParams(window.location.search).get("q") ?? "",
+        },
+      });
+      // #endregion
+    };
+  }, []);
 
   const utils = api.useUtils();
   const {
@@ -759,6 +790,35 @@ function AlgoliaSearchInner({
   // Loading = Algolia is actively fetching (not stale "0 results")
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
+  const [settledQuery, setSettledQuery] = useState(initialQuery ?? "");
+  const [startedQuery, setStartedQuery] = useState(initialQuery ?? "");
+
+  useEffect(() => {
+    if (!query) {
+      setStartedQuery("");
+      return;
+    }
+
+    if (status === "loading" || status === "stalled" || status === "idle") {
+      setStartedQuery((prev: string) => (prev === query ? prev : query));
+    }
+  }, [query, status]);
+
+  useEffect(() => {
+    if (!query) {
+      setSettledQuery("");
+      return;
+    }
+
+    if (isSearching || error) {
+      return;
+    }
+
+    setSettledQuery((prev: string) => (prev === query ? prev : query));
+  }, [query, isSearching, error]);
+
+  const hasSettledCurrentQuery = !hasActiveSearch || settledQuery === query;
+  const hasStartedCurrentQuery = !hasActiveSearch || startedQuery === query;
 
   const anonymousVisibleLimit = isMobile
     ? 4
@@ -779,6 +839,8 @@ function AlgoliaSearchInner({
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
+    if (!hasStartedCurrentQuery) return null;
+    if (!hasSettledCurrentQuery) return null;
     if (
       (status === "loading" || status === "stalled" || status === "error") &&
       hits.length === 0
@@ -799,6 +861,8 @@ function AlgoliaSearchInner({
     isLastPage,
     processingTimeMS,
     hasActiveSearch,
+    hasStartedCurrentQuery,
+    hasSettledCurrentQuery,
     status,
     hits.length,
     isAnonymousCapped,
@@ -1491,7 +1555,7 @@ function AlgoliaSearchInner({
  * This preserves backward compatibility with saved search URLs
  * (e.g. /search?q=volvo&makes=HONDA,TOYOTA&states=California&minYear=2019)
  */
-function createRouting(indexName: string) {
+function createRouting(indexName: string, initialQuery?: string) {
   return {
     router: {
       cleanUrlOnDispose: false,
@@ -1510,7 +1574,15 @@ function createRouting(indexName: string) {
           | undefined;
         if (!state) return baseUrl;
 
-        if (state.query) params.set("q", state.query as string);
+        if (state.query) {
+          params.set("q", state.query as string);
+        } else if (
+          initialQuery &&
+          location.pathname === "/search" &&
+          location.search.includes("q=")
+        ) {
+          params.set("q", initialQuery);
+        }
         if (state.makes)
           params.set("makes", (state.makes as string[]).join(","));
         if (state.colors)
@@ -1655,19 +1727,36 @@ function createRouting(indexName: string) {
 export function SearchPageContent({
   isLoggedIn,
   userLocation,
+  initialQuery,
 }: SearchPageContentProps) {
-  const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
+  const routing = useMemo(
+    () => createRouting(ALGOLIA_INDEX_NAME, initialQuery),
+    [initialQuery],
+  );
+  const initialUiState = useMemo(
+    () =>
+      initialQuery
+        ? {
+            [ALGOLIA_INDEX_NAME]: {
+              query: initialQuery,
+            },
+          }
+        : undefined,
+    [initialQuery],
+  );
 
   return (
     <InstantSearchNext
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
+      initialUiState={initialUiState}
       routing={routing}
     >
       <ErrorBoundary>
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           userLocation={userLocation}
+          initialQuery={initialQuery}
         />
       </ErrorBoundary>
     </InstantSearchNext>

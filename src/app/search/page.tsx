@@ -16,14 +16,26 @@ export const metadata: Metadata = {
   },
 };
 
-export default function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const initialQuery =
+    typeof params.q === "string"
+      ? params.q
+      : Array.isArray(params.q)
+        ? params.q[0]
+        : undefined;
+
   return (
     <SearchVisibilityProvider>
       <div className="bg-background flex min-h-svh flex-col">
         <Header />
         <div className="flex-1">
           <Suspense fallback={<SearchPageShell />}>
-            <SearchPageBootstrap />
+            <SearchPageBootstrap initialQuery={initialQuery} />
           </Suspense>
         </div>
         <Footer />
