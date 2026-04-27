@@ -35,6 +35,13 @@ export const auth = betterAuth({
     schema,
   }),
   baseURL: env.NEXT_PUBLIC_APP_URL,
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60,
+      strategy: "compact",
+    },
+  },
   trustedOrigins: [
     env.NEXT_PUBLIC_APP_URL,
     productionURL,
