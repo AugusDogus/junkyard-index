@@ -134,6 +134,7 @@ function sanitizeSources(values: unknown): DataSource[] {
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
   userLocation?: { lat: number; lng: number };
+  initialQuery?: string;
 }
 
 function hasValidCoordinates(
@@ -347,7 +348,6 @@ function AlgoliaSearchInner({
     "auto" | "zip"
   >("auto");
   const [manualZipCode, setManualZipCode] = useState("");
-
   const utils = api.useUtils();
   const {
     data: accountLocationPreference,
@@ -435,9 +435,10 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState, status, error } = useInstantSearch({
+  const { indexUiState, setIndexUiState, results, status, error } =
+    useInstantSearch({
     catchError: true,
-  });
+    });
   const refinementList = (indexUiState.refinementList ?? {}) as Record<
     string,
     string[]
@@ -756,9 +757,16 @@ function AlgoliaSearchInner({
   // Only show results when there's a non-empty search query
   const hasActiveSearch = query.length > 0;
 
-  // Loading = Algolia is actively fetching (not stale "0 results")
+  const resultsQuery = typeof results?.query === "string" ? results.query : "";
+  const hasResolvedCurrentQuery = !hasActiveSearch || resultsQuery === query;
+
+  // Loading = Algolia is actively fetching, or the current payload still belongs
+  // to an older query and shouldn't be shown yet.
   const isSearching =
-    hasActiveSearch && (status === "loading" || status === "stalled");
+    hasActiveSearch &&
+    (status === "loading" ||
+      status === "stalled" ||
+      !hasResolvedCurrentQuery);
 
   const anonymousVisibleLimit = isMobile
     ? 4
@@ -779,6 +787,7 @@ function AlgoliaSearchInner({
   // Build search result object for SearchResults/SearchSummary components
   const searchResult: SearchResultType | null = useMemo(() => {
     if (!hasActiveSearch) return null;
+    if (!hasResolvedCurrentQuery) return null;
     if (
       (status === "loading" || status === "stalled" || status === "error") &&
       hits.length === 0
@@ -799,6 +808,7 @@ function AlgoliaSearchInner({
     isLastPage,
     processingTimeMS,
     hasActiveSearch,
+    hasResolvedCurrentQuery,
     status,
     hits.length,
     isAnonymousCapped,
@@ -1491,7 +1501,7 @@ function AlgoliaSearchInner({
  * This preserves backward compatibility with saved search URLs
  * (e.g. /search?q=volvo&makes=HONDA,TOYOTA&states=California&minYear=2019)
  */
-function createRouting(indexName: string) {
+function createRouting(indexName: string, initialQuery?: string) {
   return {
     router: {
       cleanUrlOnDispose: false,
@@ -1510,7 +1520,15 @@ function createRouting(indexName: string) {
           | undefined;
         if (!state) return baseUrl;
 
-        if (state.query) params.set("q", state.query as string);
+        if (state.query) {
+          params.set("q", state.query as string);
+        } else if (
+          initialQuery &&
+          location.pathname === "/search" &&
+          location.search.includes("q=")
+        ) {
+          params.set("q", initialQuery);
+        }
         if (state.makes)
           params.set("makes", (state.makes as string[]).join(","));
         if (state.colors)
@@ -1649,28 +1667,42 @@ function createRouting(indexName: string) {
   };
 }
 
-const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
-
 /**
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
 export function SearchPageContent({
   isLoggedIn,
   userLocation,
+  initialQuery,
 }: SearchPageContentProps) {
-  const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
+  const routing = useMemo(
+    () => createRouting(ALGOLIA_INDEX_NAME, initialQuery),
+    [initialQuery],
+  );
+  const initialUiState = useMemo(
+    () =>
+      initialQuery
+        ? {
+            [ALGOLIA_INDEX_NAME]: {
+              query: initialQuery,
+            },
+          }
+        : undefined,
+    [initialQuery],
+  );
 
   return (
     <InstantSearchNext
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
+      initialUiState={initialUiState}
       routing={routing}
-      future={INSTANT_SEARCH_FUTURE}
     >
       <ErrorBoundary>
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           userLocation={userLocation}
+          initialQuery={initialQuery}
         />
       </ErrorBoundary>
     </InstantSearchNext>

@@ -1,13 +1,18 @@
 import { geolocation } from "@vercel/functions";
 import { headers } from "next/headers";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
-import { auth } from "~/lib/auth";
+import { getRequestSession } from "~/lib/request-session";
 
-export async function SearchPageBootstrap() {
+export async function SearchPageBootstrap({
+  initialQuery,
+}: {
+  initialQuery?: string;
+}) {
   const reqHeaders = await headers();
+  const cookieHeader = reqHeaders.get("cookie");
 
   const [session, geo] = await Promise.all([
-    auth.api.getSession({ headers: reqHeaders }),
+    getRequestSession(cookieHeader, reqHeaders),
     Promise.resolve().then(() => {
       try {
         const location = geolocation({ headers: reqHeaders });
@@ -26,5 +31,11 @@ export async function SearchPageBootstrap() {
     }),
   ]);
 
-  return <SearchPageContent isLoggedIn={!!session?.user} userLocation={geo} />;
+  return (
+    <SearchPageContent
+      isLoggedIn={!!session?.user}
+      userLocation={geo}
+      initialQuery={initialQuery}
+    />
+  );
 }

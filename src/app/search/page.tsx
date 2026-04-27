@@ -1,6 +1,5 @@
 import { type Metadata } from "next";
 import { Suspense } from "react";
-import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
@@ -17,17 +16,27 @@ export const metadata: Metadata = {
   },
 };
 
-export default function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const initialQuery =
+    typeof params.q === "string"
+      ? params.q
+      : Array.isArray(params.q)
+        ? params.q[0]
+        : undefined;
+
   return (
     <SearchVisibilityProvider>
       <div className="bg-background flex min-h-svh flex-col">
         <Header />
         <div className="flex-1">
-          <ErrorBoundary>
-            <Suspense fallback={<SearchPageShell />}>
-              <SearchPageBootstrap />
-            </Suspense>
-          </ErrorBoundary>
+          <Suspense fallback={<SearchPageShell />}>
+            <SearchPageBootstrap initialQuery={initialQuery} />
+          </Suspense>
         </div>
         <Footer />
         <ScrollToTop />

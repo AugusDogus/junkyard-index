@@ -9,16 +9,20 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 
 interface HeaderAuthButtonsProps {
   user: { name: string; email: string; image?: string | null } | null;
+  showPricingOverride?: boolean;
 }
 
-export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
+export function HeaderAuthButtons({
+  user,
+  showPricingOverride,
+}: HeaderAuthButtonsProps) {
   const pathname = usePathname();
 
   if (user) {
     return <UserMenu user={user} />;
   }
 
-  const showPricing = pathname === "/";
+  const showPricing = showPricingOverride ?? pathname === "/";
 
   return (
     <div className="flex items-center gap-2">

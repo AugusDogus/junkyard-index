@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
@@ -42,14 +42,19 @@ export const MorphingSearchBar = forwardRef<HTMLDivElement>(
 
     // Also sync when Next.js navigates (e.g. clicking logo to /search clears URL)
     // Algolia's history router doesn't detect pushState, so we watch URL params directly
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const urlQuery = searchParams.get("q") ?? "";
     useEffect(() => {
+      if (pathname !== "/search" || urlQuery || !inputValueRef.current) {
+        return;
+      }
+
       if (!urlQuery && inputValueRef.current) {
         setInputValue("");
         refine("");
       }
-    }, [urlQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [pathname, query, refine, urlQuery]);
 
     useEffect(() => {
       if (!isMobile) return;

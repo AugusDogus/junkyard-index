@@ -7,19 +7,7 @@ export function SearchPageShell() {
         <Skeleton className="h-10 w-full rounded-xl" />
       </div>
 
-      <div className="relative flex w-full gap-4 md:gap-6">
-        <div className="sticky top-24 hidden h-fit w-64 shrink-0 lg:block lg:w-80">
-          <div className="rounded-xl border p-4">
-            <Skeleton className="h-6 w-24" />
-            <div className="mt-4 space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
-        </div>
-
+      <div className="relative w-full">
         <div className="min-w-0 flex-1">
           <div className="mb-4 flex flex-wrap gap-2">
             <Skeleton className="h-10 w-36" />

@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { auth } from "~/lib/auth";
+import { getRequestSession } from "~/lib/request-session";
 import { getProviderStatus } from "~/server/api/routers/status";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
 import {
@@ -34,7 +34,8 @@ function toHeaderStatusData(
 }
 
 export async function HeaderAuthSlot() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const reqHeaders = await headers();
+  const session = await getRequestSession(reqHeaders.get("cookie"), reqHeaders);
 
   return <HeaderAuthButtons user={session?.user ?? null} />;
 }
