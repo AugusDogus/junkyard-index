@@ -38,43 +38,48 @@ export default async function Home() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
-          <div className="mx-auto grid max-w-6xl gap-8 sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-            <div>
-              <Badge variant="outline" className="mb-4 gap-2 px-3 py-1 sm:mb-5">
+        <section className="flex min-h-[calc(100dvh-4rem)] flex-col px-5 pt-8 pb-10 sm:min-h-0 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 sm:grid sm:max-w-6xl sm:flex-none sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div className="flex flex-1 flex-col sm:block">
+              <Badge variant="outline" className="mb-5 gap-2 self-start px-3 py-1 sm:mb-5">
                 <span className="inline-flex size-2 rounded-full bg-green-500" />
                 Search is free. Alerts are $
                 {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.
               </Badge>
-              <h1 className="max-w-3xl text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
+              <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
                 Search salvage yard inventory before the right donor vehicle is
                 gone.
               </h1>
-              <p className="text-muted-foreground mt-4 max-w-2xl text-base text-pretty sm:mt-5 sm:text-lg md:text-xl">
+              <p className="text-muted-foreground mt-5 max-w-2xl text-base text-pretty sm:mt-5 sm:text-lg md:text-xl">
                 Search across major yard networks in one place. See full results
                 with a free account, then upgrade to alerts when you want new
                 matches delivered automatically.
               </p>
 
-              <div className="mt-6 sm:mt-8">
+              <div className="mt-8 sm:mt-8">
                 <HomeSearchHero />
               </div>
 
-              {/* Mobile proof stats — compact inline row */}
-              <div className="text-muted-foreground mt-5 flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums sm:hidden">
-                <p>
-                  <span className="text-foreground font-medium">
+              {/* Mobile proof stats — full-width breathable row anchored to bottom */}
+              <div className="text-muted-foreground mt-auto grid grid-cols-3 divide-x border-t pt-6 text-sm tabular-nums sm:hidden">
+                <div className="flex flex-col items-start pr-3">
+                  <span className="text-foreground text-lg font-semibold">
                     {formatVehicleCount(liveStats.vehicleCount)}
-                  </span>{" "}
-                  vehicles
-                </p>
-                <p>
-                  <span className="text-foreground font-medium">
+                  </span>
+                  <span className="mt-0.5 text-xs">vehicles</span>
+                </div>
+                <div className="flex flex-col items-start px-3">
+                  <span className="text-foreground text-lg font-semibold">
                     {formatYardCount(liveStats.yardCount)}
-                  </span>{" "}
-                  yards
-                </p>
-                <p>Free to search</p>
+                  </span>
+                  <span className="mt-0.5 text-xs">yards</span>
+                </div>
+                <div className="flex flex-col items-start pl-3">
+                  <span className="text-foreground text-lg font-semibold">
+                    Free
+                  </span>
+                  <span className="mt-0.5 text-xs">to search</span>
+                </div>
               </div>
             </div>
 
