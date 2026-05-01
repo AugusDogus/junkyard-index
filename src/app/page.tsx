@@ -38,47 +38,78 @@ export default async function Home() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="flex min-h-[calc(100dvh-4rem)] flex-col px-5 pt-8 pb-10 sm:min-h-0 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
-          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 sm:grid sm:max-w-6xl sm:flex-none sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-            <div className="flex flex-1 flex-col sm:block">
-              <Badge variant="outline" className="mb-5 gap-2 self-start px-3 py-1 sm:mb-5">
-                <span className="inline-flex size-2 rounded-full bg-green-500" />
-                Search is free. Alerts are $
-                {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.
-              </Badge>
-              <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
-                Search salvage yard inventory before the right donor vehicle is
-                gone.
-              </h1>
-              <p className="text-muted-foreground mt-5 max-w-2xl text-base text-pretty sm:mt-5 sm:text-lg md:text-xl">
-                Search across major yard networks in one place. See full results
-                with a free account, then upgrade to alerts when you want new
-                matches delivered automatically.
-              </p>
+        <section className="flex min-h-[calc(100dvh-4rem)] flex-col px-5 pt-6 pb-8 sm:min-h-0 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col sm:grid sm:max-w-6xl sm:flex-none sm:gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            {/*
+              Mobile layout: three rhythm zones distributed across the viewport.
+              - Zone A (intro): pinned to top
+              - Zone B (search): visually centered in the breathing space
+              - Zone C (proof stats): pinned to the bottom, visually substantial
+              `justify-between` with three direct children pushes the empty
+              space *between* the zones rather than pooling it at the bottom.
+              On `sm+` this collapses to a normal block stack so the existing
+              desktop grid layout (text on the left, proof cards on the right)
+              is preserved exactly.
+            */}
+            <div className="flex flex-1 flex-col justify-between gap-10 sm:block sm:flex-none">
+              {/* Zone A — intro */}
+              <div>
+                <Badge
+                  variant="outline"
+                  className="mb-6 gap-2 px-3 py-1 sm:mb-5"
+                >
+                  <span className="inline-flex size-2 rounded-full bg-green-500" />
+                  Search is free. Alerts are $
+                  {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.
+                </Badge>
+                <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
+                  Search salvage yard inventory before the right donor vehicle
+                  is gone.
+                </h1>
+                <p className="text-muted-foreground mt-5 max-w-2xl text-[1.0625rem] leading-relaxed text-pretty sm:mt-5 sm:text-lg md:text-xl">
+                  Search across major yard networks in one place. See full
+                  results with a free account, then upgrade to alerts when you
+                  want new matches delivered automatically.
+                </p>
+              </div>
 
-              <div className="mt-8 sm:mt-8">
+              {/* Zone B — primary action */}
+              <div className="sm:mt-8">
                 <HomeSearchHero />
               </div>
 
-              {/* Mobile proof stats — full-width breathable row anchored to bottom */}
-              <div className="text-muted-foreground mt-auto grid grid-cols-3 divide-x border-t pt-6 text-sm tabular-nums sm:hidden">
-                <div className="flex flex-col items-start pr-3">
-                  <span className="text-foreground text-lg font-semibold">
-                    {formatVehicleCount(liveStats.vehicleCount)}
-                  </span>
-                  <span className="mt-0.5 text-xs">vehicles</span>
-                </div>
-                <div className="flex flex-col items-start px-3">
-                  <span className="text-foreground text-lg font-semibold">
-                    {formatYardCount(liveStats.yardCount)}
-                  </span>
-                  <span className="mt-0.5 text-xs">yards</span>
-                </div>
-                <div className="flex flex-col items-start pl-3">
-                  <span className="text-foreground text-lg font-semibold">
-                    Free
-                  </span>
-                  <span className="mt-0.5 text-xs">to search</span>
+              {/* Zone C — proof, mobile only; bottom-anchored visual weight */}
+              <div className="border-t pt-6 sm:hidden">
+                <p className="text-muted-foreground mb-4 text-[0.6875rem] font-medium uppercase tracking-[0.1em]">
+                  Live inventory
+                </p>
+                <div className="flex items-end justify-between gap-4 tabular-nums">
+                  <div className="flex flex-col">
+                    <span className="text-foreground text-[1.75rem] leading-none font-semibold tracking-tight">
+                      {formatVehicleCount(liveStats.vehicleCount)}
+                    </span>
+                    <span className="text-muted-foreground mt-2 text-sm">
+                      vehicles
+                    </span>
+                  </div>
+                  <div className="bg-border h-10 w-px" aria-hidden="true" />
+                  <div className="flex flex-col">
+                    <span className="text-foreground text-[1.75rem] leading-none font-semibold tracking-tight">
+                      {formatYardCount(liveStats.yardCount)}
+                    </span>
+                    <span className="text-muted-foreground mt-2 text-sm">
+                      yards
+                    </span>
+                  </div>
+                  <div className="bg-border h-10 w-px" aria-hidden="true" />
+                  <div className="flex flex-col">
+                    <span className="text-foreground text-[1.75rem] leading-none font-semibold tracking-tight">
+                      Free
+                    </span>
+                    <span className="text-muted-foreground mt-2 text-sm">
+                      to search
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
