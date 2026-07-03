@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip";
 import { useIsMobile } from "~/hooks/use-media-query";
+import { cn } from "~/lib/utils";
 
 export interface HeaderStatusData {
   aggregateStatus: "operational" | "in_progress" | "degraded" | "down";
@@ -37,13 +38,19 @@ function StatusIcon({
   );
 }
 
-function StatusLink({ url }: { url: string }) {
+function StatusLink({
+  url,
+  className,
+}: {
+  url: string;
+  className?: string;
+}) {
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-1 block underline underline-offset-2"
+      className={cn("mt-1 block underline underline-offset-2", className)}
     >
       View Status Page
     </a>
@@ -95,7 +102,9 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
                 Affected: {data.affected}.
               </DialogDescription>
             </DialogHeader>
-            {data.statusPageUrl && <StatusLink url={data.statusPageUrl} />}
+            {data.statusPageUrl && (
+              <StatusLink url={data.statusPageUrl} className="text-center" />
+            )}
           </DialogContent>
         </Dialog>
       </>
