@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   determineHealthySources,
   shouldAdvanceMissingState,
+  shouldReportHeartbeatFailure,
   type PipelineSourceOutcome,
 } from "./pipeline-policy";
 
@@ -23,6 +24,7 @@ describe("pipeline policy", () => {
       "upullitne",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(true);
+    expect(shouldReportHeartbeatFailure(outcomes)).toBe(false);
   });
 
   test("keeps healthy sources but blocks missing-state advance when one source errors", () => {
@@ -45,6 +47,7 @@ describe("pipeline policy", () => {
       "upullitne",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(false);
+    expect(shouldReportHeartbeatFailure(outcomes)).toBe(true);
   });
 
   test("returns no healthy sources when all sources error", () => {
@@ -58,5 +61,6 @@ describe("pipeline policy", () => {
 
     expect(determineHealthySources(outcomes)).toEqual([]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(false);
+    expect(shouldReportHeartbeatFailure(outcomes)).toBe(true);
   });
 });

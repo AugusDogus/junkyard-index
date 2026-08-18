@@ -7,6 +7,7 @@ import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
 import {
   determineHealthySources,
   shouldAdvanceMissingState,
+  shouldReportHeartbeatFailure,
   type PipelineSourceOutcome,
   type PipelineSourceName,
 } from "./pipeline-policy";
@@ -1192,7 +1193,10 @@ export const ingestionPipeline: Effect.Effect<
     );
 
     if (config.betterStackHeartbeatUrl) {
-      yield* sendHeartbeat(config.betterStackHeartbeatUrl, false).pipe(
+      yield* sendHeartbeat(
+        config.betterStackHeartbeatUrl,
+        shouldReportHeartbeatFailure(sourceOutcomes),
+      ).pipe(
         Effect.catchAll((err) =>
           Effect.logWarning(
             `[Ingestion] BetterStack heartbeat failed: ${err.message}`,
