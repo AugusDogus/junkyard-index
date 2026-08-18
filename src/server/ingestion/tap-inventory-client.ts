@@ -169,30 +169,14 @@ export function fetchTapBootstrap(
 }
 
 export const TapInventorySearchProductSchema = Schema.Struct({
-  s3clientid: Schema.String,
-  crush_version: Schema.String,
-  yard_name: Schema.String,
-  yard_city: Schema.String,
-  yard_state: Schema.String,
   stocknumber: Schema.String,
-  istatus: Schema.String,
-  location: Schema.String,
   iyear: Schema.String,
   make: Schema.String,
   model: Schema.String,
-  hol_year: Schema.optional(Schema.String),
-  hol_mfr_code: Schema.optional(Schema.String),
-  hol_mfr_name: Schema.optional(Schema.String),
-  hol_model: Schema.optional(Schema.String),
   vehicle_row: Schema.String,
-  yard_date: Schema.String,
   yard_in_date: Schema.optional(Schema.String),
-  batch_number: Schema.String,
-  lastupdate: Schema.String,
   color: Schema.String,
   vin: Schema.String,
-  reference: Schema.String,
-  mileage: Schema.String,
   image_url: Schema.String,
 });
 
