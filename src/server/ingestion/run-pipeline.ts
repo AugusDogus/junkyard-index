@@ -15,6 +15,7 @@ import { streamPypInventory } from "./pyp-connector";
 import {
   buildFinalInventoryByVin,
   reconcileFromFinalInventory,
+  type MissingStatePolicy,
 } from "./reconcile";
 import { streamAutorecyclerInventory } from "./autorecycler-connector";
 import { streamPullapartInventory } from "./pullapart-connector";
@@ -1128,13 +1129,20 @@ export const ingestionPipeline: Effect.Effect<
       }),
     );
 
+    const [firstHealthySource, ...remainingHealthySources] = healthySources;
+    const missingStatePolicy: MissingStatePolicy =
+      shouldAdvanceMissingState(coreSourceOutcomes) && firstHealthySource
+        ? {
+            kind: "advance",
+            eligibleSources: [firstHealthySource, ...remainingHealthySources],
+          }
+        : { kind: "skip" };
+
     const reconcileResult = yield* reconcileFromFinalInventory({
       runId,
       runTimestamp: reconcileTimestamp,
       finalInventoryByVin,
-      allowAdvanceMissingState:
-        shouldAdvanceMissingState(coreSourceOutcomes),
-      missingEligibleSources: healthySources,
+      missingStatePolicy,
       missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
       missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
     }).pipe(

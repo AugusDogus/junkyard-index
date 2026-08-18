@@ -16,22 +16,19 @@ import {
 } from "~/components/ui/tooltip";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import {
+  getHeaderStatusPresentation,
+  type HeaderStatus,
+} from "./header-status";
 
 export interface HeaderStatusData {
-  aggregateStatus: "operational" | "in_progress" | "degraded" | "down";
-  message: string;
+  aggregateStatus: HeaderStatus;
   affected: string;
   statusPageUrl: string | null;
 }
 
-function StatusIcon({
-  isDegraded,
-  isInProgress,
-}: {
-  isDegraded: boolean;
-  isInProgress: boolean;
-}) {
-  return isDegraded || isInProgress ? (
+function StatusIcon({ icon }: { icon: "info" | "warning" }) {
+  return icon === "info" ? (
     <Info className="size-5" />
   ) : (
     <AlertTriangle className="size-5" />
@@ -60,44 +57,27 @@ function StatusLink({
 export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
   const isMobile = useIsMobile();
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  if (data.aggregateStatus === "operational") return null;
-
-  const isInProgress = data.aggregateStatus === "in_progress";
-  const isDegraded = data.aggregateStatus === "degraded";
-  const colorClass = isInProgress
-    ? "text-sky-500 dark:text-sky-400"
-    : isDegraded
-      ? "text-amber-500 dark:text-amber-400"
-      : "text-red-500 dark:text-red-400";
-  const ariaLabel = isInProgress
-    ? "Ingestion currently in progress"
-    : isDegraded
-      ? "Inventory refresh degraded"
-      : "Inventory refresh failed";
-  const title = isInProgress
-    ? "Ingestion In Progress"
-    : isDegraded
-      ? "Inventory Refresh Degraded"
-      : "Inventory Refresh Failed";
+  const presentation = getHeaderStatusPresentation(data.aggregateStatus);
 
   if (isMobile) {
     return (
       <>
         <button
           type="button"
-          className={colorClass}
+          className={presentation.colorClass}
           onClick={() => setDialogOpen(true)}
-          aria-label={ariaLabel}
+          aria-label={presentation.ariaLabel}
         >
-          <StatusIcon isDegraded={isDegraded} isInProgress={isInProgress} />
+          <StatusIcon icon={presentation.icon} />
         </button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className={colorClass}>{title}</DialogTitle>
+              <DialogTitle className={presentation.colorClass}>
+                {presentation.title}
+              </DialogTitle>
               <DialogDescription>
-                {data.message}
+                {presentation.message}
                 <br />
                 Affected: {data.affected}.
               </DialogDescription>
@@ -116,14 +96,14 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
       <TooltipTrigger asChild>
         <button
           type="button"
-          className={colorClass}
-          aria-label={ariaLabel}
+          className={presentation.colorClass}
+          aria-label={presentation.ariaLabel}
         >
-          <StatusIcon isDegraded={isDegraded} isInProgress={isInProgress} />
+          <StatusIcon icon={presentation.icon} />
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs">
-        <p>{data.message}</p>
+        <p>{presentation.message}</p>
         <p className="mt-0.5 opacity-75">Affected: {data.affected}.</p>
         {data.statusPageUrl && <StatusLink url={data.statusPageUrl} />}
       </TooltipContent>

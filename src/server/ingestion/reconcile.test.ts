@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { vehicle } from "~/schema";
 import type { CanonicalVehicle } from "./types";
-import { buildFinalInventoryByVin, createReconcilePlan } from "./reconcile";
+import {
+  buildFinalInventoryByVin,
+  planChangedUpserts,
+  planMissingTransitions,
+} from "./reconcile";
 
 function makeCanonicalVehicle(
   vin: string,
@@ -184,7 +188,7 @@ describe("reconcile helpers", () => {
       ["VIN123", makeCanonicalVehicle("VIN123", "pyp")],
     ]);
 
-    const plan = createReconcilePlan({
+    const changedUpserts = planChangedUpserts({
       finalInventoryByVin: finalInventory,
       existingVehicles: [
         makeExistingVehicle("VIN123", {
@@ -193,15 +197,10 @@ describe("reconcile helpers", () => {
         }),
       ],
       runTimestamp,
-      allowAdvanceMissingState: true,
-      missingEligibleSources: ["pyp"],
-      missingDeleteAfterRuns: 3,
-      missingDeleteAfterMs: 3 * 24 * 60 * 60 * 1000,
     });
 
-    expect(plan.changedUpserts).toHaveLength(1);
-    expect(plan.changedUpserts[0]?.vehicle.vin).toBe("VIN123");
-    expect(plan.missingTransitions).toHaveLength(0);
+    expect(changedUpserts).toHaveLength(1);
+    expect(changedUpserts[0]?.vehicle.vin).toBe("VIN123");
   });
 
   test("marks missing vehicles and deletes rows that cross the threshold", () => {
@@ -214,17 +213,15 @@ describe("reconcile helpers", () => {
       }),
     ];
 
-    const plan = createReconcilePlan({
+    const plan = planMissingTransitions({
       finalInventoryByVin: new Map(),
       existingVehicles,
       runTimestamp,
-      allowAdvanceMissingState: true,
-      missingEligibleSources: ["pyp"],
+      eligibleSources: ["pyp"],
       missingDeleteAfterRuns: 3,
       missingDeleteAfterMs: 3 * 24 * 60 * 60 * 1000,
     });
 
-    expect(plan.changedUpserts).toHaveLength(0);
     expect(plan.missingTransitions).toEqual([
       {
         vin: "VIN_MISSING",
@@ -244,15 +241,14 @@ describe("reconcile helpers", () => {
 
   test("advances missing state only for healthy sources", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
-    const plan = createReconcilePlan({
+    const plan = planMissingTransitions({
       finalInventoryByVin: new Map(),
       existingVehicles: [
         makeExistingVehicle("VIN_PYP"),
         makeExistingVehicle("VIN_UPULLITNE", { source: "upullitne" }),
       ],
       runTimestamp,
-      allowAdvanceMissingState: true,
-      missingEligibleSources: ["pyp"],
+      eligibleSources: ["pyp"],
       missingDeleteAfterRuns: 3,
       missingDeleteAfterMs: 3 * 24 * 60 * 60 * 1000,
     });

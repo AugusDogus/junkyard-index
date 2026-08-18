@@ -1,7 +1,10 @@
 import { FetchHttpClient } from "@effect/platform";
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamPullapartInventory } from "./pullapart-connector";
+import {
+  streamPullapartInventory,
+  streamPullapartInventoryWithRequestGate,
+} from "./pullapart-connector";
 import type { CanonicalVehicle } from "./types";
 
 const originalFetch = globalThis.fetch;
@@ -150,38 +153,36 @@ afterEach(() => {
 });
 
 describe("streamPullapartInventory enrichment handling", () => {
-  test("paces inventory API enrichment requests", async () => {
-    const detailCallTimes: number[] = [];
+  test("routes every inventory request through the shared gate", async () => {
+    const searchGroup = vehicleSearchResponse[0];
+    const baseVehicle = searchGroup?.exact[0];
+    if (!searchGroup || !baseVehicle) {
+      throw new Error("Pull-A-Part search fixture is incomplete");
+    }
+
     const exact = Array.from({ length: 5 }, (_, index) => ({
-      ...vehicleSearchResponse[0]!.exact[0]!,
+      ...baseVehicle,
       vinID: 1236492 + index,
       ticketID: 1191613 + index,
       vin: `2HNYD18866H5377${19 + index}`,
     }));
     installPullapartFetchMock({
-      vehicleSearchResponse: [
-        {
-          ...vehicleSearchResponse[0],
-          exact,
-        },
-      ],
-      detailResponse: () => {
-        detailCallTimes.push(Date.now());
-        return jsonResponse({}, 404);
-      },
+      vehicleSearchResponse: [{ ...searchGroup, exact }],
     });
 
+    let gatedRequests = 0;
     const result = await Effect.runPromise(
-      streamPullapartInventory({
-        onBatch: () => Effect.succeed(undefined),
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      streamPullapartInventoryWithRequestGate(
+        { onBatch: () => Effect.succeed(undefined) },
+        (request) =>
+          Effect.sync(() => {
+            gatedRequests += 1;
+          }).pipe(Effect.zipRight(request)),
+      ).pipe(Effect.provide(FetchHttpClient.layer)),
     );
 
     expect(result.count).toBe(5);
-    expect(detailCallTimes).toHaveLength(5);
-    expect(detailCallTimes[4]! - detailCallTimes[0]!).toBeGreaterThanOrEqual(
-      400,
-    );
+    expect(gatedRequests).toBe(7);
   });
 
   test("keeps rows when enrichment endpoints return expected no-data responses", async () => {

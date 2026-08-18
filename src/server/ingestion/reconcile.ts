@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { vehicle, vehicleChange } from "~/schema";
 import { PersistenceError } from "./errors";
@@ -9,6 +9,7 @@ import type { CanonicalVehicle } from "./types";
 type SourceName = CanonicalVehicle["source"];
 type ExistingVehicleRow = typeof vehicle.$inferSelect;
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type NonEmptySourceNames = readonly [SourceName, ...SourceName[]];
 
 const VEHICLE_UPSERT_CHUNK_SIZE = 500;
 const VEHICLE_CHANGE_CHUNK_SIZE = 1_000;
@@ -20,11 +21,14 @@ interface ReconcileOptions {
   runId: string;
   runTimestamp: Date;
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
-  allowAdvanceMissingState: boolean;
-  missingEligibleSources: readonly SourceName[];
+  missingStatePolicy: MissingStatePolicy;
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
 }
+
+export type MissingStatePolicy =
+  | { kind: "skip" }
+  | { kind: "advance"; eligibleSources: NonEmptySourceNames };
 
 export interface ReconcileResult {
   upsertedCount: number;
@@ -53,16 +57,9 @@ interface MissingTransition {
 
 interface MissingStateRow {
   vin: string;
+  source: string;
   missingSinceAt: Date | null;
   missingRunCount: number | null;
-}
-
-interface ReconcilePlan {
-  upsertedCount: number;
-  changedUpserts: PlannedVehicleUpsert[];
-  missingTransitions: MissingTransition[];
-  deleteVins: string[];
-  skippedMissingAdvance: boolean;
 }
 
 export function buildFinalInventoryByVin(params: {
@@ -214,15 +211,11 @@ function vehicleNeedsUpsert(
   );
 }
 
-export function createReconcilePlan(params: {
+export function planChangedUpserts(params: {
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
-  existingVehicles: ExistingVehicleRow[];
+  existingVehicles: readonly ExistingVehicleRow[];
   runTimestamp: Date;
-  allowAdvanceMissingState: boolean;
-  missingEligibleSources: readonly SourceName[];
-  missingDeleteAfterRuns: number;
-  missingDeleteAfterMs: number;
-}): ReconcilePlan {
+}): PlannedVehicleUpsert[] {
   const existingByVin = new Map<string, ExistingVehicleRow>();
   for (const existingVehicle of params.existingVehicles) {
     existingByVin.set(existingVehicle.vin, existingVehicle);
@@ -241,22 +234,26 @@ export function createReconcilePlan(params: {
     });
   }
 
-  if (!params.allowAdvanceMissingState) {
-    return {
-      upsertedCount: params.finalInventoryByVin.size,
-      changedUpserts,
-      missingTransitions: [],
-      deleteVins: [],
-      skippedMissingAdvance: true,
-    };
-  }
+  return changedUpserts;
+}
 
+export function planMissingTransitions(params: {
+  finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
+  existingVehicles: readonly MissingStateRow[];
+  runTimestamp: Date;
+  eligibleSources: NonEmptySourceNames;
+  missingDeleteAfterRuns: number;
+  missingDeleteAfterMs: number;
+}): {
+  missingTransitions: MissingTransition[];
+  deleteVins: string[];
+} {
   const missingSinceCutoffMs =
     params.runTimestamp.getTime() - params.missingDeleteAfterMs;
   const missingTransitions: MissingTransition[] = [];
   const deleteVins: string[] = [];
   const missingEligibleSources: ReadonlySet<string> = new Set(
-    params.missingEligibleSources,
+    params.eligibleSources,
   );
 
   for (const existingVehicle of params.existingVehicles) {
@@ -285,13 +282,7 @@ export function createReconcilePlan(params: {
     });
   }
 
-  return {
-    upsertedCount: params.finalInventoryByVin.size,
-    changedUpserts,
-    missingTransitions,
-    deleteVins,
-    skippedMissingAdvance: false,
-  };
+  return { missingTransitions, deleteVins };
 }
 
 function chunkValues<T>(values: T[], chunkSize: number): T[][] {
@@ -389,22 +380,13 @@ function collectChangedUpserts(params: {
       readExistingMs += Date.now() - readStartedAt;
 
       const planStartedAt = Date.now();
-      const existingByVin = new Map<string, ExistingVehicleRow>();
-      for (const existingVehicle of existingRows) {
-        existingByVin.set(existingVehicle.vin, existingVehicle);
-      }
-
-      for (const [vin, nextVehicle] of chunk) {
-        const existingVehicle = existingByVin.get(vin);
-        if (!vehicleNeedsUpsert(existingVehicle, nextVehicle)) {
-          continue;
-        }
-
-        changedUpserts.push({
-          vehicle: nextVehicle,
-          firstSeenAt: existingVehicle?.firstSeenAt ?? params.runTimestamp,
-        });
-      }
+      changedUpserts.push(
+        ...planChangedUpserts({
+          finalInventoryByVin: new Map(chunk),
+          existingVehicles: existingRows,
+          runTimestamp: params.runTimestamp,
+        }),
+      );
       planMs += Date.now() - planStartedAt;
     }
 
@@ -419,7 +401,7 @@ function collectChangedUpserts(params: {
 function collectMissingTransitions(params: {
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
   runTimestamp: Date;
-  missingEligibleSources: readonly SourceName[];
+  eligibleSources: NonEmptySourceNames;
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
 }): Effect.Effect<
@@ -433,18 +415,7 @@ function collectMissingTransitions(params: {
   Database
 > {
   return Effect.gen(function* () {
-    if (params.missingEligibleSources.length === 0) {
-      return {
-        missingTransitions: [],
-        deleteVins: [],
-        readExistingMs: 0,
-        planMs: 0,
-      };
-    }
-
     const dbClient = yield* Database;
-    const missingSinceCutoffMs =
-      params.runTimestamp.getTime() - params.missingDeleteAfterMs;
     const missingTransitions: MissingTransition[] = [];
     const deleteVins: string[] = [];
     let readExistingMs = 0;
@@ -460,11 +431,11 @@ function collectMissingTransitions(params: {
               dbClient
                 .select({
                   vin: vehicle.vin,
+                  source: vehicle.source,
                   missingSinceAt: vehicle.missingSinceAt,
                   missingRunCount: vehicle.missingRunCount,
                 })
                 .from(vehicle)
-                .where(inArray(vehicle.source, params.missingEligibleSources))
                 .orderBy(asc(vehicle.vin))
                 .limit(MISSING_SCAN_CHUNK_SIZE),
             )
@@ -472,16 +443,12 @@ function collectMissingTransitions(params: {
               dbClient
                 .select({
                   vin: vehicle.vin,
+                  source: vehicle.source,
                   missingSinceAt: vehicle.missingSinceAt,
                   missingRunCount: vehicle.missingRunCount,
                 })
                 .from(vehicle)
-                .where(
-                  and(
-                    inArray(vehicle.source, params.missingEligibleSources),
-                    gt(vehicle.vin, lastVinValue),
-                  ),
-                )
+                .where(gt(vehicle.vin, lastVinValue))
                 .orderBy(asc(vehicle.vin))
                 .limit(MISSING_SCAN_CHUNK_SIZE),
             );
@@ -492,29 +459,16 @@ function collectMissingTransitions(params: {
       }
 
       const planStartedAt = Date.now();
-      for (const existingVehicle of rows) {
-        if (params.finalInventoryByVin.has(existingVehicle.vin)) {
-          continue;
-        }
-
-        const missingSinceAt =
-          existingVehicle.missingSinceAt ?? params.runTimestamp;
-        const missingRunCount = (existingVehicle.missingRunCount ?? 0) + 1;
-        const shouldDelete =
-          missingRunCount >= params.missingDeleteAfterRuns ||
-          missingSinceAt.getTime() <= missingSinceCutoffMs;
-
-        if (shouldDelete) {
-          deleteVins.push(existingVehicle.vin);
-        }
-
-        missingTransitions.push({
-          vin: existingVehicle.vin,
-          changeType: shouldDelete ? "delete" : "missing",
-          missingSinceAt,
-          missingRunCount,
-        });
-      }
+      const pagePlan = planMissingTransitions({
+        finalInventoryByVin: params.finalInventoryByVin,
+        existingVehicles: rows,
+        runTimestamp: params.runTimestamp,
+        eligibleSources: params.eligibleSources,
+        missingDeleteAfterRuns: params.missingDeleteAfterRuns,
+        missingDeleteAfterMs: params.missingDeleteAfterMs,
+      });
+      missingTransitions.push(...pagePlan.missingTransitions);
+      deleteVins.push(...pagePlan.deleteVins);
       planMs += Date.now() - planStartedAt;
       lastVin = rows[rows.length - 1]?.vin ?? null;
     }
@@ -666,7 +620,7 @@ export function reconcileFromFinalInventory(
 
     if (
       options.finalInventoryByVin.size === 0 &&
-      !options.allowAdvanceMissingState
+      options.missingStatePolicy.kind === "skip"
     ) {
       return {
         upsertedCount: 0,
@@ -703,13 +657,13 @@ export function reconcileFromFinalInventory(
 
     let missingTransitions: MissingTransition[] = [];
     let deleteVins: string[] = [];
-    let skippedMissingAdvance = false;
+    const skippedMissingAdvance = options.missingStatePolicy.kind === "skip";
 
-    if (options.allowAdvanceMissingState) {
+    if (options.missingStatePolicy.kind === "advance") {
       const missingResult = yield* collectMissingTransitions({
         finalInventoryByVin: options.finalInventoryByVin,
         runTimestamp: options.runTimestamp,
-        missingEligibleSources: options.missingEligibleSources,
+        eligibleSources: options.missingStatePolicy.eligibleSources,
         missingDeleteAfterRuns: options.missingDeleteAfterRuns,
         missingDeleteAfterMs: options.missingDeleteAfterMs,
       });
@@ -723,8 +677,6 @@ export function reconcileFromFinalInventory(
           deleteVins: deleteVins.length,
         }),
       );
-    } else {
-      skippedMissingAdvance = true;
     }
 
     let upsertWriteMs = 0;

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  getIngestionStatusMessage,
   mapRunStatus,
   parseErrors,
   worstStatus,
@@ -8,15 +7,6 @@ import {
 } from "./status-utils";
 
 describe("status helpers", () => {
-  test("describes ingestion failures without claiming provider websites are offline", () => {
-    expect(getIngestionStatusMessage("degraded")).toBe(
-      "Some provider inventory was only partially refreshed during the latest ingestion run. Provider websites may still be available.",
-    );
-    expect(getIngestionStatusMessage("down")).toBe(
-      "Some provider inventory was not refreshed during the latest ingestion run. Provider websites may still be available.",
-    );
-  });
-
   test("maps source run statuses to public ingestion statuses", () => {
     expect(mapRunStatus("success")).toBe("operational");
     expect(mapRunStatus("running")).toBe("in_progress");

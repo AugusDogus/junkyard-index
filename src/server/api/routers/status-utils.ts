@@ -4,19 +4,6 @@ export type IngestionStatus =
   | "degraded"
   | "down";
 
-export function getIngestionStatusMessage(status: IngestionStatus): string {
-  switch (status) {
-    case "operational":
-      return "Inventory is up to date.";
-    case "in_progress":
-      return "Ingestion is currently running.";
-    case "degraded":
-      return "Some provider inventory was only partially refreshed during the latest ingestion run. Provider websites may still be available.";
-    case "down":
-      return "Some provider inventory was not refreshed during the latest ingestion run. Provider websites may still be available.";
-  }
-}
-
 export function mapRunStatus(status: string): IngestionStatus {
   switch (status) {
     case "success":
