@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { vehicle, vehicleChange } from "~/schema";
 import { PersistenceError } from "./errors";
@@ -21,6 +21,7 @@ interface ReconcileOptions {
   runTimestamp: Date;
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
   allowAdvanceMissingState: boolean;
+  missingEligibleSources: readonly SourceName[];
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
 }
@@ -218,6 +219,7 @@ export function createReconcilePlan(params: {
   existingVehicles: ExistingVehicleRow[];
   runTimestamp: Date;
   allowAdvanceMissingState: boolean;
+  missingEligibleSources: readonly SourceName[];
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
 }): ReconcilePlan {
@@ -253,9 +255,15 @@ export function createReconcilePlan(params: {
     params.runTimestamp.getTime() - params.missingDeleteAfterMs;
   const missingTransitions: MissingTransition[] = [];
   const deleteVins: string[] = [];
+  const missingEligibleSources: ReadonlySet<string> = new Set(
+    params.missingEligibleSources,
+  );
 
   for (const existingVehicle of params.existingVehicles) {
-    if (params.finalInventoryByVin.has(existingVehicle.vin)) {
+    if (
+      !missingEligibleSources.has(existingVehicle.source) ||
+      params.finalInventoryByVin.has(existingVehicle.vin)
+    ) {
       continue;
     }
 
@@ -411,6 +419,7 @@ function collectChangedUpserts(params: {
 function collectMissingTransitions(params: {
   finalInventoryByVin: ReadonlyMap<string, CanonicalVehicle>;
   runTimestamp: Date;
+  missingEligibleSources: readonly SourceName[];
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
 }): Effect.Effect<
@@ -424,6 +433,15 @@ function collectMissingTransitions(params: {
   Database
 > {
   return Effect.gen(function* () {
+    if (params.missingEligibleSources.length === 0) {
+      return {
+        missingTransitions: [],
+        deleteVins: [],
+        readExistingMs: 0,
+        planMs: 0,
+      };
+    }
+
     const dbClient = yield* Database;
     const missingSinceCutoffMs =
       params.runTimestamp.getTime() - params.missingDeleteAfterMs;
@@ -446,6 +464,7 @@ function collectMissingTransitions(params: {
                   missingRunCount: vehicle.missingRunCount,
                 })
                 .from(vehicle)
+                .where(inArray(vehicle.source, params.missingEligibleSources))
                 .orderBy(asc(vehicle.vin))
                 .limit(MISSING_SCAN_CHUNK_SIZE),
             )
@@ -457,7 +476,12 @@ function collectMissingTransitions(params: {
                   missingRunCount: vehicle.missingRunCount,
                 })
                 .from(vehicle)
-                .where(gt(vehicle.vin, lastVinValue))
+                .where(
+                  and(
+                    inArray(vehicle.source, params.missingEligibleSources),
+                    gt(vehicle.vin, lastVinValue),
+                  ),
+                )
                 .orderBy(asc(vehicle.vin))
                 .limit(MISSING_SCAN_CHUNK_SIZE),
             );
@@ -685,6 +709,7 @@ export function reconcileFromFinalInventory(
       const missingResult = yield* collectMissingTransitions({
         finalInventoryByVin: options.finalInventoryByVin,
         runTimestamp: options.runTimestamp,
+        missingEligibleSources: options.missingEligibleSources,
         missingDeleteAfterRuns: options.missingDeleteAfterRuns,
         missingDeleteAfterMs: options.missingDeleteAfterMs,
       });
