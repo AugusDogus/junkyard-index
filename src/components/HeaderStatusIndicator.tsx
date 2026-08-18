@@ -73,13 +73,13 @@ export function HeaderStatusIndicator({ data }: { data: HeaderStatusData }) {
   const ariaLabel = isInProgress
     ? "Ingestion currently in progress"
     : isDegraded
-      ? "Provider status degraded"
-      : "Provider status disruption";
+      ? "Inventory refresh degraded"
+      : "Inventory refresh failed";
   const title = isInProgress
     ? "Ingestion In Progress"
     : isDegraded
-      ? "Service Degraded"
-      : "Service Disruption";
+      ? "Inventory Refresh Degraded"
+      : "Inventory Refresh Failed";
 
   if (isMobile) {
     return (
