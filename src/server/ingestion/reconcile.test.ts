@@ -194,6 +194,7 @@ describe("reconcile helpers", () => {
       ],
       runTimestamp,
       allowAdvanceMissingState: true,
+      missingEligibleSources: ["pyp"],
       missingDeleteAfterRuns: 3,
       missingDeleteAfterMs: 3 * 24 * 60 * 60 * 1000,
     });
@@ -218,6 +219,7 @@ describe("reconcile helpers", () => {
       existingVehicles,
       runTimestamp,
       allowAdvanceMissingState: true,
+      missingEligibleSources: ["pyp"],
       missingDeleteAfterRuns: 3,
       missingDeleteAfterMs: 3 * 24 * 60 * 60 * 1000,
     });
@@ -238,5 +240,31 @@ describe("reconcile helpers", () => {
       },
     ]);
     expect(plan.deleteVins).toEqual(["VIN_DELETE"]);
+  });
+
+  test("advances missing state only for healthy sources", () => {
+    const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
+    const plan = createReconcilePlan({
+      finalInventoryByVin: new Map(),
+      existingVehicles: [
+        makeExistingVehicle("VIN_PYP"),
+        makeExistingVehicle("VIN_UPULLITNE", { source: "upullitne" }),
+      ],
+      runTimestamp,
+      allowAdvanceMissingState: true,
+      missingEligibleSources: ["pyp"],
+      missingDeleteAfterRuns: 3,
+      missingDeleteAfterMs: 3 * 24 * 60 * 60 * 1000,
+    });
+
+    expect(plan.missingTransitions).toEqual([
+      {
+        vin: "VIN_PYP",
+        changeType: "missing",
+        missingSinceAt: runTimestamp,
+        missingRunCount: 1,
+      },
+    ]);
+    expect(plan.deleteVins).toEqual([]);
   });
 });

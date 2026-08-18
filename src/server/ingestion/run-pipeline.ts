@@ -1133,6 +1133,7 @@ export const ingestionPipeline: Effect.Effect<
       finalInventoryByVin,
       allowAdvanceMissingState:
         shouldAdvanceMissingState(coreSourceOutcomes),
+      missingEligibleSources: healthySources,
       missingDeleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
       missingDeleteAfterMs: MISSING_DELETE_AFTER_MS,
     }).pipe(
