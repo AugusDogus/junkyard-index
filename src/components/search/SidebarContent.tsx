@@ -8,6 +8,10 @@ import {
 } from "~/components/ui/collapsible";
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
+import {
+  getMaxVehicleYear,
+  MIN_VEHICLE_YEAR,
+} from "~/lib/search-filter-bounds";
 import type { DataSource } from "~/lib/types";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
@@ -120,7 +124,7 @@ export function SidebarContent({
         </CollapsibleContent>
       </Collapsible>
 
-      {filterOptions.makes.length > 1 && (
+      {filterOptions.makes.length > 0 && (
         <Collapsible defaultOpen>
           <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
             <div className="flex items-center gap-2">
@@ -164,8 +168,8 @@ export function SidebarContent({
                 const [min, max] = value as [number, number];
                 onYearRangeChange([min, max]);
               }}
-              min={yearRangeLimits?.min ?? 1900}
-              max={yearRangeLimits?.max ?? new Date().getFullYear()}
+              min={yearRangeLimits?.min ?? MIN_VEHICLE_YEAR}
+              max={yearRangeLimits?.max ?? getMaxVehicleYear()}
               step={1}
               className="w-full"
               onPointerDown={(e) => e.stopPropagation()}

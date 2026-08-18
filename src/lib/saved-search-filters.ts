@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  getMaxVehicleYear,
+  MIN_VEHICLE_YEAR,
+} from "~/lib/search-filter-bounds";
 
 const SOURCE_VALUES = [
   "pyp",
@@ -7,8 +11,14 @@ const SOURCE_VALUES = [
   "pullapart",
   "upullitne",
 ] as const;
-const MIN_VEHICLE_YEAR = 1886;
-const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
+
+const vehicleYearSchema = z
+  .number()
+  .int()
+  .min(MIN_VEHICLE_YEAR)
+  .refine((year) => year <= getMaxVehicleYear(), {
+    message: "Vehicle year must be no later than next model year.",
+  });
 
 export const filtersSchema = z.object({
   makes: z.array(z.string()).optional(),
@@ -16,18 +26,8 @@ export const filtersSchema = z.object({
   states: z.array(z.string()).optional(),
   salvageYards: z.array(z.string()).optional(),
   sources: z.array(z.enum(SOURCE_VALUES)).optional(),
-  minYear: z
-    .number()
-    .int()
-    .min(MIN_VEHICLE_YEAR)
-    .max(MAX_VEHICLE_YEAR)
-    .optional(),
-  maxYear: z
-    .number()
-    .int()
-    .min(MIN_VEHICLE_YEAR)
-    .max(MAX_VEHICLE_YEAR)
-    .optional(),
+  minYear: vehicleYearSchema.optional(),
+  maxYear: vehicleYearSchema.optional(),
   sortBy: z.string().optional(),
 });
 
