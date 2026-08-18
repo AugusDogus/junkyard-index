@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth";
+import { getIngestionStatusMessage } from "~/server/api/routers/status-utils";
 import { api } from "~/trpc/server";
 import { HeaderContent } from "./HeaderContent";
 import type { HeaderStatusData } from "./HeaderStatusIndicator";
@@ -14,16 +15,9 @@ export async function Header() {
         .filter((p) => p.status !== "operational")
         .map((p) => p.name);
 
-      const message =
-        data.aggregateStatus === "in_progress"
-          ? "Ingestion is currently running."
-          : data.aggregateStatus === "degraded"
-          ? "Some yard data may be incomplete."
-          : "Some yard data is temporarily unavailable.";
-
       return {
         aggregateStatus: data.aggregateStatus,
-        message,
+        message: getIngestionStatusMessage(data.aggregateStatus),
         affected: affected.join(", "),
         statusPageUrl: data.statusPageUrl,
       };
