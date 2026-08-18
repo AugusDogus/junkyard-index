@@ -7,8 +7,8 @@ import {
 
 const DEFAULT_RETRYABLE_STATUS_CODES = [429, 502, 503, 504] as const;
 const FETCH_TIMEOUT_MS = 30_000;
-const RETRY_LIMIT = 2;
-const RETRY_BASE_DELAY_MS = 1_000;
+const RETRY_LIMIT = 5;
+const RETRY_BASE_DELAY_MS = 2_000;
 
 class PullapartNoDataError extends Data.TaggedError("PullapartNoDataError")<{
   context: string;
@@ -35,7 +35,7 @@ function buildRetrySchedule() {
   return Schedule.intersect(
     Schedule.recurs(RETRY_LIMIT),
     Schedule.exponential(Duration.millis(RETRY_BASE_DELAY_MS), 2),
-  );
+  ).pipe(Schedule.jittered);
 }
 
 function pullapartJsonRequest<T, I, R>(params: {

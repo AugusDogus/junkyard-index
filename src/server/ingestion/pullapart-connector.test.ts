@@ -96,6 +96,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function installPullapartFetchMock(options?: {
   detailResponse?: () => Response | Promise<Response>;
   imageResponse?: () => Response | Promise<Response>;
+  vehicleSearchResponse?: unknown;
 }) {
   globalThis.fetch = (async (input) => {
     const url =
@@ -114,7 +115,9 @@ function installPullapartFetchMock(options?: {
     }
 
     if (url.includes("/Vehicle/Search")) {
-      return jsonResponse(vehicleSearchResponse);
+      return jsonResponse(
+        options?.vehicleSearchResponse ?? vehicleSearchResponse,
+      );
     }
 
     if (url.includes("zippopotam.us")) {
@@ -147,6 +150,40 @@ afterEach(() => {
 });
 
 describe("streamPullapartInventory enrichment handling", () => {
+  test("paces inventory API enrichment requests", async () => {
+    const detailCallTimes: number[] = [];
+    const exact = Array.from({ length: 5 }, (_, index) => ({
+      ...vehicleSearchResponse[0]!.exact[0]!,
+      vinID: 1236492 + index,
+      ticketID: 1191613 + index,
+      vin: `2HNYD18866H5377${19 + index}`,
+    }));
+    installPullapartFetchMock({
+      vehicleSearchResponse: [
+        {
+          ...vehicleSearchResponse[0],
+          exact,
+        },
+      ],
+      detailResponse: () => {
+        detailCallTimes.push(Date.now());
+        return jsonResponse({}, 404);
+      },
+    });
+
+    const result = await Effect.runPromise(
+      streamPullapartInventory({
+        onBatch: () => Effect.succeed(undefined),
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
+    );
+
+    expect(result.count).toBe(5);
+    expect(detailCallTimes).toHaveLength(5);
+    expect(detailCallTimes[4]! - detailCallTimes[0]!).toBeGreaterThanOrEqual(
+      400,
+    );
+  });
+
   test("keeps rows when enrichment endpoints return expected no-data responses", async () => {
     installPullapartFetchMock();
     const batches: CanonicalVehicle[][] = [];
