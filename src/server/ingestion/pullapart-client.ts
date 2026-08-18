@@ -10,6 +10,10 @@ const FETCH_TIMEOUT_MS = 30_000;
 const RETRY_LIMIT = 5;
 const RETRY_BASE_DELAY_MS = 2_000;
 
+export interface PullapartRequestGate {
+  <A, E, R>(request: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>;
+}
+
 class PullapartNoDataError extends Data.TaggedError("PullapartNoDataError")<{
   context: string;
 }> {
@@ -45,10 +49,11 @@ function pullapartJsonRequest<T, I, R>(params: {
   method?: "GET" | "POST";
   body?: string;
   notFoundIsNoData?: boolean;
+  requestGate?: PullapartRequestGate;
 }): Effect.Effect<T, Error, R> {
   const retrySchedule = buildRetrySchedule();
 
-  return Effect.gen(function* () {
+  const requestAttempt = Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () =>
         fetch(params.url, {
@@ -102,7 +107,12 @@ function pullapartJsonRequest<T, I, R>(params: {
         new Error(`${params.context} returned invalid JSON: ${String(cause)}`),
     });
     return yield* Schema.decodeUnknown(params.schema)(json);
-  }).pipe(
+  });
+  const gatedRequestAttempt = params.requestGate
+    ? params.requestGate(requestAttempt)
+    : requestAttempt;
+
+  return gatedRequestAttempt.pipe(
     Effect.retry(
       retrySchedule.pipe(
         Schedule.whileInput<Error>((error) => isRetryablePullapartError(error)),
@@ -250,6 +260,7 @@ export function fetchPullapartLocations(): Effect.Effect<
 
 export function fetchPullapartMakesOnYard(
   locationId: number,
+  requestGate?: PullapartRequestGate,
 ): Effect.Effect<PullapartMake[], Error> {
   const url = new URL(
     `${API_ENDPOINTS.PULLAPART_INVENTORY_BASE}/Make/OnYard`,
@@ -259,13 +270,17 @@ export function fetchPullapartMakesOnYard(
     url: url.toString(),
     context: `Pull-A-Part makes on yard for location=${locationId}`,
     schema: Schema.Array(PullapartMakeSchema),
+    requestGate,
   }).pipe(Effect.map((makes) => [...makes]));
 }
 
 export function searchPullapartVehicles(params: {
   locationId: number;
   makeId: number;
-}): Effect.Effect<PullapartVehicleSearchGroup[], Error> {
+}, requestGate?: PullapartRequestGate): Effect.Effect<
+  PullapartVehicleSearchGroup[],
+  Error
+> {
   return pullapartJsonRequest({
     url: `${API_ENDPOINTS.PULLAPART_INVENTORY_BASE}/Vehicle/Search`,
     context: `Pull-A-Part vehicle search location=${params.locationId} make=${params.makeId}`,
@@ -277,6 +292,7 @@ export function searchPullapartVehicles(params: {
       Models: [],
       Years: [],
     }),
+    requestGate,
   }).pipe(Effect.map((groups) => [...groups]));
 }
 
@@ -286,12 +302,16 @@ export function fetchPullapartVehicleExtendedInfo(params: {
   locationId: number;
   ticketId: number;
   lineId: number;
-}): Effect.Effect<PullapartVehicleExtendedInfo | null, Error> {
+}, requestGate?: PullapartRequestGate): Effect.Effect<
+  PullapartVehicleExtendedInfo | null,
+  Error
+> {
   return pullapartJsonRequest({
     url: `${API_ENDPOINTS.PULLAPART_INVENTORY_BASE}/VehicleExtendedInfo/${params.locationId}/${params.ticketId}/${params.lineId}`,
     context: `Pull-A-Part vehicle extended info location=${params.locationId} ticket=${params.ticketId} line=${params.lineId}`,
     schema: PullapartVehicleExtendedInfoSchema,
     notFoundIsNoData: true,
+    requestGate,
   }).pipe(
     Effect.catchIf(isPullapartNoDataError, () => Effect.succeed(null)),
   );

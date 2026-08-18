@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth";
-import { getIngestionStatusMessage } from "~/server/api/routers/status-utils";
 import { api } from "~/trpc/server";
 import { HeaderContent } from "./HeaderContent";
 import type { HeaderStatusData } from "./HeaderStatusIndicator";
@@ -17,7 +16,6 @@ export async function Header() {
 
       return {
         aggregateStatus: data.aggregateStatus,
-        message: getIngestionStatusMessage(data.aggregateStatus),
         affected: affected.join(", "),
         statusPageUrl: data.statusPageUrl,
       };
