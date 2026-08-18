@@ -24,3 +24,9 @@ export function shouldAdvanceMissingState(
 ): boolean {
   return outcomes.every((outcome) => outcome.errors.length === 0);
 }
+
+export function shouldReportHeartbeatFailure(
+  outcomes: PipelineSourceOutcome[],
+): boolean {
+  return outcomes.some((outcome) => outcome.errors.length > 0);
+}
