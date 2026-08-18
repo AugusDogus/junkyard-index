@@ -1,5 +1,5 @@
 import { HttpClient } from "@effect/platform";
-import { Effect } from "effect";
+import { Effect, RateLimiter } from "effect";
 import {
   fetchPullapartVehicleExtendedInfo,
   fetchPullapartVehicleImage,
@@ -14,6 +14,7 @@ import { transformPullapartVehicle } from "./pullapart-transform";
 import type { CanonicalVehicle } from "./types";
 
 const VEHICLE_ENRICH_CONCURRENCY = 8;
+const INVENTORY_REQUESTS_PER_SECOND = 4;
 
 export interface PullapartStreamResult {
   source: "pullapart";
@@ -35,13 +36,18 @@ type PullapartProgress = {
   errors: string[];
 };
 
-export function streamPullapartInventory<E, R>(options: {
+interface PullapartStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   pagesPerChunk?: number;
   onProgress?: (
     progress: PullapartProgress,
   ) => Effect.Effect<void, E, R>;
-}): Effect.Effect<
+}
+
+function streamPullapartInventoryWithRateLimit<E, R>(
+  options: PullapartStreamOptions<E, R>,
+  inventoryRateLimit: RateLimiter.RateLimiter,
+): Effect.Effect<
   PullapartStreamResult,
   PullapartProviderError | E,
   R | HttpClient.HttpClient
@@ -97,7 +103,9 @@ export function streamPullapartInventory<E, R>(options: {
       const location = locations[locationIndex]!;
       const cursorPrefix = `${location.locationID}`;
 
-      const makes = yield* fetchPullapartMakesOnYard(location.locationID).pipe(
+      const makes = yield* inventoryRateLimit(
+        fetchPullapartMakesOnYard(location.locationID),
+      ).pipe(
         Effect.mapError(
           (cause) =>
             new PullapartProviderError({
@@ -119,10 +127,12 @@ export function streamPullapartInventory<E, R>(options: {
         const make = makes[makeIndex]!;
         nextCursor = `${location.locationID}:${make.makeID}`;
 
-        const response = yield* searchPullapartVehicles({
-          locationId: location.locationID,
-          makeId: make.makeID,
-        }).pipe(
+        const response = yield* inventoryRateLimit(
+          searchPullapartVehicles({
+            locationId: location.locationID,
+            makeId: make.makeID,
+          }),
+        ).pipe(
           Effect.mapError(
             (cause) =>
               new PullapartProviderError({
@@ -163,11 +173,13 @@ export function streamPullapartInventory<E, R>(options: {
         const enriched = yield* Effect.all(
           [...uniqueRowsByVin.values()].map((row) =>
             Effect.gen(function* () {
-              const detail = yield* fetchPullapartVehicleExtendedInfo({
-                locationId: row.locID,
-                ticketId: row.ticketID,
-                lineId: row.lineID,
-              });
+              const detail = yield* inventoryRateLimit(
+                fetchPullapartVehicleExtendedInfo({
+                  locationId: row.locID,
+                  ticketId: row.ticketID,
+                  lineId: row.lineID,
+                }),
+              );
 
               const imageUrl = yield* fetchPullapartVehicleImage({
                 locationId: row.locID,
@@ -226,4 +238,23 @@ export function streamPullapartInventory<E, R>(options: {
       stopped,
     };
   });
+}
+
+export function streamPullapartInventory<E, R>(
+  options: PullapartStreamOptions<E, R>,
+): Effect.Effect<
+  PullapartStreamResult,
+  PullapartProviderError | E,
+  R | HttpClient.HttpClient
+> {
+  return Effect.scoped(
+    RateLimiter.make({
+      limit: INVENTORY_REQUESTS_PER_SECOND,
+      interval: "1 second",
+    }).pipe(
+      Effect.flatMap((inventoryRateLimit) =>
+        streamPullapartInventoryWithRateLimit(options, inventoryRateLimit),
+      ),
+    ),
+  );
 }
