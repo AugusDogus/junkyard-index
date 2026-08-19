@@ -369,20 +369,6 @@ export const MorphingSearchBar = forwardRef<
             {term}
           </button>
         ))}
-        {vinPatternSearchReady && (
-          <button
-            type="button"
-            className="text-primary cursor-pointer font-mono underline hover:no-underline"
-            onClick={() => {
-              const example = "YV4C*85**********";
-              setInputValue(example);
-              if (debounceRef.current) clearTimeout(debounceRef.current);
-              void commitSearchValue(example);
-            }}
-          >
-            VIN pattern example
-          </button>
-        )}
       </div>
 
       {style && (
