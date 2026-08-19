@@ -4,6 +4,8 @@ export const INGESTION_SOURCES = [
   "autorecycler",
   "pullapart",
   "upullitne",
+  "upullitdavie",
+  "gopullit",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];

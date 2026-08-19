@@ -39,6 +39,8 @@ export interface DurableIngestionResult {
   autorecyclerCount: number;
   pullapartCount: number;
   upullitneCount: number;
+  upullitdavieCount: number;
+  gopullitCount: number;
   errors: string[];
   durationMs: number;
 }

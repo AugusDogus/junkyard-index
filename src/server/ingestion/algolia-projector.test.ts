@@ -66,6 +66,13 @@ describe("algolia-projector helpers", () => {
       trim: "EX",
       transmission: "Automatic",
     });
+
+    expect(
+      mapDbVehicleToCanonical({ ...row, source: "upullitdavie" }).source,
+    ).toBe("upullitdavie");
+    expect(mapDbVehicleToCanonical({ ...row, source: "gopullit" }).source).toBe(
+      "gopullit",
+    );
   });
 
   test("partitions delete and upsert vins by change type", () => {

@@ -29,6 +29,17 @@ export class RequestTimeoutError extends Data.TaggedError("RequestTimeoutError")
   }
 }
 
+export class ProviderRequestError extends Data.TaggedError(
+  "ProviderRequestError",
+)<{
+  context: string;
+  cause: unknown;
+}> {
+  override get message() {
+    return `${this.context} request failed: ${getCauseMessage(this.cause)}`;
+  }
+}
+
 export class PypProviderError extends Data.TaggedError("PypProviderError")<{
   page: number;
   cause: unknown;
@@ -122,6 +133,7 @@ export type IngestionError =
   | IngestionLockError
   | RetryableHttpStatusError
   | RequestTimeoutError
+  | ProviderRequestError
   | PypProviderError
   | Row52ProviderError
   | AutorecyclerProviderError

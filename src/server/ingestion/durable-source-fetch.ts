@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { streamAutorecyclerInventory } from "./autorecycler-connector";
+import { streamGopullitInventory } from "./gopullit-connector";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
 import {
   getDurableSourceDefinition,
@@ -11,6 +12,7 @@ import { streamPypInventory } from "./pyp-connector";
 import { streamRow52Inventory } from "./row52-connector";
 import { runIngestionEffect } from "./runtime";
 import { streamTapInventory } from "./tap-inventory-connector";
+import { streamUpullitDavieInventory } from "./upullit-davie-connector";
 import type { CanonicalVehicle } from "./types";
 
 type OnVehicleBatch = (
@@ -112,6 +114,30 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
         }).pipe(Effect.scoped),
       ),
       (storeIndex) => ({ source: "upullitne", storeIndex }),
+      context.vehiclesByVin,
+    ),
+  upullitdavie: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamUpullitDavieInventory({
+          onBatch: context.onBatch,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+        }),
+      ),
+      (nextCursor) => ({ source: "upullitdavie", ...nextCursor }),
+      context.vehiclesByVin,
+    ),
+  gopullit: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamGopullitInventory({
+          onBatch: context.onBatch,
+          startPage: cursor.page,
+          maxPages: context.maxPages,
+        }),
+      ),
+      (page) => ({ source: "gopullit", page }),
       context.vehiclesByVin,
     ),
 };
