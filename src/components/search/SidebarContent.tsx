@@ -6,17 +6,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "~/components/ui/field";
 import { Label } from "~/components/ui/label";
-import { Input } from "~/components/ui/input";
 import { Slider } from "~/components/ui/slider";
 import type { DataSource } from "~/lib/types";
-import { VinPattern } from "~/lib/vin-pattern";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 interface FilterOptions {
@@ -35,10 +27,6 @@ const SOURCE_LABELS: Record<DataSource, string> = {
 };
 
 interface SidebarContentProps {
-  vinPattern: string;
-  vinPatternError?: string;
-  vinPatternProgress?: string;
-  vinPatternSearchReady: boolean;
   makes: string[];
   colors: string[];
   states: string[];
@@ -52,7 +40,6 @@ interface SidebarContentProps {
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
-  onVinPatternChange: (pattern: string) => void;
   yearRangeLimits?: {
     min: number;
     max: number;
@@ -60,10 +47,6 @@ interface SidebarContentProps {
 }
 
 export function SidebarContent({
-  vinPattern,
-  vinPatternError,
-  vinPatternProgress,
-  vinPatternSearchReady,
   makes,
   colors,
   states,
@@ -77,7 +60,6 @@ export function SidebarContent({
   onSalvageYardsChange,
   onSourcesChange,
   onYearRangeChange,
-  onVinPatternChange,
   yearRangeLimits,
 }: SidebarContentProps) {
   const availableSources: DataSource[] = [
@@ -90,80 +72,6 @@ export function SidebarContent({
 
   return (
     <div className="space-y-6">
-      {vinPatternSearchReady && (
-        <Collapsible defaultOpen>
-          <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">VIN</span>
-              {vinPattern && !vinPatternError && !vinPatternProgress ? (
-                <Badge variant="secondary" className="text-[10px]">
-                  Active
-                </Badge>
-              ) : null}
-            </div>
-            <ChevronDown className="size-4" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2 px-2">
-            <Field
-              data-invalid={Boolean(vinPatternError)}
-              className="gap-2"
-            >
-              <FieldLabel htmlFor="vin-pattern">
-                VIN or VIN pattern
-              </FieldLabel>
-              <Input
-                id="vin-pattern"
-                value={vinPattern}
-                onChange={(event) => onVinPatternChange(event.target.value)}
-                placeholder="YV4C*85**********"
-                maxLength={VinPattern.maxInputLength}
-                autoCapitalize="characters"
-                autoComplete="off"
-                spellCheck={false}
-                aria-invalid={vinPatternError ? true : undefined}
-                aria-describedby={
-                  vinPatternError
-                    ? "vin-pattern-help vin-pattern-error"
-                    : "vin-pattern-help"
-                }
-                className="font-mono uppercase"
-              />
-              <FieldDescription
-                id="vin-pattern-help"
-                className="text-xs text-pretty"
-              >
-                {vinPatternProgress ? (
-                  `${vinPatternProgress} entered. Add characters or * until all positions are filled.`
-                ) : (
-                  <>
-                    Put known characters in their VIN position and use * for
-                    anything unknown.
-                    <span className="mt-1 block">
-                      Example: {" "}
-                      <code className="text-foreground font-mono">
-                        YV4C*85**********
-                      </code>
-                    </span>
-                    <span className="mt-1 block">
-                      Use [ABC] or [0-5] to match several characters at one
-                      position.
-                    </span>
-                  </>
-                )}
-              </FieldDescription>
-              {vinPatternError && (
-                <FieldError
-                  id="vin-pattern-error"
-                  className="text-xs text-pretty"
-                >
-                  {vinPatternError}
-                </FieldError>
-              )}
-            </Field>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
           <span className="font-medium">Salvage Yards</span>

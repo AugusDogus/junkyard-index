@@ -13,10 +13,6 @@ interface FilterOptions {
 }
 
 interface SidebarProps {
-  vinPattern: string;
-  vinPatternError?: string;
-  vinPatternProgress?: string;
-  vinPatternSearchReady: boolean;
   showFilters: boolean;
   setShowFilters: (show: boolean) => void;
   activeFilterCount: number;
@@ -34,7 +30,6 @@ interface SidebarProps {
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
-  onVinPatternChange: (pattern: string) => void;
   yearRangeLimits?: {
     min: number;
     max: number;
@@ -42,10 +37,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  vinPattern,
-  vinPatternError,
-  vinPatternProgress,
-  vinPatternSearchReady,
   showFilters,
   setShowFilters,
   activeFilterCount,
@@ -63,7 +54,6 @@ export function Sidebar({
   onSalvageYardsChange,
   onSourcesChange,
   onYearRangeChange,
-  onVinPatternChange,
   yearRangeLimits,
 }: SidebarProps) {
   return (
@@ -71,7 +61,7 @@ export function Sidebar({
       {showFilters && (
         <div className="h-full w-full shrink-0">
           <Card className="h-full gap-0 overflow-hidden py-0">
-            <CardHeader className="shrink-0 p-4">
+            <CardHeader className="shrink-0 gap-0 px-4 py-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-bold">Filters</CardTitle>
                 <div className="flex items-center gap-2">
@@ -105,10 +95,6 @@ export function Sidebar({
 
             <CardContent className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
               <SidebarContent
-                vinPattern={vinPattern}
-                vinPatternError={vinPatternError}
-                vinPatternProgress={vinPatternProgress}
-                vinPatternSearchReady={vinPatternSearchReady}
                 makes={makes}
                 colors={colors}
                 states={states}
@@ -122,7 +108,6 @@ export function Sidebar({
                 onSalvageYardsChange={onSalvageYardsChange}
                 onSourcesChange={onSourcesChange}
                 onYearRangeChange={onYearRangeChange}
-                onVinPatternChange={onVinPatternChange}
                 yearRangeLimits={yearRangeLimits}
               />
             </CardContent>
