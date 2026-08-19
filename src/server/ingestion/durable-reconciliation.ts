@@ -79,6 +79,8 @@ export async function reconcileDurableIngestionRun(params: {
     autorecyclerCount: countFor("autorecycler"),
     pullapartCount: countFor("pullapart"),
     upullitneCount: countFor("upullitne"),
+    upullitdavieCount: countFor("upullitdavie"),
+    gopullitCount: countFor("gopullit"),
     errors: values.errors,
     durationMs: values.completedAt.getTime() - run.startedAt.getTime(),
   });
@@ -115,6 +117,8 @@ export async function reconcileDurableIngestionRun(params: {
     autorecyclerByVin: snapshots.get("autorecycler") ?? new Map(),
     pullapartByVin: snapshots.get("pullapart") ?? new Map(),
     upullitneByVin: snapshots.get("upullitne") ?? new Map(),
+    upullitdavieByVin: snapshots.get("upullitdavie") ?? new Map(),
+    gopullitByVin: snapshots.get("gopullit") ?? new Map(),
   });
   const coreOutcomes = outcomes.filter(
     (outcome) =>

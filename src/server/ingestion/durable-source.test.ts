@@ -55,4 +55,20 @@ describe("durable ingestion cursors", () => {
       skip: 0,
     });
   });
+
+  test("round trips the Davie catalog metadata needed across chunks", () => {
+    const cursor = {
+      source: "upullitdavie" as const,
+      page: 25,
+      totalPages: 61,
+      totalCount: 1_460,
+      recordsProcessed: 576,
+    };
+    expect(
+      parseDurableSourceCursor(
+        "upullitdavie",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toEqual(cursor);
+  });
 });

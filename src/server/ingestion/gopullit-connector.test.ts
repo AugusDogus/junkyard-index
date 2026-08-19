@@ -1,0 +1,167 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import { Effect } from "effect";
+import { streamGopullitInventoryWithRequestGate } from "./gopullit-connector";
+import type { ProviderRequestGate } from "./provider-http-client";
+import type { CanonicalVehicle } from "./types";
+
+const originalFetch = globalThis.fetch;
+const noRateLimit: ProviderRequestGate = (request) => request;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function completeRecord(index: number) {
+  return {
+    id: 333000 + index,
+    title: `GPI${String(index).padStart(7, "0")}`,
+    created_at: "2026-08-18 20:19:59",
+    location: String(100 + index),
+    make: "HONDA",
+    model: "ACCORD",
+    vin: `VIN${String(index).padStart(14, "0")}`,
+    yardCity: "JACKSONVILLE ",
+    yardDate: "08/17/26",
+    yardState: "FL",
+    year: "2012",
+  };
+}
+
+describe("GO Pull-It catalog streaming", () => {
+  test("crawls JSON pages until the first short page", async () => {
+    const requestedUrls: URL[] = [];
+    const requestCookies: Array<string | null> = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(
+          input instanceof Request ? input.url : input.toString(),
+        );
+        requestedUrls.push(url);
+        const headers = new Headers(init?.headers);
+        requestCookies.push(headers.get("cookie"));
+        const page = Number.parseInt(url.searchParams.get("page") ?? "", 10);
+        const body =
+          page === 1
+            ? Array.from({ length: 10 }, (_, index) => completeRecord(index))
+            : page === 2
+              ? [
+                  completeRecord(10),
+                  completeRecord(0),
+                  {
+                    id: 333600,
+                    title: "203122103578",
+                    created_at: "2026-08-18 20:20:04",
+                  },
+                ]
+              : [];
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers:
+            page === 1
+              ? { "set-cookie": "__cf_bm=test-session; Path=/; Secure" }
+              : undefined,
+        });
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const batches: CanonicalVehicle[][] = [];
+    const result = await Effect.runPromise(
+      streamGopullitInventoryWithRequestGate(
+        {
+          onBatch: (vehicles) =>
+            Effect.sync(() => {
+              batches.push(vehicles);
+            }),
+        },
+        noRateLimit,
+      ),
+    );
+
+    expect(result).toMatchObject({
+      count: 11,
+      pagesProcessed: 2,
+      cursor: 3,
+      status: "complete",
+    });
+    expect(batches.flat()).toHaveLength(11);
+    expect(requestedUrls).toHaveLength(25);
+    expect(requestCookies[0]).toBeNull();
+    expect(
+      requestCookies
+        .slice(1)
+        .every((cookie) => cookie === "__cf_bm=test-session"),
+    ).toBe(true);
+    expect(
+      requestedUrls.every(
+        (url) =>
+          url.pathname === "/wp-json/apppresser/v1/inventory" &&
+          url.searchParams.has("page") &&
+          !url.searchParams.has("make") &&
+          !url.searchParams.has("model"),
+      ),
+    ).toBe(true);
+  });
+
+  test("pauses at a durable page boundary", async () => {
+    const requestedPages: number[] = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        const url = new URL(
+          input instanceof Request ? input.url : input.toString(),
+        );
+        const page = Number.parseInt(url.searchParams.get("page") ?? "", 10);
+        requestedPages.push(page);
+        return new Response(
+          JSON.stringify(
+            Array.from({ length: 10 }, (_, index) =>
+              completeRecord((page - 1) * 10 + index),
+            ),
+          ),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const result = await Effect.runPromise(
+      streamGopullitInventoryWithRequestGate(
+        { onBatch: () => Effect.void, maxPages: 1, startPage: 4 },
+        noRateLimit,
+      ),
+    );
+
+    expect(result).toMatchObject({
+      cursor: 5,
+      pagesProcessed: 1,
+      status: "paused",
+    });
+    expect(requestedPages).toEqual([4]);
+  });
+
+  test("rejects a catalog dominated by incomplete records", async () => {
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              id: 333600,
+              title: "203122103578",
+              created_at: "2026-08-18 20:20:04",
+            },
+          ]),
+          { status: 200 },
+        ),
+      { preconnect: originalFetch.preconnect },
+    );
+
+    await expect(
+      Effect.runPromise(
+        streamGopullitInventoryWithRequestGate(
+          { onBatch: () => Effect.void },
+          noRateLimit,
+        ),
+      ),
+    ).rejects.toThrow("the catalog was not reconciled");
+  });
+});

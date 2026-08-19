@@ -33,6 +33,8 @@ try {
   console.log(`PYP vehicles: ${result.pypCount}`);
   console.log(`Pull-A-Part vehicles: ${result.pullapartCount}`);
   console.log(`U Pull-It Nebraska vehicles: ${result.upullitneCount}`);
+  console.log(`U Pull It Davie vehicles: ${result.upullitdavieCount}`);
+  console.log(`GO Pull-It vehicles: ${result.gopullitCount}`);
   console.log(`Row52 vehicles: ${result.row52Count}`);
   console.log(`AutoRecycler vehicles: ${result.autorecyclerCount}`);
   console.log(`Total upserted: ${result.totalUpserted}`);

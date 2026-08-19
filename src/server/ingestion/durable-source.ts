@@ -10,6 +10,12 @@ const Row52CursorPayloadSchema = z.object({
   locationIds: z.array(NonNegativeIntegerSchema),
   skip: NonNegativeIntegerSchema,
 });
+const UpullitDavieCursorPayloadSchema = z.object({
+  page: z.number().int().positive().safe(),
+  totalPages: z.number().int().positive().safe().nullable(),
+  totalCount: NonNegativeIntegerSchema.nullable(),
+  recordsProcessed: NonNegativeIntegerSchema,
+});
 
 export type DurableSourceCursor =
   | {
@@ -21,7 +27,15 @@ export type DurableSourceCursor =
   | { source: "pyp"; page: number }
   | { source: "autorecycler"; from: number }
   | { source: "pullapart"; locationId: number; makeId: number }
-  | { source: "upullitne"; storeIndex: number };
+  | { source: "upullitne"; storeIndex: number }
+  | {
+      source: "upullitdavie";
+      page: number;
+      totalPages: number | null;
+      totalCount: number | null;
+      recordsProcessed: number;
+    }
+  | { source: "gopullit"; page: number };
 
 export type Row52DurableCursor = Extract<
   DurableSourceCursor,
@@ -138,6 +152,37 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
       storeIndex: parseNonNegativeInteger(value, "upullitne"),
     }),
   },
+  upullitdavie: {
+    initialCursor: {
+      source: "upullitdavie",
+      page: 1,
+      totalPages: null,
+      totalCount: null,
+      recordsProcessed: 0,
+    },
+    maxPagesPerChunk: 24,
+    parseCursor: (value) => {
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(value);
+      } catch {
+        throw new Error(`Invalid upullitdavie ingestion cursor: ${value}`);
+      }
+      const parsed = UpullitDavieCursorPayloadSchema.safeParse(parsedJson);
+      if (!parsed.success) {
+        throw new Error(`Invalid upullitdavie ingestion cursor: ${value}`);
+      }
+      return { source: "upullitdavie", ...parsed.data };
+    },
+  },
+  gopullit: {
+    initialCursor: { source: "gopullit", page: 1 },
+    maxPagesPerChunk: 24,
+    parseCursor: (value) => ({
+      source: "gopullit",
+      page: parseNonNegativeInteger(value, "gopullit"),
+    }),
+  },
 };
 
 export function getDurableSourceDefinition<
@@ -176,6 +221,15 @@ export function serializeDurableSourceCursor(
       return `${cursor.locationId}:${cursor.makeId}`;
     case "upullitne":
       return String(cursor.storeIndex);
+    case "upullitdavie":
+      return JSON.stringify({
+        page: cursor.page,
+        totalPages: cursor.totalPages,
+        totalCount: cursor.totalCount,
+        recordsProcessed: cursor.recordsProcessed,
+      });
+    case "gopullit":
+      return String(cursor.page);
   }
 }
 
@@ -209,5 +263,15 @@ export function durableSourceCursorEquals(
       return (
         right.source === "upullitne" && left.storeIndex === right.storeIndex
       );
+    case "upullitdavie":
+      return (
+        right.source === "upullitdavie" &&
+        left.page === right.page &&
+        left.totalPages === right.totalPages &&
+        left.totalCount === right.totalCount &&
+        left.recordsProcessed === right.recordsProcessed
+      );
+    case "gopullit":
+      return right.source === "gopullit" && left.page === right.page;
   }
 }

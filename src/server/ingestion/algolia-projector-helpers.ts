@@ -9,11 +9,15 @@ export function mapDbVehicleToCanonical(
       ? "row52"
       : row.source === "pullapart"
         ? "pullapart"
-      : row.source === "upullitne"
-        ? "upullitne"
-      : row.source === "autorecycler"
-        ? "autorecycler"
-        : "pyp";
+        : row.source === "upullitne"
+          ? "upullitne"
+          : row.source === "upullitdavie"
+            ? "upullitdavie"
+            : row.source === "gopullit"
+              ? "gopullit"
+              : row.source === "autorecycler"
+                ? "autorecycler"
+                : "pyp";
   return {
     vin: row.vin,
     source,

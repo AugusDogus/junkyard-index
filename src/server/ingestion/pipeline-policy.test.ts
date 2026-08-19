@@ -14,6 +14,8 @@ describe("pipeline policy", () => {
       { source: "autorecycler", count: 5000, errors: [] },
       { source: "pullapart", count: 25000, errors: [] },
       { source: "upullitne", count: 2486, errors: [] },
+      { source: "upullitdavie", count: 1460, errors: [] },
+      { source: "gopullit", count: 4800, errors: [] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([
@@ -22,6 +24,8 @@ describe("pipeline policy", () => {
       "autorecycler",
       "pullapart",
       "upullitne",
+      "upullitdavie",
+      "gopullit",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(true);
     expect(shouldReportHeartbeatFailure(outcomes)).toBe(false);
@@ -38,6 +42,8 @@ describe("pipeline policy", () => {
       { source: "autorecycler", count: 100, errors: [] },
       { source: "pullapart", count: 25000, errors: [] },
       { source: "upullitne", count: 2486, errors: [] },
+      { source: "upullitdavie", count: 1460, errors: [] },
+      { source: "gopullit", count: 4800, errors: [] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([
@@ -45,6 +51,8 @@ describe("pipeline policy", () => {
       "autorecycler",
       "pullapart",
       "upullitne",
+      "upullitdavie",
+      "gopullit",
     ]);
     expect(shouldAdvanceMissingState(outcomes)).toBe(false);
     expect(shouldReportHeartbeatFailure(outcomes)).toBe(true);
@@ -57,6 +65,8 @@ describe("pipeline policy", () => {
       { source: "autorecycler", count: 0, errors: ["AutoRecycler failed"] },
       { source: "pullapart", count: 0, errors: ["Pull-A-Part failed"] },
       { source: "upullitne", count: 0, errors: ["U Pull-It Nebraska failed"] },
+      { source: "upullitdavie", count: 0, errors: ["U Pull It Davie failed"] },
+      { source: "gopullit", count: 0, errors: ["GO Pull-It failed"] },
     ];
 
     expect(determineHealthySources(outcomes)).toEqual([]);

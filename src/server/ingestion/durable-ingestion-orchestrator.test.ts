@@ -20,6 +20,8 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
   autorecyclerCount: 0,
   pullapartCount: 0,
   upullitneCount: 0,
+  upullitdavieCount: 0,
+  gopullitCount: 0,
   errors: [],
   durationMs: 10,
 };
