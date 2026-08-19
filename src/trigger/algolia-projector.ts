@@ -1,4 +1,4 @@
-import { logger, task, timeout } from "@trigger.dev/sdk";
+import { logger, tags, task, timeout } from "@trigger.dev/sdk";
 import { runAlgoliaProjector } from "~/server/ingestion/algolia-projector";
 import { algoliaWritesQueue } from "./queues";
 
@@ -24,7 +24,15 @@ export const vehicleAlgoliaProjectorTask = task({
   id: "vehicle-algolia-projector",
   maxDuration: timeout.None,
   queue: algoliaWritesQueue,
+  retry: {
+    maxAttempts: 3,
+    factor: 2,
+    minTimeoutInMs: 1_000,
+    maxTimeoutInMs: 30_000,
+    randomize: true,
+  },
   run: async () => {
+    await tags.add("operation:algolia-projector");
     return executeAlgoliaProjector();
   },
 });
