@@ -41,6 +41,14 @@ describe("VinPattern", () => {
     expect(VinPattern.parse("YV4C[9-0]5**********").success).toBe(false);
   });
 
+  test("recognizes exact VINs and pattern syntax as search candidates", () => {
+    expect(VinPattern.isSearchCandidate("YV4CZ982981470348")).toBe(true);
+    expect(VinPattern.isSearchCandidate("YV4C*85")).toBe(true);
+    expect(VinPattern.isSearchCandidate("YV4C[0-5]5")).toBe(true);
+    expect(VinPattern.isSearchCandidate("Volvo XC90")).toBe(false);
+    expect(VinPattern.isSearchCandidate("YV4C85")).toBe(false);
+  });
+
   test("creates stable index tokens", () => {
     expect(VinPattern.toIndexTokens("yv4c85")).toEqual([
       "0:Y",

@@ -25,7 +25,7 @@ import {
   useStats,
 } from "react-instantsearch";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
-import { useQueryState } from "nuqs";
+import { parseAsString, useQueryState, useQueryStates } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import { MorphingFilterBar } from "~/components/search/MorphingFilterBar";
@@ -359,8 +359,13 @@ function AlgoliaSearchInner({
         query.state.data?.vinPatternSearchReady ? false : 10_000,
     },
   );
-  const vinPatternSearchReady =
+  const vinPatternIndexReady =
     searchCapabilities?.vinPatternSearchReady ?? false;
+  // Local UI sandbox only. The real Algolia filter remains gated below.
+  const vinPatternPreview =
+    process.env.NODE_ENV === "development" &&
+    searchParams.get("previewVinPattern") === "1";
+  const vinPatternSearchReady = vinPatternIndexReady || vinPatternPreview;
   const {
     data: accountLocationPreference,
     isLoading: isAccountLocationPreferenceLoading,
@@ -385,35 +390,20 @@ function AlgoliaSearchInner({
 
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
-  const [vinPatternParam, setVinPatternParam] = useQueryState("vin");
+  const [{ vin: vinPatternParam }, setSearchModeParams] = useQueryStates({
+    q: parseAsString,
+    vin: parseAsString,
+  });
   const vinPattern = vinPatternParam ?? "";
   const parsedVinPattern = useMemo(
     () => (vinPattern ? VinPattern.parse(vinPattern) : null),
     [vinPattern],
   );
-  const vinPatternError =
-    parsedVinPattern &&
-    !parsedVinPattern.success &&
-    parsedVinPattern.error.type !== "wrong_length"
-      ? VinPattern.errorMessage(parsedVinPattern.error)
-      : undefined;
-  const vinPatternProgress =
-    parsedVinPattern &&
-    !parsedVinPattern.success &&
-    parsedVinPattern.error.type === "wrong_length"
-      ? `${parsedVinPattern.error.positions} of ${VinPattern.length} positions`
-      : undefined;
-  const effectiveVinPatternError = vinPatternSearchReady
-    ? vinPatternError
-    : undefined;
-  const effectiveVinPatternProgress = vinPatternSearchReady
-    ? vinPatternProgress
-    : undefined;
   const vinPatternFilter =
     parsedVinPattern?.success === true
       ? VinPattern.toAlgoliaFilter(parsedVinPattern.data)
       : undefined;
-  const effectiveVinPatternFilter = vinPatternSearchReady
+  const effectiveVinPatternFilter = vinPatternIndexReady
     ? vinPatternFilter
     : undefined;
 
@@ -772,8 +762,7 @@ function AlgoliaSearchInner({
     selectedStates.length +
     selectedLocations.length +
     selectedSources.length +
-    (isYearFiltered ? 1 : 0) +
-    (effectiveVinPatternFilter ? 1 : 0);
+    (isYearFiltered ? 1 : 0);
 
   const currentSaveSearchFilters = useMemo(
     () => ({
@@ -800,7 +789,7 @@ function AlgoliaSearchInner({
     ],
   );
 
-  // VIN filters can run alone or narrow a year/make/model query.
+  // VIN searches can run alone from the primary search bar.
   const hasActiveSearch =
     query.length > 0 || Boolean(effectiveVinPatternFilter);
 
@@ -1041,16 +1030,20 @@ function AlgoliaSearchInner({
     });
     clearRefinements();
     refineSortBy(ALGOLIA_INDEX_NAME);
-    void setVinPatternParam(null);
+    void setSearchModeParams({ vin: null });
     setShowFilters(false);
-  }, [activeFilterCount, clearRefinements, refineSortBy, setVinPatternParam]);
+  }, [activeFilterCount, clearRefinements, refineSortBy, setSearchModeParams]);
 
-  const handleVinPatternChange = useCallback(
-    (pattern: string) => {
-      const normalized = VinPattern.normalize(pattern);
-      void setVinPatternParam(normalized || null);
+  const handleSearchModeChange = useCallback(
+    async (value: { query: string | null; vinPattern: string | null }) => {
+      await setSearchModeParams({
+        q: value.query,
+        vin: value.vinPattern
+          ? VinPattern.normalize(value.vinPattern)
+          : null,
+      });
     },
-    [setVinPatternParam],
+    [setSearchModeParams],
   );
 
   // Helper: toggle only the values that changed between current and next.
@@ -1102,35 +1095,50 @@ function AlgoliaSearchInner({
     [refineYear],
   );
 
+  const analyticsSearchValue = effectiveVinPatternFilter ? vinPattern : query;
+
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
   useEffect(() => {
-    if (!query || isSearching || error) return;
-    if (lastTrackedQuery.current === query) return;
-    lastTrackedQuery.current = query;
+    if (!analyticsSearchValue || isSearching || error) return;
+    if (lastTrackedQuery.current === analyticsSearchValue) return;
+    lastTrackedQuery.current = analyticsSearchValue;
 
-    const ctx = buildSearchContext(query, nbHits, processingTimeMS, 0);
+    const ctx = buildSearchContext(
+      analyticsSearchValue,
+      nbHits,
+      processingTimeMS,
+      0,
+    );
 
     if (nbHits === 0) {
       posthog.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
     } else {
       posthog.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
     }
-  }, [query, isSearching, error, nbHits, processingTimeMS]);
+  }, [analyticsSearchValue, isSearching, error, nbHits, processingTimeMS]);
 
   useEffect(() => {
-    if (!query || !isAnonymousCapped || isSearching || error) return;
-    if (lastTrackedResultCapQuery.current === query) return;
-    lastTrackedResultCapQuery.current = query;
+    if (!analyticsSearchValue || !isAnonymousCapped || isSearching || error)
+      return;
+    if (lastTrackedResultCapQuery.current === analyticsSearchValue) return;
+    lastTrackedResultCapQuery.current = analyticsSearchValue;
 
     posthog.capture(AnalyticsEvents.RESULT_CAP_REACHED, {
       source_page: "search",
-      query,
-      query_length: query.trim().length,
+      query: analyticsSearchValue,
+      query_length: analyticsSearchValue.trim().length,
       result_count: nbHits,
       visible_result_count: anonymousVisibleLimit,
       is_logged_in: false,
     });
-  }, [query, isAnonymousCapped, isSearching, error, nbHits]);
+  }, [
+    analyticsSearchValue,
+    isAnonymousCapped,
+    isSearching,
+    error,
+    nbHits,
+    anonymousVisibleLimit,
+  ]);
 
   useEffect(() => {
     if (!locationPreferenceReady) {
@@ -1190,10 +1198,6 @@ function AlgoliaSearchInner({
 
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
-      vinPattern={vinPattern}
-      vinPatternError={effectiveVinPatternError}
-      vinPatternProgress={effectiveVinPatternProgress}
-      vinPatternSearchReady={vinPatternSearchReady}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
@@ -1209,7 +1213,6 @@ function AlgoliaSearchInner({
       onSalvageYardsChange={handleLocationsChange}
       onSourcesChange={handleSourcesChange}
       onYearRangeChange={handleYearRangeChange}
-      onVinPatternChange={handleVinPatternChange}
       yearRangeLimits={{ min: yearMin, max: yearMax }}
       iconOnly={hasActiveSearch}
     />
@@ -1250,7 +1253,12 @@ function AlgoliaSearchInner({
         }}
       />
       <ErrorBoundary>
-        <MorphingSearchBar />
+        <MorphingSearchBar
+          vinPattern={vinPattern}
+          vinPatternPreview={vinPatternPreview}
+          vinPatternSearchReady={vinPatternSearchReady}
+          onSearchModeChange={handleSearchModeChange}
+        />
       </ErrorBoundary>
 
       {!hasActiveSearch && !isSearching && (
@@ -1271,10 +1279,6 @@ function AlgoliaSearchInner({
         {!isMobile && showFilters && (
           <div className="sticky top-24 h-[calc(100vh-112px)] w-64 shrink-0 lg:w-80">
             <Sidebar
-              vinPattern={vinPattern}
-              vinPatternError={effectiveVinPatternError}
-              vinPatternProgress={effectiveVinPatternProgress}
-              vinPatternSearchReady={vinPatternSearchReady}
               showFilters={showFilters}
               setShowFilters={setShowFilters}
               activeFilterCount={activeFilterCount}
@@ -1292,7 +1296,6 @@ function AlgoliaSearchInner({
               onSalvageYardsChange={handleLocationsChange}
               onSourcesChange={handleSourcesChange}
               onYearRangeChange={handleYearRangeChange}
-              onVinPatternChange={handleVinPatternChange}
               yearRangeLimits={{ min: yearMin, max: yearMax }}
             />
           </div>
@@ -1524,7 +1527,7 @@ function AlgoliaSearchInner({
                           {
                             source_page: "search",
                             cta_location: "no_results",
-                            query,
+    analyticsSearchValue,
                             result_count: 0,
                             visible_result_count: 0,
                           },
@@ -1589,8 +1592,15 @@ function createRouting(indexName: string) {
       }): string {
         const baseUrl = location.href.split("?")[0]!;
         const params = new URLSearchParams();
-        const vinPattern = new URLSearchParams(location.search).get("vin");
+        const locationParams = new URLSearchParams(location.search);
+        const vinPattern = locationParams.get("vin");
         if (vinPattern) params.set("vin", vinPattern);
+        if (
+          process.env.NODE_ENV === "development" &&
+          locationParams.get("previewVinPattern") === "1"
+        ) {
+          params.set("previewVinPattern", "1");
+        }
 
         const state = routeState[indexName] as
           | Record<string, unknown>
@@ -1600,7 +1610,9 @@ function createRouting(indexName: string) {
           return qs ? `${baseUrl}?${qs}` : baseUrl;
         }
 
-        if (state.query) params.set("q", state.query as string);
+        if (state.query && !vinPattern) {
+          params.set("q", state.query as string);
+        }
         if (state.makes)
           params.set("makes", (state.makes as string[]).join(","));
         if (state.colors)
@@ -1623,7 +1635,8 @@ function createRouting(indexName: string) {
         const state: Record<string, unknown> = {};
 
         const q = params.get("q");
-        if (q) state.query = q;
+        const vinPattern = params.get("vin");
+        if (q && !vinPattern) state.query = q;
 
         const makes = params.get("makes");
         if (makes) state.makes = makes.split(",").filter(Boolean);

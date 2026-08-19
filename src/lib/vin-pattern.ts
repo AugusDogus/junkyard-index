@@ -131,6 +131,16 @@ function normalize(input: string): string {
   return input.trim().toUpperCase();
 }
 
+function isSearchCandidate(input: string): boolean {
+  const normalized = normalize(input);
+  return (
+    normalized.includes("[") ||
+    normalized.includes("]") ||
+    normalized.includes("*") ||
+    (normalized.length === VIN_LENGTH && !/\s/.test(normalized))
+  );
+}
+
 function errorMessage(error: VinPatternError): string {
   switch (error.type) {
     case "invalid_character":
@@ -169,6 +179,7 @@ export const VinPattern = {
   length: VIN_LENGTH,
   maxInputLength: VIN_LENGTH * 5,
   normalize,
+  isSearchCandidate,
   parse,
   errorMessage,
   toAlgoliaFilter,
