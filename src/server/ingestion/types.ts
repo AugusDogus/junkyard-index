@@ -1,3 +1,5 @@
+import { VinPattern } from "~/lib/vin-pattern";
+
 /**
  * Canonical vehicle type matching the Turso `vehicle` table.
  * This is the system-of-record representation used by all ingestion connectors.
@@ -39,6 +41,7 @@ export interface CanonicalVehicle {
  */
 export interface AlgoliaVehicleRecord {
   objectID: string;
+  vinPositionTokens: string[];
   source: "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne";
   year: number;
   make: string;
@@ -98,6 +101,7 @@ export function toAlgoliaRecord(
 
   return {
     objectID: vehicle.vin,
+    vinPositionTokens: VinPattern.toIndexTokens(vehicle.vin),
     source: vehicle.source,
     year: vehicle.year,
     make: vehicle.make,

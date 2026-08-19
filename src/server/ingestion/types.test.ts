@@ -36,6 +36,25 @@ describe("toAlgoliaRecord", () => {
     const record = toAlgoliaRecord(vehicle, firstSeenAt, null, 0);
 
     expect(record.objectID).toBe("1FADP3F29FL123456");
+    expect(record.vinPositionTokens).toEqual([
+      "0:1",
+      "1:F",
+      "2:A",
+      "3:D",
+      "4:P",
+      "5:3",
+      "6:F",
+      "7:2",
+      "8:9",
+      "9:F",
+      "10:L",
+      "11:1",
+      "12:2",
+      "13:3",
+      "14:4",
+      "15:5",
+      "16:6",
+    ]);
     expect(record.source).toBe("row52");
     expect(record.year).toBe(2015);
     expect(record.make).toBe("FORD");

@@ -657,7 +657,9 @@ export function SettingsDashboard() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{search.name}</p>
                     <p className="text-muted-foreground truncate text-sm">
-                      {search.query || "All vehicles"}
+                      {search.query ||
+                        search.filters.vinPattern ||
+                        "All vehicles"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

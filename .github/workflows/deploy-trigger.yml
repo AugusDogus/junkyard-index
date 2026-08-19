@@ -1,0 +1,40 @@
+name: Deploy Trigger.dev
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: trigger-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+        env:
+          SKIP_ENV_VALIDATION: "1"
+
+      - name: Deploy Trigger.dev tasks
+        run: bun run trigger:deploy
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+
+      - name: Start search index migration
+        run: bun run search-index:migrate
+        env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}

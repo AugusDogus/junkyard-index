@@ -127,7 +127,7 @@ export function SavedSearchesDropdown({
             <div className="flex flex-col">
               <span className="font-medium">{search.name}</span>
               <span className="text-muted-foreground text-xs">
-                {search.query || "No query"}
+                {search.query || search.filters.vinPattern || "All vehicles"}
               </span>
             </div>
             <Button

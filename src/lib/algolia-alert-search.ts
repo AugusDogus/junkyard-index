@@ -1,8 +1,10 @@
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type { SearchVehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
+import { VinPattern } from "~/lib/vin-pattern";
 
 export interface AlertFilters {
+  vinPattern?: string;
   makes?: string[];
   colors?: string[];
   states?: string[];
@@ -42,6 +44,14 @@ export function buildAlertFiltersString(
   lastCheckedAt: Date | null,
 ): string | undefined {
   const clauses: string[] = [];
+
+  if (filters.vinPattern) {
+    const parsedPattern = VinPattern.parse(filters.vinPattern);
+    if (parsedPattern.success) {
+      const vinClause = VinPattern.toAlgoliaFilter(parsedPattern.data);
+      if (vinClause) clauses.push(vinClause);
+    }
+  }
 
   if (lastCheckedAt) {
     const lastCheckedAtSeconds = Math.floor(lastCheckedAt.getTime() / 1000);

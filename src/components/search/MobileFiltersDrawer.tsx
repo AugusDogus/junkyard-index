@@ -22,6 +22,9 @@ interface FilterOptions {
 }
 
 interface MobileFiltersDrawerProps {
+  vinPattern: string;
+  vinPatternError?: string;
+  vinPatternSearchReady: boolean;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -37,6 +40,7 @@ interface MobileFiltersDrawerProps {
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
+  onVinPatternChange: (pattern: string) => void;
   yearRangeLimits?: {
     min: number;
     max: number;
@@ -45,6 +49,9 @@ interface MobileFiltersDrawerProps {
 }
 
 export function MobileFiltersDrawer({
+  vinPattern,
+  vinPatternError,
+  vinPatternSearchReady,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -60,6 +67,7 @@ export function MobileFiltersDrawer({
   onSalvageYardsChange,
   onSourcesChange,
   onYearRangeChange,
+  onVinPatternChange,
   yearRangeLimits,
   iconOnly,
 }: MobileFiltersDrawerProps) {
@@ -104,6 +112,9 @@ export function MobileFiltersDrawer({
         </DrawerHeader>
         <div className="max-h-[calc(85vh-120px)] overflow-y-auto px-4 pb-4">
           <SidebarContent
+            vinPattern={vinPattern}
+            vinPatternError={vinPatternError}
+            vinPatternSearchReady={vinPatternSearchReady}
             makes={makes}
             colors={colors}
             states={states}
@@ -117,6 +128,7 @@ export function MobileFiltersDrawer({
             onSalvageYardsChange={onSalvageYardsChange}
             onSourcesChange={onSourcesChange}
             onYearRangeChange={onYearRangeChange}
+            onVinPatternChange={onVinPatternChange}
             yearRangeLimits={yearRangeLimits}
           />
         </div>

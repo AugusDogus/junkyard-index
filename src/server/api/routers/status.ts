@@ -4,6 +4,7 @@ import { env } from "~/env";
 import { db } from "~/lib/db";
 import { ingestionSourceRun } from "~/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { getVinPatternSearchReadiness } from "~/server/ingestion/search-index-readiness";
 import {
   mapRunStatus,
   parseErrors,
@@ -98,6 +99,9 @@ const getProviderStatus = unstable_cache(
 );
 
 export const statusRouter = createTRPCRouter({
+  searchCapabilities: publicProcedure.query(async () => ({
+    vinPatternSearchReady: await getVinPatternSearchReadiness(),
+  })),
   providers: publicProcedure.query(async () => {
     return getProviderStatus();
   }),

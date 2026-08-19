@@ -1,4 +1,5 @@
 interface SearchFilters {
+  vinPattern?: string;
   makes?: string[];
   colors?: string[];
   states?: string[];
@@ -17,6 +18,10 @@ export function buildSearchUrl(
 
   if (query) {
     params.set("q", query);
+  }
+
+  if (filters.vinPattern) {
+    params.set("vin", filters.vinPattern);
   }
 
   if (filters.makes && filters.makes.length > 0) {

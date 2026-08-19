@@ -44,6 +44,18 @@ describe("algolia alert search helpers", () => {
     expect(filters).not.toContain("ignore-me");
   });
 
+  test("builds position-aware VIN constraints", () => {
+    const filters = buildAlertFiltersString(
+      { vinPattern: "YV4C[0-2]85**********" },
+      null,
+    );
+
+    expect(filters).toContain('vinPositionTokens:"0:Y"');
+    expect(filters).toContain(
+      '(vinPositionTokens:"4:0" OR vinPositionTokens:"4:1" OR vinPositionTokens:"4:2")',
+    );
+  });
+
   test("drops empty and whitespace facet values", () => {
     const filters = buildAlertFiltersString(
       {

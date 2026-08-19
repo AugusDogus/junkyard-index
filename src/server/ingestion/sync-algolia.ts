@@ -19,7 +19,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toAlgoliaObject(record: AlgoliaVehicleRecord): Record<string, unknown> {
+function toAlgoliaObject(
+  record: AlgoliaVehicleRecord,
+): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record));
 }
 
@@ -75,14 +77,28 @@ function setIndexSettingsEffect(params: {
   indexName: string;
   indexSettings: Record<string, unknown>;
 }): Effect.Effect<void, Error> {
-  return Effect.tryPromise({
-    try: () =>
-      algoliaClient.setSettings({
-        indexName: params.indexName,
-        indexSettings: params.indexSettings,
-      }),
-    catch: (cause) =>
-      cause instanceof Error ? cause : new Error(String(cause)),
+  return Effect.gen(function* () {
+    const response = yield* Effect.tryPromise({
+      try: () =>
+        algoliaClient.setSettings({
+          indexName: params.indexName,
+          indexSettings: params.indexSettings,
+        }),
+      catch: (cause) =>
+        cause instanceof Error ? cause : new Error(String(cause)),
+    });
+    const taskID = extractTaskIds(response).at(-1);
+    if (taskID !== undefined) {
+      yield* Effect.tryPromise({
+        try: () =>
+          algoliaClient.waitForTask({
+            indexName: params.indexName,
+            taskID,
+          }),
+        catch: (cause) =>
+          cause instanceof Error ? cause : new Error(String(cause)),
+      });
+    }
   }).pipe(Effect.asVoid);
 }
 
@@ -160,6 +176,7 @@ export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
         "searchable(state)",
         "filterOnly(stateAbbr)",
         "searchable(locationName)",
+        "filterOnly(vinPositionTokens)",
         "year",
       ],
       numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
@@ -171,7 +188,7 @@ export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
       hitsPerPage: 1000,
       paginationLimitedTo: 10000,
       // Unretrievable attributes (keep admin key out of search results)
-      unretrievableAttributes: ["firstSeenAt"],
+      unretrievableAttributes: ["firstSeenAt", "vinPositionTokens"],
     } satisfies Record<string, unknown>;
 
     yield* setIndexSettingsEffect({
@@ -268,7 +285,9 @@ export function saveAlgoliaObjects(
 /**
  * Batch delete objects from Algolia by objectID (VIN).
  */
-export function deleteAlgoliaObjects(vins: string[]): Effect.Effect<number[], Error> {
+export function deleteAlgoliaObjects(
+  vins: string[],
+): Effect.Effect<number[], Error> {
   return Effect.gen(function* () {
     const taskIds: number[] = [];
     if (vins.length === 0) return taskIds;
