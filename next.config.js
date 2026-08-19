@@ -4,6 +4,7 @@
  */
 import "./src/env.js";
 import { withSentryConfig } from "@sentry/nextjs";
+import { withWorkflow } from "workflow/next";
 
 /** @type {import("next").NextConfig} */
 const config = {
@@ -23,7 +24,7 @@ const config = {
   },
 };
 
-export default withSentryConfig(config, {
+const configWithSentry = withSentryConfig(config, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
@@ -59,3 +60,5 @@ export default withSentryConfig(config, {
     },
   },
 });
+
+export default withWorkflow(configWithSentry);

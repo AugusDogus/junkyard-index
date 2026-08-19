@@ -26,7 +26,7 @@ Currently indexes salvage yards from:
 - [tRPC](https://trpc.io) - End-to-end type-safe APIs
 - [Algolia](https://www.algolia.com) - Search index and InstantSearch UI
 - [Drizzle ORM](https://orm.drizzle.team) + [Turso](https://turso.tech) (libSQL) - Vehicle data and ingestion metadata
-- [Trigger.dev](https://trigger.dev) - Scheduled ingestion, Algolia projector, and search alerts
+- [Vercel Workflow](https://vercel.com/workflows) - Durable ingestion, Algolia projection, and search alerts
 - [Effect](https://effect.website) - Ingestion pipeline errors and concurrency
 - [nuqs](https://nuqs.47ng.com) - Type-safe URL search params
 - [better-auth](https://better-auth.com) - Authentication

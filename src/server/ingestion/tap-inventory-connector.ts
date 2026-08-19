@@ -5,42 +5,25 @@ import {
   searchTapInventory,
   UPULLITNE_SITE_CONFIG,
 } from "./tap-inventory-client";
-import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
+import type { ConnectorChunkResult } from "./connector-chunk";
 import { TapInventoryProviderError } from "./errors";
 import { transformTapInventoryProduct } from "./tap-inventory-transform";
 import type { CanonicalVehicle } from "./types";
 
-export interface TapStreamResult {
-  source: "upullitne";
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-  nextCursor: string;
-  done: boolean;
-  fullyExhausted: boolean;
-  stopped: boolean;
-}
-
-type TapProgress = {
-  nextCursor: string;
-  pagesProcessed: number;
-  vehiclesProcessed: number;
-  fullyExhausted: boolean;
-  stopped: boolean;
-  errors: string[];
-};
+export type TapStreamResult = ConnectorChunkResult<"upullitne", number>;
 
 export function streamTapInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  pagesPerChunk?: number;
-  onProgress?: (progress: TapProgress) => Effect.Effect<void, E, R>;
+  startStoreIndex?: number;
+  maxPages?: number;
 }): Effect.Effect<TapStreamResult, TapInventoryProviderError | E, R> {
   const loadConfig: Effect.Effect<
     typeof UPULLITNE_SITE_CONFIG,
     TapInventoryProviderError
   > = fetchTapBootstrap(UPULLITNE_SITE_CONFIG).pipe(
     Effect.mapError(
-      (cause) => new TapInventoryProviderError({ cursor: "site-config", cause }),
+      (cause) =>
+        new TapInventoryProviderError({ cursor: "site-config", cause }),
     ),
     Effect.map((bootstrap) => ({
       ...UPULLITNE_SITE_CONFIG,
@@ -51,34 +34,14 @@ export function streamTapInventory<E, R>(options: {
 
   return Effect.gen(function* () {
     const config = yield* loadConfig;
-    const progressEveryPages = Math.max(
-      1,
-      options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
-    );
     let pagesProcessed = 0;
     let vehiclesProcessed = 0;
-    let nextCursor = "0:0";
-    let fullyExhausted = false;
-    let stopped = false;
-    let lastProgressPages = 0;
+    const startStoreIndex = Math.max(0, options.startStoreIndex ?? 0);
+    const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
+    let nextStoreIndex = startStoreIndex;
+    let failed = false;
     const errors: string[] = [];
     const globalSeen = new Map<string, CanonicalVehicle>();
-
-    const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
-      if (!options.onProgress) return Effect.succeed(undefined);
-      if (!force && pagesProcessed - lastProgressPages < progressEveryPages) {
-        return Effect.succeed(undefined);
-      }
-      lastProgressPages = pagesProcessed;
-      return options.onProgress({
-        nextCursor,
-        pagesProcessed,
-        vehiclesProcessed,
-        fullyExhausted,
-        stopped,
-        errors,
-      });
-    };
 
     const stores = yield* fetchTapStores(config).pipe(
       Effect.mapError(
@@ -101,8 +64,8 @@ export function streamTapInventory<E, R>(options: {
     );
 
     for (
-      let storeIndex = 0;
-      storeIndex < concreteStores.length && !stopped;
+      let storeIndex = startStoreIndex;
+      storeIndex < concreteStores.length && pagesProcessed < maxPages;
       storeIndex += 1
     ) {
       const store = concreteStores[storeIndex]!;
@@ -111,11 +74,11 @@ export function streamTapInventory<E, R>(options: {
       if (!storeConfig) {
         const msg = `[TAP/upullitne] Missing store config for ${store.value}`;
         errors.push(msg);
-        stopped = true;
+        failed = true;
         break;
       }
 
-      nextCursor = `${store.value}:store`;
+      nextStoreIndex = storeIndex;
 
       const result = yield* searchTapInventory({
         config,
@@ -126,7 +89,7 @@ export function streamTapInventory<E, R>(options: {
         Effect.mapError(
           (cause) =>
             new TapInventoryProviderError({
-              cursor: nextCursor,
+              cursor: String(nextStoreIndex),
               cause,
             }),
         ),
@@ -155,27 +118,22 @@ export function streamTapInventory<E, R>(options: {
 
       vehiclesProcessed += batch.length;
       pagesProcessed += 1;
+      nextStoreIndex = storeIndex + 1;
 
       yield* Effect.logInfo(
         `[TAP/upullitne] Store ${store.value}: ${batch.length} vehicles`,
       );
-      yield* emitProgress(false);
     }
 
-    if (!stopped) {
-      fullyExhausted = true;
-      yield* emitProgress(true);
-    }
+    const complete = !failed && nextStoreIndex >= concreteStores.length;
 
     return {
       source: "upullitne" as const,
+      status: failed ? "failed" : complete ? "complete" : "paused",
+      cursor: nextStoreIndex,
       count: vehiclesProcessed,
       errors,
       pagesProcessed,
-      nextCursor,
-      done: true,
-      fullyExhausted,
-      stopped,
     };
   });
 }

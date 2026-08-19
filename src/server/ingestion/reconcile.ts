@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "~/lib/db";
-import { vehicle, vehicleChange } from "~/schema";
+import { ingestionRun, vehicle, vehicleChange } from "~/schema";
 import { PersistenceError } from "./errors";
 import { Database } from "./runtime";
 import type { CanonicalVehicle } from "./types";
@@ -24,6 +24,7 @@ interface ReconcileOptions {
   missingStatePolicy: MissingStatePolicy;
   missingDeleteAfterRuns: number;
   missingDeleteAfterMs: number;
+  runCompletion: { errors: string[] };
 }
 
 export type MissingStatePolicy =
@@ -264,7 +265,8 @@ export function planMissingTransitions(params: {
       continue;
     }
 
-    const missingSinceAt = existingVehicle.missingSinceAt ?? params.runTimestamp;
+    const missingSinceAt =
+      existingVehicle.missingSinceAt ?? params.runTimestamp;
     const missingRunCount = (existingVehicle.missingRunCount ?? 0) + 1;
     const shouldDelete =
       missingRunCount >= params.missingDeleteAfterRuns ||
@@ -354,9 +356,9 @@ function collectChangedUpserts(params: {
   runTimestamp: Date;
 }): Effect.Effect<
   {
-  changedUpserts: PlannedVehicleUpsert[];
-  readExistingMs: number;
-  planMs: number;
+    changedUpserts: PlannedVehicleUpsert[];
+    readExistingMs: number;
+    planMs: number;
   },
   PersistenceError,
   Database
@@ -374,8 +376,9 @@ function collectChangedUpserts(params: {
       const vins = chunk.map(([vin]) => vin);
 
       const readStartedAt = Date.now();
-      const existingRows = yield* dbEffect("reconcile.readExistingVehicles", () =>
-        dbClient.select().from(vehicle).where(inArray(vehicle.vin, vins)),
+      const existingRows = yield* dbEffect(
+        "reconcile.readExistingVehicles",
+        () => dbClient.select().from(vehicle).where(inArray(vehicle.vin, vins)),
       );
       readExistingMs += Date.now() - readStartedAt;
 
@@ -406,10 +409,10 @@ function collectMissingTransitions(params: {
   missingDeleteAfterMs: number;
 }): Effect.Effect<
   {
-  missingTransitions: MissingTransition[];
-  deleteVins: string[];
-  readExistingMs: number;
-  planMs: number;
+    missingTransitions: MissingTransition[];
+    deleteVins: string[];
+    readExistingMs: number;
+    planMs: number;
   },
   PersistenceError,
   Database
@@ -612,7 +615,30 @@ function deleteVehiclesByVin(
   });
 }
 
-export function reconcileFromFinalInventory(
+function completeIngestionRun(
+  tx: DbTransaction,
+  options: ReconcileOptions,
+  vehiclesUpserted: number,
+  vehiclesDeleted: number,
+): Effect.Effect<void, PersistenceError> {
+  return dbEffect("reconcile.completeRun", () =>
+    tx
+      .update(ingestionRun)
+      .set({
+        status: "success",
+        vehiclesUpserted,
+        vehiclesDeleted,
+        errors:
+          options.runCompletion.errors.length > 0
+            ? JSON.stringify(options.runCompletion.errors)
+            : null,
+        completedAt: options.runTimestamp,
+      })
+      .where(eq(ingestionRun.id, options.runId)),
+  ).pipe(Effect.asVoid);
+}
+
+export function reconcileAndCompleteRunFromFinalInventory(
   options: ReconcileOptions,
 ): Effect.Effect<ReconcileResult, PersistenceError, Database> {
   return Effect.gen(function* () {
@@ -622,6 +648,9 @@ export function reconcileFromFinalInventory(
       options.finalInventoryByVin.size === 0 &&
       options.missingStatePolicy.kind === "skip"
     ) {
+      yield* dbTransactionEffect(dbClient, "reconcile.completeEmptyRun", (tx) =>
+        completeIngestionRun(tx, options, 0, 0),
+      );
       return {
         upsertedCount: 0,
         deletedCount: 0,
@@ -681,7 +710,6 @@ export function reconcileFromFinalInventory(
 
     let upsertWriteMs = 0;
     let missingWriteMs = 0;
-
     yield* dbTransactionEffect(dbClient, "reconcile.transaction", (tx) =>
       Effect.gen(function* () {
         if (changedUpsertsResult.changedUpserts.length > 0) {
@@ -741,6 +769,13 @@ export function reconcileFromFinalInventory(
 
           missingWriteMs = Date.now() - missingWriteStartedAt;
         }
+
+        yield* completeIngestionRun(
+          tx,
+          options,
+          options.finalInventoryByVin.size,
+          deleteVins.length,
+        );
       }),
     );
 

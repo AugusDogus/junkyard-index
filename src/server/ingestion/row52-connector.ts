@@ -1,15 +1,10 @@
-import {
-  HttpClient,
-} from "@effect/platform";
+import { HttpClient } from "@effect/platform";
 import buildQuery from "odata-query";
 import { Effect, Duration, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
-import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
-import type {
-  Row52Image,
-  Row52Location,
-  Row52Vehicle,
-} from "~/lib/types";
+import type { Row52Image, Row52Location, Row52Vehicle } from "~/lib/types";
+import type { ConnectorChunkResult } from "./connector-chunk";
+import type { Row52DurableCursor } from "./durable-source";
 import { Row52ProviderError } from "./errors";
 import { fetchRow52OData } from "./row52-transport";
 import {
@@ -21,7 +16,6 @@ import type { CanonicalVehicle } from "./types";
 
 const PAGE_SIZE = 1000;
 const PAGE_DELAY_MS = 200;
-const PAGE_FETCH_CONCURRENCY = 4;
 const FETCH_TIMEOUT_MS = 30_000;
 const TIMEOUT_RETRY_LIMIT = 2;
 const TIMEOUT_RETRY_BASE_DELAY_MS = 1_000;
@@ -219,27 +213,19 @@ interface Row52VehiclesPage {
   vehicles: Row52Vehicle[];
 }
 
-export interface Row52StreamResult {
-  source: "row52";
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-  nextSkip: number;
-  done: boolean;
-  fullyExhausted: boolean;
-  stopped: boolean;
-  totalCount?: number;
-}
+export type Row52StreamResult = ConnectorChunkResult<
+  "row52",
+  Row52DurableCursor
+>;
 
-export function chunkLocationIds(
-  locationIds: ReadonlyArray<number>,
-  chunkSize: number,
-): number[][] {
-  const chunks: number[][] = [];
-  for (let start = 0; start < locationIds.length; start += chunkSize) {
-    chunks.push(locationIds.slice(start, start + chunkSize));
-  }
-  return chunks;
+export function selectRow52LocationGroup(
+  cursor: Row52DurableCursor,
+  currentLocationIds: ReadonlyArray<number>,
+): number[] {
+  if (cursor.locationIds.length > 0) return cursor.locationIds;
+  return currentLocationIds
+    .filter((locationId) => locationId > cursor.afterLocationId)
+    .slice(0, ROW52_LOCATION_FILTER_CHUNK_SIZE);
 }
 
 export function buildLocationIdFilter(
@@ -369,83 +355,44 @@ export function transformRow52Vehicle(
  */
 export function streamRow52Inventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  startSkip?: number;
-  pagesPerChunk?: number;
-  onProgress?: (progress: {
-    nextSkip: number;
-    pagesProcessed: number;
-    vehiclesProcessed: number;
-    fullyExhausted: boolean;
-    stopped: boolean;
-    totalCount?: number;
-    errors: string[];
-  }) => Effect.Effect<void, E, R>;
+  cursor?: Row52DurableCursor;
+  maxPages?: number;
 }): Effect.Effect<
   Row52StreamResult,
   Row52ProviderError | E,
   HttpClient.HttpClient | R
 > {
   return Effect.gen(function* () {
-    const progressEveryPages = Math.max(
-      1,
-      options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
-    );
-    let nextSkip = 0;
-    let knownTotalCount: number | undefined;
+    const initialCursor = options.cursor ?? {
+      source: "row52",
+      afterLocationId: 0,
+      locationIds: [],
+      skip: 0,
+    };
+    const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
+    let cursor: Row52DurableCursor = initialCursor;
     let totalCount = 0;
     let pagesProcessed = 0;
-    let done = false;
-    let fullyExhausted = false;
-    let stopped = false;
-    let lastProgressPages = 0;
     const errors: string[] = [];
 
     yield* Effect.logInfo("[Row52] Fetching locations...");
     const locationMap = yield* fetchRow52LocationsEffect().pipe(
-      Effect.mapError(
-        (cause) => new Row52ProviderError({ skip: -1, cause }),
-      ),
+      Effect.mapError((cause) => new Row52ProviderError({ skip: -1, cause })),
     );
     yield* Effect.logInfo(
       `[Row52] Found ${locationMap.size} participating locations`,
     );
-    const locationChunks = chunkLocationIds(
-      Array.from(locationMap.keys()).sort((left, right) => left - right),
-      ROW52_LOCATION_FILTER_CHUNK_SIZE,
+    const allLocationIds = Array.from(locationMap.keys()).sort(
+      (left, right) => left - right,
     );
-    const chunkTotals = new Map<number, number>();
     yield* Effect.logInfo(
-      `[Row52] Crawling ${locationChunks.length} filtered vehicle chunk${locationChunks.length === 1 ? "" : "s"} across ${locationMap.size} yards (chunkSize=${ROW52_LOCATION_FILTER_CHUNK_SIZE})`,
+      `[Row52] Crawling ${locationMap.size} yards in stable filtered groups (chunkSize=${ROW52_LOCATION_FILTER_CHUNK_SIZE})`,
     );
-
-    const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
-      if (!options.onProgress) return Effect.succeed(undefined);
-      if (!force && pagesProcessed - lastProgressPages < progressEveryPages)
-        return Effect.succeed(undefined);
-      lastProgressPages = pagesProcessed;
-      return options.onProgress({
-        nextSkip,
-        pagesProcessed,
-        vehiclesProcessed: totalCount,
-        fullyExhausted,
-        stopped,
-        totalCount: knownTotalCount,
-        errors,
-      });
-    };
 
     const processPage = (page: Row52VehiclesPage): Effect.Effect<void, E, R> =>
       Effect.gen(function* () {
-        if (page.totalCount !== undefined) {
-          chunkTotals.set(page.chunkIndex, page.totalCount);
-          knownTotalCount = Array.from(chunkTotals.values()).reduce(
-            (sum, count) => sum + count,
-            0,
-          );
-        }
-
         yield* Effect.logInfo(
-          `[Row52] Fetched chunk=${page.chunkIndex + 1}/${locationChunks.length} page skip=${page.skip}: ${page.vehicles.length} vehicles (total: ${knownTotalCount ?? "unknown"})`,
+          `[Row52] Fetched group=${page.chunkIndex + 1} page skip=${page.skip}: ${page.vehicles.length} vehicles (group total: ${page.totalCount ?? "unknown"})`,
         );
 
         const pageCanonical: CanonicalVehicle[] = [];
@@ -460,197 +407,86 @@ export function streamRow52Inventory<E, R>(options: {
 
         totalCount += pageCanonical.length;
         pagesProcessed += 1;
-        nextSkip = pagesProcessed * PAGE_SIZE;
       });
 
-    for (
-      let chunkIndex = 0;
-      chunkIndex < locationChunks.length && !stopped;
-      chunkIndex += 1
-    ) {
-      const locationIds = locationChunks[chunkIndex];
-      if (!locationIds || locationIds.length === 0) continue;
-
-      const firstPage = yield* fetchVehiclePageEffect(
+    while (pagesProcessed < maxPages) {
+      const groupAfterLocationId = cursor.afterLocationId;
+      const locationIds = selectRow52LocationGroup(cursor, allLocationIds);
+      if (locationIds.length === 0) break;
+      const groupIndex = Math.max(
         0,
-        true,
-        locationIds,
-        chunkIndex,
-      ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new Row52ProviderError({
-              skip: 0,
-              cause: new Error(
-                `chunk=${chunkIndex + 1}/${locationChunks.length}: ${cause.message}`,
-              ),
-            }),
+        Math.floor(
+          allLocationIds.findIndex(
+            (locationId) => locationId === locationIds[0],
+          ) / ROW52_LOCATION_FILTER_CHUNK_SIZE,
         ),
       );
-      yield* processPage(firstPage);
 
-      if (firstPage.vehicles.length < PAGE_SIZE) {
-        yield* emitProgress(false);
-        continue;
-      }
+      let groupSkip = cursor.locationIds.length > 0 ? cursor.skip : 0;
+      let totalRows: number | undefined;
+      let pagesFetchedForGroup = 0;
 
-      const totalRows = firstPage.totalCount;
-
-      if (totalRows === undefined) {
-        let chunkSkip = PAGE_SIZE;
-        let terminatedNormally = false;
-        while (!stopped) {
-          const pageResult = yield* fetchVehiclePageEffect(
-            chunkSkip,
-            false,
-            locationIds,
-            chunkIndex,
-          ).pipe(
-            Effect.map((page) => ({ ok: true as const, page }) as const),
-            Effect.catchAll((error) =>
-              Effect.succeed({
-                ok: false as const,
-                error,
-              } as const),
-            ),
-          );
-
-          if (!pageResult.ok) {
-            const msg = `Row52 chunk=${chunkIndex + 1}/${locationChunks.length} page at skip=${chunkSkip}: ${pageResult.error.message}`;
-            yield* Effect.logError(msg);
-            errors.push(msg);
-            stopped = true;
-          } else {
-            yield* processPage(pageResult.page);
-            if (pageResult.page.vehicles.length < PAGE_SIZE) {
-              terminatedNormally = true;
-              break;
-            }
-            chunkSkip += PAGE_SIZE;
-            if (PAGE_DELAY_MS > 0) {
-              yield* Effect.sleep(Duration.millis(PAGE_DELAY_MS));
-            }
-          }
-
-          yield* emitProgress(stopped);
-        }
-        if (terminatedNormally) {
-          yield* Effect.logInfo(
-            `[Row52] Chunk ${chunkIndex + 1}/${locationChunks.length} terminated normally (unknown totalRows) at skip=${chunkSkip}`,
-          );
-        }
-        continue;
-      }
-
-      const remainingSkips: number[] = [];
-      for (let skip = PAGE_SIZE; skip < totalRows; skip += PAGE_SIZE) {
-        remainingSkips.push(skip);
-      }
-
-      let stopChunk = false;
-      for (
-        let chunkStart = 0;
-        chunkStart < remainingSkips.length && !stopChunk;
-        chunkStart += PAGE_FETCH_CONCURRENCY
-      ) {
-        const chunkSkips = remainingSkips.slice(
-          chunkStart,
-          chunkStart + PAGE_FETCH_CONCURRENCY,
-        );
-
-        const pageResults = yield* Effect.all(
-          chunkSkips.map((skip, index) =>
-            Effect.gen(function* () {
-              if (PAGE_DELAY_MS > 0 && index > 0) {
-                yield* Effect.sleep(Duration.millis(index * PAGE_DELAY_MS));
-              }
-              return yield* fetchVehiclePageEffect(
-                skip,
-                false,
-                locationIds,
-                chunkIndex,
-              ).pipe(
-                Effect.map(
-                  (page) =>
-                    ({ ok: true as const, skip, page }) as const,
-                ),
-                Effect.catchAll((error) =>
-                  Effect.succeed({
-                    ok: false as const,
-                    skip,
-                    error,
-                  } as const),
-                ),
-              );
-            }),
+      while (pagesProcessed < maxPages) {
+        const page = yield* fetchVehiclePageEffect(
+          groupSkip,
+          pagesFetchedForGroup === 0,
+          locationIds,
+          groupIndex,
+        ).pipe(
+          Effect.mapError(
+            (cause) =>
+              new Row52ProviderError({
+                skip: groupSkip,
+                cause: new Error(`group=${groupIndex + 1}: ${cause.message}`),
+              }),
           ),
-          { concurrency: PAGE_FETCH_CONCURRENCY },
         );
+        totalRows ??= page.totalCount;
+        pagesFetchedForGroup += 1;
 
-        const failedResults = pageResults.filter(
-          (
-            result,
-          ): result is { ok: false; skip: number; error: Error } => !result.ok,
-        );
-        const firstFailedSkip =
-          failedResults.length > 0
-            ? Math.min(...failedResults.map((result) => result.skip))
-            : null;
-        for (const result of failedResults) {
-          const msg = `Row52 chunk=${chunkIndex + 1}/${locationChunks.length} page at skip=${result.skip}: ${result.error.message}`;
-          yield* Effect.logError(msg);
-          errors.push(msg);
-        }
-        if (firstFailedSkip !== null) {
-          stopped = true;
-          stopChunk = true;
-        }
+        yield* processPage(page);
+        const followingSkip = groupSkip + PAGE_SIZE;
+        const groupComplete =
+          page.vehicles.length < PAGE_SIZE ||
+          (totalRows !== undefined && followingSkip >= totalRows);
 
-        const successfulPages = pageResults
-          .filter(
-            (
-              result,
-            ): result is {
-              ok: true;
-              skip: number;
-              page: Row52VehiclesPage;
-            } => result.ok,
-          )
-          .sort((left, right) => left.skip - right.skip);
-
-        for (const result of successfulPages) {
-          if (firstFailedSkip !== null && result.skip >= firstFailedSkip) {
-            break;
-          }
-          yield* processPage(result.page);
-          if (result.page.vehicles.length < PAGE_SIZE) {
-            stopChunk = true;
-            break;
-          }
+        if (groupComplete) {
+          cursor = {
+            source: "row52",
+            afterLocationId: Math.max(...locationIds),
+            locationIds: [],
+            skip: 0,
+          };
+        } else {
+          cursor = {
+            source: "row52",
+            afterLocationId: groupAfterLocationId,
+            locationIds,
+            skip: followingSkip,
+          };
         }
 
-        yield* emitProgress(stopped || stopChunk);
+        if (groupComplete) break;
+
+        groupSkip = followingSkip;
+        if (PAGE_DELAY_MS > 0 && pagesProcessed < maxPages) {
+          yield* Effect.sleep(Duration.millis(PAGE_DELAY_MS));
+        }
       }
     }
 
-    if (!stopped) {
-      fullyExhausted = true;
-      done = true;
-      yield* emitProgress(true);
-    } else {
-      done = true;
-    }
+    const hasRemainingLocations = allLocationIds.some(
+      (locationId) => locationId > cursor.afterLocationId,
+    );
+    const complete = cursor.locationIds.length === 0 && !hasRemainingLocations;
 
     return {
       source: "row52" as const,
+      status: complete ? "complete" : "paused",
+      cursor,
       count: totalCount,
       errors,
       pagesProcessed,
-      nextSkip,
-      done,
-      fullyExhausted,
-      stopped,
-      totalCount: knownTotalCount,
     };
   });
 }

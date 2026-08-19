@@ -5,7 +5,7 @@ import {
   type AutorecyclerMsearchHit,
   type AutorecyclerMsearchResponse,
 } from "./autorecycler-client";
-import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
+import type { ConnectorChunkResult } from "./connector-chunk";
 import { createAutorecyclerOrgGeoResolver } from "./autorecycler-geo";
 import { transformAutorecyclerMsearchHit } from "./autorecycler-transform";
 import type { CanonicalVehicle } from "./types";
@@ -21,7 +21,9 @@ import type { Database } from "./runtime";
  */
 const REQUESTED_PAGE_SIZE = 400;
 
-function hitSource(hit: AutorecyclerMsearchHit): Record<string, unknown> | null {
+function hitSource(
+  hit: AutorecyclerMsearchHit,
+): Record<string, unknown> | null {
   const src = hit._source;
   if (!src || typeof src !== "object") return null;
   return src as Record<string, unknown>;
@@ -114,19 +116,14 @@ function parseMsearchFirstResponse(
   };
 }
 
-export interface AutorecyclerStreamResult {
-  source: "autorecycler";
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-  nextFrom: number;
-  done: boolean;
-  fullyExhausted: boolean;
-  stopped: boolean;
+export type AutorecyclerStreamResult = ConnectorChunkResult<
+  "autorecycler",
+  number
+> & {
   geoStats: ReturnType<
     ReturnType<typeof createAutorecyclerOrgGeoResolver>["getStats"]
   >;
-}
+};
 
 /**
  * Stream AutoRecycler global inventory via encrypted `msearch`, resolve yard
@@ -135,19 +132,7 @@ export interface AutorecyclerStreamResult {
 export function streamAutorecyclerInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startFrom?: number;
-  pagesPerChunk?: number;
-  /**
-   * Optional hook for `run-pipeline.ts` (in-memory `latest*` on failure + throttled
-   * `updateSourceRunProgress`). Throttled by `pagesPerChunk`, or
-   * `DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL` if omitted; last page always emits.
-   */
-  onProgress?: (progress: {
-    nextFrom: number;
-    pagesProcessed: number;
-    vehiclesProcessed: number;
-    stopped: boolean;
-    errors: string[];
-  }) => Effect.Effect<void, E, R>;
+  maxPages?: number;
 }): Effect.Effect<
   AutorecyclerStreamResult,
   AutorecyclerProviderError | PersistenceError | E,
@@ -157,45 +142,15 @@ export function streamAutorecyclerInventory<E, R>(options: {
     yield* Effect.logInfo("[AutoRecycler] Starting stream");
 
     const geo = createAutorecyclerOrgGeoResolver();
-    const progressEveryPages = Math.max(
-      1,
-      options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
-    );
     let from = Math.max(0, options.startFrom ?? 0);
     let pagesProcessed = 0;
     let totalCanonical = 0;
     let done = false;
-    let fullyExhausted = false;
-    let lastProgressPages = 0;
     const errors: string[] = [];
 
-    const logProgress = (force: boolean): Effect.Effect<void> => {
-      if (!force && pagesProcessed - lastProgressPages < progressEveryPages) {
-        return Effect.void;
-      }
+    const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
 
-      const stats = geo.getStats();
-      return Effect.logInfo(
-        `[AutoRecycler] Progress pages=${pagesProcessed} vehicles=${totalCanonical} nextFrom=${from} geo_fetches=${stats.geoFetches} geo_db_hits=${stats.geoHitDb} geo_mem_hits=${stats.geoHitMemory} geo_misses=${stats.geoMissAfterFetch}`,
-      );
-    };
-
-    const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
-      if (!options.onProgress) return Effect.succeed(undefined);
-      if (!force && pagesProcessed - lastProgressPages < progressEveryPages) {
-        return Effect.succeed(undefined);
-      }
-      lastProgressPages = pagesProcessed;
-      return options.onProgress({
-        nextFrom: from,
-        pagesProcessed,
-        vehiclesProcessed: totalCanonical,
-        stopped: false,
-        errors,
-      });
-    };
-
-    while (!done) {
+    while (!done && pagesProcessed < maxPages) {
       const json = yield* Effect.tryPromise({
         try: () =>
           postAutorecyclerElasticsearchMsearch(
@@ -220,7 +175,9 @@ export function streamAutorecyclerInventory<E, R>(options: {
         for (const h of hits) {
           const src = hitSource(h);
           if (!src) continue;
-          const orgKey = autorecyclerOrgLookupKey(src.organization_custom_organization);
+          const orgKey = autorecyclerOrgLookupKey(
+            src.organization_custom_organization,
+          );
           const invKey = autorecyclerOrgLookupKey(src.inventory_id_text);
           if (orgKey && invKey) {
             if (!geo.getCached(orgKey) && !seeds.has(orgKey)) {
@@ -235,7 +192,9 @@ export function streamAutorecyclerInventory<E, R>(options: {
         for (const h of hits) {
           const src = hitSource(h);
           if (!src) continue;
-          const orgKey = autorecyclerOrgLookupKey(src.organization_custom_organization);
+          const orgKey = autorecyclerOrgLookupKey(
+            src.organization_custom_organization,
+          );
           if (!orgKey) continue;
           const g = geo.getCached(orgKey);
           if (!g) continue;
@@ -253,28 +212,22 @@ export function streamAutorecyclerInventory<E, R>(options: {
 
         const atEnd = r0.at_end === true;
         if (atEnd || hits.length === 0) {
-          fullyExhausted = atEnd;
           done = true;
         }
-
-        yield* logProgress(done);
-        yield* emitProgress(done);
       }
     }
 
     yield* Effect.logInfo(
-      `[AutoRecycler] Completed pages=${pagesProcessed} vehicles=${totalCanonical} geo=${JSON.stringify(geo.getStats())}`,
+      `[AutoRecycler] ${done ? "Completed" : "Paused"} pages=${pagesProcessed} vehicles=${totalCanonical} geo=${JSON.stringify(geo.getStats())}`,
     );
 
     return {
       source: "autorecycler" as const,
+      status: done ? "complete" : "paused",
+      cursor: from,
       count: totalCanonical,
       errors,
       pagesProcessed,
-      nextFrom: from,
-      done,
-      fullyExhausted,
-      stopped: false,
       geoStats: geo.getStats(),
     };
   });

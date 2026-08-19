@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/search-index-migration",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/vehicle-ingestion",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 import { Effect } from "effect";
+import type { IndexSettings } from "algoliasearch";
 import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { buildAlgoliaSettingsPlan } from "./algolia-settings-plan";
 import type { AlgoliaVehicleRecord } from "./types";
 
 const BATCH_SIZE = 1000;
@@ -75,7 +77,8 @@ function waitForTaskEffect(taskID: number): Effect.Effect<void, Error> {
 
 function setIndexSettingsEffect(params: {
   indexName: string;
-  indexSettings: Record<string, unknown>;
+  indexSettings: IndexSettings;
+  forwardToReplicas?: boolean;
 }): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
@@ -83,6 +86,7 @@ function setIndexSettingsEffect(params: {
         algoliaClient.setSettings({
           indexName: params.indexName,
           indexSettings: params.indexSettings,
+          forwardToReplicas: params.forwardToReplicas,
         }),
       catch: (cause) =>
         cause instanceof Error ? cause : new Error(String(cause)),
@@ -160,91 +164,9 @@ function waitForFinalTask(taskIds: number[]): Effect.Effect<void, Error> {
 export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     yield* Effect.logInfo("[Algolia] Configuring index settings...");
-    const primaryIndexSettings = {
-      searchableAttributes: [
-        "make",
-        "model",
-        "year",
-        "unordered(color)",
-        "unordered(vin)",
-      ],
-      attributesForFaceting: [
-        "source",
-        "searchable(make)",
-        "searchable(model)",
-        "searchable(color)",
-        "searchable(state)",
-        "filterOnly(stateAbbr)",
-        "searchable(locationName)",
-        "filterOnly(vinPositionTokens)",
-        "year",
-      ],
-      numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
-      // Typo tolerance settings
-      typoTolerance: true,
-      minWordSizefor1Typo: 3,
-      minWordSizefor2Typos: 7,
-      // Pagination — large page size so most queries load in 1-2 pages
-      hitsPerPage: 1000,
-      paginationLimitedTo: 10000,
-      // Unretrievable attributes (keep admin key out of search results)
-      unretrievableAttributes: ["firstSeenAt", "vinPositionTokens"],
-    } satisfies Record<string, unknown>;
-
-    yield* setIndexSettingsEffect({
-      indexName: ALGOLIA_INDEX_NAME,
-      indexSettings: {
-        ...primaryIndexSettings,
-        customRanking: ["desc(availableDateTs)"],
-        // Virtual replicas for date/year sorts (share records with primary).
-        // Standard replica for distance (needs its own ranking array with geo first).
-        replicas: [
-          "virtual(vehicles_oldest)",
-          "virtual(vehicles_year_desc)",
-          "virtual(vehicles_year_asc)",
-          "vehicles_distance",
-        ],
-      },
-    });
-    // Configure virtual replica sort orders.
-    // relevancyStrictness: 0 disables Algolia's "Relevant Sort" which otherwise
-    // limits results to only those it considers "relevantly sorted" (nbSortedHits).
-    // Without this, sort replicas return only a handful of results.
-    const replicaDefaults = { hitsPerPage: 1000, relevancyStrictness: 0 };
-    yield* setIndexSettingsEffect({
-      indexName: "vehicles_oldest",
-      indexSettings: {
-        ...replicaDefaults,
-        customRanking: ["asc(availableDateTs)"],
-      },
-    });
-    yield* setIndexSettingsEffect({
-      indexName: "vehicles_year_desc",
-      indexSettings: { ...replicaDefaults, customRanking: ["desc(year)"] },
-    });
-    yield* setIndexSettingsEffect({
-      indexName: "vehicles_year_asc",
-      indexSettings: { ...replicaDefaults, customRanking: ["asc(year)"] },
-    });
-    // Standard replica for distance sort — geo-dominant ranking (geo first, no customRanking).
-    // Standard replicas can override the ranking array, unlike virtual replicas.
-    yield* setIndexSettingsEffect({
-      indexName: "vehicles_distance",
-      indexSettings: {
-        ...primaryIndexSettings,
-        ranking: [
-          "typo",
-          "geo",
-          "words",
-          "filters",
-          "proximity",
-          "attribute",
-          "exact",
-          "custom",
-        ],
-        customRanking: [],
-      },
-    });
+    for (const operation of buildAlgoliaSettingsPlan()) {
+      yield* setIndexSettingsEffect(operation);
+    }
     yield* Effect.logInfo("[Algolia] Index settings configured");
   });
 }

@@ -1,5 +1,6 @@
 import { asc, gt } from "drizzle-orm";
 import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { ALGOLIA_SEARCH_INDEX_NAMES } from "~/lib/constants";
 import { db } from "~/lib/db";
 import {
   getSearchSchemaVersion,
@@ -9,18 +10,17 @@ import {
 import { VinPattern } from "~/lib/vin-pattern";
 import { vehicle } from "~/schema";
 import { mapDbVehicleToCanonical } from "./algolia-projector-helpers";
+import {
+  buildVinFilterValidationRequests,
+  SearchIndexMigrationValidationError,
+} from "./search-index-validation";
 import { configureAlgoliaIndex, syncToAlgolia } from "./sync-algolia";
 import { toAlgoliaRecord } from "./types";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const VALIDATION_SAMPLE_SIZE = 3;
 
-export class SearchIndexMigrationValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SearchIndexMigrationValidationError";
-  }
-}
+export { SearchIndexMigrationValidationError } from "./search-index-validation";
 
 export interface SearchIndexMigrationProgress {
   batchesProcessed: number;
@@ -31,6 +31,20 @@ export interface SearchIndexMigrationResult extends SearchIndexMigrationProgress
   alreadyReady: boolean;
   schemaVersion: number;
   validatedVins: string[];
+}
+
+export interface SearchIndexMigrationState extends SearchIndexMigrationProgress {
+  cursor: string | null;
+  validationVins: string[];
+}
+
+export type InitializeSearchIndexMigrationResult =
+  | { status: "ready"; result: SearchIndexMigrationResult }
+  | { status: "pending"; state: SearchIndexMigrationState };
+
+export interface SearchIndexMigrationBatchResult {
+  done: boolean;
+  state: SearchIndexMigrationState;
 }
 
 async function readVehicleBatch(cursor: string | null, batchSize: number) {
@@ -48,36 +62,16 @@ async function readVehicleBatch(cursor: string | null, batchSize: number) {
 
 async function validateVinFilters(vins: string[]): Promise<void> {
   for (const vin of vins) {
-    const parsedPattern = VinPattern.parse(vin);
-    if (!parsedPattern.success) {
-      throw new SearchIndexMigrationValidationError(
-        `Search index migration selected an invalid validation VIN: ${vin}`,
-      );
-    }
-
-    const filters = VinPattern.toAlgoliaFilter(parsedPattern.data);
-    if (!filters) {
-      throw new SearchIndexMigrationValidationError(
-        `Search index migration could not build a validation filter for VIN: ${vin}`,
-      );
-    }
-
     const response = await algoliaClient.searchForHits<{ objectID?: string }>({
-      requests: [
-        {
-          indexName: ALGOLIA_INDEX_NAME,
-          query: "",
-          filters,
-          hitsPerPage: 1,
-          attributesToRetrieve: ["objectID"],
-        },
-      ],
+      requests: buildVinFilterValidationRequests(vin),
     });
-    const matchingHit = response.results[0]?.hits[0];
-    if (matchingHit?.objectID !== vin) {
-      throw new Error(
-        `VIN filter validation failed for ${vin}. The schema marker was not advanced and VIN search remains inactive.`,
-      );
+    for (const [index, indexName] of ALGOLIA_SEARCH_INDEX_NAMES.entries()) {
+      const matchingHit = response.results[index]?.hits[0];
+      if (matchingHit?.objectID !== vin) {
+        throw new SearchIndexMigrationValidationError(
+          `VIN filter validation failed for ${vin} on ${indexName}. The schema marker was not advanced and VIN search remains inactive.`,
+        );
+      }
     }
   }
 }
@@ -103,68 +97,83 @@ async function markSchemaReady(userData: unknown): Promise<void> {
   });
 }
 
-export async function migrateSearchIndexToVinPatternSchema(options?: {
-  batchSize?: number;
-  onProgress?: (progress: SearchIndexMigrationProgress) => void;
-}): Promise<SearchIndexMigrationResult> {
+export async function initializeSearchIndexMigration(): Promise<InitializeSearchIndexMigrationResult> {
   const settings = await algoliaClient.getSettings({
     indexName: ALGOLIA_INDEX_NAME,
   });
   const currentVersion = getSearchSchemaVersion(settings.userData);
   if (currentVersion >= VIN_PATTERN_SEARCH_SCHEMA_VERSION) {
     return {
-      alreadyReady: true,
-      batchesProcessed: 0,
-      recordsProcessed: 0,
-      schemaVersion: currentVersion,
-      validatedVins: [],
+      status: "ready",
+      result: {
+        alreadyReady: true,
+        batchesProcessed: 0,
+        recordsProcessed: 0,
+        schemaVersion: currentVersion,
+        validatedVins: [],
+      },
     };
   }
 
   await configureAlgoliaIndex();
+  return {
+    status: "pending",
+    state: {
+      cursor: null,
+      batchesProcessed: 0,
+      recordsProcessed: 0,
+      validationVins: [],
+    },
+  };
+}
 
-  const batchSize = Math.max(1, options?.batchSize ?? DEFAULT_BATCH_SIZE);
-  const validationVins: string[] = [];
-  let cursor: string | null = null;
-  let batchesProcessed = 0;
-  let recordsProcessed = 0;
+export async function migrateSearchIndexBatch(
+  state: SearchIndexMigrationState,
+  batchSize = DEFAULT_BATCH_SIZE,
+): Promise<SearchIndexMigrationBatchResult> {
+  const normalizedBatchSize = Math.max(1, batchSize);
+  const rows = await readVehicleBatch(state.cursor, normalizedBatchSize);
+  if (rows.length === 0) return { done: true, state };
 
-  while (true) {
-    const rows = await readVehicleBatch(cursor, batchSize);
-    if (rows.length === 0) break;
+  const records = rows.map((row) =>
+    toAlgoliaRecord(
+      mapDbVehicleToCanonical(row),
+      row.firstSeenAt,
+      row.missingSinceAt,
+      row.missingRunCount ?? 0,
+    ),
+  );
+  await syncToAlgolia(records, []);
 
-    const records = rows.map((row) =>
-      toAlgoliaRecord(
-        mapDbVehicleToCanonical(row),
-        row.firstSeenAt,
-        row.missingSinceAt,
-        row.missingRunCount ?? 0,
-      ),
-    );
-    await syncToAlgolia(records, []);
-
-    if (validationVins.length < VALIDATION_SAMPLE_SIZE) {
-      for (const row of rows) {
-        if (VinPattern.parse(row.vin).success) {
-          validationVins.push(row.vin);
-        }
-        if (validationVins.length === VALIDATION_SAMPLE_SIZE) break;
-      }
+  const validationVins = [...state.validationVins];
+  if (validationVins.length < VALIDATION_SAMPLE_SIZE) {
+    for (const row of rows) {
+      if (VinPattern.parse(row.vin).success) validationVins.push(row.vin);
+      if (validationVins.length === VALIDATION_SAMPLE_SIZE) break;
     }
-
-    cursor = rows.at(-1)?.vin ?? cursor;
-    batchesProcessed += 1;
-    recordsProcessed += rows.length;
-    options?.onProgress?.({ batchesProcessed, recordsProcessed });
   }
 
-  if (recordsProcessed > 0 && validationVins.length === 0) {
+  return {
+    done: rows.length < normalizedBatchSize,
+    state: {
+      cursor: rows.at(-1)?.vin ?? state.cursor,
+      batchesProcessed: state.batchesProcessed + 1,
+      recordsProcessed: state.recordsProcessed + rows.length,
+      validationVins,
+    },
+  };
+}
+
+export async function finalizeSearchIndexMigration(
+  state: SearchIndexMigrationState,
+): Promise<SearchIndexMigrationResult> {
+  if (state.recordsProcessed > 0 && state.validationVins.length === 0) {
     throw new SearchIndexMigrationValidationError(
       "Search index migration found records but no valid 17-character VIN to validate. The schema marker was not advanced and VIN search remains inactive.",
     );
   }
 
-  await validateVinFilters(validationVins);
+  await validateVinFilters(state.validationVins);
   const latestSettings = await algoliaClient.getSettings({
     indexName: ALGOLIA_INDEX_NAME,
   });
@@ -172,9 +181,9 @@ export async function migrateSearchIndexToVinPatternSchema(options?: {
 
   return {
     alreadyReady: false,
-    batchesProcessed,
-    recordsProcessed,
+    batchesProcessed: state.batchesProcessed,
+    recordsProcessed: state.recordsProcessed,
     schemaVersion: VIN_PATTERN_SEARCH_SCHEMA_VERSION,
-    validatedVins: validationVins,
+    validatedVins: state.validationVins,
   };
 }

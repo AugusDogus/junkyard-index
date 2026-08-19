@@ -1,4 +1,5 @@
 import { VinPattern } from "~/lib/vin-pattern";
+import type { IngestionSource } from "~/lib/ingestion-source";
 
 /**
  * Canonical vehicle type matching the Turso `vehicle` table.
@@ -6,7 +7,7 @@ import { VinPattern } from "~/lib/vin-pattern";
  */
 export interface CanonicalVehicle {
   vin: string;
-  source: "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne";
+  source: IngestionSource;
   year: number;
   make: string;
   model: string;
@@ -42,7 +43,7 @@ export interface CanonicalVehicle {
 export interface AlgoliaVehicleRecord {
   objectID: string;
   vinPositionTokens: string[];
-  source: "pyp" | "row52" | "autorecycler" | "pullapart" | "upullitne";
+  source: IngestionSource;
   year: number;
   make: string;
   model: string;

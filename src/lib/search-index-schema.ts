@@ -1,4 +1,4 @@
-export const VIN_PATTERN_SEARCH_SCHEMA_VERSION = 2;
+export const VIN_PATTERN_SEARCH_SCHEMA_VERSION = 3;
 const SEARCH_SCHEMA_VERSION_KEY = "searchSchemaVersion";
 
 export type SearchSchemaUserDataResult =
