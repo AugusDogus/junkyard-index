@@ -44,5 +44,8 @@ describe("saved search filters schema", () => {
     expect(filtersSchema.safeParse({ vinPattern: "YV4C*85" }).success).toBe(
       false,
     );
+    expect(
+      filtersSchema.safeParse({ vinPattern: "*****************" }).success,
+    ).toBe(false);
   });
 });

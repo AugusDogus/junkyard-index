@@ -15,9 +15,19 @@ export const filtersSchema = z.object({
   vinPattern: z
     .string()
     .max(VinPattern.maxInputLength)
-    .refine((value) => VinPattern.parse(value).success, {
-      message: "VIN pattern must describe 17 valid VIN positions",
-    })
+    .refine(
+      (value) => {
+        const parsedPattern = VinPattern.parse(value);
+        return (
+          parsedPattern.success &&
+          VinPattern.toAlgoliaFilter(parsedPattern.data) !== undefined
+        );
+      },
+      {
+        message:
+          "VIN pattern must describe 17 valid positions and include a known character",
+      },
+    )
     .optional(),
   makes: z.array(z.string()).optional(),
   colors: z.array(z.string()).optional(),

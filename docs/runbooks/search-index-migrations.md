@@ -17,13 +17,13 @@ environment variables used by the existing ingestion tasks.
 ## Normal deployment
 
 1. Merge the PR to `main`.
-2. Vercel deploys the application from `main`.
-3. The `Deploy Trigger.dev` GitHub Actions workflow deploys the production tasks,
-   then starts `search-index-schema-v2`.
-4. The migration configures Algolia, backfills every vehicle in batches, validates
+2. Vercel deploys the application from `main`. Independently, the
+   `Deploy Trigger.dev` GitHub Actions workflow deploys the production tasks and
+   starts `search-index-schema-v2`. Either deployment may finish first.
+3. The migration configures Algolia, backfills every vehicle in batches, validates
    exact VIN filters, then writes search schema version `2` to the index settings.
-5. The production UI polls readiness. The VIN input stays disabled until version
-   `2` is confirmed, then enables automatically.
+4. The production UI polls readiness. VIN search stays inactive until version `2`
+   is confirmed, then enables automatically.
 
 PR preview deployments never run the production migration because the workflow
 only runs after a push to `main`.
@@ -34,19 +34,20 @@ only runs after a push to `main`.
    a migration run.
 2. Watch `search-index-schema-v2` in the Trigger.dev production dashboard. Progress
    logs include batches and records processed.
-3. Open production search filters. Confirm the VIN input changes from `Preparing`
-   to enabled.
+3. Enter a complete VIN in the production search bar and confirm it is detected as
+   an exact VIN.
 4. Search a known exact VIN, then test a pattern such as `YV4C*85**********`.
 5. Confirm ordinary text search and each sort still return results.
 
 ## Failure and retry
 
 If deployment or migration fails, production search continues without the VIN
-filter. The VIN input remains disabled.
+filter. VIN search remains inactive.
 
-Rerun the failed GitHub Actions job. The migration is idempotent. It can safely
-repeat settings and record writes, and it exits immediately after schema version
-`2` is present.
+Retry a failed `search-index-schema-v2` run from the Trigger.dev dashboard. If the
+task was never started because deployment failed, rerun the failed GitHub Actions
+job instead. The migration is idempotent: it can safely repeat settings and record
+writes, and it exits immediately after schema version `2` is present.
 
 Do not run `scripts/sync-algolia.ts` as the deployment path. It remains a manual
 recovery tool.
