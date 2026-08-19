@@ -6,6 +6,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "~/components/ui/field";
 import { Label } from "~/components/ui/label";
 import { Input } from "~/components/ui/input";
 import { Slider } from "~/components/ui/slider";
@@ -31,6 +37,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
 interface SidebarContentProps {
   vinPattern: string;
   vinPatternError?: string;
+  vinPatternProgress?: string;
   vinPatternSearchReady: boolean;
   makes: string[];
   colors: string[];
@@ -55,6 +62,7 @@ interface SidebarContentProps {
 export function SidebarContent({
   vinPattern,
   vinPatternError,
+  vinPatternProgress,
   vinPatternSearchReady,
   makes,
   colors,
@@ -99,8 +107,14 @@ export function SidebarContent({
           <ChevronDown className="h-4 w-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2 px-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="vin-pattern">17-position VIN pattern</Label>
+          <Field
+            data-disabled={!vinPatternSearchReady}
+            data-invalid={Boolean(vinPatternError)}
+            className="gap-2"
+          >
+            <FieldLabel htmlFor="vin-pattern">
+              17-position VIN pattern
+            </FieldLabel>
             <Input
               id="vin-pattern"
               value={vinPattern}
@@ -119,24 +133,25 @@ export function SidebarContent({
               }
               className="font-mono uppercase"
             />
-            <p
+            <FieldDescription
               id="vin-pattern-help"
-              className="text-muted-foreground text-xs text-pretty"
+              className="text-xs text-pretty"
             >
-              {vinPatternSearchReady
-                ? "Use * for any character, or a set like [0-5] or [ABC]."
-                : "VIN search is being prepared and will enable automatically."}
-            </p>
+              {!vinPatternSearchReady
+                ? "VIN search is being prepared and will enable automatically."
+                : vinPatternProgress
+                  ? `${vinPatternProgress} entered. Use * for any character.`
+                  : "Use * for any character. Use [0-5] or [ABC] for a set."}
+            </FieldDescription>
             {vinPatternError && (
-              <p
+              <FieldError
                 id="vin-pattern-error"
-                role="alert"
-                className="text-destructive text-xs text-pretty"
+                className="text-xs text-pretty"
               >
                 {vinPatternError}
-              </p>
+              </FieldError>
             )}
-          </div>
+          </Field>
         </CollapsibleContent>
       </Collapsible>
 

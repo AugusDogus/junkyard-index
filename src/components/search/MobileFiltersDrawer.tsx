@@ -24,6 +24,7 @@ interface FilterOptions {
 interface MobileFiltersDrawerProps {
   vinPattern: string;
   vinPatternError?: string;
+  vinPatternProgress?: string;
   vinPatternSearchReady: boolean;
   activeFilterCount: number;
   clearAllFilters: () => void;
@@ -51,6 +52,7 @@ interface MobileFiltersDrawerProps {
 export function MobileFiltersDrawer({
   vinPattern,
   vinPatternError,
+  vinPatternProgress,
   vinPatternSearchReady,
   activeFilterCount,
   clearAllFilters,
@@ -114,6 +116,7 @@ export function MobileFiltersDrawer({
           <SidebarContent
             vinPattern={vinPattern}
             vinPatternError={vinPatternError}
+            vinPatternProgress={vinPatternProgress}
             vinPatternSearchReady={vinPatternSearchReady}
             makes={makes}
             colors={colors}

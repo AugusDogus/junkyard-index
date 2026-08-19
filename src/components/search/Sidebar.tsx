@@ -15,6 +15,7 @@ interface FilterOptions {
 interface SidebarProps {
   vinPattern: string;
   vinPatternError?: string;
+  vinPatternProgress?: string;
   vinPatternSearchReady: boolean;
   showFilters: boolean;
   setShowFilters: (show: boolean) => void;
@@ -43,6 +44,7 @@ interface SidebarProps {
 export function Sidebar({
   vinPattern,
   vinPatternError,
+  vinPatternProgress,
   vinPatternSearchReady,
   showFilters,
   setShowFilters,
@@ -105,6 +107,7 @@ export function Sidebar({
               <SidebarContent
                 vinPattern={vinPattern}
                 vinPatternError={vinPatternError}
+                vinPatternProgress={vinPatternProgress}
                 vinPatternSearchReady={vinPatternSearchReady}
                 makes={makes}
                 colors={colors}
