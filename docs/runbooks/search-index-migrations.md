@@ -37,7 +37,10 @@ only runs after a push to `main`.
 3. Enter a complete VIN in the production search bar and confirm it is detected as
    an exact VIN.
 4. Search a known exact VIN, then test a pattern such as `YV4C*85**********`.
-5. Confirm ordinary text search and each sort still return results.
+5. Starting from a known matching VIN, replace one position with a character set
+   containing its original character, then with a range containing its original
+   character. Confirm both patterns return the vehicle.
+6. Confirm ordinary text search and each sort still return results.
 
 ## Failure and retry
 
