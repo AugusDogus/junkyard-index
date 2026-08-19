@@ -1269,7 +1269,7 @@ function AlgoliaSearchInner({
       <div className="relative flex w-full gap-4 md:gap-6">
         {/* Desktop Sidebar */}
         {!isMobile && showFilters && (
-          <div className="sticky top-24 h-fit max-h-[calc(100vh-112px)] w-64 shrink-0 overflow-y-auto lg:w-80">
+          <div className="sticky top-24 h-[calc(100vh-112px)] w-64 shrink-0 lg:w-80">
             <Sidebar
               vinPattern={vinPattern}
               vinPatternError={effectiveVinPatternError}

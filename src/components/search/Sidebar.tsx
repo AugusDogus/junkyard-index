@@ -67,11 +67,11 @@ export function Sidebar({
   yearRangeLimits,
 }: SidebarProps) {
   return (
-    <div>
+    <div className="h-full">
       {showFilters && (
-        <div className="w-full flex-shrink-0">
-          <Card className="max-h-[calc(100vh-3rem)] overflow-y-auto">
-            <CardHeader className="pb-4">
+        <div className="h-full w-full shrink-0">
+          <Card className="h-full gap-0 overflow-hidden py-0">
+            <CardHeader className="shrink-0 p-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-bold">Filters</CardTitle>
                 <div className="flex items-center gap-2">
@@ -84,9 +84,10 @@ export function Sidebar({
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowFilters(false)}
-                    className="h-8 w-8 p-0"
+                    className="size-8 p-0"
+                    aria-label="Close filters"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="size-4" />
                   </Button>
                 </div>
               </div>
@@ -102,8 +103,7 @@ export function Sidebar({
               )}
             </CardHeader>
 
-            <CardContent className="scrollbar-thin-themed ml-2 max-h-[calc(100vh-200px)] overflow-y-auto [scrollbar-gutter:stable]">
-
+            <CardContent className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
               <SidebarContent
                 vinPattern={vinPattern}
                 vinPatternError={vinPatternError}
