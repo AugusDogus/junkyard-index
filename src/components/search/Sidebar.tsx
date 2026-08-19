@@ -95,7 +95,7 @@ export function Sidebar({
               )}
             </CardHeader>
 
-            <CardContent className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto px-4 pb-4 [scrollbar-gutter:stable]">
+            <CardContent className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto pr-1.5 pb-4 pl-4 [scrollbar-gutter:stable]">
               <SidebarContent
                 makes={makes}
                 colors={colors}

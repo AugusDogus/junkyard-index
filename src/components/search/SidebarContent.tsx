@@ -75,7 +75,7 @@ export function SidebarContent({
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
           <span className="font-medium">Salvage Yards</span>
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2 space-y-2">
           {availableSources.map((source) => {
@@ -131,7 +131,7 @@ export function SidebarContent({
                 </Badge>
               )}
             </div>
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="-mr-2 size-4" />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2">
             <SearchableCheckboxList
@@ -150,7 +150,7 @@ export function SidebarContent({
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
           <span className="font-medium">Year Range</span>
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2 space-y-4">
           <div className="px-2">
@@ -185,7 +185,7 @@ export function SidebarContent({
               </Badge>
             )}
           </div>
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
             <SearchableCheckboxList
@@ -210,7 +210,7 @@ export function SidebarContent({
               </Badge>
             )}
           </div>
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
             <SearchableCheckboxList
@@ -235,7 +235,7 @@ export function SidebarContent({
               </Badge>
             )}
           </div>
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
             <SearchableCheckboxList
