@@ -25,7 +25,7 @@ import {
   useStats,
 } from "react-instantsearch";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
-import { parseAsString, useQueryState, useQueryStates } from "nuqs";
+import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import { MorphingFilterBar } from "~/components/search/MorphingFilterBar";
@@ -136,6 +136,25 @@ function sanitizeSources(values: unknown): DataSource[] {
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
   userLocation?: { lat: number; lng: number };
+}
+
+interface AlgoliaSearchInnerProps extends SearchPageContentProps {
+  vinPatternIndexReady: boolean;
+}
+
+function getSearchableVinPattern(value: string | null): {
+  normalized: string;
+  filter: string;
+} | null {
+  if (!value) return null;
+
+  const parsed = VinPattern.parse(value);
+  if (!parsed.success) return null;
+
+  const filter = VinPattern.toAlgoliaFilter(parsed.data);
+  if (!filter) return null;
+
+  return { normalized: parsed.data.normalized, filter };
 }
 
 function hasValidCoordinates(
@@ -325,7 +344,8 @@ function DistancePreferenceDialog({
 function AlgoliaSearchInner({
   isLoggedIn,
   userLocation: _userLocation,
-}: SearchPageContentProps) {
+  vinPatternIndexReady,
+}: AlgoliaSearchInnerProps) {
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -351,16 +371,6 @@ function AlgoliaSearchInner({
   const [manualZipCode, setManualZipCode] = useState("");
 
   const utils = api.useUtils();
-  const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
-    undefined,
-    {
-      retry: false,
-      refetchInterval: (query) =>
-        query.state.data?.vinPatternSearchReady ? false : 10_000,
-    },
-  );
-  const vinPatternIndexReady =
-    searchCapabilities?.vinPatternSearchReady ?? false;
   const {
     data: accountLocationPreference,
     isLoading: isAccountLocationPreferenceLoading,
@@ -385,22 +395,17 @@ function AlgoliaSearchInner({
 
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
-  const [{ vin: vinPatternParam }, setSearchModeParams] = useQueryStates({
-    q: parseAsString,
-    vin: parseAsString,
-  });
-  const vinPattern = vinPatternParam ?? "";
-  const parsedVinPattern = useMemo(
-    () => (vinPattern ? VinPattern.parse(vinPattern) : null),
-    [vinPattern],
+  const [searchValueParam, setSearchValueParam] = useQueryState(
+    "q",
+    parseAsString,
   );
-  const vinPatternFilter =
-    parsedVinPattern?.success === true
-      ? VinPattern.toAlgoliaFilter(parsedVinPattern.data)
-      : undefined;
-  const effectiveVinPatternFilter = vinPatternIndexReady
-    ? vinPatternFilter
-    : undefined;
+  const searchableVinPattern = useMemo(
+    () =>
+      vinPatternIndexReady ? getSearchableVinPattern(searchValueParam) : null,
+    [searchValueParam, vinPatternIndexReady],
+  );
+  const vinPattern = searchableVinPattern?.normalized ?? "";
+  const effectiveVinPatternFilter = searchableVinPattern?.filter;
 
   // Auto-open save search dialog after auth redirect
   const [saveSearchParam, setSaveSearchParam] = useQueryState("saveSearch");
@@ -787,6 +792,7 @@ function AlgoliaSearchInner({
   // VIN searches can run alone from the primary search bar.
   const hasActiveSearch =
     query.length > 0 || Boolean(effectiveVinPatternFilter);
+  const analyticsSearchValue = effectiveVinPatternFilter ? vinPattern : query;
 
   // Loading = Algolia is actively fetching (not stale "0 results")
   const isSearching =
@@ -802,9 +808,7 @@ function AlgoliaSearchInner({
 
   const visibleVehicles = useMemo(
     () =>
-      isAnonymousCapped
-        ? vehicles.slice(0, anonymousVisibleLimit)
-        : vehicles,
+      isAnonymousCapped ? vehicles.slice(0, anonymousVisibleLimit) : vehicles,
     [isAnonymousCapped, vehicles, anonymousVisibleLimit],
   );
 
@@ -850,8 +854,8 @@ function AlgoliaSearchInner({
         <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
           You can keep searching for free, save up to{" "}
           {MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} searches, and upgrade to
-          Alerts Plan for ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo when
-          you want email or Discord alerts for new matches.
+          Alerts Plan for ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo
+          when you want email or Discord alerts for new matches.
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <Button asChild>
@@ -861,7 +865,7 @@ function AlgoliaSearchInner({
                 posthog.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
                   source_page: "search",
                   cta_location: "result_cap",
-                  query,
+                  query: analyticsSearchValue,
                   result_count: searchResult.totalCount,
                   visible_result_count: anonymousVisibleLimit,
                 })
@@ -877,7 +881,7 @@ function AlgoliaSearchInner({
                 posthog.capture(AnalyticsEvents.RESULT_CAP_PRICING_CLICKED, {
                   source_page: "search",
                   cta_location: "result_cap",
-                  query,
+                  query: analyticsSearchValue,
                   result_count: searchResult.totalCount,
                   visible_result_count: anonymousVisibleLimit,
                 })
@@ -889,7 +893,7 @@ function AlgoliaSearchInner({
         </div>
       </div>
     );
-  }, [isAnonymousCapped, query, searchResult, signUpHref]);
+  }, [isAnonymousCapped, analyticsSearchValue, searchResult, signUpHref]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -1025,20 +1029,16 @@ function AlgoliaSearchInner({
     });
     clearRefinements();
     refineSortBy(ALGOLIA_INDEX_NAME);
-    void setSearchModeParams({ vin: null });
     setShowFilters(false);
-  }, [activeFilterCount, clearRefinements, refineSortBy, setSearchModeParams]);
+  }, [activeFilterCount, clearRefinements, refineSortBy]);
 
   const handleSearchModeChange = useCallback(
     async (value: { query: string | null; vinPattern: string | null }) => {
-      await setSearchModeParams({
-        q: value.query,
-        vin: value.vinPattern
-          ? VinPattern.normalize(value.vinPattern)
-          : null,
-      });
+      await setSearchValueParam(
+        value.vinPattern ? VinPattern.normalize(value.vinPattern) : value.query,
+      );
     },
-    [setSearchModeParams],
+    [setSearchValueParam],
   );
 
   // Helper: toggle only the values that changed between current and next.
@@ -1089,8 +1089,6 @@ function AlgoliaSearchInner({
     },
     [refineYear],
   );
-
-  const analyticsSearchValue = effectiveVinPatternFilter ? vinPattern : query;
 
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
   useEffect(() => {
@@ -1539,7 +1537,7 @@ function AlgoliaSearchInner({
                       posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                         source_page: "search",
                         cta_location: "no_results",
-                        query,
+                        query: analyticsSearchValue,
                         result_count: 0,
                         visible_result_count: 0,
                         is_logged_in: isLoggedIn,
@@ -1557,11 +1555,7 @@ function AlgoliaSearchInner({
       {searchResult && (
         <SearchSummary
           searchResult={searchResult}
-          visibleCount={
-            isAnonymousCapped
-              ? anonymousVisibleLimit
-              : undefined
-          }
+          visibleCount={isAnonymousCapped ? anonymousVisibleLimit : undefined}
         />
       )}
     </div>
@@ -1573,7 +1567,7 @@ function AlgoliaSearchInner({
  * This preserves backward compatibility with saved search URLs
  * (e.g. /search?q=volvo&makes=HONDA,TOYOTA&states=California&minYear=2019)
  */
-function createRouting(indexName: string) {
+function createRouting(indexName: string, vinPatternIndexReady: boolean) {
   return {
     router: {
       cleanUrlOnDispose: false,
@@ -1587,8 +1581,10 @@ function createRouting(indexName: string) {
         const baseUrl = location.href.split("?")[0]!;
         const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
-        const vinPattern = locationParams.get("vin");
-        if (vinPattern) params.set("vin", vinPattern);
+        const vinPattern = vinPatternIndexReady
+          ? getSearchableVinPattern(locationParams.get("q"))
+          : null;
+        if (vinPattern) params.set("q", vinPattern.normalized);
 
         const state = routeState[indexName] as
           | Record<string, unknown>
@@ -1623,7 +1619,9 @@ function createRouting(indexName: string) {
         const state: Record<string, unknown> = {};
 
         const q = params.get("q");
-        const vinPattern = params.get("vin");
+        const vinPattern = vinPatternIndexReady
+          ? getSearchableVinPattern(q)
+          : null;
         if (q && !vinPattern) state.query = q;
 
         const makes = params.get("makes");
@@ -1749,10 +1747,24 @@ export function SearchPageContent({
   isLoggedIn,
   userLocation,
 }: SearchPageContentProps) {
-  const routing = useMemo(() => createRouting(ALGOLIA_INDEX_NAME), []);
+  const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
+    undefined,
+    {
+      retry: false,
+      refetchInterval: (query) =>
+        query.state.data?.vinPatternSearchReady ? false : 10_000,
+    },
+  );
+  const vinPatternIndexReady =
+    searchCapabilities?.vinPatternSearchReady ?? false;
+  const routing = useMemo(
+    () => createRouting(ALGOLIA_INDEX_NAME, vinPatternIndexReady),
+    [vinPatternIndexReady],
+  );
 
   return (
     <InstantSearchNext
+      key={vinPatternIndexReady ? "vin-search-ready" : "vin-search-disabled"}
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
@@ -1762,6 +1774,7 @@ export function SearchPageContent({
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           userLocation={userLocation}
+          vinPatternIndexReady={vinPatternIndexReady}
         />
       </ErrorBoundary>
     </InstantSearchNext>

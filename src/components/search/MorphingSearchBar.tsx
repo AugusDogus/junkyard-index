@@ -83,15 +83,14 @@ export const MorphingSearchBar = forwardRef<
   // Algolia's history router doesn't detect pushState, so we watch URL params directly
   const searchParams = useSearchParams();
   const urlQuery = searchParams.get("q") ?? "";
-  const urlVinPattern = searchParams.get("vin") ?? "";
   useEffect(() => {
     if (committingValueRef.current !== null) return;
-    if (!urlQuery && !urlVinPattern && inputValueRef.current) {
+    if (!urlQuery && inputValueRef.current) {
       setInputValue("");
       void onSearchModeChange({ query: null, vinPattern: null });
       refine("");
     }
-  }, [urlQuery, urlVinPattern]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [urlQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isVinCandidate =
     vinPatternSearchReady && VinPattern.isSearchCandidate(inputValue);

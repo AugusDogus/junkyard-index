@@ -16,12 +16,9 @@ export function buildSearchUrl(
 ): string {
   const params = new URLSearchParams();
 
-  if (query) {
-    params.set("q", query);
-  }
-
-  if (filters.vinPattern) {
-    params.set("vin", filters.vinPattern);
+  const searchValue = filters.vinPattern ?? query;
+  if (searchValue) {
+    params.set("q", searchValue);
   }
 
   if (filters.makes && filters.makes.length > 0) {
