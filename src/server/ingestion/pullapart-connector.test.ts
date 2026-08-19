@@ -99,6 +99,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function installPullapartFetchMock(options?: {
   detailResponse?: () => Response | Promise<Response>;
   imageResponse?: () => Response | Promise<Response>;
+  makesResponse?: unknown;
   vehicleSearchResponse?: unknown;
 }) {
   globalThis.fetch = (async (input) => {
@@ -114,7 +115,7 @@ function installPullapartFetchMock(options?: {
     }
 
     if (url.includes("/Make/OnYard")) {
-      return jsonResponse(makesResponse);
+      return jsonResponse(options?.makesResponse ?? makesResponse);
     }
 
     if (url.includes("/Vehicle/Search")) {
@@ -153,6 +154,68 @@ afterEach(() => {
 });
 
 describe("streamPullapartInventory enrichment handling", () => {
+  test("pauses at a bounded make chunk and resumes from its cursor", async () => {
+    const firstMake = makesResponse[0];
+    if (!firstMake) throw new Error("Pull-A-Part make fixture is missing");
+    installPullapartFetchMock({
+      makesResponse: [
+        ...makesResponse,
+        {
+          ...firstMake,
+          makeID: 7,
+          makeName: "AUDI",
+        },
+      ],
+    });
+
+    const first = await Effect.runPromise(
+      streamPullapartInventory({
+        onBatch: () => Effect.succeed(undefined),
+        maxPages: 1,
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
+    );
+    const resumed = await Effect.runPromise(
+      streamPullapartInventory({
+        onBatch: () => Effect.succeed(undefined),
+        startAfter: first.cursor,
+        maxPages: 1,
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
+    );
+
+    expect(first.status).toBe("paused");
+    expect(first.cursor.makeId).toBe(6);
+    expect(resumed.status).toBe("complete");
+    expect(resumed.cursor.makeId).toBe(7);
+  });
+
+  test("resumes by stable make ID when an earlier make disappears", async () => {
+    const firstMake = makesResponse[0];
+    if (!firstMake) throw new Error("Pull-A-Part make fixture is missing");
+    const secondMake = { ...firstMake, makeID: 7, makeName: "AUDI" };
+    installPullapartFetchMock({ makesResponse: [firstMake, secondMake] });
+
+    const first = await Effect.runPromise(
+      streamPullapartInventory({
+        onBatch: () => Effect.succeed(undefined),
+        maxPages: 1,
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
+    );
+
+    installPullapartFetchMock({ makesResponse: [secondMake] });
+    const resumed = await Effect.runPromise(
+      streamPullapartInventory({
+        onBatch: () => Effect.succeed(undefined),
+        startAfter: first.cursor,
+        maxPages: 1,
+      }).pipe(Effect.provide(FetchHttpClient.layer)),
+    );
+
+    expect(first.cursor.makeId).toBe(6);
+    expect(resumed.cursor.makeId).toBe(7);
+    expect(resumed.count).toBe(1);
+    expect(resumed.status).toBe("complete");
+  });
+
   test("routes every inventory request through the shared gate", async () => {
     const searchGroup = vehicleSearchResponse[0];
     const baseVehicle = searchGroup?.exact[0];

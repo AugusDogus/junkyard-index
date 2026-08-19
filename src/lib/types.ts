@@ -1,9 +1,6 @@
-export type DataSource =
-  | "pyp"
-  | "row52"
-  | "autorecycler"
-  | "pullapart"
-  | "upullitne";
+import type { IngestionSource } from "./ingestion-source";
+
+export type DataSource = IngestionSource;
 
 // Location types based on the PYP _locationList structure
 export interface Location {

@@ -59,6 +59,15 @@ import {
   SelectTrigger,
 } from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
+import {
+  createSearchRouting,
+  getSearchableVinPattern,
+  getSearchSortIndex,
+  getSearchSortKey,
+  sanitizeSearchSources,
+  SEARCH_SORT_ITEMS,
+  SEARCH_SORT_OPTIONS,
+} from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
@@ -71,49 +80,11 @@ import {
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import { getSearchCapabilityPollInterval } from "~/lib/search-capability-polling";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
-
-// Module-level sort options — single source of truth for all sort mappings.
-const SORT_OPTIONS: { indexName: string; key: string; label: string }[] = [
-  { indexName: ALGOLIA_INDEX_NAME, key: "newest", label: "Newest First" },
-  { indexName: "vehicles_oldest", key: "oldest", label: "Oldest First" },
-  {
-    indexName: "vehicles_year_desc",
-    key: "year-desc",
-    label: "Year (High to Low)",
-  },
-  {
-    indexName: "vehicles_year_asc",
-    key: "year-asc",
-    label: "Year (Low to High)",
-  },
-  {
-    indexName: "vehicles_distance",
-    key: "distance",
-    label: "Distance (Nearest)",
-  },
-];
-const SORT_ITEMS = SORT_OPTIONS.map(({ indexName, label }) => ({
-  value: indexName,
-  label,
-}));
-const INDEX_TO_KEY = Object.fromEntries(
-  SORT_OPTIONS.map((o) => [o.indexName, o.key]),
-);
-const KEY_TO_INDEX = Object.fromEntries(
-  SORT_OPTIONS.map((o) => [o.key, o.indexName]),
-);
-const KNOWN_SORT_INDICES = new Set(SORT_OPTIONS.map((o) => o.indexName));
-const ALLOWED_SOURCES: DataSource[] = [
-  "pyp",
-  "row52",
-  "autorecycler",
-  "pullapart",
-  "upullitne",
-];
 
 function clampRouteYear(
   value: number | null,
@@ -126,13 +97,6 @@ function clampRouteYear(
   return Math.min(max, Math.max(min, value));
 }
 
-function sanitizeSources(values: unknown): DataSource[] {
-  if (!Array.isArray(values)) return [];
-  return values.filter((value): value is DataSource =>
-    ALLOWED_SOURCES.includes(value as DataSource),
-  );
-}
-
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
   userLocation?: { lat: number; lng: number };
@@ -140,21 +104,6 @@ interface SearchPageContentProps {
 
 interface AlgoliaSearchInnerProps extends SearchPageContentProps {
   vinPatternIndexReady: boolean;
-}
-
-function getSearchableVinPattern(value: string | null): {
-  normalized: string;
-  filter: string;
-} | null {
-  if (!value) return null;
-
-  const parsed = VinPattern.parse(value);
-  if (!parsed.success) return null;
-
-  const filter = VinPattern.toAlgoliaFilter(parsed.data);
-  if (!filter) return null;
-
-  return { normalized: parsed.data.normalized, filter };
 }
 
 function hasValidCoordinates(
@@ -519,10 +468,10 @@ function AlgoliaSearchInner({
   // Virtual replicas for date/year (share records with primary).
   // Standard replica for distance (separate index with geo-dominant ranking).
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
-    useSortBy({ items: SORT_ITEMS });
+    useSortBy({ items: SEARCH_SORT_ITEMS });
 
   const sortBy = useMemo(
-    () => INDEX_TO_KEY[currentSortIndex] ?? "newest",
+    () => getSearchSortKey(currentSortIndex),
     [currentSortIndex],
   );
   const SortIcon = getSortIcon(sortBy);
@@ -704,7 +653,7 @@ function AlgoliaSearchInner({
     [refinementList],
   );
   const selectedSources = useMemo(
-    () => sanitizeSources(refinementList.source ?? []),
+    () => sanitizeSearchSources(refinementList.source ?? []),
     [refinementList],
   );
 
@@ -1004,7 +953,7 @@ function AlgoliaSearchInner({
       }
 
       posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
-      refineSortBy(KEY_TO_INDEX[value] ?? ALGOLIA_INDEX_NAME);
+      refineSortBy(getSearchSortIndex(value));
     },
     [
       hasUsableLocationPreference,
@@ -1326,7 +1275,7 @@ function AlgoliaSearchInner({
                         <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
                       </SelectTrigger>
                       <SelectContent>
-                        {SORT_OPTIONS.map(({ key, label }) => (
+                        {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
                           <SelectItem key={key} value={key}>
                             {label}
                           </SelectItem>
@@ -1562,182 +1511,6 @@ function AlgoliaSearchInner({
   );
 }
 
-/**
- * Custom routing that maps our URL params ↔ Algolia UI state.
- * This preserves backward compatibility with saved search URLs
- * (e.g. /search?q=volvo&makes=HONDA,TOYOTA&states=California&minYear=2019)
- */
-function createRouting(indexName: string, vinPatternIndexReady: boolean) {
-  return {
-    router: {
-      cleanUrlOnDispose: false,
-      createURL({
-        routeState,
-        location,
-      }: {
-        routeState: Record<string, Record<string, unknown>>;
-        location: Location;
-      }): string {
-        const baseUrl = location.href.split("?")[0]!;
-        const params = new URLSearchParams();
-        const locationParams = new URLSearchParams(location.search);
-        const vinPattern = vinPatternIndexReady
-          ? getSearchableVinPattern(locationParams.get("q"))
-          : null;
-        if (vinPattern) params.set("q", vinPattern.normalized);
-
-        const state = routeState[indexName] as
-          | Record<string, unknown>
-          | undefined;
-        if (!state) {
-          const qs = params.toString();
-          return qs ? `${baseUrl}?${qs}` : baseUrl;
-        }
-
-        if (state.query && !vinPattern) {
-          params.set("q", state.query as string);
-        }
-        if (state.makes)
-          params.set("makes", (state.makes as string[]).join(","));
-        if (state.colors)
-          params.set("colors", (state.colors as string[]).join(","));
-        if (state.states)
-          params.set("states", (state.states as string[]).join(","));
-        if (state.yards)
-          params.set("yards", (state.yards as string[]).join(","));
-        if (state.sources)
-          params.set("sources", (state.sources as string[]).join(","));
-        if (state.minYear) params.set("minYear", String(state.minYear));
-        if (state.maxYear) params.set("maxYear", String(state.maxYear));
-        if (state.sort) params.set("sort", state.sort as string);
-
-        const qs = params.toString();
-        return qs ? `${baseUrl}?${qs}` : baseUrl;
-      },
-      parseURL({ location }: { location: Location }) {
-        const params = new URLSearchParams(location.search);
-        const state: Record<string, unknown> = {};
-
-        const q = params.get("q");
-        const vinPattern = vinPatternIndexReady
-          ? getSearchableVinPattern(q)
-          : null;
-        if (q && !vinPattern) state.query = q;
-
-        const makes = params.get("makes");
-        if (makes) state.makes = makes.split(",").filter(Boolean);
-
-        const colors = params.get("colors");
-        if (colors) state.colors = colors.split(",").filter(Boolean);
-
-        const states = params.get("states");
-        if (states) state.states = states.split(",").filter(Boolean);
-
-        const yards = params.get("yards");
-        if (yards) state.yards = yards.split(",").filter(Boolean);
-
-        const sources = params.get("sources");
-        if (sources) state.sources = sources.split(",").filter(Boolean);
-
-        const minYear = params.get("minYear");
-        if (minYear) {
-          const parsed = parseInt(minYear, 10);
-          if (!Number.isNaN(parsed)) state.minYear = parsed;
-        }
-
-        const maxYear = params.get("maxYear");
-        if (maxYear) {
-          const parsed = parseInt(maxYear, 10);
-          if (!Number.isNaN(parsed)) state.maxYear = parsed;
-        }
-
-        const sort = params.get("sort");
-        if (sort) state.sort = sort;
-
-        return { [indexName]: state };
-      },
-    },
-    stateMapping: {
-      stateToRoute(uiState: Record<string, Record<string, unknown>>) {
-        const indexState = uiState[indexName] ?? {};
-        const state: Record<string, unknown> = {};
-
-        if (indexState.query) state.query = indexState.query;
-
-        // Persist sort as human-readable key (e.g. "oldest" not "vehicles_oldest")
-        if (indexState.sortBy && indexState.sortBy !== indexName) {
-          state.sort =
-            INDEX_TO_KEY[indexState.sortBy as string] ?? indexState.sortBy;
-        }
-
-        // Extract refinement lists
-        const refinementList = indexState.refinementList as
-          | Record<string, string[]>
-          | undefined;
-        if (refinementList?.make?.length) state.makes = refinementList.make;
-        if (refinementList?.color?.length) state.colors = refinementList.color;
-        if (refinementList?.state?.length) state.states = refinementList.state;
-        if (refinementList?.locationName?.length)
-          state.yards = refinementList.locationName;
-        if (refinementList?.source?.length)
-          state.sources = refinementList.source;
-
-        // Extract numeric range
-        const range = indexState.range as Record<string, string> | undefined;
-        if (range?.year) {
-          const [min, max] = (range.year as string).split(":");
-          if (min) {
-            const parsed = parseInt(min, 10);
-            if (!Number.isNaN(parsed)) state.minYear = parsed;
-          }
-          if (max) {
-            const parsed = parseInt(max, 10);
-            if (!Number.isNaN(parsed)) state.maxYear = parsed;
-          }
-        }
-
-        return { [indexName]: state };
-      },
-      routeToState(routeState: Record<string, Record<string, unknown>>) {
-        const state = routeState[indexName] ?? {};
-        const uiState: Record<string, unknown> = {};
-
-        if (state.query) uiState.query = state.query;
-
-        // Restore sort — map human key to index name, validate, then set
-        if (state.sort) {
-          const mapped =
-            KEY_TO_INDEX[state.sort as string] ?? (state.sort as string);
-          if (KNOWN_SORT_INDICES.has(mapped)) {
-            uiState.sortBy = mapped;
-          }
-        }
-
-        // Build refinement lists
-        const refinementList: Record<string, string[]> = {};
-        if (state.makes) refinementList.make = state.makes as string[];
-        if (state.colors) refinementList.color = state.colors as string[];
-        if (state.states) refinementList.state = state.states as string[];
-        if (state.yards) refinementList.locationName = state.yards as string[];
-        const sources = sanitizeSources(state.sources);
-        if (sources.length > 0) refinementList.source = sources;
-        if (Object.keys(refinementList).length > 0) {
-          uiState.refinementList = refinementList;
-        }
-
-        // Build range
-        if (state.minYear || state.maxYear) {
-          uiState.range = {
-            year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
-          };
-        }
-
-        return { [indexName]: uiState };
-      },
-    },
-  };
-}
-
 const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 
 /**
@@ -1751,14 +1524,20 @@ export function SearchPageContent({
     undefined,
     {
       retry: false,
-      refetchInterval: (query) =>
-        query.state.data?.vinPatternSearchReady ? false : 10_000,
+      refetchInterval: (query) => {
+        const attempts =
+          query.state.dataUpdateCount + query.state.fetchFailureCount;
+        return getSearchCapabilityPollInterval(
+          query.state.data?.vinPatternSearchReady === true,
+          attempts,
+        );
+      },
     },
   );
   const vinPatternIndexReady =
     searchCapabilities?.vinPatternSearchReady ?? false;
   const routing = useMemo(
-    () => createRouting(ALGOLIA_INDEX_NAME, vinPatternIndexReady),
+    () => createSearchRouting(ALGOLIA_INDEX_NAME, vinPatternIndexReady),
     [vinPatternIndexReady],
   );
 

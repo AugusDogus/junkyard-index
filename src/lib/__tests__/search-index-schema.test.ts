@@ -13,7 +13,7 @@ describe("search index schema", () => {
     expect(getSearchSchemaVersion({ searchSchemaVersion: -1 })).toBe(0);
   });
 
-  it("reports VIN pattern search ready at schema version two", () => {
+  it("reports VIN pattern search ready at schema version three", () => {
     expect(isVinPatternSearchReady({ searchSchemaVersion: 1 })).toBe(false);
     expect(
       isVinPatternSearchReady({

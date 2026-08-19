@@ -1,9 +1,6 @@
-export type PipelineSourceName =
-  | "pyp"
-  | "row52"
-  | "autorecycler"
-  | "pullapart"
-  | "upullitne";
+import type { IngestionSource } from "~/lib/ingestion-source";
+
+export type PipelineSourceName = IngestionSource;
 
 export interface PipelineSourceOutcome {
   source: PipelineSourceName;

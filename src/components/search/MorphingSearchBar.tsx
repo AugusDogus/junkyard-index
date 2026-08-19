@@ -14,6 +14,10 @@ import { useSearchBox } from "react-instantsearch";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import {
+  executeSearchCommit,
+  resolveCommittedSearchSync,
+} from "~/lib/search-commit";
 import { VinPattern } from "~/lib/vin-pattern";
 
 const DEBOUNCE_MS = 300;
@@ -65,18 +69,16 @@ export const MorphingSearchBar = forwardRef<
   // Sync local input when search state changes externally (e.g. URL routing).
   // Skip sync if difference is only trailing whitespace (user still typing).
   useEffect(() => {
-    if (
-      committingValueRef.current !== null &&
-      committedValue !== committingValueRef.current
-    ) {
-      return;
-    }
-    if (committedValue === committingValueRef.current) {
+    const sync = resolveCommittedSearchSync({
+      committedValue,
+      pendingValue: committingValueRef.current,
+      inputValue: inputValueRef.current,
+    });
+    if (sync.kind === "wait") return;
+    if (sync.clearPending) {
       committingValueRef.current = null;
     }
-    if (committedValue !== inputValueRef.current.trim()) {
-      setInputValue(committedValue);
-    }
+    if (sync.inputValue !== null) setInputValue(sync.inputValue);
   }, [committedValue]);
 
   // Also sync when Next.js navigates (e.g. clicking logo to /search clears URL)
@@ -222,30 +224,18 @@ export const MorphingSearchBar = forwardRef<
 
   const commitSearchValue = useCallback(
     async (value: string) => {
-      const trimmed = value.trim();
-      if (vinPatternSearchReady && VinPattern.isSearchCandidate(trimmed)) {
-        const parsedPattern = VinPattern.parse(trimmed);
-        if (
-          parsedPattern.success &&
-          VinPattern.toAlgoliaFilter(parsedPattern.data)
-        ) {
-          committingValueRef.current = trimmed;
-          await onSearchModeChange({ query: null, vinPattern: trimmed });
-          refineRef.current("");
-        }
-        return;
-      }
-
-      committingValueRef.current = trimmed;
-      if (vinPattern) {
-        await onSearchModeChange({
-          query: trimmed || null,
-          vinPattern: null,
-        });
-        refineRef.current(trimmed);
-        return;
-      }
-      refineRef.current(trimmed);
+      await executeSearchCommit({
+        value,
+        vinPatternSearchReady,
+        currentVinPattern: vinPattern,
+        operations: {
+          setPendingValue: (pendingValue) => {
+            committingValueRef.current = pendingValue;
+          },
+          changeMode: onSearchModeChange,
+          refine: (queryValue) => refineRef.current(queryValue),
+        },
+      });
     },
     [onSearchModeChange, vinPattern, vinPatternSearchReady],
   );

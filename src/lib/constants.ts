@@ -1,5 +1,17 @@
 // Algolia
 export const ALGOLIA_INDEX_NAME = "vehicles";
+export const ALGOLIA_REPLICA_INDEX_NAMES = [
+  "vehicles_oldest",
+  "vehicles_year_desc",
+  "vehicles_year_asc",
+  "vehicles_distance",
+] as const;
+export const ALGOLIA_SEARCH_INDEX_NAMES = [
+  ALGOLIA_INDEX_NAME,
+  ...ALGOLIA_REPLICA_INDEX_NAMES,
+] as const;
+export type AlgoliaSearchIndexName =
+  (typeof ALGOLIA_SEARCH_INDEX_NAMES)[number];
 
 // Search configuration
 export const SEARCH_CONFIG = {

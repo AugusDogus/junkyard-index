@@ -9,7 +9,8 @@ import {
   searchPullapartVehicles,
   type PullapartRequestGate,
 } from "./pullapart-client";
-import { DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL } from "./constants";
+import type { ConnectorChunkResult } from "./connector-chunk";
+import type { PullapartDurableCursor } from "./durable-source";
 import { PullapartProviderError } from "./errors";
 import { transformPullapartVehicle } from "./pullapart-transform";
 import type { CanonicalVehicle } from "./types";
@@ -17,32 +18,15 @@ import type { CanonicalVehicle } from "./types";
 const VEHICLE_ENRICH_CONCURRENCY = 8;
 const INVENTORY_REQUESTS_PER_SECOND = 4;
 
-export interface PullapartStreamResult {
-  source: "pullapart";
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-  nextCursor: string;
-  done: boolean;
-  fullyExhausted: boolean;
-  stopped: boolean;
-}
-
-type PullapartProgress = {
-  nextCursor: string;
-  pagesProcessed: number;
-  vehiclesProcessed: number;
-  fullyExhausted: boolean;
-  stopped: boolean;
-  errors: string[];
-};
+export type PullapartStreamResult = ConnectorChunkResult<
+  "pullapart",
+  PullapartDurableCursor
+>;
 
 export interface PullapartStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  pagesPerChunk?: number;
-  onProgress?: (
-    progress: PullapartProgress,
-  ) => Effect.Effect<void, E, R>;
+  startAfter?: PullapartDurableCursor;
+  maxPages?: number;
 }
 
 export function streamPullapartInventoryWithRequestGate<E, R>(
@@ -53,81 +37,68 @@ export function streamPullapartInventoryWithRequestGate<E, R>(
   PullapartProviderError | E,
   R | HttpClient.HttpClient
 > {
-  const makeQueryIndex = (locationIndex: number, makeIndex: number) =>
-    locationIndex * 1000 + makeIndex;
-
   return Effect.gen(function* () {
-    const progressEveryPages = Math.max(
-      1,
-      options.pagesPerChunk ?? DEFAULT_INGESTION_PROGRESS_PAGE_INTERVAL,
-    );
     let pagesProcessed = 0;
     let vehiclesProcessed = 0;
-    let nextCursor = "0:0";
-    let fullyExhausted = false;
-    let stopped = false;
-    let lastProgressPages = 0;
+    const startAfter = options.startAfter ?? {
+      source: "pullapart",
+      locationId: 0,
+      makeId: 0,
+    };
+    const { locationId: lastLocationId, makeId: lastMakeId } = startAfter;
+    const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
+    let cursor = startAfter;
+    let paused = false;
     const errors: string[] = [];
     const geoByZip = new Map<string, { lat: number; lng: number }>();
 
-    const emitProgress = (force: boolean): Effect.Effect<void, E, R> => {
-      if (!options.onProgress) return Effect.succeed(undefined);
-      if (!force && pagesProcessed - lastProgressPages < progressEveryPages) {
-        return Effect.succeed(undefined);
-      }
-      lastProgressPages = pagesProcessed;
-      return options.onProgress({
-        nextCursor,
-        pagesProcessed,
-        vehiclesProcessed,
-        fullyExhausted,
-        stopped,
-        errors,
-      });
-    };
-
-    const locations = yield* fetchPullapartLocations().pipe(
-      Effect.mapError(
-        (cause) => new PullapartProviderError({ cursor: "locations", cause }),
-      ),
-    );
+    const locations = [
+      ...(yield* fetchPullapartLocations().pipe(
+        Effect.mapError(
+          (cause) => new PullapartProviderError({ cursor: "locations", cause }),
+        ),
+      )),
+    ].sort((left, right) => left.locationID - right.locationID);
 
     yield* Effect.logInfo(
       `[Pull-A-Part] Streaming inventory from ${locations.length} locations`,
     );
 
-    for (
-      let locationIndex = 0;
-      locationIndex < locations.length && !stopped;
-      locationIndex += 1
-    ) {
-      const location = locations[locationIndex]!;
+    locationLoop: for (const location of locations) {
+      if (location.locationID < lastLocationId) continue;
       const cursorPrefix = `${location.locationID}`;
 
-      const makes = yield* fetchPullapartMakesOnYard(
-        location.locationID,
-        inventoryRequestGate,
-      ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new PullapartProviderError({
-              cursor: `${cursorPrefix}:makes:${makeQueryIndex(locationIndex, -1)}`,
-              cause,
-            }),
-        ),
-      );
+      const makes = [
+        ...(yield* fetchPullapartMakesOnYard(
+          location.locationID,
+          inventoryRequestGate,
+        ).pipe(
+          Effect.mapError(
+            (cause) =>
+              new PullapartProviderError({
+                cursor: `${cursorPrefix}:makes`,
+                cause,
+              }),
+          ),
+        )),
+      ].sort((left, right) => left.makeID - right.makeID);
 
       yield* Effect.logInfo(
         `[Pull-A-Part] Location ${location.locationID} (${location.locationName}): ${makes.length} makes on yard`,
       );
 
-      for (
-        let makeIndex = 0;
-        makeIndex < makes.length && !stopped;
-        makeIndex += 1
-      ) {
-        const make = makes[makeIndex]!;
-        nextCursor = `${location.locationID}:${make.makeID}`;
+      for (const make of makes) {
+        if (
+          location.locationID === lastLocationId &&
+          make.makeID <= lastMakeId
+        ) {
+          continue;
+        }
+        cursor = {
+          source: "pullapart",
+          locationId: location.locationID,
+          makeId: make.makeID,
+        };
 
         const response = yield* searchPullapartVehicles(
           {
@@ -139,7 +110,7 @@ export function streamPullapartInventoryWithRequestGate<E, R>(
           Effect.mapError(
             (cause) =>
               new PullapartProviderError({
-                cursor: `${cursorPrefix}:make:${make.makeID}:${makeQueryIndex(locationIndex, makeIndex)}`,
+                cursor: `${cursorPrefix}:make:${make.makeID}`,
                 cause,
               }),
           ),
@@ -218,28 +189,33 @@ export function streamPullapartInventoryWithRequestGate<E, R>(
 
         vehiclesProcessed += batch.length;
         pagesProcessed += 1;
-
         yield* Effect.logInfo(
           `[Pull-A-Part] Location ${location.locationID} make ${make.makeName}: ${batch.length} vehicles`,
         );
-        yield* emitProgress(false);
+        if (pagesProcessed >= maxPages) {
+          const lastLocation = locations.at(-1);
+          const lastMake = makes.at(-1);
+          if (
+            lastLocation?.locationID !== location.locationID ||
+            lastMake?.makeID !== make.makeID
+          ) {
+            paused = true;
+            break locationLoop;
+          }
+        }
       }
     }
 
-    if (!stopped) {
-      fullyExhausted = true;
-      yield* emitProgress(true);
-    }
+    const status =
+      errors.length > 0 ? "failed" : paused ? "paused" : "complete";
 
     return {
       source: "pullapart" as const,
+      status,
+      cursor,
       count: vehiclesProcessed,
       errors,
       pagesProcessed,
-      nextCursor,
-      done: true,
-      fullyExhausted,
-      stopped,
     };
   });
 }

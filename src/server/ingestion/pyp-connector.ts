@@ -9,18 +9,12 @@ import { transformPypVehicle } from "./pyp-transform";
 import type { CanonicalVehicle } from "./types";
 import { PypProviderError, BrowserSessionError } from "./errors";
 import { Config } from "./runtime";
+import type { ConnectorChunkResult } from "./connector-chunk";
 
 const PAGE_SIZE = 500;
 const PAGE_COUNT_WARNING_THRESHOLD = 250;
 
-export interface PypStreamResult {
-  source: "pyp";
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-  nextPage: number;
-  done: boolean;
-}
+export type PypStreamResult = ConnectorChunkResult<"pyp", number>;
 
 function processPage(
   data: PypFilterResponse,
@@ -78,31 +72,6 @@ function assertMinLocations(locations: Location[]) {
   }
 }
 
-function notifyProgress<E, R>(
-  onProgress:
-    | ((progress: {
-        nextPage: number;
-        pagesProcessed: number;
-        vehiclesProcessed: number;
-        done: boolean;
-        errors: string[];
-      }) => Effect.Effect<void, E, R>)
-    | undefined,
-  progress: {
-    nextPage: number;
-    pagesProcessed: number;
-    vehiclesProcessed: number;
-    done: boolean;
-    errors: string[];
-  },
-): Effect.Effect<void, E, R> {
-  if (!onProgress) {
-    return Effect.succeed(undefined);
-  }
-
-  return onProgress(progress);
-}
-
 /**
  * Effect-based PYP inventory stream.
  * Uses a scoped browser session that is automatically cleaned up on failure or completion.
@@ -110,13 +79,7 @@ function notifyProgress<E, R>(
 export function streamPypInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startPage?: number;
-  onProgress?: (progress: {
-    nextPage: number;
-    pagesProcessed: number;
-    vehiclesProcessed: number;
-    done: boolean;
-    errors: string[];
-  }) => Effect.Effect<void, E, R>;
+  maxPages?: number;
 }): Effect.Effect<
   PypStreamResult,
   PypProviderError | BrowserSessionError | E,
@@ -156,7 +119,9 @@ export function streamPypInventory<E, R>(options: {
       `[PYP] Streaming inventory from ${session.locations.length} locations via browser-proxied JSON API`,
     );
 
-    while (!done) {
+    const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
+
+    while (!done && pagesProcessed < maxPages) {
       if (session.shouldRotate) {
         yield* Effect.logInfo(
           `[PYP] Rotating session (session #${sessionCount} done, page ${nextPage} next)`,
@@ -190,13 +155,6 @@ export function streamPypInventory<E, R>(options: {
         yield* Effect.logError(msg);
         errors.push(msg);
         done = true;
-        yield* notifyProgress(options.onProgress, {
-          nextPage,
-          pagesProcessed,
-          vehiclesProcessed: totalCount,
-          done: true,
-          errors,
-        });
         break;
       }
 
@@ -213,13 +171,6 @@ export function streamPypInventory<E, R>(options: {
       if (result.apiError) {
         errors.push(result.apiError);
         done = true;
-        yield* notifyProgress(options.onProgress, {
-          nextPage,
-          pagesProcessed,
-          vehiclesProcessed: totalCount,
-          done: true,
-          errors,
-        });
         break;
       }
 
@@ -240,41 +191,23 @@ export function streamPypInventory<E, R>(options: {
       if (result.isLastPage) {
         nextPage += 1;
         done = true;
-        yield* notifyProgress(options.onProgress, {
-          nextPage,
-          pagesProcessed,
-          vehiclesProcessed: totalCount,
-          done: true,
-          errors,
-        });
         break;
       }
 
       nextPage += 1;
-
-      if (options.onProgress) {
-        yield* notifyProgress(options.onProgress, {
-          nextPage,
-          pagesProcessed,
-          vehiclesProcessed: totalCount,
-          done,
-          errors,
-        });
-      }
     }
 
     yield* Effect.logInfo(
-      `[PYP] Stream complete: ${totalCount} vehicles across ${pagesProcessed} pages (${sessionCount} session${sessionCount > 1 ? "s" : ""}), ${errors.length} errors`,
+      `[PYP] Stream ${done ? "complete" : "paused"}: ${totalCount} vehicles across ${pagesProcessed} pages (${sessionCount} session${sessionCount > 1 ? "s" : ""}), ${errors.length} errors`,
     );
 
     return {
       source: "pyp" as const,
+      status: errors.length > 0 ? "failed" : done ? "complete" : "paused",
+      cursor: nextPage,
       count: totalCount,
       errors,
       pagesProcessed,
-      nextPage,
-      done: true,
     };
   });
 }
-

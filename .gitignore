@@ -38,7 +38,9 @@ yarn-error.log*
 
 # vercel
 .vercel
-.trigger/
+
+# workflow sdk
+.swc/
 
 # typescript
 *.tsbuildinfo

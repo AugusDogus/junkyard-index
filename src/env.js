@@ -21,7 +21,7 @@ export const env = createEnv({
     RESEND_API_KEY: z.string(),
     RESEND_FROM_EMAIL: z.string().email(),
     CONTACT_EMAIL: z.string().email(),
-    TRIGGER_PROJECT_REF: z.string().optional(),
+    CRON_SECRET: z.string().min(16).optional(),
     UNSUBSCRIBE_SECRET: z.string().min(32),
     // Google Ads conversion tracking (optional)
     GOOGLE_ADS_CONVERSION_ID: z.string().optional(),
@@ -29,7 +29,7 @@ export const env = createEnv({
     // Algolia (server-only write key for ingestion)
     ALGOLIA_WRITE_API_KEY: z.string(),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
-    // Hyperbrowser (remote browser for PYP scraping, only needed in Trigger.dev worker)
+    // Hyperbrowser (remote browser for PYP scraping during ingestion)
     HYPERBROWSER_API_KEY: z.string().optional(),
     VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
   },
@@ -69,7 +69,7 @@ export const env = createEnv({
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     CONTACT_EMAIL: process.env.CONTACT_EMAIL,
-    TRIGGER_PROJECT_REF: process.env.TRIGGER_PROJECT_REF,
+    CRON_SECRET: process.env.CRON_SECRET,
     UNSUBSCRIBE_SECRET: process.env.UNSUBSCRIBE_SECRET,
     GOOGLE_ADS_CONVERSION_ID: process.env.GOOGLE_ADS_CONVERSION_ID,
     GOOGLE_ADS_CONVERSION_LABEL: process.env.GOOGLE_ADS_CONVERSION_LABEL,

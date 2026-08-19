@@ -1,0 +1,22 @@
+import { describe, expect, test } from "bun:test";
+import { runIngestion } from "~/server/ingestion/run";
+
+const smokeTest = process.env.RUN_INGESTION_SMOKE === "1" ? test : test.skip;
+
+describe("ingestion smoke", () => {
+  smokeTest(
+    "runs durable ingestion against real configured dependencies",
+    async () => {
+      const result = await runIngestion();
+
+      expect(result.totalUpserted).toBeGreaterThanOrEqual(0);
+      expect(result.totalDeleted).toBeGreaterThanOrEqual(0);
+      expect(result.pypCount).toBeGreaterThanOrEqual(0);
+      expect(result.upullitneCount).toBeGreaterThanOrEqual(0);
+      expect(result.pullapartCount).toBeGreaterThanOrEqual(0);
+      expect(result.row52Count).toBeGreaterThanOrEqual(0);
+      expect(result.autorecyclerCount).toBeGreaterThanOrEqual(0);
+      expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    },
+  );
+});

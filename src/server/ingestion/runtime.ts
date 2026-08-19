@@ -35,7 +35,7 @@ const runtime = ManagedRuntime.make(IngestionLayer);
 
 /**
  * Run an ingestion Effect program to a Promise.
- * Used at the boundary between Trigger.dev tasks and Effect internals.
+ * Used at the boundary between workflow steps and Effect internals.
  */
 export const runIngestionEffect = <A, E>(
   effect: Effect.Effect<A, E, Layer.Layer.Success<typeof IngestionLayer>>,
