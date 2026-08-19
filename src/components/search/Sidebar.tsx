@@ -62,9 +62,11 @@ export function Sidebar({
         <div className="h-full w-full shrink-0">
           <Card className="h-full gap-0 overflow-hidden py-0">
             <CardHeader className="shrink-0 gap-0 px-4 py-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-bold">Filters</CardTitle>
-                <div className="flex items-center gap-2">
+              <div className="relative flex items-center justify-center">
+                <CardTitle className="text-balance text-lg font-bold">
+                  Filters
+                </CardTitle>
+                <div className="absolute right-0 flex items-center gap-2">
                   {activeFilterCount > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       {activeFilterCount}
