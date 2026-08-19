@@ -11,7 +11,6 @@ import {
   useState,
 } from "react";
 import { useSearchBox } from "react-instantsearch";
-import { Badge } from "~/components/ui/badge";
 import { useSearchVisibility } from "~/context/SearchVisibilityContext";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { cn } from "~/lib/utils";
@@ -21,7 +20,6 @@ const DEBOUNCE_MS = 300;
 
 interface MorphingSearchBarProps {
   vinPattern: string;
-  vinPatternPreview: boolean;
   vinPatternSearchReady: boolean;
   onSearchModeChange: (value: {
     query: string | null;
@@ -33,7 +31,7 @@ export const MorphingSearchBar = forwardRef<
   HTMLDivElement,
   MorphingSearchBarProps
 >(function MorphingSearchBar(
-  { vinPattern, vinPatternPreview, vinPatternSearchReady, onSearchModeChange },
+  { vinPattern, vinPatternSearchReady, onSearchModeChange },
   ref,
 ) {
   const { query, refine } = useSearchBox();
@@ -315,11 +313,6 @@ export const MorphingSearchBar = forwardRef<
         )}
       >
         <span>{vinPatternFeedback}</span>
-        {vinPatternPreview && (
-          <Badge variant="secondary" className="shrink-0 text-[10px]">
-            UI preview
-          </Badge>
-        )}
       </div>
     ) : null;
 
