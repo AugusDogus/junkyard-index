@@ -361,11 +361,6 @@ function AlgoliaSearchInner({
   );
   const vinPatternIndexReady =
     searchCapabilities?.vinPatternSearchReady ?? false;
-  // Local UI sandbox only. The real Algolia filter remains gated below.
-  const vinPatternPreview =
-    process.env.NODE_ENV === "development" &&
-    searchParams.get("previewVinPattern") === "1";
-  const vinPatternSearchReady = vinPatternIndexReady || vinPatternPreview;
   const {
     data: accountLocationPreference,
     isLoading: isAccountLocationPreferenceLoading,
@@ -1255,8 +1250,7 @@ function AlgoliaSearchInner({
       <ErrorBoundary>
         <MorphingSearchBar
           vinPattern={vinPattern}
-          vinPatternPreview={vinPatternPreview}
-          vinPatternSearchReady={vinPatternSearchReady}
+          vinPatternSearchReady={vinPatternIndexReady}
           onSearchModeChange={handleSearchModeChange}
         />
       </ErrorBoundary>
@@ -1595,12 +1589,6 @@ function createRouting(indexName: string) {
         const locationParams = new URLSearchParams(location.search);
         const vinPattern = locationParams.get("vin");
         if (vinPattern) params.set("vin", vinPattern);
-        if (
-          process.env.NODE_ENV === "development" &&
-          locationParams.get("previewVinPattern") === "1"
-        ) {
-          params.set("previewVinPattern", "1");
-        }
 
         const state = routeState[indexName] as
           | Record<string, unknown>
