@@ -36,7 +36,9 @@ export const MorphingSearchBar = forwardRef<
 ) {
   const { query, refine } = useSearchBox();
   const refineRef = useRef(refine);
-  refineRef.current = refine;
+  useEffect(() => {
+    refineRef.current = refine;
+  }, [refine]);
   const committedValue =
     vinPatternSearchReady && vinPattern ? vinPattern : query;
   const [inputValue, setInputValue] = useState(committedValue);
@@ -56,7 +58,9 @@ export const MorphingSearchBar = forwardRef<
   } | null>(null);
 
   const inputValueRef = useRef(inputValue);
-  inputValueRef.current = inputValue;
+  useEffect(() => {
+    inputValueRef.current = inputValue;
+  }, [inputValue]);
 
   // Sync local input when search state changes externally (e.g. URL routing).
   // Skip sync if difference is only trailing whitespace (user still typing).
@@ -220,17 +224,26 @@ export const MorphingSearchBar = forwardRef<
   const commitSearchValue = useCallback(
     async (value: string) => {
       const trimmed = value.trim();
-      committingValueRef.current = trimmed;
       if (vinPatternSearchReady && VinPattern.isSearchCandidate(trimmed)) {
-        await onSearchModeChange({ query: null, vinPattern: trimmed });
+        const parsedPattern = VinPattern.parse(trimmed);
+        if (
+          parsedPattern.success &&
+          VinPattern.toAlgoliaFilter(parsedPattern.data)
+        ) {
+          committingValueRef.current = trimmed;
+          await onSearchModeChange({ query: null, vinPattern: trimmed });
+          refineRef.current("");
+        }
         return;
       }
 
+      committingValueRef.current = trimmed;
       if (vinPattern) {
         await onSearchModeChange({
           query: trimmed || null,
           vinPattern: null,
         });
+        refineRef.current(trimmed);
         return;
       }
       refineRef.current(trimmed);

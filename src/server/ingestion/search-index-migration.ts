@@ -15,6 +15,13 @@ import { toAlgoliaRecord } from "./types";
 const DEFAULT_BATCH_SIZE = 1000;
 const VALIDATION_SAMPLE_SIZE = 3;
 
+export class SearchIndexMigrationValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SearchIndexMigrationValidationError";
+  }
+}
+
 export interface SearchIndexMigrationProgress {
   batchesProcessed: number;
   recordsProcessed: number;
@@ -43,14 +50,14 @@ async function validateVinFilters(vins: string[]): Promise<void> {
   for (const vin of vins) {
     const parsedPattern = VinPattern.parse(vin);
     if (!parsedPattern.success) {
-      throw new Error(
+      throw new SearchIndexMigrationValidationError(
         `Search index migration selected an invalid validation VIN: ${vin}`,
       );
     }
 
     const filters = VinPattern.toAlgoliaFilter(parsedPattern.data);
     if (!filters) {
-      throw new Error(
+      throw new SearchIndexMigrationValidationError(
         `Search index migration could not build a validation filter for VIN: ${vin}`,
       );
     }
@@ -69,7 +76,7 @@ async function validateVinFilters(vins: string[]): Promise<void> {
     const matchingHit = response.results[0]?.hits[0];
     if (matchingHit?.objectID !== vin) {
       throw new Error(
-        `VIN filter validation failed for ${vin}. The schema marker was not advanced and the VIN UI remains disabled.`,
+        `VIN filter validation failed for ${vin}. The schema marker was not advanced and VIN search remains inactive.`,
       );
     }
   }
@@ -81,7 +88,7 @@ async function markSchemaReady(userData: unknown): Promise<void> {
     VIN_PATTERN_SEARCH_SCHEMA_VERSION,
   );
   if (!updatedUserData.success) {
-    throw new Error(
+    throw new SearchIndexMigrationValidationError(
       "Algolia index userData has an incompatible shape. The schema marker was not advanced to avoid overwriting existing metadata.",
     );
   }
@@ -152,8 +159,8 @@ export async function migrateSearchIndexToVinPatternSchema(options?: {
   }
 
   if (recordsProcessed > 0 && validationVins.length === 0) {
-    throw new Error(
-      "Search index migration found records but no valid 17-character VIN to validate. The schema marker was not advanced and the VIN UI remains disabled.",
+    throw new SearchIndexMigrationValidationError(
+      "Search index migration found records but no valid 17-character VIN to validate. The schema marker was not advanced and VIN search remains inactive.",
     );
   }
 

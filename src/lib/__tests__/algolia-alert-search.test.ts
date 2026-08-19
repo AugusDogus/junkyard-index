@@ -89,6 +89,15 @@ describe("algolia alert search helpers", () => {
     expect(swappedRange).toContain("year <= 2020");
   });
 
+  test("rejects invalid and unconstrained VIN patterns", () => {
+    expect(
+      buildAlertFiltersString({ vinPattern: "YV4C*85" }, null),
+    ).toBe('vinPositionTokens:"__no_match__"');
+    expect(
+      buildAlertFiltersString({ vinPattern: "*****************" }, null),
+    ).toBe('vinPositionTokens:"__no_match__"');
+  });
+
   test("maps algolia hits to search vehicle shape", () => {
     const vehicle = algoliaHitToSearchVehicle({
       objectID: "VIN123",
@@ -170,6 +179,23 @@ describe("getAlertMatchStats pagination", () => {
 
   afterEach(() => {
     restoreSearchForHits();
+  });
+
+  test("does not query Algolia for an invalid VIN pattern", async () => {
+    let callCount = 0;
+    mockSearchForHits((async () => {
+      callCount += 1;
+      throw new Error("Algolia should not be queried");
+    }) as typeof searchClient.searchForHits);
+
+    const result = await getAlertMatchStats(
+      "",
+      { vinPattern: "YV4C*85" },
+      null,
+    );
+
+    expect(result).toEqual({ fullCount: 0, vehicles: [] });
+    expect(callCount).toBe(0);
   });
 
   test("aggregates multiple pages and stops at nbPages", async () => {

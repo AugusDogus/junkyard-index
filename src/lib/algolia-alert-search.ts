@@ -21,6 +21,9 @@ interface AlgoliaSearchResponse {
   paginationLimitedTo?: number;
 }
 
+// Indexed VIN tokens always use "<position>:<character>", so this cannot match.
+const NO_MATCH_VIN_FILTER = 'vinPositionTokens:"__no_match__"';
+
 function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
@@ -47,10 +50,14 @@ export function buildAlertFiltersString(
 
   if (filters.vinPattern) {
     const parsedPattern = VinPattern.parse(filters.vinPattern);
-    if (parsedPattern.success) {
-      const vinClause = VinPattern.toAlgoliaFilter(parsedPattern.data);
-      if (vinClause) clauses.push(vinClause);
+    if (!parsedPattern.success) {
+      return NO_MATCH_VIN_FILTER;
     }
+    const vinClause = VinPattern.toAlgoliaFilter(parsedPattern.data);
+    if (!vinClause) {
+      return NO_MATCH_VIN_FILTER;
+    }
+    clauses.push(vinClause);
   }
 
   if (lastCheckedAt) {
@@ -109,6 +116,9 @@ export async function getAlertMatchStats(
   lastCheckedAt: Date | null,
 ): Promise<{ fullCount: number; vehicles: SearchVehicle[] }> {
   const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
+  if (filtersString === NO_MATCH_VIN_FILTER) {
+    return { fullCount: 0, vehicles: [] };
+  }
   const hitsPerPage = 100;
   let page = 0;
   let fullCount = 0;

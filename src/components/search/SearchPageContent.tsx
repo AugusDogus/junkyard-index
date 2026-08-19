@@ -1521,7 +1521,7 @@ function AlgoliaSearchInner({
                           {
                             source_page: "search",
                             cta_location: "no_results",
-    analyticsSearchValue,
+                            query: analyticsSearchValue,
                             result_count: 0,
                             visible_result_count: 0,
                           },

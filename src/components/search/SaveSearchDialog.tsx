@@ -339,7 +339,9 @@ export function SaveSearchDialog({
           size={compact || iconOnly ? "sm" : "default"}
           className={compact || iconOnly ? "h-8 text-xs" : ""}
           aria-label={iconOnly ? "Save search" : undefined}
-          disabled={disabled || !query || isNavigatingToAuth}
+          disabled={
+            disabled || (!query && !filters.vinPattern) || isNavigatingToAuth
+          }
           onClick={(e) => {
             if (!isLoggedIn) {
               e.preventDefault();
@@ -385,6 +387,11 @@ export function SaveSearchDialog({
             <p>
               <strong>Query:</strong> {query || "(empty)"}
             </p>
+            {filters.vinPattern && (
+              <p>
+                <strong>VIN pattern:</strong> {filters.vinPattern}
+              </p>
+            )}
             {filters.makes && filters.makes.length > 0 && (
               <p>
                 <strong>Makes:</strong> {filters.makes.join(", ")}
