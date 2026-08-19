@@ -7,8 +7,10 @@ import {
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
 import { Label } from "~/components/ui/label";
+import { Input } from "~/components/ui/input";
 import { Slider } from "~/components/ui/slider";
 import type { DataSource } from "~/lib/types";
+import { VinPattern } from "~/lib/vin-pattern";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 interface FilterOptions {
@@ -27,6 +29,9 @@ const SOURCE_LABELS: Record<DataSource, string> = {
 };
 
 interface SidebarContentProps {
+  vinPattern: string;
+  vinPatternError?: string;
+  vinPatternSearchReady: boolean;
   makes: string[];
   colors: string[];
   states: string[];
@@ -40,6 +45,7 @@ interface SidebarContentProps {
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
+  onVinPatternChange: (pattern: string) => void;
   yearRangeLimits?: {
     min: number;
     max: number;
@@ -47,6 +53,9 @@ interface SidebarContentProps {
 }
 
 export function SidebarContent({
+  vinPattern,
+  vinPatternError,
+  vinPatternSearchReady,
   makes,
   colors,
   states,
@@ -60,6 +69,7 @@ export function SidebarContent({
   onSalvageYardsChange,
   onSourcesChange,
   onYearRangeChange,
+  onVinPatternChange,
   yearRangeLimits,
 }: SidebarContentProps) {
   const availableSources: DataSource[] = [
@@ -72,6 +82,64 @@ export function SidebarContent({
 
   return (
     <div className="space-y-6">
+      <Collapsible defaultOpen>
+        <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">VIN Pattern</span>
+            {!vinPatternSearchReady ? (
+              <Badge variant="secondary" className="text-[10px]">
+                Preparing
+              </Badge>
+            ) : vinPattern && !vinPatternError ? (
+              <Badge variant="secondary" className="text-[10px]">
+                Active
+              </Badge>
+            ) : null}
+          </div>
+          <ChevronDown className="h-4 w-4" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-2 px-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="vin-pattern">17-position VIN pattern</Label>
+            <Input
+              id="vin-pattern"
+              value={vinPattern}
+              onChange={(event) => onVinPatternChange(event.target.value)}
+              placeholder="YV4C*85**********"
+              maxLength={VinPattern.maxInputLength}
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={!vinPatternSearchReady}
+              aria-invalid={vinPatternError ? true : undefined}
+              aria-describedby={
+                vinPatternError
+                  ? "vin-pattern-help vin-pattern-error"
+                  : "vin-pattern-help"
+              }
+              className="font-mono uppercase"
+            />
+            <p
+              id="vin-pattern-help"
+              className="text-muted-foreground text-xs text-pretty"
+            >
+              {vinPatternSearchReady
+                ? "Use * for any character, or a set like [0-5] or [ABC]."
+                : "VIN search is being prepared and will enable automatically."}
+            </p>
+            {vinPatternError && (
+              <p
+                id="vin-pattern-error"
+                role="alert"
+                className="text-destructive text-xs text-pretty"
+              >
+                {vinPatternError}
+              </p>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
           <span className="font-medium">Salvage Yards</span>

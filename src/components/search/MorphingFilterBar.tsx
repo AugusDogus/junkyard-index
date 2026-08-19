@@ -25,6 +25,7 @@ interface MorphingFilterBarProps {
   onToggleFilters: () => void;
   isLoggedIn?: boolean;
   filters: {
+    vinPattern?: string;
     makes: string[];
     colors: string[];
     states: string[];

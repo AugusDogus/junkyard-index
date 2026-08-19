@@ -35,6 +35,7 @@ import { api } from "~/trpc/react";
 const PENDING_SAVE_KEY = "pendingSaveSearch";
 
 export interface SaveSearchFilters {
+  vinPattern?: string;
   makes?: string[];
   colors?: string[];
   states?: string[];
@@ -272,6 +273,7 @@ export function SaveSearchDialog({
         source === "upullitne",
     );
     const restFilters = {
+      vinPattern: filters.vinPattern,
       makes: filters.makes,
       colors: filters.colors,
       states: filters.states,

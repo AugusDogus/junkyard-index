@@ -34,8 +34,15 @@ describe("saved search filters schema", () => {
       minYear: 2012,
       maxYear: nextYear,
       sources: ["pyp", "row52", "pullapart", "upullitne"],
+      vinPattern: "YV4C*85**********",
     });
 
     expect(result.success).toBe(true);
+  });
+
+  test("rejects invalid VIN patterns", () => {
+    expect(filtersSchema.safeParse({ vinPattern: "YV4C*85" }).success).toBe(
+      false,
+    );
   });
 });

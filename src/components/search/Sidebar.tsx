@@ -13,6 +13,9 @@ interface FilterOptions {
 }
 
 interface SidebarProps {
+  vinPattern: string;
+  vinPatternError?: string;
+  vinPatternSearchReady: boolean;
   showFilters: boolean;
   setShowFilters: (show: boolean) => void;
   activeFilterCount: number;
@@ -30,6 +33,7 @@ interface SidebarProps {
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
+  onVinPatternChange: (pattern: string) => void;
   yearRangeLimits?: {
     min: number;
     max: number;
@@ -37,6 +41,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({
+  vinPattern,
+  vinPatternError,
+  vinPatternSearchReady,
   showFilters,
   setShowFilters,
   activeFilterCount,
@@ -54,6 +61,7 @@ export function Sidebar({
   onSalvageYardsChange,
   onSourcesChange,
   onYearRangeChange,
+  onVinPatternChange,
   yearRangeLimits,
 }: SidebarProps) {
   return (
@@ -95,6 +103,9 @@ export function Sidebar({
             <CardContent className="scrollbar-thin-themed ml-2 max-h-[calc(100vh-200px)] overflow-y-auto [scrollbar-gutter:stable]">
 
               <SidebarContent
+                vinPattern={vinPattern}
+                vinPatternError={vinPatternError}
+                vinPatternSearchReady={vinPatternSearchReady}
                 makes={makes}
                 colors={colors}
                 states={states}
@@ -108,6 +119,7 @@ export function Sidebar({
                 onSalvageYardsChange={onSalvageYardsChange}
                 onSourcesChange={onSourcesChange}
                 onYearRangeChange={onYearRangeChange}
+                onVinPatternChange={onVinPatternChange}
                 yearRangeLimits={yearRangeLimits}
               />
             </CardContent>

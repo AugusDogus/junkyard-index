@@ -72,6 +72,7 @@ import {
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
+import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
 
 // Module-level sort options — single source of truth for all sort mappings.
@@ -349,6 +350,16 @@ function AlgoliaSearchInner({
   const [manualZipCode, setManualZipCode] = useState("");
 
   const utils = api.useUtils();
+  const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
+    undefined,
+    {
+      retry: false,
+      refetchInterval: (query) =>
+        query.state.data?.vinPatternSearchReady ? false : 10_000,
+    },
+  );
+  const vinPatternSearchReady =
+    searchCapabilities?.vinPatternSearchReady ?? false;
   const {
     data: accountLocationPreference,
     isLoading: isAccountLocationPreferenceLoading,
@@ -373,6 +384,26 @@ function AlgoliaSearchInner({
 
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
+  const [vinPatternParam, setVinPatternParam] = useQueryState("vin");
+  const vinPattern = vinPatternParam ?? "";
+  const parsedVinPattern = useMemo(
+    () => (vinPattern ? VinPattern.parse(vinPattern) : null),
+    [vinPattern],
+  );
+  const vinPatternError =
+    parsedVinPattern && !parsedVinPattern.success
+      ? VinPattern.errorMessage(parsedVinPattern.error)
+      : undefined;
+  const effectiveVinPatternError = vinPatternSearchReady
+    ? vinPatternError
+    : undefined;
+  const vinPatternFilter =
+    parsedVinPattern?.success === true
+      ? VinPattern.toAlgoliaFilter(parsedVinPattern.data)
+      : undefined;
+  const effectiveVinPatternFilter = vinPatternSearchReady
+    ? vinPatternFilter
+    : undefined;
 
   // Auto-open save search dialog after auth redirect
   const [saveSearchParam, setSaveSearchParam] = useQueryState("saveSearch");
@@ -729,10 +760,12 @@ function AlgoliaSearchInner({
     selectedStates.length +
     selectedLocations.length +
     selectedSources.length +
-    (isYearFiltered ? 1 : 0);
+    (isYearFiltered ? 1 : 0) +
+    (effectiveVinPatternFilter ? 1 : 0);
 
   const currentSaveSearchFilters = useMemo(
     () => ({
+      vinPattern: effectiveVinPatternFilter ? vinPattern : undefined,
       makes: selectedMakes,
       colors: selectedColors,
       states: selectedStates,
@@ -750,11 +783,14 @@ function AlgoliaSearchInner({
       selectedSources,
       yearRange,
       sortBy,
+      vinPattern,
+      effectiveVinPatternFilter,
     ],
   );
 
-  // Only show results when there's a non-empty search query
-  const hasActiveSearch = query.length > 0;
+  // VIN filters can run alone or narrow a year/make/model query.
+  const hasActiveSearch =
+    query.length > 0 || Boolean(effectiveVinPatternFilter);
 
   // Loading = Algolia is actively fetching (not stale "0 results")
   const isSearching =
@@ -993,8 +1029,17 @@ function AlgoliaSearchInner({
     });
     clearRefinements();
     refineSortBy(ALGOLIA_INDEX_NAME);
+    void setVinPatternParam(null);
     setShowFilters(false);
-  }, [activeFilterCount, clearRefinements, refineSortBy]);
+  }, [activeFilterCount, clearRefinements, refineSortBy, setVinPatternParam]);
+
+  const handleVinPatternChange = useCallback(
+    (pattern: string) => {
+      const normalized = VinPattern.normalize(pattern);
+      void setVinPatternParam(normalized || null);
+    },
+    [setVinPatternParam],
+  );
 
   // Helper: toggle only the values that changed between current and next.
   const applyRefinementDiff = useCallback(
@@ -1143,6 +1188,7 @@ function AlgoliaSearchInner({
         aroundLatLng={aroundLatLng}
         aroundLatLngViaIP={useAlgoliaIpLocation}
         aroundRadius={isDistanceSort ? "all" : undefined}
+        filters={effectiveVinPatternFilter}
       />
       <DistancePreferenceDialog
         open={showDistancePreferenceDialog}
@@ -1173,6 +1219,9 @@ function AlgoliaSearchInner({
         {!isMobile && showFilters && (
           <div className="sticky top-24 h-fit max-h-[calc(100vh-112px)] w-64 shrink-0 overflow-y-auto lg:w-80">
             <Sidebar
+              vinPattern={vinPattern}
+              vinPatternError={effectiveVinPatternError}
+              vinPatternSearchReady={vinPatternSearchReady}
               showFilters={showFilters}
               setShowFilters={setShowFilters}
               activeFilterCount={activeFilterCount}
@@ -1190,6 +1239,7 @@ function AlgoliaSearchInner({
               onSalvageYardsChange={handleLocationsChange}
               onSourcesChange={handleSourcesChange}
               onYearRangeChange={handleYearRangeChange}
+              onVinPatternChange={handleVinPatternChange}
               yearRangeLimits={{ min: yearMin, max: yearMax }}
             />
           </div>
@@ -1238,13 +1288,16 @@ function AlgoliaSearchInner({
                     <SaveSearchDialog
                       query={query}
                       filters={currentSaveSearchFilters}
-                      disabled={!query}
+                      disabled={!hasActiveSearch}
                       isLoggedIn={isLoggedIn}
                       autoOpen={autoOpenSaveDialog}
                       onAutoOpenHandled={handleAutoOpenHandled}
                       iconOnly
                     />
                     <MobileFiltersDrawer
+                      vinPattern={vinPattern}
+                      vinPatternError={effectiveVinPatternError}
+                      vinPatternSearchReady={vinPatternSearchReady}
                       activeFilterCount={activeFilterCount}
                       clearAllFilters={clearAllFilters}
                       makes={selectedMakes}
@@ -1260,6 +1313,7 @@ function AlgoliaSearchInner({
                       onSalvageYardsChange={handleLocationsChange}
                       onSourcesChange={handleSourcesChange}
                       onYearRangeChange={handleYearRangeChange}
+                      onVinPatternChange={handleVinPatternChange}
                       yearRangeLimits={{ min: yearMin, max: yearMax }}
                       iconOnly
                     />
@@ -1276,7 +1330,7 @@ function AlgoliaSearchInner({
                     filters={currentSaveSearchFilters}
                     autoOpenSaveDialog={autoOpenSaveDialog}
                     onAutoOpenHandled={handleAutoOpenHandled}
-                    disabled={!query}
+                    disabled={!hasActiveSearch}
                     loading={isSearching}
                   />
                 )}
@@ -1392,7 +1446,7 @@ function AlgoliaSearchInner({
           )}
 
           {/* No Results */}
-          {query &&
+          {hasActiveSearch &&
             searchResult?.totalCount === 0 &&
             !isSearching &&
             !error && (
@@ -1425,7 +1479,7 @@ function AlgoliaSearchInner({
                     <SaveSearchDialog
                       query={query}
                       filters={currentSaveSearchFilters}
-                      disabled={!query}
+                      disabled={!hasActiveSearch}
                       isLoggedIn={isLoggedIn}
                     />
                   ) : (
@@ -1504,11 +1558,16 @@ function createRouting(indexName: string) {
       }): string {
         const baseUrl = location.href.split("?")[0]!;
         const params = new URLSearchParams();
+        const vinPattern = new URLSearchParams(location.search).get("vin");
+        if (vinPattern) params.set("vin", vinPattern);
 
         const state = routeState[indexName] as
           | Record<string, unknown>
           | undefined;
-        if (!state) return baseUrl;
+        if (!state) {
+          const qs = params.toString();
+          return qs ? `${baseUrl}?${qs}` : baseUrl;
+        }
 
         if (state.query) params.set("q", state.query as string);
         if (state.makes)

@@ -317,7 +317,9 @@ export function SavedSearchesList() {
                     {search.name}
                   </div>
                   <div className="text-muted-foreground truncate text-sm">
-                    {search.query || "All vehicles"}
+                    {search.query ||
+                      search.filters.vinPattern ||
+                      "All vehicles"}
                     {filterSummary && ` · ${filterSummary}`}
                   </div>
                   {/* Notification indicators */}

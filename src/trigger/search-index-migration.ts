@@ -1,0 +1,30 @@
+import { logger, task, timeout } from "@trigger.dev/sdk";
+import { migrateSearchIndexToVinPatternSchema } from "~/server/ingestion/search-index-migration";
+import { algoliaWritesQueue } from "./queues";
+
+export const searchIndexMigrationTask = task({
+  id: "search-index-schema-v2",
+  maxDuration: timeout.None,
+  queue: algoliaWritesQueue,
+  run: async (_payload: Record<string, never>) => {
+    logger.info("Starting search index schema migration");
+    const result = await migrateSearchIndexToVinPatternSchema({
+      batchSize: 1000,
+      onProgress: (progress) => {
+        logger.info("Search index migration progress", {
+          batchesProcessed: progress.batchesProcessed,
+          recordsProcessed: progress.recordsProcessed,
+        });
+      },
+    });
+
+    logger.info("Completed search index schema migration", {
+      alreadyReady: result.alreadyReady,
+      batchesProcessed: result.batchesProcessed,
+      recordsProcessed: result.recordsProcessed,
+      schemaVersion: result.schemaVersion,
+      validatedVins: result.validatedVins,
+    });
+    return result;
+  },
+});

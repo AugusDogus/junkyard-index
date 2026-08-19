@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VinPattern } from "~/lib/vin-pattern";
 
 const SOURCE_VALUES = [
   "pyp",
@@ -11,6 +12,13 @@ const MIN_VEHICLE_YEAR = 1886;
 const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 
 export const filtersSchema = z.object({
+  vinPattern: z
+    .string()
+    .max(VinPattern.maxInputLength)
+    .refine((value) => VinPattern.parse(value).success, {
+      message: "VIN pattern must describe 17 valid VIN positions",
+    })
+    .optional(),
   makes: z.array(z.string()).optional(),
   colors: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),

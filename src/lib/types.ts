@@ -107,6 +107,7 @@ export interface SearchVehicle {
 // Search filters interface
 export interface SearchFilters {
   query: string;
+  vinPattern?: string;
   makes?: string[];
   models?: string[];
   colors?: string[];
