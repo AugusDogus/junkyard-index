@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowUpDown,
   Calendar,
+  Filter,
   LocateFixed,
   MapPin,
   Search,
@@ -391,11 +392,22 @@ function AlgoliaSearchInner({
     [vinPattern],
   );
   const vinPatternError =
-    parsedVinPattern && !parsedVinPattern.success
+    parsedVinPattern &&
+    !parsedVinPattern.success &&
+    parsedVinPattern.error.type !== "wrong_length"
       ? VinPattern.errorMessage(parsedVinPattern.error)
+      : undefined;
+  const vinPatternProgress =
+    parsedVinPattern &&
+    !parsedVinPattern.success &&
+    parsedVinPattern.error.type === "wrong_length"
+      ? `${parsedVinPattern.error.positions} of ${VinPattern.length} positions`
       : undefined;
   const effectiveVinPatternError = vinPatternSearchReady
     ? vinPatternError
+    : undefined;
+  const effectiveVinPatternProgress = vinPatternSearchReady
+    ? vinPatternProgress
     : undefined;
   const vinPatternFilter =
     parsedVinPattern?.success === true
@@ -1176,6 +1188,33 @@ function AlgoliaSearchInner({
     effectiveLocationPreference?.mode === "auto" &&
     !resolvedUserLocation;
 
+  const mobileFiltersDrawer = (
+    <MobileFiltersDrawer
+      vinPattern={vinPattern}
+      vinPatternError={effectiveVinPatternError}
+      vinPatternProgress={effectiveVinPatternProgress}
+      vinPatternSearchReady={vinPatternSearchReady}
+      activeFilterCount={activeFilterCount}
+      clearAllFilters={clearAllFilters}
+      makes={selectedMakes}
+      colors={selectedColors}
+      states={selectedStates}
+      salvageYards={selectedLocations}
+      sources={selectedSources}
+      yearRange={yearRange}
+      filterOptions={filterOptions}
+      onMakesChange={handleMakesChange}
+      onColorsChange={handleColorsChange}
+      onStatesChange={handleStatesChange}
+      onSalvageYardsChange={handleLocationsChange}
+      onSourcesChange={handleSourcesChange}
+      onYearRangeChange={handleYearRangeChange}
+      onVinPatternChange={handleVinPatternChange}
+      yearRangeLimits={{ min: yearMin, max: yearMax }}
+      iconOnly={hasActiveSearch}
+    />
+  );
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
       <Configure
@@ -1214,6 +1253,19 @@ function AlgoliaSearchInner({
         <MorphingSearchBar />
       </ErrorBoundary>
 
+      {!hasActiveSearch && !isSearching && (
+        <div className="mb-4 flex justify-end">
+          {isMobile ? (
+            mobileFiltersDrawer
+          ) : !showFilters ? (
+            <Button variant="outline" onClick={() => setShowFilters(true)}>
+              <Filter data-icon="inline-start" />
+              Filters
+            </Button>
+          ) : null}
+        </div>
+      )}
+
       <div className="relative flex w-full gap-4 md:gap-6">
         {/* Desktop Sidebar */}
         {!isMobile && showFilters && (
@@ -1221,6 +1273,7 @@ function AlgoliaSearchInner({
             <Sidebar
               vinPattern={vinPattern}
               vinPatternError={effectiveVinPatternError}
+              vinPatternProgress={effectiveVinPatternProgress}
               vinPatternSearchReady={vinPatternSearchReady}
               showFilters={showFilters}
               setShowFilters={setShowFilters}
@@ -1294,29 +1347,7 @@ function AlgoliaSearchInner({
                       onAutoOpenHandled={handleAutoOpenHandled}
                       iconOnly
                     />
-                    <MobileFiltersDrawer
-                      vinPattern={vinPattern}
-                      vinPatternError={effectiveVinPatternError}
-                      vinPatternSearchReady={vinPatternSearchReady}
-                      activeFilterCount={activeFilterCount}
-                      clearAllFilters={clearAllFilters}
-                      makes={selectedMakes}
-                      colors={selectedColors}
-                      states={selectedStates}
-                      salvageYards={selectedLocations}
-                      sources={selectedSources}
-                      yearRange={yearRange}
-                      filterOptions={filterOptions}
-                      onMakesChange={handleMakesChange}
-                      onColorsChange={handleColorsChange}
-                      onStatesChange={handleStatesChange}
-                      onSalvageYardsChange={handleLocationsChange}
-                      onSourcesChange={handleSourcesChange}
-                      onYearRangeChange={handleYearRangeChange}
-                      onVinPatternChange={handleVinPatternChange}
-                      yearRangeLimits={{ min: yearMin, max: yearMax }}
-                      iconOnly
-                    />
+                    {mobileFiltersDrawer}
                   </div>
                 ) : (
                   <MorphingFilterBar
