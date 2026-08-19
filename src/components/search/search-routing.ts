@@ -2,7 +2,7 @@ import {
   ALGOLIA_INDEX_NAME,
   ALGOLIA_REPLICA_INDEX_NAMES,
 } from "~/lib/constants";
-import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 
@@ -57,10 +57,8 @@ export function getSearchSortIndex(key: string): string {
 }
 export function sanitizeSearchSources(values: unknown): DataSource[] {
   if (!Array.isArray(values)) return [];
-  return values.filter(
-    (value): value is DataSource =>
-      typeof value === "string" &&
-      INGESTION_SOURCES.some((source) => source === value),
+  return values.filter((value): value is DataSource =>
+    isIngestionSource(value),
   );
 }
 

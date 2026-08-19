@@ -33,7 +33,14 @@ describe("saved search filters schema", () => {
     const result = filtersSchema.safeParse({
       minYear: 2012,
       maxYear: nextYear,
-      sources: ["pyp", "row52", "pullapart", "upullitne"],
+      sources: [
+        "pyp",
+        "row52",
+        "pullapart",
+        "upullitne",
+        "upullitdavie",
+        "gopullit",
+      ],
       vinPattern: "YV4C*85**********",
     });
 

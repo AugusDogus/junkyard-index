@@ -22,6 +22,8 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   pyp: "Pick Your Part (PYP)",
   pullapart: "Pull-A-Part / U-Pull-&-Pay",
   upullitne: "U Pull-It (NE/IA)",
+  upullitdavie: "U Pull It Davie",
+  gopullit: "GO Pull-It",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",
 };
@@ -66,6 +68,8 @@ export function SidebarContent({
     "pyp",
     "pullapart",
     "upullitne",
+    "upullitdavie",
+    "gopullit",
     "row52",
     "autorecycler",
   ];
@@ -188,15 +192,15 @@ export function SidebarContent({
           <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
-            <SearchableCheckboxList
-              name="color"
-              options={filterOptions.colors}
-              selected={colors}
-              onChange={onColorsChange}
-              searchPlaceholder="Search colors…"
-              searchThreshold={12}
-              maxHeight={200}
-            />
+          <SearchableCheckboxList
+            name="color"
+            options={filterOptions.colors}
+            selected={colors}
+            onChange={onColorsChange}
+            searchPlaceholder="Search colors…"
+            searchThreshold={12}
+            maxHeight={200}
+          />
         </CollapsibleContent>
       </Collapsible>
 
@@ -213,15 +217,15 @@ export function SidebarContent({
           <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
-            <SearchableCheckboxList
-              name="state"
-              options={filterOptions.states}
-              selected={states}
-              onChange={onStatesChange}
-              searchPlaceholder="Search states…"
-              searchThreshold={6}
-              maxHeight={240}
-            />
+          <SearchableCheckboxList
+            name="state"
+            options={filterOptions.states}
+            selected={states}
+            onChange={onStatesChange}
+            searchPlaceholder="Search states…"
+            searchThreshold={6}
+            maxHeight={240}
+          />
         </CollapsibleContent>
       </Collapsible>
 
@@ -238,15 +242,15 @@ export function SidebarContent({
           <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
-            <SearchableCheckboxList
-              name="yard"
-              options={filterOptions.salvageYards}
-              selected={salvageYards}
-              onChange={onSalvageYardsChange}
-              searchPlaceholder="Search lots…"
-              searchThreshold={6}
-              maxHeight={240}
-            />
+          <SearchableCheckboxList
+            name="yard"
+            options={filterOptions.salvageYards}
+            selected={salvageYards}
+            onChange={onSalvageYardsChange}
+            searchPlaceholder="Search lots…"
+            searchThreshold={6}
+            maxHeight={240}
+          />
         </CollapsibleContent>
       </Collapsible>
     </div>
