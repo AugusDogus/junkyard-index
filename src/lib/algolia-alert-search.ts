@@ -1,6 +1,7 @@
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type { SearchVehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import { VinPattern } from "~/lib/vin-pattern";
 
 export interface AlertFilters {
@@ -82,14 +83,7 @@ export function buildAlertFiltersString(
 
   const sourcesClause = buildStringOrFilter(
     "source",
-    (filters.sources ?? []).filter(
-      (s) =>
-        s === "pyp" ||
-        s === "row52" ||
-        s === "autorecycler" ||
-        s === "pullapart" ||
-        s === "upullitne",
-    ),
+    (filters.sources ?? []).filter(isIngestionSource),
   );
   if (sourcesClause) clauses.push(sourcesClause);
 

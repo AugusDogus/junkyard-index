@@ -2,6 +2,10 @@ import { eq, desc } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { env } from "~/env";
 import { db } from "~/lib/db";
+import {
+  INGESTION_SOURCES,
+  type IngestionSource,
+} from "~/lib/ingestion-source";
 import { ingestionSourceRun } from "~/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { getVinPatternSearchReadiness } from "~/server/ingestion/search-index-readiness";
@@ -12,14 +16,7 @@ import {
   type IngestionStatus,
 } from "./status-utils";
 
-const SOURCES = [
-  "pyp",
-  "row52",
-  "autorecycler",
-  "pullapart",
-  "upullitne",
-] as const;
-type SourceKey = (typeof SOURCES)[number];
+type SourceKey = IngestionSource;
 
 const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
   pyp: "LKQ Pick Your Part",
@@ -27,6 +24,8 @@ const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
   autorecycler: "AutoRecycler.io",
   pullapart: "Pull-A-Part / U-Pull-&-Pay",
   upullitne: "U Pull-It Nebraska",
+  upullitdavie: "U Pull It Davie",
+  gopullit: "GO Pull-It",
 };
 
 interface ProviderStatus {
@@ -47,7 +46,7 @@ interface StatusResponse {
 async function getProviderStatusInternal(): Promise<StatusResponse> {
   const providers: ProviderStatus[] = [];
 
-  for (const source of SOURCES) {
+  for (const source of INGESTION_SOURCES) {
     const [latestRun] = await db
       .select({
         status: ingestionSourceRun.status,

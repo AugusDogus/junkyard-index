@@ -30,6 +30,8 @@ describe("algolia alert search helpers", () => {
           "autorecycler",
           "pullapart",
           "upullitne",
+          "upullitdavie",
+          "gopullit",
           "ignore-me",
         ],
       },
@@ -39,7 +41,7 @@ describe("algolia alert search helpers", () => {
     expect(filters).toContain('(make:"Honda" OR make:"Toyota")');
     expect(filters).toContain('(state:"California" OR state:"Nevada")');
     expect(filters).toContain(
-      '(source:"pyp" OR source:"row52" OR source:"autorecycler" OR source:"pullapart" OR source:"upullitne")',
+      '(source:"pyp" OR source:"row52" OR source:"autorecycler" OR source:"pullapart" OR source:"upullitne" OR source:"upullitdavie" OR source:"gopullit")',
     );
     expect(filters).not.toContain("ignore-me");
   });
@@ -90,9 +92,9 @@ describe("algolia alert search helpers", () => {
   });
 
   test("rejects invalid and unconstrained VIN patterns", () => {
-    expect(
-      buildAlertFiltersString({ vinPattern: "YV4C*85" }, null),
-    ).toBe('vinPositionTokens:"__no_match__"');
+    expect(buildAlertFiltersString({ vinPattern: "YV4C*85" }, null)).toBe(
+      'vinPositionTokens:"__no_match__"',
+    );
     expect(
       buildAlertFiltersString({ vinPattern: "*****************" }, null),
     ).toBe('vinPositionTokens:"__no_match__"');

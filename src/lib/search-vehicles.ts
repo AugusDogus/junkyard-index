@@ -1,17 +1,9 @@
 import { calculateDistance } from "~/lib/utils";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource, SearchVehicle } from "~/lib/types";
 
 function parseDataSource(value: unknown): DataSource {
-  if (
-    value === "pyp" ||
-    value === "row52" ||
-    value === "autorecycler" ||
-    value === "pullapart" ||
-    value === "upullitne"
-  ) {
-    return value;
-  }
-  return "pyp";
+  return isIngestionSource(value) ? value : "pyp";
 }
 
 function getFallbackLocationCity(
@@ -38,7 +30,8 @@ export function algoliaHitToSearchVehicle(
   const locationName = (hit.locationName as string) ?? "";
   const stateAbbr = (hit.stateAbbr as string) ?? "";
   const locationCity =
-    (hit.locationCity as string) ?? getFallbackLocationCity(locationName, stateAbbr);
+    (hit.locationCity as string) ??
+    getFallbackLocationCity(locationName, stateAbbr);
   const missingSinceAtSeconds =
     typeof hit.missingSinceAt === "number" ? hit.missingSinceAt : null;
   const missingSinceAt =

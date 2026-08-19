@@ -1,13 +1,7 @@
 import { z } from "zod";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { VinPattern } from "~/lib/vin-pattern";
 
-const SOURCE_VALUES = [
-  "pyp",
-  "row52",
-  "autorecycler",
-  "pullapart",
-  "upullitne",
-] as const;
 const MIN_VEHICLE_YEAR = 1886;
 const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 
@@ -33,7 +27,7 @@ export const filtersSchema = z.object({
   colors: z.array(z.string()).optional(),
   states: z.array(z.string()).optional(),
   salvageYards: z.array(z.string()).optional(),
-  sources: z.array(z.enum(SOURCE_VALUES)).optional(),
+  sources: z.array(z.enum(INGESTION_SOURCES)).optional(),
   minYear: z
     .number()
     .int()
@@ -78,9 +72,7 @@ export function parseSavedSearchFilters(
       success: false,
       reason: "malformed_json",
       error:
-        error instanceof SyntaxError
-          ? error
-          : new SyntaxError(String(error)),
+        error instanceof SyntaxError ? error : new SyntaxError(String(error)),
     };
   }
 

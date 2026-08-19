@@ -29,6 +29,7 @@ import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient } from "~/lib/auth-client";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
@@ -257,21 +258,7 @@ export function SaveSearchDialog({
     const enableEmail = notificationsEnabled && emailEnabled;
     const enableDiscord =
       notificationsEnabled && discordEnabled && !!hasDiscordSetup;
-    const normalizedSources = (filters.sources ?? []).filter(
-      (
-        source,
-      ): source is
-        | "pyp"
-        | "row52"
-        | "autorecycler"
-        | "pullapart"
-        | "upullitne" =>
-        source === "pyp" ||
-        source === "row52" ||
-        source === "autorecycler" ||
-        source === "pullapart" ||
-        source === "upullitne",
-    );
+    const normalizedSources = (filters.sources ?? []).filter(isIngestionSource);
     const restFilters = {
       vinPattern: filters.vinPattern,
       makes: filters.makes,
@@ -352,10 +339,7 @@ export function SaveSearchDialog({
           <Bookmark
             className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
           />
-          {!iconOnly &&
-            (isNavigatingToAuth
-              ? "Redirecting..."
-              : "Save Search")}
+          {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

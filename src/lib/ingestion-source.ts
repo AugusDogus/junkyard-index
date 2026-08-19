@@ -9,3 +9,10 @@ export const INGESTION_SOURCES = [
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
+
+export function isIngestionSource(value: unknown): value is IngestionSource {
+  return (
+    typeof value === "string" &&
+    INGESTION_SOURCES.some((source) => source === value)
+  );
+}
