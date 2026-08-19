@@ -62,7 +62,7 @@ export function Sidebar({
         <div className="h-full w-full shrink-0">
           <Card className="h-full gap-0 overflow-hidden py-0">
             <CardHeader className="shrink-0 gap-0 px-4 py-2">
-              <div className="relative flex items-center justify-center">
+              <div className="relative -mx-2 flex items-center justify-center">
                 <CardTitle className="text-balance text-lg font-bold">
                   Filters
                 </CardTitle>
