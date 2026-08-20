@@ -14,6 +14,7 @@ import {
 } from "./upullit-davie-client";
 
 const CDP_CONNECT_TIMEOUT_MS = 45_000;
+const BROWSER_REQUEST_TIMEOUT_MS = 30_000;
 const HYPERBROWSER_REGION = "us-west" as const;
 
 export interface UpullitDavieBrowserSession {
@@ -139,20 +140,41 @@ function doFetchPage(
     }
 
     const result = yield* Effect.tryPromise(() =>
-      page.evaluate(async (requestedPage: number) => {
-        const response = await fetch(
-          `/api/inventory/search?page=${encodeURIComponent(String(requestedPage))}`,
-          {
-            cache: "no-store",
-            headers: { Accept: "application/json" },
-          },
-        );
-        if (!response.ok) {
-          return { ok: false as const, status: response.status };
-        }
-        const body: unknown = await response.json();
-        return { ok: true as const, body };
-      }, pageNumber),
+      page.evaluate(
+        async ({ requestedPage, timeoutMs }) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(
+            () =>
+              controller.abort(
+                new Error(
+                  `U Pull It Davie inventory request timed out after ${timeoutMs}ms`,
+                ),
+              ),
+            timeoutMs,
+          );
+          try {
+            const response = await fetch(
+              `/api/inventory/search?page=${encodeURIComponent(String(requestedPage))}`,
+              {
+                cache: "no-store",
+                headers: { Accept: "application/json" },
+                signal: controller.signal,
+              },
+            );
+            if (!response.ok) {
+              return { ok: false as const, status: response.status };
+            }
+            const body: unknown = await response.json();
+            return { ok: true as const, body };
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        },
+        {
+          requestedPage: pageNumber,
+          timeoutMs: BROWSER_REQUEST_TIMEOUT_MS,
+        },
+      ),
     );
 
     if (!result.ok) {

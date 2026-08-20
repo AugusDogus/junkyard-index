@@ -155,6 +155,7 @@ function isPypRawLocation(value: unknown): value is PypRawLocation {
  */
 const SESSION_ROTATE_MS = 12 * 60 * 1000;
 const CDP_CONNECT_TIMEOUT_MS = 45_000;
+const BROWSER_REQUEST_TIMEOUT_MS = 30_000;
 const CDP_CONNECT_ATTEMPTS = 3;
 const CDP_CONNECT_RETRY_DELAY_MS = 2_000;
 const HYPERBROWSER_REGION = "us-west" as const;
@@ -413,20 +414,36 @@ function doFetchFilterPageRaw(
 
     const result = yield* Effect.tryPromise(() =>
       page.evaluate(
-        async ({ path, token }: { path: string; token: string }) => {
-          const res = await fetch(path, {
-            headers: {
-              Accept: "application/json",
-              RequestVerificationToken: token,
-              "X-Requested-With": "XMLHttpRequest",
-            },
-          });
-          if (!res.ok) {
-            return { _error: true as const, status: res.status };
+        async ({ path, token, timeoutMs }) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(
+            () =>
+              controller.abort(
+                new Error(
+                  `PYP inventory request timed out after ${timeoutMs}ms`,
+                ),
+              ),
+            timeoutMs,
+          );
+          try {
+            const res = await fetch(path, {
+              headers: {
+                Accept: "application/json",
+                RequestVerificationToken: token,
+                "X-Requested-With": "XMLHttpRequest",
+              },
+              signal: controller.signal,
+            });
+            if (!res.ok) {
+              return { _error: true as const, status: res.status };
+            }
+            const data: unknown = await res.json();
+            return { _error: false as const, data };
+          } finally {
+            clearTimeout(timeoutId);
           }
-          return { _error: false as const, data: await res.json() };
         },
-        { path, token },
+        { path, token, timeoutMs: BROWSER_REQUEST_TIMEOUT_MS },
       ),
     );
 
