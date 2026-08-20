@@ -202,6 +202,52 @@ describe("durable ingestion lifecycle", () => {
     ]);
   });
 
+  test("serializes Hyperbrowser sources while other sources remain concurrent", async () => {
+    let activeBrowserSources = 0;
+    let maxActiveBrowserSources = 0;
+    let nonBrowserSourceOverlapped = false;
+    const browserSourceOrder: ("pyp" | "upullitdavie")[] = [];
+    let releaseFirstBrowserSource: () => void = () => undefined;
+    const firstBrowserSourceCanFinish = new Promise<void>((resolve) => {
+      releaseFirstBrowserSource = resolve;
+    });
+
+    await executeDurableIngestion({
+      runId: "run-1",
+      operations: makeOperations({
+        runChunk: async (_runId, cursor) => {
+          if (cursor.source === "pyp" || cursor.source === "upullitdavie") {
+            browserSourceOrder.push(cursor.source);
+            activeBrowserSources += 1;
+            maxActiveBrowserSources = Math.max(
+              maxActiveBrowserSources,
+              activeBrowserSources,
+            );
+            if (browserSourceOrder.length === 1) {
+              await firstBrowserSourceCanFinish;
+            }
+            activeBrowserSources -= 1;
+          } else if (activeBrowserSources > 0) {
+            nonBrowserSourceOverlapped = true;
+            releaseFirstBrowserSource();
+          }
+
+          return {
+            cursor,
+            status: "complete",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [],
+          };
+        },
+      }),
+    });
+
+    expect(browserSourceOrder).toEqual(["pyp", "upullitdavie"]);
+    expect(maxActiveBrowserSources).toBe(1);
+    expect(nonBrowserSourceOverlapped).toBe(true);
+  });
+
   test("stops after a deduplicated initialization", async () => {
     const events: string[] = [];
     const result = await executeDurableIngestion({
