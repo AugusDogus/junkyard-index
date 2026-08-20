@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { db } from "~/lib/db";
-import { mapIngestionSources } from "~/lib/ingestion-source";
+import { isIngestionSource, mapIngestionSources } from "~/lib/ingestion-source";
 import type { DurableIngestionRepository } from "./durable-ingestion-repository";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { DurableIngestionResult } from "./durable-ingestion-types";
@@ -24,10 +24,6 @@ import type { CanonicalVehicle } from "./types";
 const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 
-function isDurableSource(value: string): value is DurableIngestionSource {
-  return DURABLE_INGESTION_SOURCES.some((source) => source === value);
-}
-
 export async function reconcileDurableIngestionRun(params: {
   runId: string;
   repository: DurableIngestionRepository;
@@ -37,7 +33,7 @@ export async function reconcileDurableIngestionRun(params: {
   const sourceRows = await params.repository.getSourceRuns(params.runId);
   const sourceRowsByName = new Map(
     sourceRows
-      .filter((row) => isDurableSource(row.source))
+      .filter((row) => isIngestionSource(row.source))
       .map((row) => [row.source, row] as const),
   );
   const outcomes: PipelineSourceOutcome[] = DURABLE_INGESTION_SOURCES.map(

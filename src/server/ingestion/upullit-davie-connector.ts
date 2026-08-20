@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import type { UpullitDavieCursorState } from "./durable-source";
 import {
   UpullitDavieCatalog,
   UPULLIT_DAVIE_MAX_CATALOG_PAGES,
@@ -12,14 +13,7 @@ const PAGE_CONCURRENCY = 6;
 const PAGE_CHUNK_SIZE = 24;
 export { UPULLIT_DAVIE_MAX_CATALOG_PAGES };
 
-export interface UpullitDavieStreamCursor {
-  page: number;
-  totalPages: number | null;
-  totalCount: number | null;
-  pageSize: number | null;
-  recordsProcessed: number;
-  recordsRejected: number;
-}
+export type UpullitDavieStreamCursor = UpullitDavieCursorState;
 
 export type UpullitDavieStreamResult = ConnectorChunkResult<
   "upullitdavie",

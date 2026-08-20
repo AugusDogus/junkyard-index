@@ -4,86 +4,25 @@ import type { IngestionSource } from "~/lib/ingestion-source";
 const NonNegativeIntegerSchema = z.number().int().nonnegative().safe();
 const PositiveIntegerSchema = z.number().int().positive().safe();
 
-const Row52CursorSchema = z.object({
-  source: z.literal("row52"),
-  afterLocationId: NonNegativeIntegerSchema,
-  locationIds: z.array(NonNegativeIntegerSchema),
-  skip: NonNegativeIntegerSchema,
-});
-const PypCursorSchema = z.object({
-  source: z.literal("pyp"),
-  page: NonNegativeIntegerSchema,
-});
-const AutorecyclerCursorSchema = z.object({
-  source: z.literal("autorecycler"),
-  from: NonNegativeIntegerSchema,
-});
-const PullapartCursorSchema = z.object({
-  source: z.literal("pullapart"),
-  locationId: NonNegativeIntegerSchema,
-  makeId: NonNegativeIntegerSchema,
-});
-const UpullitneCursorSchema = z.object({
-  source: z.literal("upullitne"),
-  storeIndex: NonNegativeIntegerSchema,
-});
-const UpullitDavieCursorSchema = z.object({
-  source: z.literal("upullitdavie"),
-  page: PositiveIntegerSchema,
-  totalPages: PositiveIntegerSchema.nullable(),
-  totalCount: NonNegativeIntegerSchema.nullable(),
-  pageSize: PositiveIntegerSchema.nullable(),
-  recordsProcessed: NonNegativeIntegerSchema,
-  recordsRejected: NonNegativeIntegerSchema,
-});
-const GopullitCursorSchema = z.object({
-  source: z.literal("gopullit"),
-  page: PositiveIntegerSchema,
-  recordsProcessed: NonNegativeIntegerSchema,
-  recordsSkipped: NonNegativeIntegerSchema,
-});
-
-const DURABLE_CURSOR_SCHEMAS = {
-  row52: Row52CursorSchema,
-  pyp: PypCursorSchema,
-  autorecycler: AutorecyclerCursorSchema,
-  pullapart: PullapartCursorSchema,
-  upullitne: UpullitneCursorSchema,
-  upullitdavie: UpullitDavieCursorSchema,
-  gopullit: GopullitCursorSchema,
-} as const;
-
-type DurableCursorBySource = {
-  [Source in IngestionSource]: z.infer<(typeof DURABLE_CURSOR_SCHEMAS)[Source]>;
+type SourceCursor<Source extends IngestionSource = IngestionSource> = {
+  source: Source;
 };
 
-export type DurableSourceCursor = DurableCursorBySource[IngestionSource];
-export type DurableCursorFor<Source extends IngestionSource> = Extract<
-  DurableSourceCursor,
-  { source: Source }
->;
-export type Row52DurableCursor = DurableCursorFor<"row52">;
-export type PullapartDurableCursor = DurableCursorFor<"pullapart">;
-
-type DurableCursorCodec<Source extends IngestionSource> = {
-  parse: (value: string) => DurableCursorFor<Source>;
-  serialize: (cursor: DurableCursorFor<Source>) => string;
-};
-
-type DurableCursorCodecRegistry = {
-  [Source in IngestionSource]: DurableCursorCodec<Source>;
+type DurableCursorDefinition<Cursor extends SourceCursor> = {
+  parse: (value: string) => Cursor;
+  serialize: (cursor: Cursor) => string;
 };
 
 function invalidCursor(source: IngestionSource, value: string): Error {
   return new Error(`Invalid ${source} ingestion cursor: ${value}`);
 }
 
-function parseWithSchema<Schema extends z.ZodTypeAny>(
-  source: IngestionSource,
-  schema: Schema,
+function parseWithSchema<Cursor extends SourceCursor>(
+  source: Cursor["source"],
+  schema: z.ZodType<Cursor>,
   value: unknown,
   serializedValue: string,
-): z.infer<Schema> {
+): Cursor {
   const parsed = schema.safeParse(value);
   if (!parsed.success) throw invalidCursor(source, serializedValue);
   return parsed.data;
@@ -128,10 +67,10 @@ function parsePair(
   ];
 }
 
-function createJsonCursorCodec<Source extends IngestionSource>(
-  source: Source,
-  schema: z.ZodType<DurableCursorFor<Source>>,
-): DurableCursorCodec<Source> {
+function defineJsonCursor<
+  Source extends IngestionSource,
+  Cursor extends SourceCursor<Source>,
+>(source: Source, schema: z.ZodType<Cursor>): DurableCursorDefinition<Cursor> {
   return {
     parse: (value) =>
       parseWithSchema(source, schema, parseJsonPayload(value, source), value),
@@ -150,12 +89,15 @@ function createJsonCursorCodec<Source extends IngestionSource>(
   };
 }
 
-function createScalarCursorCodec<Source extends IngestionSource>(
+function defineScalarCursor<
+  Source extends IngestionSource,
+  Cursor extends SourceCursor<Source>,
+>(
   source: Source,
-  schema: z.ZodType<DurableCursorFor<Source>>,
-  fromInteger: (value: number) => DurableCursorFor<Source>,
-  toInteger: (cursor: DurableCursorFor<Source>) => number,
-): DurableCursorCodec<Source> {
+  schema: z.ZodType<Cursor>,
+  fromInteger: (value: number) => Cursor,
+  toInteger: (cursor: Cursor) => number,
+): DurableCursorDefinition<Cursor> {
   return {
     parse: (value) =>
       parseWithSchema(
@@ -173,12 +115,15 @@ function createScalarCursorCodec<Source extends IngestionSource>(
   };
 }
 
-function createPairCursorCodec<Source extends IngestionSource>(
+function definePairCursor<
+  Source extends IngestionSource,
+  Cursor extends SourceCursor<Source>,
+>(
   source: Source,
-  schema: z.ZodType<DurableCursorFor<Source>>,
-  fromPair: (first: number, second: number) => DurableCursorFor<Source>,
-  toPair: (cursor: DurableCursorFor<Source>) => readonly [number, number],
-): DurableCursorCodec<Source> {
+  schema: z.ZodType<Cursor>,
+  fromPair: (first: number, second: number) => Cursor,
+  toPair: (cursor: Cursor) => readonly [number, number],
+): DurableCursorDefinition<Cursor> {
   return {
     parse: (value) => {
       const [first, second] = parsePair(value, source);
@@ -193,76 +138,117 @@ function createPairCursorCodec<Source extends IngestionSource>(
   };
 }
 
-const Row52CursorCodec = createJsonCursorCodec("row52", Row52CursorSchema);
-const PypCursorCodec = createScalarCursorCodec(
-  "pyp",
-  PypCursorSchema,
-  (page) => ({ source: "pyp", page }),
-  (cursor) => cursor.page,
-);
-const AutorecyclerCursorCodec = createScalarCursorCodec(
-  "autorecycler",
-  AutorecyclerCursorSchema,
-  (from) => ({ source: "autorecycler", from }),
-  (cursor) => cursor.from,
-);
-const PullapartCursorCodec = createPairCursorCodec(
-  "pullapart",
-  PullapartCursorSchema,
-  (locationId, makeId) => ({ source: "pullapart", locationId, makeId }),
-  (cursor) => [cursor.locationId, cursor.makeId],
-);
-const UpullitneCursorCodec = createScalarCursorCodec(
-  "upullitne",
-  UpullitneCursorSchema,
-  (storeIndex) => ({ source: "upullitne", storeIndex }),
-  (cursor) => cursor.storeIndex,
-);
-const UpullitDavieCursorCodec = createJsonCursorCodec(
-  "upullitdavie",
-  UpullitDavieCursorSchema,
-);
-const GopullitCursorCodec = createJsonCursorCodec(
-  "gopullit",
-  GopullitCursorSchema,
-);
+const DURABLE_CURSOR_DEFINITIONS = {
+  row52: defineJsonCursor(
+    "row52",
+    z.object({
+      source: z.literal("row52"),
+      afterLocationId: NonNegativeIntegerSchema,
+      locationIds: z.array(NonNegativeIntegerSchema),
+      skip: NonNegativeIntegerSchema,
+    }),
+  ),
+  pyp: defineScalarCursor(
+    "pyp",
+    z.object({
+      source: z.literal("pyp"),
+      page: NonNegativeIntegerSchema,
+    }),
+    (page) => ({ source: "pyp", page }),
+    (cursor) => cursor.page,
+  ),
+  autorecycler: defineScalarCursor(
+    "autorecycler",
+    z.object({
+      source: z.literal("autorecycler"),
+      from: NonNegativeIntegerSchema,
+    }),
+    (from) => ({ source: "autorecycler", from }),
+    (cursor) => cursor.from,
+  ),
+  pullapart: definePairCursor(
+    "pullapart",
+    z.object({
+      source: z.literal("pullapart"),
+      locationId: NonNegativeIntegerSchema,
+      makeId: NonNegativeIntegerSchema,
+    }),
+    (locationId, makeId) => ({ source: "pullapart", locationId, makeId }),
+    (cursor) => [cursor.locationId, cursor.makeId],
+  ),
+  upullitne: defineScalarCursor(
+    "upullitne",
+    z.object({
+      source: z.literal("upullitne"),
+      storeIndex: NonNegativeIntegerSchema,
+    }),
+    (storeIndex) => ({ source: "upullitne", storeIndex }),
+    (cursor) => cursor.storeIndex,
+  ),
+  upullitdavie: defineJsonCursor(
+    "upullitdavie",
+    z.object({
+      source: z.literal("upullitdavie"),
+      page: PositiveIntegerSchema,
+      totalPages: PositiveIntegerSchema.nullable(),
+      totalCount: NonNegativeIntegerSchema.nullable(),
+      pageSize: PositiveIntegerSchema.nullable(),
+      recordsProcessed: NonNegativeIntegerSchema,
+      recordsRejected: NonNegativeIntegerSchema,
+    }),
+  ),
+  gopullit: defineJsonCursor(
+    "gopullit",
+    z.object({
+      source: z.literal("gopullit"),
+      page: PositiveIntegerSchema,
+      recordsProcessed: NonNegativeIntegerSchema,
+      recordsSkipped: NonNegativeIntegerSchema,
+    }),
+  ),
+} satisfies Record<IngestionSource, unknown>;
 
-const DURABLE_CURSOR_CODECS: DurableCursorCodecRegistry = {
-  row52: Row52CursorCodec,
-  pyp: PypCursorCodec,
-  autorecycler: AutorecyclerCursorCodec,
-  pullapart: PullapartCursorCodec,
-  upullitne: UpullitneCursorCodec,
-  upullitdavie: UpullitDavieCursorCodec,
-  gopullit: GopullitCursorCodec,
+type DurableCursorBySource = {
+  [Source in IngestionSource]: ReturnType<
+    (typeof DURABLE_CURSOR_DEFINITIONS)[Source]["parse"]
+  >;
 };
+
+type DurableCursorRegistry = {
+  [Source in IngestionSource]: DurableCursorDefinition<
+    DurableCursorFor<Source>
+  >;
+};
+
+const durableCursorRegistry: DurableCursorRegistry = DURABLE_CURSOR_DEFINITIONS;
+
+export type DurableSourceCursor = DurableCursorBySource[IngestionSource];
+export type DurableCursorFor<Source extends IngestionSource> =
+  DurableCursorBySource[Source] & { source: Source };
+export type Row52DurableCursor = DurableCursorFor<"row52">;
+export type PullapartDurableCursor = DurableCursorFor<"pullapart">;
+export type UpullitDavieCursorState = Omit<
+  DurableCursorFor<"upullitdavie">,
+  "source"
+>;
+
+function getDurableCursorDefinition<Source extends IngestionSource>(
+  source: Source,
+): DurableCursorDefinition<DurableCursorFor<Source>> {
+  return durableCursorRegistry[source];
+}
 
 export function parseDurableSourceCursor<Source extends IngestionSource>(
   source: Source,
   value: string,
 ): DurableCursorFor<Source> {
-  return DURABLE_CURSOR_CODECS[source].parse(value);
+  return getDurableCursorDefinition(source).parse(value);
 }
 
-export function serializeDurableSourceCursor(
-  cursor: DurableSourceCursor,
+export function serializeDurableSourceCursor<Source extends IngestionSource>(
+  cursor: DurableCursorFor<Source>,
 ): string {
-  switch (cursor.source) {
-    case "row52":
-      return Row52CursorCodec.serialize(cursor);
-    case "pyp":
-      return PypCursorCodec.serialize(cursor);
-    case "autorecycler":
-      return AutorecyclerCursorCodec.serialize(cursor);
-    case "pullapart":
-      return PullapartCursorCodec.serialize(cursor);
-    case "upullitne":
-      return UpullitneCursorCodec.serialize(cursor);
-    case "upullitdavie":
-      return UpullitDavieCursorCodec.serialize(cursor);
-    case "gopullit":
-      return GopullitCursorCodec.serialize(cursor);
-  }
+  return getDurableCursorDefinition(cursor.source).serialize(cursor);
 }
 
 export function durableSourceCursorEquals(

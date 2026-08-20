@@ -21,33 +21,26 @@ export const DurableSourceFailure = {
 
   capture(
     failure: DurableSourceFailure,
-    captureException: typeof Sentry.captureException = Sentry.captureException,
+    captureMessage: typeof Sentry.captureMessage = Sentry.captureMessage,
   ): string {
-    return captureException(
-      new Error(`Vehicle ingestion source ${failure.source} failed`),
-      {
-        level: "error",
-        fingerprint: [failure.category, failure.source],
-        tags: {
-          failure_category: failure.category,
-          ingestion_source: failure.source,
-          workflow: "vehicle-ingestion",
-        },
-        extra: {
-          failureMessage: failure.message,
-          runId: failure.runId,
-        },
+    return captureMessage(failure.message, {
+      level: "error",
+      tags: {
+        failure_category: failure.category,
+        ingestion_source: failure.source,
+        workflow: "vehicle-ingestion",
       },
-    );
+      extra: { runId: failure.runId },
+    });
   },
 } as const;
 
 export async function recordDurableSourceFailure<Result>(params: {
   failure: DurableSourceFailure;
   markFailed: () => Promise<Result>;
-  captureException?: typeof Sentry.captureException;
+  captureMessage?: typeof Sentry.captureMessage;
 }): Promise<Result> {
   const result = await params.markFailed();
-  DurableSourceFailure.capture(params.failure, params.captureException);
+  DurableSourceFailure.capture(params.failure, params.captureMessage);
   return result;
 }

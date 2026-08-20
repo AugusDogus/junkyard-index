@@ -1,4 +1,3 @@
-import { HttpClient } from "@effect/platform";
 import { Effect, RateLimiter } from "effect";
 import {
   fetchPullapartVehicleExtendedInfo,
@@ -32,11 +31,7 @@ export interface PullapartStreamOptions<E, R> {
 export function streamPullapartInventoryWithRequestGate<E, R>(
   options: PullapartStreamOptions<E, R>,
   inventoryRequestGate: PullapartRequestGate,
-): Effect.Effect<
-  PullapartStreamResult,
-  PullapartProviderError | E,
-  R | HttpClient.HttpClient
-> {
+): Effect.Effect<PullapartStreamResult, PullapartProviderError | E, R> {
   return Effect.gen(function* () {
     let pagesProcessed = 0;
     let vehiclesProcessed = 0;
@@ -222,11 +217,7 @@ export function streamPullapartInventoryWithRequestGate<E, R>(
 
 export function streamPullapartInventory<E, R>(
   options: PullapartStreamOptions<E, R>,
-): Effect.Effect<
-  PullapartStreamResult,
-  PullapartProviderError | E,
-  R | HttpClient.HttpClient
-> {
+): Effect.Effect<PullapartStreamResult, PullapartProviderError | E, R> {
   return Effect.scoped(
     RateLimiter.make({
       limit: INVENTORY_REQUESTS_PER_SECOND,
