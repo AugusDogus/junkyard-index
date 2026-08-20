@@ -81,7 +81,11 @@ describe("GO Pull-It catalog streaming", () => {
     expect(result).toMatchObject({
       count: 11,
       pagesProcessed: 2,
-      cursor: 3,
+      cursor: {
+        page: 3,
+        recordsProcessed: 13,
+        recordsSkipped: 1,
+      },
       status: "complete",
     });
     expect(batches.flat()).toHaveLength(11);
@@ -126,17 +130,62 @@ describe("GO Pull-It catalog streaming", () => {
 
     const result = await Effect.runPromise(
       streamGopullitInventoryWithRequestGate(
-        { onBatch: () => Effect.void, maxPages: 1, startPage: 4 },
+        {
+          onBatch: () => Effect.void,
+          maxPages: 1,
+          startCursor: {
+            page: 4,
+            recordsProcessed: 30,
+            recordsSkipped: 30,
+          },
+        },
         noRateLimit,
       ),
     );
 
     expect(result).toMatchObject({
-      cursor: 5,
+      cursor: {
+        page: 5,
+        recordsProcessed: 40,
+        recordsSkipped: 30,
+      },
       pagesProcessed: 1,
       status: "paused",
     });
     expect(requestedPages).toEqual([4]);
+  });
+
+  test("defers incomplete-record ratio validation until the catalog ends", async () => {
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify(
+            Array.from({ length: 10 }, (_, index) => ({
+              id: 334000 + index,
+              title: `placeholder-${index}`,
+              created_at: "2026-08-18 20:20:04",
+            })),
+          ),
+          { status: 200 },
+        ),
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const result = await Effect.runPromise(
+      streamGopullitInventoryWithRequestGate(
+        { onBatch: () => Effect.void, maxPages: 1 },
+        noRateLimit,
+      ),
+    );
+
+    expect(result).toMatchObject({
+      status: "paused",
+      cursor: {
+        page: 2,
+        recordsProcessed: 10,
+        recordsSkipped: 10,
+      },
+    });
   });
 
   test("rejects a catalog dominated by incomplete records", async () => {

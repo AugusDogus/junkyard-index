@@ -16,6 +16,11 @@ const UpullitDavieCursorPayloadSchema = z.object({
   totalCount: NonNegativeIntegerSchema.nullable(),
   recordsProcessed: NonNegativeIntegerSchema,
 });
+const GopullitCursorPayloadSchema = z.object({
+  page: z.number().int().positive().safe(),
+  recordsProcessed: NonNegativeIntegerSchema,
+  recordsSkipped: NonNegativeIntegerSchema,
+});
 
 export type DurableSourceCursor =
   | {
@@ -35,7 +40,12 @@ export type DurableSourceCursor =
       totalCount: number | null;
       recordsProcessed: number;
     }
-  | { source: "gopullit"; page: number };
+  | {
+      source: "gopullit";
+      page: number;
+      recordsProcessed: number;
+      recordsSkipped: number;
+    };
 
 export type Row52DurableCursor = Extract<
   DurableSourceCursor,
@@ -176,12 +186,26 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     },
   },
   gopullit: {
-    initialCursor: { source: "gopullit", page: 1 },
-    maxPagesPerChunk: 24,
-    parseCursor: (value) => ({
+    initialCursor: {
       source: "gopullit",
-      page: parseNonNegativeInteger(value, "gopullit"),
-    }),
+      page: 1,
+      recordsProcessed: 0,
+      recordsSkipped: 0,
+    },
+    maxPagesPerChunk: 24,
+    parseCursor: (value) => {
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(value);
+      } catch {
+        throw new Error(`Invalid gopullit ingestion cursor: ${value}`);
+      }
+      const parsed = GopullitCursorPayloadSchema.safeParse(parsedJson);
+      if (!parsed.success) {
+        throw new Error(`Invalid gopullit ingestion cursor: ${value}`);
+      }
+      return { source: "gopullit", ...parsed.data };
+    },
   },
 };
 
@@ -229,7 +253,11 @@ export function serializeDurableSourceCursor(
         recordsProcessed: cursor.recordsProcessed,
       });
     case "gopullit":
-      return String(cursor.page);
+      return JSON.stringify({
+        page: cursor.page,
+        recordsProcessed: cursor.recordsProcessed,
+        recordsSkipped: cursor.recordsSkipped,
+      });
   }
 }
 
@@ -272,6 +300,11 @@ export function durableSourceCursorEquals(
         left.recordsProcessed === right.recordsProcessed
       );
     case "gopullit":
-      return right.source === "gopullit" && left.page === right.page;
+      return (
+        right.source === "gopullit" &&
+        left.page === right.page &&
+        left.recordsProcessed === right.recordsProcessed &&
+        left.recordsSkipped === right.recordsSkipped
+      );
   }
 }

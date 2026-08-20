@@ -5,7 +5,10 @@ import {
   type DurableIngestionOperations,
 } from "./durable-ingestion-orchestrator";
 import type { DurableIngestionResult } from "./durable-ingestion-types";
-import type { DurableSourceCursor } from "./durable-source";
+import {
+  DURABLE_INGESTION_SOURCES,
+  type DurableSourceCursor,
+} from "./durable-source";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
   return { source: "pyp", page: 1 };
@@ -187,14 +190,14 @@ describe("durable ingestion lifecycle", () => {
       ingestion: COMPLETED_INGESTION,
     });
     expect(events.slice(0, 2)).toEqual(["cleanup-stale", "initialize"]);
-    expect(events.slice(2, 7).sort()).toEqual([
-      "source:autorecycler",
-      "source:pullapart",
-      "source:pyp",
-      "source:row52",
-      "source:upullitne",
+    const sourcePhaseEnd = 2 + DURABLE_INGESTION_SOURCES.length;
+    expect(events.slice(2, sourcePhaseEnd).sort()).toEqual(
+      DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`).sort(),
+    );
+    expect(events.slice(sourcePhaseEnd)).toEqual([
+      "reconcile",
+      "cleanup-snapshots",
     ]);
-    expect(events.slice(7)).toEqual(["reconcile", "cleanup-snapshots"]);
   });
 
   test("stops after a deduplicated initialization", async () => {

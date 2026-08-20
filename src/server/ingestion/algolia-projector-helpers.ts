@@ -1,23 +1,13 @@
 import { vehicle } from "~/schema";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import type { CanonicalVehicle } from "./types";
 
 export function mapDbVehicleToCanonical(
   row: typeof vehicle.$inferSelect,
 ): CanonicalVehicle {
-  const source: CanonicalVehicle["source"] =
-    row.source === "row52"
-      ? "row52"
-      : row.source === "pullapart"
-        ? "pullapart"
-        : row.source === "upullitne"
-          ? "upullitne"
-          : row.source === "upullitdavie"
-            ? "upullitdavie"
-            : row.source === "gopullit"
-              ? "gopullit"
-              : row.source === "autorecycler"
-                ? "autorecycler"
-                : "pyp";
+  const source: CanonicalVehicle["source"] = isIngestionSource(row.source)
+    ? row.source
+    : "pyp";
   return {
     vin: row.vin,
     source,

@@ -192,6 +192,37 @@ describe("reconcile helpers", () => {
     expect(finalInventory.get("VIN_U")).toEqual(upullitneVehicle);
   });
 
+  test("fills Davie and GO Pull-It VINs in source priority order", () => {
+    const row52Vehicle = makeCanonicalVehicle("VIN_A", "row52");
+    const davieVehicle = makeCanonicalVehicle("VIN_SHARED", "upullitdavie", {
+      stockNumber: "DAVIE-1",
+    });
+    const duplicateGoVehicle = makeCanonicalVehicle("VIN_SHARED", "gopullit", {
+      stockNumber: "GO-DUPLICATE",
+    });
+    const goVehicle = makeCanonicalVehicle("VIN_G", "gopullit", {
+      stockNumber: "GO-1",
+    });
+
+    const finalInventory = buildFinalInventoryByVin({
+      healthySources: ["row52", "upullitdavie", "gopullit"],
+      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
+      pypByVin: new Map(),
+      autorecyclerByVin: new Map(),
+      pullapartByVin: new Map(),
+      upullitneByVin: new Map(),
+      upullitdavieByVin: new Map([[davieVehicle.vin, davieVehicle]]),
+      gopullitByVin: new Map([
+        [duplicateGoVehicle.vin, duplicateGoVehicle],
+        [goVehicle.vin, goVehicle],
+      ]),
+    });
+
+    expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
+    expect(finalInventory.get("VIN_SHARED")).toEqual(davieVehicle);
+    expect(finalInventory.get("VIN_G")).toEqual(goVehicle);
+  });
+
   test("treats reappearing vehicles as changed so missing state is cleared", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
     const finalInventory = new Map([
