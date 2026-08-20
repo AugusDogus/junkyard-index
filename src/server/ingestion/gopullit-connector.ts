@@ -188,13 +188,17 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
 export function streamGopullitInventory<E, R>(
   options: GopullitStreamOptions<E, R>,
 ): Effect.Effect<GopullitStreamResult, Error | E, R> {
-  return Effect.scoped(
-    RateLimiter.make({
-      limit: 1,
-      interval: REQUEST_INTERVAL,
-    }).pipe(
-      Effect.flatMap((requestGate) =>
-        streamGopullitInventoryWithRequestGate(options, requestGate),
+  return Effect.sleep(REQUEST_INTERVAL).pipe(
+    Effect.zipRight(
+      Effect.scoped(
+        RateLimiter.make({
+          limit: 1,
+          interval: REQUEST_INTERVAL,
+        }).pipe(
+          Effect.flatMap((requestGate) =>
+            streamGopullitInventoryWithRequestGate(options, requestGate),
+          ),
+        ),
       ),
     ),
   );

@@ -32,15 +32,15 @@ function completeRecord(index: number) {
 }
 
 describe("GO Pull-It catalog streaming", () => {
-  test("paces provider requests below the observed rate limit", async () => {
-    let requestCount = 0;
+  test("paces every request, including across durable chunks", async () => {
+    const requestedPages: number[] = [];
     globalThis.fetch = Object.assign(
       async (input: RequestInfo | URL) => {
         const url = new URL(
           input instanceof Request ? input.url : input.toString(),
         );
         const page = Number.parseInt(url.searchParams.get("page") ?? "", 10);
-        requestCount += 1;
+        requestedPages.push(page);
         return new Response(
           JSON.stringify(
             Array.from({ length: 10 }, (_, index) =>
@@ -58,18 +58,35 @@ describe("GO Pull-It catalog streaming", () => {
         const streamFiber = yield* streamGopullitInventory({
           onBatch: () => Effect.void,
           maxPages: 2,
-        }).pipe(Effect.fork);
+        }).pipe(
+          Effect.flatMap((firstChunk) =>
+            streamGopullitInventory({
+              onBatch: () => Effect.void,
+              startCursor: firstChunk.cursor,
+              maxPages: 1,
+            }),
+          ),
+          Effect.fork,
+        );
 
-        yield* TestClock.adjust("1 second");
-        expect(requestCount).toBe(1);
-        yield* TestClock.adjust("500 millis");
+        yield* TestClock.adjust("1499 millis");
+        expect(requestedPages).toEqual([]);
+        yield* TestClock.adjust("1 millis");
+        expect(requestedPages).toEqual([1]);
+        yield* TestClock.adjust("1499 millis");
+        expect(requestedPages).toEqual([1]);
+        yield* TestClock.adjust("1 millis");
+        expect(requestedPages).toEqual([1, 2]);
+        yield* TestClock.adjust("1499 millis");
+        expect(requestedPages).toEqual([1, 2]);
+        yield* TestClock.adjust("1 millis");
 
         return yield* Fiber.join(streamFiber);
       }).pipe(Effect.provide(TestContext.TestContext)),
     );
 
-    expect(requestCount).toBe(2);
-    expect(result).toMatchObject({ status: "paused", pagesProcessed: 2 });
+    expect(requestedPages).toEqual([1, 2, 3]);
+    expect(result).toMatchObject({ status: "paused", pagesProcessed: 1 });
   });
 
   test("crawls JSON pages until the first short page", async () => {
