@@ -1,11 +1,13 @@
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { UpullitDavieCursorState } from "./durable-cursor";
+import { Config } from "./runtime";
 import {
   UpullitDavieCatalog,
   UPULLIT_DAVIE_MAX_CATALOG_PAGES,
 } from "./upullit-davie-catalog";
-import { fetchUpullitDaviePage } from "./upullit-davie-client";
+import { acquireUpullitDavieSession } from "./upullit-davie-browser-session";
+import type { UpullitDaviePage } from "./upullit-davie-client";
 import { transformUpullitDavieVehicle } from "./upullit-davie-transform";
 import type { CanonicalVehicle } from "./types";
 
@@ -20,11 +22,36 @@ export type UpullitDavieStreamResult = ConnectorChunkResult<
   UpullitDavieStreamCursor
 >;
 
+export interface UpullitDaviePageSource<PageError = never> {
+  fetchPage(pageNumber: number): Effect.Effect<UpullitDaviePage, PageError>;
+}
+
 export function streamUpullitDavieInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startCursor?: UpullitDavieStreamCursor;
   maxPages?: number;
-}): Effect.Effect<UpullitDavieStreamResult, Error | E, R> {
+}): Effect.Effect<UpullitDavieStreamResult, Error | E, Config | R> {
+  return Effect.gen(function* () {
+    const config = yield* Config;
+    return yield* Effect.scoped(
+      Effect.gen(function* () {
+        const source = yield* acquireUpullitDavieSession(
+          config.hyperbrowserApiKey,
+        );
+        return yield* streamUpullitDavieInventoryFromSource(options, source);
+      }),
+    );
+  });
+}
+
+export function streamUpullitDavieInventoryFromSource<E, R, PageError>(
+  options: {
+    onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+    startCursor?: UpullitDavieStreamCursor;
+    maxPages?: number;
+  },
+  source: UpullitDaviePageSource<PageError>,
+): Effect.Effect<UpullitDavieStreamResult, Error | E | PageError, R> {
   return Effect.gen(function* () {
     const startCursor = options.startCursor ?? UpullitDavieCursorState.initial;
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
@@ -52,7 +79,7 @@ export function streamUpullitDavieInventory<E, R>(options: {
       return batch;
     };
 
-    const firstPage = yield* fetchUpullitDaviePage(startCursor.page);
+    const firstPage = yield* source.fetchPage(startCursor.page);
     const catalogResult = UpullitDavieCatalog.fromFirstPage(firstPage);
     if (!catalogResult.success) {
       return yield* Effect.fail(catalogResult.error);
@@ -94,9 +121,9 @@ export function streamUpullitDavieInventory<E, R>(options: {
       );
       const pages = yield* Effect.all(
         requestedPages.map((expectedPage) =>
-          fetchUpullitDaviePage(expectedPage).pipe(
-            Effect.map((page) => ({ expectedPage, page })),
-          ),
+          source
+            .fetchPage(expectedPage)
+            .pipe(Effect.map((page) => ({ expectedPage, page }))),
         ),
         { concurrency: PAGE_CONCURRENCY },
       );
