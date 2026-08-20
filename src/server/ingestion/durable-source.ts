@@ -5,67 +5,80 @@ import {
 } from "~/lib/ingestion-source";
 
 const NonNegativeIntegerSchema = z.number().int().nonnegative().safe();
-const Row52CursorPayloadSchema = z.object({
+const PositiveIntegerSchema = z.number().int().positive().safe();
+
+const Row52CursorSchema = z.object({
+  source: z.literal("row52"),
   afterLocationId: NonNegativeIntegerSchema,
   locationIds: z.array(NonNegativeIntegerSchema),
   skip: NonNegativeIntegerSchema,
 });
-const UpullitDavieCursorPayloadSchema = z.object({
-  page: z.number().int().positive().safe(),
-  totalPages: z.number().int().positive().safe().nullable(),
-  totalCount: NonNegativeIntegerSchema.nullable(),
-  recordsProcessed: NonNegativeIntegerSchema,
+const PypCursorSchema = z.object({
+  source: z.literal("pyp"),
+  page: NonNegativeIntegerSchema,
 });
-const GopullitCursorPayloadSchema = z.object({
-  page: z.number().int().positive().safe(),
+const AutorecyclerCursorSchema = z.object({
+  source: z.literal("autorecycler"),
+  from: NonNegativeIntegerSchema,
+});
+const PullapartCursorSchema = z.object({
+  source: z.literal("pullapart"),
+  locationId: NonNegativeIntegerSchema,
+  makeId: NonNegativeIntegerSchema,
+});
+const UpullitneCursorSchema = z.object({
+  source: z.literal("upullitne"),
+  storeIndex: NonNegativeIntegerSchema,
+});
+const UpullitDavieCursorSchema = z.object({
+  source: z.literal("upullitdavie"),
+  page: PositiveIntegerSchema,
+  totalPages: PositiveIntegerSchema.nullable(),
+  totalCount: NonNegativeIntegerSchema.nullable(),
+  pageSize: PositiveIntegerSchema.nullable(),
+  recordsProcessed: NonNegativeIntegerSchema,
+  recordsRejected: NonNegativeIntegerSchema,
+});
+const GopullitCursorSchema = z.object({
+  source: z.literal("gopullit"),
+  page: PositiveIntegerSchema,
   recordsProcessed: NonNegativeIntegerSchema,
   recordsSkipped: NonNegativeIntegerSchema,
 });
 
-export type DurableSourceCursor =
-  | {
-      source: "row52";
-      afterLocationId: number;
-      locationIds: number[];
-      skip: number;
-    }
-  | { source: "pyp"; page: number }
-  | { source: "autorecycler"; from: number }
-  | { source: "pullapart"; locationId: number; makeId: number }
-  | { source: "upullitne"; storeIndex: number }
-  | {
-      source: "upullitdavie";
-      page: number;
-      totalPages: number | null;
-      totalCount: number | null;
-      recordsProcessed: number;
-    }
-  | {
-      source: "gopullit";
-      page: number;
-      recordsProcessed: number;
-      recordsSkipped: number;
-    };
+const DURABLE_CURSOR_SCHEMAS = {
+  row52: Row52CursorSchema,
+  pyp: PypCursorSchema,
+  autorecycler: AutorecyclerCursorSchema,
+  pullapart: PullapartCursorSchema,
+  upullitne: UpullitneCursorSchema,
+  upullitdavie: UpullitDavieCursorSchema,
+  gopullit: GopullitCursorSchema,
+} as const;
 
-export type Row52DurableCursor = Extract<
-  DurableSourceCursor,
-  { source: "row52" }
->;
-export type PullapartDurableCursor = Extract<
-  DurableSourceCursor,
-  { source: "pullapart" }
->;
+type DurableCursorBySource = {
+  [Source in IngestionSource]: z.infer<(typeof DURABLE_CURSOR_SCHEMAS)[Source]>;
+};
 
+export type DurableSourceCursor = DurableCursorBySource[IngestionSource];
 export type DurableCursorFor<Source extends IngestionSource> = Extract<
   DurableSourceCursor,
   { source: Source }
 >;
 export type DurableIngestionSource = IngestionSource;
+export type Row52DurableCursor = DurableCursorFor<"row52">;
+export type PullapartDurableCursor = DurableCursorFor<"pullapart">;
+
+interface DurableCursorCodec<Source extends IngestionSource> {
+  schema: (typeof DURABLE_CURSOR_SCHEMAS)[Source];
+  parse: (value: string) => DurableCursorFor<Source>;
+  serialize: (cursor: DurableSourceCursor) => string;
+}
 
 interface DurableSourceDefinition<Source extends IngestionSource> {
   initialCursor: DurableCursorFor<Source>;
   maxPagesPerChunk: number;
-  parseCursor: (value: string) => DurableCursorFor<Source>;
+  cursorCodec: DurableCursorCodec<Source>;
 }
 
 type DurableSourceRegistry = {
@@ -75,37 +88,218 @@ type DurableSourceRegistry = {
 export const DURABLE_INGESTION_SOURCES: readonly DurableIngestionSource[] =
   INGESTION_SOURCES;
 
+function invalidCursor(source: DurableIngestionSource, value: string): Error {
+  return new Error(`Invalid ${source} ingestion cursor: ${value}`);
+}
+
+function parseWithSchema<Schema extends z.ZodTypeAny>(
+  source: DurableIngestionSource,
+  schema: Schema,
+  value: unknown,
+  serializedValue: string,
+): z.infer<Schema> {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw invalidCursor(source, serializedValue);
+  return parsed.data;
+}
+
 function parseNonNegativeInteger(
   value: string,
   source: DurableIngestionSource,
 ): number {
-  if (!/^(0|[1-9]\d*)$/.test(value)) {
-    throw new Error(`Invalid ${source} ingestion cursor: ${value}`);
-  }
+  if (!/^(0|[1-9]\d*)$/.test(value)) throw invalidCursor(source, value);
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`Invalid ${source} ingestion cursor: ${value}`);
-  }
+  if (!Number.isSafeInteger(parsed)) throw invalidCursor(source, value);
   return parsed;
 }
 
-function parsePair(
+function parseJsonPayload(
   value: string,
-  source: "pullapart",
-): readonly [number, number] {
-  const parts = value.split(":");
-  if (parts.length !== 2) {
-    throw new Error(`Invalid ${source} ingestion cursor: ${value}`);
+  source: DurableIngestionSource,
+): unknown {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw invalidCursor(source, value);
   }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return parsed;
+  }
+  return { ...parsed, source };
+}
+
+function parsePair(value: string): readonly [number, number] {
+  const parts = value.split(":");
+  if (parts.length !== 2) throw invalidCursor("pullapart", value);
   const [first, second] = parts;
   if (first === undefined || second === undefined) {
-    throw new Error(`Invalid ${source} ingestion cursor: ${value}`);
+    throw invalidCursor("pullapart", value);
   }
   return [
-    parseNonNegativeInteger(first, source),
-    parseNonNegativeInteger(second, source),
+    parseNonNegativeInteger(first, "pullapart"),
+    parseNonNegativeInteger(second, "pullapart"),
   ];
 }
+
+const Row52CursorCodec: DurableCursorCodec<"row52"> = {
+  schema: Row52CursorSchema,
+  parse: (value) =>
+    parseWithSchema(
+      "row52",
+      Row52CursorSchema,
+      parseJsonPayload(value, "row52"),
+      value,
+    ),
+  serialize: (cursor) => {
+    const parsed = parseWithSchema(
+      "row52",
+      Row52CursorSchema,
+      cursor,
+      JSON.stringify(cursor),
+    );
+    return JSON.stringify({
+      afterLocationId: parsed.afterLocationId,
+      locationIds: parsed.locationIds,
+      skip: parsed.skip,
+    });
+  },
+};
+
+const PypCursorCodec: DurableCursorCodec<"pyp"> = {
+  schema: PypCursorSchema,
+  parse: (value) =>
+    parseWithSchema(
+      "pyp",
+      PypCursorSchema,
+      { source: "pyp", page: parseNonNegativeInteger(value, "pyp") },
+      value,
+    ),
+  serialize: (cursor) =>
+    String(
+      parseWithSchema("pyp", PypCursorSchema, cursor, JSON.stringify(cursor))
+        .page,
+    ),
+};
+
+const AutorecyclerCursorCodec: DurableCursorCodec<"autorecycler"> = {
+  schema: AutorecyclerCursorSchema,
+  parse: (value) =>
+    parseWithSchema(
+      "autorecycler",
+      AutorecyclerCursorSchema,
+      {
+        source: "autorecycler",
+        from: parseNonNegativeInteger(value, "autorecycler"),
+      },
+      value,
+    ),
+  serialize: (cursor) =>
+    String(
+      parseWithSchema(
+        "autorecycler",
+        AutorecyclerCursorSchema,
+        cursor,
+        JSON.stringify(cursor),
+      ).from,
+    ),
+};
+
+const PullapartCursorCodec: DurableCursorCodec<"pullapart"> = {
+  schema: PullapartCursorSchema,
+  parse: (value) => {
+    const [locationId, makeId] = parsePair(value);
+    return parseWithSchema(
+      "pullapart",
+      PullapartCursorSchema,
+      { source: "pullapart", locationId, makeId },
+      value,
+    );
+  },
+  serialize: (cursor) => {
+    const parsed = parseWithSchema(
+      "pullapart",
+      PullapartCursorSchema,
+      cursor,
+      JSON.stringify(cursor),
+    );
+    return `${parsed.locationId}:${parsed.makeId}`;
+  },
+};
+
+const UpullitneCursorCodec: DurableCursorCodec<"upullitne"> = {
+  schema: UpullitneCursorSchema,
+  parse: (value) =>
+    parseWithSchema(
+      "upullitne",
+      UpullitneCursorSchema,
+      {
+        source: "upullitne",
+        storeIndex: parseNonNegativeInteger(value, "upullitne"),
+      },
+      value,
+    ),
+  serialize: (cursor) =>
+    String(
+      parseWithSchema(
+        "upullitne",
+        UpullitneCursorSchema,
+        cursor,
+        JSON.stringify(cursor),
+      ).storeIndex,
+    ),
+};
+
+const UpullitDavieCursorCodec: DurableCursorCodec<"upullitdavie"> = {
+  schema: UpullitDavieCursorSchema,
+  parse: (value) =>
+    parseWithSchema(
+      "upullitdavie",
+      UpullitDavieCursorSchema,
+      parseJsonPayload(value, "upullitdavie"),
+      value,
+    ),
+  serialize: (cursor) => {
+    const parsed = parseWithSchema(
+      "upullitdavie",
+      UpullitDavieCursorSchema,
+      cursor,
+      JSON.stringify(cursor),
+    );
+    return JSON.stringify({
+      page: parsed.page,
+      totalPages: parsed.totalPages,
+      totalCount: parsed.totalCount,
+      pageSize: parsed.pageSize,
+      recordsProcessed: parsed.recordsProcessed,
+      recordsRejected: parsed.recordsRejected,
+    });
+  },
+};
+
+const GopullitCursorCodec: DurableCursorCodec<"gopullit"> = {
+  schema: GopullitCursorSchema,
+  parse: (value) =>
+    parseWithSchema(
+      "gopullit",
+      GopullitCursorSchema,
+      parseJsonPayload(value, "gopullit"),
+      value,
+    ),
+  serialize: (cursor) => {
+    const parsed = parseWithSchema(
+      "gopullit",
+      GopullitCursorSchema,
+      cursor,
+      JSON.stringify(cursor),
+    );
+    return JSON.stringify({
+      page: parsed.page,
+      recordsProcessed: parsed.recordsProcessed,
+      recordsSkipped: parsed.recordsSkipped,
+    });
+  },
+};
 
 export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   row52: {
@@ -116,51 +310,27 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
       skip: 0,
     },
     maxPagesPerChunk: 10,
-    parseCursor: (value) => {
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(value);
-      } catch {
-        throw new Error(`Invalid row52 ingestion cursor: ${value}`);
-      }
-      const parsed = Row52CursorPayloadSchema.safeParse(parsedJson);
-      if (!parsed.success) {
-        throw new Error(`Invalid row52 ingestion cursor: ${value}`);
-      }
-      return { source: "row52", ...parsed.data };
-    },
+    cursorCodec: Row52CursorCodec,
   },
   pyp: {
     initialCursor: { source: "pyp", page: 1 },
     maxPagesPerChunk: 10,
-    parseCursor: (value) => ({
-      source: "pyp",
-      page: parseNonNegativeInteger(value, "pyp"),
-    }),
+    cursorCodec: PypCursorCodec,
   },
   autorecycler: {
     initialCursor: { source: "autorecycler", from: 0 },
     maxPagesPerChunk: 10,
-    parseCursor: (value) => ({
-      source: "autorecycler",
-      from: parseNonNegativeInteger(value, "autorecycler"),
-    }),
+    cursorCodec: AutorecyclerCursorCodec,
   },
   pullapart: {
     initialCursor: { source: "pullapart", locationId: 0, makeId: 0 },
     maxPagesPerChunk: 1,
-    parseCursor: (value) => {
-      const [locationId, makeId] = parsePair(value, "pullapart");
-      return { source: "pullapart", locationId, makeId };
-    },
+    cursorCodec: PullapartCursorCodec,
   },
   upullitne: {
     initialCursor: { source: "upullitne", storeIndex: 0 },
     maxPagesPerChunk: 5,
-    parseCursor: (value) => ({
-      source: "upullitne",
-      storeIndex: parseNonNegativeInteger(value, "upullitne"),
-    }),
+    cursorCodec: UpullitneCursorCodec,
   },
   upullitdavie: {
     initialCursor: {
@@ -168,22 +338,12 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
       page: 1,
       totalPages: null,
       totalCount: null,
+      pageSize: null,
       recordsProcessed: 0,
+      recordsRejected: 0,
     },
     maxPagesPerChunk: 24,
-    parseCursor: (value) => {
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(value);
-      } catch {
-        throw new Error(`Invalid upullitdavie ingestion cursor: ${value}`);
-      }
-      const parsed = UpullitDavieCursorPayloadSchema.safeParse(parsedJson);
-      if (!parsed.success) {
-        throw new Error(`Invalid upullitdavie ingestion cursor: ${value}`);
-      }
-      return { source: "upullitdavie", ...parsed.data };
-    },
+    cursorCodec: UpullitDavieCursorCodec,
   },
   gopullit: {
     initialCursor: {
@@ -193,19 +353,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
       recordsSkipped: 0,
     },
     maxPagesPerChunk: 24,
-    parseCursor: (value) => {
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(value);
-      } catch {
-        throw new Error(`Invalid gopullit ingestion cursor: ${value}`);
-      }
-      const parsed = GopullitCursorPayloadSchema.safeParse(parsedJson);
-      if (!parsed.success) {
-        throw new Error(`Invalid gopullit ingestion cursor: ${value}`);
-      }
-      return { source: "gopullit", ...parsed.data };
-    },
+    cursorCodec: GopullitCursorCodec,
   },
 };
 
@@ -224,87 +372,23 @@ export function parseDurableSourceCursor<Source extends DurableIngestionSource>(
   source: Source,
   value: string,
 ): DurableCursorFor<Source> {
-  return getDurableSourceDefinition(source).parseCursor(value);
+  return getDurableSourceDefinition(source).cursorCodec.parse(value);
 }
 
 export function serializeDurableSourceCursor(
   cursor: DurableSourceCursor,
 ): string {
-  switch (cursor.source) {
-    case "row52":
-      return JSON.stringify({
-        afterLocationId: cursor.afterLocationId,
-        locationIds: cursor.locationIds,
-        skip: cursor.skip,
-      });
-    case "pyp":
-      return String(cursor.page);
-    case "autorecycler":
-      return String(cursor.from);
-    case "pullapart":
-      return `${cursor.locationId}:${cursor.makeId}`;
-    case "upullitne":
-      return String(cursor.storeIndex);
-    case "upullitdavie":
-      return JSON.stringify({
-        page: cursor.page,
-        totalPages: cursor.totalPages,
-        totalCount: cursor.totalCount,
-        recordsProcessed: cursor.recordsProcessed,
-      });
-    case "gopullit":
-      return JSON.stringify({
-        page: cursor.page,
-        recordsProcessed: cursor.recordsProcessed,
-        recordsSkipped: cursor.recordsSkipped,
-      });
-  }
+  return DURABLE_SOURCE_DEFINITIONS[cursor.source].cursorCodec.serialize(
+    cursor,
+  );
 }
 
 export function durableSourceCursorEquals(
   left: DurableSourceCursor,
   right: DurableSourceCursor,
 ): boolean {
-  if (left.source !== right.source) return false;
-  switch (left.source) {
-    case "row52":
-      return (
-        right.source === "row52" &&
-        left.afterLocationId === right.afterLocationId &&
-        left.skip === right.skip &&
-        left.locationIds.length === right.locationIds.length &&
-        left.locationIds.every(
-          (locationId, index) => locationId === right.locationIds[index],
-        )
-      );
-    case "pyp":
-      return right.source === "pyp" && left.page === right.page;
-    case "autorecycler":
-      return right.source === "autorecycler" && left.from === right.from;
-    case "pullapart":
-      return (
-        right.source === "pullapart" &&
-        left.locationId === right.locationId &&
-        left.makeId === right.makeId
-      );
-    case "upullitne":
-      return (
-        right.source === "upullitne" && left.storeIndex === right.storeIndex
-      );
-    case "upullitdavie":
-      return (
-        right.source === "upullitdavie" &&
-        left.page === right.page &&
-        left.totalPages === right.totalPages &&
-        left.totalCount === right.totalCount &&
-        left.recordsProcessed === right.recordsProcessed
-      );
-    case "gopullit":
-      return (
-        right.source === "gopullit" &&
-        left.page === right.page &&
-        left.recordsProcessed === right.recordsProcessed &&
-        left.recordsSkipped === right.recordsSkipped
-      );
-  }
+  return (
+    left.source === right.source &&
+    serializeDurableSourceCursor(left) === serializeDurableSourceCursor(right)
+  );
 }

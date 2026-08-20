@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   DURABLE_INITIAL_SOURCE_CURSORS,
   DURABLE_SOURCE_DEFINITIONS,
+  durableSourceCursorEquals,
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
 } from "./durable-source";
@@ -62,7 +63,9 @@ describe("durable ingestion cursors", () => {
       page: 25,
       totalPages: 61,
       totalCount: 1_460,
+      pageSize: 24,
       recordsProcessed: 576,
+      recordsRejected: 0,
     };
     expect(
       parseDurableSourceCursor(
@@ -70,6 +73,12 @@ describe("durable ingestion cursors", () => {
         serializeDurableSourceCursor(cursor),
       ),
     ).toEqual(cursor);
+    expect(
+      durableSourceCursorEquals(cursor, {
+        ...cursor,
+        recordsRejected: 1,
+      }),
+    ).toBe(false);
   });
 
   test("round trips GO Pull-It catalog validation counters", () => {

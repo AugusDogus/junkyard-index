@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import type { db } from "~/lib/db";
+import { mapIngestionSources } from "~/lib/ingestion-source";
 import type { DurableIngestionRepository } from "./durable-ingestion-repository";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { DurableIngestionResult } from "./durable-ingestion-types";
@@ -74,13 +75,7 @@ export async function reconcileDurableIngestionRun(params: {
     runId: params.runId,
     totalUpserted: values.totalUpserted,
     totalDeleted: values.totalDeleted,
-    pypCount: countFor("pyp"),
-    row52Count: countFor("row52"),
-    autorecyclerCount: countFor("autorecycler"),
-    pullapartCount: countFor("pullapart"),
-    upullitneCount: countFor("upullitne"),
-    upullitdavieCount: countFor("upullitdavie"),
-    gopullitCount: countFor("gopullit"),
+    counts: mapIngestionSources(countFor),
     errors: values.errors,
     durationMs: values.completedAt.getTime() - run.startedAt.getTime(),
   });
@@ -112,13 +107,7 @@ export async function reconcileDurableIngestionRun(params: {
   const snapshots = new Map(snapshotEntries);
   const finalInventoryByVin = buildFinalInventoryByVin({
     healthySources,
-    row52ByVin: snapshots.get("row52") ?? new Map(),
-    pypByVin: snapshots.get("pyp") ?? new Map(),
-    autorecyclerByVin: snapshots.get("autorecycler") ?? new Map(),
-    pullapartByVin: snapshots.get("pullapart") ?? new Map(),
-    upullitneByVin: snapshots.get("upullitne") ?? new Map(),
-    upullitdavieByVin: snapshots.get("upullitdavie") ?? new Map(),
-    gopullitByVin: snapshots.get("gopullit") ?? new Map(),
+    inventoryBySource: snapshots,
   });
   const coreOutcomes = outcomes.filter(
     (outcome) =>

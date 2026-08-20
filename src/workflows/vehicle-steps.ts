@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { runSearchAlerts } from "~/server/alerts/run-search-alerts";
 import { runAlgoliaProjector } from "~/server/ingestion/algolia-projector";
@@ -79,7 +80,15 @@ export async function markDurableSourceFailedStep<
   "use step";
 
   try {
-    return await markDurableSourceFailed({ runId, source, message });
+    const result = await markDurableSourceFailed({ runId, source, message });
+    Sentry.captureException(new Error(message), {
+      tags: {
+        ingestion_source: source,
+        workflow: "vehicle-ingestion",
+      },
+      extra: { runId },
+    });
+    return result;
   } catch (error) {
     throwRetryableStepError(`Mark vehicle source ${source} failed`, error);
   }

@@ -9,6 +9,7 @@ import type {
 import {
   DURABLE_INITIAL_SOURCE_CURSORS,
   DURABLE_INGESTION_SOURCES,
+  durableSourceCursorEquals,
   getDurableSourceDefinition,
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
@@ -223,8 +224,7 @@ export function createDurableIngestionRepository(database: LibSQLDatabase) {
       }
       const result = toChunkResult(source, row);
       return row.status !== "running" ||
-        serializeDurableSourceCursor(result.cursor) !==
-          serializeDurableSourceCursor(params.requestedCursor)
+        !durableSourceCursorEquals(result.cursor, params.requestedCursor)
         ? result
         : null;
     },
@@ -253,8 +253,10 @@ export function createDurableIngestionRepository(database: LibSQLDatabase) {
         const currentResult = toChunkResult(source, current);
         if (
           current.status !== "running" ||
-          serializeDurableSourceCursor(currentResult.cursor) !==
-            serializeDurableSourceCursor(params.requestedCursor)
+          !durableSourceCursorEquals(
+            currentResult.cursor,
+            params.requestedCursor,
+          )
         ) {
           return currentResult;
         }

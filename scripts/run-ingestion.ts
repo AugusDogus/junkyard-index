@@ -6,6 +6,10 @@
  */
 import { writeFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  INGESTION_SOURCE_DISPLAY_NAMES,
+  INGESTION_SOURCES,
+} from "../src/lib/ingestion-source";
 
 // Temporarily disable server-only guard
 const serverOnlyPath = resolve(
@@ -30,13 +34,11 @@ try {
 
   const result = await runIngestion();
   console.log("\n=== INGESTION COMPLETE ===");
-  console.log(`PYP vehicles: ${result.pypCount}`);
-  console.log(`Pull-A-Part vehicles: ${result.pullapartCount}`);
-  console.log(`U Pull-It Nebraska vehicles: ${result.upullitneCount}`);
-  console.log(`U Pull It Davie vehicles: ${result.upullitdavieCount}`);
-  console.log(`GO Pull-It vehicles: ${result.gopullitCount}`);
-  console.log(`Row52 vehicles: ${result.row52Count}`);
-  console.log(`AutoRecycler vehicles: ${result.autorecyclerCount}`);
+  for (const source of INGESTION_SOURCES) {
+    console.log(
+      `${INGESTION_SOURCE_DISPLAY_NAMES[source]} vehicles: ${result.counts[source]}`,
+    );
+  }
   console.log(`Total upserted: ${result.totalUpserted}`);
   console.log(`Stale deleted: ${result.totalDeleted}`);
   console.log(`Duration: ${result.durationMs}ms`);

@@ -1,4 +1,5 @@
 import type { ConnectorChunkStatus } from "./connector-chunk";
+import type { IngestionSource } from "~/lib/ingestion-source";
 import type {
   DurableCursorFor,
   DurableIngestionSource,
@@ -34,13 +35,7 @@ export interface DurableIngestionResult {
   runId: string;
   totalUpserted: number;
   totalDeleted: number;
-  pypCount: number;
-  row52Count: number;
-  autorecyclerCount: number;
-  pullapartCount: number;
-  upullitneCount: number;
-  upullitdavieCount: number;
-  gopullitCount: number;
+  counts: Record<IngestionSource, number>;
   errors: string[];
   durationMs: number;
 }
