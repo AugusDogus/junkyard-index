@@ -1,8 +1,9 @@
-import type { GopullitInventoryRecord } from "./gopullit-client";
+import {
+  GOPULLIT_ORIGIN,
+  type GopullitInventoryRecord,
+} from "./gopullit-client";
 import { normalizeCanonicalMake } from "./normalization";
 import type { CanonicalVehicle } from "./types";
-
-const GOPULLIT_ORIGIN = "https://gopullit.com";
 
 export interface GopullitLocation {
   code: string;

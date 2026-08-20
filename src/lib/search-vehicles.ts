@@ -2,8 +2,8 @@ import { calculateDistance } from "~/lib/utils";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource, SearchVehicle } from "~/lib/types";
 
-function parseDataSource(value: unknown): DataSource {
-  return isIngestionSource(value) ? value : "pyp";
+function parseDataSource(value: unknown): DataSource | null {
+  return isIngestionSource(value) ? value : null;
 }
 
 function getFallbackLocationCity(
@@ -22,11 +22,12 @@ function getFallbackLocationCity(
 export function algoliaHitToSearchVehicle(
   hit: Record<string, unknown>,
   userLocation?: { lat: number; lng: number },
-): SearchVehicle {
+): SearchVehicle | null {
   const geoloc = hit._geoloc as { lat: number; lng: number } | undefined;
   const lat = geoloc?.lat ?? 0;
   const lng = geoloc?.lng ?? 0;
   const source = parseDataSource(hit.source);
+  if (source === null) return null;
   const locationName = (hit.locationName as string) ?? "";
   const stateAbbr = (hit.stateAbbr as string) ?? "";
   const locationCity =

@@ -4,7 +4,7 @@ import {
   type ProviderRequestGate,
 } from "./provider-http-client";
 
-const GOPULLIT_ORIGIN = "https://gopullit.com";
+export const GOPULLIT_ORIGIN = "https://gopullit.com";
 
 export interface GopullitSession {
   // Cloudflare issues this public, short-lived session cookie on the first page.

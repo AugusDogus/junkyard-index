@@ -616,12 +616,13 @@ function AlgoliaSearchInner({
   // Map Algolia hits to search-display vehicles.
   const vehicles = useMemo(
     () =>
-      hits.map((hit) =>
-        algoliaHitToSearchVehicle(
+      hits.flatMap((hit) => {
+        const vehicle = algoliaHitToSearchVehicle(
           hit as Record<string, unknown>,
           resolvedUserLocation,
-        ),
-      ),
+        );
+        return vehicle ? [vehicle] : [];
+      }),
     [hits, resolvedUserLocation],
   );
 

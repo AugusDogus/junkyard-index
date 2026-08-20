@@ -1,5 +1,6 @@
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import { GopullitCursorState } from "./durable-cursor";
 import { fetchGopullitPage, GopullitSession } from "./gopullit-client";
 import {
   hasGopullitVehicleMetadata,
@@ -19,11 +20,7 @@ const REQUESTS_PER_SECOND = 2;
 // grows large enough to indicate a provider response regression.
 const MAX_INCOMPLETE_RECORD_RATIO = 0.1;
 
-export interface GopullitStreamCursor {
-  page: number;
-  recordsProcessed: number;
-  recordsSkipped: number;
-}
+export type GopullitStreamCursor = GopullitCursorState;
 
 export type GopullitStreamResult = ConnectorChunkResult<
   "gopullit",
@@ -47,11 +44,7 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
   return Effect.gen(function* () {
     const seen = new Map<string, CanonicalVehicle>();
     let pagesProcessed = 0;
-    const startCursor = options.startCursor ?? {
-      page: 1,
-      recordsProcessed: 0,
-      recordsSkipped: 0,
-    };
+    const startCursor = options.startCursor ?? GopullitCursorState.initial;
     let providerRecordsProcessed = startCursor.recordsProcessed;
     let recordsSkipped = startCursor.recordsSkipped;
     const startPage = Math.max(1, startCursor.page);

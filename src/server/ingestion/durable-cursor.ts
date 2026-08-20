@@ -231,6 +231,26 @@ export type UpullitDavieCursorState = Omit<
   DurableCursorFor<"upullitdavie">,
   "source"
 >;
+export type GopullitCursorState = Omit<DurableCursorFor<"gopullit">, "source">;
+
+export const UpullitDavieCursorState = {
+  initial: {
+    page: 1,
+    totalPages: null,
+    totalCount: null,
+    pageSize: null,
+    recordsProcessed: 0,
+    recordsRejected: 0,
+  },
+} as const satisfies { initial: UpullitDavieCursorState };
+
+export const GopullitCursorState = {
+  initial: {
+    page: 1,
+    recordsProcessed: 0,
+    recordsSkipped: 0,
+  },
+} as const satisfies { initial: GopullitCursorState };
 
 function getDurableCursorDefinition<Source extends IngestionSource>(
   source: Source,

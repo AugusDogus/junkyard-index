@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
-import type { UpullitDavieCursorState } from "./durable-source";
+import { UpullitDavieCursorState } from "./durable-cursor";
 import {
   UpullitDavieCatalog,
   UPULLIT_DAVIE_MAX_CATALOG_PAGES,
@@ -26,14 +26,7 @@ export function streamUpullitDavieInventory<E, R>(options: {
   maxPages?: number;
 }): Effect.Effect<UpullitDavieStreamResult, Error | E, R> {
   return Effect.gen(function* () {
-    const startCursor = options.startCursor ?? {
-      page: 1,
-      totalPages: null,
-      totalCount: null,
-      pageSize: null,
-      recordsProcessed: 0,
-      recordsRejected: 0,
-    };
+    const startCursor = options.startCursor ?? UpullitDavieCursorState.initial;
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
     const seen = new Map<string, CanonicalVehicle>();
     let pagesProcessed = 0;

@@ -115,6 +115,7 @@ describe("algolia alert search helpers", () => {
       _geoloc: { lat: 34.2, lng: -118.3 },
       imageUrl: "https://example.com/image.jpg",
     });
+    if (vehicle === null) throw new Error("Expected a valid search vehicle");
 
     expect(vehicle.vin).toBe("VIN123");
     expect(vehicle.make).toBe("Honda");
@@ -138,8 +139,15 @@ describe("algolia alert search helpers", () => {
       stateAbbr: "FL",
       _geoloc: { lat: 27.9, lng: -82.4 },
     });
+    if (vehicle === null) throw new Error("Expected a valid search vehicle");
     expect(vehicle.source).toBe("autorecycler");
     expect(vehicle.locationCode).toBe("org-1");
+  });
+
+  test("drops algolia hits with unsupported sources", () => {
+    expect(
+      algoliaHitToSearchVehicle({ objectID: "VIN789", source: "unknown" }),
+    ).toBeNull();
   });
 });
 
@@ -155,6 +163,7 @@ describe("getAlertMatchStats pagination", () => {
       make: "Honda",
       model: "Civic",
       year: 2019,
+      source: "pyp",
     }));
   const getRequestedPage = (params: SearchParams): number => {
     if (typeof params === "object" && params !== null && "requests" in params) {
