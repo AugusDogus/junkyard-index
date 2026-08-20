@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 import {
-  fetchProviderText,
+  fetchProviderJson,
   type ProviderRequestGate,
 } from "./provider-http-client";
 
@@ -55,9 +55,10 @@ export function fetchGopullitPage(
   const url = new URL("/wp-json/apppresser/v1/inventory", GOPULLIT_ORIGIN);
   url.searchParams.set("page", String(page));
 
-  return fetchProviderText({
+  return fetchProviderJson({
     url: url.toString(),
     context: `GO Pull-It inventory page ${page}`,
+    schema: GopullitInventoryPageSchema,
     headers: () => ({
       Referer: `${GOPULLIT_ORIGIN}/inventory/`,
       ...(session?.cloudflareCookie
@@ -70,18 +71,5 @@ export function fetchGopullitPage(
       const match = /(?:^|[,\s])(__cf_bm=[^;]+)/.exec(setCookie);
       if (session && match?.[1]) session.cloudflareCookie = match[1];
     },
-  }).pipe(
-    Effect.flatMap((text) =>
-      Effect.try({
-        try: () => JSON.parse(text) as unknown,
-        catch: (cause) =>
-          new Error(
-            `GO Pull-It inventory page ${page} returned invalid JSON: ${String(cause)}`,
-          ),
-      }),
-    ),
-    Effect.flatMap((body) =>
-      Schema.decodeUnknown(GopullitInventoryPageSchema)(body),
-    ),
-  );
+  });
 }

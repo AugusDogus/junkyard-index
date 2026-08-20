@@ -1,4 +1,4 @@
-import { Duration, Effect, Schedule } from "effect";
+import { Duration, Effect, Schedule, Schema } from "effect";
 import {
   ProviderRequestError,
   RequestTimeoutError,
@@ -97,6 +97,37 @@ export function fetchProviderText(params: {
     Effect.retry(
       buildRetrySchedule().pipe(
         Schedule.whileInput<Error>((error) => isRetryableError(error)),
+      ),
+    ),
+  );
+}
+
+export function fetchProviderJson<A, I>(params: {
+  url: string;
+  context: string;
+  schema: Schema.Schema<A, I, never>;
+  headers?: Record<string, string> | (() => Record<string, string>);
+  requestGate?: ProviderRequestGate;
+  onResponse?: (response: Response) => void;
+}): Effect.Effect<A, Error> {
+  return fetchProviderText(params).pipe(
+    Effect.flatMap((text) =>
+      Effect.try({
+        try: () => JSON.parse(text) as unknown,
+        catch: (cause) =>
+          new Error(
+            `${params.context} returned invalid JSON: ${String(cause)}`,
+          ),
+      }),
+    ),
+    Effect.flatMap((body) =>
+      Schema.decodeUnknown(params.schema)(body).pipe(
+        Effect.mapError(
+          (cause) =>
+            new Error(
+              `${params.context} returned invalid data: ${String(cause)}`,
+            ),
+        ),
       ),
     ),
   );

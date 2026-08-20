@@ -1,12 +1,16 @@
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import {
+  UpullitDavieCatalog,
+  UPULLIT_DAVIE_MAX_CATALOG_PAGES,
+} from "./upullit-davie-catalog";
 import { fetchUpullitDaviePage } from "./upullit-davie-client";
 import { transformUpullitDavieVehicle } from "./upullit-davie-transform";
 import type { CanonicalVehicle } from "./types";
 
 const PAGE_CONCURRENCY = 6;
 const PAGE_CHUNK_SIZE = 24;
-export const UPULLIT_DAVIE_MAX_CATALOG_PAGES = 2_000;
+export { UPULLIT_DAVIE_MAX_CATALOG_PAGES };
 
 export interface UpullitDavieStreamCursor {
   page: number;
@@ -62,82 +66,28 @@ export function streamUpullitDavieInventory<E, R>(options: {
     };
 
     const firstPage = yield* fetchUpullitDaviePage(startCursor.page);
-    if (
-      firstPage.page !== startCursor.page ||
-      !Number.isSafeInteger(firstPage.totalPages) ||
-      firstPage.totalPages < 1 ||
-      !Number.isSafeInteger(firstPage.totalCount) ||
-      firstPage.totalCount < 0 ||
-      !Number.isSafeInteger(firstPage.pageSize) ||
-      firstPage.pageSize < 1
-    ) {
-      return yield* Effect.fail(
-        new Error("U Pull It Davie returned invalid pagination metadata"),
-      );
+    const catalogResult = UpullitDavieCatalog.fromFirstPage(firstPage);
+    if (!catalogResult.success) {
+      return yield* Effect.fail(catalogResult.error);
     }
-    if (firstPage.totalPages > UPULLIT_DAVIE_MAX_CATALOG_PAGES) {
-      return yield* Effect.fail(
-        new Error(
-          `U Pull It Davie exceeded the maximum catalog size of ${UPULLIT_DAVIE_MAX_CATALOG_PAGES} pages`,
-        ),
-      );
-    }
-    if (firstPage.totalCount === 0) {
-      return yield* Effect.fail(
-        new Error("U Pull It Davie returned an empty inventory catalog"),
-      );
-    }
-    if (
-      Math.ceil(firstPage.totalCount / firstPage.pageSize) !==
-      firstPage.totalPages
-    ) {
-      return yield* Effect.fail(
-        new Error(
-          `U Pull It Davie returned inconsistent pagination metadata: ${firstPage.totalCount} records at ${firstPage.pageSize} per page cannot fill ${firstPage.totalPages} pages`,
-        ),
-      );
-    }
-    if (
-      (startCursor.totalPages !== null &&
-        firstPage.totalPages !== startCursor.totalPages) ||
-      (startCursor.totalCount !== null &&
-        firstPage.totalCount !== startCursor.totalCount) ||
-      (startCursor.pageSize !== null &&
-        firstPage.pageSize !== startCursor.pageSize)
-    ) {
-      return yield* Effect.fail(
-        new Error(
-          `U Pull It Davie pagination changed during ingestion: expected ${startCursor.totalPages} pages, ${startCursor.totalCount} records, and page size ${startCursor.pageSize}; received ${firstPage.totalPages} pages, ${firstPage.totalCount} records, and page size ${firstPage.pageSize}`,
-        ),
-      );
-    }
-    const totalPages = firstPage.totalPages;
-    const totalCount = firstPage.totalCount;
-    const pageSize = firstPage.pageSize;
-    const expectedRecordsProcessed = Math.min(
-      (startCursor.page - 1) * pageSize,
-      totalCount,
+    const catalog = catalogResult.value;
+    const cursorValidation = UpullitDavieCatalog.validateCursor(
+      startCursor,
+      catalog,
     );
-    if (
-      startCursor.page > totalPages ||
-      startCursor.recordsProcessed !== expectedRecordsProcessed ||
-      startCursor.recordsRejected > startCursor.recordsProcessed
-    ) {
-      return yield* Effect.fail(
-        new Error("U Pull It Davie received an inconsistent durable cursor"),
-      );
+    if (!cursorValidation.success) {
+      return yield* Effect.fail(cursorValidation.error);
     }
-    const expectedFirstPageCount = Math.min(
-      pageSize,
-      totalCount - (firstPage.page - 1) * pageSize,
+    const firstPageValidation = UpullitDavieCatalog.validatePage(
+      firstPage,
+      startCursor.page,
+      catalog,
     );
-    if (firstPage.vehicles.length !== expectedFirstPageCount) {
-      return yield* Effect.fail(
-        new Error(
-          `U Pull It Davie page ${firstPage.page} returned ${firstPage.vehicles.length} records; expected ${expectedFirstPageCount}`,
-        ),
-      );
+    if (!firstPageValidation.success) {
+      return yield* Effect.fail(firstPageValidation.error);
     }
+
+    const { totalPages, totalCount, pageSize } = catalog;
 
     const firstBatch = ingestVehicles(firstPage.vehicles);
     if (firstBatch.length > 0) yield* options.onBatch(firstBatch);
@@ -165,44 +115,13 @@ export function streamUpullitDavieInventory<E, R>(options: {
       );
       const batch: CanonicalVehicle[] = [];
       for (const { expectedPage, page } of pages) {
-        if (page.page !== expectedPage) {
-          return yield* Effect.fail(
-            new Error(
-              `U Pull It Davie returned page ${page.page} when page ${expectedPage} was requested`,
-            ),
-          );
-        }
-        if (page.totalPages !== firstPage.totalPages) {
-          return yield* Effect.fail(
-            new Error(
-              `U Pull It Davie pagination changed during ingestion: expected ${firstPage.totalPages}, received ${page.totalPages}`,
-            ),
-          );
-        }
-        if (page.totalCount !== totalCount) {
-          return yield* Effect.fail(
-            new Error(
-              `U Pull It Davie inventory count changed during ingestion: expected ${totalCount}, received ${page.totalCount}`,
-            ),
-          );
-        }
-        if (page.pageSize !== pageSize) {
-          return yield* Effect.fail(
-            new Error(
-              `U Pull It Davie page size changed during ingestion: expected ${pageSize}, received ${page.pageSize}`,
-            ),
-          );
-        }
-        const expectedPageCount = Math.min(
-          pageSize,
-          totalCount - (page.page - 1) * pageSize,
+        const pageValidation = UpullitDavieCatalog.validatePage(
+          page,
+          expectedPage,
+          catalog,
         );
-        if (page.vehicles.length !== expectedPageCount) {
-          return yield* Effect.fail(
-            new Error(
-              `U Pull It Davie page ${page.page} returned ${page.vehicles.length} records; expected ${expectedPageCount}`,
-            ),
-          );
+        if (!pageValidation.success) {
+          return yield* Effect.fail(pageValidation.error);
         }
         batch.push(...ingestVehicles(page.vehicles));
         recordsProcessed += page.vehicles.length;
