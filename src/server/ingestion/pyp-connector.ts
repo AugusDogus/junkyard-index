@@ -87,17 +87,9 @@ export function streamPypInventory<E, R>(options: {
 > {
   return Effect.gen(function* () {
     const config = yield* Config;
-    const apiKey = config.hyperbrowserApiKey;
-    if (!apiKey) {
-      return yield* Effect.fail(
-        new BrowserSessionError({
-          phase: "open",
-          cause: new Error("HYPERBROWSER_API_KEY must be set"),
-        }),
-      );
-    }
-
-    const session: PypSession = yield* acquirePypSession(apiKey);
+    const session: PypSession = yield* acquirePypSession(
+      config.hyperbrowserApiKey,
+    );
     yield* Effect.try({
       try: () => assertMinLocations(session.locations),
       catch: (cause) =>

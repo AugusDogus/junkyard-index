@@ -29,8 +29,8 @@ export const env = createEnv({
     // Algolia (server-only write key for ingestion)
     ALGOLIA_WRITE_API_KEY: z.string(),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
-    // Hyperbrowser (remote browser for PYP scraping during ingestion)
-    HYPERBROWSER_API_KEY: z.string().optional(),
+    // Hyperbrowser (remote browser for protected provider ingestion)
+    HYPERBROWSER_API_KEY: z.string(),
     VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
   },
 

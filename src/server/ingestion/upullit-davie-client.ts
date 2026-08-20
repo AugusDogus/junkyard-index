@@ -1,5 +1,4 @@
-import { Effect, Schema } from "effect";
-import { fetchProviderJson } from "./provider-http-client";
+import { Schema } from "effect";
 
 export const UPULLIT_DAVIE_ORIGIN = "https://upullitdavie.com";
 
@@ -27,7 +26,7 @@ export type UpullitDavieVehicle = Schema.Schema.Type<
 const PositiveIntegerSchema = Schema.Int.pipe(Schema.positive());
 const NonNegativeIntegerSchema = Schema.Int.pipe(Schema.nonNegative());
 
-const UpullitDaviePageSchema = Schema.Struct({
+export const UpullitDaviePageSchema = Schema.Struct({
   vehicles: Schema.Array(UpullitDavieVehicleSchema),
   totalCount: NonNegativeIntegerSchema,
   page: PositiveIntegerSchema,
@@ -38,17 +37,3 @@ const UpullitDaviePageSchema = Schema.Struct({
 export type UpullitDaviePage = Schema.Schema.Type<
   typeof UpullitDaviePageSchema
 >;
-
-export function fetchUpullitDaviePage(
-  page: number,
-): Effect.Effect<UpullitDaviePage, Error> {
-  const url = new URL("/api/inventory/search", UPULLIT_DAVIE_ORIGIN);
-  url.searchParams.set("page", String(page));
-
-  return fetchProviderJson({
-    url: url.toString(),
-    context: `U Pull It Davie inventory page ${page}`,
-    schema: UpullitDaviePageSchema,
-    headers: { Referer: `${UPULLIT_DAVIE_ORIGIN}/inventory` },
-  });
-}
