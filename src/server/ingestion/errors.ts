@@ -20,7 +20,9 @@ export class RetryableHttpStatusError extends Data.TaggedError(
   }
 }
 
-export class RequestTimeoutError extends Data.TaggedError("RequestTimeoutError")<{
+export class RequestTimeoutError extends Data.TaggedError(
+  "RequestTimeoutError",
+)<{
   context: string;
   cause: unknown;
 }> {
@@ -49,9 +51,7 @@ export class PypProviderError extends Data.TaggedError("PypProviderError")<{
   }
 }
 
-export class Row52ProviderError extends Data.TaggedError(
-  "Row52ProviderError",
-)<{
+export class Row52ProviderError extends Data.TaggedError("Row52ProviderError")<{
   skip: number;
   cause: unknown;
 }> {

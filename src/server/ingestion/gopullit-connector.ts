@@ -12,12 +12,22 @@ import type { CanonicalVehicle } from "./types";
 const PAGE_CONCURRENCY = 6;
 const PAGE_CHUNK_SIZE = 24;
 const PROVIDER_PAGE_SIZE = 10;
-const REQUESTS_PER_SECOND = 5;
+// WP Engine starts throttling sustained catalog crawls above this rate.
+const REQUESTS_PER_SECOND = 2;
 // New uploads briefly lack vehicle metadata. Fail closed if that normal queue
 // grows large enough to indicate a provider response regression.
 const MAX_INCOMPLETE_RECORD_RATIO = 0.1;
 
-export type GopullitStreamResult = ConnectorChunkResult<"gopullit", number>;
+export interface GopullitStreamCursor {
+  page: number;
+  recordsProcessed: number;
+  recordsSkipped: number;
+}
+
+export type GopullitStreamResult = ConnectorChunkResult<
+  "gopullit",
+  GopullitStreamCursor
+>;
 
 function pageChunk(startPage: number, length: number): number[] {
   return Array.from({ length }, (_, index) => startPage + index);
@@ -25,7 +35,7 @@ function pageChunk(startPage: number, length: number): number[] {
 
 interface GopullitStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  startPage?: number;
+  startCursor?: GopullitStreamCursor;
   maxPages?: number;
 }
 
@@ -36,9 +46,14 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
   return Effect.gen(function* () {
     const seen = new Map<string, CanonicalVehicle>();
     let pagesProcessed = 0;
-    let providerRecordsProcessed = 0;
-    let recordsSkipped = 0;
-    const startPage = Math.max(1, options.startPage ?? 1);
+    const startCursor = options.startCursor ?? {
+      page: 1,
+      recordsProcessed: 0,
+      recordsSkipped: 0,
+    };
+    let providerRecordsProcessed = startCursor.recordsProcessed;
+    let recordsSkipped = startCursor.recordsSkipped;
+    const startPage = Math.max(1, startCursor.page);
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
     let nextPage = startPage;
     let complete = false;
@@ -124,14 +139,14 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
       if (terminalPage !== null) break;
     }
 
-    if (startPage === 1 && providerRecordsProcessed === 0) {
+    if (complete && providerRecordsProcessed === 0) {
       return yield* Effect.fail(
         new Error("GO Pull-It returned an empty inventory catalog"),
       );
     }
     if (
-      recordsSkipped / providerRecordsProcessed >
-      MAX_INCOMPLETE_RECORD_RATIO
+      complete &&
+      recordsSkipped / providerRecordsProcessed > MAX_INCOMPLETE_RECORD_RATIO
     ) {
       return yield* Effect.fail(
         new Error(
@@ -146,7 +161,11 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
     return {
       source: "gopullit" as const,
       status: complete ? "complete" : "paused",
-      cursor: nextPage,
+      cursor: {
+        page: nextPage,
+        recordsProcessed: providerRecordsProcessed,
+        recordsSkipped,
+      },
       count: seen.size,
       errors: [],
       pagesProcessed,

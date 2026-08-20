@@ -133,11 +133,11 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamGopullitInventory({
           onBatch: context.onBatch,
-          startPage: cursor.page,
+          startCursor: cursor,
           maxPages: context.maxPages,
         }),
       ),
-      (page) => ({ source: "gopullit", page }),
+      (nextCursor) => ({ source: "gopullit", ...nextCursor }),
       context.vehiclesByVin,
     ),
 };

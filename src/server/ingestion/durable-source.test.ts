@@ -71,4 +71,19 @@ describe("durable ingestion cursors", () => {
       ),
     ).toEqual(cursor);
   });
+
+  test("round trips GO Pull-It catalog validation counters", () => {
+    const cursor = {
+      source: "gopullit" as const,
+      page: 25,
+      recordsProcessed: 240,
+      recordsSkipped: 30,
+    };
+    expect(
+      parseDurableSourceCursor(
+        "gopullit",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toEqual(cursor);
+  });
 });
