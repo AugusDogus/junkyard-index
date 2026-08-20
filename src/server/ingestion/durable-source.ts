@@ -2,7 +2,12 @@ import {
   INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
-import type { DurableCursorFor, DurableSourceCursor } from "./durable-cursor";
+import {
+  GopullitCursorState,
+  type DurableCursorFor,
+  type DurableSourceCursor,
+  UpullitDavieCursorState,
+} from "./durable-cursor";
 
 export {
   durableSourceCursorEquals,
@@ -12,6 +17,7 @@ export {
 export type {
   DurableCursorFor,
   DurableSourceCursor,
+  GopullitCursorState,
   PullapartDurableCursor,
   Row52DurableCursor,
   UpullitDavieCursorState,
@@ -60,21 +66,14 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   upullitdavie: {
     initialCursor: {
       source: "upullitdavie",
-      page: 1,
-      totalPages: null,
-      totalCount: null,
-      pageSize: null,
-      recordsProcessed: 0,
-      recordsRejected: 0,
+      ...UpullitDavieCursorState.initial,
     },
     maxPagesPerChunk: 24,
   },
   gopullit: {
     initialCursor: {
       source: "gopullit",
-      page: 1,
-      recordsProcessed: 0,
-      recordsSkipped: 0,
+      ...GopullitCursorState.initial,
     },
     maxPagesPerChunk: 24,
   },

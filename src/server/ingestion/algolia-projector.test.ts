@@ -73,6 +73,9 @@ describe("algolia-projector helpers", () => {
     expect(mapDbVehicleToCanonical({ ...row, source: "gopullit" }).source).toBe(
       "gopullit",
     );
+    expect(() =>
+      mapDbVehicleToCanonical({ ...row, source: "unsupported" }),
+    ).toThrow("Vehicle VIN123 has unsupported ingestion source unsupported");
   });
 
   test("partitions delete and upsert vins by change type", () => {

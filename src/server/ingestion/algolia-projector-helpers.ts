@@ -5,12 +5,14 @@ import type { CanonicalVehicle } from "./types";
 export function mapDbVehicleToCanonical(
   row: typeof vehicle.$inferSelect,
 ): CanonicalVehicle {
-  const source: CanonicalVehicle["source"] = isIngestionSource(row.source)
-    ? row.source
-    : "pyp";
+  if (!isIngestionSource(row.source)) {
+    throw new Error(
+      `Vehicle ${row.vin} has unsupported ingestion source ${row.source}`,
+    );
+  }
   return {
     vin: row.vin,
-    source,
+    source: row.source,
     year: row.year,
     make: row.make,
     model: row.model,

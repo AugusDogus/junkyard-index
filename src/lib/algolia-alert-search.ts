@@ -145,7 +145,10 @@ export async function getAlertMatchStats(
       break;
     }
 
-    vehicles.push(...hits.map((hit) => algoliaHitToSearchVehicle(hit)));
+    for (const hit of hits) {
+      const vehicle = algoliaHitToSearchVehicle(hit);
+      if (vehicle) vehicles.push(vehicle);
+    }
 
     if (vehicles.length >= fullCount) {
       break;

@@ -1,5 +1,5 @@
 import type { UpullitDaviePage } from "./upullit-davie-client";
-import type { UpullitDavieCursorState } from "./durable-source";
+import type { UpullitDavieCursorState } from "./durable-cursor";
 
 export const UPULLIT_DAVIE_MAX_CATALOG_PAGES = 2_000;
 
