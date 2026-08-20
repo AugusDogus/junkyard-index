@@ -1,4 +1,3 @@
-import { HttpClient } from "@effect/platform";
 import buildQuery from "odata-query";
 import { Effect, Duration, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
@@ -135,8 +134,7 @@ export const Row52VehicleSchema = Schema.Struct({
 
 function fetchRow52LocationsEffect(): Effect.Effect<
   Map<number, Row52Location>,
-  Error,
-  HttpClient.HttpClient
+  Error
 > {
   const fetchPage = (skip: number) =>
     fetchRow52OData({
@@ -265,7 +263,7 @@ function fetchVehiclePageEffect(
   includeCount: boolean,
   locationIds: ReadonlyArray<number>,
   chunkIndex: number,
-): Effect.Effect<Row52VehiclesPage, Error, HttpClient.HttpClient> {
+): Effect.Effect<Row52VehiclesPage, Error> {
   const queryString = buildVehicleQuery(skip, includeCount, locationIds);
   return fetchRow52OData({
     endpoint: API_ENDPOINTS.ROW52_VEHICLES,
@@ -357,11 +355,7 @@ export function streamRow52Inventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   cursor?: Row52DurableCursor;
   maxPages?: number;
-}): Effect.Effect<
-  Row52StreamResult,
-  Row52ProviderError | E,
-  HttpClient.HttpClient | R
-> {
+}): Effect.Effect<Row52StreamResult, Row52ProviderError | E, R> {
   return Effect.gen(function* () {
     const initialCursor = options.cursor ?? {
       source: "row52",

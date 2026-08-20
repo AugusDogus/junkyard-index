@@ -35,45 +35,48 @@ interface StatusResponse {
 }
 
 async function getProviderStatusInternal(): Promise<StatusResponse> {
-  const providers: ProviderStatus[] = [];
+  const latestRuns = await Promise.all(
+    INGESTION_SOURCES.map(async (source) => {
+      const [latestRun] = await db
+        .select({
+          status: ingestionSourceRun.status,
+          completedAt: ingestionSourceRun.completedAt,
+          startedAt: ingestionSourceRun.startedAt,
+          errors: ingestionSourceRun.errors,
+          vehiclesProcessed: ingestionSourceRun.vehiclesProcessed,
+        })
+        .from(ingestionSourceRun)
+        .where(eq(ingestionSourceRun.source, source))
+        .orderBy(desc(ingestionSourceRun.startedAt))
+        .limit(1);
 
-  for (const source of INGESTION_SOURCES) {
-    const [latestRun] = await db
-      .select({
-        status: ingestionSourceRun.status,
-        completedAt: ingestionSourceRun.completedAt,
-        startedAt: ingestionSourceRun.startedAt,
-        errors: ingestionSourceRun.errors,
-        vehiclesProcessed: ingestionSourceRun.vehiclesProcessed,
-      })
-      .from(ingestionSourceRun)
-      .where(eq(ingestionSourceRun.source, source))
-      .orderBy(desc(ingestionSourceRun.startedAt))
-      .limit(1);
+      return { source, latestRun };
+    }),
+  );
 
+  const providers = latestRuns.map(({ source, latestRun }): ProviderStatus => {
     if (!latestRun) {
-      providers.push({
+      return {
         name: INGESTION_SOURCE_DISPLAY_NAMES[source],
         source,
         status: "operational",
         lastRunAt: null,
         errors: null,
         vehiclesProcessed: 0,
-      });
-      continue;
+      };
     }
 
     const lastRunAt = latestRun.completedAt ?? latestRun.startedAt;
 
-    providers.push({
+    return {
       name: INGESTION_SOURCE_DISPLAY_NAMES[source],
       source,
       status: mapRunStatus(latestRun.status),
       lastRunAt: lastRunAt ? lastRunAt.toISOString() : null,
       errors: parseErrors(latestRun.errors),
       vehiclesProcessed: latestRun.vehiclesProcessed,
-    });
-  }
+    };
+  });
 
   return {
     aggregateStatus: worstStatus(providers.map((p) => p.status)),

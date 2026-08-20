@@ -1,5 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
 import type {
   DurableSourceChunkResult,
@@ -8,7 +9,6 @@ import type {
 } from "./durable-ingestion-types";
 import {
   DURABLE_INITIAL_SOURCE_CURSORS,
-  DURABLE_INGESTION_SOURCES,
   durableSourceCursorEquals,
   getDurableSourceDefinition,
   parseDurableSourceCursor,
@@ -42,10 +42,6 @@ export function parseIngestionErrors(errorsJson: string | null): string[] {
 
 function deduplicateErrors(errors: readonly string[]): string[] {
   return [...new Set(errors)];
-}
-
-function isDurableSource(value: string): value is DurableIngestionSource {
-  return DURABLE_INGESTION_SOURCES.some((source) => source === value);
 }
 
 function statusForFailedSource(vehiclesProcessed: number): SourceRunStatus {
@@ -86,7 +82,7 @@ function toSnapshotRow(runId: string, vehicle: CanonicalVehicle) {
 function snapshotToVehicle(
   row: typeof vehicleSnapshot.$inferSelect,
 ): CanonicalVehicle {
-  if (!isDurableSource(row.source)) {
+  if (!isIngestionSource(row.source)) {
     throw new Error(
       `Snapshot ${row.runId}/${row.vin} has unsupported source ${row.source}`,
     );

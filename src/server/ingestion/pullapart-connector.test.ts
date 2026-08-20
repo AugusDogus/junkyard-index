@@ -1,4 +1,3 @@
-import { FetchHttpClient } from "@effect/platform";
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import {
@@ -172,14 +171,14 @@ describe("streamPullapartInventory enrichment handling", () => {
       streamPullapartInventory({
         onBatch: () => Effect.succeed(undefined),
         maxPages: 1,
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
     const resumed = await Effect.runPromise(
       streamPullapartInventory({
         onBatch: () => Effect.succeed(undefined),
         startAfter: first.cursor,
         maxPages: 1,
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
 
     expect(first.status).toBe("paused");
@@ -198,7 +197,7 @@ describe("streamPullapartInventory enrichment handling", () => {
       streamPullapartInventory({
         onBatch: () => Effect.succeed(undefined),
         maxPages: 1,
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
 
     installPullapartFetchMock({ makesResponse: [secondMake] });
@@ -207,7 +206,7 @@ describe("streamPullapartInventory enrichment handling", () => {
         onBatch: () => Effect.succeed(undefined),
         startAfter: first.cursor,
         maxPages: 1,
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
 
     expect(first.cursor.makeId).toBe(6);
@@ -241,7 +240,7 @@ describe("streamPullapartInventory enrichment handling", () => {
           Effect.sync(() => {
             gatedRequests += 1;
           }).pipe(Effect.zipRight(request)),
-      ).pipe(Effect.provide(FetchHttpClient.layer)),
+      ),
     );
 
     expect(result.count).toBe(5);
@@ -258,7 +257,7 @@ describe("streamPullapartInventory enrichment handling", () => {
           Effect.sync(() => {
             batches.push(vehicles);
           }),
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
 
     expect(result.errors).toEqual([]);
@@ -284,7 +283,7 @@ describe("streamPullapartInventory enrichment handling", () => {
           Effect.sync(() => {
             batches.push(vehicles);
           }),
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
 
     expect(result.count).toBe(0);

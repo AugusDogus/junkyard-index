@@ -1,4 +1,3 @@
-import { FetchHttpClient } from "@effect/platform";
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import type { Row52Location, Row52Vehicle } from "~/lib/types";
@@ -251,7 +250,7 @@ describe("Row52 durable cursor transitions", () => {
       streamRow52Inventory({
         onBatch: () => Effect.void,
         maxPages: 1,
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
     expect(first.cursor).toEqual({
       source: "row52",
@@ -266,7 +265,7 @@ describe("Row52 durable cursor transitions", () => {
         onBatch: () => Effect.void,
         cursor: first.cursor,
         maxPages: 1,
-      }).pipe(Effect.provide(FetchHttpClient.layer)),
+      }),
     );
 
     expect(vehicleSkips).toEqual([0, 1000]);

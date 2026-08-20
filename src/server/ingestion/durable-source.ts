@@ -14,6 +14,7 @@ export type {
   DurableSourceCursor,
   PullapartDurableCursor,
   Row52DurableCursor,
+  UpullitDavieCursorState,
 } from "./durable-cursor";
 
 export type DurableIngestionSource = IngestionSource;

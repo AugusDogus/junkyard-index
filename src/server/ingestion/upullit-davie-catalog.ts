@@ -1,4 +1,5 @@
 import type { UpullitDaviePage } from "./upullit-davie-client";
+import type { UpullitDavieCursorState } from "./durable-source";
 
 export const UPULLIT_DAVIE_MAX_CATALOG_PAGES = 2_000;
 
@@ -43,14 +44,7 @@ export const UpullitDavieCatalog = {
   },
 
   validateCursor(
-    cursor: {
-      page: number;
-      totalPages: number | null;
-      totalCount: number | null;
-      pageSize: number | null;
-      recordsProcessed: number;
-      recordsRejected: number;
-    },
+    cursor: UpullitDavieCursorState,
     catalog: UpullitDavieCatalog,
   ): ValidationResult<void> {
     if (
