@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamUpullitDavieInventory } from "./upullit-davie-connector";
+import {
+  streamUpullitDavieInventory,
+  UPULLIT_DAVIE_MAX_CATALOG_PAGES,
+} from "./upullit-davie-connector";
 import type { CanonicalVehicle } from "./types";
 
 const originalFetch = globalThis.fetch;
@@ -104,5 +107,82 @@ describe("U Pull It Davie catalog streaming", () => {
     expect(firstBatches.flat()).toHaveLength(4);
     expect(secondBatches.flat()).toHaveLength(1);
     expect(requestedPages).toEqual([1, 2, 3]);
+  });
+
+  test("rejects pagination metadata above the catalog safety ceiling", async () => {
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify({
+            vehicles: [providerVehicle(0)],
+            totalCount: UPULLIT_DAVIE_MAX_CATALOG_PAGES + 1,
+            page: 1,
+            pageSize: 1,
+            totalPages: UPULLIT_DAVIE_MAX_CATALOG_PAGES + 1,
+          }),
+          { status: 200 },
+        ),
+      { preconnect: originalFetch.preconnect },
+    );
+
+    await expect(
+      Effect.runPromise(
+        streamUpullitDavieInventory({ onBatch: () => Effect.void }),
+      ),
+    ).rejects.toThrow("exceeded the maximum catalog size");
+  });
+
+  test("rejects page-size changes across a catalog", async () => {
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        const url = new URL(
+          input instanceof Request ? input.url : input.toString(),
+        );
+        const page = Number.parseInt(url.searchParams.get("page") ?? "", 10);
+        return new Response(
+          JSON.stringify({
+            vehicles:
+              page === 1
+                ? [providerVehicle(0), providerVehicle(1)]
+                : [providerVehicle(2)],
+            totalCount: 3,
+            page,
+            pageSize: page === 1 ? 2 : 3,
+            totalPages: 2,
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    await expect(
+      Effect.runPromise(
+        streamUpullitDavieInventory({ onBatch: () => Effect.void }),
+      ),
+    ).rejects.toThrow("page size changed during ingestion");
+  });
+
+  test("does not mark a catalog healthy after discarding invalid records", async () => {
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify({
+            vehicles: [{ ...providerVehicle(0), vin: "" }],
+            totalCount: 1,
+            page: 1,
+            pageSize: 1,
+            totalPages: 1,
+          }),
+          { status: 200 },
+        ),
+      { preconnect: originalFetch.preconnect },
+    );
+
+    await expect(
+      Effect.runPromise(
+        streamUpullitDavieInventory({ onBatch: () => Effect.void }),
+      ),
+    ).rejects.toThrow("discarded 1 invalid record");
   });
 });

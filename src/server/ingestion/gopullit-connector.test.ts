@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { streamGopullitInventoryWithRequestGate } from "./gopullit-connector";
+import {
+  GOPULLIT_MAX_CATALOG_PAGES,
+  streamGopullitInventoryWithRequestGate,
+} from "./gopullit-connector";
 import type { ProviderRequestGate } from "./provider-http-client";
 import type { CanonicalVehicle } from "./types";
 
@@ -212,5 +215,45 @@ describe("GO Pull-It catalog streaming", () => {
         ),
       ),
     ).rejects.toThrow("the catalog was not reconciled");
+  });
+
+  test("rejects a provider that never returns a terminal page", async () => {
+    const requestedPages: number[] = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        const url = new URL(
+          input instanceof Request ? input.url : input.toString(),
+        );
+        const page = Number.parseInt(url.searchParams.get("page") ?? "", 10);
+        requestedPages.push(page);
+        return new Response(
+          JSON.stringify(
+            Array.from({ length: 10 }, (_, index) =>
+              completeRecord((page - 1) * 10 + index),
+            ),
+          ),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    await expect(
+      Effect.runPromise(
+        streamGopullitInventoryWithRequestGate(
+          {
+            onBatch: () => Effect.void,
+            maxPages: 1,
+            startCursor: {
+              page: GOPULLIT_MAX_CATALOG_PAGES,
+              recordsProcessed: (GOPULLIT_MAX_CATALOG_PAGES - 1) * 10,
+              recordsSkipped: 0,
+            },
+          },
+          noRateLimit,
+        ),
+      ),
+    ).rejects.toThrow("exceeded the maximum catalog size");
+    expect(requestedPages).toEqual([GOPULLIT_MAX_CATALOG_PAGES]);
   });
 });

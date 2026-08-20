@@ -11,6 +11,16 @@ type ExistingVehicleRow = typeof vehicle.$inferSelect;
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type NonEmptySourceNames = readonly [SourceName, ...SourceName[]];
 
+const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
+  "row52",
+  "pyp",
+  "pullapart",
+  "upullitne",
+  "upullitdavie",
+  "gopullit",
+  "autorecycler",
+];
+
 const VEHICLE_UPSERT_CHUNK_SIZE = 500;
 const VEHICLE_CHANGE_CHUNK_SIZE = 1_000;
 const VIN_DELETE_CHUNK_SIZE = 500;
@@ -65,13 +75,7 @@ interface MissingStateRow {
 
 export function buildFinalInventoryByVin(params: {
   healthySources: SourceName[];
-  row52ByVin: Map<string, CanonicalVehicle>;
-  pypByVin: Map<string, CanonicalVehicle>;
-  autorecyclerByVin: Map<string, CanonicalVehicle>;
-  pullapartByVin: Map<string, CanonicalVehicle>;
-  upullitneByVin: Map<string, CanonicalVehicle>;
-  upullitdavieByVin: Map<string, CanonicalVehicle>;
-  gopullitByVin: Map<string, CanonicalVehicle>;
+  inventoryBySource: ReadonlyMap<SourceName, Map<string, CanonicalVehicle>>;
 }): Map<string, CanonicalVehicle> {
   const mergeSourceHoles = (
     into: Map<string, CanonicalVehicle>,
@@ -84,17 +88,12 @@ export function buildFinalInventoryByVin(params: {
     }
   };
 
-  const sourceMaps: Array<
-    readonly [SourceName, Map<string, CanonicalVehicle>]
-  > = [
-    ["row52", params.row52ByVin],
-    ["pyp", params.pypByVin],
-    ["pullapart", params.pullapartByVin],
-    ["upullitne", params.upullitneByVin],
-    ["upullitdavie", params.upullitdavieByVin],
-    ["gopullit", params.gopullitByVin],
-    ["autorecycler", params.autorecyclerByVin],
-  ];
+  const sourceMaps = RECONCILIATION_SOURCE_PRIORITY.map(
+    (source): readonly [SourceName, Map<string, CanonicalVehicle>] => [
+      source,
+      params.inventoryBySource.get(source) ?? new Map(),
+    ],
+  );
   const healthySourceSet = new Set(params.healthySources);
   const healthyMaps = sourceMaps.filter(([source]) =>
     healthySourceSet.has(source),

@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import {
+  INGESTION_SOURCES,
+  type IngestionSource,
+} from "~/lib/ingestion-source";
 import { vehicle } from "~/schema";
 import type { CanonicalVehicle } from "./types";
 import {
@@ -80,6 +84,19 @@ function makeExistingVehicle(
   };
 }
 
+function makeInventoryBySource(
+  overrides: Partial<Record<IngestionSource, Map<string, CanonicalVehicle>>>,
+): Map<IngestionSource, Map<string, CanonicalVehicle>> {
+  return new Map(
+    INGESTION_SOURCES.map(
+      (source): readonly [IngestionSource, Map<string, CanonicalVehicle>] => [
+        source,
+        overrides[source] ?? new Map(),
+      ],
+    ),
+  );
+}
+
 describe("reconcile helpers", () => {
   test("prefers Row52 when both sources are healthy", () => {
     const pypVehicle = makeCanonicalVehicle("VIN123", "pyp", {
@@ -93,13 +110,10 @@ describe("reconcile helpers", () => {
 
     const finalInventory = buildFinalInventoryByVin({
       healthySources: ["row52", "pyp"],
-      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
-      pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
-      autorecyclerByVin: new Map(),
-      pullapartByVin: new Map(),
-      upullitneByVin: new Map(),
-      upullitdavieByVin: new Map(),
-      gopullitByVin: new Map(),
+      inventoryBySource: makeInventoryBySource({
+        row52: new Map([[row52Vehicle.vin, row52Vehicle]]),
+        pyp: new Map([[pypVehicle.vin, pypVehicle]]),
+      }),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(row52Vehicle);
@@ -117,13 +131,10 @@ describe("reconcile helpers", () => {
 
     const finalInventory = buildFinalInventoryByVin({
       healthySources: ["pyp"],
-      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
-      pypByVin: new Map([[pypVehicle.vin, pypVehicle]]),
-      autorecyclerByVin: new Map(),
-      pullapartByVin: new Map(),
-      upullitneByVin: new Map(),
-      upullitdavieByVin: new Map(),
-      gopullitByVin: new Map(),
+      inventoryBySource: makeInventoryBySource({
+        row52: new Map([[row52Vehicle.vin, row52Vehicle]]),
+        pyp: new Map([[pypVehicle.vin, pypVehicle]]),
+      }),
     });
 
     expect(finalInventory.get("VIN123")).toEqual(pypVehicle);
@@ -137,13 +148,10 @@ describe("reconcile helpers", () => {
 
     const finalInventory = buildFinalInventoryByVin({
       healthySources: ["row52", "pyp", "autorecycler"],
-      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
-      pypByVin: new Map(),
-      autorecyclerByVin: new Map([[arVehicle.vin, arVehicle]]),
-      pullapartByVin: new Map(),
-      upullitneByVin: new Map(),
-      upullitdavieByVin: new Map(),
-      gopullitByVin: new Map(),
+      inventoryBySource: makeInventoryBySource({
+        row52: new Map([[row52Vehicle.vin, row52Vehicle]]),
+        autorecycler: new Map([[arVehicle.vin, arVehicle]]),
+      }),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
@@ -158,13 +166,10 @@ describe("reconcile helpers", () => {
 
     const finalInventory = buildFinalInventoryByVin({
       healthySources: ["row52", "pyp", "pullapart"],
-      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
-      pypByVin: new Map(),
-      autorecyclerByVin: new Map(),
-      pullapartByVin: new Map([[pullapartVehicle.vin, pullapartVehicle]]),
-      upullitneByVin: new Map(),
-      upullitdavieByVin: new Map(),
-      gopullitByVin: new Map(),
+      inventoryBySource: makeInventoryBySource({
+        row52: new Map([[row52Vehicle.vin, row52Vehicle]]),
+        pullapart: new Map([[pullapartVehicle.vin, pullapartVehicle]]),
+      }),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
@@ -179,13 +184,10 @@ describe("reconcile helpers", () => {
 
     const finalInventory = buildFinalInventoryByVin({
       healthySources: ["row52", "pyp", "pullapart", "upullitne"],
-      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
-      pypByVin: new Map(),
-      autorecyclerByVin: new Map(),
-      pullapartByVin: new Map(),
-      upullitneByVin: new Map([[upullitneVehicle.vin, upullitneVehicle]]),
-      upullitdavieByVin: new Map(),
-      gopullitByVin: new Map(),
+      inventoryBySource: makeInventoryBySource({
+        row52: new Map([[row52Vehicle.vin, row52Vehicle]]),
+        upullitne: new Map([[upullitneVehicle.vin, upullitneVehicle]]),
+      }),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);
@@ -206,16 +208,14 @@ describe("reconcile helpers", () => {
 
     const finalInventory = buildFinalInventoryByVin({
       healthySources: ["row52", "upullitdavie", "gopullit"],
-      row52ByVin: new Map([[row52Vehicle.vin, row52Vehicle]]),
-      pypByVin: new Map(),
-      autorecyclerByVin: new Map(),
-      pullapartByVin: new Map(),
-      upullitneByVin: new Map(),
-      upullitdavieByVin: new Map([[davieVehicle.vin, davieVehicle]]),
-      gopullitByVin: new Map([
-        [duplicateGoVehicle.vin, duplicateGoVehicle],
-        [goVehicle.vin, goVehicle],
-      ]),
+      inventoryBySource: makeInventoryBySource({
+        row52: new Map([[row52Vehicle.vin, row52Vehicle]]),
+        upullitdavie: new Map([[davieVehicle.vin, davieVehicle]]),
+        gopullit: new Map([
+          [duplicateGoVehicle.vin, duplicateGoVehicle],
+          [goVehicle.vin, goVehicle],
+        ]),
+      }),
     });
 
     expect(finalInventory.get("VIN_A")).toEqual(row52Vehicle);

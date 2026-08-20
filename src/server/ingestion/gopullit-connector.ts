@@ -12,6 +12,7 @@ import type { CanonicalVehicle } from "./types";
 const PAGE_CONCURRENCY = 6;
 const PAGE_CHUNK_SIZE = 24;
 const PROVIDER_PAGE_SIZE = 10;
+export const GOPULLIT_MAX_CATALOG_PAGES = 5_000;
 // WP Engine starts throttling sustained catalog crawls above this rate.
 const REQUESTS_PER_SECOND = 2;
 // New uploads briefly lack vehicle metadata. Fail closed if that normal queue
@@ -60,9 +61,18 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
     const session = GopullitSession.make();
 
     while (!complete && pagesProcessed < maxPages) {
+      const remainingCatalogPages = GOPULLIT_MAX_CATALOG_PAGES - nextPage + 1;
+      if (remainingCatalogPages <= 0) {
+        return yield* Effect.fail(
+          new Error(
+            `GO Pull-It exceeded the maximum catalog size of ${GOPULLIT_MAX_CATALOG_PAGES} pages`,
+          ),
+        );
+      }
       const requestCount = Math.min(
         nextPage === startPage ? 1 : PAGE_CHUNK_SIZE,
         maxPages - pagesProcessed,
+        remainingCatalogPages,
       );
       const responses = yield* Effect.all(
         pageChunk(nextPage, requestCount).map((page) =>
@@ -137,6 +147,14 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
 
       if (batch.length > 0) yield* options.onBatch(batch);
       if (terminalPage !== null) break;
+    }
+
+    if (!complete && nextPage > GOPULLIT_MAX_CATALOG_PAGES) {
+      return yield* Effect.fail(
+        new Error(
+          `GO Pull-It exceeded the maximum catalog size of ${GOPULLIT_MAX_CATALOG_PAGES} pages`,
+        ),
+      );
     }
 
     if (complete && providerRecordsProcessed === 0) {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { runIngestion } from "~/server/ingestion/run";
 
 const smokeTest = process.env.RUN_INGESTION_SMOKE === "1" ? test : test.skip;
@@ -11,13 +12,9 @@ describe("ingestion smoke", () => {
 
       expect(result.totalUpserted).toBeGreaterThanOrEqual(0);
       expect(result.totalDeleted).toBeGreaterThanOrEqual(0);
-      expect(result.pypCount).toBeGreaterThanOrEqual(0);
-      expect(result.upullitneCount).toBeGreaterThanOrEqual(0);
-      expect(result.upullitdavieCount).toBeGreaterThanOrEqual(0);
-      expect(result.gopullitCount).toBeGreaterThanOrEqual(0);
-      expect(result.pullapartCount).toBeGreaterThanOrEqual(0);
-      expect(result.row52Count).toBeGreaterThanOrEqual(0);
-      expect(result.autorecyclerCount).toBeGreaterThanOrEqual(0);
+      for (const source of INGESTION_SOURCES) {
+        expect(result.counts[source]).toBeGreaterThanOrEqual(0);
+      }
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
     },
   );

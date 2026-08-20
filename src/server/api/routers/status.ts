@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { env } from "~/env";
 import { db } from "~/lib/db";
 import {
+  INGESTION_SOURCE_DISPLAY_NAMES,
   INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
@@ -17,16 +18,6 @@ import {
 } from "./status-utils";
 
 type SourceKey = IngestionSource;
-
-const SOURCE_DISPLAY_NAMES: Record<SourceKey, string> = {
-  pyp: "LKQ Pick Your Part",
-  row52: "Row52",
-  autorecycler: "AutoRecycler.io",
-  pullapart: "Pull-A-Part / U-Pull-&-Pay",
-  upullitne: "U Pull-It Nebraska",
-  upullitdavie: "U Pull It Davie",
-  gopullit: "GO Pull-It",
-};
 
 interface ProviderStatus {
   name: string;
@@ -62,7 +53,7 @@ async function getProviderStatusInternal(): Promise<StatusResponse> {
 
     if (!latestRun) {
       providers.push({
-        name: SOURCE_DISPLAY_NAMES[source],
+        name: INGESTION_SOURCE_DISPLAY_NAMES[source],
         source,
         status: "operational",
         lastRunAt: null,
@@ -75,7 +66,7 @@ async function getProviderStatusInternal(): Promise<StatusResponse> {
     const lastRunAt = latestRun.completedAt ?? latestRun.startedAt;
 
     providers.push({
-      name: SOURCE_DISPLAY_NAMES[source],
+      name: INGESTION_SOURCE_DISPLAY_NAMES[source],
       source,
       status: mapRunStatus(latestRun.status),
       lastRunAt: lastRunAt ? lastRunAt.toISOString() : null,
