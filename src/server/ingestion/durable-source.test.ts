@@ -46,9 +46,11 @@ describe("durable ingestion cursors", () => {
       locationIds: [20, 21, 22],
       skip: 1000,
     };
-    expect(
-      parseDurableSourceCursor("row52", serializeDurableSourceCursor(cursor)),
-    ).toEqual(cursor);
+    const serialized = serializeDurableSourceCursor(cursor);
+    expect(serialized).toBe(
+      '{"afterLocationId":19,"locationIds":[20,21,22],"skip":1000}',
+    );
+    expect(parseDurableSourceCursor("row52", serialized)).toEqual(cursor);
     expect(DURABLE_SOURCE_DEFINITIONS.row52.initialCursor).toEqual({
       source: "row52",
       afterLocationId: 0,
@@ -67,12 +69,13 @@ describe("durable ingestion cursors", () => {
       recordsProcessed: 576,
       recordsRejected: 0,
     };
-    expect(
-      parseDurableSourceCursor(
-        "upullitdavie",
-        serializeDurableSourceCursor(cursor),
-      ),
-    ).toEqual(cursor);
+    const serialized = serializeDurableSourceCursor(cursor);
+    expect(serialized).toBe(
+      '{"page":25,"totalPages":61,"totalCount":1460,"pageSize":24,"recordsProcessed":576,"recordsRejected":0}',
+    );
+    expect(parseDurableSourceCursor("upullitdavie", serialized)).toEqual(
+      cursor,
+    );
     expect(
       durableSourceCursorEquals(cursor, {
         ...cursor,
@@ -88,11 +91,10 @@ describe("durable ingestion cursors", () => {
       recordsProcessed: 240,
       recordsSkipped: 30,
     };
-    expect(
-      parseDurableSourceCursor(
-        "gopullit",
-        serializeDurableSourceCursor(cursor),
-      ),
-    ).toEqual(cursor);
+    const serialized = serializeDurableSourceCursor(cursor);
+    expect(serialized).toBe(
+      '{"page":25,"recordsProcessed":240,"recordsSkipped":30}',
+    );
+    expect(parseDurableSourceCursor("gopullit", serialized)).toEqual(cursor);
   });
 });

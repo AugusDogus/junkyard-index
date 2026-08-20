@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/nextjs";
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { runSearchAlerts } from "~/server/alerts/run-search-alerts";
 import { runAlgoliaProjector } from "~/server/ingestion/algolia-projector";
@@ -22,6 +21,10 @@ import {
   SearchIndexMigrationValidationError,
   type SearchIndexMigrationState,
 } from "~/server/ingestion/search-index-migration";
+import {
+  DurableSourceFailure,
+  recordDurableSourceFailure,
+} from "./vehicle-observability";
 
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -80,15 +83,10 @@ export async function markDurableSourceFailedStep<
   "use step";
 
   try {
-    const result = await markDurableSourceFailed({ runId, source, message });
-    Sentry.captureException(new Error(message), {
-      tags: {
-        ingestion_source: source,
-        workflow: "vehicle-ingestion",
-      },
-      extra: { runId },
+    return await recordDurableSourceFailure({
+      failure: DurableSourceFailure.make({ runId, source, message }),
+      markFailed: () => markDurableSourceFailed({ runId, source, message }),
     });
-    return result;
   } catch (error) {
     throwRetryableStepError(`Mark vehicle source ${source} failed`, error);
   }

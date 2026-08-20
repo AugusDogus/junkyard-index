@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect";
-import { fetchProviderText } from "./provider-http-client";
+import { fetchProviderJson } from "./provider-http-client";
 
 export const UPULLIT_DAVIE_ORIGIN = "https://upullitdavie.com";
 
@@ -24,12 +24,15 @@ export type UpullitDavieVehicle = Schema.Schema.Type<
   typeof UpullitDavieVehicleSchema
 >;
 
+const PositiveIntegerSchema = Schema.Int.pipe(Schema.positive());
+const NonNegativeIntegerSchema = Schema.Int.pipe(Schema.nonNegative());
+
 const UpullitDaviePageSchema = Schema.Struct({
   vehicles: Schema.Array(UpullitDavieVehicleSchema),
-  totalCount: Schema.Number,
-  page: Schema.Number,
-  pageSize: Schema.Number,
-  totalPages: Schema.Number,
+  totalCount: NonNegativeIntegerSchema,
+  page: PositiveIntegerSchema,
+  pageSize: PositiveIntegerSchema,
+  totalPages: PositiveIntegerSchema,
 });
 
 export type UpullitDaviePage = Schema.Schema.Type<
@@ -42,22 +45,10 @@ export function fetchUpullitDaviePage(
   const url = new URL("/api/inventory/search", UPULLIT_DAVIE_ORIGIN);
   url.searchParams.set("page", String(page));
 
-  return fetchProviderText({
+  return fetchProviderJson({
     url: url.toString(),
     context: `U Pull It Davie inventory page ${page}`,
+    schema: UpullitDaviePageSchema,
     headers: { Referer: `${UPULLIT_DAVIE_ORIGIN}/inventory` },
-  }).pipe(
-    Effect.flatMap((text) =>
-      Effect.try({
-        try: () => JSON.parse(text) as unknown,
-        catch: (cause) =>
-          new Error(
-            `U Pull It Davie inventory page ${page} returned invalid JSON: ${String(cause)}`,
-          ),
-      }),
-    ),
-    Effect.flatMap((body) =>
-      Schema.decodeUnknown(UpullitDaviePageSchema)(body),
-    ),
-  );
+  });
 }
