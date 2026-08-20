@@ -14,8 +14,9 @@ const PAGE_CONCURRENCY = 6;
 const PAGE_CHUNK_SIZE = 24;
 const PROVIDER_PAGE_SIZE = 10;
 export const GOPULLIT_MAX_CATALOG_PAGES = 5_000;
-// WP Engine starts throttling sustained catalog crawls above this rate.
-const REQUESTS_PER_SECOND = 2;
+// Production began returning 429s after 64 requests in one minute. Keep
+// enough headroom for provider-side accounting differences and other traffic.
+const REQUEST_INTERVAL = "1500 millis";
 // New uploads briefly lack vehicle metadata. Fail closed if that normal queue
 // grows large enough to indicate a provider response regression.
 const MAX_INCOMPLETE_RECORD_RATIO = 0.1;
@@ -189,8 +190,8 @@ export function streamGopullitInventory<E, R>(
 ): Effect.Effect<GopullitStreamResult, Error | E, R> {
   return Effect.scoped(
     RateLimiter.make({
-      limit: REQUESTS_PER_SECOND,
-      interval: "1 second",
+      limit: 1,
+      interval: REQUEST_INTERVAL,
     }).pipe(
       Effect.flatMap((requestGate) =>
         streamGopullitInventoryWithRequestGate(options, requestGate),

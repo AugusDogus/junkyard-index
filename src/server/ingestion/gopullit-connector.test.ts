@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
 import {
   GOPULLIT_MAX_CATALOG_PAGES,
+  streamGopullitInventory,
   streamGopullitInventoryWithRequestGate,
 } from "./gopullit-connector";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -31,6 +32,46 @@ function completeRecord(index: number) {
 }
 
 describe("GO Pull-It catalog streaming", () => {
+  test("paces provider requests below the observed rate limit", async () => {
+    let requestCount = 0;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        const url = new URL(
+          input instanceof Request ? input.url : input.toString(),
+        );
+        const page = Number.parseInt(url.searchParams.get("page") ?? "", 10);
+        requestCount += 1;
+        return new Response(
+          JSON.stringify(
+            Array.from({ length: 10 }, (_, index) =>
+              completeRecord((page - 1) * 10 + index),
+            ),
+          ),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const streamFiber = yield* streamGopullitInventory({
+          onBatch: () => Effect.void,
+          maxPages: 2,
+        }).pipe(Effect.fork);
+
+        yield* TestClock.adjust("1 second");
+        expect(requestCount).toBe(1);
+        yield* TestClock.adjust("500 millis");
+
+        return yield* Fiber.join(streamFiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+
+    expect(requestCount).toBe(2);
+    expect(result).toMatchObject({ status: "paused", pagesProcessed: 2 });
+  });
+
   test("crawls JSON pages until the first short page", async () => {
     const requestedUrls: URL[] = [];
     const requestCookies: Array<string | null> = [];
