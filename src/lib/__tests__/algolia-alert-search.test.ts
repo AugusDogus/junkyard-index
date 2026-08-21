@@ -205,7 +205,11 @@ describe("getAlertMatchStats pagination", () => {
       null,
     );
 
-    expect(result).toEqual({ fullCount: 0, vehicles: [] });
+    expect(result).toEqual({
+      fullCount: 0,
+      retrievedCount: 0,
+      vehicles: [],
+    });
     expect(callCount).toBe(0);
   });
 
@@ -243,7 +247,8 @@ describe("getAlertMatchStats pagination", () => {
 
     const result = await getAlertMatchStats("honda", {}, null);
     expect(result.fullCount).toBe(200);
-    expect(result.vehicles.length).toBe(200);
+    expect(result.retrievedCount).toBe(200);
+    expect(result.vehicles.length).toBe(10);
     expect(requestedPages).toEqual([0, 1]);
   });
 
@@ -277,7 +282,8 @@ describe("getAlertMatchStats pagination", () => {
 
     const result = await getAlertMatchStats("ford", {}, null);
     expect(result.fullCount).toBe(500);
-    expect(result.vehicles.length).toBe(100);
+    expect(result.retrievedCount).toBe(100);
+    expect(result.vehicles.length).toBe(10);
     expect(requestedPages).toEqual([0, 1]);
   });
 
@@ -298,7 +304,8 @@ describe("getAlertMatchStats pagination", () => {
 
     const result = await getAlertMatchStats("mazda", {}, null);
     expect(result.fullCount).toBe(300);
-    expect(result.vehicles.length).toBe(300);
+    expect(result.retrievedCount).toBe(300);
+    expect(result.vehicles.length).toBe(10);
     expect(callCount).toBe(3);
   });
 });

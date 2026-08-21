@@ -7,6 +7,8 @@ import {
   type APIMessage,
 } from "discord-api-types/v10";
 import { env } from "~/env";
+import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
+import type { SearchAlertData } from "~/lib/search-alert-data";
 import type { SearchVehicle } from "~/lib/types";
 
 // Initialize Discord REST client
@@ -48,7 +50,7 @@ export async function sendMessage(
 export async function sendDM(
   userId: string,
   message: DiscordMessage,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<NotificationDeliveryResult> {
   try {
     const channelId = await createDMChannel(userId);
     await sendMessage(channelId, message);
@@ -71,7 +73,7 @@ export async function sendDM(
 export async function sendTestDM(
   userId: string,
   hasActiveSubscription: boolean,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<NotificationDeliveryResult> {
   const description = hasActiveSubscription
     ? "You've successfully connected Discord to Junkyard Index. You'll receive DMs here when new vehicles match your saved searches with Discord alerts enabled."
     : "You've successfully connected Discord to Junkyard Index. Once you have an active subscription and enable Discord alerts on a saved search, you'll receive DMs here when new vehicles are found.";
@@ -114,11 +116,7 @@ function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
   if (vehicle.row) {
     fields.push({
       name: "Row",
-      value:
-        vehicle.row +
-        (vehicle.space
-          ? `, Space ${vehicle.space}`
-          : ""),
+      value: vehicle.row + (vehicle.space ? `, Space ${vehicle.space}` : ""),
       inline: true,
     });
   }
@@ -136,18 +134,8 @@ function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
     url: vehicle.detailsUrl,
     color: 0x5865f2, // Discord blurple
     fields,
-    thumbnail: vehicle.imageUrl
-      ? { url: vehicle.imageUrl }
-      : undefined,
+    thumbnail: vehicle.imageUrl ? { url: vehicle.imageUrl } : undefined,
   };
-}
-
-export interface DiscordAlertData {
-  searchName: string;
-  query: string;
-  newVehicles: SearchVehicle[];
-  searchUrl: string;
-  searchId: string;
 }
 
 /**
@@ -155,16 +143,16 @@ export interface DiscordAlertData {
  */
 export async function sendDiscordAlert(
   discordUserId: string,
-  data: DiscordAlertData,
-): Promise<{ success: boolean; error?: string }> {
+  data: SearchAlertData,
+): Promise<NotificationDeliveryResult> {
   // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
-  const vehiclesToShow = data.newVehicles.slice(0, 9);
-  const remainingCount = data.newVehicles.length - vehiclesToShow.length;
+  const vehiclesToShow = data.match.previewVehicles.slice(0, 9);
+  const remainingCount = data.match.count - vehiclesToShow.length;
 
   // Create the main message embed
   const mainEmbed: APIEmbed = {
     title: `New Vehicles Found: ${data.searchName}`,
-    description: `Found **${data.newVehicles.length}** new vehicle${data.newVehicles.length === 1 ? "" : "s"} matching your search${data.query ? ` for "${data.query}"` : ""}.`,
+    description: `Found **${data.match.count}** new vehicle${data.match.count === 1 ? "" : "s"} matching your search${data.query ? ` for "${data.query}"` : ""}.`,
     url: data.searchUrl,
     color: 0x57f287, // Green
     footer:

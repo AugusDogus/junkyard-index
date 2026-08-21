@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { filtersSchema } from "~/lib/saved-search-filters";
+import {
+  filtersSchema,
+  parseSavedSearchFilters,
+} from "~/lib/saved-search-filters";
 
 describe("saved search filters schema", () => {
   test("rejects invalid data sources", () => {
@@ -54,5 +57,42 @@ describe("saved search filters schema", () => {
     expect(
       filtersSchema.safeParse({ vinPattern: "*****************" }).success,
     ).toBe(false);
+  });
+});
+
+describe("parseSavedSearchFilters", () => {
+  test("parses valid saved-search filters", () => {
+    const result = parseSavedSearchFilters(
+      JSON.stringify({
+        makes: ["Honda"],
+        minYear: 2015,
+        sources: ["pyp"],
+      }),
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.makes).toEqual(["Honda"]);
+      expect(result.data.minYear).toBe(2015);
+      expect(result.data.sources).toEqual(["pyp"]);
+    }
+  });
+
+  test("rejects malformed JSON filters", () => {
+    const result = parseSavedSearchFilters("{bad json");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.reason).toBe("malformed_json");
+    }
+  });
+
+  test("rejects schema-invalid filters", () => {
+    const result = parseSavedSearchFilters(
+      JSON.stringify({ sources: ["not-a-source"] }),
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.reason).toBe("invalid_schema");
+    }
   });
 });
