@@ -207,7 +207,8 @@ describe("getAlertMatchStats pagination", () => {
 
     expect(result).toEqual({
       fullCount: 0,
-      retrievedCount: 0,
+      scannedCount: 0,
+      matchedCount: 0,
       vehicles: [],
     });
     expect(callCount).toBe(0);
@@ -247,7 +248,8 @@ describe("getAlertMatchStats pagination", () => {
 
     const result = await getAlertMatchStats("honda", {}, null);
     expect(result.fullCount).toBe(200);
-    expect(result.retrievedCount).toBe(200);
+    expect(result.scannedCount).toBe(200);
+    expect(result.matchedCount).toBe(200);
     expect(result.vehicles.length).toBe(10);
     expect(requestedPages).toEqual([0, 1]);
   });
@@ -282,7 +284,8 @@ describe("getAlertMatchStats pagination", () => {
 
     const result = await getAlertMatchStats("ford", {}, null);
     expect(result.fullCount).toBe(500);
-    expect(result.retrievedCount).toBe(100);
+    expect(result.scannedCount).toBe(100);
+    expect(result.matchedCount).toBe(100);
     expect(result.vehicles.length).toBe(10);
     expect(requestedPages).toEqual([0, 1]);
   });
@@ -304,8 +307,33 @@ describe("getAlertMatchStats pagination", () => {
 
     const result = await getAlertMatchStats("mazda", {}, null);
     expect(result.fullCount).toBe(300);
-    expect(result.retrievedCount).toBe(300);
+    expect(result.scannedCount).toBe(300);
+    expect(result.matchedCount).toBe(300);
     expect(result.vehicles.length).toBe(10);
     expect(callCount).toBe(3);
+  });
+
+  test("counts malformed hits toward scan completeness only", async () => {
+    mockSearchForHits((async () => {
+      return {
+        results: [
+          {
+            hits: [
+              ...createHits(1, "VIN-VALID"),
+              { objectID: "VIN-INVALID", source: "unsupported" },
+            ],
+            nbHits: 2,
+            nbPages: 1,
+          },
+        ],
+      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
+    }) as typeof searchClient.searchForHits);
+
+    const result = await getAlertMatchStats("honda", {}, null);
+
+    expect(result.fullCount).toBe(2);
+    expect(result.scannedCount).toBe(2);
+    expect(result.matchedCount).toBe(1);
+    expect(result.vehicles).toHaveLength(1);
   });
 });

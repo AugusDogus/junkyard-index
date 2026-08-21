@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  MAX_SEARCH_ALERT_DIGEST_PREVIEWS,
   SearchAlertMatch,
   type SearchAlertData,
   type SearchAlertDigest,
@@ -185,7 +186,9 @@ describe("deliverSearchNotifications", () => {
     );
 
     expect(emailCalls).toHaveLength(1);
-    expect(emailCalls[0]?.previewAlerts).toHaveLength(10);
+    expect(emailCalls[0]?.previewAlerts).toHaveLength(
+      MAX_SEARCH_ALERT_DIGEST_PREVIEWS,
+    );
     expect(emailCalls[0]?.alertCount).toBe(12);
     expect(emailCalls[0]?.vehicleCount).toBe(24);
   });
