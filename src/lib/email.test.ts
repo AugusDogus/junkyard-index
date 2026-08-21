@@ -25,6 +25,14 @@ describe("unsubscribe tokens", () => {
     ).toBe(true);
   });
 
+  test("rejects tokens across search and user authorization scopes", () => {
+    const searchToken = generateUnsubscribeToken("user:user-1");
+    const userToken = generateUserUnsubscribeToken("user-1");
+
+    expect(verifyUserUnsubscribeToken("user-1", searchToken)).toBe(false);
+    expect(verifyUnsubscribeToken("user:user-1", userToken)).toBe(false);
+  });
+
   test("rejects malformed non-ASCII tokens without throwing", () => {
     const malformedToken = "é".repeat(64);
 

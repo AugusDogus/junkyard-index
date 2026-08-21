@@ -111,17 +111,19 @@ export async function getAlertMatchStats(
   lastCheckedAt: Date | null,
 ): Promise<{
   fullCount: number;
-  retrievedCount: number;
+  scannedCount: number;
+  matchedCount: number;
   vehicles: SearchVehicle[];
 }> {
   const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
   if (filtersString === NO_MATCH_VIN_FILTER) {
-    return { fullCount: 0, retrievedCount: 0, vehicles: [] };
+    return { fullCount: 0, scannedCount: 0, matchedCount: 0, vehicles: [] };
   }
   const hitsPerPage = 100;
   let page = 0;
   let fullCount = 0;
-  let retrievedCount = 0;
+  let scannedCount = 0;
+  let matchedCount = 0;
   let paginationLimitedTo: number | undefined;
   const vehicles: SearchVehicle[] = [];
 
@@ -152,16 +154,17 @@ export async function getAlertMatchStats(
     }
 
     for (const hit of hits) {
+      scannedCount += 1;
       const vehicle = algoliaHitToSearchVehicle(hit);
       if (vehicle) {
-        retrievedCount += 1;
+        matchedCount += 1;
         if (vehicles.length < MAX_SEARCH_ALERT_PREVIEW_VEHICLES) {
           vehicles.push(vehicle);
         }
       }
     }
 
-    if (retrievedCount >= fullCount) {
+    if (scannedCount >= fullCount) {
       break;
     }
     if (hits.length < hitsPerPage) {
@@ -177,16 +180,17 @@ export async function getAlertMatchStats(
   if (
     paginationLimitedTo !== undefined &&
     fullCount > paginationLimitedTo &&
-    retrievedCount < fullCount
+    scannedCount < fullCount
   ) {
     console.warn(
-      `[algolia-alert-search] Retrieved ${retrievedCount} of ${fullCount} hits due to paginationLimitedTo=${paginationLimitedTo}.`,
+      `[algolia-alert-search] Scanned ${scannedCount} of ${fullCount} hits due to paginationLimitedTo=${paginationLimitedTo}.`,
     );
   }
 
   return {
     fullCount,
-    retrievedCount,
+    scannedCount,
+    matchedCount,
     vehicles,
   };
 }

@@ -21,10 +21,11 @@ export function generateUnsubscribeToken(searchId: string): string {
 }
 
 export function generateUserUnsubscribeToken(userId: string): string {
-  return crypto
+  const userTokenKey = crypto
     .createHmac("sha256", env.UNSUBSCRIBE_SECRET)
-    .update(`user:${userId}`)
-    .digest("hex");
+    .update("junkyard-index:user-unsubscribe:key")
+    .digest();
+  return crypto.createHmac("sha256", userTokenKey).update(userId).digest("hex");
 }
 
 function verifyToken(expectedToken: string, token: string): boolean {
@@ -56,17 +57,17 @@ export function verifyUserUnsubscribeToken(
 
 function buildUnsubscribeUrl(searchId: string): string {
   const token = generateUnsubscribeToken(searchId);
-  return `${env.NEXT_PUBLIC_APP_URL}/unsubscribe?id=${searchId}&token=${token}`;
+  return `${env.NEXT_PUBLIC_APP_URL}/unsubscribe?id=${encodeURIComponent(searchId)}&token=${token}`;
 }
 
 function buildOneClickUnsubscribeUrl(searchId: string): string {
   const token = generateUnsubscribeToken(searchId);
-  return `${env.NEXT_PUBLIC_APP_URL}/api/unsubscribe?id=${searchId}&token=${token}`;
+  return `${env.NEXT_PUBLIC_APP_URL}/api/unsubscribe?id=${encodeURIComponent(searchId)}&token=${token}`;
 }
 
 function buildUserUnsubscribeUrl(userId: string): string {
   const token = generateUserUnsubscribeToken(userId);
-  return `${env.NEXT_PUBLIC_APP_URL}/api/unsubscribe-all?id=${userId}&token=${token}`;
+  return `${env.NEXT_PUBLIC_APP_URL}/api/unsubscribe-all?id=${encodeURIComponent(userId)}&token=${token}`;
 }
 
 export interface EmailDigestRecipient {

@@ -99,14 +99,11 @@ async function prepareSearch(
   }
 
   const queryTime = new Date();
-  const { vehicles, retrievedCount, fullCount } = await getAlertMatchStats(
-    search.query,
-    filters,
-    search.lastCheckedAt,
-  );
-  const canAdvanceLastCheckedAt = retrievedCount === fullCount;
+  const { vehicles, scannedCount, matchedCount, fullCount } =
+    await getAlertMatchStats(search.query, filters, search.lastCheckedAt);
+  const canAdvanceLastCheckedAt = scannedCount === fullCount;
 
-  if (retrievedCount === 0 && canAdvanceLastCheckedAt) {
+  if (matchedCount === 0 && canAdvanceLastCheckedAt) {
     await db
       .update(savedSearch)
       .set({ lastCheckedAt: queryTime })
@@ -116,7 +113,7 @@ async function prepareSearch(
       result: SearchAlertResult.completed(search.id, "no_new_vehicles"),
     };
   }
-  if (retrievedCount === 0) {
+  if (matchedCount === 0) {
     return {
       kind: "complete",
       result: SearchAlertResult.completed(
@@ -137,7 +134,7 @@ async function prepareSearch(
       alertData: {
         searchName: search.name,
         query: search.query,
-        match: SearchAlertMatch.create(retrievedCount, vehicles),
+        match: SearchAlertMatch.create(matchedCount, vehicles),
         searchUrl,
         searchId: search.id,
       },
@@ -421,12 +418,19 @@ export async function runSearchAlerts(
     }> = [];
 
     for (const userId of batch) {
-      const claim = await searchAlertClaims.claimUserSearches(
-        userId,
-        staleLockThreshold,
-      );
-      if (claim) {
-        claimedGroups.push(claim);
+      try {
+        const claim = await searchAlertClaims.claimUserSearches(
+          userId,
+          staleLockThreshold,
+        );
+        if (claim) {
+          claimedGroups.push(claim);
+        }
+      } catch (error) {
+        console.error(`Failed to claim searches for user ${userId}:`, error);
+        Sentry.captureException(error, {
+          tags: { userId, context: "user-search-claim" },
+        });
       }
     }
 

@@ -58,7 +58,7 @@ function searchValues(id: string, processingLock: Date | null = null) {
 }
 
 describe("search alert claim repository", () => {
-  test("claims the authoritative search set when it changes after selection", async () => {
+  test("claims searches inserted before the repository call", async () => {
     const { database, repository } = await createTestRepository();
     await database.insert(savedSearch).values(searchValues("search-1"));
     const initialSelection = await database
