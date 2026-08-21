@@ -57,7 +57,7 @@ export interface NotificationDeliveryDependencies {
 export interface SearchNotificationDeliverySession {
   acceptBatch(
     notifications: readonly PreparedSearchNotification[],
-  ): Promise<void>;
+  ): Promise<SearchAlertResult[]>;
   finish(): Promise<SearchAlertResult[]>;
 }
 
@@ -150,7 +150,6 @@ export function createSearchNotificationDeliverySession(
   target: UserNotificationTarget,
   dependencies: NotificationDeliveryDependencies,
 ): SearchNotificationDeliverySession {
-  const results: SearchAlertResult[] = [];
   const pendingEmailNotifications: StagedNotification[] = [];
   const digestPreviewAlerts: SearchAlertData[] = [];
   let digestAlertCount = 0;
@@ -160,23 +159,21 @@ export function createSearchNotificationDeliverySession(
   return {
     async acceptBatch(
       notifications: readonly PreparedSearchNotification[],
-    ): Promise<void> {
+    ): Promise<SearchAlertResult[]> {
       if (state !== "accepting") {
         throw new Error("Cannot add notifications after delivery is finished");
       }
-      const discordDeliveries = await Promise.all(
-        notifications.map((notification) =>
-          dependencies.runSearchTask(() =>
+      const finalizedResults: SearchAlertResult[] = [];
+      const deliveries = await Promise.all(
+        notifications.map(async (notification) => ({
+          notification,
+          staged: await dependencies.runSearchTask(() =>
             sendDiscordNotification(target, notification, dependencies),
           ),
-        ),
+        })),
       );
 
-      for (let index = 0; index < notifications.length; index += 1) {
-        const notification = notifications[index];
-        const staged = discordDeliveries[index];
-        if (!notification || !staged) continue;
-
+      for (const { notification, staged } of deliveries) {
         if (notification.emailAlertsEnabled) {
           digestAlertCount += 1;
           digestVehicleCount += notification.alertData.match.count;
@@ -185,7 +182,7 @@ export function createSearchNotificationDeliverySession(
           }
           pendingEmailNotifications.push(staged);
         } else {
-          results.push(
+          finalizedResults.push(
             await finalizeNotification(
               target,
               staged,
@@ -195,6 +192,7 @@ export function createSearchNotificationDeliverySession(
           );
         }
       }
+      return finalizedResults;
     },
 
     async finish(): Promise<SearchAlertResult[]> {
@@ -202,6 +200,7 @@ export function createSearchNotificationDeliverySession(
         throw new Error("Notification delivery is already finished");
       }
       state = "finished";
+      const results: SearchAlertResult[] = [];
       const email: AlertChannelResult =
         digestAlertCount === 0
           ? { kind: "not_enabled" }

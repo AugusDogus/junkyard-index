@@ -17,6 +17,13 @@ import {
   type PreparedSearchNotification,
 } from "./deliver-search-notifications";
 import {
+  claimUserSearchGroups,
+  processUserSearches,
+  type AlertSubscriptionState,
+  type PreparedSearchBatch,
+  type UserSearchProcessingDependencies,
+} from "./process-user-searches";
+import {
   createSearchAlertClaimRepository,
   type SearchWithAlerts,
 } from "./search-alert-claim-repository";
@@ -47,11 +54,6 @@ const searchAlertClaims = createSearchAlertClaimRepository(db);
 type SearchPreparationResult =
   | { kind: "complete"; result: SearchAlertResult }
   | { kind: "notification"; notification: PreparedSearchNotification };
-
-type AlertSubscriptionState =
-  | { kind: "active" }
-  | { kind: "inactive"; reason: "expired" | "missing" }
-  | { kind: "unavailable"; error: unknown };
 
 export interface RunSearchAlertsResult {
   message: string;
@@ -160,9 +162,17 @@ async function getAlertSubscriptionState(
       "statusCode" in error
         ? error.statusCode
         : undefined;
-    return statusCode === 404
-      ? { kind: "inactive", reason: "missing" }
-      : { kind: "unavailable", error };
+    if (statusCode === 404) {
+      return { kind: "inactive", reason: "missing" };
+    }
+    console.error(
+      `Transient Polar error for user ${userId}, will retry:`,
+      error,
+    );
+    Sentry.captureException(error, {
+      tags: { userId, context: "polar-subscription-check" },
+    });
+    return { kind: "unavailable", error };
   }
 }
 
@@ -201,11 +211,6 @@ async function disableAlertsForInactiveSubscription(
   return searches.map((search) =>
     SearchAlertResult.completed(search.id, outcome.completion),
   );
-}
-
-interface PreparedSearchBatch {
-  results: SearchAlertResult[];
-  notifications: PreparedSearchNotification[];
 }
 
 async function prepareSearchBatch(
@@ -247,61 +252,29 @@ async function prepareSearchBatch(
   return { results, notifications };
 }
 
-async function processUserSearches(
-  searches: [SearchWithAlerts, ...SearchWithAlerts[]],
-  lockTime: Date,
+function createUserSearchProcessingDependencies(
   runSearchTask: RunSearchTask,
-): Promise<SearchAlertResult[]> {
-  const userId = searches[0].userId;
-
-  try {
-    const [userInfo] = await db
-      .select({
-        email: user.email,
-        discordId: user.discordId,
-        discordAppInstalled: user.discordAppInstalled,
-      })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
-
-    if (!userInfo?.email) {
-      return searches.map((search) =>
-        SearchAlertResult.completed(search.id, "no_user_email"),
-      );
-    }
-
-    const subscriptionState = await getAlertSubscriptionState(userId);
-    if (subscriptionState.kind === "inactive") {
-      return disableAlertsForInactiveSubscription(
-        userId,
-        searches,
-        subscriptionState.reason,
-      );
-    }
-    if (subscriptionState.kind === "unavailable") {
-      console.error(
-        `Transient Polar error for user ${userId}, will retry:`,
-        subscriptionState.error,
-      );
-      Sentry.captureException(subscriptionState.error, {
-        tags: { userId, context: "polar-subscription-check" },
-        extra: { searchIds: searches.map((search) => search.id) },
-      });
-      return searches.map((search) =>
-        SearchAlertResult.retry(search.id, "subscription_check_unavailable"),
-      );
-    }
-
-    const results: SearchAlertResult[] = [];
-    const delivery = createSearchNotificationDeliverySession(
-      {
-        userId,
-        email: userInfo.email,
-        discordId: userInfo.discordId,
-        discordAppInstalled: userInfo.discordAppInstalled,
-      },
-      {
+): UserSearchProcessingDependencies {
+  return {
+    preparationBatchSize: SEARCH_PREPARATION_BATCH_SIZE,
+    loadUserInfo: async (userId) => {
+      const [userInfo] = await db
+        .select({
+          email: user.email,
+          discordId: user.discordId,
+          discordAppInstalled: user.discordAppInstalled,
+        })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+      return userInfo ?? null;
+    },
+    getSubscriptionState: getAlertSubscriptionState,
+    disableAlertsForInactiveSubscription,
+    prepareSearchBatch: (searches, userId) =>
+      prepareSearchBatch(searches, userId, runSearchTask),
+    createDeliverySession: (target) =>
+      createSearchNotificationDeliverySession(target, {
         sendEmailDigest,
         sendDiscordAlert,
         advanceLastCheckedAt: async (searchId, checkedAt) => {
@@ -318,7 +291,7 @@ async function processUserSearches(
             Sentry.captureException(error, {
               tags: {
                 searchId,
-                userId,
+                userId: target.userId,
                 context: "alert-checkpoint-persistence",
               },
             });
@@ -326,14 +299,14 @@ async function processUserSearches(
           }
         },
         captureNotification: ({
-          userId: notificationUserId,
+          userId,
           searchId,
           newVehicleCount,
           emailSent,
           discordSent,
         }) => {
           posthog.capture({
-            distinctId: notificationUserId,
+            distinctId: userId,
             event: "alert_notification_sent",
             properties: {
               search_id: searchId,
@@ -344,34 +317,24 @@ async function processUserSearches(
           });
         },
         runSearchTask,
-      },
-    );
-    for (let i = 0; i < searches.length; i += SEARCH_PREPARATION_BATCH_SIZE) {
-      const batch = await prepareSearchBatch(
-        searches.slice(i, i + SEARCH_PREPARATION_BATCH_SIZE),
-        userId,
-        runSearchTask,
-      );
-      results.push(...batch.results);
-      await delivery.acceptBatch(batch.notifications);
-    }
-    results.push(...(await delivery.finish()));
-    return results;
-  } catch (error) {
-    console.error(`Error processing alerts for user ${userId}:`, error);
-    Sentry.captureException(error, {
-      tags: { userId, context: "user-alert-batch" },
-      extra: { searchIds: searches.map((search) => search.id) },
-    });
-    return searches.map((search) =>
-      SearchAlertResult.error(
-        search.id,
-        error instanceof Error ? error.message : "Unknown error",
-      ),
-    );
-  } finally {
-    await searchAlertClaims.releaseUserSearchClaim(userId, lockTime);
-  }
+      }),
+    releaseClaim: (userId, lockTime) =>
+      searchAlertClaims.releaseUserSearchClaim(userId, lockTime),
+    reportProcessingFailure: (userId, searchIds, error) => {
+      console.error(`Error processing alerts for user ${userId}:`, error);
+      Sentry.captureException(error, {
+        tags: { userId, context: "user-alert-batch" },
+        extra: { searchIds },
+      });
+    },
+    reportReleaseFailure: (userId, searchIds, error) => {
+      console.error(`Failed to release alert claim for user ${userId}:`, error);
+      Sentry.captureException(error, {
+        tags: { userId, context: "user-search-claim-release" },
+        extra: { searchIds },
+      });
+    },
+  };
 }
 
 export async function runSearchAlerts(
@@ -409,34 +372,27 @@ export async function runSearchAlerts(
   const userIds = [...new Set(selectedSearches.map((search) => search.userId))];
   const searchLimit = pLimit(SEARCH_TASK_CONCURRENCY);
   const runSearchTask: RunSearchTask = (task) => searchLimit(task);
+  const processingDependencies =
+    createUserSearchProcessingDependencies(runSearchTask);
 
   for (let i = 0; i < userIds.length; i += USER_BATCH_SIZE) {
     const batch = userIds.slice(i, i + USER_BATCH_SIZE);
-    const claimedGroups: Array<{
-      searches: [SearchWithAlerts, ...SearchWithAlerts[]];
-      lockTime: Date;
-    }> = [];
-
-    for (const userId of batch) {
-      try {
-        const claim = await searchAlertClaims.claimUserSearches(
-          userId,
-          staleLockThreshold,
-        );
-        if (claim) {
-          claimedGroups.push(claim);
-        }
-      } catch (error) {
+    const claimedGroups = await claimUserSearchGroups(
+      batch,
+      staleLockThreshold,
+      (userId, threshold) =>
+        searchAlertClaims.claimUserSearches(userId, threshold),
+      (userId, error) => {
         console.error(`Failed to claim searches for user ${userId}:`, error);
         Sentry.captureException(error, {
           tags: { userId, context: "user-search-claim" },
         });
-      }
-    }
+      },
+    );
 
     const batchResults = await Promise.all(
       claimedGroups.map(({ searches, lockTime }) =>
-        processUserSearches(searches, lockTime, runSearchTask),
+        processUserSearches(searches, lockTime, processingDependencies),
       ),
     );
 

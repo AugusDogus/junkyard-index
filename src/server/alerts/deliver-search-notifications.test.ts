@@ -11,6 +11,7 @@ import {
   type PreparedSearchNotification,
   type UserNotificationTarget,
 } from "./deliver-search-notifications";
+import type { SearchAlertResult } from "./search-alert-result";
 
 function makeNotification(
   searchId: string,
@@ -52,10 +53,12 @@ async function deliverNotificationBatches(
     target,
     dependencies,
   );
+  const results: SearchAlertResult[] = [];
   for await (const notifications of batches) {
-    await delivery.acceptBatch(notifications);
+    results.push(...(await delivery.acceptBatch(notifications)));
   }
-  return delivery.finish();
+  results.push(...(await delivery.finish()));
+  return results;
 }
 
 describe("deliverSearchNotifications", () => {
