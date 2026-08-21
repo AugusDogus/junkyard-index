@@ -1,58 +1,57 @@
 import * as Sentry from "@sentry/nextjs";
-import { and, eq, isNull, lt, or } from "drizzle-orm";
-import { z } from "zod";
+import { eq, or } from "drizzle-orm";
+import pLimit from "p-limit";
 import { getAlertMatchStats } from "~/lib/algolia-alert-search";
 import { polarClient } from "~/lib/auth";
 import { db } from "~/lib/db";
 import { sendDiscordAlert } from "~/lib/discord";
-import { sendEmailAlert } from "~/lib/email";
+import { sendEmailDigest } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
-import { filtersSchema } from "~/lib/saved-search-filters";
+import { SearchAlertMatch } from "~/lib/search-alert-data";
+import { parseSavedSearchFilters } from "~/lib/saved-search-filters";
 import { buildSearchUrl } from "~/lib/search-utils";
-import type { SearchVehicle } from "~/lib/types";
 import { env } from "~/env";
 import { savedSearch, user } from "~/schema";
 import {
-  buildAlertResultStatus,
-  parseSavedSearchFilters,
-} from "./run-search-alerts-helpers";
+  createSearchNotificationDeliverySession,
+  type PreparedSearchNotification,
+} from "./deliver-search-notifications";
+import {
+  createSearchAlertClaimRepository,
+  type SearchWithAlerts,
+} from "./search-alert-claim-repository";
+import {
+  SearchAlertResult,
+  type SearchAlertCompletion,
+} from "./search-alert-result";
+
+export type { SearchAlertResult } from "./search-alert-result";
 
 export {
-  buildAlertResultStatus,
   parseSavedSearchFilters,
   type SavedSearchFiltersParseResult,
-} from "./run-search-alerts-helpers";
+} from "~/lib/saved-search-filters";
 
 // Lock timeout in milliseconds (5 minutes)
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
-// Process searches in batches for efficient parallel execution
-const BATCH_SIZE = 5;
+// Process users in batches for efficient parallel execution.
+const USER_BATCH_SIZE = 5;
+const SEARCH_TASK_CONCURRENCY = 5;
+const SEARCH_PREPARATION_BATCH_SIZE = 5;
 
-export interface SearchAlertResult {
-  searchId: string;
-  status: string;
-  newVehicles?: number;
-  emailSent?: boolean;
-  discordSent?: boolean;
-}
+type RunSearchTask = <T>(task: () => Promise<T>) => Promise<T>;
 
-interface UserInfo {
-  email: string;
-  discordId: string | null;
-  discordAppInstalled: boolean;
-}
+const searchAlertClaims = createSearchAlertClaimRepository(db);
 
-interface SearchWithAlerts {
-  id: string;
-  userId: string;
-  name: string;
-  query: string;
-  filters: string;
-  lastCheckedAt: Date | null;
-  emailAlertsEnabled: boolean;
-  discordAlertsEnabled: boolean;
-}
+type SearchPreparationResult =
+  | { kind: "complete"; result: SearchAlertResult }
+  | { kind: "notification"; notification: PreparedSearchNotification };
+
+type AlertSubscriptionState =
+  | { kind: "active" }
+  | { kind: "inactive"; reason: "expired" | "missing" }
+  | { kind: "unavailable"; error: unknown };
 
 export interface RunSearchAlertsResult {
   message: string;
@@ -61,69 +60,9 @@ export interface RunSearchAlertsResult {
   results: SearchAlertResult[];
 }
 
-async function findNewVehicles(
+async function prepareSearch(
   search: SearchWithAlerts,
-  filters: z.infer<typeof filtersSchema>,
-): Promise<{ vehicles: SearchVehicle[]; fullCount: number }> {
-  const { vehicles, fullCount } = await getAlertMatchStats(
-    search.query,
-    filters,
-    search.lastCheckedAt,
-  );
-  return { vehicles, fullCount };
-}
-
-async function sendNotifications(
-  search: SearchWithAlerts,
-  userInfo: UserInfo,
-  newVehicles: SearchVehicle[],
-  searchUrl: string,
-): Promise<{ emailSent: boolean; discordSent: boolean; errors: string[] }> {
-  const errors: string[] = [];
-  let emailSent = false;
-  let discordSent = false;
-
-  const alertData = {
-    searchName: search.name,
-    query: search.query,
-    newVehicles,
-    searchUrl,
-    searchId: search.id,
-  };
-
-  if (search.emailAlertsEnabled) {
-    const emailResult = await sendEmailAlert(userInfo.email, alertData);
-    if (emailResult.success) {
-      emailSent = true;
-    } else {
-      errors.push(`Email failed: ${emailResult.error}`);
-    }
-  }
-
-  if (search.discordAlertsEnabled) {
-    if (!userInfo.discordId) {
-      errors.push("Discord alerts enabled but user has no Discord ID linked");
-    } else if (!userInfo.discordAppInstalled) {
-      errors.push(
-        "Discord alerts enabled but user has not installed the Discord app",
-      );
-    } else {
-      const discordResult = await sendDiscordAlert(userInfo.discordId, alertData);
-      if (discordResult.success) {
-        discordSent = true;
-      } else {
-        errors.push(`Discord failed: ${discordResult.error}`);
-      }
-    }
-  }
-
-  return { emailSent, discordSent, errors };
-}
-
-async function processSearch(
-  search: SearchWithAlerts,
-  userInfo: UserInfo,
-): Promise<SearchAlertResult> {
+): Promise<SearchPreparationResult> {
   const filtersParseResult = parseSavedSearchFilters(search.filters);
   if (!filtersParseResult.success) {
     if (filtersParseResult.reason === "malformed_json") {
@@ -138,7 +77,10 @@ async function processSearch(
       );
     }
 
-    return { searchId: search.id, status: "invalid_filters" };
+    return {
+      kind: "complete",
+      result: SearchAlertResult.completed(search.id, "invalid_filters"),
+    };
   }
   const filters = filtersParseResult.data;
 
@@ -147,72 +89,292 @@ async function processSearch(
       .update(savedSearch)
       .set({ lastCheckedAt: new Date() })
       .where(eq(savedSearch.id, search.id));
-    return { searchId: search.id, status: "first_check_baseline_set" };
+    return {
+      kind: "complete",
+      result: SearchAlertResult.completed(
+        search.id,
+        "first_check_baseline_set",
+      ),
+    };
   }
 
   const queryTime = new Date();
-  const { vehicles: newVehicles, fullCount } = await findNewVehicles(
-    search,
+  const { vehicles, retrievedCount, fullCount } = await getAlertMatchStats(
+    search.query,
     filters,
+    search.lastCheckedAt,
   );
-  const canAdvanceLastCheckedAt = newVehicles.length === fullCount;
+  const canAdvanceLastCheckedAt = retrievedCount === fullCount;
 
-  if (newVehicles.length === 0 && canAdvanceLastCheckedAt) {
+  if (retrievedCount === 0 && canAdvanceLastCheckedAt) {
     await db
       .update(savedSearch)
       .set({ lastCheckedAt: queryTime })
       .where(eq(savedSearch.id, search.id));
-    return { searchId: search.id, status: "no_new_vehicles" };
+    return {
+      kind: "complete",
+      result: SearchAlertResult.completed(search.id, "no_new_vehicles"),
+    };
   }
-  if (newVehicles.length === 0) {
-    return { searchId: search.id, status: "no_new_vehicles_partial_scan" };
+  if (retrievedCount === 0) {
+    return {
+      kind: "complete",
+      result: SearchAlertResult.completed(
+        search.id,
+        "no_new_vehicles_partial_scan",
+      ),
+    };
   }
 
   const searchUrl = `${env.NEXT_PUBLIC_APP_URL}${buildSearchUrl(search.query, filters)}`;
-  const { emailSent, discordSent, errors } = await sendNotifications(
-    search,
-    userInfo,
-    newVehicles,
-    searchUrl,
-  );
-
-  /**
-   * Advance checkpoint only when scan coverage is complete AND delivery had no
-   * errors. This preserves retryability after transient provider failures.
-   */
-  const shouldAdvanceLastCheckedAt = canAdvanceLastCheckedAt && errors.length === 0;
-  if (shouldAdvanceLastCheckedAt) {
-    await db
-      .update(savedSearch)
-      .set({ lastCheckedAt: queryTime })
-      .where(eq(savedSearch.id, search.id));
-  }
-
-  if (emailSent || discordSent) {
-    posthog.capture({
-      distinctId: search.userId,
-      event: "alert_notification_sent",
-      properties: {
-        search_id: search.id,
-        new_vehicle_count: newVehicles.length,
-        email_sent: emailSent,
-        discord_sent: discordSent,
+  return {
+    kind: "notification",
+    notification: {
+      emailAlertsEnabled: search.emailAlertsEnabled,
+      discordAlertsEnabled: search.discordAlertsEnabled,
+      queryTime,
+      canAdvanceLastCheckedAt,
+      alertData: {
+        searchName: search.name,
+        query: search.query,
+        match: SearchAlertMatch.create(retrievedCount, vehicles),
+        searchUrl,
+        searchId: search.id,
       },
+    },
+  };
+}
+
+async function getAlertSubscriptionState(
+  userId: string,
+): Promise<AlertSubscriptionState> {
+  try {
+    const customerState = await polarClient.customers.getStateExternal({
+      externalId: userId,
+    });
+    return customerState.activeSubscriptions.length > 0
+      ? { kind: "active" }
+      : { kind: "inactive", reason: "expired" };
+  } catch (error) {
+    const statusCode =
+      error !== null &&
+      error !== undefined &&
+      typeof error === "object" &&
+      "statusCode" in error
+        ? error.statusCode
+        : undefined;
+    return statusCode === 404
+      ? { kind: "inactive", reason: "missing" }
+      : { kind: "unavailable", error };
+  }
+}
+
+async function disableAlertsForInactiveSubscription(
+  userId: string,
+  searches: [SearchWithAlerts, ...SearchWithAlerts[]],
+  reason: "expired" | "missing",
+): Promise<SearchAlertResult[]> {
+  const outcome: { event: string; completion: SearchAlertCompletion } =
+    reason === "expired"
+      ? {
+          event: "alert_subscription_expired",
+          completion: "subscription_expired_disabled",
+        }
+      : {
+          event: "alert_no_subscription_disabled",
+          completion: "no_subscription_disabled",
+        };
+
+  await db
+    .update(savedSearch)
+    .set({
+      emailAlertsEnabled: false,
+      discordAlertsEnabled: false,
+    })
+    .where(eq(savedSearch.userId, userId));
+
+  for (const search of searches) {
+    posthog.capture({
+      distinctId: userId,
+      event: outcome.event,
+      properties: { search_id: search.id },
     });
   }
 
-  return {
-    searchId: search.id,
-    status: buildAlertResultStatus({
-      emailSent,
-      discordSent,
-      errors,
-      canAdvanceLastCheckedAt,
-    }),
-    newVehicles: newVehicles.length,
-    emailSent,
-    discordSent,
-  };
+  return searches.map((search) =>
+    SearchAlertResult.completed(search.id, outcome.completion),
+  );
+}
+
+interface PreparedSearchBatch {
+  results: SearchAlertResult[];
+  notifications: PreparedSearchNotification[];
+}
+
+async function prepareSearchBatch(
+  searches: SearchWithAlerts[],
+  userId: string,
+  runSearchTask: RunSearchTask,
+): Promise<PreparedSearchBatch> {
+  const preparationBatch = await Promise.all(
+    searches.map((search) =>
+      runSearchTask(async (): Promise<SearchPreparationResult> => {
+        try {
+          return await prepareSearch(search);
+        } catch (error) {
+          console.error(`Error preparing search ${search.id}:`, error);
+          Sentry.captureException(error, {
+            tags: { searchId: search.id, userId },
+          });
+          return {
+            kind: "complete",
+            result: SearchAlertResult.error(
+              search.id,
+              error instanceof Error ? error.message : "Unknown error",
+            ),
+          };
+        }
+      }),
+    ),
+  );
+
+  const results: SearchAlertResult[] = [];
+  const notifications: PreparedSearchNotification[] = [];
+  for (const preparation of preparationBatch) {
+    if (preparation.kind === "complete") {
+      results.push(preparation.result);
+    } else {
+      notifications.push(preparation.notification);
+    }
+  }
+  return { results, notifications };
+}
+
+async function processUserSearches(
+  searches: [SearchWithAlerts, ...SearchWithAlerts[]],
+  lockTime: Date,
+  runSearchTask: RunSearchTask,
+): Promise<SearchAlertResult[]> {
+  const userId = searches[0].userId;
+
+  try {
+    const [userInfo] = await db
+      .select({
+        email: user.email,
+        discordId: user.discordId,
+        discordAppInstalled: user.discordAppInstalled,
+      })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (!userInfo?.email) {
+      return searches.map((search) =>
+        SearchAlertResult.completed(search.id, "no_user_email"),
+      );
+    }
+
+    const subscriptionState = await getAlertSubscriptionState(userId);
+    if (subscriptionState.kind === "inactive") {
+      return disableAlertsForInactiveSubscription(
+        userId,
+        searches,
+        subscriptionState.reason,
+      );
+    }
+    if (subscriptionState.kind === "unavailable") {
+      console.error(
+        `Transient Polar error for user ${userId}, will retry:`,
+        subscriptionState.error,
+      );
+      Sentry.captureException(subscriptionState.error, {
+        tags: { userId, context: "polar-subscription-check" },
+        extra: { searchIds: searches.map((search) => search.id) },
+      });
+      return searches.map((search) =>
+        SearchAlertResult.retry(search.id, "subscription_check_unavailable"),
+      );
+    }
+
+    const results: SearchAlertResult[] = [];
+    const delivery = createSearchNotificationDeliverySession(
+      {
+        userId,
+        email: userInfo.email,
+        discordId: userInfo.discordId,
+        discordAppInstalled: userInfo.discordAppInstalled,
+      },
+      {
+        sendEmailDigest,
+        sendDiscordAlert,
+        advanceLastCheckedAt: async (searchId, checkedAt) => {
+          try {
+            await db
+              .update(savedSearch)
+              .set({ lastCheckedAt: checkedAt })
+              .where(eq(savedSearch.id, searchId));
+          } catch (error) {
+            console.error(
+              `Failed to persist alert checkpoint for search ${searchId}:`,
+              error,
+            );
+            Sentry.captureException(error, {
+              tags: {
+                searchId,
+                userId,
+                context: "alert-checkpoint-persistence",
+              },
+            });
+            throw error;
+          }
+        },
+        captureNotification: ({
+          userId: notificationUserId,
+          searchId,
+          newVehicleCount,
+          emailSent,
+          discordSent,
+        }) => {
+          posthog.capture({
+            distinctId: notificationUserId,
+            event: "alert_notification_sent",
+            properties: {
+              search_id: searchId,
+              new_vehicle_count: newVehicleCount,
+              email_sent: emailSent,
+              discord_sent: discordSent,
+            },
+          });
+        },
+        runSearchTask,
+      },
+    );
+    for (let i = 0; i < searches.length; i += SEARCH_PREPARATION_BATCH_SIZE) {
+      const batch = await prepareSearchBatch(
+        searches.slice(i, i + SEARCH_PREPARATION_BATCH_SIZE),
+        userId,
+        runSearchTask,
+      );
+      results.push(...batch.results);
+      await delivery.acceptBatch(batch.notifications);
+    }
+    results.push(...(await delivery.finish()));
+    return results;
+  } catch (error) {
+    console.error(`Error processing alerts for user ${userId}:`, error);
+    Sentry.captureException(error, {
+      tags: { userId, context: "user-alert-batch" },
+      extra: { searchIds: searches.map((search) => search.id) },
+    });
+    return searches.map((search) =>
+      SearchAlertResult.error(
+        search.id,
+        error instanceof Error ? error.message : "Unknown error",
+      ),
+    );
+  } finally {
+    await searchAlertClaims.releaseUserSearchClaim(userId, lockTime);
+  }
 }
 
 export async function runSearchAlerts(
@@ -220,34 +382,22 @@ export async function runSearchAlerts(
 ): Promise<RunSearchAlertsResult> {
   const staleLockThreshold = new Date(Date.now() - LOCK_TIMEOUT_MS);
 
-  const searchesWithAlerts = await db
+  const selectedSearches = await db
     .select({
       id: savedSearch.id,
       userId: savedSearch.userId,
-      name: savedSearch.name,
-      query: savedSearch.query,
-      filters: savedSearch.filters,
-      lastCheckedAt: savedSearch.lastCheckedAt,
-      emailAlertsEnabled: savedSearch.emailAlertsEnabled,
-      discordAlertsEnabled: savedSearch.discordAlertsEnabled,
     })
     .from(savedSearch)
     .where(
-      and(
-        or(
-          eq(savedSearch.emailAlertsEnabled, true),
-          eq(savedSearch.discordAlertsEnabled, true),
-        ),
-        or(
-          isNull(savedSearch.processingLock),
-          lt(savedSearch.processingLock, staleLockThreshold),
-        ),
+      or(
+        eq(savedSearch.emailAlertsEnabled, true),
+        eq(savedSearch.discordAlertsEnabled, true),
       ),
     );
 
-  if (searchesWithAlerts.length === 0) {
+  if (selectedSearches.length === 0) {
     return {
-      message: "No searches with alerts enabled (or all are locked)",
+      message: "No searches with alerts enabled",
       selected: 0,
       processed: 0,
       results: [],
@@ -255,172 +405,50 @@ export async function runSearchAlerts(
   }
 
   console.log(
-    `Processing ${searchesWithAlerts.length} searches with alerts enabled`,
+    `Processing ${selectedSearches.length} searches with alerts enabled`,
   );
 
   const results: SearchAlertResult[] = [];
+  const userIds = [...new Set(selectedSearches.map((search) => search.userId))];
+  const searchLimit = pLimit(SEARCH_TASK_CONCURRENCY);
+  const runSearchTask: RunSearchTask = (task) => searchLimit(task);
 
-  for (let i = 0; i < searchesWithAlerts.length; i += BATCH_SIZE) {
-    const batch = searchesWithAlerts.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < userIds.length; i += USER_BATCH_SIZE) {
+    const batch = userIds.slice(i, i + USER_BATCH_SIZE);
+    const claimedGroups: Array<{
+      searches: [SearchWithAlerts, ...SearchWithAlerts[]];
+      lockTime: Date;
+    }> = [];
 
-    const lockedIds = new Set<string>();
-    for (const s of batch) {
-      const lockResult = await db
-        .update(savedSearch)
-        .set({ processingLock: new Date() })
-        .where(
-          and(
-            eq(savedSearch.id, s.id),
-            or(
-              isNull(savedSearch.processingLock),
-              lt(savedSearch.processingLock, staleLockThreshold),
-            ),
-          ),
-        )
-        .returning({ id: savedSearch.id });
-      if (lockResult.length > 0) {
-        lockedIds.add(s.id);
+    for (const userId of batch) {
+      const claim = await searchAlertClaims.claimUserSearches(
+        userId,
+        staleLockThreshold,
+      );
+      if (claim) {
+        claimedGroups.push(claim);
       }
     }
-    const lockedBatch = batch.filter((s) => lockedIds.has(s.id));
 
     const batchResults = await Promise.all(
-      lockedBatch.map(async (search) => {
-        try {
-          const [userInfo] = await db
-            .select({
-              email: user.email,
-              discordId: user.discordId,
-              discordAppInstalled: user.discordAppInstalled,
-            })
-            .from(user)
-            .where(eq(user.id, search.userId))
-            .limit(1);
-
-          if (!userInfo?.email) {
-            await db
-              .update(savedSearch)
-              .set({ processingLock: null })
-              .where(eq(savedSearch.id, search.id));
-            return { searchId: search.id, status: "no_user_email" };
-          }
-
-          try {
-            const customerState = await polarClient.customers.getStateExternal({
-              externalId: search.userId,
-            });
-            if (customerState.activeSubscriptions.length === 0) {
-              await db
-                .update(savedSearch)
-                .set({
-                  emailAlertsEnabled: false,
-                  discordAlertsEnabled: false,
-                  processingLock: null,
-                })
-                .where(eq(savedSearch.id, search.id));
-              posthog.capture({
-                distinctId: search.userId,
-                event: "alert_subscription_expired",
-                properties: { search_id: search.id },
-              });
-              return {
-                searchId: search.id,
-                status: "subscription_expired_disabled",
-              };
-            }
-          } catch (polarError) {
-            const statusCode =
-              polarError !== null &&
-              polarError !== undefined &&
-              typeof polarError === "object" &&
-              "statusCode" in polarError
-                ? (polarError as { statusCode: unknown }).statusCode
-                : undefined;
-            const isNotFound = statusCode === 404;
-
-            if (isNotFound) {
-              await db
-                .update(savedSearch)
-                .set({
-                  emailAlertsEnabled: false,
-                  discordAlertsEnabled: false,
-                  processingLock: null,
-                })
-                .where(eq(savedSearch.id, search.id));
-              posthog.capture({
-                distinctId: search.userId,
-                event: "alert_no_subscription_disabled",
-                properties: { search_id: search.id },
-              });
-              return {
-                searchId: search.id,
-                status: "no_subscription_disabled",
-              };
-            }
-
-            console.error(
-              `Transient Polar error for search ${search.id}, will retry:`,
-              polarError,
-            );
-            Sentry.captureException(polarError, {
-              tags: {
-                searchId: search.id,
-                userId: search.userId,
-                context: "polar-subscription-check",
-              },
-            });
-            await db
-              .update(savedSearch)
-              .set({ processingLock: null })
-              .where(eq(savedSearch.id, search.id));
-            return {
-              searchId: search.id,
-              status: "subscription_check_skipped_transient_error",
-            };
-          }
-
-          const result = await processSearch(search, {
-            email: userInfo.email,
-            discordId: userInfo.discordId,
-            discordAppInstalled: userInfo.discordAppInstalled,
-          });
-
-          await db
-            .update(savedSearch)
-            .set({ processingLock: null })
-            .where(eq(savedSearch.id, search.id));
-
-          return result;
-        } catch (error) {
-          console.error(`Error processing search ${search.id}:`, error);
-          Sentry.captureException(error, {
-            tags: { searchId: search.id, userId: search.userId },
-          });
-          await db
-            .update(savedSearch)
-            .set({ processingLock: null })
-            .where(eq(savedSearch.id, search.id));
-          return {
-            searchId: search.id,
-            status: `error: ${error instanceof Error ? error.message : "Unknown error"}`,
-          };
-        }
-      }),
+      claimedGroups.map(({ searches, lockTime }) =>
+        processUserSearches(searches, lockTime, runSearchTask),
+      ),
     );
 
-    results.push(...batchResults);
+    results.push(...batchResults.flat());
   }
 
   const notificationsSent = results.filter(
-    (r) => r.emailSent || r.discordSent,
+    SearchAlertResult.notificationSent,
   ).length;
-  const errored = results.filter((r) => r.status.startsWith("error")).length;
+  const errored = results.filter(SearchAlertResult.hasError).length;
   posthog.capture({
     distinctId: "system",
     event: "alert_cron_completed",
     properties: {
       source,
-      total_selected: searchesWithAlerts.length,
+      total_selected: selectedSearches.length,
       total_processed: results.length,
       notifications_sent: notificationsSent,
       errors: errored,
@@ -430,7 +458,7 @@ export async function runSearchAlerts(
 
   return {
     message: "Alert check completed",
-    selected: searchesWithAlerts.length,
+    selected: selectedSearches.length,
     processed: results.length,
     results,
   };

@@ -2,6 +2,7 @@ import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type { SearchVehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 import { isIngestionSource } from "~/lib/ingestion-source";
+import { MAX_SEARCH_ALERT_PREVIEW_VEHICLES } from "~/lib/search-alert-data";
 import { VinPattern } from "~/lib/vin-pattern";
 
 export interface AlertFilters {
@@ -108,14 +109,19 @@ export async function getAlertMatchStats(
   query: string,
   filters: AlertFilters,
   lastCheckedAt: Date | null,
-): Promise<{ fullCount: number; vehicles: SearchVehicle[] }> {
+): Promise<{
+  fullCount: number;
+  retrievedCount: number;
+  vehicles: SearchVehicle[];
+}> {
   const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
   if (filtersString === NO_MATCH_VIN_FILTER) {
-    return { fullCount: 0, vehicles: [] };
+    return { fullCount: 0, retrievedCount: 0, vehicles: [] };
   }
   const hitsPerPage = 100;
   let page = 0;
   let fullCount = 0;
+  let retrievedCount = 0;
   let paginationLimitedTo: number | undefined;
   const vehicles: SearchVehicle[] = [];
 
@@ -147,10 +153,15 @@ export async function getAlertMatchStats(
 
     for (const hit of hits) {
       const vehicle = algoliaHitToSearchVehicle(hit);
-      if (vehicle) vehicles.push(vehicle);
+      if (vehicle) {
+        retrievedCount += 1;
+        if (vehicles.length < MAX_SEARCH_ALERT_PREVIEW_VEHICLES) {
+          vehicles.push(vehicle);
+        }
+      }
     }
 
-    if (vehicles.length >= fullCount) {
+    if (retrievedCount >= fullCount) {
       break;
     }
     if (hits.length < hitsPerPage) {
@@ -166,15 +177,16 @@ export async function getAlertMatchStats(
   if (
     paginationLimitedTo !== undefined &&
     fullCount > paginationLimitedTo &&
-    vehicles.length < fullCount
+    retrievedCount < fullCount
   ) {
     console.warn(
-      `[algolia-alert-search] Retrieved ${vehicles.length} of ${fullCount} hits due to paginationLimitedTo=${paginationLimitedTo}.`,
+      `[algolia-alert-search] Retrieved ${retrievedCount} of ${fullCount} hits due to paginationLimitedTo=${paginationLimitedTo}.`,
     );
   }
 
   return {
     fullCount,
+    retrievedCount,
     vehicles,
   };
 }

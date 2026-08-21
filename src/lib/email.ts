@@ -4,7 +4,8 @@ import crypto from "crypto";
 import { Resend } from "resend";
 import { NewVehiclesAlert } from "~/emails/NewVehiclesAlert";
 import { env } from "~/env";
-import type { SearchVehicle } from "~/lib/types";
+import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
+import type { SearchAlertDigest } from "~/lib/search-alert-data";
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -19,6 +20,22 @@ export function generateUnsubscribeToken(searchId: string): string {
     .digest("hex");
 }
 
+export function generateUserUnsubscribeToken(userId: string): string {
+  return crypto
+    .createHmac("sha256", env.UNSUBSCRIBE_SECRET)
+    .update(`user:${userId}`)
+    .digest("hex");
+}
+
+function verifyToken(expectedToken: string, token: string): boolean {
+  if (!/^[0-9a-f]{64}$/i.test(token)) {
+    return false;
+  }
+  const tokenBuffer = Buffer.from(token, "hex");
+  const expectedTokenBuffer = Buffer.from(expectedToken, "hex");
+  return crypto.timingSafeEqual(tokenBuffer, expectedTokenBuffer);
+}
+
 /**
  * Verify an unsubscribe token is valid for a given search ID.
  */
@@ -27,12 +44,14 @@ export function verifyUnsubscribeToken(
   token: string,
 ): boolean {
   const expectedToken = generateUnsubscribeToken(searchId);
-  // Check length first to avoid timingSafeEqual throwing on mismatched lengths
-  if (token.length !== expectedToken.length) {
-    return false;
-  }
-  // Use timing-safe comparison to prevent timing attacks
-  return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken));
+  return verifyToken(expectedToken, token);
+}
+
+export function verifyUserUnsubscribeToken(
+  userId: string,
+  token: string,
+): boolean {
+  return verifyToken(generateUserUnsubscribeToken(userId), token);
 }
 
 function buildUnsubscribeUrl(searchId: string): string {
@@ -40,32 +59,44 @@ function buildUnsubscribeUrl(searchId: string): string {
   return `${env.NEXT_PUBLIC_APP_URL}/unsubscribe?id=${searchId}&token=${token}`;
 }
 
-export interface EmailAlertData {
-  searchName: string;
-  query: string;
-  newVehicles: SearchVehicle[];
-  searchUrl: string;
-  searchId: string;
+function buildOneClickUnsubscribeUrl(searchId: string): string {
+  const token = generateUnsubscribeToken(searchId);
+  return `${env.NEXT_PUBLIC_APP_URL}/api/unsubscribe?id=${searchId}&token=${token}`;
 }
 
-export async function sendEmailAlert(
-  to: string,
-  data: EmailAlertData,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Generate unsubscribe URL for this specific search
-    const unsubscribeUrl = buildUnsubscribeUrl(data.searchId);
+function buildUserUnsubscribeUrl(userId: string): string {
+  const token = generateUserUnsubscribeToken(userId);
+  return `${env.NEXT_PUBLIC_APP_URL}/api/unsubscribe-all?id=${userId}&token=${token}`;
+}
 
-    // Create the email component once
+export interface EmailDigestRecipient {
+  userId: string;
+  email: string;
+}
+
+export async function sendEmailDigest(
+  recipient: EmailDigestRecipient,
+  digest: SearchAlertDigest,
+): Promise<NotificationDeliveryResult> {
+  try {
+    const emailAlerts = digest.previewAlerts.map((alert) => ({
+      ...alert,
+      unsubscribeUrl: buildUnsubscribeUrl(alert.searchId),
+    }));
+    const listUnsubscribeUrl =
+      digest.alertCount === 1 && emailAlerts[0]
+        ? buildOneClickUnsubscribeUrl(emailAlerts[0].searchId)
+        : buildUserUnsubscribeUrl(recipient.userId);
+
     const emailComponent = NewVehiclesAlert({
-      searchName: data.searchName,
-      query: data.query,
-      newVehicles: data.newVehicles,
-      searchUrl: data.searchUrl,
-      unsubscribeUrl,
+      digest: {
+        previewAlerts: emailAlerts,
+        alertCount: digest.alertCount,
+        vehicleCount: digest.vehicleCount,
+      },
+      manageSearchesUrl: `${env.NEXT_PUBLIC_APP_URL}/settings`,
     });
 
-    // Render HTML and plain text in parallel
     const [emailHtml, emailText] = await Promise.all([
       render(emailComponent),
       render(emailComponent, { plainText: true }),
@@ -73,29 +104,37 @@ export async function sendEmailAlert(
 
     const { error } = await resend.emails.send({
       from: `Junkyard Index <${env.RESEND_FROM_EMAIL}>`,
-      to,
-      subject: `New vehicles found: ${data.searchName}`,
+      to: recipient.email,
+      subject: `Daily saved search update: ${digest.vehicleCount} new vehicle${digest.vehicleCount === 1 ? "" : "s"}`,
       html: emailHtml,
       text: emailText,
       headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe": `<${listUnsubscribeUrl}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     });
 
     if (error) {
-      console.error("Failed to send email alert:", error);
+      console.error("Failed to send email digest:", error);
       Sentry.captureException(error, {
-        tags: { context: "email-alert", searchId: data.searchId },
+        tags: { context: "email-digest", userId: recipient.userId },
+        extra: {
+          searchIds: digest.previewAlerts.map((alert) => alert.searchId),
+          alertCount: digest.alertCount,
+        },
       });
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
-    console.error("Error sending email alert:", error);
+    console.error("Error sending email digest:", error);
     Sentry.captureException(error, {
-      tags: { context: "email-alert", searchId: data.searchId },
+      tags: { context: "email-digest", userId: recipient.userId },
+      extra: {
+        searchIds: digest.previewAlerts.map((alert) => alert.searchId),
+        alertCount: digest.alertCount,
+      },
     });
     return {
       success: false,
