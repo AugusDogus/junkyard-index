@@ -46,7 +46,7 @@ export function PricingPlansSection() {
 
   const handleCheckout = (tier: "lite" | "full", ctaLocation: string) =>
     startTierCheckout(tier, interval, {
-      source_page: "pricing_page",
+      source_page: "pricing",
       cta_location: ctaLocation,
     });
 
