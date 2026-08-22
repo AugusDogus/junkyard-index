@@ -1,10 +1,20 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { SettingsDashboard } from "~/components/settings/SettingsDashboard";
 import { Skeleton } from "~/components/ui/skeleton";
+import { auth } from "~/lib/auth";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  // Guest (anonymous) sessions are invisible in the UI; they have no
+  // settings to manage, so send them to sign-in like logged-out visitors.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user || session.user.isAnonymous) {
+    redirect("/auth/sign-in?returnTo=%2Fsettings");
+  }
+
   return (
     <div className="bg-background min-h-screen">
       <Header />

@@ -17,12 +17,7 @@ export const usageRouter = createTRPCRouter({
     const planTier = await getPlanTier(ctx.user.id);
 
     if (hasPlanFeature(planTier, "unlimited_searches")) {
-      return {
-        allowed: true,
-        tier: planTier,
-        dailyLimit: null,
-        searchesUsed: 0,
-      };
+      return { allowed: true };
     }
 
     const day = currentUtcDay();
@@ -39,11 +34,6 @@ export const usageRouter = createTRPCRouter({
     const searchesUsed = row?.count ?? 1;
     const outcome = evaluateSearchQuota(searchesUsed);
 
-    return {
-      allowed: outcome.allowed,
-      tier: planTier,
-      dailyLimit: outcome.dailyLimit,
-      searchesUsed,
-    };
+    return { allowed: outcome.allowed };
   }),
 });

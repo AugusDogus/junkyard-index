@@ -2,6 +2,7 @@ import { polarClient } from "./polar-client";
 import { env } from "~/env";
 import type { PlanTier } from "~/lib/plans";
 import {
+  hasUnrecognizedSubscriptions as hasUnrecognizedSubscriptionsImpl,
   resolvePlanTierFromCustomerState,
   type CustomerStateLike,
 } from "./plan-tier";
@@ -12,12 +13,19 @@ import { createTierCache } from "./tier-cache";
  * "Email-Notifications" subscribers are grandfathered as Full so they keep
  * the alerts they pay for.
  */
-function getCurrentPolarProductIds() {
+export function getCurrentPolarProductIds() {
   return {
     lite: [env.POLAR_LITE_PRODUCT_ID, env.POLAR_LITE_ANNUAL_PRODUCT_ID],
     full: [env.POLAR_FULL_PRODUCT_ID, env.POLAR_FULL_ANNUAL_PRODUCT_ID],
     ...(env.POLAR_PRODUCT_ID ? { legacy: env.POLAR_PRODUCT_ID } : {}),
   };
+}
+
+/** True when active subscriptions match no configured product (config problem). */
+export function hasUnrecognizedSubscriptions(
+  state: CustomerStateLike,
+): boolean {
+  return hasUnrecognizedSubscriptionsImpl(state, getCurrentPolarProductIds());
 }
 
 /** Resolves a Polar customer state to a plan tier using configured products. */
@@ -26,6 +34,13 @@ export function resolveCustomerPlanTier(state: CustomerStateLike): PlanTier {
 }
 
 const TIER_CACHE_TTL_MS = 60_000;
+
+if (!env.POLAR_PRODUCT_ID) {
+  console.warn(
+    "POLAR_PRODUCT_ID is not set: legacy Email-Notifications subscribers will NOT be grandfathered as Full. " +
+      "Keep it configured until every legacy subscription has churned.",
+  );
+}
 
 export interface PlanTierService {
   getPlanTier(userId: string): Promise<PlanTier>;

@@ -31,6 +31,28 @@ function subscriptionProductIds(state: CustomerStateLike): string[] {
 }
 
 /**
+ * True when the customer holds active subscriptions but none of their product
+ * IDs match the configured products. This indicates an env/config problem
+ * (e.g. legacy ID removed too early) rather than a genuine downgrade, so
+ * callers must not strip entitlements based on it.
+ */
+export function hasUnrecognizedSubscriptions(
+  state: CustomerStateLike,
+  productIds: PolarProductIds,
+): boolean {
+  const ids = subscriptionProductIds(state);
+  if (ids.length === 0) {
+    return false;
+  }
+  return !ids.some(
+    (id) =>
+      id === productIds.legacy ||
+      productIds.lite.includes(id) ||
+      productIds.full.includes(id),
+  );
+}
+
+/**
  * Maps a Polar customer's active subscriptions to a plan tier.
  * Full wins over Lite if a customer somehow holds both. Pure so it can be
  * unit-tested without Polar credentials.
