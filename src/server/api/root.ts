@@ -2,6 +2,7 @@ import { savedSearchesRouter } from "~/server/api/routers/savedSearches";
 import { statsRouter } from "~/server/api/routers/stats";
 import { statusRouter } from "~/server/api/routers/status";
 import { subscriptionRouter } from "~/server/api/routers/subscription";
+import { usageRouter } from "~/server/api/routers/usage";
 import { userRouter } from "~/server/api/routers/user";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
@@ -13,6 +14,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 export const appRouter = createTRPCRouter({
   savedSearches: savedSearchesRouter,
   subscription: subscriptionRouter,
+  usage: usageRouter,
   user: userRouter,
   stats: statsRouter,
   status: statusRouter,

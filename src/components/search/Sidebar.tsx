@@ -34,6 +34,7 @@ interface SidebarProps {
     min: number;
     max: number;
   };
+  canUseAdvancedFilters: boolean;
 }
 
 export function Sidebar({
@@ -55,6 +56,7 @@ export function Sidebar({
   onSourcesChange,
   onYearRangeChange,
   yearRangeLimits,
+  canUseAdvancedFilters,
 }: SidebarProps) {
   return (
     <div className="h-full">
@@ -111,6 +113,7 @@ export function Sidebar({
                 onSourcesChange={onSourcesChange}
                 onYearRangeChange={onYearRangeChange}
                 yearRangeLimits={yearRangeLimits}
+                canUseAdvancedFilters={canUseAdvancedFilters}
               />
             </CardContent>
           </Card>

@@ -1,0 +1,114 @@
+// Plan tier model. Pure module: safe to import from client and server code.
+// Polar product ID mapping lives in src/server/billing (plan-tier.ts is the
+// pure resolver; user-plan.ts binds it to configured product IDs).
+
+export type PlanTier = "free" | "lite" | "full";
+
+export type BillingInterval = "monthly" | "annual";
+
+// One slug per Polar product. Annual is a separate product because the Better
+// Auth Polar plugin resolves checkouts by slug only and cannot pass an
+// interval to an existing product.
+export const CHECKOUT_SLUGS = {
+  lite_monthly: "Lite",
+  lite_annual: "Lite-Annual",
+  full_monthly: "Full",
+  full_annual: "Full-Annual",
+} as const;
+
+export function checkoutSlugFor(
+  tier: Exclude<PlanTier, "free">,
+  interval: BillingInterval,
+): (typeof CHECKOUT_SLUGS)[keyof typeof CHECKOUT_SLUGS] {
+  return interval === "annual"
+    ? CHECKOUT_SLUGS[`${tier}_annual`]
+    : CHECKOUT_SLUGS[`${tier}_monthly`];
+}
+
+export const FREE_DAILY_SEARCH_LIMIT = 10;
+
+const TIER_RANK: Record<PlanTier, number> = {
+  free: 0,
+  lite: 1,
+  full: 2,
+};
+
+export function tierSatisfies(tier: PlanTier, required: PlanTier): boolean {
+  return TIER_RANK[tier] >= TIER_RANK[required];
+}
+
+export type PlanFeature =
+  | "advanced_filters"
+  | "saved_searches"
+  | "unlimited_searches"
+  | "alerts";
+
+const FEATURE_MIN_TIER: Record<PlanFeature, PlanTier> = {
+  advanced_filters: "lite",
+  saved_searches: "lite",
+  unlimited_searches: "lite",
+  alerts: "full",
+};
+
+export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
+  return tierSatisfies(tier, FEATURE_MIN_TIER[feature]);
+}
+
+/**
+ * First unmet gate for creating a saved search (with optional alerts), in the
+ * order the server enforces them: Lite is checked before Full so free users
+ * are always pointed at the cheapest plan that unblocks them.
+ * Returns null when nothing blocks the request.
+ */
+export function evaluateSavedSearchGate(
+  tier: PlanTier,
+  wantsAlerts: boolean,
+): Extract<PlanFeature, "saved_searches" | "alerts"> | null {
+  if (!hasPlanFeature(tier, "saved_searches")) {
+    return "saved_searches";
+  }
+  if (wantsAlerts && !hasPlanFeature(tier, "alerts")) {
+    return "alerts";
+  }
+  return null;
+}
+
+/**
+ * The cheapest paid tier that unblocks saved-search creation for this tier.
+ * The checkout-side counterpart of evaluateSavedSearchGate.
+ */
+export function savedSearchUpgradeTier(
+  tier: PlanTier,
+): Exclude<PlanTier, "free"> {
+  return hasPlanFeature(tier, "saved_searches") ? "full" : "lite";
+}
+
+interface PlanDefinition {
+  name: string;
+  monthlyPrice: number;
+  annualPrice: number;
+}
+
+export const PLANS: Record<PlanTier, PlanDefinition> = {
+  free: { name: "Free", monthlyPrice: 0, annualPrice: 0 },
+  lite: { name: "Lite", monthlyPrice: 3, annualPrice: 30 },
+  full: { name: "Full", monthlyPrice: 7, annualPrice: 60 },
+};
+
+export function planPrice(
+  tier: Exclude<PlanTier, "free">,
+  interval: BillingInterval,
+): number {
+  return interval === "annual"
+    ? PLANS[tier].annualPrice
+    : PLANS[tier].monthlyPrice;
+}
+
+export function formatMonthlyEquivalent(
+  tier: Exclude<PlanTier, "free">,
+): string {
+  const perMonth = PLANS[tier].annualPrice / 12;
+  return Number.isInteger(perMonth)
+    ? `$${perMonth}`
+    : `$${perMonth.toFixed(2)}`;
+}

@@ -49,7 +49,10 @@ export default async function SearchPage() {
           <ErrorBoundary>
             <Suspense>
               <SearchPageContent
-                isLoggedIn={!!session?.user}
+                // Anonymous guest sessions are invisible in the UI; guests
+                // still count toward the free daily search limit.
+                isLoggedIn={!!session?.user && !session.user.isAnonymous}
+                isAnonymousUser={session?.user?.isAnonymous === true}
                 userLocation={geo}
               />
             </Suspense>

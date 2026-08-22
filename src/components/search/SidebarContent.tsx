@@ -1,5 +1,7 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Lock } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
   Collapsible,
@@ -46,6 +48,27 @@ interface SidebarContentProps {
     min: number;
     max: number;
   };
+  canUseAdvancedFilters: boolean;
+}
+
+function AdvancedFiltersUpsell() {
+  return (
+    <div className="space-y-4">
+      <div className="bg-muted/50 rounded-lg border border-dashed p-4 text-center">
+        <Lock className="text-muted-foreground mx-auto mb-2 h-6 w-6" />
+        <p className="text-foreground text-sm font-medium">
+          Filters are a Lite feature
+        </p>
+        <p className="text-muted-foreground mt-1 text-xs text-pretty">
+          Upgrade to Lite ($3/mo) to filter by yard, make, year, color, state,
+          and lot.
+        </p>
+        <Button asChild size="sm" className="mt-3 w-full">
+          <Link href="/pricing">Compare Plans</Link>
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function SidebarContent({
@@ -63,7 +86,12 @@ export function SidebarContent({
   onSourcesChange,
   onYearRangeChange,
   yearRangeLimits,
+  canUseAdvancedFilters,
 }: SidebarContentProps) {
+  if (!canUseAdvancedFilters) {
+    return <AdvancedFiltersUpsell />;
+  }
+
   const availableSources: DataSource[] = [
     "pyp",
     "pullapart",

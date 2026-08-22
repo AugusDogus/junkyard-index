@@ -23,6 +23,13 @@ export async function Header() {
   ]);
 
   return (
-    <HeaderContent user={session?.user ?? null} statusData={statusData} />
+    <HeaderContent
+      // Anonymous guest sessions (Better Auth anonymous plugin) are invisible
+      // in the UI; guests still count toward the free daily search limit.
+      user={
+        session?.user && !session.user.isAnonymous ? session.user : null
+      }
+      statusData={statusData}
+    />
   );
 }

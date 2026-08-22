@@ -24,7 +24,17 @@ export const env = createEnv({
     TURSO_AUTH_TOKEN: z.string(),
     BETTER_AUTH_SECRET: z.string().min(32),
     POLAR_ACCESS_TOKEN: z.string(),
-    POLAR_PRODUCT_ID: z.string().uuid(),
+    // Legacy single-product ID ("Email-Notifications"). Existing subscribers
+    // are grandfathered as the Full tier so they keep the alerts they pay for.
+    // Safe to remove once all legacy subscriptions have migrated.
+    POLAR_PRODUCT_ID: z.string().uuid().optional(),
+    // Monthly and annual SKUs for each paid tier. Annual lives on a separate
+    // product because the Better Auth Polar plugin selects products by slug
+    // only and cannot pass an interval.
+    POLAR_LITE_PRODUCT_ID: z.string().uuid(),
+    POLAR_LITE_ANNUAL_PRODUCT_ID: z.string().uuid(),
+    POLAR_FULL_PRODUCT_ID: z.string().uuid(),
+    POLAR_FULL_ANNUAL_PRODUCT_ID: z.string().uuid(),
     POLAR_WEBHOOK_SECRET: z.string(),
     DISCORD_CLIENT_SECRET: z.string(),
     DISCORD_BOT_TOKEN: z.string(),
@@ -74,6 +84,10 @@ export const env = createEnv({
     NEXT_PUBLIC_DISCORD_CLIENT_ID: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
     POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
     POLAR_PRODUCT_ID: process.env.POLAR_PRODUCT_ID,
+    POLAR_LITE_PRODUCT_ID: process.env.POLAR_LITE_PRODUCT_ID,
+    POLAR_LITE_ANNUAL_PRODUCT_ID: process.env.POLAR_LITE_ANNUAL_PRODUCT_ID,
+    POLAR_FULL_PRODUCT_ID: process.env.POLAR_FULL_PRODUCT_ID,
+    POLAR_FULL_ANNUAL_PRODUCT_ID: process.env.POLAR_FULL_ANNUAL_PRODUCT_ID,
     POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
     DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,

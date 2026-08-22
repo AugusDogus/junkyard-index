@@ -71,7 +71,8 @@ import {
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { SEARCH_CONFIG } from "~/lib/constants";
+import { PLANS } from "~/lib/plans";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -84,6 +85,12 @@ import { getSearchCapabilityPollInterval } from "~/lib/search-capability-polling
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
+import {
+  FreeQuotaOverlay,
+  useAdvancedFilterGate,
+  useDailySearchQuota,
+  usePlanTier,
+} from "~/components/search/use-plan-gates";
 import { api } from "~/trpc/react";
 
 function clampRouteYear(
@@ -99,13 +106,14 @@ function clampRouteYear(
 
 interface SearchPageContentProps {
   isLoggedIn?: boolean;
+  /** Visitor has a Better Auth anonymous (guest) session already. */
+  isAnonymousUser?: boolean;
   userLocation?: { lat: number; lng: number };
 }
 
 interface AlgoliaSearchInnerProps extends SearchPageContentProps {
   vinPatternIndexReady: boolean;
 }
-
 function hasValidCoordinates(
   value: SearchPageContentProps["userLocation"],
 ): value is { lat: number; lng: number } {
@@ -292,6 +300,7 @@ function DistancePreferenceDialog({
  */
 function AlgoliaSearchInner({
   isLoggedIn,
+  isAnonymousUser = false,
   userLocation: _userLocation,
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
@@ -342,6 +351,9 @@ function AlgoliaSearchInner({
   // Prefetch saved searches
   api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
 
+  const { planTier, canUseAdvancedFilters, isResolved } =
+    usePlanTier(!!isLoggedIn);
+
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
   const [searchValueParam, setSearchValueParam] = useQueryState(
@@ -383,7 +395,7 @@ function AlgoliaSearchInner({
         source: "checkout_redirect",
       });
       toast.success(
-        "Subscription activated! Email alerts are now enabled for your saved searches.",
+        "Subscription activated! Manage your plan anytime from Settings.",
       );
       if (subscriptionParam) void setSubscriptionParam(null);
       if (customerSessionToken) void setCustomerSessionToken(null);
@@ -475,6 +487,17 @@ function AlgoliaSearchInner({
     [currentSortIndex],
   );
   const SortIcon = getSortIcon(sortBy);
+
+  // Free-tier users cannot apply advanced filters; strip any that arrive
+  // via URL routing before they reach Algolia.
+  useAdvancedFilterGate({
+    canUseAdvancedFilters,
+    isLoggedIn: !!isLoggedIn,
+    isTierResolved: isResolved,
+    indexUiState,
+    setIndexUiState,
+  });
+
   const locationPreferenceReady =
     hasLoadedLocalLocationPreference && !isAccountLocationPreferenceLoading;
 
@@ -748,9 +771,18 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
+  const quotaExceeded = useDailySearchQuota({
+    isLoggedIn: !!isLoggedIn,
+    isAnonymousUser: !!isAnonymousUser,
+    planTier,
+    analyticsSearchValue,
+    isSearching,
+    hasError: !!error,
+  });
+
   const anonymousVisibleLimit = isMobile
     ? 4
-    : MONETIZATION_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
+    : SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
   const anonymousClearRows = isMobile ? 3 : 1;
 
   const isAnonymousCapped =
@@ -802,10 +834,10 @@ function AlgoliaSearchInner({
           Create a free account to unlock full search results.
         </h3>
         <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
-          You can keep searching for free, save up to{" "}
-          {MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} searches, and upgrade to
-          Alerts Plan for ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo
-          when you want email or Discord alerts for new matches.
+          You can keep searching for free, upgrade to Lite for $
+          {PLANS.lite.monthlyPrice}/mo to unlock filters and saved searches, or
+          go Full for ${PLANS.full.monthlyPrice}/mo to get email and Discord
+          alerts when new matches arrive.
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <Button asChild>
@@ -844,6 +876,8 @@ function AlgoliaSearchInner({
       </div>
     );
   }, [isAnonymousCapped, analyticsSearchValue, searchResult, signUpHref]);
+
+  const showFreeQuotaBlock = quotaExceeded && hasActiveSearch && !isSearching;
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -1157,6 +1191,7 @@ function AlgoliaSearchInner({
       onSourcesChange={handleSourcesChange}
       onYearRangeChange={handleYearRangeChange}
       yearRangeLimits={{ min: yearMin, max: yearMax }}
+      canUseAdvancedFilters={canUseAdvancedFilters}
       iconOnly={hasActiveSearch}
     />
   );
@@ -1239,6 +1274,7 @@ function AlgoliaSearchInner({
               onSourcesChange={handleSourcesChange}
               onYearRangeChange={handleYearRangeChange}
               yearRangeLimits={{ min: yearMin, max: yearMax }}
+              canUseAdvancedFilters={canUseAdvancedFilters}
             />
           </div>
         )}
@@ -1371,8 +1407,13 @@ function AlgoliaSearchInner({
             </div>
           )}
 
+          {/* Free-tier quota block */}
+          {showFreeQuotaBlock && (
+            <FreeQuotaOverlay query={analyticsSearchValue} />
+          )}
+
           {/* Search Results */}
-          {(searchResult ?? isSearching) && !error && (
+          {(searchResult ?? isSearching) && !error && !showFreeQuotaBlock && (
             <SearchResults
               searchResult={
                 searchResult ?? {
@@ -1502,7 +1543,7 @@ function AlgoliaSearchInner({
         </div>
       </div>
 
-      {searchResult && (
+      {searchResult && !showFreeQuotaBlock && (
         <SearchSummary
           searchResult={searchResult}
           visibleCount={isAnonymousCapped ? anonymousVisibleLimit : undefined}
@@ -1519,6 +1560,7 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
  */
 export function SearchPageContent({
   isLoggedIn,
+  isAnonymousUser,
   userLocation,
 }: SearchPageContentProps) {
   const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
@@ -1553,6 +1595,7 @@ export function SearchPageContent({
       <ErrorBoundary>
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
+          isAnonymousUser={isAnonymousUser}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
         />
