@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, useSession } from "~/lib/auth-client";
+import { currentUtcDay } from "~/server/billing/search-quota";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
@@ -68,15 +69,16 @@ interface DailySearchQuotaArgs {
   hasError: boolean;
 }
 
-/** Last quota-recorded query for this tab, persisted across remounts. */
+/** Last quota-recorded query, its outcome, and the UTC day it counts toward. */
 interface QuotaDedupeRecord {
   query: string;
   exceeded: boolean;
+  day: string;
 }
 
-const QUOTA_DEDUPE_KEY = "ji:lastQuotaRecordedQuery";
+const QUOTA_DEDUPE_KEY = "ji:quotaDedupe";
 
-function readQuotaDedupe(): QuotaDedupeRecord | null {
+function readQuotaDedupe(today: string): QuotaDedupeRecord | null {
   try {
     const raw = window.sessionStorage.getItem(QUOTA_DEDUPE_KEY);
     if (raw === null) {
@@ -88,10 +90,17 @@ function readQuotaDedupe(): QuotaDedupeRecord | null {
       parsed !== null &&
       "query" in parsed &&
       "exceeded" in parsed &&
+      "day" in parsed &&
       typeof parsed.query === "string" &&
-      typeof parsed.exceeded === "boolean"
+      typeof parsed.exceeded === "boolean" &&
+      typeof parsed.day === "string"
     ) {
-      return { query: parsed.query, exceeded: parsed.exceeded };
+      // Records from a previous UTC day are stale: the server-side quota
+      // resets at midnight UTC, so a restored block would contradict it.
+      if (parsed.day !== today) {
+        return null;
+      }
+      return { query: parsed.query, exceeded: parsed.exceeded, day: parsed.day };
     }
     return null;
   } catch {
@@ -143,6 +152,7 @@ export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
           writeQuotaDedupe({
             query: lastQuotaQuery.current ?? "",
             exceeded: !result.allowed,
+            day: currentUtcDay(),
           });
         },
       });
@@ -167,7 +177,7 @@ export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
     // neither re-counts the URL-restored query nor clears an active quota
     // block from before the refresh.
     if (lastQuotaQuery.current === null) {
-      const stored = readQuotaDedupe();
+      const stored = readQuotaDedupe(currentUtcDay());
       lastQuotaQuery.current = stored?.query ?? "";
       if (stored?.exceeded) {
         setQuotaExceeded(true);
