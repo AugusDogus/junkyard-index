@@ -10,6 +10,7 @@ const {
   generateUserUnsubscribeToken,
   verifyUnsubscribeToken,
   verifyUserUnsubscribeToken,
+  sanitizeEmailSubject,
 } = await import("./email");
 
 describe("unsubscribe tokens", () => {
@@ -40,5 +41,23 @@ describe("unsubscribe tokens", () => {
       verifyUserUnsubscribeToken("user-1", malformedToken),
     ).not.toThrow();
     expect(verifyUserUnsubscribeToken("user-1", malformedToken)).toBe(false);
+  });
+});
+
+describe("sanitizeEmailSubject", () => {
+  test("collapses CR/LF injection attempts to spaces", () => {
+    expect(sanitizeEmailSubject("Yard\r\nBcc: hax@evil.com")).toBe(
+      "Yard Bcc: hax@evil.com",
+    );
+  });
+
+  test("strips tabs, form feeds, and vertical tabs", () => {
+    expect(sanitizeEmailSubject("a\tb\fc\vd")).toBe("a b c d");
+  });
+
+  test("leaves clean subjects untouched", () => {
+    expect(sanitizeEmailSubject("Yard Request: Ace Auto")).toBe(
+      "Yard Request: Ace Auto",
+    );
   });
 });

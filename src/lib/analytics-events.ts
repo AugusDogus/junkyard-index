@@ -26,6 +26,10 @@ export const AnalyticsEvents = {
   FILTERS_CLEARED: "filters_cleared",
   SORT_CHANGED: "sort_changed",
 
+  // Yard Requests
+  REQUEST_YARD_CLICKED: "request_yard_clicked",
+  YARD_REQUEST_SUBMITTED: "yard_request_submitted",
+
   // Results
   VEHICLE_DETAILS_CLICKED: "vehicle_details_clicked",
 

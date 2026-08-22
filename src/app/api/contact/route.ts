@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { z } from "zod";
+import { escapeHtml } from "~/lib/html";
+import { sanitizeEmailSubject } from "~/lib/email";
 import { env } from "~/env";
 
 const resend = new Resend(env.RESEND_API_KEY);
@@ -32,7 +34,7 @@ export async function POST(request: Request) {
       from: `Junkyard Index Contact <${env.RESEND_FROM_EMAIL}>`,
       to: env.CONTACT_EMAIL,
       replyTo: email,
-      subject: `Contact Form: ${name}`,
+      subject: `Contact Form: ${sanitizeEmailSubject(name)}`,
       text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
       html: `
         <h2>New Contact Form Submission</h2>
@@ -60,13 +62,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }

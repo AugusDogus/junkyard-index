@@ -11,6 +11,7 @@ import {
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
 import { PLANS } from "~/lib/plans";
+import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 import type { DataSource } from "~/lib/types";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
@@ -255,6 +256,13 @@ export function SidebarContent({
             searchThreshold={6}
             maxHeight={240}
           />
+          <Link
+            href="/request-yard"
+            className="text-muted-foreground hover:text-foreground px-3 text-xs underline-offset-2 hover:underline"
+            onClick={() => trackRequestYardClick({ location: "lot_filter" })}
+          >
+            + Request a missing yard
+          </Link>
         </CollapsibleContent>
       </Collapsible>
 

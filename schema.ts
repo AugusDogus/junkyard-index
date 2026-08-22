@@ -227,11 +227,37 @@ export const searchUsage = sqliteTable(
   (table) => [primaryKey({ columns: [table.userId, table.day] })],
 );
 
+// Yard requests submitted by visitors asking us to add a salvage yard
+export const yardRequest = sqliteTable(
+  "yard_request",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    yardName: text("yard_name").notNull(),
+    website: text("website"),
+    requesterEmail: text("requester_email"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [index("yard_request_userId_idx").on(table.userId)],
+);
+
+export const yardRequestRelations = relations(yardRequest, ({ one }) => ({
+  user: one(user, {
+    fields: [yardRequest.userId],
+    references: [user.id],
+  }),
+}));
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   savedSearches: many(savedSearch),
   searchUsage: many(searchUsage),
+  yardRequests: many(yardRequest),
 }));
 
 export const searchUsageRelations = relations(searchUsage, ({ one }) => ({
