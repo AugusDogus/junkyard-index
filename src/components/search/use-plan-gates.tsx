@@ -14,6 +14,7 @@ import {
   type PlanFeature,
   type PlanTier,
 } from "~/lib/plans";
+import { isGuestSession } from "~/lib/session-user";
 import { api } from "~/trpc/react";
 
 interface InstantSearchUiState {
@@ -83,7 +84,7 @@ export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
   // Derived from the live session (not component state) so the flag survives
   // InstantSearch remounts. Better Auth rejects a second anonymous sign-in.
   const hasGuestSession =
-    args.isAnonymousUser || authSession?.user?.isAnonymous === true;
+    args.isAnonymousUser || isGuestSession(authSession?.user);
 
   // A mid-session upgrade lifts the quota block immediately.
   useEffect(() => {

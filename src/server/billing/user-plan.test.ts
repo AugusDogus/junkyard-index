@@ -2,7 +2,10 @@ import { describe, expect, mock, test } from "bun:test";
 import type { CustomerStateLike } from "~/server/billing/plan-tier";
 
 // Mock the Polar SDK client before importing user-plan so cache behavior is
-// observable without network access.
+// observable without network access. NOTE: bun's mock.module mutates the
+// shared module registry for this whole test process; if another test file
+// ever needs the real polar-client, move these tests to a separate bunfig
+// project or restore via a dedicated entrypoint.
 let nextResult:
   | { ok: true; state: CustomerStateLike }
   | { ok: false; error: unknown } = {
@@ -25,9 +28,8 @@ mock.module("~/server/billing/polar-client", () => ({
   },
 }));
 
-const { getPlanTier, invalidatePlanTierCache } = await import(
-  "~/server/billing/user-plan"
-);
+const { getPlanTier, invalidatePlanTierCache } =
+  await import("~/server/billing/user-plan");
 const { createTierCache } = await import("~/server/billing/tier-cache");
 
 // From tests/setup-env.ts: POLAR_LITE_PRODUCT_ID = ...0002, FULL = ...0004
