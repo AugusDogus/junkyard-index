@@ -1,6 +1,7 @@
 import type { IndexSettings } from "algoliasearch";
 import {
   ALGOLIA_INDEX_NAME,
+  ALGOLIA_PAGINATION_LIMIT,
   ALGOLIA_REPLICA_INDEX_NAMES,
   type AlgoliaSearchIndexName,
 } from "~/lib/constants";
@@ -35,7 +36,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   minWordSizefor1Typo: 3,
   minWordSizefor2Typos: 7,
   hitsPerPage: 1000,
-  paginationLimitedTo: 10000,
+  paginationLimitedTo: ALGOLIA_PAGINATION_LIMIT,
   unretrievableAttributes: ["firstSeenAt", "vinPositionTokens"],
 } satisfies IndexSettings;
 
