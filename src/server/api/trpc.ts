@@ -14,6 +14,21 @@ import { auth } from "~/lib/auth";
 import { db } from "~/lib/db";
 
 /**
+ * FORBIDDEN due to an unmet plan-feature gate. Carries the blocking feature
+ * through the errorFormatter so clients can route to the right upgrade
+ * without parsing error messages.
+ */
+export class PlanGateError extends TRPCError {
+  constructor(
+    readonly feature: "saved_searches" | "alerts",
+    message: string,
+  ) {
+    super({ code: "FORBIDDEN", message });
+    this.name = "PlanGateError";
+  }
+}
+
+/**
  * 1. CONTEXT
  *
  * This section defines the "contexts" that are available in the backend API.
@@ -64,6 +79,9 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       ...shape,
       data: {
         ...shape.data,
+        ...(error instanceof PlanGateError
+          ? { planGateFeature: error.feature }
+          : {}),
         zodError:
           error.cause instanceof ZodError ? error.cause.flatten() : null,
       },

@@ -1409,7 +1409,10 @@ function AlgoliaSearchInner({
 
           {/* Free-tier quota block */}
           {showFreeQuotaBlock && (
-            <FreeQuotaOverlay query={analyticsSearchValue} />
+            <FreeQuotaOverlay
+              query={analyticsSearchValue}
+              isGuest={!isLoggedIn && !!isAnonymousUser}
+            />
           )}
 
           {/* Search Results */}
