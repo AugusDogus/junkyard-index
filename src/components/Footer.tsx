@@ -1,66 +1,23 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import { FooterLinks } from "~/components/FooterLinks";
+import { StatusChip } from "~/components/StatusChip";
 import { env } from "~/env";
 
 export function Footer() {
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
 
   return (
-    <footer className="border-t px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-6">
-        <div className="flex flex-col items-center gap-1">
-          <p className="font-semibold">Junkyard Index</p>
-          <p className="text-muted-foreground text-sm">
-            Search salvage yard inventory across the nation.
-          </p>
-        </div>
-        <div className="text-muted-foreground flex flex-wrap justify-center gap-6 text-sm">
-          <Link href="/" className="hover:text-foreground transition-colors">
-            Home
-          </Link>
-          <Link
-            href="/search"
-            className="hover:text-foreground transition-colors"
-          >
-            Search
-          </Link>
-          <Link
-            href="/pricing"
-            className="hover:text-foreground transition-colors"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/privacy"
-            className="hover:text-foreground transition-colors"
-          >
-            Privacy Policy
-          </Link>
-          <Link
-            href="/terms"
-            className="hover:text-foreground transition-colors"
-          >
-            Terms of Service
-          </Link>
-          <Link
-            href="/contact"
-            className="hover:text-foreground transition-colors"
-          >
-            Contact
-          </Link>
-          {statusPageUrl && (
-            <a
-              href={statusPageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              System Status
-            </a>
-          )}
-        </div>
-        <p className="text-muted-foreground text-xs">
-          &copy; {new Date().getFullYear()} whisp labs LLC. All rights reserved.
+    <footer className="border-t px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+        <p className="text-sm font-semibold whitespace-nowrap">
+          Junkyard Index
         </p>
+        <FooterLinks />
+        {statusPageUrl && (
+          <Suspense fallback={null}>
+            <StatusChip statusPageUrl={statusPageUrl} />
+          </Suspense>
+        )}
       </div>
     </footer>
   );

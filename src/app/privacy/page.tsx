@@ -1,7 +1,6 @@
 import { type Metadata } from "next";
 import Link from "next/link";
-import { Footer } from "~/components/Footer";
-import { Header } from "~/components/Header";
+import { PageShell } from "~/components/PageShell";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -11,258 +10,250 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="bg-background min-h-screen">
-      <Header />
+    <PageShell width="wide">
+      <h1 className="mb-8 text-4xl font-bold tracking-tight">Privacy Policy</h1>
 
-      {/* Content */}
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="mb-8 text-4xl font-bold tracking-tight">
-          Privacy Policy
-        </h1>
+      <p className="text-muted-foreground mb-8">
+        Last updated: August 24, 2026
+      </p>
 
-        <p className="text-muted-foreground mb-8">
-          Last updated: August 24, 2026
-        </p>
+      <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Overview</h2>
+          <p className="text-muted-foreground">
+            Junkyard Index is operated by whisp labs LLC (&ldquo;we,&rdquo;
+            &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to
+            protecting your privacy. This Privacy Policy explains how we
+            collect, use, disclose, and safeguard your information when you use
+            our website and services.
+          </p>
+        </section>
 
-        <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Overview</h2>
-            <p className="text-muted-foreground">
-              Junkyard Index is operated by whisp labs LLC (&ldquo;we,&rdquo;
-              &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to
-              protecting your privacy. This Privacy Policy explains how we
-              collect, use, disclose, and safeguard your information when you
-              use our website and services.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">
+            Information We Collect
+          </h2>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              Information We Collect
-            </h2>
+          <h3 className="mt-4 mb-2 text-lg font-medium">Account Information</h3>
+          <p className="text-muted-foreground">
+            When you create an account, we collect:
+          </p>
+          <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
+            <li>Email address</li>
+            <li>Name</li>
+            <li>Profile picture (if you sign in with a social provider)</li>
+            <li>The date and version of the Terms of Service you accepted</li>
+          </ul>
 
-            <h3 className="mt-4 mb-2 text-lg font-medium">
-              Account Information
-            </h3>
-            <p className="text-muted-foreground">
-              When you create an account, we collect:
-            </p>
-            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
-              <li>Email address</li>
-              <li>Name</li>
-              <li>Profile picture (if you sign in with a social provider)</li>
-              <li>The date and version of the Terms of Service you accepted</li>
-            </ul>
+          <h3 className="mt-4 mb-2 text-lg font-medium">
+            Social Login (Discord)
+          </h3>
+          <p className="text-muted-foreground">
+            If you choose to sign in with Discord, we receive the following
+            information from your Discord account:
+          </p>
+          <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
+            <li>Your Discord user ID</li>
+            <li>Email address associated with your Discord account</li>
+            <li>Username and display name</li>
+            <li>Profile picture (avatar)</li>
+          </ul>
+          <p className="text-muted-foreground mt-2">
+            We do not gain access to your Discord servers, messages, or friends
+            list. We cannot post to Discord on your behalf or perform any
+            actions on your Discord account.
+          </p>
 
-            <h3 className="mt-4 mb-2 text-lg font-medium">
-              Social Login (Discord)
-            </h3>
-            <p className="text-muted-foreground">
-              If you choose to sign in with Discord, we receive the following
-              information from your Discord account:
-            </p>
-            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
-              <li>Your Discord user ID</li>
-              <li>Email address associated with your Discord account</li>
-              <li>Username and display name</li>
-              <li>Profile picture (avatar)</li>
-            </ul>
-            <p className="text-muted-foreground mt-2">
-              We do not gain access to your Discord servers, messages, or
-              friends list. We cannot post to Discord on your behalf or perform
-              any actions on your Discord account.
-            </p>
+          <h3 className="mt-4 mb-2 text-lg font-medium">Usage Information</h3>
+          <p className="text-muted-foreground">
+            We automatically collect certain information when you use our
+            service:
+          </p>
+          <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
+            <li>Search queries and saved searches</li>
+            <li>Alert settings and subscription status</li>
+            <li>
+              ZIP code or device-derived approximate location when you use
+              location features
+            </li>
+            <li>IP address, request information, and approximate location</li>
+            <li>Device and browser information</li>
+            <li>Pages visited and actions taken</li>
+            <li>Error, performance, and sampled session-replay information</li>
+          </ul>
 
-            <h3 className="mt-4 mb-2 text-lg font-medium">Usage Information</h3>
-            <p className="text-muted-foreground">
-              We automatically collect certain information when you use our
-              service:
-            </p>
-            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
-              <li>Search queries and saved searches</li>
-              <li>Alert settings and subscription status</li>
-              <li>
-                ZIP code or device-derived approximate location when you use
-                location features
-              </li>
-              <li>IP address, request information, and approximate location</li>
-              <li>Device and browser information</li>
-              <li>Pages visited and actions taken</li>
-              <li>
-                Error, performance, and sampled session-replay information
-              </li>
-            </ul>
+          <h3 className="mt-4 mb-2 text-lg font-medium">Contact Information</h3>
+          <p className="text-muted-foreground">
+            If you contact us, we collect your name, email address, message, and
+            any other information you choose to include.
+          </p>
 
-            <h3 className="mt-4 mb-2 text-lg font-medium">
-              Contact Information
-            </h3>
-            <p className="text-muted-foreground">
-              If you contact us, we collect your name, email address, message,
-              and any other information you choose to include.
-            </p>
-          </section>
+          <h3 className="mt-4 mb-2 text-lg font-medium">Yard Requests</h3>
+          <p className="text-muted-foreground">
+            If you submit a yard request, we collect the yard name you provide,
+            plus an optional website address and follow-up email. We also
+            process your IP address to rate-limit submissions and prevent abuse
+            of this form. Requests are retained while we evaluate adding the
+            suggested yard; follow-up emails are used only to contact you about
+            your request if you provided one.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              How We Use Your Information
-            </h2>
-            <p className="text-muted-foreground">
-              We use the information we collect to:
-            </p>
-            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
-              <li>Provide and maintain our service</li>
-              <li>
-                Send email alerts when new vehicles match your saved searches
-              </li>
-              <li>
-                Calculate distances to salvage yards based on your location
-              </li>
-              <li>Improve our service and user experience</li>
-              <li>Measure use, diagnose errors, and protect the Service</li>
-              <li>Manage subscriptions and record acceptance of our Terms</li>
-              <li>Respond to your inquiries and support requests</li>
-              <li>Detect and prevent fraud or abuse</li>
-            </ul>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">
+            How We Use Your Information
+          </h2>
+          <p className="text-muted-foreground">
+            We use the information we collect to:
+          </p>
+          <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
+            <li>Provide and maintain our service</li>
+            <li>
+              Send email alerts when new vehicles match your saved searches
+            </li>
+            <li>Calculate distances to salvage yards based on your location</li>
+            <li>Improve our service and user experience</li>
+            <li>Measure use, diagnose errors, and protect the Service</li>
+            <li>Manage subscriptions and record acceptance of our Terms</li>
+            <li>Respond to your inquiries and support requests</li>
+            <li>Detect and prevent fraud or abuse</li>
+          </ul>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              Third-Party Services
-            </h2>
-            <p className="text-muted-foreground">
-              We use the following third-party services to operate Junkyard
-              Index:
-            </p>
-            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
-              <li>
-                <strong>Discord</strong> - Social login authentication (if you
-                choose to sign in with Discord)
-              </li>
-              <li>
-                <strong>Polar</strong> - Payment processing and subscription
-                management
-              </li>
-              <li>
-                <strong>Vercel</strong> - Website hosting and analytics
-              </li>
-              <li>
-                <strong>Turso</strong> - Database hosting
-              </li>
-              <li>
-                <strong>Algolia</strong> - Search indexing and search results
-              </li>
-              <li>
-                <strong>Resend</strong> - Email delivery for alerts and
-                notifications
-              </li>
-              <li>
-                <strong>PostHog</strong> - Product analytics and usage
-                measurement
-              </li>
-              <li>
-                <strong>Sentry</strong> - Error tracking and performance
-                monitoring, including sampled session replay
-              </li>
-              <li>
-                <strong>Zippopotam.us</strong> - ZIP-code lookup when you save a
-                ZIP-based location preference
-              </li>
-            </ul>
-            <p className="text-muted-foreground mt-4">
-              Each of these services has their own privacy policy governing
-              their use of your data.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Third-Party Services</h2>
+          <p className="text-muted-foreground">
+            We use the following third-party services to operate Junkyard Index:
+          </p>
+          <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
+            <li>
+              <strong>Discord</strong> - Social login authentication (if you
+              choose to sign in with Discord)
+            </li>
+            <li>
+              <strong>Polar</strong> - Payment processing and subscription
+              management
+            </li>
+            <li>
+              <strong>Vercel</strong> - Website hosting and analytics
+            </li>
+            <li>
+              <strong>Turso</strong> - Database hosting
+            </li>
+            <li>
+              <strong>Upstash</strong> - Rate limiting
+            </li>
+            <li>
+              <strong>Algolia</strong> - Search indexing and search results
+            </li>
+            <li>
+              <strong>Resend</strong> - Email delivery for alerts and
+              notifications
+            </li>
+            <li>
+              <strong>PostHog</strong> - Product analytics and usage measurement
+            </li>
+            <li>
+              <strong>Sentry</strong> - Error tracking and performance
+              monitoring, including sampled session replay
+            </li>
+            <li>
+              <strong>Zippopotam.us</strong> - ZIP-code lookup when you save a
+              ZIP-based location preference
+            </li>
+          </ul>
+          <p className="text-muted-foreground mt-4">
+            Each of these services has their own privacy policy governing their
+            use of your data.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Data Retention</h2>
-            <p className="text-muted-foreground">
-              We retain your account information and saved searches for as long
-              as your account is active. When account deletion completes, we
-              delete active application account data, including saved searches
-              and alert settings. Polar and other providers may retain billing,
-              transaction, security, support, backup, or legal-compliance
-              records under their own policies or as required by law.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Data Retention</h2>
+          <p className="text-muted-foreground">
+            We retain your account information and saved searches for as long as
+            your account is active. When account deletion completes, we delete
+            active application account data, including saved searches and alert
+            settings. Polar and other providers may retain billing, transaction,
+            security, support, backup, or legal-compliance records under their
+            own policies or as required by law.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Your Rights</h2>
-            <p className="text-muted-foreground">
-              Depending on where you live, you may have the right to:
-            </p>
-            <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
-              <li>Access the personal information we hold about you</li>
-              <li>Request correction of inaccurate information</li>
-              <li>Delete your account and associated data</li>
-              <li>Unsubscribe from email alerts at any time</li>
-            </ul>
-            <p className="text-muted-foreground mt-4">
-              You can delete your account from Settings in the application. To
-              unsubscribe from email alerts, click the unsubscribe link in any
-              alert email or disable alerts for individual saved searches.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Your Rights</h2>
+          <p className="text-muted-foreground">
+            Depending on where you live, you may have the right to:
+          </p>
+          <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
+            <li>Access the personal information we hold about you</li>
+            <li>Request correction of inaccurate information</li>
+            <li>Delete your account and associated data</li>
+            <li>Unsubscribe from email alerts at any time</li>
+          </ul>
+          <p className="text-muted-foreground mt-4">
+            You can delete your account from Settings in the application. To
+            unsubscribe from email alerts, click the unsubscribe link in any
+            alert email or disable alerts for individual saved searches.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Cookies</h2>
-            <p className="text-muted-foreground">
-              We use cookies and similar technologies, such as local storage, to
-              maintain sessions and preferences, measure usage through Vercel
-              Analytics and PostHog, and support Sentry error monitoring and
-              sampled session replay. Your browser can limit these technologies,
-              but doing so may prevent account or preference features from
-              working correctly.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Cookies</h2>
+          <p className="text-muted-foreground">
+            We use cookies and similar technologies, such as local storage, to
+            maintain sessions and preferences, measure usage through Vercel
+            Analytics and PostHog, and support Sentry error monitoring and
+            sampled session replay. Your browser can limit these technologies,
+            but doing so may prevent account or preference features from working
+            correctly.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Security</h2>
-            <p className="text-muted-foreground">
-              We use reasonable technical and organizational safeguards designed
-              to protect personal information, including HTTPS for data sent
-              between your browser and the Service. No storage or transmission
-              system is completely secure, so we cannot guarantee absolute
-              security.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Security</h2>
+          <p className="text-muted-foreground">
+            We use reasonable technical and organizational safeguards designed
+            to protect personal information, including HTTPS for data sent
+            between your browser and the Service. No storage or transmission
+            system is completely secure, so we cannot guarantee absolute
+            security.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Children</h2>
-            <p className="text-muted-foreground">
-              The Service is not directed to children under 13, and we do not
-              knowingly collect personal information from children under 13. If
-              you believe a child has provided personal information, contact us
-              so we can review and delete it.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Children</h2>
+          <p className="text-muted-foreground">
+            The Service is not directed to children under 13, and we do not
+            knowingly collect personal information from children under 13. If
+            you believe a child has provided personal information, contact us so
+            we can review and delete it.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">
-              Changes to This Policy
-            </h2>
-            <p className="text-muted-foreground">
-              We may update this Privacy Policy from time to time. We will
-              notify you of any changes by posting the new Privacy Policy on
-              this page and updating the &ldquo;Last updated&rdquo; date.
-            </p>
-          </section>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">
+            Changes to This Policy
+          </h2>
+          <p className="text-muted-foreground">
+            We may update this Privacy Policy from time to time. We will notify
+            you of any changes by posting the new Privacy Policy on this page
+            and updating the &ldquo;Last updated&rdquo; date.
+          </p>
+        </section>
 
-          <section>
-            <h2 className="mb-4 text-2xl font-semibold">Contact Us</h2>
-            <p className="text-muted-foreground">
-              If you have any questions about this Privacy Policy or our data
-              practices, please{" "}
-              <Link href="/contact" className="text-primary hover:underline">
-                contact us
-              </Link>
-              .
-            </p>
-          </section>
-        </div>
-      </main>
-
-      <Footer />
-    </div>
+        <section>
+          <h2 className="mb-4 text-2xl font-semibold">Contact Us</h2>
+          <p className="text-muted-foreground">
+            If you have any questions about this Privacy Policy or our data
+            practices, please{" "}
+            <Link href="/contact" className="text-primary hover:underline">
+              contact us
+            </Link>
+            .
+          </p>
+        </section>
+      </div>
+    </PageShell>
   );
 }

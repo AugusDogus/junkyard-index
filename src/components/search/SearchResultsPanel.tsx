@@ -18,6 +18,7 @@ import { Button } from "~/components/ui/button";
 import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { PlanAccessState } from "~/lib/plan-access";
+import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 import type { SearchResult } from "~/lib/types";
 
 type ClosedQuotaGate = Exclude<SearchQuotaGateState, { kind: "open" }>;
@@ -293,6 +294,22 @@ export function SearchResultsPanel({
               }
             >
               Get alerts
+            </Link>
+          </p>
+
+          <p className="text-muted-foreground mt-2 text-xs">
+            Missing a salvage yard?{" "}
+            <Link
+              href="/request-yard"
+              className="hover:text-foreground underline underline-offset-2"
+              onClick={() =>
+                trackRequestYardClick({
+                  location: "no_results",
+                  query: model.analyticsQuery,
+                })
+              }
+            >
+              Request it
             </Link>
           </p>
         </div>

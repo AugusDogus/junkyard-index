@@ -53,6 +53,9 @@ export const env = createEnv({
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
     VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
+    // Upstash Redis (rate limiting)
+    UPSTASH_REDIS_REST_URL: z.string().url(),
+    UPSTASH_REDIS_REST_TOKEN: z.string(),
   },
 
   /**
@@ -105,6 +108,8 @@ export const env = createEnv({
     BETTERSTACK_API_TOKEN: process.env.BETTERSTACK_API_TOKEN,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
     NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY:
       process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,

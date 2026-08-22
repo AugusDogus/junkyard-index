@@ -4,6 +4,7 @@ import { statusRouter } from "~/server/api/routers/status";
 import { subscriptionRouter } from "~/server/api/routers/subscription";
 import { usageRouter } from "~/server/api/routers/usage";
 import { userRouter } from "~/server/api/routers/user";
+import { yardRequestsRouter } from "~/server/api/routers/yardRequests";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -18,6 +19,7 @@ export const appRouter = createTRPCRouter({
   user: userRouter,
   stats: statsRouter,
   status: statusRouter,
+  yardRequests: yardRequestsRouter,
 });
 
 // export type definition of API
