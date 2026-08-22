@@ -100,7 +100,11 @@ function readQuotaDedupe(today: string): QuotaDedupeRecord | null {
       if (parsed.day !== today) {
         return null;
       }
-      return { query: parsed.query, exceeded: parsed.exceeded, day: parsed.day };
+      return {
+        query: parsed.query,
+        exceeded: parsed.exceeded,
+        day: parsed.day,
+      };
     }
     return null;
   } catch {

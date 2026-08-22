@@ -90,7 +90,7 @@ import {
   useAdvancedFilterGate,
   useDailySearchQuota,
   usePlanTier,
-} from "~/components/search/use-plan-gates";
+} from "~/components/plan-gates";
 import { api } from "~/trpc/react";
 
 function clampRouteYear(
