@@ -226,7 +226,6 @@ export function FreeQuotaOverlay({
                 cta_location: "free_quota_limit",
                 query,
                 is_logged_in: !isGuest,
-                is_guest: isGuest,
               })
             }
           >
