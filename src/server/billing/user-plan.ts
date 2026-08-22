@@ -106,7 +106,7 @@ export function invalidatePlanTierCache(userId: string): void {
 
 /**
  * Resolves the user's plan tier from Polar, cached briefly because it sits on
- * hot paths (per recorded search, client tier polling). Cache entries are
+ * hot paths (per recorded search, client tier fetches). Cache entries are
  * invalidated by subscription webhooks so upgrades land promptly. Any Polar
  * failure resolves to "free" so transient errors never grant paid features.
  */
