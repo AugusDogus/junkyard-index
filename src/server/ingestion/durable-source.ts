@@ -77,6 +77,14 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     },
     maxPagesPerChunk: 24,
   },
+  pullnsave: {
+    initialCursor: { source: "pullnsave", page: 1 },
+    maxPagesPerChunk: 10,
+  },
+  tearapart: {
+    initialCursor: { source: "tearapart", storeIndex: 0 },
+    maxPagesPerChunk: 5,
+  },
 };
 
 export function getDurableSourceDefinition<

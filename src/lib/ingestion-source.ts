@@ -6,6 +6,8 @@ export const INGESTION_SOURCES = [
   "upullitne",
   "upullitdavie",
   "gopullit",
+  "pullnsave",
+  "tearapart",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
@@ -18,6 +20,8 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   upullitne: "U Pull-It Nebraska",
   upullitdavie: "U Pull It Davie",
   gopullit: "GO Pull-It",
+  pullnsave: "Pull-N-Save",
+  tearapart: "Tear-A-Part",
 } as const satisfies Record<IngestionSource, string>;
 
 export function mapIngestionSources<Value>(
@@ -31,6 +35,8 @@ export function mapIngestionSources<Value>(
     upullitne: transform("upullitne"),
     upullitdavie: transform("upullitdavie"),
     gopullit: transform("gopullit"),
+    pullnsave: transform("pullnsave"),
+    tearapart: transform("tearapart"),
   };
 }
 
