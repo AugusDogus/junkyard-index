@@ -26,38 +26,75 @@ export function resolveCustomerPlanTier(state: CustomerStateLike): PlanTier {
 }
 
 const TIER_CACHE_TTL_MS = 60_000;
-const tierCache = createTierCache(TIER_CACHE_TTL_MS);
+
+export interface PlanTierService {
+  getPlanTier(userId: string): Promise<PlanTier>;
+  invalidateCache(userId: string): void;
+}
+
+/**
+ * Builds the cached plan-tier service. Injectable fetcher keeps cache and
+ * fail-closed behavior testable without touching Polar.
+ */
+export function createPlanTierService(options: {
+  fetchCustomerState: (externalId: string) => Promise<CustomerStateLike>;
+  resolveTier?: (state: CustomerStateLike) => PlanTier;
+  ttlMs?: number;
+  onError?: (userId: string, error: unknown) => void;
+}): PlanTierService {
+  const {
+    fetchCustomerState,
+    resolveTier = resolveCustomerPlanTier,
+    ttlMs = TIER_CACHE_TTL_MS,
+    onError = (userId, error) =>
+      console.error(
+        `Failed to resolve plan tier from Polar for user ${userId}; treating as free.`,
+        error,
+      ),
+  } = options;
+  const cache = createTierCache(ttlMs);
+
+  return {
+    async getPlanTier(userId) {
+      const cached = cache.get(userId);
+      if (cached !== null) {
+        return cached;
+      }
+
+      try {
+        const customerState = await fetchCustomerState(userId);
+        const tier = resolveTier(customerState);
+        cache.set(userId, tier);
+        return tier;
+      } catch (error) {
+        // Failures are logged and never cached so a transient Polar error
+        // cannot lock a paying user out for the TTL window.
+        onError(userId, error);
+        return "free";
+      }
+    },
+    invalidateCache(userId) {
+      cache.invalidate(userId);
+    },
+  };
+}
+
+const defaultService = createPlanTierService({
+  fetchCustomerState: (externalId) =>
+    polarClient.customers.getStateExternal({ externalId }),
+});
 
 /** Drops the cached tier so the next getPlanTier call hits Polar again. */
 export function invalidatePlanTierCache(userId: string): void {
-  tierCache.invalidate(userId);
+  defaultService.invalidateCache(userId);
 }
 
 /**
  * Resolves the user's plan tier from Polar, cached briefly because it sits on
  * hot paths (per recorded search, client tier polling). Cache entries are
  * invalidated by subscription webhooks so upgrades land promptly. Any Polar
- * failure resolves to "free" so transient errors never grant paid features;
- * failures are logged and never cached.
+ * failure resolves to "free" so transient errors never grant paid features.
  */
 export async function getPlanTier(userId: string): Promise<PlanTier> {
-  const cached = tierCache.get(userId);
-  if (cached !== null) {
-    return cached;
-  }
-
-  try {
-    const customerState = await polarClient.customers.getStateExternal({
-      externalId: userId,
-    });
-    const tier = resolveCustomerPlanTier(customerState);
-    tierCache.set(userId, tier);
-    return tier;
-  } catch (error) {
-    console.error(
-      `Failed to resolve plan tier from Polar for user ${userId}; treating as free.`,
-      error,
-    );
-    return "free";
-  }
+  return defaultService.getPlanTier(userId);
 }
