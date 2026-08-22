@@ -10,6 +10,7 @@ import {
 } from "~/components/ui/collapsible";
 import { Label } from "~/components/ui/label";
 import { Slider } from "~/components/ui/slider";
+import { PLANS } from "~/lib/plans";
 import type { DataSource } from "~/lib/types";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
@@ -60,8 +61,8 @@ function AdvancedFiltersUpsell() {
           Filters are a Lite feature
         </p>
         <p className="text-muted-foreground mt-1 text-xs text-pretty">
-          Upgrade to Lite ($3/mo) to filter by yard, make, year, color, state,
-          and lot.
+          Upgrade to Lite (${PLANS.lite.monthlyPrice}/mo) to filter by yard,
+          make, year, color, state, and lot.
         </p>
         <Button asChild size="sm" className="mt-3 w-full">
           <Link href="/pricing">Compare Plans</Link>
