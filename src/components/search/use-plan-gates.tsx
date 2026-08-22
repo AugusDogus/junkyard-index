@@ -76,9 +76,14 @@ interface DailySearchQuotaArgs {
  * onLinkAccount). Guest session creation failure fails open rather than
  * blocking search.
  */
+/** sessionStorage key holding the last quota-recorded query for this tab. */
+const QUOTA_DEDUPE_KEY = "ji:lastQuotaRecordedQuery";
+
 export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
   const recordSearchMutation = api.usage.recordSearch.useMutation();
-  const lastQuotaQuery = useRef("");
+  // Dedupe key persists in sessionStorage so a page refresh (or SPA
+  // remount) of the same search URL does not count as a new search.
+  const lastQuotaQuery = useRef<string | null>(null);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
   const { data: authSession } = useSession();
   // Derived from the live session (not component state) so the flag survives
@@ -115,9 +120,24 @@ export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
   }, [args.isLoggedIn, hasGuestSession, recordSearchMutation]);
 
   useEffect(() => {
+    // Restore the dedupe key after remounts so refreshing /search?q=... does
+    // not re-record the URL-restored query as a fresh search.
+    if (lastQuotaQuery.current === null) {
+      try {
+        lastQuotaQuery.current =
+          window.sessionStorage.getItem(QUOTA_DEDUPE_KEY) ?? "";
+      } catch {
+        lastQuotaQuery.current = "";
+      }
+    }
     if (!args.analyticsSearchValue || args.isSearching || args.hasError) return;
     if (lastQuotaQuery.current === args.analyticsSearchValue) return;
     lastQuotaQuery.current = args.analyticsSearchValue;
+    try {
+      window.sessionStorage.setItem(QUOTA_DEDUPE_KEY, args.analyticsSearchValue);
+    } catch {
+      // Storage unavailable; in-memory dedupe still applies for this mount
+    }
     recordSearch();
   }, [
     args.analyticsSearchValue,

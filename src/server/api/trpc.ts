@@ -66,11 +66,13 @@ export const createTRPCContext = async (opts: {
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
-    // Capture non-client errors to Sentry
+    // Capture non-client errors to Sentry. Plan gate rejections are routine
+    // product events (free users hitting gates), not errors worth tracking.
     if (
-      error.code === "INTERNAL_SERVER_ERROR" ||
-      error.code === "BAD_REQUEST" ||
-      !(error.cause instanceof ZodError)
+      !(error instanceof PlanGateError) &&
+      (error.code === "INTERNAL_SERVER_ERROR" ||
+        error.code === "BAD_REQUEST" ||
+        !(error.cause instanceof ZodError))
     ) {
       Sentry.captureException(error.cause ?? error);
     }
