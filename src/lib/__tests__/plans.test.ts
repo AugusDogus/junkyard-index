@@ -3,6 +3,7 @@ import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
   evaluateSavedSearchGate,
+  featureUpgradeTier,
   formatMonthlyEquivalent,
   hasPlanFeature,
   planPrice,
@@ -79,5 +80,36 @@ describe("evaluateSavedSearchGate", () => {
     expect(savedSearchUpgradeTier("free")).toBe("lite");
     expect(savedSearchUpgradeTier("lite")).toBe("full");
     expect(savedSearchUpgradeTier("full")).toBe("full");
+  });
+});
+
+describe("featureUpgradeTier", () => {
+  test("maps each gated feature to its minimum paid tier", () => {
+    expect(featureUpgradeTier("advanced_filters")).toBe("lite");
+    expect(featureUpgradeTier("saved_searches")).toBe("lite");
+    expect(featureUpgradeTier("unlimited_searches")).toBe("lite");
+    expect(featureUpgradeTier("alerts")).toBe("full");
+  });
+
+  test("agrees with the gate evaluation for every feature and tier", () => {
+    const tiers = ["free", "lite", "full"] as const;
+    for (const tier of tiers) {
+      for (const feature of [
+        "advanced_filters",
+        "saved_searches",
+        "unlimited_searches",
+        "alerts",
+      ] as const) {
+        const locked = !hasPlanFeature(tier, feature);
+        const upgrade = featureUpgradeTier(feature);
+        // If the feature is locked at this tier, the upgrade tier must
+        // actually unlock it; otherwise it must already satisfy the gate.
+        if (locked) {
+          expect(hasPlanFeature(upgrade, feature)).toBe(true);
+        } else {
+          expect(tierSatisfies(tier, upgrade)).toBe(true);
+        }
+      }
+    }
   });
 });

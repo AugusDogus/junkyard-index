@@ -6,7 +6,8 @@ import posthog from "posthog-js";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { authClient, useSession } from "~/lib/auth-client";
+import { useSession } from "~/lib/auth-client";
+import { startTierCheckout } from "~/lib/checkout";
 import { isVisibleSessionUser } from "~/lib/session-user";
 import {
   FREE_DAILY_SEARCH_LIMIT,
@@ -46,19 +47,11 @@ export function PricingPlansSection() {
   // subscription to a user that Better Auth deletes on account conversion.
   const isLoggedIn = isVisibleSessionUser(session?.user);
 
-  const handleCheckout = async (tier: "lite" | "full", ctaLocation: string) => {
-    posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
-      source: "pricing_page",
+  const handleCheckout = (tier: "lite" | "full", ctaLocation: string) =>
+    startTierCheckout(tier, interval, {
+      source_page: "pricing_page",
       cta_location: ctaLocation,
-      plan_tier: tier,
-      billing_interval: interval,
     });
-    try {
-      await authClient.checkout({ slug: checkoutSlugFor(tier, interval) });
-    } catch (error) {
-      console.error("Failed to open checkout:", error);
-    }
-  };
 
   return (
     <div>

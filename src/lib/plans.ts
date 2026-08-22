@@ -43,7 +43,9 @@ export type PlanFeature =
   | "unlimited_searches"
   | "alerts";
 
-const FEATURE_MIN_TIER: Record<PlanFeature, PlanTier> = {
+// A feature gated at "free" would be no gate at all, so the map's values
+// exclude it and the compiler rejects future gates that try.
+const FEATURE_MIN_TIER: Record<PlanFeature, Exclude<PlanTier, "free">> = {
   advanced_filters: "lite",
   saved_searches: "lite",
   unlimited_searches: "lite",
@@ -81,6 +83,13 @@ export function savedSearchUpgradeTier(
   tier: PlanTier,
 ): Exclude<PlanTier, "free"> {
   return hasPlanFeature(tier, "saved_searches") ? "full" : "lite";
+}
+
+/** The tier a plan must reach to unlock a feature. */
+export function featureUpgradeTier(
+  feature: PlanFeature,
+): Exclude<PlanTier, "free"> {
+  return FEATURE_MIN_TIER[feature];
 }
 
 interface PlanDefinition {

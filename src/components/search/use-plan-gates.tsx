@@ -178,7 +178,14 @@ export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
   ]);
 }
 
-export function FreeQuotaOverlay({ query }: { query: string }) {
+export function FreeQuotaOverlay({
+  query,
+  isGuest,
+}: {
+  query: string;
+  /** Guests hit this block too; analytics should distinguish them. */
+  isGuest: boolean;
+}) {
   return (
     <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
       <p className="text-sm font-medium">Daily limit reached</p>
