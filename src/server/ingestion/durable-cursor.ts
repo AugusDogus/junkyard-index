@@ -206,6 +206,24 @@ const DURABLE_CURSOR_DEFINITIONS = {
       recordsSkipped: NonNegativeIntegerSchema,
     }),
   ),
+  pullnsave: defineScalarCursor(
+    "pullnsave",
+    z.object({
+      source: z.literal("pullnsave"),
+      page: PositiveIntegerSchema,
+    }),
+    (page) => ({ source: "pullnsave", page }),
+    (cursor) => cursor.page,
+  ),
+  tearapart: defineScalarCursor(
+    "tearapart",
+    z.object({
+      source: z.literal("tearapart"),
+      storeIndex: NonNegativeIntegerSchema,
+    }),
+    (storeIndex) => ({ source: "tearapart", storeIndex }),
+    (cursor) => cursor.storeIndex,
+  ),
 } satisfies Record<IngestionSource, unknown>;
 
 type DurableCursorBySource = {

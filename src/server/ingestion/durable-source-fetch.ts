@@ -9,13 +9,18 @@ import {
   type DurableCursorFor,
   type DurableIngestionSource,
 } from "./durable-source";
+import { streamPullNSaveInventory } from "./pullnsave-connector";
 import { streamPullapartInventory } from "./pullapart-connector";
 import { loadPullapartCachedEnrichments } from "./pullapart-enrichment-cache";
 import { streamPypInventory } from "./pyp-connector";
 import { streamRow52Inventory } from "./row52-connector";
 import { loadConfiguredRow52YardExclusionIds } from "./row52-yard-exclusion";
 import { runIngestionEffect } from "./runtime";
-import { streamTapInventory } from "./tap-inventory-connector";
+import { TEARAPART_SITE_CONFIG } from "./tap-sites";
+import {
+  streamTapInventory,
+  streamTapSiteInventory,
+} from "./tap-inventory-connector";
 import { streamUpullitDavieInventory } from "./upullit-davie-connector";
 import type { CanonicalVehicle } from "./types";
 
@@ -176,6 +181,31 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       (nextCursor) => ({ source: "gopullit", ...nextCursor }),
       context.vehiclesByVin,
       context.yardsByCode,
+    ),
+  pullnsave: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamPullNSaveInventory({
+          onBatch: context.onBatch,
+          startCursor: cursor.page,
+          maxPages: context.maxPages,
+        }),
+      ),
+      (page) => ({ source: "pullnsave", page }),
+      context.vehiclesByVin,
+    ),
+  tearapart: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamTapSiteInventory({
+          config: TEARAPART_SITE_CONFIG,
+          onBatch: context.onBatch,
+          startStoreIndex: cursor.storeIndex,
+          maxPages: context.maxPages,
+        }).pipe(Effect.scoped),
+      ),
+      (storeIndex) => ({ source: "tearapart", storeIndex }),
+      context.vehiclesByVin,
     ),
 };
 
