@@ -65,7 +65,7 @@ export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
 export function evaluateSavedSearchGate(
   tier: PlanTier,
   wantsAlerts: boolean,
-): Extract<PlanFeature, "saved_searches" | "alerts"> | null {
+): SavedSearchGateFeature | null {
   if (!hasPlanFeature(tier, "saved_searches")) {
     return "saved_searches";
   }
@@ -74,6 +74,12 @@ export function evaluateSavedSearchGate(
   }
   return null;
 }
+
+/** Features used as saved-search plan gates, shared by server and client. */
+export type SavedSearchGateFeature = Extract<
+  PlanFeature,
+  "saved_searches" | "alerts"
+>;
 
 /**
  * The cheapest paid tier that unblocks saved-search creation for this tier.

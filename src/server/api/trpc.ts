@@ -12,6 +12,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { auth } from "~/lib/auth";
 import { db } from "~/lib/db";
+import type { SavedSearchGateFeature } from "~/lib/plans";
 
 /**
  * FORBIDDEN due to an unmet plan-feature gate. Carries the blocking feature
@@ -20,7 +21,7 @@ import { db } from "~/lib/db";
  */
 export class PlanGateError extends TRPCError {
   constructor(
-    readonly feature: "saved_searches" | "alerts",
+    readonly feature: SavedSearchGateFeature,
     message: string,
   ) {
     super({ code: "FORBIDDEN", message });
