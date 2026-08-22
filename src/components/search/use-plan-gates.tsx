@@ -11,6 +11,7 @@ import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
   hasPlanFeature,
+  type PlanFeature,
   type PlanTier,
 } from "~/lib/plans";
 import { api } from "~/trpc/react";
@@ -25,6 +26,7 @@ export function usePlanTier(isLoggedIn: boolean): {
   /** Resolved plan tier; null means "not known yet", never "free". */
   planTier: PlanTier | null;
   isResolved: boolean;
+  isPaid: boolean;
   canUseAdvancedFilters: boolean;
   canSaveSearches: boolean;
   canUseAlerts: boolean;
@@ -33,17 +35,23 @@ export function usePlanTier(isLoggedIn: boolean): {
     enabled: isLoggedIn,
   });
   // Logged-out viewers are free by definition; logged-in users are unknown
-  // until the query resolves so we never render paid gates as locked.
+  // until the query resolves.
   const planTier: PlanTier | null = isLoggedIn ? (data?.tier ?? null) : "free";
+
+  // Gate semantics for an UNKNOWN tier: optimistically unlocked for signed-in
+  // users so paying users never see a flash of upsell UI on first paint, and
+  // locked for anonymous visitors who are free by definition. The server is
+  // always authoritative, so optimistic gating never grants entitlements.
+  const resolveGate = (feature: PlanFeature): boolean =>
+    planTier === null ? isLoggedIn : hasPlanFeature(planTier, feature);
+
   return {
     planTier,
     isResolved: planTier !== null,
-    canUseAdvancedFilters: hasPlanFeature(
-      planTier ?? "free",
-      "advanced_filters",
-    ),
-    canSaveSearches: hasPlanFeature(planTier ?? "free", "saved_searches"),
-    canUseAlerts: hasPlanFeature(planTier ?? "free", "alerts"),
+    isPaid: planTier !== null && planTier !== "free",
+    canUseAdvancedFilters: resolveGate("advanced_filters"),
+    canSaveSearches: resolveGate("saved_searches"),
+    canUseAlerts: resolveGate("alerts"),
   };
 }
 

@@ -5,13 +5,14 @@ import {
   resolvePlanTierFromCustomerState,
   type CustomerStateLike,
 } from "./plan-tier";
+import { createTierCache } from "./tier-cache";
 
 /**
  * Single source of truth for Polar product ID -> tier mapping. Legacy
  * "Email-Notifications" subscribers are grandfathered as Full so they keep
  * the alerts they pay for.
  */
-export function getCurrentPolarProductIds() {
+function getCurrentPolarProductIds() {
   return {
     lite: [env.POLAR_LITE_PRODUCT_ID, env.POLAR_LITE_ANNUAL_PRODUCT_ID],
     full: [env.POLAR_FULL_PRODUCT_ID, env.POLAR_FULL_ANNUAL_PRODUCT_ID],
@@ -25,11 +26,11 @@ export function resolveCustomerPlanTier(state: CustomerStateLike): PlanTier {
 }
 
 const TIER_CACHE_TTL_MS = 60_000;
-const tierCache = new Map<string, { tier: PlanTier; expiresAt: number }>();
+const tierCache = createTierCache(TIER_CACHE_TTL_MS);
 
 /** Drops the cached tier so the next getPlanTier call hits Polar again. */
 export function invalidatePlanTierCache(userId: string): void {
-  tierCache.delete(userId);
+  tierCache.invalidate(userId);
 }
 
 /**
@@ -41,8 +42,8 @@ export function invalidatePlanTierCache(userId: string): void {
  */
 export async function getPlanTier(userId: string): Promise<PlanTier> {
   const cached = tierCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.tier;
+  if (cached !== null) {
+    return cached;
   }
 
   try {
@@ -50,10 +51,7 @@ export async function getPlanTier(userId: string): Promise<PlanTier> {
       externalId: userId,
     });
     const tier = resolveCustomerPlanTier(customerState);
-    tierCache.set(userId, {
-      tier,
-      expiresAt: Date.now() + TIER_CACHE_TTL_MS,
-    });
+    tierCache.set(userId, tier);
     return tier;
   } catch (error) {
     console.error(

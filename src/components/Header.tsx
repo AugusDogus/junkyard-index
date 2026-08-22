@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth";
+import { isGuestSession } from "~/lib/session-user";
 import { api } from "~/trpc/server";
 import { HeaderContent } from "./HeaderContent";
 import type { HeaderStatusData } from "./HeaderStatusIndicator";
@@ -22,14 +23,8 @@ export async function Header() {
     }),
   ]);
 
-  return (
-    <HeaderContent
-      // Anonymous guest sessions (Better Auth anonymous plugin) are invisible
-      // in the UI; guests still count toward the free daily search limit.
-      user={
-        session?.user && !session.user.isAnonymous ? session.user : null
-      }
-      statusData={statusData}
-    />
-  );
+  const visibleUser =
+    session?.user && !isGuestSession(session.user) ? session.user : null;
+
+  return <HeaderContent user={visibleUser} statusData={statusData} />;
 }

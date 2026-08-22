@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { z } from "zod";
+import { hasPlanFeature } from "~/lib/plans";
 import { getPlanTier } from "~/server/billing/user-plan";
 import {
   currentUtcDay,
@@ -13,39 +13,37 @@ export const usageRouter = createTRPCRouter({
    * Records one search for the current user and reports whether they may
    * still search today. Paid tiers are never counted or limited.
    */
-  recordSearch: protectedProcedure
-    .input(z.object({}).default({}))
-    .mutation(async ({ ctx }) => {
-      const planTier = await getPlanTier(ctx.user.id);
+  recordSearch: protectedProcedure.mutation(async ({ ctx }) => {
+    const planTier = await getPlanTier(ctx.user.id);
 
-      if (planTier !== "free") {
-        return {
-          allowed: true,
-          tier: planTier,
-          dailyLimit: null,
-          searchesUsed: 0,
-        };
-      }
-
-      const day = currentUtcDay();
-
-      const [row] = await ctx.db
-        .insert(searchUsage)
-        .values({ userId: ctx.user.id, day, count: 1 })
-        .onConflictDoUpdate({
-          target: [searchUsage.userId, searchUsage.day],
-          set: { count: sql`${searchUsage.count} + 1` },
-        })
-        .returning({ count: searchUsage.count });
-
-      const searchesUsed = row?.count ?? 1;
-      const outcome = evaluateSearchQuota(searchesUsed);
-
+    if (hasPlanFeature(planTier, "unlimited_searches")) {
       return {
-        allowed: outcome.allowed,
+        allowed: true,
         tier: planTier,
-        dailyLimit: outcome.dailyLimit,
-        searchesUsed,
+        dailyLimit: null,
+        searchesUsed: 0,
       };
-    }),
+    }
+
+    const day = currentUtcDay();
+
+    const [row] = await ctx.db
+      .insert(searchUsage)
+      .values({ userId: ctx.user.id, day, count: 1 })
+      .onConflictDoUpdate({
+        target: [searchUsage.userId, searchUsage.day],
+        set: { count: sql`${searchUsage.count} + 1` },
+      })
+      .returning({ count: searchUsage.count });
+
+    const searchesUsed = row?.count ?? 1;
+    const outcome = evaluateSearchQuota(searchesUsed);
+
+    return {
+      allowed: outcome.allowed,
+      tier: planTier,
+      dailyLimit: outcome.dailyLimit,
+      searchesUsed,
+    };
+  }),
 });
