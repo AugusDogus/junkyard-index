@@ -14,7 +14,10 @@
  * 2) "next" pass using a simulated lastCheckedAt=now baseline
  */
 import { eq, or } from "drizzle-orm";
-import { getAlertMatchStats } from "~/lib/algolia-alert-search";
+import {
+  getAlertMatchStats,
+  type AlertScanCompletion,
+} from "~/lib/algolia-alert-search";
 import { db } from "~/lib/db";
 import {
   filtersSchema,
@@ -38,18 +41,30 @@ async function getMatchStats(
   searchQuery: string,
   filters: ParsedFilters,
   lastCheckedAt: Date | null,
-): Promise<{ fullCount: number; sampleCount: number; sampleVins: string[] }> {
-  const { fullCount, vehicles } = await getAlertMatchStats(
+): Promise<{
+  matchedCount: number;
+  completion: AlertScanCompletion;
+  sampleCount: number;
+  sampleVins: string[];
+}> {
+  const { matchedCount, completion, vehicles } = await getAlertMatchStats(
     searchQuery,
     filters,
     lastCheckedAt,
   );
 
   return {
-    fullCount,
+    matchedCount,
+    completion,
     sampleCount: vehicles.length,
     sampleVins: vehicles.slice(0, 5).map((row) => row.vin),
   };
+}
+
+function formatCompletion(completion: AlertScanCompletion): string {
+  return completion.status === "complete"
+    ? "complete"
+    : `incomplete:${completion.reason} (checkpoint preserved)`;
 }
 
 async function main() {
@@ -116,12 +131,18 @@ async function main() {
     if (wouldNotifyNow) notifyNowCount += 1;
     if (wouldNotifyNext) notifyNextCount += 1;
 
-    if (wouldNotifyNow || wouldNotifyNext || nowPass.fullCount >= 50) {
+    if (
+      wouldNotifyNow ||
+      wouldNotifyNext ||
+      nowPass.matchedCount >= 50 ||
+      nowPass.completion.status === "incomplete" ||
+      nextPass.completion.status === "incomplete"
+    ) {
       highSignalRows.push(
         [
           `- ${search.id} "${search.query}"`,
-          `  now: notify=${wouldNotifyNow} sample=${nowPass.sampleCount} full=${nowPass.fullCount}`,
-          `  next: notify=${wouldNotifyNext} sample=${nextPass.sampleCount} full=${nextPass.fullCount}`,
+          `  now: notify=${wouldNotifyNow} sample=${nowPass.sampleCount} matches=${nowPass.matchedCount} scan=${formatCompletion(nowPass.completion)}`,
+          `  next: notify=${wouldNotifyNext} sample=${nextPass.sampleCount} matches=${nextPass.matchedCount} scan=${formatCompletion(nextPass.completion)}`,
           `  sample VINs now: ${nowPass.sampleVins.join(", ") || "(none)"}`,
         ].join("\n"),
       );

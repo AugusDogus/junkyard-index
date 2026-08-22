@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import {
   buildAlertFiltersString,
   getAlertMatchStats,
+  scanAlertMatchPages,
+  toAlertSearchPage,
+  type AlertSearchPage,
 } from "~/lib/algolia-alert-search";
-import { searchClient } from "~/lib/algolia-search";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 
 describe("algolia alert search helpers", () => {
@@ -152,12 +154,10 @@ describe("algolia alert search helpers", () => {
 });
 
 describe("getAlertMatchStats pagination", () => {
-  const originalSearchForHits = searchClient.searchForHits;
-  type SearchParams = Parameters<typeof searchClient.searchForHits>[0];
   const createHits = (
     count: number,
     prefix: string,
-  ): Record<string, unknown>[] =>
+  ): ({ objectID: string } & Record<string, unknown>)[] =>
     Array.from({ length: count }, (_, index) => ({
       objectID: `${prefix}-${index}`,
       make: "Honda",
@@ -165,40 +165,27 @@ describe("getAlertMatchStats pagination", () => {
       year: 2019,
       source: "pyp",
     }));
-  const getRequestedPage = (params: SearchParams): number => {
-    if (typeof params === "object" && params !== null && "requests" in params) {
-      const request = params.requests[0];
-      if (request && typeof request === "object" && "page" in request) {
-        const page = request.page;
-        return typeof page === "number" ? page : 0;
-      }
-    }
-    return 0;
-  };
-
-  function mockSearchForHits(fn: typeof searchClient.searchForHits): void {
-    Object.defineProperty(searchClient, "searchForHits", {
-      configurable: true,
-      writable: true,
-      value: fn,
-    });
-  }
-
-  function restoreSearchForHits(): void {
-    mockSearchForHits(originalSearchForHits);
-  }
-
-  afterEach(() => {
-    restoreSearchForHits();
+  const createPage = (
+    hits: Record<string, unknown>[],
+    reportedCount: number,
+    reportedPageCount: number,
+    countIsExhaustive: boolean,
+  ): AlertSearchPage => ({
+    hits,
+    reportedCount,
+    reportedPageCount,
+    countIsExhaustive,
   });
+  const complete = { status: "complete" } as const;
+  const config = { hitsPerPage: 2, paginationLimit: 10 };
+  const createFetcher =
+    (pages: ReadonlyMap<number, AlertSearchPage>, requestedPages: number[]) =>
+    async (page: number): Promise<AlertSearchPage | null> => {
+      requestedPages.push(page);
+      return pages.get(page) ?? null;
+    };
 
   test("does not query Algolia for an invalid VIN pattern", async () => {
-    let callCount = 0;
-    mockSearchForHits((async () => {
-      callCount += 1;
-      throw new Error("Algolia should not be queried");
-    }) as typeof searchClient.searchForHits);
-
     const result = await getAlertMatchStats(
       "",
       { vinPattern: "YV4C*85" },
@@ -206,134 +193,198 @@ describe("getAlertMatchStats pagination", () => {
     );
 
     expect(result).toEqual({
-      fullCount: 0,
-      scannedCount: 0,
       matchedCount: 0,
+      completion: complete,
       vehicles: [],
     });
-    expect(callCount).toBe(0);
+  });
+
+  test("normalizes modern and legacy Algolia exhaustiveness metadata", () => {
+    const hits = createHits(2, "VIN");
+
+    expect(
+      toAlertSearchPage({
+        hits,
+        nbHits: 2,
+        nbPages: 1,
+        exhaustive: { nbHits: true },
+        exhaustiveNbHits: false,
+      }).countIsExhaustive,
+    ).toBe(true);
+    expect(
+      toAlertSearchPage({
+        hits,
+        nbHits: 2,
+        nbPages: 1,
+        exhaustive: { nbHits: false },
+        exhaustiveNbHits: true,
+      }).countIsExhaustive,
+    ).toBe(false);
+    expect(
+      toAlertSearchPage({
+        hits,
+        nbHits: 2,
+        nbPages: 1,
+        exhaustiveNbHits: true,
+      }).countIsExhaustive,
+    ).toBe(true);
+  });
+
+  test("treats missing Algolia count metadata as approximate", () => {
+    const page = toAlertSearchPage({
+      hits: createHits(2, "VIN"),
+      exhaustiveNbHits: true,
+    });
+
+    expect(page).toMatchObject({
+      reportedCount: 2,
+      reportedPageCount: 0,
+      countIsExhaustive: false,
+    });
   });
 
   test("aggregates multiple pages and stops at nbPages", async () => {
-    const pages = new Map<number, { hits: Record<string, unknown>[] }>([
-      [
-        0,
-        {
-          hits: createHits(100, "VIN-A"),
-        },
-      ],
-      [
-        1,
-        {
-          hits: createHits(100, "VIN-B"),
-        },
-      ],
+    const pages = new Map<number, AlertSearchPage>([
+      [0, createPage(createHits(2, "VIN-A"), 4, 2, true)],
+      [1, createPage(createHits(2, "VIN-B"), 4, 2, true)],
     ]);
     const requestedPages: number[] = [];
 
-    mockSearchForHits((async (params) => {
-      const page = getRequestedPage(params);
-      requestedPages.push(page);
-      const payload = pages.get(page) ?? { hits: [] };
-      return {
-        results: [
-          {
-            hits: payload.hits,
-            nbHits: 200,
-            nbPages: 2,
-          },
-        ],
-      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
-    }) as typeof searchClient.searchForHits);
+    const result = await scanAlertMatchPages(
+      createFetcher(pages, requestedPages),
+      config,
+    );
 
-    const result = await getAlertMatchStats("honda", {}, null);
-    expect(result.fullCount).toBe(200);
-    expect(result.scannedCount).toBe(200);
-    expect(result.matchedCount).toBe(200);
-    expect(result.vehicles.length).toBe(10);
+    expect(result.matchedCount).toBe(4);
+    expect(result.completion).toEqual(complete);
+    expect(result.vehicles.length).toBe(4);
     expect(requestedPages).toEqual([0, 1]);
   });
 
-  test("stops when a subsequent page has empty hits", async () => {
+  test("treats an empty page as complete when nbHits is an overestimate", async () => {
+    const pages = new Map<number, AlertSearchPage>([
+      [0, createPage(createHits(2, "VIN-C"), 5, 3, false)],
+      [1, createPage([], 5, 3, false)],
+    ]);
     const requestedPages: number[] = [];
 
-    mockSearchForHits((async (params) => {
-      const page = getRequestedPage(params);
-      requestedPages.push(page);
-      if (page === 0) {
-        return {
-          results: [
-            {
-              hits: createHits(100, "VIN-C"),
-              nbHits: 500,
-              nbPages: 50,
-            },
-          ],
-        } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
-      }
-      return {
-        results: [
-          {
-            hits: [],
-            nbHits: 500,
-            nbPages: 50,
-          },
-        ],
-      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
-    }) as typeof searchClient.searchForHits);
+    const result = await scanAlertMatchPages(
+      createFetcher(pages, requestedPages),
+      config,
+    );
 
-    const result = await getAlertMatchStats("ford", {}, null);
-    expect(result.fullCount).toBe(500);
-    expect(result.scannedCount).toBe(100);
-    expect(result.matchedCount).toBe(100);
-    expect(result.vehicles.length).toBe(10);
+    expect(result.matchedCount).toBe(2);
+    expect(result.completion).toEqual(complete);
     expect(requestedPages).toEqual([0, 1]);
   });
 
-  test("stops even with repeated page payloads by fullCount", async () => {
-    let callCount = 0;
+  test("stops at nbPages when the reported count is exhaustive", async () => {
+    const pages = new Map<number, AlertSearchPage>([
+      [0, createPage(createHits(2, "VIN-A"), 6, 3, true)],
+      [1, createPage(createHits(2, "VIN-B"), 6, 3, true)],
+      [2, createPage(createHits(2, "VIN-C"), 6, 3, true)],
+    ]);
+    const requestedPages: number[] = [];
 
-    mockSearchForHits((async () => {
-      callCount += 1;
-      return {
-        results: [
-          {
-            hits: createHits(100, `VIN-${callCount}`),
-            nbHits: 300,
-          },
-        ],
-      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
-    }) as typeof searchClient.searchForHits);
+    const result = await scanAlertMatchPages(
+      createFetcher(pages, requestedPages),
+      config,
+    );
 
-    const result = await getAlertMatchStats("mazda", {}, null);
-    expect(result.fullCount).toBe(300);
-    expect(result.scannedCount).toBe(300);
-    expect(result.matchedCount).toBe(300);
-    expect(result.vehicles.length).toBe(10);
-    expect(callCount).toBe(3);
+    expect(result.matchedCount).toBe(6);
+    expect(result.completion).toEqual(complete);
+    expect(requestedPages).toEqual([0, 1, 2]);
   });
 
   test("counts malformed hits toward scan completeness only", async () => {
-    mockSearchForHits((async () => {
-      return {
-        results: [
-          {
-            hits: [
-              ...createHits(1, "VIN-VALID"),
-              { objectID: "VIN-INVALID", source: "unsupported" },
-            ],
-            nbHits: 2,
-            nbPages: 1,
-          },
-        ],
-      } as Awaited<ReturnType<typeof searchClient.searchForHits>>;
-    }) as typeof searchClient.searchForHits);
+    const pages = new Map<number, AlertSearchPage>([
+      [
+        0,
+        createPage(
+          [
+            ...createHits(1, "VIN-VALID"),
+            { objectID: "VIN-INVALID", source: "unsupported" },
+          ],
+          2,
+          1,
+          true,
+        ),
+      ],
+    ]);
 
-    const result = await getAlertMatchStats("honda", {}, null);
+    const result = await scanAlertMatchPages(async () => pages.get(0) ?? null, {
+      hitsPerPage: 2,
+      paginationLimit: 10,
+    });
 
-    expect(result.fullCount).toBe(2);
-    expect(result.scannedCount).toBe(2);
     expect(result.matchedCount).toBe(1);
+    expect(result.completion).toEqual(complete);
     expect(result.vehicles).toHaveLength(1);
+  });
+
+  test("continues past approximate nbPages when nbHits is an underestimate", async () => {
+    const pages = new Map<number, AlertSearchPage>([
+      [0, createPage(createHits(2, "VIN-A"), 3, 2, false)],
+      [1, createPage(createHits(2, "VIN-B"), 3, 2, false)],
+      [2, createPage([], 3, 2, false)],
+    ]);
+    const requestedPages: number[] = [];
+
+    const result = await scanAlertMatchPages(
+      createFetcher(pages, requestedPages),
+      config,
+    );
+
+    expect(requestedPages).toEqual([0, 1, 2]);
+    expect(result.matchedCount).toBe(4);
+    expect(result.completion).toEqual(complete);
+  });
+
+  test("does not trust later approximate page counts", async () => {
+    const pages = new Map<number, AlertSearchPage>([
+      [0, createPage(createHits(2, "VIN-A"), 6, 3, true)],
+      [1, createPage(createHits(2, "VIN-B"), 3, 2, false)],
+      [2, createPage(createHits(1, "VIN-C"), 3, 2, false)],
+    ]);
+    const requestedPages: number[] = [];
+
+    const result = await scanAlertMatchPages(
+      createFetcher(pages, requestedPages),
+      config,
+    );
+
+    expect(requestedPages).toEqual([0, 1, 2]);
+    expect(result.matchedCount).toBe(5);
+    expect(result.completion).toEqual(complete);
+  });
+
+  test("marks the scan incomplete when it reaches paginationLimitedTo", async () => {
+    const pages = new Map<number, AlertSearchPage>([
+      [0, createPage(createHits(2, "VIN-A"), 5, 3, false)],
+      [1, createPage(createHits(2, "VIN-B"), 5, 3, false)],
+    ]);
+    const requestedPages: number[] = [];
+
+    const result = await scanAlertMatchPages(
+      createFetcher(pages, requestedPages),
+      { hitsPerPage: 2, paginationLimit: 4 },
+    );
+
+    expect(requestedPages).toEqual([0, 1]);
+    expect(result.matchedCount).toBe(4);
+    expect(result.completion).toEqual({
+      status: "incomplete",
+      reason: "pagination-limit",
+    });
+  });
+
+  test("marks the scan incomplete when a page response is missing", async () => {
+    const result = await scanAlertMatchPages(async () => null, config);
+
+    expect(result).toEqual({
+      matchedCount: 0,
+      completion: { status: "incomplete", reason: "missing-page" },
+      vehicles: [],
+    });
   });
 });

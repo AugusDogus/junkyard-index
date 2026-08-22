@@ -1,5 +1,6 @@
 // Algolia
 export const ALGOLIA_INDEX_NAME = "vehicles";
+export const ALGOLIA_PAGINATION_LIMIT = 10000;
 export const ALGOLIA_REPLICA_INDEX_NAMES = [
   "vehicles_oldest",
   "vehicles_year_desc",

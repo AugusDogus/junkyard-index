@@ -1,6 +1,8 @@
+import type { SearchResponse } from "algoliasearch/lite";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type { SearchVehicle } from "~/lib/types";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
+import { ALGOLIA_PAGINATION_LIMIT } from "~/lib/constants";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { MAX_SEARCH_ALERT_PREVIEW_VEHICLES } from "~/lib/search-alert-data";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -16,11 +18,47 @@ export interface AlertFilters {
   maxYear?: number;
 }
 
-interface AlgoliaSearchResponse {
-  hits?: Record<string, unknown>[];
-  nbHits?: number;
-  nbPages?: number;
-  paginationLimitedTo?: number;
+export interface AlertSearchPage {
+  hits: ReadonlyArray<Record<string, unknown>>;
+  reportedCount: number;
+  reportedPageCount: number;
+  countIsExhaustive: boolean;
+}
+
+export type AlertScanCompletion =
+  | { status: "complete" }
+  | { status: "incomplete"; reason: "missing-page" | "pagination-limit" };
+
+export interface AlertMatchStats {
+  matchedCount: number;
+  completion: AlertScanCompletion;
+  vehicles: SearchVehicle[];
+}
+
+interface AlertScanConfig {
+  hitsPerPage: number;
+  paginationLimit: number;
+}
+
+type FetchAlertSearchPage = (
+  page: number,
+  hitsPerPage: number,
+) => Promise<AlertSearchPage | null>;
+
+export function toAlertSearchPage(
+  result: SearchResponse<Record<string, unknown>>,
+): AlertSearchPage {
+  const countIsExhaustive =
+    (result.exhaustive?.nbHits ?? result.exhaustiveNbHits ?? false) &&
+    result.nbHits !== undefined &&
+    result.nbPages !== undefined;
+
+  return {
+    hits: result.hits,
+    reportedCount: result.nbHits ?? result.hits.length,
+    reportedPageCount: result.nbPages ?? 0,
+    countIsExhaustive,
+  };
 }
 
 // Indexed VIN tokens always use "<position>:<character>", so this cannot match.
@@ -105,52 +143,32 @@ export function buildAlertFiltersString(
   return clauses.length > 0 ? clauses.join(" AND ") : undefined;
 }
 
-export async function getAlertMatchStats(
-  query: string,
-  filters: AlertFilters,
-  lastCheckedAt: Date | null,
-): Promise<{
-  fullCount: number;
-  scannedCount: number;
-  matchedCount: number;
-  vehicles: SearchVehicle[];
-}> {
-  const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
-  if (filtersString === NO_MATCH_VIN_FILTER) {
-    return { fullCount: 0, scannedCount: 0, matchedCount: 0, vehicles: [] };
-  }
-  const hitsPerPage = 100;
+export async function scanAlertMatchPages(
+  fetchPage: FetchAlertSearchPage,
+  config: AlertScanConfig,
+): Promise<AlertMatchStats> {
   let page = 0;
-  let fullCount = 0;
   let scannedCount = 0;
   let matchedCount = 0;
-  let paginationLimitedTo: number | undefined;
   const vehicles: SearchVehicle[] = [];
 
   while (true) {
-    const response = await searchClient.searchForHits<Record<string, unknown>>({
-      requests: [
-        {
-          indexName: ALGOLIA_INDEX_NAME,
-          query: query.trim(),
-          filters: filtersString,
-          hitsPerPage,
-          page,
-        },
-      ],
-    });
-    const result = response.results[0] as AlgoliaSearchResponse | undefined;
-    if (!result) {
-      break;
+    const result = await fetchPage(page, config.hitsPerPage);
+    if (result === null) {
+      return {
+        matchedCount,
+        completion: { status: "incomplete", reason: "missing-page" },
+        vehicles,
+      };
     }
 
-    const hits = result.hits ?? [];
-    if (page === 0) {
-      fullCount = result.nbHits ?? hits.length;
-      paginationLimitedTo = result.paginationLimitedTo;
-    }
+    const { hits } = result;
     if (hits.length === 0) {
-      break;
+      return {
+        matchedCount,
+        completion: { status: "complete" },
+        vehicles,
+      };
     }
 
     for (const hit of hits) {
@@ -164,33 +182,76 @@ export async function getAlertMatchStats(
       }
     }
 
-    if (scannedCount >= fullCount) {
-      break;
+    const reachedPaginationLimit =
+      scannedCount >= config.paginationLimit &&
+      (!result.countIsExhaustive ||
+        result.reportedCount > config.paginationLimit);
+    if (reachedPaginationLimit) {
+      console.warn(
+        `[algolia-alert-search] Scan incomplete after ${scannedCount} hits (reported=${result.reportedCount}, paginationLimitedTo=${config.paginationLimit}).`,
+      );
+      return {
+        matchedCount,
+        completion: { status: "incomplete", reason: "pagination-limit" },
+        vehicles,
+      };
     }
-    if (hits.length < hitsPerPage) {
-      break;
+    if (hits.length < config.hitsPerPage) {
+      return {
+        matchedCount,
+        completion: { status: "complete" },
+        vehicles,
+      };
     }
-    if (typeof result.nbPages === "number" && page + 1 >= result.nbPages) {
-      break;
+    if (
+      result.countIsExhaustive &&
+      (page + 1 >= result.reportedPageCount ||
+        scannedCount >= result.reportedCount)
+    ) {
+      return {
+        matchedCount,
+        completion: { status: "complete" },
+        vehicles,
+      };
     }
 
     page += 1;
   }
+}
 
-  if (
-    paginationLimitedTo !== undefined &&
-    fullCount > paginationLimitedTo &&
-    scannedCount < fullCount
-  ) {
-    console.warn(
-      `[algolia-alert-search] Scanned ${scannedCount} of ${fullCount} hits due to paginationLimitedTo=${paginationLimitedTo}.`,
-    );
+export async function getAlertMatchStats(
+  query: string,
+  filters: AlertFilters,
+  lastCheckedAt: Date | null,
+): Promise<AlertMatchStats> {
+  const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
+  if (filtersString === NO_MATCH_VIN_FILTER) {
+    return {
+      matchedCount: 0,
+      completion: { status: "complete" },
+      vehicles: [],
+    };
   }
 
-  return {
-    fullCount,
-    scannedCount,
-    matchedCount,
-    vehicles,
+  const fetchPage: FetchAlertSearchPage = async (page, hitsPerPage) => {
+    const response = await searchClient.searchForHits<Record<string, unknown>>({
+      requests: [
+        {
+          indexName: ALGOLIA_INDEX_NAME,
+          query: query.trim(),
+          filters: filtersString,
+          hitsPerPage,
+          page,
+        },
+      ],
+    });
+    const result = response.results[0];
+    if (!result) return null;
+    return toAlertSearchPage(result);
   };
+
+  return scanAlertMatchPages(fetchPage, {
+    hitsPerPage: 100,
+    paginationLimit: ALGOLIA_PAGINATION_LIMIT,
+  });
 }

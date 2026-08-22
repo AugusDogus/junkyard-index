@@ -101,9 +101,12 @@ async function prepareSearch(
   }
 
   const queryTime = new Date();
-  const { vehicles, scannedCount, matchedCount, fullCount } =
-    await getAlertMatchStats(search.query, filters, search.lastCheckedAt);
-  const canAdvanceLastCheckedAt = scannedCount === fullCount;
+  const { vehicles, matchedCount, completion } = await getAlertMatchStats(
+    search.query,
+    filters,
+    search.lastCheckedAt,
+  );
+  const canAdvanceLastCheckedAt = completion.status === "complete";
 
   if (matchedCount === 0 && canAdvanceLastCheckedAt) {
     await db
