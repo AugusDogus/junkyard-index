@@ -1,0 +1,202 @@
+"use client";
+
+import posthog from "posthog-js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import Link from "next/link";
+import { Button } from "~/components/ui/button";
+import { AnalyticsEvents } from "~/lib/analytics-events";
+import { signIn, useSession } from "~/lib/auth-client";
+import {
+  FREE_DAILY_SEARCH_LIMIT,
+  PLANS,
+  hasPlanFeature,
+  type PlanTier,
+} from "~/lib/plans";
+import { api } from "~/trpc/react";
+
+interface InstantSearchUiState {
+  refinementList?: Record<string, string[]>;
+  range?: Record<string, string>;
+}
+
+/** Subscribes to the viewer's plan tier via tRPC. */
+export function usePlanTier(isLoggedIn: boolean): {
+  /** Resolved plan tier; null means "not known yet", never "free". */
+  planTier: PlanTier | null;
+  isResolved: boolean;
+  canUseAdvancedFilters: boolean;
+  canSaveSearches: boolean;
+  canUseAlerts: boolean;
+} {
+  const { data } = api.subscription.getCustomerState.useQuery(undefined, {
+    enabled: isLoggedIn,
+  });
+  // Logged-out viewers are free by definition; logged-in users are unknown
+  // until the query resolves so we never render paid gates as locked.
+  const planTier: PlanTier | null = isLoggedIn ? (data?.tier ?? null) : "free";
+  return {
+    planTier,
+    isResolved: planTier !== null,
+    canUseAdvancedFilters: hasPlanFeature(
+      planTier ?? "free",
+      "advanced_filters",
+    ),
+    canSaveSearches: hasPlanFeature(planTier ?? "free", "saved_searches"),
+    canUseAlerts: hasPlanFeature(planTier ?? "free", "alerts"),
+  };
+}
+
+interface DailySearchQuotaArgs {
+  isLoggedIn: boolean;
+  isAnonymousUser: boolean;
+  /** Null while the tier query is in flight; treated as free for UX gating
+   * (the server always resolves the authoritative tier before counting). */
+  planTier: PlanTier | null;
+  /** Committed search value; empty string means no active search. */
+  analyticsSearchValue: string;
+  isSearching: boolean;
+  hasError: boolean;
+}
+
+/**
+ * Free-tier daily search quota. Counts each committed search server-side.
+ * Guests get an anonymous Better Auth session on their first search so the
+ * same server-side quota applies before sign-up; signing up converts the
+ * guest in place and carries their usage history over (see auth.ts
+ * onLinkAccount). Guest session creation failure fails open rather than
+ * blocking search.
+ */
+export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
+  const recordSearchMutation = api.usage.recordSearch.useMutation();
+  const lastQuotaQuery = useRef("");
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const { data: authSession } = useSession();
+  // Derived from the live session (not component state) so the flag survives
+  // InstantSearch remounts. Better Auth rejects a second anonymous sign-in.
+  const hasGuestSession =
+    args.isAnonymousUser || authSession?.user?.isAnonymous === true;
+
+  // A mid-session upgrade lifts the quota block immediately.
+  useEffect(() => {
+    if (args.planTier !== null && args.planTier !== "free") {
+      setQuotaExceeded(false);
+    }
+  }, [args.planTier]);
+
+  const recordSearch = useCallback(() => {
+    const record = () =>
+      recordSearchMutation.mutate(undefined, {
+        onSuccess: (result) => setQuotaExceeded(!result.allowed),
+      });
+
+    if (args.isLoggedIn || hasGuestSession) {
+      record();
+      return;
+    }
+
+    void (async () => {
+      try {
+        await signIn.anonymous();
+        record();
+      } catch {
+        // Guest session creation failed; fail open rather than block search
+      }
+    })();
+  }, [args.isLoggedIn, hasGuestSession, recordSearchMutation]);
+
+  useEffect(() => {
+    if (!args.analyticsSearchValue || args.isSearching || args.hasError) return;
+    if (lastQuotaQuery.current === args.analyticsSearchValue) return;
+    lastQuotaQuery.current = args.analyticsSearchValue;
+    recordSearch();
+  }, [
+    args.analyticsSearchValue,
+    args.isSearching,
+    args.hasError,
+    recordSearch,
+  ]);
+
+  return quotaExceeded;
+}
+
+interface AdvancedFilterGateArgs {
+  canUseAdvancedFilters: boolean;
+  isLoggedIn: boolean;
+  isTierResolved: boolean;
+  indexUiState: InstantSearchUiState;
+  setIndexUiState: (
+    updater: (prev: InstantSearchUiState) => InstantSearchUiState,
+  ) => void;
+}
+
+/**
+ * Strips URL-carried advanced filters for free-tier users before they reach
+ * Algolia. Waits for the plan tier to resolve so paying users don't lose
+ * filters mid-load.
+ */
+export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
+  const {
+    canUseAdvancedFilters,
+    isLoggedIn,
+    isTierResolved,
+    indexUiState,
+    setIndexUiState,
+  } = args;
+
+  useEffect(() => {
+    if (canUseAdvancedFilters) return;
+    if (isLoggedIn && !isTierResolved) return;
+    const hasAdvancedRefinements =
+      Object.keys(indexUiState.refinementList ?? {}).length > 0 ||
+      Object.keys(indexUiState.range ?? {}).length > 0;
+    if (!hasAdvancedRefinements) return;
+    setIndexUiState((prev) => ({
+      ...prev,
+      refinementList: {},
+      range: {},
+    }));
+    posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
+      reason: "plan_restricted",
+    });
+    toast.info("Filters are available on Lite and Full plans.");
+  }, [
+    canUseAdvancedFilters,
+    isLoggedIn,
+    isTierResolved,
+    indexUiState,
+    setIndexUiState,
+  ]);
+}
+
+export function FreeQuotaOverlay({ query }: { query: string }) {
+  return (
+    <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
+      <p className="text-sm font-medium">Daily limit reached</p>
+      <h3 className="mt-2 text-xl font-semibold tracking-tight text-balance">
+        You&apos;ve used all {FREE_DAILY_SEARCH_LIMIT} free searches for today.
+      </h3>
+      <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
+        Upgrade to Lite (${PLANS.lite.monthlyPrice}/mo) for unlimited searches,
+        advanced filters, and saved searches. Your searches reset tomorrow.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <Button asChild>
+          <Link
+            href="/pricing"
+            onClick={() =>
+              posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                source_page: "search",
+                cta_location: "free_quota_limit",
+                query,
+                is_logged_in: true,
+              })
+            }
+          >
+            See Pricing
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}

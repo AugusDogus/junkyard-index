@@ -41,6 +41,7 @@ interface MobileFiltersDrawerProps {
     min: number;
     max: number;
   };
+  canUseAdvancedFilters: boolean;
   iconOnly?: boolean;
 }
 
@@ -61,6 +62,7 @@ export function MobileFiltersDrawer({
   onSourcesChange,
   onYearRangeChange,
   yearRangeLimits,
+  canUseAdvancedFilters,
   iconOnly,
 }: MobileFiltersDrawerProps) {
   return (
@@ -118,6 +120,7 @@ export function MobileFiltersDrawer({
             onSourcesChange={onSourcesChange}
             onYearRangeChange={onYearRangeChange}
             yearRangeLimits={yearRangeLimits}
+            canUseAdvancedFilters={canUseAdvancedFilters}
           />
         </div>
         <div className="bg-background border-t p-4">

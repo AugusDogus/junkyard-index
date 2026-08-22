@@ -1,0 +1,51 @@
+import { sql } from "drizzle-orm";
+import { z } from "zod";
+import { getPlanTier } from "~/server/billing/user-plan";
+import {
+  currentUtcDay,
+  evaluateSearchQuota,
+} from "~/server/billing/search-quota";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { searchUsage } from "~/schema";
+
+export const usageRouter = createTRPCRouter({
+  /**
+   * Records one search for the current user and reports whether they may
+   * still search today. Paid tiers are never counted or limited.
+   */
+  recordSearch: protectedProcedure
+    .input(z.object({}).default({}))
+    .mutation(async ({ ctx }) => {
+      const planTier = await getPlanTier(ctx.user.id);
+
+      if (planTier !== "free") {
+        return {
+          allowed: true,
+          tier: planTier,
+          dailyLimit: null,
+          searchesUsed: 0,
+        };
+      }
+
+      const day = currentUtcDay();
+
+      const [row] = await ctx.db
+        .insert(searchUsage)
+        .values({ userId: ctx.user.id, day, count: 1 })
+        .onConflictDoUpdate({
+          target: [searchUsage.userId, searchUsage.day],
+          set: { count: sql`${searchUsage.count} + 1` },
+        })
+        .returning({ count: searchUsage.count });
+
+      const searchesUsed = row?.count ?? 1;
+      const outcome = evaluateSearchQuota(searchesUsed);
+
+      return {
+        allowed: outcome.allowed,
+        tier: planTier,
+        dailyLimit: outcome.dailyLimit,
+        searchesUsed,
+      };
+    }),
+});

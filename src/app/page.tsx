@@ -7,7 +7,8 @@ import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { SEARCH_CONFIG } from "~/lib/constants";
+import { FREE_DAILY_SEARCH_LIMIT, PLANS } from "~/lib/plans";
 import { api } from "~/trpc/server";
 
 export const metadata: Metadata = {
@@ -59,8 +60,8 @@ export default async function Home() {
                   className="mb-6 gap-2 px-3 py-1 sm:mb-5"
                 >
                   <span className="inline-flex size-2 rounded-full bg-green-500" />
-                  Search is free. Alerts are $
-                  {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.
+                  Search is free. Plans from $
+                  {PLANS.lite.monthlyPrice}/mo.
                 </Badge>
                 <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
                   Search salvage yard inventory before the right donor vehicle
@@ -126,7 +127,7 @@ export default async function Home() {
               />
               <ProofCard
                 title="Free search, paid tracking"
-                description="Search anonymously, create a free account to save work, and use Alerts Plan when timing matters."
+                description="Search anonymously, upgrade to Lite for filters and saved searches, and use Full when timing matters."
               />
             </div>
           </div>
@@ -159,7 +160,7 @@ export default async function Home() {
               <ValueCard
                 icon={<Bell className="size-5" />}
                 title="Upgrade when timing matters"
-                description={`Use Alerts Plan for $${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo to get email or Discord alerts when new matches arrive.`}
+                description={`Use the Full plan for $${PLANS.full.monthlyPrice}/mo to get email or Discord alerts when new matches arrive.`}
               />
             </div>
           </div>
@@ -181,23 +182,23 @@ export default async function Home() {
             <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
               <PlanCard
                 eyebrow="Free account"
-                title="Full results and saved searches"
+                title="Everyday searching"
                 items={[
                   "Search salvage yard inventory for free",
-                  "See full results after creating a free account",
-                  `Create up to ${MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} saved searches`,
+                  `${SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT}-result preview before signing up, full results after`,
+                  `${FREE_DAILY_SEARCH_LIMIT} searches per day`,
                   "No credit card required",
                 ]}
                 ctaHref="/auth/sign-up"
                 ctaLabel="Create Free Account"
               />
               <PlanCard
-                eyebrow="Alerts Plan"
-                title={`$${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo for inventory tracking`}
+                eyebrow="Lite & Full plans"
+                title={`From $${PLANS.lite.monthlyPrice}/mo for filters and tracking`}
                 items={[
-                  "Unlimited saved searches",
-                  "Email alerts for new matches",
-                  "Discord alerts for new matches",
+                  `Lite ($${PLANS.lite.monthlyPrice}/mo): unlimited searches, advanced filters, saved searches`,
+                  `Full ($${PLANS.full.monthlyPrice}/mo): everything in Lite plus email and Discord alerts`,
+                  "Annual billing available for both plans",
                   "Best fit for repeat searches and fast-moving inventory",
                 ]}
                 ctaHref="/pricing"
