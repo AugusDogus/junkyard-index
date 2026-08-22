@@ -1,6 +1,27 @@
+import type { PlanTier } from "~/lib/plans";
 import type { SearchAlertCompletion } from "./search-alert-result";
 
 export type AlertDisableReason = "missing" | "plan_downgraded";
+
+/**
+ * Classifies a Polar customer's alert entitlement. Zero active subscriptions
+ * means never-subscribed or canceled ("missing") and must be checked before
+ * the tier gate, or those customers would be mislabeled as downgraded.
+ */
+export function classifyAlertEntitlement(
+  activeSubscriptionCount: number,
+  tier: PlanTier,
+): { kind: "active" } | { kind: "inactive"; reason: AlertDisableReason } {
+  if (activeSubscriptionCount === 0) {
+    return { kind: "inactive", reason: "missing" };
+  }
+  // Alerts require the Full tier; legacy grandfathered subscribers resolve
+  // as Full via src/server/billing/user-plan.ts.
+  if (tier !== "full") {
+    return { kind: "inactive", reason: "plan_downgraded" };
+  }
+  return { kind: "active" };
+}
 
 /**
  * Maps an alert-disable reason to its analytics event and result completion.

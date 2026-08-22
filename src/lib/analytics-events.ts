@@ -75,7 +75,6 @@ export const AnalyticsEvents = {
   // Alerts Cron
   ALERT_CRON_COMPLETED: "alert_cron_completed",
   ALERT_NOTIFICATION_SENT: "alert_notification_sent",
-  ALERT_SUBSCRIPTION_EXPIRED: "alert_subscription_expired",
 
   // Monetization
   SAVED_SEARCH_LIMIT_REACHED: "saved_search_limit_reached",
