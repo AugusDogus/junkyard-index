@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import posthog from "posthog-js";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { AnalyticsEvents } from "~/lib/analytics-events";
 import { useSession } from "~/lib/auth-client";
 import { startTierCheckout } from "~/lib/checkout";
 import { isVisibleSessionUser } from "~/lib/session-user";
@@ -13,7 +11,6 @@ import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
   type BillingInterval,
-  checkoutSlugFor,
   formatMonthlyEquivalent,
   planPrice,
 } from "~/lib/plans";
