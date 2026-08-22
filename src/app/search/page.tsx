@@ -9,6 +9,7 @@ import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
+import { isGuestSession, isVisibleSessionUser } from "~/lib/session-user";
 
 export const metadata: Metadata = {
   title: "Search Salvage Yard Inventory",
@@ -49,10 +50,8 @@ export default async function SearchPage() {
           <ErrorBoundary>
             <Suspense>
               <SearchPageContent
-                // Anonymous guest sessions are invisible in the UI; guests
-                // still count toward the free daily search limit.
-                isLoggedIn={!!session?.user && !session.user.isAnonymous}
-                isAnonymousUser={session?.user?.isAnonymous === true}
+                isLoggedIn={isVisibleSessionUser(session?.user)}
+                isAnonymousUser={isGuestSession(session?.user)}
                 userLocation={geo}
               />
             </Suspense>

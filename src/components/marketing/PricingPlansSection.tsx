@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient, useSession } from "~/lib/auth-client";
+import { isVisibleSessionUser } from "~/lib/session-user";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
@@ -43,8 +44,7 @@ export function PricingPlansSection() {
   const { data: session } = useSession();
   // Anonymous guest sessions can't check out: Polar would bind the
   // subscription to a user that Better Auth deletes on account conversion.
-  const isLoggedIn =
-    !!session?.user && !session.user.isAnonymous;
+  const isLoggedIn = isVisibleSessionUser(session?.user);
 
   const handleCheckout = async (tier: "lite" | "full", ctaLocation: string) => {
     posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
