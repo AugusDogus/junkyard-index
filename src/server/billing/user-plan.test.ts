@@ -13,9 +13,6 @@ function createFakePolar(initial: CustomerStateLike) {
   let calls = 0;
   return {
     calls: () => calls,
-    setState(next: CustomerStateLike) {
-      state = next;
-    },
     failNextCall() {
       failNext = true;
     },
