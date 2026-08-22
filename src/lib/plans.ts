@@ -127,3 +127,8 @@ export function formatMonthlyEquivalent(
     ? `$${perMonth}`
     : `$${perMonth.toFixed(2)}`;
 }
+
+/** UTC-day bucket key (YYYY-MM-DD). Quotas reset at midnight UTC. */
+export function currentUtcDay(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}

@@ -75,11 +75,11 @@ export async function sendDM(
  */
 export async function sendTestDM(
   userId: string,
-  hasActiveSubscription: boolean,
+  isPaidTier: boolean,
 ): Promise<NotificationDeliveryResult> {
-  const description = hasActiveSubscription
+  const description = isPaidTier
     ? "You've successfully connected Discord to Junkyard Index. You'll receive DMs here when new vehicles match your saved searches with Discord alerts enabled."
-    : "You've successfully connected Discord to Junkyard Index. Once you have an active subscription and enable Discord alerts on a saved search, you'll receive DMs here when new vehicles are found.";
+    : "You've successfully connected Discord to Junkyard Index. Once you're on the Full plan and enable Discord alerts on a saved search, you'll receive DMs here when new vehicles are found.";
 
   // Build settings URL from environment
   const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://junkyardindex.com";
