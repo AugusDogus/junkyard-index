@@ -1,79 +1,84 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import type { PlanTier } from "~/lib/plans";
 import type { CustomerStateLike } from "~/server/billing/plan-tier";
+import {
+  createPlanTierService,
+  type PlanTierService,
+} from "~/server/billing/user-plan";
+import { createTierCache } from "~/server/billing/tier-cache";
 
-// Mock the Polar SDK client before importing user-plan so cache behavior is
-// observable without network access. NOTE: bun's mock.module mutates the
-// shared module registry for this whole test process; if another test file
-// ever needs the real polar-client, move these tests to a separate bunfig
-// project or restore via a dedicated entrypoint.
-let nextResult:
-  | { ok: true; state: CustomerStateLike }
-  | { ok: false; error: unknown } = {
-  ok: true,
-  state: { activeSubscriptions: [] },
-};
-let polarCalls = 0;
-
-mock.module("~/server/billing/polar-client", () => ({
-  polarClient: {
-    customers: {
-      getStateExternal: async () => {
-        polarCalls += 1;
-        if (!nextResult.ok) {
-          throw nextResult.error;
-        }
-        return nextResult.state;
-      },
+function createFakePolar(initial: CustomerStateLike) {
+  let state = initial;
+  let failNext = false;
+  let calls = 0;
+  return {
+    calls: () => calls,
+    setState(next: CustomerStateLike) {
+      state = next;
     },
-  },
-}));
+    failNextCall() {
+      failNext = true;
+    },
+    fetchCustomerState: async (): Promise<CustomerStateLike> => {
+      calls += 1;
+      if (failNext) {
+        failNext = false;
+        throw new Error("polar down");
+      }
+      return state;
+    },
+  };
+}
 
-const { getPlanTier, invalidatePlanTierCache } =
-  await import("~/server/billing/user-plan");
-const { createTierCache } = await import("~/server/billing/tier-cache");
-
-// From tests/setup-env.ts: POLAR_LITE_PRODUCT_ID = ...0002, FULL = ...0004
 const LITE_STATE: CustomerStateLike = {
-  activeSubscriptions: [{ productId: "00000000-0000-4000-8000-000000000002" }],
+  activeSubscriptions: [{ productId: "lite-monthly-id" }],
 };
+
+function createTestService(
+  polar: ReturnType<typeof createFakePolar>,
+): PlanTierService & { polar: typeof polar } {
+  const service = createPlanTierService({
+    fetchCustomerState: polar.fetchCustomerState,
+    resolveTier: (state) =>
+      state.activeSubscriptions?.some((s) => s.productId === "lite-monthly-id")
+        ? "lite"
+        : ("free" as PlanTier),
+  });
+  return { ...service, polar };
+}
 
 describe("getPlanTier caching", () => {
   test("caches resolved tiers and serves repeats without hitting Polar", async () => {
-    polarCalls = 0;
-    nextResult = { ok: true, state: LITE_STATE };
+    const test = createTestService(createFakePolar(LITE_STATE));
 
-    const first = await getPlanTier("cache-user-1");
-    const second = await getPlanTier("cache-user-1");
+    const first = await test.getPlanTier("cache-user-1");
+    const second = await test.getPlanTier("cache-user-1");
 
     expect(first).toBe("lite");
     expect(second).toBe("lite");
-    expect(polarCalls).toBe(1);
+    expect(test.polar.calls()).toBe(1);
   });
 
-  test("invalidatePlanTierCache forces a fresh Polar read", async () => {
-    polarCalls = 0;
-    nextResult = { ok: true, state: LITE_STATE };
-    await getPlanTier("cache-user-2");
+  test("invalidateCache forces a fresh Polar read", async () => {
+    const test = createTestService(createFakePolar(LITE_STATE));
+    await test.getPlanTier("cache-user-2");
 
-    invalidatePlanTierCache("cache-user-2");
-    await getPlanTier("cache-user-2");
+    test.invalidateCache("cache-user-2");
+    await test.getPlanTier("cache-user-2");
 
-    expect(polarCalls).toBe(2);
+    expect(test.polar.calls()).toBe(2);
   });
 
   test("Polar failures resolve to free and are NOT cached (fail-closed, retried)", async () => {
-    polarCalls = 0;
-    nextResult = { ok: false, error: new Error("polar down") };
+    const test = createTestService(createFakePolar(LITE_STATE));
+    test.polar.failNextCall();
 
-    const failed = await getPlanTier("cache-user-3");
+    const failed = await test.getPlanTier("cache-user-3");
     expect(failed).toBe("free");
 
-    // Recovery after the blip must not be blocked by a cached failure
-    nextResult = { ok: true, state: LITE_STATE };
-    const recovered = await getPlanTier("cache-user-3");
-
+    const recovered = await test.getPlanTier("cache-user-3");
     expect(recovered).toBe("lite");
-    expect(polarCalls).toBe(2);
+    expect(test.polar.calls()).toBe(2);
   });
 });
 
