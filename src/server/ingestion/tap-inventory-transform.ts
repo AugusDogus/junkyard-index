@@ -1,4 +1,7 @@
-import { normalizeCanonicalColor, normalizeCanonicalMake } from "./normalization";
+import {
+  normalizeCanonicalColor,
+  normalizeCanonicalMake,
+} from "./normalization";
 import type {
   TapInventorySearchProduct,
   TapInventorySiteConfig,
@@ -6,8 +9,16 @@ import type {
 } from "./tap-inventory-client";
 import type { CanonicalVehicle } from "./types";
 
+export type TapCanonicalVehicle<Source extends string = string> = Omit<
+  CanonicalVehicle,
+  "source"
+> & { source: Source };
+
 function stripHtml(value: string): string {
-  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function extractImageUrl(rawHtml: string): string | null {
@@ -15,11 +26,11 @@ function extractImageUrl(rawHtml: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
-export function transformTapInventoryProduct(
+export function transformTapInventoryProduct<Source extends string>(
   product: TapInventorySearchProduct,
   store: TapInventoryStoreConfig,
-  site: TapInventorySiteConfig,
-): CanonicalVehicle | null {
+  site: TapInventorySiteConfig<Source>,
+): TapCanonicalVehicle<Source> | null {
   const vin = product.vin.trim();
   if (!vin) return null;
 
@@ -61,8 +72,8 @@ export function transformTapInventoryProduct(
     space: null,
     detailsUrl,
     // The site exposes a single parts pricing page rather than separate parts/prices routes.
-    partsUrl: `${new URL("/parts-pricelist/", site.inventoryPageUrl).toString()}`,
-    pricesUrl: `${new URL("/parts-pricelist/", site.inventoryPageUrl).toString()}`,
+    partsUrl: `${new URL(site.partsPricelistPath, site.inventoryPageUrl).toString()}`,
+    pricesUrl: `${new URL(site.partsPricelistPath, site.inventoryPageUrl).toString()}`,
     engine: null,
     trim: null,
     transmission: null,

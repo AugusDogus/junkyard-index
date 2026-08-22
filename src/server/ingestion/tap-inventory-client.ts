@@ -11,28 +11,29 @@ const TAP_RETRY_POLICY = {
   jitter: false,
 } satisfies Partial<ProviderRetryPolicy>;
 
-export interface TapInventorySiteConfig {
-  source: "upullitne";
+export interface TapInventoryStoreConfig {
+  code: string;
+  locationName: string;
+  city: string;
+  state: string;
+  stateAbbr: string;
+  zipCode: string;
+  phone: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+export interface TapInventorySiteConfig<Source extends string = string> {
+  source: Source;
   siteName: string;
   baseUrl: string;
   inventoryPageUrl: string;
   ajaxUrl: string;
   pluginUrl: string;
-  storeLocations: Record<
-    string,
-    {
-      code: string;
-      locationName: string;
-      city: string;
-      state: string;
-      stateAbbr: string;
-      zipCode: string;
-      phone: string;
-      address: string;
-      lat: number;
-      lng: number;
-    }
-  >;
+  expectedPluginPath: string;
+  partsPricelistPath: string;
+  storeLocations: Record<string, TapInventoryStoreConfig>;
   makes: string[];
 }
 
@@ -87,7 +88,10 @@ export type TapInventoryBootstrap = Schema.Schema.Type<
 >;
 
 export function fetchTapBootstrap(
-  config: Pick<TapInventorySiteConfig, "inventoryPageUrl">,
+  config: Pick<
+    TapInventorySiteConfig,
+    "inventoryPageUrl" | "expectedPluginPath"
+  >,
 ): Effect.Effect<TapInventoryBootstrap, Error> {
   return fetchTapBootstrapHtml(config.inventoryPageUrl).pipe(
     Effect.flatMap((html) =>
@@ -101,6 +105,12 @@ export function fetchTapBootstrap(
           if (!match?.[1] || !match[2] || !match[3]) {
             throw new Error(
               "TAP inventory bootstrap payload not found in page HTML",
+            );
+          }
+
+          if (!match[3].includes(config.expectedPluginPath)) {
+            throw new Error(
+              `TAP inventory bootstrap plugin mismatch: expected plugin path "${config.expectedPluginPath}" in "${match[3]}"`,
             );
           }
 
@@ -190,8 +200,6 @@ function decodeHtmlOptions(text: string) {
 
 export type TapInventoryOption = ReturnType<typeof decodeHtmlOptions>[number];
 export type TapStoreOption = TapInventoryOption;
-export type TapInventoryStoreConfig =
-  TapInventorySiteConfig["storeLocations"][string];
 
 export function fetchTapOptions(params: {
   ajaxUrl: string;
@@ -283,105 +291,3 @@ export function searchTapInventory(params: {
     ),
   );
 }
-
-export const UPULLITNE_SITE_CONFIG: TapInventorySiteConfig = {
-  source: "upullitne",
-  siteName: "U Pull-It Nebraska",
-  baseUrl: "https://upullitne.com",
-  inventoryPageUrl: "https://upullitne.com/search-inventory/",
-  ajaxUrl: "https://upullitne.com/wp-admin/admin-ajax.php",
-  pluginUrl:
-    "https://upullitne.com/wp-content/plugins/tap-inventory-search-system/",
-  storeLocations: {
-    LINCOLN: {
-      code: "LINCOLN",
-      locationName: "U Pull-It Nebraska - Lincoln",
-      city: "Lincoln",
-      state: "Nebraska",
-      stateAbbr: "NE",
-      zipCode: "68507",
-      phone: "402-467-4101",
-      address: "6300 N. 70th Street",
-      lat: 40.8715,
-      lng: -96.6256,
-    },
-    "OMAHA NORTH": {
-      code: "OMAHA NORTH",
-      locationName: "U Pull-It Nebraska - Omaha North",
-      city: "Omaha",
-      state: "Nebraska",
-      stateAbbr: "NE",
-      zipCode: "68110",
-      phone: "402-342-0831",
-      address: "1405 Grace Street",
-      lat: 41.2801,
-      lng: -95.9658,
-    },
-    "OMAHA SOUTH": {
-      code: "OMAHA SOUTH",
-      locationName: "U Pull-It Nebraska - Omaha South",
-      city: "Omaha",
-      state: "Nebraska",
-      stateAbbr: "NE",
-      zipCode: "68117",
-      phone: "402-734-6029",
-      address: "5600 S. 60th Street",
-      lat: 41.2042,
-      lng: -96.0011,
-    },
-    "DES MOINES": {
-      code: "DES MOINES",
-      locationName: "U Pull-It Nebraska - Des Moines",
-      city: "Des Moines",
-      state: "Iowa",
-      stateAbbr: "IA",
-      zipCode: "50313",
-      phone: "515-528-3600",
-      address: "1600 NE 44th Ave",
-      lat: 41.6387,
-      lng: -93.5566,
-    },
-  },
-  makes: [
-    "ACURA",
-    "AUDI",
-    "BMW",
-    "BUICK",
-    "CADILLAC",
-    "CHEVROLET",
-    "CHRYSLER",
-    "DODGE",
-    "FIAT",
-    "FORD",
-    "GEO",
-    "GMC",
-    "HONDA",
-    "HUMMER",
-    "HYUNDAI",
-    "INFINITI",
-    "ISUZU",
-    "JAGUAR",
-    "JEEP",
-    "KIA",
-    "LAND ROVER",
-    "LEXUS",
-    "LINCOLN",
-    "MAZDA",
-    "MERCEDES-BENZ",
-    "MERCURY",
-    "MINI",
-    "MITSUBISHI",
-    "NISSAN",
-    "OLDSMOBILE",
-    "PLYMOUTH",
-    "PONTIAC",
-    "SAAB",
-    "SATURN",
-    "SCION",
-    "SUBARU",
-    "SUZUKI",
-    "TOYOTA",
-    "VOLKSWAGEN",
-    "VOLVO",
-  ],
-};
