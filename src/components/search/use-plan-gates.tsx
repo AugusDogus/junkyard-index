@@ -68,6 +68,9 @@ interface DailySearchQuotaArgs {
   hasError: boolean;
 }
 
+/** sessionStorage key holding the last quota-recorded query for this tab. */
+const QUOTA_DEDUPE_KEY = "ji:lastQuotaRecordedQuery";
+
 /**
  * Free-tier daily search quota. Counts each committed search server-side.
  * Guests get an anonymous Better Auth session on their first search so the
@@ -76,9 +79,6 @@ interface DailySearchQuotaArgs {
  * onLinkAccount). Guest session creation failure fails open rather than
  * blocking search.
  */
-/** sessionStorage key holding the last quota-recorded query for this tab. */
-const QUOTA_DEDUPE_KEY = "ji:lastQuotaRecordedQuery";
-
 export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
   const recordSearchMutation = api.usage.recordSearch.useMutation();
   // Dedupe key persists in sessionStorage so a page refresh (or SPA
