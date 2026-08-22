@@ -7,13 +7,14 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, useSession } from "~/lib/auth-client";
-import { currentUtcDay } from "~/server/billing/search-quota";
+
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
   hasPlanFeature,
   type PlanFeature,
   type PlanTier,
+  currentUtcDay,
 } from "~/lib/plans";
 import { isGuestSession } from "~/lib/session-user";
 import { api } from "~/trpc/react";

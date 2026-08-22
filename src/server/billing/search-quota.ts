@@ -1,4 +1,7 @@
-import { FREE_DAILY_SEARCH_LIMIT } from "~/lib/plans";
+import {
+  FREE_DAILY_SEARCH_LIMIT,
+  currentUtcDay as currentUtcDayImpl,
+} from "~/lib/plans";
 
 /**
  * Free-tier search quota semantics. Shared so the enforcement endpoint and
@@ -7,7 +10,7 @@ import { FREE_DAILY_SEARCH_LIMIT } from "~/lib/plans";
 
 /** UTC-day bucket key (YYYY-MM-DD). Quotas reset at midnight UTC. */
 export function currentUtcDay(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10);
+  return currentUtcDayImpl(now);
 }
 
 export interface QuotaOutcome {
