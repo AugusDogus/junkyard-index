@@ -10,6 +10,10 @@ export interface TierCache {
  * Short-TTL in-memory cache for plan tiers. Entries expire after `ttlMs`;
  * expired entries are dropped on read. Injected clock keeps TTL behavior
  * testable.
+ *
+ * Eviction is lazy-on-read: churned users leave expired entries behind until
+ * process recycle. Fine for serverless lifetimes; add a sweep or size cap
+ * before using this in a long-lived worker.
  */
 export function createTierCache(
   ttlMs: number,
