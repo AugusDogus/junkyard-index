@@ -85,6 +85,7 @@ describe("ingestion v2 migration", () => {
     expect(migrations).not.toContain("drop table vehicle_change");
     expect(migrations).not.toContain("delete from vehicle_change");
     expect(migrations).not.toContain(" on vehicle_change(");
+    expect(migrations).not.toContain("vehicle_snapshot_run_vin_source_idx");
     await client.executeMultiple(
       migration.replaceAll("--> statement-breakpoint", ""),
     );
