@@ -61,45 +61,6 @@ alter table ingestion_run add column alert_matching_completed_at integer;
 alter table ingestion_run add column released_at integer;
 --> statement-breakpoint
 
-update ingestion_run
-set last_progress_at = started_at
-where last_progress_at = 0;
---> statement-breakpoint
-
-update ingestion_run
-set stage = 'released',
-    schedule_key = strftime('%Y-%m-%d', completed_at / 1000, 'unixepoch'),
-    active_slot = null,
-    full_reindex_required = 1,
-    inventory_outcome = case
-      when errors is null then 'published'
-      else 'published_degraded'
-    end,
-    publication_sequence = 1,
-    inventory_published_at = completed_at,
-    search_published_at = completed_at,
-    alert_matching_completed_at = completed_at,
-    released_at = completed_at
-where id = (
-  select id
-  from ingestion_run
-  where status = 'success' and completed_at is not null
-  order by completed_at desc
-  limit 1
-);
---> statement-breakpoint
-
-update ingestion_run
-set active_slot = 1
-where id = (
-  select id
-  from ingestion_run
-  where status = 'running'
-  order by started_at desc
-  limit 1
-);
---> statement-breakpoint
-
 create unique index ingestion_run_single_active_idx
   on ingestion_run(active_slot);
 --> statement-breakpoint
@@ -126,56 +87,11 @@ create index vehicle_snapshot_run_vin_source_idx
   on vehicle_snapshot(run_id, vin, source);
 --> statement-breakpoint
 
--- Only pending changes still have work to do. Preserve that indexed subset and
--- discard processed delivery history instead of rebuilding millions of rows.
-create table vehicle_change_pending_migration as
-select
-  id, run_id, vin, change_type, payload, payload_version, created_at, processed_at
-from vehicle_change
-where processed_at is null
-  and id in (
-    select max(id)
-    from vehicle_change
-    where processed_at is null
-    group by run_id, vin, change_type
-  );
---> statement-breakpoint
-
-drop table vehicle_change;
---> statement-breakpoint
-
-create table vehicle_change (
-  id integer primary key autoincrement,
-  run_id text not null references ingestion_run(id) on delete cascade,
-  vin text not null,
-  change_type text not null,
-  payload text,
-  payload_version integer not null default 1,
-  created_at integer not null default (cast(unixepoch('subsecond') * 1000 as integer)),
-  processed_at integer
-);
---> statement-breakpoint
-
-create index vehicle_change_run_id_idx on vehicle_change(run_id);
---> statement-breakpoint
+-- Historical processed changes are immutable delivery history. Leave them in
+-- place and enforce deduplication only for live work created by new runs.
 create unique index vehicle_change_run_vin_type_idx
-  on vehicle_change(run_id, vin, change_type);
---> statement-breakpoint
-create index vehicle_change_vin_idx on vehicle_change(vin);
---> statement-breakpoint
-create index vehicle_change_processed_at_idx
-  on vehicle_change(processed_at, id);
---> statement-breakpoint
-
-insert into vehicle_change (
-  id, run_id, vin, change_type, payload, payload_version, created_at, processed_at
-)
-select
-  id, run_id, vin, change_type, payload, payload_version, created_at, processed_at
-from vehicle_change_pending_migration;
---> statement-breakpoint
-
-drop table vehicle_change_pending_migration;
+  on vehicle_change(run_id, vin, change_type)
+  where processed_at is null;
 --> statement-breakpoint
 
 create table search_notification_intent (

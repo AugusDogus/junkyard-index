@@ -131,6 +131,51 @@ function makeVehicle(vin = "2MEFM75W4XX703938"): CanonicalVehicle {
 }
 
 describe("durable ingestion repository", () => {
+  test("makes the first v2 ingestion a full reindex without mutating legacy runs", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, status, stage, started_at, last_progress_at, completed_at
+        ) values (
+          'legacy-success', 'all', 'success', 'sources', 1000, 0, 2000
+        )
+      `);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+      );
+
+      const wakeup = await repository.prepareWakeup(
+        new Date("2026-08-22T07:00:00.000Z"),
+      );
+      expect(wakeup.status).toBe("start");
+      if (wakeup.status !== "start") throw new Error("Expected a new run");
+      expect((await repository.getRun(wakeup.runId)).fullReindexRequired).toBe(
+        true,
+      );
+
+      const legacyRun = await client.execute(
+        `select status, stage, full_reindex_required, started_at,
+                last_progress_at, completed_at, publication_sequence
+         from ingestion_run where id = 'legacy-success'`,
+      );
+      expect(legacyRun.rows[0]).toMatchObject({
+        status: "success",
+        stage: "sources",
+        full_reindex_required: 0,
+        started_at: 1000,
+        last_progress_at: 0,
+        completed_at: 2000,
+        publication_sequence: null,
+      });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
   test("checkpoints once on replay and preserves a failed execution for resumption", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
@@ -348,6 +393,7 @@ describe("durable ingestion repository", () => {
         sql: `
           update ingestion_run
           set status = 'success', stage = 'released', active_slot = null,
+              full_reindex_required = 0, publication_sequence = 1,
               inventory_outcome = 'published_degraded',
               search_published_at = ?, completed_at = ?
           where id = ?
@@ -362,6 +408,7 @@ describe("durable ingestion repository", () => {
         sql: `
           update ingestion_run
           set status = 'success', stage = 'released', active_slot = null,
+              full_reindex_required = 0, publication_sequence = 2,
               inventory_outcome = 'published',
               search_published_at = ?, completed_at = ?
           where id = ?

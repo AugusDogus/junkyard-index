@@ -378,11 +378,9 @@ export const vehicleChange = sqliteTable(
   },
   (table) => [
     index("vehicle_change_run_id_idx").on(table.runId),
-    uniqueIndex("vehicle_change_run_vin_type_idx").on(
-      table.runId,
-      table.vin,
-      table.changeType,
-    ),
+    uniqueIndex("vehicle_change_run_vin_type_idx")
+      .on(table.runId, table.vin, table.changeType)
+      .where(sql`processed_at is null`),
     index("vehicle_change_vin_idx").on(table.vin),
     index("vehicle_change_processed_at_idx").on(table.processedAt, table.id),
   ],

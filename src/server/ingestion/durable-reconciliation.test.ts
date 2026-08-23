@@ -66,7 +66,8 @@ const TEST_SCHEMA = `
     created_at integer not null, processed_at integer
   );
   create unique index vehicle_change_run_vin_type_idx
-    on vehicle_change(run_id, vin, change_type);
+    on vehicle_change(run_id, vin, change_type)
+    where processed_at is null;
 `;
 
 function snapshot(runId: string, source: "row52" | "pyp", color: string) {

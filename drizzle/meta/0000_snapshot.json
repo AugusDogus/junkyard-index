@@ -1515,7 +1515,8 @@
         "vehicle_change_run_vin_type_idx": {
           "name": "vehicle_change_run_vin_type_idx",
           "columns": ["run_id", "vin", "change_type"],
-          "isUnique": true
+          "isUnique": true,
+          "where": "processed_at is null"
         },
         "vehicle_change_vin_idx": {
           "name": "vehicle_change_vin_idx",

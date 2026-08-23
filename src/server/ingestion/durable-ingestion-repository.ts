@@ -290,6 +290,9 @@ export function createDurableIngestionRepository(
                   case when exists (
                     select 1 from ingestion_run
                     where full_reindex_required = 1
+                  ) or not exists (
+                    select 1 from ingestion_run
+                    where publication_sequence is not null
                   ) then 1 else 0 end,
                   ?, ?)
               `,
@@ -343,6 +346,9 @@ export function createDurableIngestionRepository(
                      case when exists (
                        select 1 from ingestion_run
                        where full_reindex_required = 1
+                     ) or not exists (
+                       select 1 from ingestion_run
+                       where publication_sequence is not null
                      ) then 1 else 0 end,
                      ?, ?
               where not exists (
