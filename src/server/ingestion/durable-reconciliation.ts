@@ -69,7 +69,9 @@ function changeInsertStatement(params: {
       select ?, column1, column2, null, 1, ?
       from (values ${params.changes.map(() => "(?, ?)").join(", ")})
       where ${guardSql(params.stage)}
-      on conflict(run_id, vin, change_type) do nothing
+      on conflict(run_id, vin, change_type)
+        where processed_at is null
+        do nothing
     `,
     args: [
       params.runId,
