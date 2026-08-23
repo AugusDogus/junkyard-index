@@ -421,15 +421,16 @@
           delivery, abandonment controls, and pipeline observability.
         </p>
         <div class="card">
-          <strong>Local verification:</strong> 219 tests pass with 639
+          <strong>Local verification:</strong> 224 tests pass with 648
           assertions. Type checking, linting, the production Next.js and
-          Workflow build, SQL migration execution, and whitespace validation
-          also pass.
+          Workflow build, committed SQL migration execution, and whitespace
+          validation also pass.
         </div>
         <p>
-          The migration has not been applied to the production Turso database
-          and the code has not been deployed. Those are deliberately separate
-          rollout actions. The production measurements and live
+          Production Vercel builds apply committed Drizzle migrations before
+          compiling the application. Preview builds do not migrate the shared
+          Turso database. The code has not been deployed, so the migration has
+          not yet been applied. The production measurements and live
           failure-injection checks below still gate enabling the new schedule.
         </p>
       </section>
