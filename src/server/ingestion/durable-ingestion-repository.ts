@@ -22,7 +22,8 @@ import type { CanonicalVehicle } from "./types";
 
 const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const SNAPSHOT_VALUE_COLUMN_COUNT = 24;
-const SNAPSHOT_CLEANUP_BATCH_SIZE = 5_000;
+const CLEANUP_BATCH_SIZE = 5_000;
+const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 const INGESTION_DUE_HOUR_UTC = 7;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
@@ -760,21 +761,63 @@ export function createDurableIngestionRepository(
       );
     },
 
-    async cleanupSnapshotBatch(runId: string) {
-      const result = await database.run(sql`
-        delete from vehicle_snapshot
-        where rowid in (
-          select snapshot.rowid
-          from vehicle_snapshot snapshot
-          join ingestion_run run on run.id = snapshot.run_id
-          where snapshot.run_id = ${runId}
-            and run.active_slot is null
-          limit ${SNAPSHOT_CLEANUP_BATCH_SIZE}
-        )
-      `);
+    async cleanupBatch(runId: string, now = new Date()) {
+      const results = await batchClient.batch(
+        [
+          {
+            sql: `
+              delete from vehicle_snapshot
+              where rowid in (
+                select snapshot.rowid
+                from vehicle_snapshot snapshot
+                join ingestion_run run on run.id = snapshot.run_id
+                where snapshot.run_id = ?
+                  and run.active_slot is null
+                limit ?
+              )
+            `,
+            args: [runId, CLEANUP_BATCH_SIZE],
+          },
+          {
+            sql: `
+              delete from vehicle_change
+              where id in (
+                select id from vehicle_change
+                where processed_at is not null
+                order by processed_at, id
+                limit ?
+              )
+            `,
+            args: [CLEANUP_BATCH_SIZE],
+          },
+          {
+            sql: `
+              delete from search_notification_intent
+              where id in (
+                select id from search_notification_intent
+                where status in ('delivered', 'cancelled')
+                  and created_at < ?
+                order by created_at, id
+                limit ?
+              )
+            `,
+            args: [
+              now.getTime() - TERMINAL_INTENT_RETENTION_MS,
+              CLEANUP_BATCH_SIZE,
+            ],
+          },
+        ],
+        "write",
+      );
+      const deleted = results.reduce(
+        (total, result) => total + result.rowsAffected,
+        0,
+      );
       return {
-        deleted: result.rowsAffected,
-        done: result.rowsAffected < SNAPSHOT_CLEANUP_BATCH_SIZE,
+        deleted,
+        done: results.every(
+          (result) => result.rowsAffected < CLEANUP_BATCH_SIZE,
+        ),
       };
     },
 
@@ -786,7 +829,7 @@ export function createDurableIngestionRepository(
           from vehicle_snapshot snapshot
           join ingestion_run run on run.id = snapshot.run_id
           where run.active_slot is null
-          limit ${SNAPSHOT_CLEANUP_BATCH_SIZE}
+          limit ${CLEANUP_BATCH_SIZE}
         )
       `);
     },

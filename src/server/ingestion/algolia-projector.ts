@@ -258,8 +258,7 @@ async function projectChangeBatch(
     [
       {
         sql: `
-          update vehicle_change
-          set processed_at = ?
+          delete from vehicle_change
           where id in (${changeIds.map(() => "?").join(", ")})
             and exists (
               select 1 from ingestion_run
@@ -270,7 +269,7 @@ async function projectChangeBatch(
                 and projector_cursor = ?
             )
         `,
-        args: [now, ...changeIds, runId, cursor],
+        args: [...changeIds, runId, cursor],
       },
       {
         sql: `

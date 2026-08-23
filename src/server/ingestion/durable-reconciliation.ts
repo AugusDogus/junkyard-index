@@ -193,12 +193,52 @@ async function buildResult(
   runId: string,
   database: LibSQLDatabase,
 ): Promise<DurableIngestionResult> {
-  const [run] = await database
+  let [run] = await database
     .select()
     .from(ingestionRun)
     .where(eq(ingestionRun.id, runId))
     .limit(1);
   if (!run) throw new Error(`Ingestion run ${runId} does not exist.`);
+  if (
+    run.inventoryPublishedAt &&
+    (run.stage === "project_changes" || run.stage === "full_reindex_prepare") &&
+    (run.publishedVehicleCount === null || run.publishedYardCount === null)
+  ) {
+    const [inventory] = await database
+      .select({
+        vehicleCount: sql<number>`count(*)`,
+        yardCount: sql<number>`count(distinct ${vehicle.locationCode})`,
+      })
+      .from(vehicle);
+    if (!inventory) {
+      throw new Error(
+        `Counting published inventory for ${runId} returned no result.`,
+      );
+    }
+    await database
+      .update(ingestionRun)
+      .set({
+        publishedVehicleCount: inventory.vehicleCount,
+        publishedYardCount: inventory.yardCount,
+      })
+      .where(
+        and(
+          eq(ingestionRun.id, runId),
+          eq(ingestionRun.status, "running"),
+          eq(ingestionRun.activeSlot, 1),
+          inArray(ingestionRun.stage, [
+            "project_changes",
+            "full_reindex_prepare",
+          ]),
+        ),
+      );
+    [run] = await database
+      .select()
+      .from(ingestionRun)
+      .where(eq(ingestionRun.id, runId))
+      .limit(1);
+    if (!run) throw new Error(`Ingestion run ${runId} does not exist.`);
+  }
   const sourceRows = await database
     .select()
     .from(ingestionSourceRun)
@@ -509,10 +549,6 @@ async function runMissingBatch(params: {
                 select coalesce(max(publication_sequence), 0) + 1
                 from ingestion_run
                 where publication_sequence is not null
-              ),
-              published_vehicle_count = (select count(*) from vehicle),
-              published_yard_count = (
-                select count(distinct location_code) from vehicle
               ),
               inventory_published_at = ?,
               last_progress_at = ?

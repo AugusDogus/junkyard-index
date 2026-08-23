@@ -281,7 +281,7 @@ describe("durable Algolia full-index publication", () => {
     }
   });
 
-  test("marks every change covered by the published generation as processed", async () => {
+  test("deletes every pending change covered by the published generation", async () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(TEST_SCHEMA);
@@ -313,14 +313,12 @@ describe("durable Algolia full-index publication", () => {
       });
 
       expect(result.status).toBe("complete");
-      const pending = await client.execute(
-        "select count(*) as count from vehicle_change where processed_at is null",
+      const remaining = await client.execute(
+        "select id, processed_at from vehicle_change",
       );
-      expect(pending.rows[0]?.count).toBe(0);
-      const previouslyProcessed = await client.execute(
-        "select processed_at from vehicle_change where id = 3",
+      expect(JSON.stringify(remaining.rows)).toBe(
+        JSON.stringify([{ id: 3, processed_at: 1234 }]),
       );
-      expect(previouslyProcessed.rows[0]?.processed_at).toBe(1234);
     } finally {
       client.close();
     }
@@ -342,7 +340,7 @@ describe("durable Algolia full-index publication", () => {
       await client.executeMultiple(`
         insert into vehicle_change (processed_at) values (null);
         create trigger reject_change_cleanup
-        before update of processed_at on vehicle_change
+        before delete on vehicle_change
         begin
           select raise(abort, 'injected change cleanup failure');
         end;

@@ -8,7 +8,7 @@ import {
   runProjectionWithFailureRecording,
 } from "~/server/ingestion/durable-post-ingestion-orchestrator";
 import {
-  cleanupDurableIngestionSnapshotBatchStep,
+  cleanupDurableIngestionStateBatchStep,
   cleanupStaleDurableIngestionSnapshotsStep,
   attachDurableIngestionWorkflowStep,
   deliverVehicleSearchAlertIntentsStep,
@@ -115,9 +115,7 @@ export async function vehicleIngestionWorkflow(runId: string) {
         : drainDurablePhase(deliverVehicleSearchAlertIntentsStep);
     },
     cleanup: () =>
-      drainDurableCleanup(() =>
-        cleanupDurableIngestionSnapshotBatchStep(runId),
-      ),
+      drainDurableCleanup(() => cleanupDurableIngestionStateBatchStep(runId)),
   });
 
   return {

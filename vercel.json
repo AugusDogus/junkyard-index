@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run vercel:build",
   "crons": [
     {
       "path": "/api/cron/search-index-migration",

@@ -19,8 +19,15 @@ const LEGACY_SCHEMA = `
     id integer primary key autoincrement,
     run_id text not null,
     vin text not null,
-    change_type text not null
+    change_type text not null,
+    payload text,
+    payload_version integer not null default 1,
+    created_at integer not null default 0,
+    processed_at integer
   );
+  create index vehicle_change_run_id_idx on vehicle_change(run_id);
+  create index vehicle_change_vin_idx on vehicle_change(vin);
+  create index vehicle_change_processed_at_idx on vehicle_change(processed_at, id);
 `;
 
 const clients: Client[] = [];
@@ -40,8 +47,9 @@ describe("ingestion v2 migration", () => {
       insert into ingestion_run values ('old-success', 'success', null, 1000, 2000);
       insert into ingestion_run values ('latest-success', 'success', null, 3000, 4000);
       insert into ingestion_run values ('running', 'running', null, 5000, null);
-      insert into vehicle_change (run_id, vin, change_type) values ('latest-success', 'vin-1', 'upsert');
-      insert into vehicle_change (run_id, vin, change_type) values ('latest-success', 'vin-1', 'upsert');
+      insert into vehicle_change (run_id, vin, change_type, processed_at) values ('latest-success', 'vin-1', 'upsert', null);
+      insert into vehicle_change (run_id, vin, change_type, processed_at) values ('latest-success', 'vin-1', 'upsert', null);
+      insert into vehicle_change (run_id, vin, change_type, processed_at) values ('old-success', 'vin-2', 'upsert', 2000);
     `);
 
     const migrationPath = resolve(
@@ -63,8 +71,8 @@ describe("ingestion v2 migration", () => {
       stage: "released",
       last_progress_at: 3000,
       publication_sequence: 1,
-      published_vehicle_count: 2,
-      published_yard_count: 2,
+      published_vehicle_count: null,
+      published_yard_count: null,
     });
 
     const running = await client.execute({
@@ -80,6 +88,23 @@ describe("ingestion v2 migration", () => {
       "select count(*) as count from vehicle_change",
     );
     expect(changes.rows[0]?.count).toBe(1);
+
+    const pendingChange = await client.execute(
+      "select id, processed_at from vehicle_change",
+    );
+    expect(pendingChange.rows[0]).toMatchObject({ id: 2, processed_at: null });
+
+    const changeIndexes = await client.execute(
+      "select name from sqlite_master where type = 'index' and tbl_name = 'vehicle_change'",
+    );
+    expect(changeIndexes.rows.map((row) => row.name)).toContain(
+      "vehicle_change_run_vin_type_idx",
+    );
+
+    const migrationTables = await client.execute(
+      "select name from sqlite_master where type = 'table' and name like 'vehicle_change%migration%'",
+    );
+    expect(migrationTables.rows).toHaveLength(0);
 
     const intentTable = await client.execute(
       "select name from sqlite_master where type = 'table' and name = 'search_notification_intent'",

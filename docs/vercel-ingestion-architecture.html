@@ -425,17 +425,16 @@
           delivery, abandonment controls, and pipeline observability.
         </p>
         <div class="card">
-          <strong>Local verification:</strong> 214 tests pass with 621
-          assertions. Type checking, linting, the production Next.js and
-          Workflow build, committed SQL migration execution, and whitespace
-          validation also pass.
+          <strong>Local verification:</strong> Unit and integration tests,
+          type checking, linting, the production Next.js and Workflow build,
+          and committed SQL migration execution pass.
         </div>
         <p>
-          Production Vercel builds apply committed Drizzle migrations before
-          compiling the application. Preview builds do not migrate the shared
-          Turso database. The code has not been deployed, so the migration has
-          not yet been applied. The production measurements and live
-          failure-injection checks below still gate enabling the new schedule.
+          Apply committed Drizzle migrations explicitly with
+          <code>bun run db:migrate</code> and production Turso credentials
+          before merging an application version that requires the new schema.
+          Vercel preview and production deployments both run the same
+          application build and never mutate the shared database.
         </p>
       </section>
 
