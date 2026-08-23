@@ -6,8 +6,37 @@ import { PersistenceError } from "./errors";
 import type { PullapartCachedEnrichment } from "./pullapart-connector";
 import type { PullapartVehicle } from "./pullapart-client";
 
+const ENRICHMENT_REFRESH_DAYS = 7;
+const MILLISECONDS_PER_DAY = 86_400_000;
+
+function stableVinHash(vin: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < vin.length; index += 1) {
+    hash ^= vin.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+export function shouldRefreshPullapartEnrichment(
+  vin: string,
+  now: Date,
+): boolean {
+  const timestamp = now.getTime();
+  if (!Number.isFinite(timestamp)) {
+    throw new RangeError("Pull-A-Part enrichment refresh date is invalid");
+  }
+
+  const epochDay = Math.floor(timestamp / MILLISECONDS_PER_DAY);
+  const refreshCohort = stableVinHash(vin) % ENRICHMENT_REFRESH_DAYS;
+  // Refresh one stable VIN cohort per UTC day so cached provider fields cannot
+  // remain stale forever without creating a persistent cache timestamp.
+  return epochDay % ENRICHMENT_REFRESH_DAYS === refreshCohort;
+}
+
 export function loadPullapartCachedEnrichments(
   rows: ReadonlyArray<PullapartVehicle>,
+  now = new Date(),
 ): Effect.Effect<
   ReadonlyMap<string, PullapartCachedEnrichment>,
   PersistenceError,
@@ -57,7 +86,8 @@ export function loadPullapartCachedEnrichments(
       if (
         !incoming ||
         existing.stockNumber !== String(incoming.ticketID) ||
-        existing.locationCode !== String(incoming.locID)
+        existing.locationCode !== String(incoming.locID) ||
+        shouldRefreshPullapartEnrichment(existing.vin, now)
       ) {
         continue;
       }
