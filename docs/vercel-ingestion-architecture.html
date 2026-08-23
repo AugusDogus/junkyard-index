@@ -340,6 +340,10 @@
             channel start sequences.
           </li>
           <li>
+            Email intents are claimed by user and publication, revalidated, and
+            delivered as one digest with a stable group idempotency key.
+          </li>
+          <li>
             Changing one channel cannot cancel valid intents for the other.
           </li>
           <li>
@@ -421,7 +425,7 @@
           delivery, abandonment controls, and pipeline observability.
         </p>
         <div class="card">
-          <strong>Local verification:</strong> 224 tests pass with 648
+          <strong>Local verification:</strong> 214 tests pass with 621
           assertions. Type checking, linting, the production Next.js and
           Workflow build, committed SQL migration execution, and whitespace
           validation also pass.

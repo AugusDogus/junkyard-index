@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { INGESTION_SOURCES } from "~/lib/ingestion-source";
-import { runIngestion } from "~/server/ingestion/run";
 
 const smokeTest = process.env.RUN_INGESTION_SMOKE === "1" ? test : test.skip;
 
@@ -8,6 +6,10 @@ describe("ingestion smoke", () => {
   smokeTest(
     "runs durable ingestion against real configured dependencies",
     async () => {
+      const [{ INGESTION_SOURCES }, { runIngestion }] = await Promise.all([
+        import("~/lib/ingestion-source"),
+        import("~/server/ingestion/run"),
+      ]);
       const result = await runIngestion();
 
       expect(result.totalUpserted).toBeGreaterThanOrEqual(0);

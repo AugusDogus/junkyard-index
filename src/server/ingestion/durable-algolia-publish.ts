@@ -1,6 +1,6 @@
 import { and, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { ingestionRun } from "~/schema";
+import { ingestionRun, vehicleChange } from "~/schema";
 
 export const INDEX_GENERATION_KEY = "junkyardIndexGeneration";
 
@@ -222,9 +222,28 @@ export async function publishFullReindexForRun(params: {
         )`,
       ),
     );
+  // The active-run fence prevents newer reconciliation changes while this
+  // generation is built, so every currently unprocessed row is covered.
+  const clearPublishedChanges = params.database
+    .update(vehicleChange)
+    .set({ processedAt: publishedAt })
+    .where(
+      and(
+        isNull(vehicleChange.processedAt),
+        sql`exists (
+          select 1 from ingestion_run as publishing_run
+          where publishing_run.id = ${params.runId}
+            and publishing_run.status = 'running'
+            and publishing_run.active_slot = 1
+            and publishing_run.stage = 'match_alerts'
+            and publishing_run.full_reindex_required = 0
+        )`,
+      ),
+    );
   const [published] = await params.database.batch([
     publishRun,
     clearInheritedRepairs,
+    clearPublishedChanges,
   ]);
   if (published.rowsAffected === 0) return { status: "stopped" };
   return { status: "complete", searchPublishedAt: publishedAt };

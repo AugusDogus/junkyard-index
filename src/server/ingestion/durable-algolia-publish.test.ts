@@ -19,6 +19,11 @@ const TEST_SCHEMA = `
     last_progress_at integer not null,
     search_published_at integer
   );
+
+  create table vehicle_change (
+    id integer primary key autoincrement,
+    processed_at integer
+  );
 `;
 
 async function insertRun(
@@ -271,6 +276,98 @@ describe("durable Algolia full-index publication", () => {
           },
         ]),
       );
+    } finally {
+      client.close();
+    }
+  });
+
+  test("marks every change covered by the published generation as processed", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const startedAt = Date.parse("2026-08-22T07:00:00.000Z");
+      await insertRun(client, {
+        id: "run-1",
+        status: "running",
+        stage: "full_reindex_publish",
+        activeSlot: 1,
+        fullReindexRequired: true,
+        startedAt,
+      });
+      await client.executeMultiple(`
+        insert into vehicle_change (processed_at) values (null), (null), (1234);
+      `);
+
+      const result = await publishFullReindexForRun({
+        runId: "run-1",
+        runStartedAt: new Date(startedAt),
+        database: drizzle(client),
+        indexName: "vehicles",
+        algolia: {
+          getSettings: async () => ({
+            userData: { [INDEX_GENERATION_KEY]: "run-1" },
+          }),
+          operationIndex: async () => ({ taskID: 1 }),
+          waitForTask: async () => undefined,
+        },
+      });
+
+      expect(result.status).toBe("complete");
+      const pending = await client.execute(
+        "select count(*) as count from vehicle_change where processed_at is null",
+      );
+      expect(pending.rows[0]?.count).toBe(0);
+      const previouslyProcessed = await client.execute(
+        "select processed_at from vehicle_change where id = 3",
+      );
+      expect(previouslyProcessed.rows[0]?.processed_at).toBe(1234);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("rolls back the publish checkpoint when change cleanup fails", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const startedAt = Date.parse("2026-08-22T07:00:00.000Z");
+      await insertRun(client, {
+        id: "run-1",
+        status: "running",
+        stage: "full_reindex_publish",
+        activeSlot: 1,
+        fullReindexRequired: true,
+        startedAt,
+      });
+      await client.executeMultiple(`
+        insert into vehicle_change (processed_at) values (null);
+        create trigger reject_change_cleanup
+        before update of processed_at on vehicle_change
+        begin
+          select raise(abort, 'injected change cleanup failure');
+        end;
+      `);
+      const publish = () =>
+        publishFullReindexForRun({
+          runId: "run-1",
+          runStartedAt: new Date(startedAt),
+          database: drizzle(client),
+          indexName: "vehicles",
+          algolia: {
+            getSettings: async () => ({
+              userData: { [INDEX_GENERATION_KEY]: "run-1" },
+            }),
+            operationIndex: async () => ({ taskID: 1 }),
+            waitForTask: async () => undefined,
+          },
+        });
+
+      await expect(publish()).rejects.toThrow("change cleanup failure");
+      const run = await client.execute(
+        "select stage, full_reindex_required from ingestion_run where id = 'run-1'",
+      );
+      expect(run.rows[0]?.stage).toBe("full_reindex_publish");
+      expect(run.rows[0]?.full_reindex_required).toBe(1);
     } finally {
       client.close();
     }

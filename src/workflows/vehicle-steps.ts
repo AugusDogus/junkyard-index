@@ -1,8 +1,6 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
-import {
-  deliverDurableAlertIntentsBatch,
-  runDurableAlertMatchingBatch,
-} from "~/server/alerts/durable-search-alerts";
+import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
+import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
 import {
   cleanupDurableIngestionSnapshotBatch,
@@ -190,9 +188,6 @@ export async function runVehicleSearchAlertsStep(runId: string) {
   console.info("[Workflow] Matching vehicle search alerts", { runId });
   try {
     const result = await runDurableAlertMatchingBatch(runId);
-    if (result.status === "complete") {
-      await reportDurableIngestionHealth(runId);
-    }
     console.info("[Workflow] Vehicle search alert matching progress", result);
     return result;
   } catch (error) {
@@ -200,6 +195,17 @@ export async function runVehicleSearchAlertsStep(runId: string) {
   }
 }
 runVehicleSearchAlertsStep.maxRetries = 2;
+
+export async function reportDurableIngestionHealthStep(runId: string) {
+  "use step";
+
+  try {
+    await reportDurableIngestionHealth(runId);
+  } catch (error) {
+    throwRetryableStepError("Report durable ingestion health", error);
+  }
+}
+reportDurableIngestionHealthStep.maxRetries = 2;
 
 export async function deliverVehicleSearchAlertIntentsStep() {
   "use step";

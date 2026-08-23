@@ -21,6 +21,12 @@ import {
   parseDurableRunStage,
 } from "./durable-run-state";
 import { DURABLE_INGESTION_SOURCES } from "./durable-source";
+import {
+  type MissingVehicleTransition,
+  planChangedVehicleUpserts,
+  planMissingVehicleTransitions,
+  reconciliationSourcePrioritySql,
+} from "./reconciliation-policy";
 import type { CanonicalVehicle } from "./types";
 
 const RECONCILIATION_BATCH_SIZE = 500;
@@ -29,88 +35,10 @@ const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const VEHICLE_VALUE_COLUMN_COUNT = 29;
 
 type BatchClient = Pick<Client, "batch">;
-type ExistingVehicle = typeof vehicle.$inferSelect;
 
-function vehicleNeedsUpsert(
-  existing: ExistingVehicle | undefined,
-  next: CanonicalVehicle,
-) {
-  if (!existing) return true;
-  return (
-    existing.source !== next.source ||
-    existing.year !== next.year ||
-    existing.make !== next.make ||
-    existing.model !== next.model ||
-    existing.color !== next.color ||
-    existing.stockNumber !== next.stockNumber ||
-    existing.imageUrl !== next.imageUrl ||
-    existing.availableDate !== next.availableDate ||
-    existing.locationCode !== next.locationCode ||
-    existing.locationName !== next.locationName ||
-    existing.locationCity !== next.locationCity ||
-    existing.state !== next.state ||
-    existing.stateAbbr !== next.stateAbbr ||
-    existing.lat !== next.lat ||
-    existing.lng !== next.lng ||
-    existing.section !== next.section ||
-    existing.row !== next.row ||
-    existing.space !== next.space ||
-    existing.detailsUrl !== next.detailsUrl ||
-    existing.partsUrl !== next.partsUrl ||
-    existing.pricesUrl !== next.pricesUrl ||
-    existing.engine !== next.engine ||
-    existing.trim !== next.trim ||
-    existing.transmission !== next.transmission ||
-    existing.missingSinceAt !== null ||
-    (existing.missingRunCount ?? 0) !== 0
-  );
-}
-
-function planChangedUpserts(params: {
-  inventory: ReadonlyMap<string, CanonicalVehicle>;
-  existingRows: ExistingVehicle[];
-  runTimestamp: Date;
-}) {
-  const existingByVin = new Map(
-    params.existingRows.map((row) => [row.vin, row] as const),
-  );
-  const changed: Array<{ vehicle: CanonicalVehicle; firstSeenAt: Date }> = [];
-  for (const [vin, next] of params.inventory) {
-    const existing = existingByVin.get(vin);
-    if (!vehicleNeedsUpsert(existing, next)) continue;
-    changed.push({
-      vehicle: next,
-      firstSeenAt: existing?.firstSeenAt ?? params.runTimestamp,
-    });
-  }
-  return changed;
-}
-
-const HIGHER_PRIORITY_SOURCE_SQL = `
-  case higher.source
-    when 'row52' then 1
-    when 'pyp' then 2
-    when 'pullapart' then 3
-    when 'upullitne' then 4
-    when 'upullitdavie' then 5
-    when 'gopullit' then 6
-    when 'autorecycler' then 7
-    else 999
-  end
-`;
-
-const CURRENT_SOURCE_PRIORITY_SQL = `
-  case vehicle_snapshot.source
-    when 'row52' then 1
-    when 'pyp' then 2
-    when 'pullapart' then 3
-    when 'upullitne' then 4
-    when 'upullitdavie' then 5
-    when 'gopullit' then 6
-    when 'autorecycler' then 7
-    else 999
-  end
-`;
+const HIGHER_PRIORITY_SOURCE_SQL = reconciliationSourcePrioritySql("higher");
+const CURRENT_SOURCE_PRIORITY_SQL =
+  reconciliationSourcePrioritySql("vehicle_snapshot");
 
 function guardSql(stage: "reconcile_upsert" | "reconcile_missing") {
   return `
@@ -342,7 +270,7 @@ async function runUpsertBatch(params: {
           .select()
           .from(vehicle)
           .where(inArray(vehicle.vin, vins));
-  const changed = planChangedUpserts({
+  const changed = planChangedVehicleUpserts({
     inventory: finalInventory,
     existingRows,
     runTimestamp: params.runTimestamp,
@@ -418,17 +346,10 @@ async function runUpsertBatch(params: {
   };
 }
 
-interface MissingTransition {
-  vin: string;
-  changeType: "missing" | "delete";
-  missingSinceAt: number;
-  missingRunCount: number;
-}
-
 function missingUpdateStatement(params: {
   runId: string;
   cursor: string | null;
-  transitions: MissingTransition[];
+  transitions: MissingVehicleTransition[];
 }): InStatement | null {
   const missing = params.transitions.filter(
     (transition) => transition.changeType === "missing",
@@ -461,7 +382,7 @@ function missingUpdateStatement(params: {
 function deleteStatement(params: {
   runId: string;
   cursor: string | null;
-  transitions: MissingTransition[];
+  transitions: MissingVehicleTransition[];
 }): InStatement | null {
   const vins = params.transitions
     .filter((transition) => transition.changeType === "delete")
@@ -531,23 +452,14 @@ async function runMissingBatch(params: {
           );
   const presentVins = new Set(presentRows.map((row) => row.vin));
   const acceptedSources = new Set(params.acceptedSources);
-  const cutoff = params.runTimestamp.getTime() - MISSING_DELETE_AFTER_MS;
-  const transitions: MissingTransition[] = [];
-  for (const row of rows) {
-    if (!acceptedSources.has(row.source) || presentVins.has(row.vin)) continue;
-    const missingSinceAt =
-      row.missingSinceAt?.getTime() ?? params.runTimestamp.getTime();
-    const missingRunCount = (row.missingRunCount ?? 0) + 1;
-    transitions.push({
-      vin: row.vin,
-      changeType:
-        missingRunCount >= MISSING_DELETE_AFTER_RUNS || missingSinceAt <= cutoff
-          ? "delete"
-          : "missing",
-      missingSinceAt,
-      missingRunCount,
-    });
-  }
+  const transitions = planMissingVehicleTransitions({
+    presentVins,
+    existingRows: rows,
+    runTimestamp: params.runTimestamp,
+    acceptedSources,
+    deleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
+    deleteAfterMs: MISSING_DELETE_AFTER_MS,
+  });
 
   const finishing = rows.length < RECONCILIATION_BATCH_SIZE;
   const nextCursor = rows.at(-1)?.vin ?? params.cursor;
