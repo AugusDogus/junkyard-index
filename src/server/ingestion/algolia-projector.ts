@@ -258,7 +258,7 @@ async function projectChangeBatch(
     [
       {
         sql: `
-          delete from vehicle_change
+          delete from vehicle_change_v2
           where id in (${changeIds.map(() => "?").join(", ")})
             and exists (
               select 1 from ingestion_run

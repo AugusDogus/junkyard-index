@@ -60,13 +60,13 @@ const TEST_SCHEMA = `
     first_seen_at integer not null, last_seen_at integer not null,
     missing_since_at integer, missing_run_count integer
   );
-  create table vehicle_change (
+  create table vehicle_change_v2 (
     id integer primary key autoincrement, run_id text not null, vin text not null,
     change_type text not null, payload text, payload_version integer not null,
     created_at integer not null, processed_at integer
   );
-  create unique index vehicle_change_run_vin_type_idx
-    on vehicle_change(run_id, vin, change_type)
+  create unique index vehicle_change_v2_run_vin_type_idx
+    on vehicle_change_v2(run_id, vin, change_type)
     where processed_at is null;
 `;
 
@@ -264,7 +264,7 @@ describe("bounded durable reconciliation", () => {
       expect(run?.publicationSequence).toBe(1);
       expect(run?.publishedVehicleCount).toBe(2);
       const changes = await client.execute(
-        "select vin, change_type from vehicle_change order by vin",
+        "select vin, change_type from vehicle_change_v2 order by vin",
       );
       expect(changes.rows).toHaveLength(2);
       expect(changes.rows[0]?.vin).toBe("VIN-1");
