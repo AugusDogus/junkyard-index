@@ -10,6 +10,7 @@ import { env } from "~/env";
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
 import type { SearchAlertData } from "~/lib/search-alert-data";
 import type { SearchVehicle } from "~/lib/types";
+import { createDiscordNonce } from "./discord-idempotency";
 
 // Initialize Discord REST client
 const discord = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
@@ -17,6 +18,8 @@ const discord = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
 interface DiscordMessage {
   content?: string;
   embeds?: APIEmbed[];
+  nonce?: string;
+  enforce_nonce?: boolean;
 }
 
 /**
@@ -144,6 +147,7 @@ function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
 export async function sendDiscordAlert(
   discordUserId: string,
   data: SearchAlertData,
+  options?: { idempotencyKey?: string },
 ): Promise<NotificationDeliveryResult> {
   // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
   const vehiclesToShow = data.match.previewVehicles.slice(0, 9);
@@ -169,6 +173,12 @@ export async function sendDiscordAlert(
   // Discord allows max 10 embeds per message (1 main + 9 vehicles = 10 max)
   const message: DiscordMessage = {
     embeds: [mainEmbed, ...vehicleEmbeds],
+    ...(options?.idempotencyKey
+      ? {
+          nonce: createDiscordNonce(options.idempotencyKey),
+          enforce_nonce: true,
+        }
+      : {}),
   };
 
   return sendDM(discordUserId, message);

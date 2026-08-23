@@ -9,6 +9,10 @@ import { polarClient } from "~/lib/auth";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import {
+  currentSearchPublicationSequence,
+  setSearchAlertChannel,
+} from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
 
 export const savedSearchesRouter = createTRPCRouter({
@@ -80,6 +84,9 @@ export const savedSearchesRouter = createTRPCRouter({
       const alertsEnabled =
         (input.emailAlertsEnabled ?? false) ||
         (input.discordAlertsEnabled ?? false);
+      const publicationSequence = await currentSearchPublicationSequence(
+        ctx.db,
+      );
 
       await ctx.db.insert(savedSearch).values({
         id,
@@ -89,6 +96,8 @@ export const savedSearchesRouter = createTRPCRouter({
         filters: JSON.stringify(input.filters),
         emailAlertsEnabled: input.emailAlertsEnabled ?? false,
         discordAlertsEnabled: input.discordAlertsEnabled ?? false,
+        emailStartSequence: publicationSequence,
+        discordStartSequence: publicationSequence,
         lastCheckedAt: alertsEnabled ? now : null,
         createdAt: now,
         updatedAt: now,
@@ -190,23 +199,13 @@ export const savedSearchesRouter = createTRPCRouter({
         }
       }
 
-      const hadAnyAlerts =
-        existingSavedSearch.emailAlertsEnabled ||
-        existingSavedSearch.discordAlertsEnabled;
-      const shouldSetLastCheckedAt = input.enabled && !hadAnyAlerts;
-
-      await ctx.db
-        .update(savedSearch)
-        .set({
-          emailAlertsEnabled: input.enabled,
-          ...(shouldSetLastCheckedAt && { lastCheckedAt: new Date() }),
-        })
-        .where(
-          and(
-            eq(savedSearch.id, input.id),
-            eq(savedSearch.userId, ctx.user.id),
-          ),
-        );
+      await setSearchAlertChannel({
+        database: ctx.db,
+        searchId: input.id,
+        userId: ctx.user.id,
+        channel: "email",
+        enabled: input.enabled,
+      });
 
       posthog.capture({
         distinctId: ctx.user.id,
@@ -294,23 +293,13 @@ export const savedSearchesRouter = createTRPCRouter({
         }
       }
 
-      const hadAnyAlerts =
-        existingSavedSearch.emailAlertsEnabled ||
-        existingSavedSearch.discordAlertsEnabled;
-      const shouldSetLastCheckedAt = input.enabled && !hadAnyAlerts;
-
-      await ctx.db
-        .update(savedSearch)
-        .set({
-          discordAlertsEnabled: input.enabled,
-          ...(shouldSetLastCheckedAt && { lastCheckedAt: new Date() }),
-        })
-        .where(
-          and(
-            eq(savedSearch.id, input.id),
-            eq(savedSearch.userId, ctx.user.id),
-          ),
-        );
+      await setSearchAlertChannel({
+        database: ctx.db,
+        searchId: input.id,
+        userId: ctx.user.id,
+        channel: "discord",
+        enabled: input.enabled,
+      });
 
       posthog.capture({
         distinctId: ctx.user.id,

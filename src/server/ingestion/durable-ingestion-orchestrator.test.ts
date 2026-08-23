@@ -7,6 +7,7 @@ import {
 import type { DurableIngestionResult } from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
+  type DurableIngestionSource,
   type DurableSourceCursor,
 } from "./durable-source";
 
@@ -47,9 +48,16 @@ function makeOperations(
     markFailed: async () => {
       throw new Error("markFailed should not be called");
     },
-    reconcile: async () => COMPLETED_INGESTION,
+    validateSources: async () => ({
+      status: "ready",
+      acceptedSources: [],
+      rejectedSources: [],
+    }),
+    reconcile: async () => ({
+      status: "complete",
+      result: COMPLETED_INGESTION,
+    }),
     markRunFailed: async () => undefined,
-    cleanupSnapshots: async () => undefined,
     ...overrides,
   };
 }
@@ -179,10 +187,7 @@ describe("durable ingestion lifecycle", () => {
         },
         reconcile: async () => {
           events.push("reconcile");
-          return COMPLETED_INGESTION;
-        },
-        cleanupSnapshots: async () => {
-          events.push("cleanup-snapshots");
+          return { status: "complete", result: COMPLETED_INGESTION };
         },
       }),
     });
@@ -193,44 +198,26 @@ describe("durable ingestion lifecycle", () => {
     });
     expect(events.slice(0, 2)).toEqual(["cleanup-stale", "initialize"]);
     const sourcePhaseEnd = 2 + DURABLE_INGESTION_SOURCES.length;
-    expect(events.slice(2, sourcePhaseEnd).sort()).toEqual(
-      DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`).sort(),
+    expect(events.slice(2, sourcePhaseEnd)).toEqual(
+      DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`),
     );
-    expect(events.slice(sourcePhaseEnd)).toEqual([
-      "reconcile",
-      "cleanup-snapshots",
-    ]);
+    expect(events.slice(sourcePhaseEnd)).toEqual(["reconcile"]);
   });
 
-  test("serializes Hyperbrowser sources while other sources remain concurrent", async () => {
-    let activeBrowserSources = 0;
-    let maxActiveBrowserSources = 0;
-    let nonBrowserSourceOverlapped = false;
-    const browserSourceOrder: ("pyp" | "upullitdavie")[] = [];
-    let releaseFirstBrowserSource: () => void = () => undefined;
-    const firstBrowserSourceCanFinish = new Promise<void>((resolve) => {
-      releaseFirstBrowserSource = resolve;
-    });
+  test("processes sources sequentially in priority order", async () => {
+    let activeSources = 0;
+    let maxActiveSources = 0;
+    const sourceOrder: DurableIngestionSource[] = [];
 
     await executeDurableIngestion({
       runId: "run-1",
       operations: makeOperations({
         runChunk: async (_runId, cursor) => {
-          if (cursor.source === "pyp" || cursor.source === "upullitdavie") {
-            browserSourceOrder.push(cursor.source);
-            activeBrowserSources += 1;
-            maxActiveBrowserSources = Math.max(
-              maxActiveBrowserSources,
-              activeBrowserSources,
-            );
-            if (browserSourceOrder.length === 1) {
-              await firstBrowserSourceCanFinish;
-            }
-            activeBrowserSources -= 1;
-          } else if (activeBrowserSources > 0) {
-            nonBrowserSourceOverlapped = true;
-            releaseFirstBrowserSource();
-          }
+          sourceOrder.push(cursor.source);
+          activeSources += 1;
+          maxActiveSources = Math.max(maxActiveSources, activeSources);
+          await Promise.resolve();
+          activeSources -= 1;
 
           return {
             cursor,
@@ -243,9 +230,8 @@ describe("durable ingestion lifecycle", () => {
       }),
     });
 
-    expect(browserSourceOrder).toEqual(["pyp", "upullitdavie"]);
-    expect(maxActiveBrowserSources).toBe(1);
-    expect(nonBrowserSourceOverlapped).toBe(true);
+    expect(sourceOrder).toEqual([...DURABLE_INGESTION_SOURCES]);
+    expect(maxActiveSources).toBe(1);
   });
 
   test("stops after a deduplicated initialization", async () => {
@@ -270,9 +256,25 @@ describe("durable ingestion lifecycle", () => {
     expect(events).toEqual(["cleanup-stale", "initialize"]);
   });
 
-  test("terminalizes the run when reconciliation fails", async () => {
+  test("stops when abandonment fences source validation", async () => {
+    let reconciled = false;
+    const execution = await executeDurableIngestion({
+      runId: "run-abandoned",
+      operations: makeOperations({
+        validateSources: async () => ({ status: "stopped" }),
+        reconcile: async () => {
+          reconciled = true;
+          return { status: "complete", result: COMPLETED_INGESTION };
+        },
+      }),
+    });
+
+    expect(execution).toEqual({ status: "stopped" });
+    expect(reconciled).toBe(false);
+  });
+
+  test("records a recoverable failure without cleaning snapshots", async () => {
     const failures: string[] = [];
-    let cleanupCalled = false;
     await expect(
       executeDurableIngestion({
         runId: "run-1",
@@ -283,19 +285,15 @@ describe("durable ingestion lifecycle", () => {
           markRunFailed: async (_runId, message) => {
             failures.push(message);
           },
-          cleanupSnapshots: async () => {
-            cleanupCalled = true;
-          },
         }),
       }),
     ).rejects.toThrow("database unavailable");
     expect(failures).toEqual([
       "Durable ingestion failed: database unavailable",
     ]);
-    expect(cleanupCalled).toBe(false);
   });
 
-  test("continues after best-effort snapshot cleanup fails", async () => {
+  test("leaves snapshot cleanup to the post-publication phase", async () => {
     const events: string[] = [];
     const warning = spyOn(console, "warn").mockImplementation(() => undefined);
     try {
@@ -304,11 +302,7 @@ describe("durable ingestion lifecycle", () => {
         operations: makeOperations({
           reconcile: async () => {
             events.push("reconcile");
-            return COMPLETED_INGESTION;
-          },
-          cleanupSnapshots: async () => {
-            events.push("cleanup-snapshots");
-            throw new Error("temporary delete failure");
+            return { status: "complete", result: COMPLETED_INGESTION };
           },
         }),
       });
@@ -316,7 +310,7 @@ describe("durable ingestion lifecycle", () => {
         status: "completed",
         ingestion: COMPLETED_INGESTION,
       });
-      expect(events).toEqual(["reconcile", "cleanup-snapshots"]);
+      expect(events).toEqual(["reconcile"]);
     } finally {
       warning.mockRestore();
     }

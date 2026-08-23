@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "~/lib/db";
 import { verifyUnsubscribeToken } from "~/lib/email";
 import { savedSearch } from "~/schema";
+import { setSearchAlertChannel } from "~/server/alerts/alert-config-repository";
 
 interface UnsubscribePageProps {
   searchParams: Promise<{ id?: string; token?: string; done?: string }>;
@@ -109,10 +110,12 @@ export default async function UnsubscribePage({
     if (!searchId || !token || !verifyUnsubscribeToken(searchId, token)) {
       redirect("/unsubscribe");
     }
-    await db
-      .update(savedSearch)
-      .set({ emailAlertsEnabled: false })
-      .where(eq(savedSearch.id, searchId));
+    await setSearchAlertChannel({
+      database: db,
+      searchId,
+      channel: "email",
+      enabled: false,
+    });
     redirect(`/unsubscribe?id=${searchId}&token=${token}&done=1`);
   }
 

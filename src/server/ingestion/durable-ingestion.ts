@@ -1,8 +1,14 @@
 import { env } from "~/env";
-import { db } from "~/lib/db";
-import { createDurableIngestionRepository } from "./durable-ingestion-repository";
+import { db, dbClient } from "~/lib/db";
+import {
+  createDurableIngestionRepository,
+  parseIngestionErrors,
+} from "./durable-ingestion-repository";
+import { isDurableIngestionUnhealthy } from "./durable-health";
 import type {
   DurableIngestionResult,
+  DurableIngestionWakeupResult,
+  DurableReconciliationBatchResult,
   DurableSourceChunkResult,
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
@@ -11,16 +17,19 @@ import type {
   DurableIngestionSource,
 } from "./durable-source";
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
+import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
 
 export type {
   DurableIngestionResult,
+  DurableIngestionWakeupResult,
+  DurableReconciliationBatchResult,
   DurableSourceChunkResult,
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
 
 const HEARTBEAT_TIMEOUT_MS = 5_000;
-const repository = createDurableIngestionRepository(db);
+const repository = createDurableIngestionRepository(db, dbClient);
 
 async function sendHeartbeat(fail: boolean): Promise<void> {
   if (!env.BETTERSTACK_HEARTBEAT_URL) return;
@@ -42,6 +51,19 @@ export function initializeDurableIngestion(
   runId: string,
 ): Promise<InitializeDurableIngestionResult> {
   return repository.initialize(runId);
+}
+
+export function prepareDurableIngestionWakeup(
+  now = new Date(),
+): Promise<DurableIngestionWakeupResult> {
+  return repository.prepareWakeup(now);
+}
+
+export function attachDurableIngestionWorkflow(
+  runId: string,
+  workflowRunId: string,
+): Promise<void> {
+  return repository.attachWorkflowRun(runId, workflowRunId);
 }
 
 export async function runDurableSourceChunk<
@@ -76,16 +98,21 @@ export function markDurableSourceFailed<
 
 export async function reconcileDurableIngestion(
   runId: string,
-): Promise<DurableIngestionResult> {
+): Promise<DurableReconciliationBatchResult> {
   const result = await reconcileDurableIngestionRun({
     runId,
-    repository,
     database: db,
-  });
-  await sendHeartbeat(result.errors.length > 0).catch((error: unknown) => {
-    console.warn("[Ingestion] BetterStack heartbeat failed", error);
+    batchClient: dbClient,
   });
   return result;
+}
+
+export function validateDurableIngestionSources(runId: string) {
+  return validateDurableSourceRuns({
+    runId,
+    database: db,
+    batchClient: dbClient,
+  });
 }
 
 export async function markDurableIngestionFailed(
@@ -98,10 +125,29 @@ export async function markDurableIngestionFailed(
   });
 }
 
-export function cleanupDurableIngestionSnapshots(runId: string): Promise<void> {
-  return repository.cleanupSnapshots(runId);
+export async function reportDurableIngestionHealth(runId: string) {
+  const run = await repository.getRun(runId);
+  const failed = isDurableIngestionUnhealthy({
+    status: run.status,
+    inventoryOutcome: run.inventoryOutcome,
+    inventoryErrors: parseIngestionErrors(run.errors),
+  });
+  await sendHeartbeat(failed).catch((error: unknown) => {
+    console.warn("[Ingestion] BetterStack heartbeat failed", error);
+  });
+}
+
+export function cleanupDurableIngestionSnapshotBatch(runId: string) {
+  return repository.cleanupSnapshotBatch(runId);
 }
 
 export function cleanupStaleDurableIngestionSnapshots(): Promise<void> {
   return repository.cleanupStaleSnapshots();
+}
+
+export function abandonDurableIngestion(
+  runId: string,
+  force = false,
+): Promise<string | null> {
+  return repository.abandon(runId, force);
 }

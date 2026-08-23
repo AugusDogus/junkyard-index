@@ -1,10 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
-import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "~/lib/db";
 import { verifyUserUnsubscribeToken } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
-import { savedSearch } from "~/schema";
+import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
 
 export async function POST(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get("id");
@@ -20,16 +19,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const disabledSearches = await db
-      .update(savedSearch)
-      .set({ emailAlertsEnabled: false })
-      .where(eq(savedSearch.userId, userId))
-      .returning({ id: savedSearch.id });
+    const disabledSearchIds = await setUserAlertChannel({
+      database: db,
+      userId,
+      channel: "email",
+      enabled: false,
+    });
 
     posthog.capture({
       distinctId: userId,
       event: "email_unsubscribed_all",
-      properties: { disabled_search_count: disabledSearches.length },
+      properties: { disabled_search_count: disabledSearchIds.length },
     });
 
     return new NextResponse(null, { status: 200 });

@@ -45,11 +45,19 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
   toCursor: (cursor: Cursor) => DurableCursorFor<Source>,
   vehiclesByVin: Map<string, CanonicalVehicle>,
 ): FetchedDurableSourceChunk<Source> {
+  const uniqueVehicles = vehiclesByVin.size;
+  const rejectedVehicles = result.errors.length;
   return {
     cursor: toCursor(result.cursor),
     status: result.status,
     pagesProcessed: result.pagesProcessed,
     vehiclesProcessed: result.count,
+    uniqueVehicles,
+    duplicateVehicles: Math.max(
+      0,
+      result.count - uniqueVehicles - rejectedVehicles,
+    ),
+    rejectedVehicles,
     errors: result.errors,
     vehicles: [...vehiclesByVin.values()],
   };
