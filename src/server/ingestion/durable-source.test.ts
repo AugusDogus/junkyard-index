@@ -18,6 +18,10 @@ describe("durable ingestion cursors", () => {
     ).toEqual([...INGESTION_SOURCES]);
   });
 
+  test("bounds Row52 checkpoints to one 1,000-vehicle page", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS.row52.maxPagesPerChunk).toBe(1);
+  });
+
   test("parses valid integer and pair cursors", () => {
     expect(parseDurableSourceCursor("pyp", "12")).toEqual({
       source: "pyp",

@@ -45,7 +45,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
       locationIds: [],
       skip: 0,
     },
-    maxPagesPerChunk: 10,
+    maxPagesPerChunk: 1,
   },
   pyp: {
     initialCursor: { source: "pyp", page: 1 },
