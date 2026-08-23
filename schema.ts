@@ -360,8 +360,33 @@ export const vehicleSnapshot = sqliteTable(
   ],
 );
 
-export const vehicleChange = sqliteTable(
+// Archival delivery history. Keep this declaration so schema tooling preserves
+// the production table, but route all runtime ingestion through vehicleChange.
+export const legacyVehicleChange = sqliteTable(
   "vehicle_change",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    runId: text("run_id")
+      .notNull()
+      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    vin: text("vin").notNull(),
+    changeType: text("change_type").notNull(),
+    payload: text("payload"),
+    payloadVersion: integer("payload_version").default(1).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    processedAt: integer("processed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("vehicle_change_run_id_idx").on(table.runId),
+    index("vehicle_change_vin_idx").on(table.vin),
+    index("vehicle_change_processed_at_idx").on(table.processedAt, table.id),
+  ],
+);
+
+export const vehicleChange = sqliteTable(
+  "vehicle_change_v2",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     runId: text("run_id")
@@ -377,12 +402,12 @@ export const vehicleChange = sqliteTable(
     processedAt: integer("processed_at", { mode: "timestamp_ms" }),
   },
   (table) => [
-    index("vehicle_change_run_id_idx").on(table.runId),
-    uniqueIndex("vehicle_change_run_vin_type_idx")
+    index("vehicle_change_v2_run_id_idx").on(table.runId),
+    uniqueIndex("vehicle_change_v2_run_vin_type_idx")
       .on(table.runId, table.vin, table.changeType)
       .where(sql`processed_at is null`),
-    index("vehicle_change_vin_idx").on(table.vin),
-    index("vehicle_change_processed_at_idx").on(table.processedAt, table.id),
+    index("vehicle_change_v2_vin_idx").on(table.vin),
+    index("vehicle_change_v2_processed_at_idx").on(table.processedAt, table.id),
   ],
 );
 

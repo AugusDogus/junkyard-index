@@ -786,9 +786,9 @@ export function createDurableIngestionRepository(
           },
           {
             sql: `
-              delete from vehicle_change
+              delete from vehicle_change_v2
               where id in (
-                select id from vehicle_change
+                select id from vehicle_change_v2
                 where processed_at is not null
                 order by processed_at, id
                 limit ?

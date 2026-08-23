@@ -63,7 +63,7 @@ function changeInsertStatement(params: {
   if (params.changes.length === 0) return null;
   return {
     sql: `
-      insert into vehicle_change (
+      insert into vehicle_change_v2 (
         run_id, vin, change_type, payload, payload_version, created_at
       )
       select ?, column1, column2, null, 1, ?

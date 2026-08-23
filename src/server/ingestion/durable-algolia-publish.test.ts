@@ -20,7 +20,7 @@ const TEST_SCHEMA = `
     search_published_at integer
   );
 
-  create table vehicle_change (
+  create table vehicle_change_v2 (
     id integer primary key autoincrement,
     processed_at integer
   );
@@ -295,7 +295,7 @@ describe("durable Algolia full-index publication", () => {
         startedAt,
       });
       await client.executeMultiple(`
-        insert into vehicle_change (processed_at) values (null), (null), (1234);
+        insert into vehicle_change_v2 (processed_at) values (null), (null), (1234);
       `);
 
       const result = await publishFullReindexForRun({
@@ -314,7 +314,7 @@ describe("durable Algolia full-index publication", () => {
 
       expect(result.status).toBe("complete");
       const remaining = await client.execute(
-        "select id, processed_at from vehicle_change",
+        "select id, processed_at from vehicle_change_v2",
       );
       expect(JSON.stringify(remaining.rows)).toBe(
         JSON.stringify([{ id: 3, processed_at: 1234 }]),
@@ -338,9 +338,9 @@ describe("durable Algolia full-index publication", () => {
         startedAt,
       });
       await client.executeMultiple(`
-        insert into vehicle_change (processed_at) values (null);
+        insert into vehicle_change_v2 (processed_at) values (null);
         create trigger reject_change_cleanup
-        before delete on vehicle_change
+        before delete on vehicle_change_v2
         begin
           select raise(abort, 'injected change cleanup failure');
         end;

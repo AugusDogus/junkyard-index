@@ -1,8 +1,8 @@
 {
+  "id": "378c56e7-f930-49b5-ad65-703f79979dee",
+  "prevId": "4791e7ef-8394-4404-8872-7181ce7ae3aa",
   "version": "6",
   "dialect": "sqlite",
-  "id": "4791e7ef-8394-4404-8872-7181ce7ae3aa",
-  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
       "name": "account",
@@ -111,11 +111,11 @@
         "account_user_id_user_id_fk": {
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
-          "tableTo": "user",
           "columnsFrom": ["user_id"],
+          "tableTo": "user",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -617,11 +617,11 @@
         "ingestion_source_run_run_id_ingestion_run_id_fk": {
           "name": "ingestion_source_run_run_id_ingestion_run_id_fk",
           "tableFrom": "ingestion_source_run",
-          "tableTo": "ingestion_run",
           "columnsFrom": ["run_id"],
+          "tableTo": "ingestion_run",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -890,11 +890,11 @@
         "saved_search_user_id_user_id_fk": {
           "name": "saved_search_user_id_user_id_fk",
           "tableFrom": "saved_search",
-          "tableTo": "user",
           "columnsFrom": ["user_id"],
+          "tableTo": "user",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1055,29 +1055,29 @@
         "search_notification_intent_run_id_ingestion_run_id_fk": {
           "name": "search_notification_intent_run_id_ingestion_run_id_fk",
           "tableFrom": "search_notification_intent",
-          "tableTo": "ingestion_run",
           "columnsFrom": ["run_id"],
+          "tableTo": "ingestion_run",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "search_notification_intent_saved_search_id_saved_search_id_fk": {
           "name": "search_notification_intent_saved_search_id_saved_search_id_fk",
           "tableFrom": "search_notification_intent",
-          "tableTo": "saved_search",
           "columnsFrom": ["saved_search_id"],
+          "tableTo": "saved_search",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "search_notification_intent_user_id_user_id_fk": {
           "name": "search_notification_intent_user_id_user_id_fk",
           "tableFrom": "search_notification_intent",
-          "tableTo": "user",
           "columnsFrom": ["user_id"],
+          "tableTo": "user",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1161,11 +1161,11 @@
         "session_user_id_user_id_fk": {
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
-          "tableTo": "user",
           "columnsFrom": ["user_id"],
+          "tableTo": "user",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1609,8 +1609,8 @@
         "vehicle_change_v2_run_vin_type_idx": {
           "name": "vehicle_change_v2_run_vin_type_idx",
           "columns": ["run_id", "vin", "change_type"],
-          "isUnique": true,
-          "where": "processed_at is null"
+          "where": "processed_at is null",
+          "isUnique": true
         },
         "vehicle_change_v2_vin_idx": {
           "name": "vehicle_change_v2_vin_idx",
@@ -1627,11 +1627,11 @@
         "vehicle_change_v2_run_id_ingestion_run_id_fk": {
           "name": "vehicle_change_v2_run_id_ingestion_run_id_fk",
           "tableFrom": "vehicle_change_v2",
-          "tableTo": "ingestion_run",
           "columnsFrom": ["run_id"],
+          "tableTo": "ingestion_run",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1854,11 +1854,11 @@
         "vehicle_snapshot_run_id_ingestion_run_id_fk": {
           "name": "vehicle_snapshot_run_id_ingestion_run_id_fk",
           "tableFrom": "vehicle_snapshot",
-          "tableTo": "ingestion_run",
           "columnsFrom": ["run_id"],
+          "tableTo": "ingestion_run",
           "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {
@@ -1934,9 +1934,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}

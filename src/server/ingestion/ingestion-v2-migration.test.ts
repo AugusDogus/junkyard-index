@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createClient, type Client } from "@libsql/client";
+import { getTableName } from "drizzle-orm";
 import { resolve } from "node:path";
+import { legacyVehicleChange, vehicleChange } from "~/schema";
 
 const LEGACY_SCHEMA = `
   create table user (id text primary key);
@@ -37,6 +39,21 @@ afterEach(() => {
 });
 
 describe("ingestion v2 migration", () => {
+  test("models both the archived and active change logs", () => {
+    expect(getTableName(legacyVehicleChange)).toBe("vehicle_change");
+    expect(getTableName(vehicleChange)).toBe("vehicle_change_v2");
+  });
+
+  test("preserves both change logs in every migration snapshot", async () => {
+    for (const snapshotName of ["0000_snapshot.json", "0001_snapshot.json"]) {
+      const snapshot = await Bun.file(
+        resolve(import.meta.dir, `../../../drizzle/meta/${snapshotName}`),
+      ).text();
+      expect(snapshot).toContain('"vehicle_change": {');
+      expect(snapshot).toContain('"vehicle_change_v2": {');
+    }
+  });
+
   test("upgrades legacy data and enforces the new invariants", async () => {
     const client = createClient({ url: ":memory:" });
     clients.push(client);
@@ -57,11 +74,22 @@ describe("ingestion v2 migration", () => {
       "../../../drizzle/0000_ingestion_v2.sql",
     );
     const migration = await Bun.file(migrationPath).text();
-    expect(migration).not.toContain("update ingestion_run");
-    expect(migration).not.toContain("drop table vehicle_change");
-    expect(migration).not.toContain("delete from vehicle_change");
+    const forwardMigration = await Bun.file(
+      resolve(
+        import.meta.dir,
+        "../../../drizzle/0001_create_vehicle_change_v2.sql",
+      ),
+    ).text();
+    const migrations = `${migration}\n${forwardMigration}`;
+    expect(migrations).not.toContain("update ingestion_run");
+    expect(migrations).not.toContain("drop table vehicle_change");
+    expect(migrations).not.toContain("delete from vehicle_change");
+    expect(migrations).not.toContain(" on vehicle_change(");
     await client.executeMultiple(
       migration.replaceAll("--> statement-breakpoint", ""),
+    );
+    await client.executeMultiple(
+      forwardMigration.replaceAll("--> statement-breakpoint", ""),
     );
 
     const latestSuccess = await client.execute({
@@ -111,19 +139,29 @@ describe("ingestion v2 migration", () => {
       preservedChanges.rows.every((row) => row.processed_at !== null),
     ).toBe(true);
 
-    const changeIndexes = await client.execute(
+    const legacyChangeIndexes = await client.execute(
       "select name from sqlite_master where type = 'index' and tbl_name = 'vehicle_change'",
     );
-    expect(changeIndexes.rows.map((row) => row.name)).toContain(
-      "vehicle_change_run_vin_type_idx",
+    expect(legacyChangeIndexes.rows.map((row) => row.name)).not.toContain(
+      "vehicle_change_v2_run_vin_type_idx",
     );
 
+    const newChanges = await client.execute(
+      "select count(*) as count from vehicle_change_v2",
+    );
+    expect(newChanges.rows[0]?.count).toBe(0);
+    const newChangeIndexes = await client.execute(
+      "select name from sqlite_master where type = 'index' and tbl_name = 'vehicle_change_v2'",
+    );
+    expect(newChangeIndexes.rows.map((row) => row.name)).toContain(
+      "vehicle_change_v2_run_vin_type_idx",
+    );
     await client.execute(
-      "insert into vehicle_change (run_id, vin, change_type) values ('latest-success', 'vin-1', 'upsert')",
+      "insert into vehicle_change_v2 (run_id, vin, change_type) values ('latest-success', 'vin-1', 'upsert')",
     );
     await expect(
       client.execute(
-        "insert into vehicle_change (run_id, vin, change_type) values ('latest-success', 'vin-1', 'upsert')",
+        "insert into vehicle_change_v2 (run_id, vin, change_type) values ('latest-success', 'vin-1', 'upsert')",
       ),
     ).rejects.toThrow();
 
@@ -147,5 +185,50 @@ describe("ingestion v2 migration", () => {
         args: ["second-running", "running", 7000, 1],
       }),
     ).rejects.toThrow();
+  });
+
+  test("creates the new change log after 0000 was already journaled", async () => {
+    const client = createClient({ url: ":memory:" });
+    clients.push(client);
+    await client.executeMultiple(LEGACY_SCHEMA);
+    await client.executeMultiple(`
+      insert into ingestion_run values ('legacy-run', 'success', null, 1000, 2000);
+      insert into vehicle_change (run_id, vin, change_type, processed_at)
+      values ('legacy-run', 'legacy-vin', 'upsert', 2000);
+    `);
+    const legacyObjectsBefore = await client.execute(
+      `select type, name, tbl_name, sql from sqlite_master
+       where tbl_name = 'vehicle_change' order by type, name`,
+    );
+    const legacyRowsBefore = await client.execute(
+      "select * from vehicle_change order by id",
+    );
+    const forwardMigration = await Bun.file(
+      resolve(
+        import.meta.dir,
+        "../../../drizzle/0001_create_vehicle_change_v2.sql",
+      ),
+    ).text();
+
+    await client.executeMultiple(
+      forwardMigration.replaceAll("--> statement-breakpoint", ""),
+    );
+    await client.executeMultiple(
+      forwardMigration.replaceAll("--> statement-breakpoint", ""),
+    );
+
+    const legacyObjectsAfter = await client.execute(
+      `select type, name, tbl_name, sql from sqlite_master
+       where tbl_name = 'vehicle_change' order by type, name`,
+    );
+    const legacyRowsAfter = await client.execute(
+      "select * from vehicle_change order by id",
+    );
+    expect(legacyObjectsAfter.rows).toEqual(legacyObjectsBefore.rows);
+    expect(legacyRowsAfter.rows).toEqual(legacyRowsBefore.rows);
+    const newChanges = await client.execute(
+      "select count(*) as count from vehicle_change_v2",
+    );
+    expect(newChanges.rows[0]?.count).toBe(0);
   });
 });

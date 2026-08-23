@@ -87,11 +87,30 @@ create index vehicle_snapshot_run_vin_source_idx
   on vehicle_snapshot(run_id, vin, source);
 --> statement-breakpoint
 
--- Historical processed changes are immutable delivery history. Leave them in
--- place and enforce deduplication only for live work created by new runs.
-create unique index vehicle_change_run_vin_type_idx
-  on vehicle_change(run_id, vin, change_type)
+-- Leave the legacy delivery history untouched. New durable ingestion runs use
+-- an empty change log with their own constraints and indexes.
+create table vehicle_change_v2 (
+  id integer primary key autoincrement,
+  run_id text not null references ingestion_run(id) on delete cascade,
+  vin text not null,
+  change_type text not null,
+  payload text,
+  payload_version integer not null default 1,
+  created_at integer not null default (cast(unixepoch('subsecond') * 1000 as integer)),
+  processed_at integer
+);
+--> statement-breakpoint
+
+create index vehicle_change_v2_run_id_idx on vehicle_change_v2(run_id);
+--> statement-breakpoint
+create unique index vehicle_change_v2_run_vin_type_idx
+  on vehicle_change_v2(run_id, vin, change_type)
   where processed_at is null;
+--> statement-breakpoint
+create index vehicle_change_v2_vin_idx on vehicle_change_v2(vin);
+--> statement-breakpoint
+create index vehicle_change_v2_processed_at_idx
+  on vehicle_change_v2(processed_at, id);
 --> statement-breakpoint
 
 create table search_notification_intent (

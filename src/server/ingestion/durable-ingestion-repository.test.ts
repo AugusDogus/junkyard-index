@@ -92,12 +92,12 @@ const TEST_SCHEMA = `
     cancelled_at integer, claim_token text, last_error text,
     created_at integer not null default 0
   );
-  create table vehicle_change (
+  create table vehicle_change_v2 (
     id integer primary key autoincrement, run_id text not null,
     vin text not null, change_type text not null, processed_at integer
   );
-  create index vehicle_change_processed_at_idx
-    on vehicle_change(processed_at, id);
+  create index vehicle_change_v2_processed_at_idx
+    on vehicle_change_v2(processed_at, id);
 `;
 
 function makeVehicle(vin = "2MEFM75W4XX703938"): CanonicalVehicle {
@@ -486,9 +486,9 @@ describe("durable ingestion repository", () => {
         args: [],
       });
       await client.executeMultiple(`
-        insert into vehicle_change (run_id, vin, change_type, processed_at)
+        insert into vehicle_change_v2 (run_id, vin, change_type, processed_at)
         values ('run-cleanup', 'VIN-PROCESSED', 'upsert', 1);
-        insert into vehicle_change (run_id, vin, change_type, processed_at)
+        insert into vehicle_change_v2 (run_id, vin, change_type, processed_at)
         values ('run-cleanup', 'VIN-PENDING', 'upsert', null);
         insert into search_notification_intent (id, run_id, status, created_at)
         values ('old-delivered', 'run-cleanup', 'delivered', 1);
@@ -510,7 +510,7 @@ describe("durable ingestion repository", () => {
       );
       expect(snapshots.rows).toHaveLength(0);
       const changes = await client.execute(
-        "select vin from vehicle_change order by vin",
+        "select vin from vehicle_change_v2 order by vin",
       );
       expect(changes.rows.map((row) => row.vin)).toEqual(["VIN-PENDING"]);
       const intents = await client.execute(
