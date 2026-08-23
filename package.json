@@ -6,6 +6,7 @@
   "scripts": {
     "bench:row52": "bun scripts/row52-benchmark.ts",
     "build": "next build",
+    "vercel:build": "bun scripts/vercel-build.ts",
     "check": "oxlint . && tsc --noEmit",
     "dev": "next dev --turbo",
     "format:check": "oxfmt --check .",
