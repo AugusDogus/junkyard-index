@@ -83,10 +83,6 @@ alter table ingestion_source_run add column acceptance_status text not null defa
 alter table ingestion_source_run add column validation_errors text;
 --> statement-breakpoint
 
-create index vehicle_snapshot_run_vin_source_idx
-  on vehicle_snapshot(run_id, vin, source);
---> statement-breakpoint
-
 -- Leave the legacy delivery history untouched. New durable ingestion runs use
 -- an empty change log with their own constraints and indexes.
 create table vehicle_change_v2 (

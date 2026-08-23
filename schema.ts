@@ -351,11 +351,6 @@ export const vehicleSnapshot = sqliteTable(
       columns: [table.runId, table.source, table.vin],
     }),
     index("vehicle_snapshot_run_source_idx").on(table.runId, table.source),
-    index("vehicle_snapshot_run_vin_source_idx").on(
-      table.runId,
-      table.vin,
-      table.source,
-    ),
     index("vehicle_snapshot_vin_idx").on(table.vin),
   ],
 );

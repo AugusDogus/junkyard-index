@@ -1839,11 +1839,6 @@
           "columns": ["run_id", "source"],
           "isUnique": false
         },
-        "vehicle_snapshot_run_vin_source_idx": {
-          "name": "vehicle_snapshot_run_vin_source_idx",
-          "columns": ["run_id", "vin", "source"],
-          "isUnique": false
-        },
         "vehicle_snapshot_vin_idx": {
           "name": "vehicle_snapshot_vin_idx",
           "columns": ["vin"],
