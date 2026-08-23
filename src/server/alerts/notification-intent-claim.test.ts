@@ -2,8 +2,9 @@ import { createClient } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import {
-  cancelClaimedNotificationIntent,
-  claimNotificationIntents,
+  cancelClaimedNotificationIntents,
+  claimDiscordNotificationIntents,
+  claimEmailNotificationIntentGroup,
 } from "./notification-intent-claim";
 
 const TEST_SCHEMA = `
@@ -48,13 +49,13 @@ describe("notification intent claims", () => {
       `);
       const database = drizzle(client);
       expect(
-        await cancelClaimedNotificationIntent({
+        await cancelClaimedNotificationIntents({
           database,
-          intentId: "intent-1",
+          intentIds: ["intent-1"],
           claimToken: "stale-claim",
           reason: "stale-worker",
         }),
-      ).toBe(false);
+      ).toBe(0);
       let row = await client.execute(
         "select status, claim_token from search_notification_intent",
       );
@@ -62,13 +63,13 @@ describe("notification intent claims", () => {
       expect(row.rows[0]?.claim_token).toBe("new-claim");
 
       expect(
-        await cancelClaimedNotificationIntent({
+        await cancelClaimedNotificationIntents({
           database,
-          intentId: "intent-1",
+          intentIds: ["intent-1"],
           claimToken: "new-claim",
           reason: "subscription-inactive",
         }),
-      ).toBe(true);
+      ).toBe(1);
       row = await client.execute(
         "select status, claim_token from search_notification_intent",
       );
@@ -79,20 +80,20 @@ describe("notification intent claims", () => {
     }
   });
 
-  test("concurrent workers atomically claim an intent once", async () => {
+  test("concurrent workers atomically claim an email digest group once", async () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(`${TEST_SCHEMA}
-        insert into search_notification_intent (id) values ('intent-1');
+        insert into search_notification_intent (id, saved_search_id)
+        values ('intent-1', 'search-1'), ('intent-2', 'search-2');
       `);
       const database = drizzle(client);
       const now = new Date("2026-08-22T07:00:00.000Z");
       const claim = (claimToken: string) =>
-        claimNotificationIntents({
+        claimEmailNotificationIntentGroup({
           database,
           now,
           leaseMs: 15 * 60 * 1000,
-          batchSize: 20,
           claimToken,
         });
       const [first, second] = await Promise.all([
@@ -100,9 +101,9 @@ describe("notification intent claims", () => {
         claim("claim-b"),
       ]);
 
-      expect(first.length + second.length).toBe(1);
+      expect(first.length + second.length).toBe(2);
       const row = await client.execute(
-        "select status, attempts, claim_token from search_notification_intent",
+        "select status, attempts, claim_token from search_notification_intent order by id",
       );
       expect(row.rows[0]?.status).toBe("sending");
       expect(row.rows[0]?.attempts).toBe(1);
@@ -113,6 +114,7 @@ describe("notification intent claims", () => {
         );
       }
       expect(["claim-a", "claim-b"]).toContain(claimToken);
+      expect(row.rows[1]?.claim_token).toBe(claimToken);
     } finally {
       client.close();
     }
@@ -132,11 +134,10 @@ describe("notification intent claims", () => {
         values ('abandoned-intent', 'run-abandoned');
       `);
       const database = drizzle(client);
-      const claimed = await claimNotificationIntents({
+      const claimed = await claimEmailNotificationIntentGroup({
         database,
         now: new Date("2026-08-22T07:00:00.000Z"),
         leaseMs: 15 * 60 * 1000,
-        batchSize: 20,
         claimToken: "claim-a",
       });
 
@@ -150,6 +151,34 @@ describe("notification intent claims", () => {
           { id: "active-intent", status: "pending" },
         ]),
       );
+    } finally {
+      client.close();
+    }
+  });
+
+  test("claims Discord intents independently in bounded batches", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(`${TEST_SCHEMA}
+        insert into search_notification_intent (id, saved_search_id, channel)
+        values
+          ('discord-1', 'search-1', 'discord'),
+          ('discord-2', 'search-2', 'discord');
+      `);
+      const claimed = await claimDiscordNotificationIntents({
+        database: drizzle(client),
+        now: new Date("2026-08-22T07:00:00.000Z"),
+        leaseMs: 15 * 60 * 1000,
+        batchSize: 1,
+        claimToken: "discord-claim",
+      });
+
+      expect(claimed).toHaveLength(1);
+      expect(claimed[0]?.id).toBe("discord-1");
+      const pending = await client.execute(
+        "select status from search_notification_intent where id = 'discord-2'",
+      );
+      expect(pending.rows[0]?.status).toBe("pending");
     } finally {
       client.close();
     }

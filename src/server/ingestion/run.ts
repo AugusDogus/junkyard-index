@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
-import {
-  deliverDurableAlertIntentsBatch,
-  runDurableAlertMatchingBatch,
-} from "~/server/alerts/durable-search-alerts";
+import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
+import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
 import { runDurableAlgoliaProjectionBatch } from "./algolia-projector";
 import {
   cleanupDurableIngestionSnapshotBatch,
@@ -17,6 +15,13 @@ import {
   validateDurableIngestionSources,
 } from "./durable-ingestion";
 import { executeDurableIngestion } from "./durable-ingestion-orchestrator";
+import {
+  drainDurableCleanup,
+  drainDurablePhase,
+  runDurablePostReleaseLifecycle,
+  runDurablePublicationLifecycle,
+  runProjectionWithFailureRecording,
+} from "./durable-post-ingestion-orchestrator";
 
 export async function runIngestion(): Promise<DurableIngestionResult> {
   const runId = randomUUID();
@@ -45,37 +50,34 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
     );
   }
 
-  while (true) {
-    const projection = await runDurableAlgoliaProjectionBatch(runId, {
-      configureIndex: process.env.ALGOLIA_CONFIGURE_ON_INGEST === "1",
-    });
-    if (projection.status === "stopped") {
-      throw new Error(
-        `Ingestion run ${runId} was stopped during Algolia publication.`,
-      );
-    }
-    if (projection.status === "complete") break;
+  const publication = await runDurablePublicationLifecycle({
+    runId,
+    project: () =>
+      runProjectionWithFailureRecording({
+        runId,
+        runBatch: () =>
+          runDurableAlgoliaProjectionBatch(runId, {
+            configureIndex: process.env.ALGOLIA_CONFIGURE_ON_INGEST === "1",
+          }),
+        markFailed: async (failedRunId, error) => {
+          await markDurableIngestionFailed(failedRunId, error);
+        },
+      }),
+    matchAlerts: () =>
+      drainDurablePhase(() => runDurableAlertMatchingBatch(runId)),
+    reportHealth: reportDurableIngestionHealth,
+  });
+  if (publication.status === "stopped") {
+    throw new Error(
+      `Ingestion run ${runId} was stopped during ${publication.phase}.`,
+    );
   }
 
-  while (true) {
-    const matching = await runDurableAlertMatchingBatch(runId);
-    if (matching.status === "stopped") {
-      throw new Error(
-        `Ingestion run ${runId} was stopped during alert matching.`,
-      );
-    }
-    if (matching.status === "complete") break;
-  }
-  await reportDurableIngestionHealth(runId);
-
-  while (true) {
-    const delivery = await deliverDurableAlertIntentsBatch();
-    if (delivery.status === "complete") break;
-  }
-
-  while (true) {
-    const cleanup = await cleanupDurableIngestionSnapshotBatch(runId);
-    if (cleanup.done) break;
-  }
+  await runDurablePostReleaseLifecycle({
+    runId,
+    deliverAlerts: () => drainDurablePhase(deliverDurableAlertIntentsBatch),
+    cleanup: () =>
+      drainDurableCleanup(() => cleanupDurableIngestionSnapshotBatch(runId)),
+  });
   return execution.ingestion;
 }
