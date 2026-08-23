@@ -7,6 +7,7 @@ import {
   fetchPullapartMakesOnYard,
   searchPullapartVehicles,
   type PullapartRequestGate,
+  type PullapartVehicle,
 } from "./pullapart-client";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { PullapartDurableCursor } from "./durable-source";
@@ -22,8 +23,19 @@ export type PullapartStreamResult = ConnectorChunkResult<
   PullapartDurableCursor
 >;
 
+export interface PullapartCachedEnrichment {
+  color: string | null;
+  imageUrl: string | null;
+  engine: string | null;
+  trim: string | null;
+  transmission: string | null;
+}
+
 export interface PullapartStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  loadCachedEnrichments?: (
+    vehicles: ReadonlyArray<PullapartVehicle>,
+  ) => Effect.Effect<ReadonlyMap<string, PullapartCachedEnrichment>, E, R>;
   startAfter?: PullapartDurableCursor;
   maxPages?: number;
 }
@@ -139,9 +151,28 @@ export function streamPullapartInventoryWithRequestGate<E, R>(
           uniqueRowsByVin.set(vin, row);
         }
 
+        const cachedEnrichments = options.loadCachedEnrichments
+          ? yield* options.loadCachedEnrichments([...uniqueRowsByVin.values()])
+          : new Map<string, PullapartCachedEnrichment>();
+
         const enriched = yield* Effect.all(
           [...uniqueRowsByVin.values()].map((row) =>
             Effect.gen(function* () {
+              const cached = cachedEnrichments.get(row.vin.trim());
+              if (cached) {
+                const vehicle = transformPullapartVehicle(row, location, geo);
+                if (!vehicle) return null;
+
+                return {
+                  ...vehicle,
+                  color: cached.color ?? vehicle.color,
+                  imageUrl: cached.imageUrl,
+                  engine: cached.engine ?? vehicle.engine,
+                  trim: cached.trim ?? vehicle.trim,
+                  transmission: cached.transmission ?? vehicle.transmission,
+                };
+              }
+
               const detail = yield* fetchPullapartVehicleExtendedInfo(
                 {
                   locationId: row.locID,

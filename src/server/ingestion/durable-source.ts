@@ -49,7 +49,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   pyp: {
     initialCursor: { source: "pyp", page: 1 },
-    maxPagesPerChunk: 10,
+    maxPagesPerChunk: 30,
   },
   autorecycler: {
     initialCursor: { source: "autorecycler", from: 0 },
@@ -57,7 +57,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   pullapart: {
     initialCursor: { source: "pullapart", locationId: 0, makeId: 0 },
-    maxPagesPerChunk: 1,
+    maxPagesPerChunk: 10,
   },
   upullitne: {
     initialCursor: { source: "upullitne", storeIndex: 0 },

@@ -11,7 +11,7 @@ import { transformAutorecyclerMsearchHit } from "./autorecycler-transform";
 import type { CanonicalVehicle } from "./types";
 import { AutorecyclerProviderError } from "./errors";
 import type { PersistenceError } from "./errors";
-import type { Database } from "./runtime";
+import type { Database } from "./context";
 
 /**
  * msearch `search.n` (requested page size). Live probe (2025-03) returns at most **400** hits
@@ -20,6 +20,8 @@ import type { Database } from "./runtime";
  * this constant alone, so rows are never skipped if the cap changes.
  */
 const REQUESTED_PAGE_SIZE = 400;
+const PAGE_FETCH_CONCURRENCY = 4;
+const PAGE_FETCH_CHUNK_SIZE = 10;
 
 function hitSource(
   hit: AutorecyclerMsearchHit,
@@ -125,15 +127,25 @@ export type AutorecyclerStreamResult = ConnectorChunkResult<
   >;
 };
 
+interface AutorecyclerStreamOptions<E, R> {
+  onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  startFrom?: number;
+  maxPages?: number;
+}
+
+type AutorecyclerPageFetcher = (
+  from: number,
+  pageSize: number,
+) => Promise<AutorecyclerMsearchResponse>;
+
 /**
  * Stream AutoRecycler global inventory via encrypted `msearch`, resolve yard
  * coordinates via cached `init/data` on representative `details/{inventory_id}` rows.
  */
-export function streamAutorecyclerInventory<E, R>(options: {
-  onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  startFrom?: number;
-  maxPages?: number;
-}): Effect.Effect<
+export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
+  options: AutorecyclerStreamOptions<E, R>,
+  fetchPage: AutorecyclerPageFetcher,
+): Effect.Effect<
   AutorecyclerStreamResult,
   AutorecyclerProviderError | PersistenceError | E,
   Database | R
@@ -150,27 +162,27 @@ export function streamAutorecyclerInventory<E, R>(options: {
 
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
 
-    while (!done && pagesProcessed < maxPages) {
-      const json = yield* Effect.tryPromise({
-        try: () =>
-          postAutorecyclerElasticsearchMsearch(
-            buildGlobalMsearchBody(from, REQUESTED_PAGE_SIZE),
-          ),
-        catch: (cause) => new AutorecyclerProviderError({ from, cause }),
-      });
+    const processPage = (
+      requestFrom: number,
+      json: AutorecyclerMsearchResponse,
+    ): Effect.Effect<
+      { full: boolean; terminal: boolean },
+      AutorecyclerProviderError | PersistenceError | E,
+      Database | R
+    > =>
+      Effect.gen(function* () {
+        const parsed = parseMsearchFirstResponse(json, requestFrom);
+        if (!parsed.ok) {
+          yield* Effect.logError(parsed.logMessage);
+          return yield* Effect.fail(
+            new AutorecyclerProviderError({
+              from: requestFrom,
+              cause: new Error(parsed.detail),
+            }),
+          );
+        }
 
-      const parsed = parseMsearchFirstResponse(json, from);
-      if (!parsed.ok) {
-        yield* Effect.logError(parsed.logMessage);
-        yield* Effect.fail(
-          new AutorecyclerProviderError({
-            from,
-            cause: new Error(parsed.detail),
-          }),
-        );
-      } else {
         const { r0, hits } = parsed;
-
         const seeds = new Map<string, string>();
         for (const h of hits) {
           const src = hitSource(h);
@@ -210,10 +222,54 @@ export function streamAutorecyclerInventory<E, R>(options: {
         pagesProcessed += 1;
         from += hits.length;
 
-        const atEnd = r0.at_end === true;
-        if (atEnd || hits.length === 0) {
+        return {
+          full: hits.length === REQUESTED_PAGE_SIZE,
+          terminal: r0.at_end === true || hits.length === 0,
+        };
+      });
+
+    const fetchPageEffect = (requestFrom: number) =>
+      Effect.tryPromise({
+        try: () => fetchPage(requestFrom, REQUESTED_PAGE_SIZE),
+        catch: (cause) =>
+          new AutorecyclerProviderError({ from: requestFrom, cause }),
+      });
+
+    while (!done && pagesProcessed < maxPages) {
+      const firstRequestFrom = from;
+      const first = yield* fetchPageEffect(firstRequestFrom);
+      const firstResult = yield* processPage(firstRequestFrom, first);
+      if (firstResult.terminal) {
+        done = true;
+        break;
+      }
+      if (!firstResult.full || pagesProcessed >= maxPages) continue;
+
+      const tailCount = Math.min(
+        PAGE_FETCH_CHUNK_SIZE - 1,
+        maxPages - pagesProcessed,
+      );
+      const tailOffsets = Array.from(
+        { length: tailCount },
+        (_, index) => from + index * REQUESTED_PAGE_SIZE,
+      );
+      const tailPages = yield* Effect.all(
+        tailOffsets.map((requestFrom) =>
+          fetchPageEffect(requestFrom).pipe(
+            Effect.map((json) => ({ requestFrom, json })),
+          ),
+        ),
+        { concurrency: PAGE_FETCH_CONCURRENCY },
+      );
+
+      for (const page of tailPages) {
+        if (page.requestFrom !== from) break;
+        const pageResult = yield* processPage(page.requestFrom, page.json);
+        if (pageResult.terminal) {
           done = true;
+          break;
         }
+        if (!pageResult.full) break;
       }
     }
 
@@ -231,4 +287,18 @@ export function streamAutorecyclerInventory<E, R>(options: {
       geoStats: geo.getStats(),
     };
   });
+}
+
+export function streamAutorecyclerInventory<E, R>(
+  options: AutorecyclerStreamOptions<E, R>,
+): Effect.Effect<
+  AutorecyclerStreamResult,
+  AutorecyclerProviderError | PersistenceError | E,
+  Database | R
+> {
+  return streamAutorecyclerInventoryWithPageFetcher(options, (from, pageSize) =>
+    postAutorecyclerElasticsearchMsearch(
+      buildGlobalMsearchBody(from, pageSize),
+    ),
+  );
 }

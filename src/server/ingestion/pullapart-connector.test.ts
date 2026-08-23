@@ -271,6 +271,58 @@ describe("streamPullapartInventory enrichment handling", () => {
     expect(batches[0]?.[0]?.transmission).toBeNull();
   });
 
+  test("reuses enrichment for the same yard ticket without provider requests", async () => {
+    let detailRequests = 0;
+    let imageRequests = 0;
+    installPullapartFetchMock({
+      detailResponse: () => {
+        detailRequests += 1;
+        return jsonResponse({}, 500);
+      },
+      imageResponse: () => {
+        imageRequests += 1;
+        return jsonResponse({}, 500);
+      },
+    });
+    const batches: CanonicalVehicle[][] = [];
+
+    const result = await Effect.runPromise(
+      streamPullapartInventory({
+        onBatch: (vehicles) =>
+          Effect.sync(() => {
+            batches.push(vehicles);
+          }),
+        loadCachedEnrichments: (vehicles) =>
+          Effect.succeed(
+            new Map(
+              vehicles.map((vehicle) => [
+                vehicle.vin,
+                {
+                  color: "Silver",
+                  imageUrl: "https://images.example/vehicle.jpg",
+                  engine: "3.5L V6",
+                  trim: "Touring",
+                  transmission: "Automatic",
+                },
+              ]),
+            ),
+          ),
+      }),
+    );
+
+    expect(result.status).toBe("complete");
+    expect(result.count).toBe(1);
+    expect(detailRequests).toBe(0);
+    expect(imageRequests).toBe(0);
+    expect(batches[0]?.[0]).toMatchObject({
+      color: "Silver",
+      imageUrl: "https://images.example/vehicle.jpg",
+      engine: "3.5L V6",
+      trim: "Touring",
+      transmission: "Automatic",
+    });
+  });
+
   test("skips rows and records errors when enrichment transport fails", async () => {
     installPullapartFetchMock({
       detailResponse: () => jsonResponse({ message: "upstream error" }, 500),

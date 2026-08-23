@@ -22,6 +22,14 @@ describe("durable ingestion cursors", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.row52.maxPagesPerChunk).toBe(1);
   });
 
+  test("amortizes PYP browser startup across thirty pages", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS.pyp.maxPagesPerChunk).toBe(30);
+  });
+
+  test("amortizes Pull-A-Part setup across ten make pages", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS.pullapart.maxPagesPerChunk).toBe(10);
+  });
+
   test("parses valid integer and pair cursors", () => {
     expect(parseDurableSourceCursor("pyp", "12")).toEqual({
       source: "pyp",

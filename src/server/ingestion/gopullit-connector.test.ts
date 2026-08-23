@@ -69,15 +69,15 @@ describe("GO Pull-It catalog streaming", () => {
           Effect.fork,
         );
 
-        yield* TestClock.adjust("1499 millis");
+        yield* TestClock.adjust("1249 millis");
         expect(requestedPages).toEqual([]);
         yield* TestClock.adjust("1 millis");
         expect(requestedPages).toEqual([1]);
-        yield* TestClock.adjust("1499 millis");
+        yield* TestClock.adjust("1249 millis");
         expect(requestedPages).toEqual([1]);
         yield* TestClock.adjust("1 millis");
         expect(requestedPages).toEqual([1, 2]);
-        yield* TestClock.adjust("1499 millis");
+        yield* TestClock.adjust("1249 millis");
         expect(requestedPages).toEqual([1, 2]);
         yield* TestClock.adjust("1 millis");
 

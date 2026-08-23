@@ -16,7 +16,7 @@ const PROVIDER_PAGE_SIZE = 10;
 export const GOPULLIT_MAX_CATALOG_PAGES = 5_000;
 // Production began returning 429s after 64 requests in one minute. Keep
 // enough headroom for provider-side accounting differences and other traffic.
-const REQUEST_INTERVAL = "1500 millis";
+const REQUEST_INTERVAL = "1250 millis";
 // New uploads briefly lack vehicle metadata. Fail closed if that normal queue
 // grows large enough to indicate a provider response regression.
 const MAX_INCOMPLETE_RECORD_RATIO = 0.1;
