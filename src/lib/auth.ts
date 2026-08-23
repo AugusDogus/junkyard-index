@@ -16,6 +16,7 @@ import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { db } from "~/lib/db";
+import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
 import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
 
@@ -149,10 +150,12 @@ export const auth = betterAuth({
             }
 
             if (!hasActiveSubscription && customerState.externalId) {
-              await db
-                .update(schema.savedSearch)
-                .set({ emailAlertsEnabled: false })
-                .where(eq(schema.savedSearch.userId, customerState.externalId));
+              await setUserAlertChannel({
+                database: db,
+                userId: customerState.externalId,
+                channel: "email",
+                enabled: false,
+              });
             }
           },
         }),

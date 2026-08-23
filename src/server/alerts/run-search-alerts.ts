@@ -16,6 +16,7 @@ import {
   createSearchNotificationDeliverySession,
   type PreparedSearchNotification,
 } from "./deliver-search-notifications";
+import { setUserAlertChannel } from "./alert-config-repository";
 import {
   claimUserSearchGroups,
   processUserSearches,
@@ -195,13 +196,18 @@ async function disableAlertsForInactiveSubscription(
           completion: "no_subscription_disabled",
         };
 
-  await db
-    .update(savedSearch)
-    .set({
-      emailAlertsEnabled: false,
-      discordAlertsEnabled: false,
-    })
-    .where(eq(savedSearch.userId, userId));
+  await setUserAlertChannel({
+    database: db,
+    userId,
+    channel: "email",
+    enabled: false,
+  });
+  await setUserAlertChannel({
+    database: db,
+    userId,
+    channel: "discord",
+    enabled: false,
+  });
 
   for (const search of searches) {
     posthog.capture({

@@ -1,8 +1,10 @@
 import type {
   DurableIngestionResult,
+  DurableReconciliationBatchResult,
   DurableSourceChunkResult,
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
+import type { DurableSourceValidationSummary } from "./durable-source-validation";
 import {
   DURABLE_INITIAL_SOURCE_CURSORS,
   durableSourceCursorEquals,
@@ -10,11 +12,6 @@ import {
   type DurableIngestionSource,
   type DurableSourceCursor,
 } from "./durable-source";
-
-const HYPERBROWSER_SOURCES: ReadonlySet<DurableIngestionSource> = new Set([
-  "pyp",
-  "upullitdavie",
-]);
 
 export interface DurableSourceOperations<
   Source extends DurableIngestionSource,
@@ -42,13 +39,14 @@ export interface DurableIngestionOperations {
   ) => Promise<DurableSourceChunkResult<Source>>;
   cleanupStale: () => Promise<void>;
   initialize: (runId: string) => Promise<InitializeDurableIngestionResult>;
-  reconcile: (runId: string) => Promise<DurableIngestionResult>;
+  validateSources: (runId: string) => Promise<DurableSourceValidationSummary>;
+  reconcile: (runId: string) => Promise<DurableReconciliationBatchResult>;
   markRunFailed: (runId: string, message: string) => Promise<void>;
-  cleanupSnapshots: (runId: string) => Promise<void>;
 }
 
 export type DurableIngestionExecution =
   | { status: "deduplicated"; activeRunId: string | null }
+  | { status: "stopped" }
   | { status: "completed"; ingestion: DurableIngestionResult };
 
 function formatError(error: unknown): string {
@@ -107,22 +105,19 @@ export async function executeDurableIngestion(params: {
         initialCursor,
         operations: params.operations,
       });
-    const hyperbrowserCursors = DURABLE_INITIAL_SOURCE_CURSORS.filter(
-      (cursor) => HYPERBROWSER_SOURCES.has(cursor.source),
-    );
-    const otherCursors = DURABLE_INITIAL_SOURCE_CURSORS.filter(
-      (cursor) => !HYPERBROWSER_SOURCES.has(cursor.source),
-    );
-
-    await Promise.all([
-      (async () => {
-        for (const cursor of hyperbrowserCursors) {
-          await ingestSource(cursor);
-        }
-      })(),
-      ...otherCursors.map(ingestSource),
-    ]);
-    ingestion = await params.operations.reconcile(params.runId);
+    for (const cursor of DURABLE_INITIAL_SOURCE_CURSORS) {
+      await ingestSource(cursor);
+    }
+    const validation = await params.operations.validateSources(params.runId);
+    if (validation.status === "stopped") return validation;
+    while (true) {
+      const reconciliation = await params.operations.reconcile(params.runId);
+      if (reconciliation.status === "stopped") return reconciliation;
+      if (reconciliation.status === "complete") {
+        ingestion = reconciliation.result;
+        break;
+      }
+    }
   } catch (error) {
     try {
       await params.operations.markRunFailed(
@@ -135,13 +130,5 @@ export async function executeDurableIngestion(params: {
     throw error;
   }
 
-  try {
-    await params.operations.cleanupSnapshots(params.runId);
-  } catch (error) {
-    console.warn(
-      `Snapshot cleanup failed for completed ingestion run ${params.runId}. Stale snapshot cleanup will retry it later.`,
-      error,
-    );
-  }
   return { status: "completed", ingestion };
 }

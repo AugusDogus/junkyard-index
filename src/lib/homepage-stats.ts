@@ -1,7 +1,7 @@
-import { sql } from "drizzle-orm";
+import { desc, isNotNull } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
-import { vehicle } from "~/schema";
+import { ingestionRun } from "~/schema";
 
 export interface HomepageLiveStats {
   vehicleCount: number;
@@ -12,15 +12,19 @@ export interface HomepageLiveStats {
 async function getLiveHomepageStatsInternal(): Promise<HomepageLiveStats> {
   const [result] = await db
     .select({
-      vehicleCount: sql<number>`COUNT(*)`,
-      yardCount: sql<number>`COUNT(DISTINCT ${vehicle.locationCode})`,
+      vehicleCount: ingestionRun.publishedVehicleCount,
+      yardCount: ingestionRun.publishedYardCount,
+      searchPublishedAt: ingestionRun.searchPublishedAt,
     })
-    .from(vehicle);
+    .from(ingestionRun)
+    .where(isNotNull(ingestionRun.searchPublishedAt))
+    .orderBy(desc(ingestionRun.searchPublishedAt))
+    .limit(1);
 
   return {
     vehicleCount: result?.vehicleCount ?? 0,
     yardCount: result?.yardCount ?? 0,
-    updatedAt: new Date().toISOString(),
+    updatedAt: (result?.searchPublishedAt ?? new Date(0)).toISOString(),
   };
 }
 

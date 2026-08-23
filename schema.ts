@@ -6,6 +6,7 @@ import {
   real,
   sqliteTable,
   text,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
@@ -134,7 +135,23 @@ export const savedSearch = sqliteTable(
     discordAlertsEnabled: integer("discord_alerts_enabled", { mode: "boolean" })
       .default(false)
       .notNull(),
+    searchMatchVersion: integer("search_match_version").default(1).notNull(),
+    emailConfigVersion: integer("email_config_version").default(1).notNull(),
+    discordConfigVersion: integer("discord_config_version")
+      .default(1)
+      .notNull(),
+    emailStartSequence: integer("email_start_sequence").default(0).notNull(),
+    discordStartSequence: integer("discord_start_sequence")
+      .default(0)
+      .notNull(),
+    lastMatchedPublicationSequence: integer("last_matched_publication_sequence")
+      .default(0)
+      .notNull(),
     lastCheckedAt: integer("last_checked_at", { mode: "timestamp_ms" }),
+    alertQuarantinedAt: integer("alert_quarantined_at", {
+      mode: "timestamp_ms",
+    }),
+    alertQuarantineReason: text("alert_quarantine_reason"),
     // Processing lock to prevent race conditions between cron job and webhooks
     processingLock: integer("processing_lock", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -214,16 +231,56 @@ export const vehicle = sqliteTable(
   ],
 );
 
-export const ingestionRun = sqliteTable("ingestion_run", {
-  id: text("id").primaryKey(),
-  source: text("source").notNull(), // Canonical ingestion source key or "all"
-  status: text("status").notNull(), // "running" | "success" | "error"
-  vehiclesUpserted: integer("vehicles_upserted").default(0),
-  vehiclesDeleted: integer("vehicles_deleted").default(0),
-  errors: text("errors"), // JSON array of error strings
-  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
-  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
-});
+export const ingestionRun = sqliteTable(
+  "ingestion_run",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(), // Canonical ingestion source key or "all"
+    scheduleKey: text("schedule_key"),
+    workflowRunId: text("workflow_run_id"),
+    status: text("status").notNull(), // "running" | "success" | "error" | "abandoned"
+    stage: text("stage").default("sources").notNull(),
+    activeSlot: integer("active_slot"), // 1 for the only nonterminal run, null otherwise
+    reconciliationCursor: text("reconciliation_cursor"),
+    projectorCursor: integer("projector_cursor").default(0).notNull(),
+    fullReindexRequired: integer("full_reindex_required", { mode: "boolean" })
+      .default(false)
+      .notNull(),
+    fullReindexCursor: text("full_reindex_cursor"),
+    fullReindexMoveTaskId: integer("full_reindex_move_task_id"),
+    alertMatchCursor: text("alert_match_cursor"),
+    acceptedSources: text("accepted_sources"), // JSON array of canonical source keys
+    inventoryOutcome: text("inventory_outcome"), // "published" | "published_degraded"
+    publicationSequence: integer("publication_sequence"),
+    publishedVehicleCount: integer("published_vehicle_count"),
+    publishedYardCount: integer("published_yard_count"),
+    vehiclesUpserted: integer("vehicles_upserted").default(0),
+    vehiclesDeleted: integer("vehicles_deleted").default(0),
+    errors: text("errors"), // JSON array of error strings
+    executionErrors: text("execution_errors"), // JSON array of recoverable executor failures
+    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+    lastProgressAt: integer("last_progress_at", {
+      mode: "timestamp_ms",
+    }).notNull(),
+    inventoryPublishedAt: integer("inventory_published_at", {
+      mode: "timestamp_ms",
+    }),
+    searchPublishedAt: integer("search_published_at", {
+      mode: "timestamp_ms",
+    }),
+    alertMatchingCompletedAt: integer("alert_matching_completed_at", {
+      mode: "timestamp_ms",
+    }),
+    releasedAt: integer("released_at", { mode: "timestamp_ms" }),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("ingestion_run_single_active_idx").on(table.activeSlot),
+    index("ingestion_run_schedule_key_idx").on(table.scheduleKey),
+    index("ingestion_run_search_published_at_idx").on(table.searchPublishedAt),
+    index("ingestion_run_stage_idx").on(table.stage),
+  ],
+);
 
 export const ingestionSourceRun = sqliteTable(
   "ingestion_source_run",
@@ -238,6 +295,11 @@ export const ingestionSourceRun = sqliteTable(
     nextCursor: text("next_cursor"),
     pagesProcessed: integer("pages_processed").default(0).notNull(),
     vehiclesProcessed: integer("vehicles_processed").default(0).notNull(),
+    uniqueVehicles: integer("unique_vehicles").default(0).notNull(),
+    duplicateVehicles: integer("duplicate_vehicles").default(0).notNull(),
+    rejectedVehicles: integer("rejected_vehicles").default(0).notNull(),
+    acceptanceStatus: text("acceptance_status").default("pending").notNull(),
+    validationErrors: text("validation_errors"),
     errors: text("errors"), // JSON array of error strings
     startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
     completedAt: integer("completed_at", { mode: "timestamp_ms" }),
@@ -289,6 +351,11 @@ export const vehicleSnapshot = sqliteTable(
       columns: [table.runId, table.source, table.vin],
     }),
     index("vehicle_snapshot_run_source_idx").on(table.runId, table.source),
+    index("vehicle_snapshot_run_vin_source_idx").on(
+      table.runId,
+      table.vin,
+      table.source,
+    ),
     index("vehicle_snapshot_vin_idx").on(table.vin),
   ],
 );
@@ -311,8 +378,58 @@ export const vehicleChange = sqliteTable(
   },
   (table) => [
     index("vehicle_change_run_id_idx").on(table.runId),
+    uniqueIndex("vehicle_change_run_vin_type_idx").on(
+      table.runId,
+      table.vin,
+      table.changeType,
+    ),
     index("vehicle_change_vin_idx").on(table.vin),
     index("vehicle_change_processed_at_idx").on(table.processedAt, table.id),
+  ],
+);
+
+export const searchNotificationIntent = sqliteTable(
+  "search_notification_intent",
+  {
+    id: text("id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    publicationSequence: integer("publication_sequence").notNull(),
+    savedSearchId: text("saved_search_id")
+      .notNull()
+      .references(() => savedSearch.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(), // "email" | "discord"
+    searchMatchVersion: integer("search_match_version").notNull(),
+    channelConfigVersion: integer("channel_config_version").notNull(),
+    payload: text("payload").notNull(),
+    status: text("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    claimToken: text("claim_token"),
+    claimedAt: integer("claimed_at", { mode: "timestamp_ms" }),
+    nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }),
+    lastError: text("last_error"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }),
+    cancelledAt: integer("cancelled_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("search_notification_intent_dedupe_idx").on(
+      table.savedSearchId,
+      table.publicationSequence,
+      table.channel,
+    ),
+    index("search_notification_intent_delivery_idx").on(
+      table.status,
+      table.claimedAt,
+      table.id,
+    ),
+    index("search_notification_intent_run_idx").on(table.runId),
   ],
 );
 

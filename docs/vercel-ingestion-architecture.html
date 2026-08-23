@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Junkyard Index: Reliable Vercel Ingestion Plan</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #0b1020;
+        --panel: #131a2e;
+        --text: #eef2ff;
+        --muted: #a8b2cf;
+        --border: #2c3655;
+        --accent: #7dd3fc;
+        --good: #86efac;
+        --warn: #fde68a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.6 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      main {
+        width: min(960px, calc(100% - 32px));
+        margin: 48px auto 96px;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+      }
+      h1 {
+        font-size: clamp(2rem, 5vw, 3.5rem);
+        margin-bottom: 12px;
+      }
+      h2 {
+        margin-top: 48px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 10px;
+      }
+      h3 {
+        margin-top: 28px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font:
+          0.92em ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      pre {
+        overflow-x: auto;
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #080c18;
+      }
+      .lede {
+        color: var(--muted);
+        font-size: 1.15rem;
+        max-width: 780px;
+      }
+      .status {
+        display: inline-block;
+        margin: 18px 0 8px;
+        padding: 6px 12px;
+        border: 1px solid #276749;
+        border-radius: 999px;
+        color: var(--good);
+        background: #10251d;
+        font-weight: 700;
+      }
+      .card {
+        margin: 20px 0;
+        padding: 20px 24px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--panel);
+      }
+      .warning {
+        border-color: #7c6320;
+      }
+      .warning strong {
+        color: var(--warn);
+      }
+      li {
+        margin: 8px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 18px 0;
+      }
+      th,
+      td {
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: var(--panel);
+      }
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="status">Implemented and locally verified</div>
+        <h1>Reliable Daily Ingestion on Vercel</h1>
+        <p class="lede">
+          A minimal production architecture for ingesting seven salvage-yard
+          providers, reconciling a canonical Turso inventory, projecting it into
+          Algolia, and delivering saved-search alerts. Three independent reviews
+          covering Vercel execution, Turso correctness, and end-to-end ETL
+          semantics accepted this design with no unresolved critical or
+          high-severity blocker.
+        </p>
+      </header>
+
+      <section>
+        <h2>Decision</h2>
+        <p>Keep the existing platform:</p>
+        <ul>
+          <li>
+            Vercel Cron and Vercel Workflow for scheduling and durable
+            orchestration
+          </li>
+          <li>Turso as the system of record</li>
+          <li>Algolia as the public search index</li>
+          <li>Existing email and Discord providers for alerts</li>
+        </ul>
+        <p>
+          No Kafka, Vercel Queues, mandatory Blob artifacts, Railway worker,
+          Postgres migration, or immutable inventory-generation system is
+          required.
+        </p>
+      </section>
+
+      <section>
+        <h2>Architecture</h2>
+        <pre><code>Hourly Vercel Cron
+  -&gt; database due-check
+  -&gt; global Workflow executor hook
+  -&gt; create or resume singleton ingestion run
+  -&gt; process sources sequentially
+      -&gt; fetch bounded chunk
+      -&gt; guarded atomic Turso batch
+      -&gt; advance source cursor
+  -&gt; validate and accept/reject each source
+  -&gt; bounded upsert reconciliation
+  -&gt; bounded missing reconciliation
+  -&gt; mark inventory published/degraded
+  -&gt; bounded ordered Algolia projection
+  -&gt; mark search published
+  -&gt; bounded alert matching and durable intent creation
+  -&gt; release ingestion singleton
+  -&gt; non-blocking notification delivery and cleanup</code></pre>
+      </section>
+
+      <section>
+        <h2>Execution and recovery</h2>
+        <h3>Scheduling</h3>
+        <p>
+          Cron is a wakeup, not the source of truth. It runs hourly. Turso
+          atomically decides whether today is due, an active run should be
+          resumed, or the call should no-op. The ingestion run ID is independent
+          from the Workflow run ID.
+        </p>
+
+        <h3>Singleton execution</h3>
+        <p>
+          A database constraint permits exactly one nonterminal ingestion run. A
+          fixed Workflow hook prevents multiple active executors. Database
+          cursor guards remain the correctness boundary if two executors
+          overlap.
+        </p>
+
+        <h3>Resumption</h3>
+        <p>
+          There is no age-based lock takeover. A failed Workflow leaves its
+          durable run state intact. A later hourly invocation starts a new
+          Workflow that resumes the stored source or reconciliation cursor.
+        </p>
+
+        <h3>Abandonment</h3>
+        <p>
+          Normal abandonment is allowed only before reconciliation begins.
+          Emergency abandonment after live reconciliation starts sets
+          <code>full_reindex_required</code>. The next successful run must
+          rebuild the complete Algolia index before clearing the flag and
+          releasing the singleton. The repair publication is explicitly
+          alert-degraded.
+        </p>
+      </section>
+
+      <section>
+        <h2>Source ingestion</h2>
+        <p>
+          Sources run sequentially initially. Every step fetches one measured
+          chunk, then performs one backend write batch:
+        </p>
+        <ol>
+          <li>
+            Guard snapshot insertion on the expected run, source state, and
+            cursor.
+          </li>
+          <li>
+            Guard cursor and counter advancement with the identical predicate.
+          </li>
+          <li>
+            Execute both operations with
+            <code>client.batch(statements, "write")</code>.
+          </li>
+          <li>
+            Treat <code>rowsAffected === 1</code> as the winning transition.
+          </li>
+          <li>
+            Treat <code>rowsAffected === 0</code> as a stale retry and return
+            the stored checkpoint.
+          </li>
+        </ol>
+        <p>
+          A transaction error rolls back every statement. A lost response can
+          safely retry. Chunk size is chosen by measured records, bytes, Turso
+          commit latency, Workflow duration, and total Workflow event budget.
+        </p>
+
+        <h3>Validation</h3>
+        <p>
+          A source is accepted only after checking terminal cursor evidence,
+          actual unique snapshot rows, source-specific minimum inventory,
+          recent-run drift, duplicate rates, and rejected-record rates. A
+          rejected partial snapshot never reaches reconciliation.
+        </p>
+        <div class="card">
+          <strong>Rejected-source rule:</strong> a rejected source contributes
+          no new rows. Existing vehicles owned by it do not advance missing
+          state. An accepted source reporting the same VIN may still replace
+          ownership according to the documented source priority.
+        </div>
+      </section>
+
+      <section>
+        <h2>Bounded reconciliation</h2>
+        <p>
+          The ingestion run persists a reconciliation phase, VIN cursor, and
+          last-progress timestamp.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>upsert</code></td>
+              <td>
+                Keyset-query the next canonical-winner page from accepted source
+                snapshots, update vehicles, insert deduplicated changes, and
+                advance the cursor in one guarded batch.
+              </td>
+            </tr>
+            <tr>
+              <td><code>missing</code></td>
+              <td>
+                Keyset-query existing vehicles, apply missing or delete
+                transitions only for eligible accepted sources, insert
+                deduplicated changes, and advance the cursor.
+              </td>
+            </tr>
+            <tr>
+              <td><code>complete</code></td>
+              <td>
+                Persist final counts and the published or published-degraded
+                inventory outcome.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          The live Turso table may be partially updated during reconciliation.
+          This is an explicit consistency choice. Algolia continues serving the
+          previous public inventory, and homepage statistics use stored counts
+          from the last published run instead of a live table count.
+        </p>
+      </section>
+
+      <section>
+        <h2>Algolia publication</h2>
+        <p>
+          The projector handles one ordered change batch per Workflow step.
+          Every Algolia task is awaited before its Turso checkpoint advances.
+          VIN remains the idempotent Algolia object ID. Changes are read only
+          from fully reconciled runs, and no newer ingestion starts until the
+          current search publication completes.
+        </p>
+        <p>
+          A periodic or manual full-index replacement is the drift-repair path
+          and is mandatory after forced abandonment during reconciliation or
+          projection.
+        </p>
+      </section>
+
+      <section>
+        <h2>Alerts and consent</h2>
+        <p>
+          Saved-search matching runs in bounded steps against the stable newly
+          published index before a newer ingestion may begin. Matching persists
+          deterministic notification intents. Delivery occurs afterward and does
+          not block future ingestion.
+        </p>
+        <ul>
+          <li>
+            <code>search_match_version</code> changes when the query or filters
+            change.
+          </li>
+          <li>
+            Email and Discord have independent configuration versions and
+            channel start sequences.
+          </li>
+          <li>
+            Changing one channel cannot cancel valid intents for the other.
+          </li>
+          <li>
+            Disabling a channel atomically cancels only that channel's
+            undelivered intents.
+          </li>
+          <li>
+            Delivery rechecks search existence, matching version, channel
+            version, current consent, subscription, and channel eligibility.
+          </li>
+          <li>
+            Oversized searches are durably quarantined with an actionable
+            reason. Their alert window advances so one search cannot wedge the
+            pipeline, and a later complete scan clears the quarantine.
+          </li>
+        </ul>
+        <p>
+          Email delivery uses provider idempotency keys. Discord uses a stable
+          enforced nonce, but Discord only retains nonce uniqueness briefly, so
+          a crash followed by a delayed retry can still create a rare duplicate.
+        </p>
+      </section>
+
+      <section>
+        <h2>Monitoring</h2>
+        <p>Health derives from stored state, not a heartbeat request:</p>
+        <ul>
+          <li>Age of the last successful search publication</li>
+          <li>Current ingestion stage and last-progress age</li>
+          <li>Published-degraded source details</li>
+          <li>Algolia projector lag</li>
+          <li>Alert matching and delivery degradation</li>
+        </ul>
+        <p>Inventory, search, and alert health are reported separately.</p>
+      </section>
+
+      <section>
+        <h2>Implementation sequence</h2>
+        <ol>
+          <li>
+            <strong>Stop the current failure:</strong> expose the raw libSQL
+            client, replace interactive checkpoint transactions with guarded
+            backend batches, and run sources sequentially.
+          </li>
+          <li>
+            <strong>Add durable run control:</strong> hourly due-check, atomic
+            singleton run, resumable Workflow identity, explicit stages, and
+            freshness monitoring.
+          </li>
+          <li>
+            <strong>Bound downstream work:</strong> resumable reconciliation,
+            ordered bounded Algolia projection, and bounded cleanup.
+          </li>
+          <li>
+            <strong>Harden source acceptance:</strong> unique-row counts,
+            minimums, drift limits, duplicate ratios, and source-specific
+            terminal evidence.
+          </li>
+          <li>
+            <strong>Harden alerts:</strong> publication sequence, bounded
+            matching, durable intents, per-channel versions, cancellation, and
+            delivery revalidation.
+          </li>
+          <li>
+            <strong>Add disaster recovery:</strong> forced-abandon semantics and
+            complete Algolia rebuild.
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Implementation status</h2>
+        <p>
+          All six implementation phases are present in the repository. The
+          delivered changes include the additive Turso migration, hourly
+          recovery scheduling, guarded source checkpoints, source acceptance,
+          bounded reconciliation, incremental and full-repair Algolia
+          projection, durable per-channel notification intents, bounded
+          delivery, abandonment controls, and pipeline observability.
+        </p>
+        <div class="card">
+          <strong>Local verification:</strong> 219 tests pass with 639
+          assertions. Type checking, linting, the production Next.js and
+          Workflow build, SQL migration execution, and whitespace validation
+          also pass.
+        </div>
+        <p>
+          The migration has not been applied to the production Turso database
+          and the code has not been deployed. Those are deliberately separate
+          rollout actions. The production measurements and live
+          failure-injection checks below still gate enabling the new schedule.
+        </p>
+      </section>
+
+      <section>
+        <h2>Production acceptance gates</h2>
+        <div class="card warning">
+          <strong
+            >The design is accepted, but production rollout remains gated by
+            measurement.</strong
+          >
+        </div>
+        <ul>
+          <li>Raw Turso write-batch p99 below one second</li>
+          <li>Zero ingestion-caused application write failures</li>
+          <li>
+            Normal application writes remain inside an explicit latency SLO
+          </li>
+          <li>Workflow step p99 below 120 seconds</li>
+          <li>Peak function memory below 70 percent</li>
+          <li>Normal run below 500 steps and 2,000 Workflow events</li>
+          <li>Complete sequential run below 12 hours</li>
+          <li>
+            Successful run at twice current inventory volume under normal
+            application traffic
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Failure-injection suite</h2>
+        <ul>
+          <li>
+            Terminate immediately after a Turso commit, before Workflow records
+            success.
+          </li>
+          <li>Race two executions using the same requested cursor.</li>
+          <li>Lose the HTTP response after a committed batch.</li>
+          <li>
+            Crash after every reconciliation and projection batch boundary.
+          </li>
+          <li>
+            Return clean-empty, truncated, duplicate-heavy, and rejection-heavy
+            provider results.
+          </li>
+          <li>
+            Simulate Turso, Algolia, provider, email, and Discord outages.
+          </li>
+          <li>Miss one Cron invocation and duplicate another.</li>
+          <li>
+            Deploy additive schema changes during an active pinned Workflow.
+          </li>
+          <li>
+            Force abandonment during reconciliation and confirm mandatory
+            full-index repair.
+          </li>
+          <li>Change alert consent after matching but before delivery.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Escalation criteria</h2>
+        <p>
+          If no source chunk size satisfies both the Turso commit-latency gate
+          and the Vercel Workflow event budget, introduce intra-chunk staging
+          with an attempt ID and batch ordinal. If short, guarded batches still
+          cause application write failures or unacceptable latency, then
+          reconsider Postgres or a dedicated worker runtime.
+        </p>
+      </section>
+
+      <footer class="muted">
+        <p>Prepared for Junkyard Index, August 2026.</p>
+      </footer>
+    </main>
+  </body>
+</html>

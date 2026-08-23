@@ -10,6 +10,10 @@ export type InitializeDurableIngestionResult =
   | { status: "started"; runId: string }
   | { status: "deduplicated"; activeRunId: string | null };
 
+export type DurableIngestionWakeupResult =
+  | { status: "start" | "resume"; runId: string }
+  | { status: "not_due"; publishedRunId: string };
+
 export interface DurableSourceChunkResult<
   Source extends DurableIngestionSource = DurableIngestionSource,
 > {
@@ -18,6 +22,9 @@ export interface DurableSourceChunkResult<
   count: number;
   errors: string[];
   pagesProcessed: number;
+  uniqueVehicles?: number;
+  duplicateVehicles?: number;
+  rejectedVehicles?: number;
 }
 
 export interface FetchedDurableSourceChunk<
@@ -27,9 +34,21 @@ export interface FetchedDurableSourceChunk<
   status: ConnectorChunkStatus;
   pagesProcessed: number;
   vehiclesProcessed: number;
+  uniqueVehicles: number;
+  duplicateVehicles: number;
+  rejectedVehicles: number;
   errors: string[];
   vehicles: CanonicalVehicle[];
 }
+
+export type DurableReconciliationBatchResult =
+  | { status: "stopped" }
+  | {
+      status: "paused";
+      phase: "upsert" | "missing";
+      cursor: string | null;
+    }
+  | { status: "complete"; result: DurableIngestionResult };
 
 export interface DurableIngestionResult {
   runId: string;

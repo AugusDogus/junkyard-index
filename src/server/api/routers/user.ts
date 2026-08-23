@@ -7,6 +7,7 @@ import {
   isLocationPreferenceMode,
 } from "~/lib/location-preferences";
 import posthog from "~/lib/posthog-server";
+import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -268,10 +269,12 @@ export const userRouter = createTRPCRouter({
       .where(eq(schema.user.id, ctx.user.id));
 
     // Also disable Discord alerts for all saved searches
-    await ctx.db
-      .update(schema.savedSearch)
-      .set({ discordAlertsEnabled: false })
-      .where(eq(schema.savedSearch.userId, ctx.user.id));
+    await setUserAlertChannel({
+      database: ctx.db,
+      userId: ctx.user.id,
+      channel: "discord",
+      enabled: false,
+    });
 
     posthog.capture({
       distinctId: ctx.user.id,

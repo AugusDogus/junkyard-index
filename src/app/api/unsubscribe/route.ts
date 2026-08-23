@@ -5,6 +5,7 @@ import { db } from "~/lib/db";
 import { verifyUnsubscribeToken } from "~/lib/email";
 import posthog from "~/lib/posthog-server";
 import { savedSearch } from "~/schema";
+import { setSearchAlertChannel } from "~/server/alerts/alert-config-repository";
 
 // POST - One-click unsubscribe (required by Gmail/Yahoo List-Unsubscribe header)
 export async function POST(request: NextRequest) {
@@ -21,13 +22,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const [updatedSearch] = await db
-      .update(savedSearch)
-      .set({ emailAlertsEnabled: false })
+    const [existingSearch] = await db
+      .select({ userId: savedSearch.userId })
+      .from(savedSearch)
       .where(eq(savedSearch.id, searchId))
-      .returning({ userId: savedSearch.userId });
+      .limit(1);
 
-    if (!updatedSearch) {
+    if (!existingSearch) {
       posthog.capture({
         distinctId: "anonymous",
         event: "email_unsubscribe_failed",
@@ -35,9 +36,15 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse(null, { status: 404 });
     }
+    await setSearchAlertChannel({
+      database: db,
+      searchId,
+      channel: "email",
+      enabled: false,
+    });
 
     posthog.capture({
-      distinctId: updatedSearch.userId,
+      distinctId: existingSearch.userId,
       event: "email_unsubscribed",
       properties: { search_id: searchId },
     });

@@ -78,6 +78,7 @@ export interface EmailDigestRecipient {
 export async function sendEmailDigest(
   recipient: EmailDigestRecipient,
   digest: SearchAlertDigest,
+  options?: { idempotencyKey?: string },
 ): Promise<NotificationDeliveryResult> {
   try {
     const emailAlerts = digest.previewAlerts.map((alert) => ({
@@ -103,17 +104,20 @@ export async function sendEmailDigest(
       render(emailComponent, { plainText: true }),
     ]);
 
-    const { error } = await resend.emails.send({
-      from: `Junkyard Index <${env.RESEND_FROM_EMAIL}>`,
-      to: recipient.email,
-      subject: `Daily saved search update: ${digest.vehicleCount} new vehicle${digest.vehicleCount === 1 ? "" : "s"}`,
-      html: emailHtml,
-      text: emailText,
-      headers: {
-        "List-Unsubscribe": `<${listUnsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    const { error } = await resend.emails.send(
+      {
+        from: `Junkyard Index <${env.RESEND_FROM_EMAIL}>`,
+        to: recipient.email,
+        subject: `Daily saved search update: ${digest.vehicleCount} new vehicle${digest.vehicleCount === 1 ? "" : "s"}`,
+        html: emailHtml,
+        text: emailText,
+        headers: {
+          "List-Unsubscribe": `<${listUnsubscribeUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
       },
-    });
+      options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {},
+    );
 
     if (error) {
       console.error("Failed to send email digest:", error);

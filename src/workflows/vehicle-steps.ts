@@ -1,14 +1,20 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
-import { runSearchAlerts } from "~/server/alerts/run-search-alerts";
-import { runAlgoliaProjector } from "~/server/ingestion/algolia-projector";
 import {
-  cleanupDurableIngestionSnapshots,
+  deliverDurableAlertIntentsBatch,
+  runDurableAlertMatchingBatch,
+} from "~/server/alerts/durable-search-alerts";
+import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
+import {
+  cleanupDurableIngestionSnapshotBatch,
   cleanupStaleDurableIngestionSnapshots,
+  attachDurableIngestionWorkflow,
   initializeDurableIngestion,
   markDurableIngestionFailed,
   markDurableSourceFailed,
   reconcileDurableIngestion,
+  reportDurableIngestionHealth,
   runDurableSourceChunk,
+  validateDurableIngestionSources,
 } from "~/server/ingestion/durable-ingestion";
 import type {
   DurableCursorFor,
@@ -58,6 +64,31 @@ export async function initializeDurableIngestionStep(runId: string) {
 }
 initializeDurableIngestionStep.maxRetries = 2;
 
+export async function attachDurableIngestionWorkflowStep(
+  runId: string,
+  workflowRunId: string,
+) {
+  "use step";
+
+  try {
+    await attachDurableIngestionWorkflow(runId, workflowRunId);
+  } catch (error) {
+    throwRetryableStepError("Attach durable ingestion workflow", error);
+  }
+}
+attachDurableIngestionWorkflowStep.maxRetries = 2;
+
+export async function validateDurableIngestionSourcesStep(runId: string) {
+  "use step";
+
+  try {
+    return await validateDurableIngestionSources(runId);
+  } catch (error) {
+    throwRetryableStepError("Validate durable ingestion sources", error);
+  }
+}
+validateDurableIngestionSourcesStep.maxRetries = 2;
+
 export async function runDurableSourceChunkStep<
   Source extends DurableIngestionSource,
 >(runId: string, cursor: DurableCursorFor<Source>) {
@@ -101,12 +132,9 @@ export async function reconcileDurableIngestionStep(runId: string) {
   });
   try {
     const result = await reconcileDurableIngestion(runId);
-    console.info("[Workflow] Completed durable ingestion reconciliation", {
+    console.info("[Workflow] Durable ingestion reconciliation progress", {
       runId,
-      totalUpserted: result.totalUpserted,
-      totalDeleted: result.totalDeleted,
-      errorCount: result.errors.length,
-      durationMs: result.durationMs,
+      status: result.status,
     });
     return result;
   } catch (error) {
@@ -129,17 +157,6 @@ export async function markDurableIngestionFailedStep(
 }
 markDurableIngestionFailedStep.maxRetries = 2;
 
-export async function cleanupDurableIngestionSnapshotsStep(runId: string) {
-  "use step";
-
-  try {
-    await cleanupDurableIngestionSnapshots(runId);
-  } catch (error) {
-    throwRetryableStepError("Cleanup durable ingestion snapshots", error);
-  }
-}
-cleanupDurableIngestionSnapshotsStep.maxRetries = 2;
-
 export async function cleanupStaleDurableIngestionSnapshotsStep() {
   "use step";
 
@@ -151,16 +168,15 @@ export async function cleanupStaleDurableIngestionSnapshotsStep() {
 }
 cleanupStaleDurableIngestionSnapshotsStep.maxRetries = 2;
 
-export async function runAlgoliaProjectorStep() {
+export async function runAlgoliaProjectorStep(runId: string) {
   "use step";
 
   console.info("[Workflow] Starting Algolia projector");
   try {
-    const result = await runAlgoliaProjector({
-      batchSize: 1000,
+    const result = await runDurableAlgoliaProjectionBatch(runId, {
       configureIndex: process.env.ALGOLIA_CONFIGURE_ON_INGEST === "1",
     });
-    console.info("[Workflow] Completed Algolia projector", result);
+    console.info("[Workflow] Algolia projector progress", { runId, result });
     return result;
   } catch (error) {
     throwRetryableStepError("Algolia projector", error);
@@ -168,22 +184,44 @@ export async function runAlgoliaProjectorStep() {
 }
 runAlgoliaProjectorStep.maxRetries = 2;
 
-export async function runVehicleSearchAlertsStep() {
+export async function runVehicleSearchAlertsStep(runId: string) {
   "use step";
 
-  console.info("[Workflow] Starting vehicle search alerts");
+  console.info("[Workflow] Matching vehicle search alerts", { runId });
   try {
-    const result = await runSearchAlerts("vercel-workflow");
-    console.info("[Workflow] Completed vehicle search alerts", {
-      selected: result.selected,
-      processed: result.processed,
-    });
+    const result = await runDurableAlertMatchingBatch(runId);
+    if (result.status === "complete") {
+      await reportDurableIngestionHealth(runId);
+    }
+    console.info("[Workflow] Vehicle search alert matching progress", result);
     return result;
   } catch (error) {
-    throwRetryableStepError("Vehicle search alerts", error);
+    throwRetryableStepError("Vehicle search alert matching", error);
   }
 }
 runVehicleSearchAlertsStep.maxRetries = 2;
+
+export async function deliverVehicleSearchAlertIntentsStep() {
+  "use step";
+
+  try {
+    return await deliverDurableAlertIntentsBatch();
+  } catch (error) {
+    throwRetryableStepError("Vehicle search alert delivery", error);
+  }
+}
+deliverVehicleSearchAlertIntentsStep.maxRetries = 2;
+
+export async function cleanupDurableIngestionSnapshotBatchStep(runId: string) {
+  "use step";
+
+  try {
+    return await cleanupDurableIngestionSnapshotBatch(runId);
+  } catch (error) {
+    throwRetryableStepError("Cleanup durable ingestion snapshot batch", error);
+  }
+}
+cleanupDurableIngestionSnapshotBatchStep.maxRetries = 2;
 
 export async function initializeSearchIndexMigrationStep() {
   "use step";

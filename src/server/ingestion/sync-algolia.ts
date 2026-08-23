@@ -15,6 +15,7 @@ interface WaitForTaskClient {
 
 interface SyncToAlgoliaOptions {
   configureIndex?: boolean;
+  indexName?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,11 +64,14 @@ function hasWaitForTask(value: unknown): value is WaitForTaskClient {
   return isRecord(value) && typeof value.waitForTask === "function";
 }
 
-function waitForTaskEffect(taskID: number): Effect.Effect<void, Error> {
+function waitForTaskEffect(
+  taskID: number,
+  indexName: string,
+): Effect.Effect<void, Error> {
   return Effect.tryPromise({
     try: () =>
       algoliaClient.waitForTask({
-        indexName: ALGOLIA_INDEX_NAME,
+        indexName,
         taskID,
       }),
     catch: (cause) =>
@@ -108,11 +112,12 @@ function setIndexSettingsEffect(params: {
 
 function saveObjectsBatchEffect(
   objects: ReadonlyArray<Record<string, unknown>>,
+  indexName: string,
 ): Effect.Effect<unknown, Error> {
   return Effect.tryPromise({
     try: () =>
       algoliaClient.saveObjects({
-        indexName: ALGOLIA_INDEX_NAME,
+        indexName,
         objects: [...objects],
         waitForTasks: false,
       }),
@@ -123,11 +128,12 @@ function saveObjectsBatchEffect(
 
 function deleteObjectsBatchEffect(
   objectIDs: string[],
+  indexName: string,
 ): Effect.Effect<unknown, Error> {
   return Effect.tryPromise({
     try: () =>
       algoliaClient.deleteObjects({
-        indexName: ALGOLIA_INDEX_NAME,
+        indexName,
         objectIDs,
         waitForTasks: false,
       }),
@@ -136,7 +142,10 @@ function deleteObjectsBatchEffect(
   });
 }
 
-function waitForFinalTask(taskIds: number[]): Effect.Effect<void, Error> {
+function waitForFinalTask(
+  taskIds: number[],
+  indexName: string,
+): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     const finalTaskId = taskIds.at(-1);
     if (finalTaskId === undefined) {
@@ -153,7 +162,7 @@ function waitForFinalTask(taskIds: number[]): Effect.Effect<void, Error> {
     yield* Effect.logInfo(
       `[Algolia] Waiting for final indexing task ${finalTaskId}...`,
     );
-    yield* waitForTaskEffect(finalTaskId);
+    yield* waitForTaskEffect(finalTaskId, indexName);
   });
 }
 
@@ -180,6 +189,7 @@ export async function configureAlgoliaIndex(): Promise<void> {
  */
 export function saveAlgoliaObjects(
   records: AlgoliaVehicleRecord[],
+  indexName = ALGOLIA_INDEX_NAME,
 ): Effect.Effect<number[], Error> {
   return Effect.gen(function* () {
     const taskIds: number[] = [];
@@ -193,6 +203,7 @@ export function saveAlgoliaObjects(
       const batch = records.slice(i, i + BATCH_SIZE);
       const response = yield* saveObjectsBatchEffect(
         batch.map(toAlgoliaObject),
+        indexName,
       );
       taskIds.push(...extractTaskIds(response));
       yield* Effect.logInfo(
@@ -209,6 +220,7 @@ export function saveAlgoliaObjects(
  */
 export function deleteAlgoliaObjects(
   vins: string[],
+  indexName = ALGOLIA_INDEX_NAME,
 ): Effect.Effect<number[], Error> {
   return Effect.gen(function* () {
     const taskIds: number[] = [];
@@ -218,7 +230,7 @@ export function deleteAlgoliaObjects(
 
     for (let i = 0; i < vins.length; i += BATCH_SIZE) {
       const batch = vins.slice(i, i + BATCH_SIZE);
-      const response = yield* deleteObjectsBatchEffect(batch);
+      const response = yield* deleteObjectsBatchEffect(batch, indexName);
       taskIds.push(...extractTaskIds(response));
     }
 
@@ -236,6 +248,7 @@ export function syncToAlgoliaEffect(
 ): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     const shouldConfigureIndex = options?.configureIndex === true;
+    const indexName = options?.indexName ?? ALGOLIA_INDEX_NAME;
     if (shouldConfigureIndex) {
       if (!configuredInProcess) {
         yield* configureAlgoliaIndexEffect();
@@ -251,9 +264,9 @@ export function syncToAlgoliaEffect(
       );
     }
 
-    const saveTaskIds = yield* saveAlgoliaObjects(upserted);
-    const deleteTaskIds = yield* deleteAlgoliaObjects(deletedVins);
-    yield* waitForFinalTask([...saveTaskIds, ...deleteTaskIds]);
+    const saveTaskIds = yield* saveAlgoliaObjects(upserted, indexName);
+    const deleteTaskIds = yield* deleteAlgoliaObjects(deletedVins, indexName);
+    yield* waitForFinalTask([...saveTaskIds, ...deleteTaskIds], indexName);
 
     yield* Effect.logInfo(
       `[Algolia] Sync complete: ${upserted.length} saved, ${deletedVins.length} deleted`,

@@ -1,6 +1,11 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
+const cronSecretSchema =
+  process.env.NODE_ENV === "production"
+    ? z.string().min(16)
+    : z.string().min(16).optional();
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -21,7 +26,7 @@ export const env = createEnv({
     RESEND_API_KEY: z.string(),
     RESEND_FROM_EMAIL: z.string().email(),
     CONTACT_EMAIL: z.string().email(),
-    CRON_SECRET: z.string().min(16).optional(),
+    CRON_SECRET: cronSecretSchema,
     UNSUBSCRIBE_SECRET: z.string().min(32),
     // Google Ads conversion tracking (optional)
     GOOGLE_ADS_CONVERSION_ID: z.string().optional(),
