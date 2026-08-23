@@ -224,13 +224,10 @@ export async function publishFullReindexForRun(params: {
     );
   // The active-run fence prevents newer reconciliation changes while this
   // generation is built, so every currently unprocessed row is covered.
-  const clearPublishedChanges = params.database
-    .update(vehicleChange)
-    .set({ processedAt: publishedAt })
-    .where(
-      and(
-        isNull(vehicleChange.processedAt),
-        sql`exists (
+  const clearPublishedChanges = params.database.delete(vehicleChange).where(
+    and(
+      isNull(vehicleChange.processedAt),
+      sql`exists (
           select 1 from ingestion_run as publishing_run
           where publishing_run.id = ${params.runId}
             and publishing_run.status = 'running'
@@ -238,8 +235,8 @@ export async function publishFullReindexForRun(params: {
             and publishing_run.stage = 'match_alerts'
             and publishing_run.full_reindex_required = 0
         )`,
-      ),
-    );
+    ),
+  );
   const [published] = await params.database.batch([
     publishRun,
     clearInheritedRepairs,

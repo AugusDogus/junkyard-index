@@ -3,7 +3,7 @@ import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-d
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
 import { runDurableAlgoliaProjectionBatch } from "./algolia-projector";
 import {
-  cleanupDurableIngestionSnapshotBatch,
+  cleanupDurableIngestionStateBatch,
   cleanupStaleDurableIngestionSnapshots,
   initializeDurableIngestion,
   markDurableIngestionFailed,
@@ -77,7 +77,7 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
     runId,
     deliverAlerts: () => drainDurablePhase(deliverDurableAlertIntentsBatch),
     cleanup: () =>
-      drainDurableCleanup(() => cleanupDurableIngestionSnapshotBatch(runId)),
+      drainDurableCleanup(() => cleanupDurableIngestionStateBatch(runId)),
   });
   return execution.ingestion;
 }

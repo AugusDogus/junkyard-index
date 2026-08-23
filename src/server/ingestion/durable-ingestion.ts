@@ -137,8 +137,8 @@ export async function reportDurableIngestionHealth(runId: string) {
   });
 }
 
-export function cleanupDurableIngestionSnapshotBatch(runId: string) {
-  return repository.cleanupSnapshotBatch(runId);
+export function cleanupDurableIngestionStateBatch(runId: string) {
+  return repository.cleanupBatch(runId);
 }
 
 export function cleanupStaleDurableIngestionSnapshots(): Promise<void> {

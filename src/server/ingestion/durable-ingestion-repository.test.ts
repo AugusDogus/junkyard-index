@@ -89,8 +89,15 @@ const TEST_SCHEMA = `
   );
   create table search_notification_intent (
     id text primary key, run_id text not null, status text not null,
-    cancelled_at integer, claim_token text, last_error text
+    cancelled_at integer, claim_token text, last_error text,
+    created_at integer not null default 0
   );
+  create table vehicle_change (
+    id integer primary key autoincrement, run_id text not null,
+    vin text not null, change_type text not null, processed_at integer
+  );
+  create index vehicle_change_processed_at_idx
+    on vehicle_change(processed_at, id);
 `;
 
 function makeVehicle(vin = "2MEFM75W4XX703938"): CanonicalVehicle {
@@ -396,6 +403,76 @@ describe("durable ingestion repository", () => {
       );
       await repository.abandon(wakeup.runId, true);
       expect((await repository.getRun(wakeup.runId)).status).toBe("abandoned");
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("cleans snapshots and bounded delivery history without deleting pending work", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+      );
+      await repository.initialize("run-cleanup");
+      await client.execute({
+        sql: `
+          update ingestion_run
+          set status = 'success', stage = 'released', active_slot = null
+          where id = 'run-cleanup'
+        `,
+        args: [],
+      });
+      await client.execute({
+        sql: `
+          insert into vehicle_snapshot (
+            run_id, source, vin, year, make, model, location_code,
+            location_name, state, state_abbr, lat, lng
+          ) values (
+            'run-cleanup', 'pyp', 'VIN-SNAPSHOT', 2000, 'Make', 'Model',
+            'yard', 'Yard', 'State', 'ST', 0, 0
+          )
+        `,
+        args: [],
+      });
+      await client.executeMultiple(`
+        insert into vehicle_change (run_id, vin, change_type, processed_at)
+        values ('run-cleanup', 'VIN-PROCESSED', 'upsert', 1);
+        insert into vehicle_change (run_id, vin, change_type, processed_at)
+        values ('run-cleanup', 'VIN-PENDING', 'upsert', null);
+        insert into search_notification_intent (id, run_id, status, created_at)
+        values ('old-delivered', 'run-cleanup', 'delivered', 1);
+        insert into search_notification_intent (id, run_id, status, created_at)
+        values ('recent-delivered', 'run-cleanup', 'delivered', 1700000000000);
+        insert into search_notification_intent (id, run_id, status, created_at)
+        values ('old-pending', 'run-cleanup', 'pending', 1);
+      `);
+
+      expect(
+        await repository.cleanupBatch(
+          "run-cleanup",
+          new Date("2023-11-20T00:00:00.000Z"),
+        ),
+      ).toEqual({ deleted: 3, done: true });
+
+      const snapshots = await client.execute(
+        "select vin from vehicle_snapshot order by vin",
+      );
+      expect(snapshots.rows).toHaveLength(0);
+      const changes = await client.execute(
+        "select vin from vehicle_change order by vin",
+      );
+      expect(changes.rows.map((row) => row.vin)).toEqual(["VIN-PENDING"]);
+      const intents = await client.execute(
+        "select id from search_notification_intent order by id",
+      );
+      expect(intents.rows.map((row) => row.id)).toEqual([
+        "old-pending",
+        "recent-delivered",
+      ]);
     } finally {
       testDatabase.cleanup();
     }

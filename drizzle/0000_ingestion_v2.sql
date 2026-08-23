@@ -76,8 +76,6 @@ set stage = 'released',
       else 'published_degraded'
     end,
     publication_sequence = 1,
-    published_vehicle_count = (select count(*) from vehicle),
-    published_yard_count = (select count(distinct location_code) from vehicle),
     inventory_published_at = completed_at,
     search_published_at = completed_at,
     alert_matching_completed_at = completed_at,
@@ -128,16 +126,56 @@ create index vehicle_snapshot_run_vin_source_idx
   on vehicle_snapshot(run_id, vin, source);
 --> statement-breakpoint
 
-delete from vehicle_change
-where id not in (
-  select max(id)
-  from vehicle_change
-  group by run_id, vin, change_type
+-- Only pending changes still have work to do. Preserve that indexed subset and
+-- discard processed delivery history instead of rebuilding millions of rows.
+create table vehicle_change_pending_migration as
+select
+  id, run_id, vin, change_type, payload, payload_version, created_at, processed_at
+from vehicle_change
+where processed_at is null
+  and id in (
+    select max(id)
+    from vehicle_change
+    where processed_at is null
+    group by run_id, vin, change_type
+  );
+--> statement-breakpoint
+
+drop table vehicle_change;
+--> statement-breakpoint
+
+create table vehicle_change (
+  id integer primary key autoincrement,
+  run_id text not null references ingestion_run(id) on delete cascade,
+  vin text not null,
+  change_type text not null,
+  payload text,
+  payload_version integer not null default 1,
+  created_at integer not null default (cast(unixepoch('subsecond') * 1000 as integer)),
+  processed_at integer
 );
 --> statement-breakpoint
 
+create index vehicle_change_run_id_idx on vehicle_change(run_id);
+--> statement-breakpoint
 create unique index vehicle_change_run_vin_type_idx
   on vehicle_change(run_id, vin, change_type);
+--> statement-breakpoint
+create index vehicle_change_vin_idx on vehicle_change(vin);
+--> statement-breakpoint
+create index vehicle_change_processed_at_idx
+  on vehicle_change(processed_at, id);
+--> statement-breakpoint
+
+insert into vehicle_change (
+  id, run_id, vin, change_type, payload, payload_version, created_at, processed_at
+)
+select
+  id, run_id, vin, change_type, payload, payload_version, created_at, processed_at
+from vehicle_change_pending_migration;
+--> statement-breakpoint
+
+drop table vehicle_change_pending_migration;
 --> statement-breakpoint
 
 create table search_notification_intent (

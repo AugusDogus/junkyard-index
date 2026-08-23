@@ -3,7 +3,7 @@ import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-d
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
 import {
-  cleanupDurableIngestionSnapshotBatch,
+  cleanupDurableIngestionStateBatch,
   cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
   initializeDurableIngestion,
@@ -218,16 +218,16 @@ export async function deliverVehicleSearchAlertIntentsStep() {
 }
 deliverVehicleSearchAlertIntentsStep.maxRetries = 2;
 
-export async function cleanupDurableIngestionSnapshotBatchStep(runId: string) {
+export async function cleanupDurableIngestionStateBatchStep(runId: string) {
   "use step";
 
   try {
-    return await cleanupDurableIngestionSnapshotBatch(runId);
+    return await cleanupDurableIngestionStateBatch(runId);
   } catch (error) {
-    throwRetryableStepError("Cleanup durable ingestion snapshot batch", error);
+    throwRetryableStepError("Cleanup durable ingestion state batch", error);
   }
 }
-cleanupDurableIngestionSnapshotBatchStep.maxRetries = 2;
+cleanupDurableIngestionStateBatchStep.maxRetries = 2;
 
 export async function initializeSearchIndexMigrationStep() {
   "use step";
