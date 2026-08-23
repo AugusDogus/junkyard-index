@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { eq, sql } from "drizzle-orm";
 import { autorecyclerOrgGeo } from "~/schema";
 import { AutorecyclerProviderError, PersistenceError } from "./errors";
-import { Database } from "./runtime";
+import { Database } from "./context";
 import {
   buildMgetBody,
   buildWebsiteLookupMsearchBody,
@@ -16,6 +16,22 @@ import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 
 export type { AutorecyclerOrgGeo };
 type DbClient = typeof import("~/lib/db").db;
+const GEO_RESOLVE_CONCURRENCY = 3;
+
+export function resolveAutorecyclerSeeds<E, R>(
+  seeds: ReadonlyMap<string, string>,
+  resolveOne: (params: {
+    orgLookup: string;
+    inventoryIdSeed: string;
+  }) => Effect.Effect<unknown, E, R>,
+): Effect.Effect<void, E, R> {
+  return Effect.forEach(
+    seeds,
+    ([orgLookup, inventoryIdSeed]) =>
+      resolveOne({ orgLookup, inventoryIdSeed }),
+    { concurrency: GEO_RESOLVE_CONCURRENCY, discard: true },
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -451,21 +467,14 @@ export function createAutorecyclerOrgGeoResolver() {
       );
     });
 
-  /** Resolve many orgs; uses lazy sequential resolution to reduce rate-limit risk. */
+  /** Resolve many independent orgs with bounded provider concurrency. */
   const resolveBatchEffect = (
     seeds: ReadonlyMap<string, string>,
   ): Effect.Effect<
     void,
     PersistenceError | AutorecyclerProviderError,
     Database
-  > =>
-    Effect.gen(function* () {
-      for (const [org, inv] of seeds) {
-        yield* resolveOneEffect({ orgLookup: org, inventoryIdSeed: inv }).pipe(
-          Effect.asVoid,
-        );
-      }
-    }).pipe(Effect.asVoid);
+  > => resolveAutorecyclerSeeds(seeds, resolveOneEffect);
 
   return {
     getCached: (orgLookup: string) => memory.get(orgLookup),

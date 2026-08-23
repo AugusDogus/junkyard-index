@@ -8,6 +8,7 @@ import {
   type DurableIngestionSource,
 } from "./durable-source";
 import { streamPullapartInventory } from "./pullapart-connector";
+import { loadPullapartCachedEnrichments } from "./pullapart-enrichment-cache";
 import { streamPypInventory } from "./pyp-connector";
 import { streamRow52Inventory } from "./row52-connector";
 import { runIngestionEffect } from "./runtime";
@@ -105,6 +106,7 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamPullapartInventory({
           onBatch: context.onBatch,
+          loadCachedEnrichments: loadPullapartCachedEnrichments,
           startAfter: cursor,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),

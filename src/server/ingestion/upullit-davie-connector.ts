@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { UpullitDavieCursorState } from "./durable-cursor";
-import { Config } from "./runtime";
+import { Config } from "./context";
 import {
   UpullitDavieCatalog,
   UPULLIT_DAVIE_MAX_CATALOG_PAGES,

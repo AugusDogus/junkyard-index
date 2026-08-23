@@ -1,30 +1,17 @@
-import { Context, Effect, Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { db } from "~/lib/db";
 import { env } from "~/env";
+import { Config, Database } from "./context";
 
-export class Database extends Context.Tag("ingestion/Database")<
-  Database,
-  typeof db
->() {
-  static Live = Layer.succeed(this, db);
-}
+export { Config, Database } from "./context";
 
-interface IngestionConfig {
-  betterStackHeartbeatUrl: string | undefined;
-  hyperbrowserApiKey: string;
-}
+const DatabaseLive = Layer.succeed(Database, db);
+const ConfigLive = Layer.succeed(Config, {
+  betterStackHeartbeatUrl: env.BETTERSTACK_HEARTBEAT_URL,
+  hyperbrowserApiKey: env.HYPERBROWSER_API_KEY,
+});
 
-export class Config extends Context.Tag("ingestion/Config")<
-  Config,
-  IngestionConfig
->() {
-  static Live = Layer.succeed(this, {
-    betterStackHeartbeatUrl: env.BETTERSTACK_HEARTBEAT_URL,
-    hyperbrowserApiKey: env.HYPERBROWSER_API_KEY,
-  });
-}
-
-export const IngestionLayer = Layer.mergeAll(Database.Live, Config.Live);
+export const IngestionLayer = Layer.mergeAll(DatabaseLive, ConfigLive);
 
 const runtime = ManagedRuntime.make(IngestionLayer);
 

@@ -7,7 +7,6 @@ import {
 import type { DurableIngestionResult } from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
-  type DurableIngestionSource,
   type DurableSourceCursor,
 } from "./durable-source";
 
@@ -198,26 +197,41 @@ describe("durable ingestion lifecycle", () => {
     });
     expect(events.slice(0, 2)).toEqual(["cleanup-stale", "initialize"]);
     const sourcePhaseEnd = 2 + DURABLE_INGESTION_SOURCES.length;
-    expect(events.slice(2, sourcePhaseEnd)).toEqual(
-      DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`),
+    expect(events.slice(2, sourcePhaseEnd).sort()).toEqual(
+      DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`).sort(),
     );
     expect(events.slice(sourcePhaseEnd)).toEqual(["reconcile"]);
   });
 
-  test("processes sources sequentially in priority order", async () => {
-    let activeSources = 0;
-    let maxActiveSources = 0;
-    const sourceOrder: DurableIngestionSource[] = [];
+  test("serializes Hyperbrowser sources while other sources remain concurrent", async () => {
+    let activeBrowserSources = 0;
+    let maxActiveBrowserSources = 0;
+    let nonBrowserSourceOverlapped = false;
+    const browserSourceOrder: ("pyp" | "upullitdavie")[] = [];
+    let releaseFirstBrowserSource: () => void = () => undefined;
+    const firstBrowserSourceCanFinish = new Promise<void>((resolve) => {
+      releaseFirstBrowserSource = resolve;
+    });
 
     await executeDurableIngestion({
       runId: "run-1",
       operations: makeOperations({
         runChunk: async (_runId, cursor) => {
-          sourceOrder.push(cursor.source);
-          activeSources += 1;
-          maxActiveSources = Math.max(maxActiveSources, activeSources);
-          await Promise.resolve();
-          activeSources -= 1;
+          if (cursor.source === "pyp" || cursor.source === "upullitdavie") {
+            browserSourceOrder.push(cursor.source);
+            activeBrowserSources += 1;
+            maxActiveBrowserSources = Math.max(
+              maxActiveBrowserSources,
+              activeBrowserSources,
+            );
+            if (browserSourceOrder.length === 1) {
+              await firstBrowserSourceCanFinish;
+            }
+            activeBrowserSources -= 1;
+          } else if (activeBrowserSources > 0) {
+            nonBrowserSourceOverlapped = true;
+            releaseFirstBrowserSource();
+          }
 
           return {
             cursor,
@@ -230,8 +244,9 @@ describe("durable ingestion lifecycle", () => {
       }),
     });
 
-    expect(sourceOrder).toEqual([...DURABLE_INGESTION_SOURCES]);
-    expect(maxActiveSources).toBe(1);
+    expect(browserSourceOrder).toEqual(["pyp", "upullitdavie"]);
+    expect(maxActiveBrowserSources).toBe(1);
+    expect(nonBrowserSourceOverlapped).toBe(true);
   });
 
   test("stops after a deduplicated initialization", async () => {

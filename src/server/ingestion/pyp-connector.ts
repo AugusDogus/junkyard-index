@@ -8,7 +8,7 @@ import {
 import { transformPypVehicle } from "./pyp-transform";
 import type { CanonicalVehicle } from "./types";
 import { PypProviderError, BrowserSessionError } from "./errors";
-import { Config } from "./runtime";
+import { Config } from "./context";
 import type { ConnectorChunkResult } from "./connector-chunk";
 
 const PAGE_SIZE = 500;

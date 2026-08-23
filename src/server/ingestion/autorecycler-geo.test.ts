@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { Effect } from "effect";
 import {
   parseOrgGeoFromDetailsInitData,
   parseOrgGeoFromOrganizationDoc,
   parseOrgGeoFromWebsiteRecord,
+  resolveAutorecyclerSeeds,
 } from "./autorecycler-geo";
 
 describe("autorecycler geo", () => {
@@ -152,5 +154,26 @@ describe("autorecycler geo", () => {
       },
     ];
     expect(parseOrgGeoFromDetailsInitData(rows, "expected")).toBeNull();
+  });
+
+  test("resolves independent organization seeds with bounded concurrency", async () => {
+    const seeds = new Map(
+      Array.from({ length: 6 }, (_, index) => [`org-${index}`, `inv-${index}`]),
+    );
+    let active = 0;
+    let maximumActive = 0;
+
+    await Effect.runPromise(
+      resolveAutorecyclerSeeds(seeds, () =>
+        Effect.promise(async () => {
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          active -= 1;
+        }),
+      ),
+    );
+
+    expect(maximumActive).toBe(3);
   });
 });
