@@ -198,9 +198,9 @@ export default function PrivacyPage() {
               <li>Unsubscribe from email alerts at any time</li>
             </ul>
             <p className="text-muted-foreground mt-4">
-              You can delete your account from the user menu in the application.
-              To unsubscribe from email alerts, click the unsubscribe link in
-              any alert email or disable alerts for individual saved searches.
+              You can delete your account from Settings in the application. To
+              unsubscribe from email alerts, click the unsubscribe link in any
+              alert email or disable alerts for individual saved searches.
             </p>
           </section>
 

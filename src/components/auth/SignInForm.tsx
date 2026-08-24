@@ -74,6 +74,7 @@ export function SignInForm() {
       await signIn.social({
         provider: "discord",
         callbackURL: returnTo || "/search",
+        requestSignUp: false,
       });
     } catch (err) {
       console.error("Discord sign in error:", err);

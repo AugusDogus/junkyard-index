@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   primaryKey,
@@ -36,6 +37,36 @@ export const user = sqliteTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+export const billingOperation = sqliteTable(
+  "billing_operation",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    state: text("state", {
+      enum: [
+        "checkout_claimed",
+        "checkout_completed",
+        "checkout_completed_claimed",
+        "checkout_open",
+        "deleting",
+      ],
+    }).notNull(),
+    token: text("token"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    check(
+      "billing_operation_state_check",
+      sql`(
+        (${table.state} in ('checkout_open', 'checkout_completed') and ${table.token} is null)
+        or (${table.state} in ('checkout_claimed', 'checkout_completed_claimed', 'deleting')
+          and ${table.token} is not null)
+      )`,
+    ),
+  ],
+);
 
 export const session = sqliteTable(
   "session",

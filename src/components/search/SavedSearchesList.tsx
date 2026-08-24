@@ -9,7 +9,6 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { DiscordIcon } from "~/components/ui/icons";
@@ -20,23 +19,23 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip";
 import posthog from "posthog-js";
+import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
 
 export function SavedSearchesList() {
-  const router = useRouter();
   const utils = api.useUtils();
 
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
-  const { data: subscriptionData } =
-    api.subscription.getCustomerState.useQuery();
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery();
 
-  const hasActiveSubscription =
-    subscriptionData?.hasActiveSubscription ?? false;
+  const { hasActiveSubscription, open: openSubscriptionDestination } =
+    useSubscriptionDestination({
+      source: "saved_searches_list",
+    });
   const canUseDiscord =
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;
@@ -148,10 +147,7 @@ export function SavedSearchesList() {
 
     // If trying to enable but no subscription, redirect to checkout
     if (!currentState && !hasActiveSubscription) {
-      posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
-        source: "email_alerts_toggle",
-      });
-      router.push("/subscribe");
+      void openSubscriptionDestination();
       return;
     }
 
@@ -175,10 +171,7 @@ export function SavedSearchesList() {
 
     // If trying to enable but no subscription, redirect to checkout
     if (!currentState && !hasActiveSubscription) {
-      posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
-        source: "discord_alerts_toggle",
-      });
-      router.push("/subscribe");
+      void openSubscriptionDestination();
       return;
     }
 

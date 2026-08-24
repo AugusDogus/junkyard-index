@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "92b37d7b-d9da-49f1-bf87-0d27342b195c",
+  "id": "445fbf91-8e12-43fe-b5a1-61ddf47f6903",
   "prevId": "378c56e7-f930-49b5-ad65-703f79979dee",
   "tables": {
     "account": {
@@ -103,7 +103,9 @@
       "indexes": {
         "account_userId_idx": {
           "name": "account_userId_idx",
-          "columns": ["user_id"],
+          "columns": [
+            "user_id"
+          ],
           "isUnique": false
         }
       },
@@ -112,8 +114,12 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -193,7 +199,9 @@
       "indexes": {
         "autorecycler_org_geo_updated_at_idx": {
           "name": "autorecycler_org_geo_updated_at_idx",
-          "columns": ["updated_at"],
+          "columns": [
+            "updated_at"
+          ],
           "isUnique": false
         }
       },
@@ -201,6 +209,63 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "billing_operation": {
+      "name": "billing_operation",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "billing_operation_user_id_user_id_fk": {
+          "name": "billing_operation_user_id_user_id_fk",
+          "tableFrom": "billing_operation",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "billing_operation_state_check": {
+          "name": "billing_operation_state_check",
+          "value": "(\n        (\"billing_operation\".\"state\" in ('checkout_open', 'checkout_completed') and \"billing_operation\".\"token\" is null)\n        or (\"billing_operation\".\"state\" in ('checkout_claimed', 'checkout_completed_claimed', 'deleting')\n          and \"billing_operation\".\"token\" is not null)\n      )"
+        }
+      }
     },
     "ingestion_projector_checkpoint": {
       "name": "ingestion_projector_checkpoint",
@@ -450,22 +515,30 @@
       "indexes": {
         "ingestion_run_single_active_idx": {
           "name": "ingestion_run_single_active_idx",
-          "columns": ["active_slot"],
+          "columns": [
+            "active_slot"
+          ],
           "isUnique": true
         },
         "ingestion_run_schedule_key_idx": {
           "name": "ingestion_run_schedule_key_idx",
-          "columns": ["schedule_key"],
+          "columns": [
+            "schedule_key"
+          ],
           "isUnique": false
         },
         "ingestion_run_search_published_at_idx": {
           "name": "ingestion_run_search_published_at_idx",
-          "columns": ["search_published_at"],
+          "columns": [
+            "search_published_at"
+          ],
           "isUnique": false
         },
         "ingestion_run_stage_idx": {
           "name": "ingestion_run_stage_idx",
-          "columns": ["stage"],
+          "columns": [
+            "stage"
+          ],
           "isUnique": false
         }
       },
@@ -599,17 +672,23 @@
       "indexes": {
         "ingestion_source_run_run_id_idx": {
           "name": "ingestion_source_run_run_id_idx",
-          "columns": ["run_id"],
+          "columns": [
+            "run_id"
+          ],
           "isUnique": false
         },
         "ingestion_source_run_source_idx": {
           "name": "ingestion_source_run_source_idx",
-          "columns": ["source"],
+          "columns": [
+            "source"
+          ],
           "isUnique": false
         },
         "ingestion_source_run_status_idx": {
           "name": "ingestion_source_run_status_idx",
-          "columns": ["status"],
+          "columns": [
+            "status"
+          ],
           "isUnique": false
         }
       },
@@ -618,8 +697,12 @@
           "name": "ingestion_source_run_run_id_ingestion_run_id_fk",
           "tableFrom": "ingestion_source_run",
           "tableTo": "ingestion_run",
-          "columnsFrom": ["run_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -693,17 +776,24 @@
       "indexes": {
         "vehicle_change_run_id_idx": {
           "name": "vehicle_change_run_id_idx",
-          "columns": ["run_id"],
+          "columns": [
+            "run_id"
+          ],
           "isUnique": false
         },
         "vehicle_change_vin_idx": {
           "name": "vehicle_change_vin_idx",
-          "columns": ["vin"],
+          "columns": [
+            "vin"
+          ],
           "isUnique": false
         },
         "vehicle_change_processed_at_idx": {
           "name": "vehicle_change_processed_at_idx",
-          "columns": ["processed_at", "id"],
+          "columns": [
+            "processed_at",
+            "id"
+          ],
           "isUnique": false
         }
       },
@@ -712,8 +802,12 @@
           "name": "vehicle_change_run_id_ingestion_run_id_fk",
           "tableFrom": "vehicle_change",
           "tableTo": "ingestion_run",
-          "columnsFrom": ["run_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -872,17 +966,23 @@
       "indexes": {
         "saved_search_userId_idx": {
           "name": "saved_search_userId_idx",
-          "columns": ["user_id"],
+          "columns": [
+            "user_id"
+          ],
           "isUnique": false
         },
         "saved_search_emailAlertsEnabled_idx": {
           "name": "saved_search_emailAlertsEnabled_idx",
-          "columns": ["email_alerts_enabled"],
+          "columns": [
+            "email_alerts_enabled"
+          ],
           "isUnique": false
         },
         "saved_search_discordAlertsEnabled_idx": {
           "name": "saved_search_discordAlertsEnabled_idx",
-          "columns": ["discord_alerts_enabled"],
+          "columns": [
+            "discord_alerts_enabled"
+          ],
           "isUnique": false
         }
       },
@@ -891,8 +991,12 @@
           "name": "saved_search_user_id_user_id_fk",
           "tableFrom": "saved_search",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1037,17 +1141,27 @@
       "indexes": {
         "search_notification_intent_dedupe_idx": {
           "name": "search_notification_intent_dedupe_idx",
-          "columns": ["saved_search_id", "publication_sequence", "channel"],
+          "columns": [
+            "saved_search_id",
+            "publication_sequence",
+            "channel"
+          ],
           "isUnique": true
         },
         "search_notification_intent_delivery_idx": {
           "name": "search_notification_intent_delivery_idx",
-          "columns": ["status", "claimed_at", "id"],
+          "columns": [
+            "status",
+            "claimed_at",
+            "id"
+          ],
           "isUnique": false
         },
         "search_notification_intent_run_idx": {
           "name": "search_notification_intent_run_idx",
-          "columns": ["run_id"],
+          "columns": [
+            "run_id"
+          ],
           "isUnique": false
         }
       },
@@ -1056,8 +1170,12 @@
           "name": "search_notification_intent_run_id_ingestion_run_id_fk",
           "tableFrom": "search_notification_intent",
           "tableTo": "ingestion_run",
-          "columnsFrom": ["run_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1065,8 +1183,12 @@
           "name": "search_notification_intent_saved_search_id_saved_search_id_fk",
           "tableFrom": "search_notification_intent",
           "tableTo": "saved_search",
-          "columnsFrom": ["saved_search_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "saved_search_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1074,8 +1196,12 @@
           "name": "search_notification_intent_user_id_user_id_fk",
           "tableFrom": "search_notification_intent",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1148,12 +1274,16 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": ["token"],
+          "columns": [
+            "token"
+          ],
           "isUnique": true
         },
         "session_userId_idx": {
           "name": "session_userId_idx",
-          "columns": ["user_id"],
+          "columns": [
+            "user_id"
+          ],
           "isUnique": false
         }
       },
@@ -1162,8 +1292,12 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1288,7 +1422,9 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": ["email"],
+          "columns": [
+            "email"
+          ],
           "isUnique": true
         }
       },
@@ -1508,42 +1644,59 @@
       "indexes": {
         "vehicle_source_idx": {
           "name": "vehicle_source_idx",
-          "columns": ["source"],
+          "columns": [
+            "source"
+          ],
           "isUnique": false
         },
         "vehicle_make_model_idx": {
           "name": "vehicle_make_model_idx",
-          "columns": ["make", "model"],
+          "columns": [
+            "make",
+            "model"
+          ],
           "isUnique": false
         },
         "vehicle_first_seen_at_idx": {
           "name": "vehicle_first_seen_at_idx",
-          "columns": ["first_seen_at"],
+          "columns": [
+            "first_seen_at"
+          ],
           "isUnique": false
         },
         "vehicle_last_seen_at_idx": {
           "name": "vehicle_last_seen_at_idx",
-          "columns": ["last_seen_at"],
+          "columns": [
+            "last_seen_at"
+          ],
           "isUnique": false
         },
         "vehicle_missing_since_at_idx": {
           "name": "vehicle_missing_since_at_idx",
-          "columns": ["missing_since_at"],
+          "columns": [
+            "missing_since_at"
+          ],
           "isUnique": false
         },
         "vehicle_missing_run_count_idx": {
           "name": "vehicle_missing_run_count_idx",
-          "columns": ["missing_run_count"],
+          "columns": [
+            "missing_run_count"
+          ],
           "isUnique": false
         },
         "vehicle_location_code_idx": {
           "name": "vehicle_location_code_idx",
-          "columns": ["location_code"],
+          "columns": [
+            "location_code"
+          ],
           "isUnique": false
         },
         "vehicle_state_abbr_idx": {
           "name": "vehicle_state_abbr_idx",
-          "columns": ["state_abbr"],
+          "columns": [
+            "state_abbr"
+          ],
           "isUnique": false
         }
       },
@@ -1617,23 +1770,34 @@
       "indexes": {
         "vehicle_change_v2_run_id_idx": {
           "name": "vehicle_change_v2_run_id_idx",
-          "columns": ["run_id"],
+          "columns": [
+            "run_id"
+          ],
           "isUnique": false
         },
         "vehicle_change_v2_run_vin_type_idx": {
           "name": "vehicle_change_v2_run_vin_type_idx",
-          "columns": ["run_id", "vin", "change_type"],
+          "columns": [
+            "run_id",
+            "vin",
+            "change_type"
+          ],
           "isUnique": true,
           "where": "processed_at is null"
         },
         "vehicle_change_v2_vin_idx": {
           "name": "vehicle_change_v2_vin_idx",
-          "columns": ["vin"],
+          "columns": [
+            "vin"
+          ],
           "isUnique": false
         },
         "vehicle_change_v2_processed_at_idx": {
           "name": "vehicle_change_v2_processed_at_idx",
-          "columns": ["processed_at", "id"],
+          "columns": [
+            "processed_at",
+            "id"
+          ],
           "isUnique": false
         }
       },
@@ -1642,8 +1806,12 @@
           "name": "vehicle_change_v2_run_id_ingestion_run_id_fk",
           "tableFrom": "vehicle_change_v2",
           "tableTo": "ingestion_run",
-          "columnsFrom": ["run_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1850,12 +2018,17 @@
       "indexes": {
         "vehicle_snapshot_run_source_idx": {
           "name": "vehicle_snapshot_run_source_idx",
-          "columns": ["run_id", "source"],
+          "columns": [
+            "run_id",
+            "source"
+          ],
           "isUnique": false
         },
         "vehicle_snapshot_vin_idx": {
           "name": "vehicle_snapshot_vin_idx",
-          "columns": ["vin"],
+          "columns": [
+            "vin"
+          ],
           "isUnique": false
         }
       },
@@ -1864,15 +2037,23 @@
           "name": "vehicle_snapshot_run_id_ingestion_run_id_fk",
           "tableFrom": "vehicle_snapshot",
           "tableTo": "ingestion_run",
-          "columnsFrom": ["run_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "vehicle_snapshot_run_id_source_vin_pk": {
-          "columns": ["run_id", "source", "vin"],
+          "columns": [
+            "run_id",
+            "source",
+            "vin"
+          ],
           "name": "vehicle_snapshot_run_id_source_vin_pk"
         }
       },
@@ -1930,7 +2111,9 @@
       "indexes": {
         "verification_identifier_idx": {
           "name": "verification_identifier_idx",
-          "columns": ["identifier"],
+          "columns": [
+            "identifier"
+          ],
           "isUnique": false
         }
       },

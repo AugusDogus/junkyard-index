@@ -25,6 +25,7 @@ import { DiscordIcon } from "~/components/ui/icons";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
+import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
@@ -109,12 +110,14 @@ export function SaveSearchDialog({
 
   const utils = api.useUtils();
 
-  const { data: subscriptionData } = api.subscription.getCustomerState.useQuery(
-    undefined,
-    { enabled: isLoggedIn },
-  );
-  const hasActiveSubscription =
-    subscriptionData?.hasActiveSubscription ?? false;
+  const {
+    hasActiveSubscription,
+    hasManageableSubscription,
+    open: openSubscriptionDestination,
+  } = useSubscriptionDestination({
+    source: "save_search_dialog",
+    enabled: isLoggedIn,
+  });
 
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery(undefined, {
@@ -183,14 +186,14 @@ export function SaveSearchDialog({
         });
         toast.error(error.message, {
           action: {
-            label: "Upgrade",
+            label: hasManageableSubscription ? "Manage" : "Upgrade",
             onClick: () => {
               posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                 source_page: "search",
                 cta_location: "saved_search_limit_to_checkout",
                 is_logged_in: true,
               });
-              router.push("/subscribe");
+              void openSubscriptionDestination();
             },
           },
         });
@@ -202,7 +205,7 @@ export function SaveSearchDialog({
         setOpen(true);
       }
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       posthog.capture(AnalyticsEvents.SAVED_SEARCH_CREATED, {
         query,
         search_name: variables.name,
@@ -216,10 +219,15 @@ export function SaveSearchDialog({
         !hasActiveSubscription
       ) {
         setIsRedirecting(true);
-        posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
-          source: "save_search_dialog",
-        });
-        router.push("/subscribe");
+        const opened = await openSubscriptionDestination();
+        if (!opened) {
+          setIsRedirecting(false);
+          setOpen(false);
+          resetForm();
+          toast.success(
+            "Search saved. Alerts will remain inactive until subscription status is available.",
+          );
+        }
       } else {
         toast.success("Search saved!");
       }

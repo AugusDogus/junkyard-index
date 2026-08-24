@@ -2,6 +2,7 @@ import { type Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
+import { TERMS_METADATA } from "~/lib/legal";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -22,7 +23,9 @@ export default function TermsPage() {
           Terms of Service
         </h1>
 
-        <p className="text-muted-foreground mb-8">Effective: August 24, 2026</p>
+        <p className="text-muted-foreground mb-8">
+          Effective: {TERMS_METADATA.effectiveDate}
+        </p>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
           <section>
@@ -214,11 +217,13 @@ export default function TermsPage() {
               these Terms. You may cancel through the subscription management
               page. Cancellation stops future renewal but normally does not
               refund the current billing period. Deleting your Junkyard Index
-              account ends your access immediately and first attempts to cancel
-              active renewals. Account deletion will stop if we cannot confirm
-              that renewal was canceled. Deleting an account does not itself
-              create a refund. We may change plan features with reasonable
-              notice, subject to applicable law and Polar&rsquo;s terms.
+              account ends your access immediately and first attempts to revoke
+              every subscription that could still renew or recover payment.
+              Account deletion will stop if billing status or revocation cannot
+              be confirmed, or while a checkout is unfinished. Deleting an
+              account does not itself create a refund. We may change plan
+              features with reasonable notice, subject to applicable law and
+              Polar&rsquo;s terms.
             </p>
           </section>
 

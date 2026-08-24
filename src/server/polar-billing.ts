@@ -1,0 +1,192 @@
+import {
+  type AccountBillingGateway,
+  type BillingCheckout,
+  BillingSubscription,
+  type BillingSubscription as DomainBillingSubscription,
+} from "~/server/billing";
+
+type PolarPage<T> = {
+  result: { items: readonly T[] };
+};
+
+type PolarSubscriptionStatus =
+  | "incomplete"
+  | "incomplete_expired"
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "unpaid";
+
+type PolarSubscription = { id: string; status: PolarSubscriptionStatus };
+type PolarCheckout = {
+  id: string;
+  url: string;
+  expiresAt: Date;
+  status: "open" | "expired" | "confirmed" | "succeeded" | "failed";
+};
+
+export type PolarBillingOperations = {
+  listSubscriptions(input: {
+    externalCustomerId: string;
+    productId: string;
+    limit: number;
+  }): Promise<AsyncIterable<PolarPage<PolarSubscription>>>;
+  revokeSubscription(input: { id: string }): Promise<unknown>;
+  getCustomerState(input: { externalId: string }): Promise<{
+    id: string;
+    activeSubscriptions: readonly { productId: string }[];
+  }>;
+  listCheckouts(input: {
+    customerId: string;
+    productId: string;
+    status: Array<"open" | "confirmed">;
+    limit: number;
+  }): Promise<AsyncIterable<PolarPage<PolarCheckout>>>;
+  createCheckout(input: {
+    externalCustomerId: string;
+    products: string[];
+    successUrl: string;
+    returnUrl: string;
+    metadata: {
+      terms_version: string;
+      terms_accepted_at: string;
+    };
+  }): Promise<PolarCheckout>;
+};
+
+function normalizeSubscription(
+  subscription: PolarSubscription,
+): DomainBillingSubscription {
+  switch (subscription.status) {
+    case "canceled":
+    case "incomplete_expired":
+    case "unpaid":
+      return { id: subscription.id, state: "terminal" };
+    case "active":
+    case "incomplete":
+    case "past_due":
+    case "trialing":
+      return { id: subscription.id, state: "charge_capable" };
+  }
+}
+
+function normalizeOutstandingCheckout(
+  checkout: PolarCheckout,
+): BillingCheckout | null {
+  switch (checkout.status) {
+    case "open":
+      return {
+        id: checkout.id,
+        state: "reusable",
+        url: checkout.url,
+        expiresAt: checkout.expiresAt,
+      };
+    case "confirmed":
+      return {
+        id: checkout.id,
+        state: "confirmation_pending",
+        expiresAt: checkout.expiresAt,
+      };
+    case "expired":
+    case "failed":
+    case "succeeded":
+      return null;
+  }
+}
+
+export function createPolarBillingGateway(
+  operations: PolarBillingOperations,
+  config: { productId: string; appUrl: string },
+): AccountBillingGateway {
+  const listSubscriptions = async (
+    userId: string,
+  ): Promise<readonly DomainBillingSubscription[]> => {
+    const pages = await operations.listSubscriptions({
+      externalCustomerId: userId,
+      productId: config.productId,
+      limit: 100,
+    });
+    const subscriptions: DomainBillingSubscription[] = [];
+
+    for await (const page of pages) {
+      subscriptions.push(...page.result.items.map(normalizeSubscription));
+    }
+
+    return subscriptions;
+  };
+
+  return {
+    listSubscriptions,
+    listOutstandingCheckouts: async (userId) => {
+      const customer = await operations.getCustomerState({
+        externalId: userId,
+      });
+      const pages = await operations.listCheckouts({
+        customerId: customer.id,
+        productId: config.productId,
+        status: ["open", "confirmed"],
+        limit: 100,
+      });
+      const checkouts: PolarCheckout[] = [];
+
+      for await (const page of pages) {
+        checkouts.push(...page.result.items);
+      }
+
+      return checkouts.flatMap((checkout) => {
+        const normalized = normalizeOutstandingCheckout(checkout);
+        return normalized ? [normalized] : [];
+      });
+    },
+    hasActiveSubscription: async (userId) => {
+      const customer = await operations.getCustomerState({
+        externalId: userId,
+      });
+      return customer.activeSubscriptions.some(
+        ({ productId }) => productId === config.productId,
+      );
+    },
+    getAccountState: async (userId) => {
+      const customer = await operations.getCustomerState({
+        externalId: userId,
+      });
+      if (
+        customer.activeSubscriptions.some(
+          ({ productId }) => productId === config.productId,
+        )
+      ) {
+        return "active";
+      }
+
+      const subscriptions = await listSubscriptions(userId);
+      return subscriptions.some(BillingSubscription.canProduceFutureCharge)
+        ? "needs_attention"
+        : "none";
+    },
+    revokeSubscription: async (subscriptionId) => {
+      await operations.revokeSubscription({ id: subscriptionId });
+    },
+    createCheckout: async ({ userId, termsVersion, termsAcceptedAt }) => {
+      const checkout = await operations.createCheckout({
+        externalCustomerId: userId,
+        products: [config.productId],
+        successUrl: `${config.appUrl}/search?subscription=success`,
+        returnUrl: `${config.appUrl}/subscribe`,
+        metadata: {
+          terms_version: termsVersion,
+          terms_accepted_at: termsAcceptedAt.toISOString(),
+        },
+      });
+
+      const normalized = normalizeOutstandingCheckout(checkout);
+      if (!normalized) {
+        throw new Error(
+          `Polar created checkout ${checkout.id} with unexpected status ${checkout.status}.`,
+        );
+      }
+
+      return normalized;
+    },
+  };
+}
