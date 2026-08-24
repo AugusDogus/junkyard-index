@@ -6,6 +6,11 @@ const cronSecretSchema =
     ? z.string().min(16)
     : z.string().min(16).optional();
 
+const betterStackApiTokenSchema =
+  process.env.VERCEL_ENV === "production"
+    ? z.string().min(1)
+    : z.string().min(1).optional();
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -34,6 +39,7 @@ export const env = createEnv({
     // Algolia (server-only write key for ingestion)
     ALGOLIA_WRITE_API_KEY: z.string(),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
+    BETTERSTACK_API_TOKEN: betterStackApiTokenSchema,
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
     VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
@@ -82,6 +88,7 @@ export const env = createEnv({
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
     ALGOLIA_WRITE_API_KEY: process.env.ALGOLIA_WRITE_API_KEY,
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
+    BETTERSTACK_API_TOKEN: process.env.BETTERSTACK_API_TOKEN,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
