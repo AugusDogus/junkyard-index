@@ -16,6 +16,7 @@ import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { db } from "~/lib/db";
+import { CURRENT_TERMS_VERSION } from "~/lib/legal";
 import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
 import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
@@ -41,6 +42,24 @@ export const auth = betterAuth({
     productionURL,
     "https://*.vercel.app",
   ],
+  user: {
+    additionalFields: {
+      termsAcceptedAt: {
+        type: "date",
+        required: false,
+        input: false,
+        returned: false,
+        defaultValue: () => new Date(),
+      },
+      termsVersion: {
+        type: "string",
+        required: false,
+        input: false,
+        returned: false,
+        defaultValue: CURRENT_TERMS_VERSION,
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {

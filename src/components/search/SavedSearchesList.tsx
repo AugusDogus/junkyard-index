@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { DiscordIcon } from "~/components/ui/icons";
@@ -20,12 +21,12 @@ import {
 } from "~/components/ui/tooltip";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { authClient } from "~/lib/auth-client";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
 
 export function SavedSearchesList() {
+  const router = useRouter();
   const utils = api.useUtils();
 
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
@@ -137,7 +138,7 @@ export function SavedSearchesList() {
     deleteMutation.mutate({ id });
   };
 
-  const handleToggleEmailAlerts = async (
+  const handleToggleEmailAlerts = (
     e: React.MouseEvent,
     searchId: string,
     currentState: boolean,
@@ -150,14 +151,7 @@ export function SavedSearchesList() {
       posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
         source: "email_alerts_toggle",
       });
-      try {
-        await authClient.checkout({
-          slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-        });
-      } catch (error) {
-        toast.error("Failed to open checkout. Please try again.");
-        console.error("Checkout error:", error);
-      }
+      router.push("/subscribe");
       return;
     }
 
@@ -171,7 +165,7 @@ export function SavedSearchesList() {
     });
   };
 
-  const handleToggleDiscordAlerts = async (
+  const handleToggleDiscordAlerts = (
     e: React.MouseEvent,
     searchId: string,
     currentState: boolean,
@@ -184,14 +178,7 @@ export function SavedSearchesList() {
       posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
         source: "discord_alerts_toggle",
       });
-      try {
-        await authClient.checkout({
-          slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-        });
-      } catch (error) {
-        toast.error("Failed to open checkout. Please try again.");
-        console.error("Checkout error:", error);
-      }
+      router.push("/subscribe");
       return;
     }
 
@@ -282,7 +269,8 @@ export function SavedSearchesList() {
               Saved Searches
               {!hasActiveSubscription && (
                 <span className="text-muted-foreground ml-1 font-normal">
-                  ({savedSearches.length}/{MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} free)
+                  ({savedSearches.length}/
+                  {MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} free)
                 </span>
               )}
             </h3>

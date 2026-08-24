@@ -53,17 +53,11 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
     }
   };
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = () => {
     posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
       source: "user_menu",
     });
-    try {
-      await authClient.checkout({
-        slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-      });
-    } catch (error) {
-      console.error("Failed to open checkout:", error);
-    }
+    router.push("/subscribe");
   };
 
   if (!user) {
@@ -177,7 +171,8 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
           <DropdownMenuItem onClick={handleSubscribe}>
             <CreditCard className="mr-2 h-4 w-4" />
             <span>
-              Subscribe to Alerts (${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
+              Subscribe to Alerts ($
+              {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
               /mo)
             </span>
           </DropdownMenuItem>

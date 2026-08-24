@@ -159,6 +159,9 @@ export function SettingsDashboard() {
       router.push("/");
       router.refresh();
     },
+    onError: (error) => {
+      toast.error(error.message);
+    },
   });
 
   const updateLocationPreferenceMutation =
@@ -229,16 +232,9 @@ export function SettingsDashboard() {
     }
   };
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = () => {
     posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, { source: "settings" });
-    try {
-      await authClient.checkout({
-        slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-      });
-    } catch (error) {
-      console.error("Failed to open checkout:", error);
-      toast.error("Failed to open checkout. Please try again.");
-    }
+    router.push("/subscribe");
   };
 
   const handleManageSubscription = async () => {
@@ -262,7 +258,7 @@ export function SettingsDashboard() {
 
   const handleToggleEmailAlerts = (searchId: string, currentState: boolean) => {
     if (!currentState && !hasActiveSubscription) {
-      void handleSubscribe();
+      handleSubscribe();
       return;
     }
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED, {
@@ -278,7 +274,7 @@ export function SettingsDashboard() {
     currentState: boolean,
   ) => {
     if (!currentState && !hasActiveSubscription) {
-      void handleSubscribe();
+      handleSubscribe();
       return;
     }
     if (!currentState && !canUseDiscord) {
@@ -467,9 +463,8 @@ export function SettingsDashboard() {
             Subscription
           </CardTitle>
           <CardDescription>
-            Alerts Plan includes unlimited saved searches plus email and
-            Discord alerts for $
-            {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.{" "}
+            Alerts Plan includes unlimited saved searches plus email and Discord
+            alerts for ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.{" "}
             <Link href="/pricing" className="text-primary hover:underline">
               Compare plans
             </Link>
@@ -756,7 +751,8 @@ export function SettingsDashboard() {
           </CardTitle>
           <CardDescription>
             Permanently delete your account and all associated data, including
-            saved searches and email alerts. This action cannot be undone.
+            saved searches and alerts. Any active subscription renewal will be
+            canceled first. This action cannot be undone.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -776,8 +772,10 @@ export function SettingsDashboard() {
             <DialogTitle>Delete Account</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete your account? This action cannot
-              be undone. All your data, including saved searches and email
-              alerts, will be permanently deleted.
+              be undone. Your access will end immediately, your saved searches
+              and alerts will be deleted, and any active subscription renewal
+              will be canceled. Deletion will stop if subscription cancellation
+              cannot be confirmed.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

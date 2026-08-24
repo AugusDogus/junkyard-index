@@ -15,6 +15,11 @@ import {
 } from "~/server/api/trpc";
 import { sendTestDM } from "~/lib/discord";
 import { polarClient } from "~/lib/auth";
+import { CURRENT_TERMS_VERSION } from "~/lib/legal";
+import {
+  prepareAccountDeletion,
+  type AccountSubscription,
+} from "~/server/account-deletion";
 
 async function resolveZipCode(zipCode: string) {
   const normalizedZipCode = normalizeZipCode(zipCode);
@@ -120,6 +125,20 @@ function toLocationPreference(
 }
 
 export const userRouter = createTRPCRouter({
+  acceptCurrentTerms: protectedProcedure.mutation(async ({ ctx }) => {
+    const acceptedAt = new Date();
+
+    await ctx.db
+      .update(schema.user)
+      .set({
+        termsAcceptedAt: acceptedAt,
+        termsVersion: CURRENT_TERMS_VERSION,
+      })
+      .where(eq(schema.user.id, ctx.user.id));
+
+    return { acceptedAt, version: CURRENT_TERMS_VERSION };
+  }),
+
   getLocationPreference: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.user) {
       return {
@@ -371,14 +390,56 @@ export const userRouter = createTRPCRouter({
   }),
 
   deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
-    posthog.capture({
-      distinctId: ctx.user.id,
-      event: "account_deleted",
+    const preparation = await prepareAccountDeletion(ctx.user.id, {
+      listActive: async (userId) => {
+        const subscriptions = await polarClient.subscriptions.list({
+          externalCustomerId: userId,
+          active: true,
+          limit: 100,
+        });
+        const activeSubscriptions: AccountSubscription[] = [];
+
+        for await (const page of subscriptions) {
+          activeSubscriptions.push(
+            ...page.result.items.map(({ id, cancelAtPeriodEnd }) => ({
+              id,
+              cancelAtPeriodEnd,
+            })),
+          );
+        }
+
+        return activeSubscriptions;
+      },
+      stopRenewal: async (subscriptionId) => {
+        await polarClient.subscriptions.update({
+          id: subscriptionId,
+          subscriptionUpdate: {
+            cancelAtPeriodEnd: true,
+            customerCancellationReason: "other",
+          },
+        });
+      },
     });
+
+    if (preparation.status === "failed") {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: preparation.message,
+        cause: preparation.cause,
+      });
+    }
 
     // Delete the user - cascade delete will handle sessions, accounts, and saved searches
     await ctx.db.delete(schema.user).where(eq(schema.user.id, ctx.user.id));
 
-    return { success: true };
+    posthog.capture({
+      distinctId: ctx.user.id,
+      event: "account_deleted",
+      properties: {
+        stopped_subscription_renewals: preparation.stoppedRenewals,
+      },
+    });
+
+    return { success: true, stoppedRenewals: preparation.stoppedRenewals };
   }),
 });

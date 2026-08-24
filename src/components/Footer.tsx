@@ -36,6 +36,12 @@ export function Footer() {
             Privacy Policy
           </Link>
           <Link
+            href="/terms"
+            className="hover:text-foreground transition-colors"
+          >
+            Terms of Service
+          </Link>
+          <Link
             href="/contact"
             className="hover:text-foreground transition-colors"
           >
@@ -53,7 +59,7 @@ export function Footer() {
           )}
         </div>
         <p className="text-muted-foreground text-xs">
-          &copy; {new Date().getFullYear()} Junkyard Index. All rights reserved.
+          &copy; {new Date().getFullYear()} whisp labs LLC. All rights reserved.
         </p>
       </div>
     </footer>
