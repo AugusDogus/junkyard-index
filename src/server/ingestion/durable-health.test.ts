@@ -1,31 +1,31 @@
 import { describe, expect, test } from "bun:test";
-import { isDurableIngestionUnhealthy } from "./durable-health";
+import { classifyDurableIngestionHealth } from "./durable-health";
 
 describe("durable ingestion health", () => {
   test("recovers after transient execution errors when publication succeeds", () => {
     expect(
-      isDurableIngestionUnhealthy({
+      classifyDurableIngestionHealth({
         status: "success",
         inventoryOutcome: "published",
         inventoryErrors: [],
       }),
-    ).toBe(false);
+    ).toBe("healthy");
   });
 
-  test("keeps terminal and degraded inventory outcomes unhealthy", () => {
+  test("distinguishes degraded publication from terminal failure", () => {
     expect(
-      isDurableIngestionUnhealthy({
+      classifyDurableIngestionHealth({
         status: "running",
         inventoryOutcome: "published",
         inventoryErrors: [],
       }),
-    ).toBe(true);
+    ).toBe("down");
     expect(
-      isDurableIngestionUnhealthy({
+      classifyDurableIngestionHealth({
         status: "success",
         inventoryOutcome: "published_degraded",
         inventoryErrors: ["provider snapshot rejected"],
       }),
-    ).toBe(true);
+    ).toBe("degraded");
   });
 });
