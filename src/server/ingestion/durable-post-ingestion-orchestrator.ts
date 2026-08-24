@@ -57,7 +57,8 @@ export async function runDurablePublicationLifecycle<
     return { status: "stopped" as const, phase: "alert_matching" as const };
   }
 
-  await params.reportHealth(params.runId);
+  const reportHealth = params.reportHealth;
+  await reportHealth(params.runId);
   return {
     status: "completed" as const,
     projector,
