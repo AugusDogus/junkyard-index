@@ -59,6 +59,21 @@ describe("durable post-ingestion orchestration", () => {
     expect(matchingCalls).toBe(0);
   });
 
+  test("calls the health reporter without the lifecycle parameters as its receiver", async () => {
+    const healthReporterReceivers: unknown[] = [];
+
+    await runDurablePublicationLifecycle({
+      runId: "run-1",
+      project: async () => ({ status: "complete" as const }),
+      matchAlerts: async () => ({ status: "complete" as const }),
+      reportHealth: async function (this: unknown) {
+        healthReporterReceivers.push(this);
+      },
+    });
+
+    expect(healthReporterReceivers).toEqual([undefined]);
+  });
+
   test("drains cleanup until its durable cursor is complete", async () => {
     let calls = 0;
     await drainDurableCleanup(async () => {
