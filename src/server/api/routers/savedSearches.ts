@@ -5,7 +5,6 @@ import {
   filtersSchema,
   parseSavedSearchFilters,
 } from "~/lib/saved-search-filters";
-import { polarClient } from "~/lib/auth";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
@@ -14,6 +13,7 @@ import {
   setSearchAlertChannel,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
+import { polarBillingGateway } from "~/server/polar-billing-gateway";
 
 export const savedSearchesRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -52,10 +52,8 @@ export const savedSearchesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       let hasActiveSubscription = false;
       try {
-        const customerState = await polarClient.customers.getStateExternal({
-          externalId: ctx.user.id,
-        });
-        hasActiveSubscription = customerState.activeSubscriptions.length > 0;
+        hasActiveSubscription =
+          await polarBillingGateway.hasActiveSubscription(ctx.user.id);
       } catch {
         hasActiveSubscription = false;
       }
@@ -175,10 +173,9 @@ export const savedSearchesRouter = createTRPCRouter({
       // If enabling alerts, verify user has an active subscription
       if (input.enabled) {
         try {
-          const customerState = await polarClient.customers.getStateExternal({
-            externalId: ctx.user.id,
-          });
-          if (customerState.activeSubscriptions.length === 0) {
+          if (
+            !(await polarBillingGateway.hasActiveSubscription(ctx.user.id))
+          ) {
             throw new TRPCError({
               code: "FORBIDDEN",
               message:
@@ -247,10 +244,9 @@ export const savedSearchesRouter = createTRPCRouter({
       if (input.enabled) {
         // Check subscription
         try {
-          const customerState = await polarClient.customers.getStateExternal({
-            externalId: ctx.user.id,
-          });
-          if (customerState.activeSubscriptions.length === 0) {
+          if (
+            !(await polarBillingGateway.hasActiveSubscription(ctx.user.id))
+          ) {
             throw new TRPCError({
               code: "FORBIDDEN",
               message:

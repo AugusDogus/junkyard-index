@@ -1,1 +1,4 @@
-export const CURRENT_TERMS_VERSION = "2026-08-24";
+export const TERMS_METADATA = {
+  version: "2026-08-24",
+  effectiveDate: "August 24, 2026",
+} as const;

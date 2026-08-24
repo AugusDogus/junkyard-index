@@ -17,10 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import posthog from "posthog-js";
+import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { authClient, signOut, useSession } from "~/lib/auth-client";
+import { signOut, useSession } from "~/lib/auth-client";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
-import { api } from "~/trpc/react";
 
 interface UserMenuProps {
   user?: { name: string; email: string; image?: string | null } | null;
@@ -35,30 +35,10 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
   // Use session user if available (for real-time updates), otherwise fall back to initial user
   const user = session?.user ?? initialUser;
 
-  // Check subscription status using tRPC
-  const { data: subscriptionData } =
-    api.subscription.getCustomerState.useQuery();
-
-  const hasActiveSubscription =
-    subscriptionData?.hasActiveSubscription ?? false;
-
-  const handleManageSubscription = async () => {
-    posthog.capture(AnalyticsEvents.SUBSCRIPTION_PORTAL_OPENED, {
+  const { hasManageableSubscription, open: openSubscriptionDestination } =
+    useSubscriptionDestination({
       source: "user_menu",
     });
-    try {
-      await authClient.customer?.portal();
-    } catch (error) {
-      console.error("Failed to open customer portal:", error);
-    }
-  };
-
-  const handleSubscribe = () => {
-    posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
-      source: "user_menu",
-    });
-    router.push("/subscribe");
-  };
 
   if (!user) {
     return null;
@@ -162,13 +142,13 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
           <span>Settings</span>
         </DropdownMenuItem>
         {/* Subscription management */}
-        {hasActiveSubscription ? (
-          <DropdownMenuItem onClick={handleManageSubscription}>
+        {hasManageableSubscription ? (
+          <DropdownMenuItem onClick={() => void openSubscriptionDestination()}>
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Manage Subscription</span>
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onClick={handleSubscribe}>
+          <DropdownMenuItem onClick={() => void openSubscriptionDestination()}>
             <CreditCard className="mr-2 h-4 w-4" />
             <span>
               Subscribe to Alerts ($

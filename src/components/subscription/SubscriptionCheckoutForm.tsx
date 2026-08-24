@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import posthog from "posthog-js";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -14,35 +13,92 @@ import {
 } from "~/components/ui/card";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
-import { AnalyticsEvents } from "~/lib/analytics-events";
-import { authClient } from "~/lib/auth-client";
+import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { TERMS_METADATA } from "~/lib/legal";
 import { api } from "~/trpc/react";
 
 export function SubscriptionCheckoutForm() {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
-  const acceptTerms = api.user.acceptCurrentTerms.useMutation();
+  const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
+  const createCheckout = api.subscription.createCheckout.useMutation();
+  const {
+    hasActiveSubscription,
+    hasManageableSubscription,
+    isError: isSubscriptionError,
+    isLoading: isSubscriptionLoading,
+    open: openSubscriptionDestination,
+    retry: retrySubscription,
+  } = useSubscriptionDestination({
+    source: "subscribe_page",
+  });
 
   const handleCheckout = async () => {
     if (!hasAcceptedTerms) {
       return;
     }
 
+    setIsOpeningCheckout(true);
     try {
-      await acceptTerms.mutateAsync();
-      posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
-        source: "subscription_confirmation",
+      const checkout = await createCheckout.mutateAsync({
+        termsVersion: TERMS_METADATA.version,
       });
-      await authClient.checkout({
-        slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-      });
+      window.location.assign(checkout.url);
     } catch (error) {
       console.error("Failed to open checkout:", error);
       toast.error(
-        "Checkout could not be opened. Your account and saved searches are unchanged. Please try again.",
+        error instanceof Error
+          ? error.message
+          : "Checkout could not be opened. Your account and saved searches are unchanged. Please try again.",
       );
+      setIsOpeningCheckout(false);
     }
   };
+
+  if (isSubscriptionError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Subscription status unavailable</CardTitle>
+          <CardDescription>
+            We could not safely verify whether this account already has a
+            subscription. No checkout was started.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button className="w-full" onClick={() => void retrySubscription()}>
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (hasManageableSubscription) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            {hasActiveSubscription
+              ? "Subscription already active"
+              : "Subscription needs attention"}
+          </CardTitle>
+          <CardDescription>
+            Manage your existing Alerts Plan instead of starting another
+            checkout.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            className="w-full"
+            onClick={() => void openSubscriptionDestination()}
+          >
+            Manage Subscription
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -72,7 +128,7 @@ export function SubscriptionCheckoutForm() {
             id="subscription-legal-acceptance"
             checked={hasAcceptedTerms}
             onCheckedChange={(checked) => setHasAcceptedTerms(checked === true)}
-            disabled={acceptTerms.isPending}
+            disabled={isOpeningCheckout || isSubscriptionLoading}
             required
           />
           <Label
@@ -93,10 +149,12 @@ export function SubscriptionCheckoutForm() {
 
         <Button
           className="w-full"
-          disabled={!hasAcceptedTerms || acceptTerms.isPending}
+          disabled={
+            !hasAcceptedTerms || isOpeningCheckout || isSubscriptionLoading
+          }
           onClick={() => void handleCheckout()}
         >
-          {acceptTerms.isPending
+          {isOpeningCheckout
             ? "Opening secure checkout..."
             : `Continue to Polar checkout`}
         </Button>

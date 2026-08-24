@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, signUp } from "~/lib/auth-client";
+import { TERMS_METADATA } from "~/lib/legal";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
@@ -29,6 +30,10 @@ export function SignUpForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasAcceptedTerms) {
+      setError("You must accept the Terms of Service to create an account.");
+      return;
+    }
     setError(null);
     setIsLoading(true);
     posthog.capture(AnalyticsEvents.SIGN_UP_SUBMITTED, { method: "email" });
@@ -38,6 +43,7 @@ export function SignUpForm() {
         name,
         email,
         password,
+        termsVersion: TERMS_METADATA.version,
       });
 
       if (result.error) {
@@ -68,6 +74,10 @@ export function SignUpForm() {
   };
 
   const handleDiscordSignUp = async () => {
+    if (!hasAcceptedTerms) {
+      setError("You must accept the Terms of Service to create an account.");
+      return;
+    }
     setError(null);
     setIsDiscordLoading(true);
     posthog.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
@@ -78,6 +88,8 @@ export function SignUpForm() {
       await signIn.social({
         provider: "discord",
         callbackURL: returnTo || "/search",
+        requestSignUp: true,
+        additionalData: { termsVersion: TERMS_METADATA.version },
       });
     } catch (err) {
       console.error("Discord sign up error:", err);

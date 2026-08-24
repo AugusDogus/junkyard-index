@@ -1,31 +1,23 @@
-import {
-  checkout,
-  polar,
-  portal,
-  usage,
-  webhooks,
-} from "@polar-sh/better-auth";
-import { Polar } from "@polar-sh/sdk";
+import { polar, portal, usage, webhooks } from "@polar-sh/better-auth";
 import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
+import { APIError, getOAuthState } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { oAuthProxy } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { db } from "~/lib/db";
-import { CURRENT_TERMS_VERSION } from "~/lib/legal";
+import { TERMS_METADATA } from "~/lib/legal";
+import { polarClient } from "~/lib/polar";
+import { TermsAcceptance } from "~/lib/terms-acceptance";
 import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
+import { recordCheckoutCompletion } from "~/server/billing-operation";
 import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
 
 const resend = new Resend(env.RESEND_API_KEY);
-
-export const polarClient = new Polar({
-  accessToken: env.POLAR_ACCESS_TOKEN,
-});
 
 const productionURL = env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -49,14 +41,12 @@ export const auth = betterAuth({
         required: false,
         input: false,
         returned: false,
-        defaultValue: () => new Date(),
       },
       termsVersion: {
         type: "string",
-        required: false,
-        input: false,
+        required: true,
+        input: true,
         returned: false,
-        defaultValue: CURRENT_TERMS_VERSION,
       },
     },
   },
@@ -82,9 +72,44 @@ export const auth = betterAuth({
       clientId: env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
       clientSecret: env.DISCORD_CLIENT_SECRET,
       redirectURI: `${productionURL}/api/auth/callback/discord`,
+      disableImplicitSignUp: true,
     },
   },
   databaseHooks: {
+    user: {
+      create: {
+        before: async (newUser) => {
+          const acceptedCurrentTerms =
+            await TermsAcceptance.isAcceptedAtAuthBoundary({
+              directVersion: newUser.termsVersion,
+              readOAuthState: getOAuthState,
+            });
+
+          if (!acceptedCurrentTerms) {
+            throw new APIError("BAD_REQUEST", {
+              message: "You must accept the current Terms of Service.",
+            });
+          }
+
+          return {
+            data: {
+              ...newUser,
+              termsAcceptedAt: new Date(),
+              termsVersion: TERMS_METADATA.version,
+            },
+          };
+        },
+      },
+      update: {
+        before: async (updatedUser) => {
+          if (TermsAcceptance.attemptsAcceptanceUpdate(updatedUser)) {
+            throw new APIError("BAD_REQUEST", {
+              message: "Terms acceptance records cannot be changed.",
+            });
+          }
+        },
+      },
+    },
     account: {
       create: {
         after: async (account) => {
@@ -107,23 +132,19 @@ export const auth = betterAuth({
       client: polarClient,
       createCustomerOnSignUp: true,
       use: [
-        checkout({
-          products: [
-            {
-              productId: env.POLAR_PRODUCT_ID,
-              slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-            },
-          ],
-          successUrl: `${env.NEXT_PUBLIC_APP_URL}/search?subscription=success`,
-          authenticatedUsersOnly: true,
-        }),
         portal(),
         usage(),
         webhooks({
           secret: env.POLAR_WEBHOOK_SECRET,
           onSubscriptionCreated: async (payload) => {
             const externalId = payload.data.customer?.externalId;
-            if (externalId) {
+            const isAlertsPlan =
+              payload.data.productId === env.POLAR_PRODUCT_ID;
+            if (externalId && isAlertsPlan) {
+              await recordCheckoutCompletion({
+                database: db,
+                userId: externalId,
+              });
               posthog.capture({
                 distinctId: externalId,
                 event: "subscription_created",
@@ -131,6 +152,7 @@ export const auth = betterAuth({
             }
 
             if (
+              isAlertsPlan &&
               env.GOOGLE_ADS_CONVERSION_ID &&
               env.GOOGLE_ADS_CONVERSION_LABEL
             ) {
@@ -154,7 +176,13 @@ export const auth = betterAuth({
           onCustomerStateChanged: async (payload) => {
             const customerState = payload.data;
             const hasActiveSubscription =
-              customerState.activeSubscriptions.length > 0;
+              customerState.activeSubscriptions.some(
+                ({ productId }) => productId === env.POLAR_PRODUCT_ID,
+              );
+            const activeSubscriptionCount =
+              customerState.activeSubscriptions.filter(
+                ({ productId }) => productId === env.POLAR_PRODUCT_ID,
+              ).length;
 
             if (customerState.externalId) {
               posthog.capture({
@@ -162,8 +190,7 @@ export const auth = betterAuth({
                 event: "subscription_state_changed",
                 properties: {
                   has_active_subscription: hasActiveSubscription,
-                  active_subscription_count:
-                    customerState.activeSubscriptions.length,
+                  active_subscription_count: activeSubscriptionCount,
                 },
               });
             }

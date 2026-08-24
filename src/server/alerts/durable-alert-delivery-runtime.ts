@@ -1,5 +1,4 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { polarClient } from "~/lib/auth";
 import { db } from "~/lib/db";
 import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailDigest } from "~/lib/email";
@@ -15,6 +14,7 @@ import {
   claimEmailNotificationIntentGroup,
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
+import { polarBillingGateway } from "~/server/polar-billing-gateway";
 
 const DELIVERY_BATCH_SIZE = 20;
 const DELIVERY_LEASE_MS = 15 * 60 * 1000;
@@ -83,10 +83,7 @@ const operations: DurableAlertDeliveryOperations = {
   },
   parsePayload: parseNotificationIntentPayload,
   hasActiveSubscription: async (userId) => {
-    const state = await polarClient.customers.getStateExternal({
-      externalId: userId,
-    });
-    return state.activeSubscriptions.length > 0;
+    return polarBillingGateway.hasActiveSubscription(userId);
   },
   sendEmailDigest,
   sendDiscordAlert,
