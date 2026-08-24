@@ -26,6 +26,8 @@ export const user = sqliteTable("user", {
   locationZipCode: text("location_zip_code"),
   locationLat: real("location_lat"),
   locationLng: real("location_lng"),
+  termsAcceptedAt: integer("terms_accepted_at", { mode: "timestamp_ms" }),
+  termsVersion: text("terms_version"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),

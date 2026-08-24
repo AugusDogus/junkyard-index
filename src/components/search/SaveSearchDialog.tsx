@@ -27,7 +27,6 @@ import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { authClient } from "~/lib/auth-client";
 import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
@@ -185,20 +184,13 @@ export function SaveSearchDialog({
         toast.error(error.message, {
           action: {
             label: "Upgrade",
-            onClick: async () => {
+            onClick: () => {
               posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                 source_page: "search",
                 cta_location: "saved_search_limit_to_checkout",
                 is_logged_in: true,
               });
-              try {
-                await authClient.checkout({
-                  slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-                });
-              } catch (checkoutError) {
-                console.error("Failed to open checkout:", checkoutError);
-                toast.error("Failed to open checkout. Please try again.");
-              }
+              router.push("/subscribe");
             },
           },
         });
@@ -210,7 +202,7 @@ export function SaveSearchDialog({
         setOpen(true);
       }
     },
-    onSuccess: async (_data, variables) => {
+    onSuccess: (_data, variables) => {
       posthog.capture(AnalyticsEvents.SAVED_SEARCH_CREATED, {
         query,
         search_name: variables.name,
@@ -227,22 +219,7 @@ export function SaveSearchDialog({
         posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
           source: "save_search_dialog",
         });
-        try {
-          await authClient.checkout({
-            slug: MONETIZATION_CONFIG.CHECKOUT_SLUG,
-          });
-        } catch (error) {
-          console.error("Failed to redirect to checkout:", error);
-          toast.error(
-            "Failed to open checkout. Please try again from your saved searches.",
-          );
-          setIsRedirecting(false);
-          setOpen(false);
-          resetForm();
-          toast.success(
-            "Search saved! Enable notifications from your saved searches.",
-          );
-        }
+        router.push("/subscribe");
       } else {
         toast.success("Search saved!");
       }

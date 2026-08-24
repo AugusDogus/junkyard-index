@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, signUp } from "~/lib/auth-client";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Alert, AlertDescription } from "~/components/ui/alert";
@@ -24,6 +25,7 @@ export function SignUpForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDiscordLoading, setIsDiscordLoading] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,10 +149,34 @@ export function SignUpForm() {
         </Alert>
       )}
 
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id="legal-acceptance"
+          checked={hasAcceptedTerms}
+          onCheckedChange={(checked) => setHasAcceptedTerms(checked === true)}
+          disabled={isLoading || isDiscordLoading}
+          required
+        />
+        <Label
+          htmlFor="legal-acceptance"
+          className="text-muted-foreground leading-5 font-normal"
+        >
+          I agree to the{" "}
+          <Link href="/terms" className="text-primary hover:underline">
+            Terms of Service
+          </Link>{" "}
+          and acknowledge the{" "}
+          <Link href="/privacy" className="text-primary hover:underline">
+            Privacy Policy
+          </Link>
+          .
+        </Label>
+      </div>
+
       <Button
         type="submit"
         className="w-full"
-        disabled={isLoading || isDiscordLoading}
+        disabled={isLoading || isDiscordLoading || !hasAcceptedTerms}
       >
         {isLoading ? "Creating free account..." : "Create Free Account"}
       </Button>
@@ -171,7 +197,7 @@ export function SignUpForm() {
         variant="outline"
         className="w-full"
         onClick={handleDiscordSignUp}
-        disabled={isLoading || isDiscordLoading}
+        disabled={isLoading || isDiscordLoading || !hasAcceptedTerms}
       >
         <DiscordIcon className="mr-2 h-4 w-4" />
         {isDiscordLoading ? "Connecting..." : "Discord"}

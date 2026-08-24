@@ -21,17 +21,18 @@ export default function PrivacyPage() {
         </h1>
 
         <p className="text-muted-foreground mb-8">
-          Last updated: January 18, 2026
+          Last updated: August 24, 2026
         </p>
 
         <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
           <section>
             <h2 className="mb-4 text-2xl font-semibold">Overview</h2>
             <p className="text-muted-foreground">
-              Junkyard Index (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or
-              &ldquo;us&rdquo;) is committed to protecting your privacy. This
-              Privacy Policy explains how we collect, use, disclose, and
-              safeguard your information when you use our website and services.
+              Junkyard Index is operated by whisp labs LLC (&ldquo;we,&rdquo;
+              &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to
+              protecting your privacy. This Privacy Policy explains how we
+              collect, use, disclose, and safeguard your information when you
+              use our website and services.
             </p>
           </section>
 
@@ -48,8 +49,9 @@ export default function PrivacyPage() {
             </p>
             <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
               <li>Email address</li>
-              <li>Name (if provided)</li>
+              <li>Name</li>
               <li>Profile picture (if you sign in with a social provider)</li>
+              <li>The date and version of the Terms of Service you accepted</li>
             </ul>
 
             <h3 className="mt-4 mb-2 text-lg font-medium">
@@ -78,12 +80,26 @@ export default function PrivacyPage() {
             </p>
             <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
               <li>Search queries and saved searches</li>
+              <li>Alert settings and subscription status</li>
               <li>
-                IP address and approximate location (for distance calculations)
+                ZIP code or device-derived approximate location when you use
+                location features
               </li>
+              <li>IP address, request information, and approximate location</li>
               <li>Device and browser information</li>
               <li>Pages visited and actions taken</li>
+              <li>
+                Error, performance, and sampled session-replay information
+              </li>
             </ul>
+
+            <h3 className="mt-4 mb-2 text-lg font-medium">
+              Contact Information
+            </h3>
+            <p className="text-muted-foreground">
+              If you contact us, we collect your name, email address, message,
+              and any other information you choose to include.
+            </p>
           </section>
 
           <section>
@@ -102,6 +118,8 @@ export default function PrivacyPage() {
                 Calculate distances to salvage yards based on your location
               </li>
               <li>Improve our service and user experience</li>
+              <li>Measure use, diagnose errors, and protect the Service</li>
+              <li>Manage subscriptions and record acceptance of our Terms</li>
               <li>Respond to your inquiries and support requests</li>
               <li>Detect and prevent fraud or abuse</li>
             </ul>
@@ -131,12 +149,23 @@ export default function PrivacyPage() {
                 <strong>Turso</strong> - Database hosting
               </li>
               <li>
+                <strong>Algolia</strong> - Search indexing and search results
+              </li>
+              <li>
                 <strong>Resend</strong> - Email delivery for alerts and
                 notifications
               </li>
               <li>
+                <strong>PostHog</strong> - Product analytics and usage
+                measurement
+              </li>
+              <li>
                 <strong>Sentry</strong> - Error tracking and performance
-                monitoring
+                monitoring, including sampled session replay
+              </li>
+              <li>
+                <strong>Zippopotam.us</strong> - ZIP-code lookup when you save a
+                ZIP-based location preference
               </li>
             </ul>
             <p className="text-muted-foreground mt-4">
@@ -149,21 +178,24 @@ export default function PrivacyPage() {
             <h2 className="mb-4 text-2xl font-semibold">Data Retention</h2>
             <p className="text-muted-foreground">
               We retain your account information and saved searches for as long
-              as your account is active. If you delete your account, we will
-              delete your personal information within 30 days, except where we
-              are required to retain it for legal purposes.
+              as your account is active. When account deletion completes, we
+              delete active application account data, including saved searches
+              and alert settings. Polar and other providers may retain billing,
+              transaction, security, support, backup, or legal-compliance
+              records under their own policies or as required by law.
             </p>
           </section>
 
           <section>
             <h2 className="mb-4 text-2xl font-semibold">Your Rights</h2>
-            <p className="text-muted-foreground">You have the right to:</p>
+            <p className="text-muted-foreground">
+              Depending on where you live, you may have the right to:
+            </p>
             <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-6">
               <li>Access the personal information we hold about you</li>
               <li>Request correction of inaccurate information</li>
               <li>Delete your account and associated data</li>
               <li>Unsubscribe from email alerts at any time</li>
-              <li>Export your saved searches</li>
             </ul>
             <p className="text-muted-foreground mt-4">
               You can delete your account from the user menu in the application.
@@ -175,19 +207,33 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-4 text-2xl font-semibold">Cookies</h2>
             <p className="text-muted-foreground">
-              We use essential cookies to maintain your session and preferences.
-              We also use analytics cookies through Vercel Analytics to
-              understand how visitors use our site. These cookies do not track
-              you across other websites.
+              We use cookies and similar technologies, such as local storage, to
+              maintain sessions and preferences, measure usage through Vercel
+              Analytics and PostHog, and support Sentry error monitoring and
+              sampled session replay. Your browser can limit these technologies,
+              but doing so may prevent account or preference features from
+              working correctly.
             </p>
           </section>
 
           <section>
             <h2 className="mb-4 text-2xl font-semibold">Security</h2>
             <p className="text-muted-foreground">
-              We implement appropriate technical and organizational measures to
-              protect your personal information. All data is transmitted over
-              HTTPS, and sensitive information is encrypted at rest.
+              We use reasonable technical and organizational safeguards designed
+              to protect personal information, including HTTPS for data sent
+              between your browser and the Service. No storage or transmission
+              system is completely secure, so we cannot guarantee absolute
+              security.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-4 text-2xl font-semibold">Children</h2>
+            <p className="text-muted-foreground">
+              The Service is not directed to children under 13, and we do not
+              knowingly collect personal information from children under 13. If
+              you believe a child has provided personal information, contact us
+              so we can review and delete it.
             </p>
           </section>
 

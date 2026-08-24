@@ -15,6 +15,13 @@
       "when": 1787482115735,
       "tag": "0001_create_vehicle_change_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787589759439,
+      "tag": "0002_careful_pete_wisdom",
+      "breakpoints": true
     }
   ]
 }
