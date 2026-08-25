@@ -27,7 +27,11 @@ import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { PLANS, type SavedSearchGateFeature } from "~/lib/plans";
+import {
+  PLANS,
+  resolvePlanFeatureAccess,
+  type SavedSearchGateFeature,
+} from "~/lib/plans";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
@@ -123,7 +127,15 @@ export function SaveSearchDialog({
 
   const utils = api.useUtils();
 
-  const { canSaveSearches, canUseAlerts } = usePlanTier(!!isLoggedIn);
+  const planAccess = usePlanTier(!!isLoggedIn);
+  const canSaveSearches = resolvePlanFeatureAccess({
+    access: planAccess,
+    feature: "saved_searches",
+  });
+  const canUseAlerts = resolvePlanFeatureAccess({
+    access: planAccess,
+    feature: "alerts",
+  });
 
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery(undefined, {

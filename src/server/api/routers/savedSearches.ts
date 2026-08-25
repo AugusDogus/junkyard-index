@@ -11,11 +11,8 @@ import {
   type SavedSearchGateFeature,
 } from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import {
-  createTRPCRouter,
-  PlanGateError,
-  protectedProcedure,
-} from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { PlanGateError } from "~/server/plan-gate-error";
 import {
   currentSearchPublicationSequence,
   setSearchAlertChannel,

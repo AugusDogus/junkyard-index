@@ -24,7 +24,7 @@ const routeConfig: Record<
   "sign-up": {
     title: "Create your free account",
     description:
-      "See full results, save searches, and track inventory across salvage yard networks.",
+      "See full results and track inventory across salvage yard networks.",
     Form: SignUpForm,
   },
   "forgot-password": {

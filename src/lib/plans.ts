@@ -4,7 +4,8 @@
 
 export const PAID_PLAN_TIERS = ["lite", "full"] as const;
 export type PaidPlanTier = (typeof PAID_PLAN_TIERS)[number];
-export type PlanTier = "free" | PaidPlanTier;
+export const PLAN_TIERS = ["free", ...PAID_PLAN_TIERS] as const;
+export type PlanTier = (typeof PLAN_TIERS)[number];
 
 export const BILLING_INTERVALS = ["monthly", "annual"] as const;
 export type BillingInterval = (typeof BILLING_INTERVALS)[number];
@@ -35,6 +36,11 @@ export type PlanFeature =
   | "unlimited_searches"
   | "alerts";
 
+export type PlanAccessState =
+  | { kind: "loading" }
+  | { kind: "unavailable" }
+  | { kind: "resolved"; tier: PlanTier };
+
 interface PlanFeaturePolicy {
   minimumTier: PaidPlanTier;
   unresolvedAccess: "allow" | "deny";
@@ -54,15 +60,17 @@ export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
 }
 
 export function resolvePlanFeatureAccess(input: {
-  tier: PlanTier | null;
+  access: PlanAccessState;
   feature: PlanFeature;
 }): boolean {
-  if (input.tier !== null) return hasPlanFeature(input.tier, input.feature);
+  if (input.access.kind === "resolved") {
+    return hasPlanFeature(input.access.tier, input.feature);
+  }
   return PLAN_FEATURE_POLICIES[input.feature].unresolvedAccess === "allow";
 }
 
-export function shouldClearAdvancedFilters(tier: PlanTier | null): boolean {
-  return tier === "free";
+export function resolvedPlanTier(access: PlanAccessState): PlanTier | null {
+  return access.kind === "resolved" ? access.tier : null;
 }
 
 /**

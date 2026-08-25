@@ -9,7 +9,9 @@ import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
+import type { PlanAccessState } from "~/lib/plans";
 import { quotaViewerFromSessionUser } from "~/lib/quota-viewer";
+import { refreshPlanTier } from "~/server/billing/user-plan";
 
 export const metadata: Metadata = {
   title: "Search Salvage Yard Inventory",
@@ -41,6 +43,18 @@ export default async function SearchPage() {
       return undefined;
     }),
   ]);
+  const viewer = quotaViewerFromSessionUser(session?.user);
+  let initialPlanAccess: PlanAccessState = { kind: "resolved", tier: "free" };
+  if (viewer.kind === "authenticated") {
+    try {
+      initialPlanAccess = {
+        kind: "resolved",
+        tier: await refreshPlanTier(viewer.userId),
+      };
+    } catch {
+      initialPlanAccess = { kind: "unavailable" };
+    }
+  }
 
   return (
     <SearchVisibilityProvider>
@@ -50,7 +64,8 @@ export default async function SearchPage() {
           <ErrorBoundary>
             <Suspense>
               <SearchPageContent
-                viewer={quotaViewerFromSessionUser(session?.user)}
+                viewer={viewer}
+                initialPlanAccess={initialPlanAccess}
                 userLocation={geo}
               />
             </Suspense>

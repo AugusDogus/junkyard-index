@@ -92,6 +92,7 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
 export function createSearchRouting(
   indexName: string,
   vinPatternIndexReady: boolean,
+  allowAdvancedFilters: boolean = true,
 ) {
   return {
     router: {
@@ -120,23 +121,40 @@ export function createSearchRouting(
         if (state.query && !vinPattern) {
           params.set("q", String(state.query));
         }
-        if (Array.isArray(state.makes)) {
-          params.set("makes", state.makes.join(","));
+        if (allowAdvancedFilters) {
+          if (Array.isArray(state.makes)) {
+            params.set("makes", state.makes.join(","));
+          }
+          if (Array.isArray(state.colors)) {
+            params.set("colors", state.colors.join(","));
+          }
+          if (Array.isArray(state.states)) {
+            params.set("states", state.states.join(","));
+          }
+          if (Array.isArray(state.yards)) {
+            params.set("yards", state.yards.join(","));
+          }
+          if (Array.isArray(state.sources)) {
+            params.set("sources", state.sources.join(","));
+          }
+          if (state.minYear) params.set("minYear", String(state.minYear));
+          if (state.maxYear) params.set("maxYear", String(state.maxYear));
+        } else {
+          // Keep the URL recoverable while access is unavailable or locked,
+          // but never map these values into Algolia UI state.
+          for (const key of [
+            "makes",
+            "colors",
+            "states",
+            "yards",
+            "sources",
+            "minYear",
+            "maxYear",
+          ]) {
+            const value = locationParams.get(key);
+            if (value) params.set(key, value);
+          }
         }
-        if (Array.isArray(state.colors)) {
-          params.set("colors", state.colors.join(","));
-        }
-        if (Array.isArray(state.states)) {
-          params.set("states", state.states.join(","));
-        }
-        if (Array.isArray(state.yards)) {
-          params.set("yards", state.yards.join(","));
-        }
-        if (Array.isArray(state.sources)) {
-          params.set("sources", state.sources.join(","));
-        }
-        if (state.minYear) params.set("minYear", String(state.minYear));
-        if (state.maxYear) params.set("maxYear", String(state.maxYear));
         if (state.sort) params.set("sort", String(state.sort));
 
         const queryString = params.toString();
@@ -152,16 +170,18 @@ export function createSearchRouting(
           : null;
         if (query && !vinPattern) state.query = query;
 
-        for (const key of ["makes", "colors", "states", "yards", "sources"]) {
-          const value = params.get(key);
-          if (value) state[key] = value.split(",").filter(Boolean);
-        }
+        if (allowAdvancedFilters) {
+          for (const key of ["makes", "colors", "states", "yards", "sources"]) {
+            const value = params.get(key);
+            if (value) state[key] = value.split(",").filter(Boolean);
+          }
 
-        for (const key of ["minYear", "maxYear"]) {
-          const value = params.get(key);
-          if (!value) continue;
-          const parsed = Number.parseInt(value, 10);
-          if (!Number.isNaN(parsed)) state[key] = parsed;
+          for (const key of ["minYear", "maxYear"]) {
+            const value = params.get(key);
+            if (!value) continue;
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isNaN(parsed)) state[key] = parsed;
+          }
         }
 
         const sort = params.get("sort");
@@ -182,7 +202,7 @@ export function createSearchRouting(
         }
 
         const refinementList = indexState.refinementList;
-        if (isUnknownRecord(refinementList)) {
+        if (allowAdvancedFilters && isUnknownRecord(refinementList)) {
           const refinements = refinementList;
           if (Array.isArray(refinements.make) && refinements.make.length > 0) {
             state.makes = refinements.make;
@@ -214,7 +234,7 @@ export function createSearchRouting(
         }
 
         const range = indexState.range;
-        if (isUnknownRecord(range)) {
+        if (allowAdvancedFilters && isUnknownRecord(range)) {
           const year = range.year;
           if (typeof year === "string") {
             const [min, max] = year.split(":");
@@ -242,30 +262,32 @@ export function createSearchRouting(
           if (KNOWN_SORT_INDICES.has(mapped)) uiState.sortBy = mapped;
         }
 
-        const refinementList: Record<string, string[]> = {};
-        for (const [routeKey, refinementKey] of [
-          ["makes", "make"],
-          ["colors", "color"],
-          ["states", "state"],
-          ["yards", "locationName"],
-        ] as const) {
-          const values = state[routeKey];
-          if (Array.isArray(values)) {
-            refinementList[refinementKey] = values.filter(
-              (value): value is string => typeof value === "string",
-            );
+        if (allowAdvancedFilters) {
+          const refinementList: Record<string, string[]> = {};
+          for (const [routeKey, refinementKey] of [
+            ["makes", "make"],
+            ["colors", "color"],
+            ["states", "state"],
+            ["yards", "locationName"],
+          ] as const) {
+            const values = state[routeKey];
+            if (Array.isArray(values)) {
+              refinementList[refinementKey] = values.filter(
+                (value): value is string => typeof value === "string",
+              );
+            }
           }
-        }
-        const sources = sanitizeSearchSources(state.sources);
-        if (sources.length > 0) refinementList.source = sources;
-        if (Object.keys(refinementList).length > 0) {
-          uiState.refinementList = refinementList;
-        }
+          const sources = sanitizeSearchSources(state.sources);
+          if (sources.length > 0) refinementList.source = sources;
+          if (Object.keys(refinementList).length > 0) {
+            uiState.refinementList = refinementList;
+          }
 
-        if (state.minYear || state.maxYear) {
-          uiState.range = {
-            year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
-          };
+          if (state.minYear || state.maxYear) {
+            uiState.range = {
+              year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
+            };
+          }
         }
 
         return { [indexName]: uiState };

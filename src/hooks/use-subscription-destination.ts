@@ -13,17 +13,17 @@ export function useSubscriptionDestination(input: {
   enabled?: boolean;
 }) {
   const router = useRouter();
-  const customerState = api.subscription.getCustomerState.useQuery(undefined, {
-    enabled: input.enabled,
-  });
-  const state = customerState.data?.state;
-  const planTier = customerState.data?.tier ?? null;
-  const hasActiveSubscription = state === "active";
+  const accountOverview = api.subscription.getAccountOverview.useQuery(
+    undefined,
+    { enabled: input.enabled },
+  );
+  const overview = accountOverview.data;
+  const hasActiveSubscription = overview?.kind === "active";
   const hasManageableSubscription =
-    state === "active" || state === "needs_attention";
+    overview?.kind === "active" || overview?.kind === "needs_attention";
 
   const open = useCallback(async () => {
-    if (!state) {
+    if (!overview || overview.kind === "unrecognized") {
       toast.error(
         "We could not verify your subscription status. Please try again.",
       );
@@ -58,15 +58,15 @@ export function useSubscriptionDestination(input: {
       toast.error("Failed to open subscription portal. Please try again.");
       return false;
     }
-  }, [hasManageableSubscription, input.source, router, state]);
+  }, [hasManageableSubscription, input.source, overview, router]);
 
   return {
     hasActiveSubscription,
     hasManageableSubscription,
-    planTier,
-    isError: customerState.isError,
-    isLoading: customerState.isLoading,
+    planTier: overview?.kind === "active" ? overview.tier : null,
+    isError: accountOverview.isError || overview?.kind === "unrecognized",
+    isLoading: accountOverview.isLoading,
     open,
-    retry: customerState.refetch,
+    retry: accountOverview.refetch,
   };
 }
