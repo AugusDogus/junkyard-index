@@ -12,7 +12,7 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "civic",
     });
-    expect(creatingGuest.activity).toEqual({
+    expect(creatingGuest.phase).toEqual({
       kind: "creating_guest",
       query: "civic",
     });
@@ -27,7 +27,7 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "civic",
     });
-    expect(recording.activity).toEqual({
+    expect(recording.phase).toEqual({
       kind: "recording",
       userId: "guest-1",
       query: "civic",
@@ -42,7 +42,9 @@ describe("quota lifecycle", () => {
     const failed = transitionQuotaLifecycle(creatingGuest, {
       type: "guest_creation_failed",
     });
-    expect(failed.status).toBe("verification_unavailable");
+    expect(quotaStatusForQuery(failed, "civic")).toBe(
+      "verification_unavailable",
+    );
 
     expect(
       transitionQuotaLifecycle(failed, {
@@ -54,11 +56,11 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "accord",
     });
-    expect(retrying.activity).toEqual({
+    expect(retrying.phase).toEqual({
       kind: "creating_guest",
       query: "accord",
     });
-    expect(retrying.status).toBe("verifying");
+    expect(quotaStatusForQuery(retrying, "accord")).toBe("verifying");
   });
 
   test("fails closed when recording cannot be verified", () => {
@@ -78,7 +80,9 @@ describe("quota lifecycle", () => {
       query: "civic",
     });
 
-    expect(failed.status).toBe("verification_unavailable");
+    expect(quotaStatusForQuery(failed, "civic")).toBe(
+      "verification_unavailable",
+    );
     expect(
       transitionQuotaLifecycle(failed, {
         type: "search_ready",
@@ -90,8 +94,8 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "accord",
     });
-    expect(nextSearch.status).toBe("verifying");
-    expect(nextSearch.activity).toEqual({
+    expect(quotaStatusForQuery(nextSearch, "accord")).toBe("verifying");
+    expect(nextSearch.phase).toEqual({
       kind: "recording",
       userId: "user-1",
       query: "accord",
@@ -143,7 +147,6 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "civic",
     });
-    expect(recording.status).toBe("verifying");
     expect(quotaStatusForQuery(recording, "civic")).toBe("verifying");
 
     const recorded = transitionQuotaLifecycle(recording, {
@@ -167,19 +170,68 @@ describe("quota lifecycle", () => {
         day: "2026-08-24",
       },
     });
-    expect(blocked.status).toBe("limit_exceeded");
+    expect(quotaStatusForQuery(blocked, "civic")).toBe("limit_exceeded");
     expect(
-      transitionQuotaLifecycle(blocked, { type: "paid_tier_resolved" }).status,
+      quotaStatusForQuery(
+        transitionQuotaLifecycle(blocked, { type: "paid_tier_resolved" }),
+        "civic",
+      ),
     ).toBe("allowed");
 
     const unavailable = {
       ...blocked,
-      status: "verification_unavailable" as const,
+      phase: {
+        kind: "record_failed" as const,
+        userId: "user-1",
+        query: "civic",
+      },
     };
     expect(
-      transitionQuotaLifecycle(unavailable, { type: "paid_tier_resolved" })
-        .status,
+      quotaStatusForQuery(
+        transitionQuotaLifecycle(unavailable, {
+          type: "paid_tier_resolved",
+        }),
+        "civic",
+      ),
     ).toBe("allowed");
+  });
+
+  test("ignores late quota results after paid access resolves", () => {
+    const resolved = transitionQuotaLifecycle(initialQuotaLifecycleState, {
+      type: "viewer_resolved",
+      userId: "user-1",
+      currentQuery: "",
+      stored: null,
+    });
+    const recording = transitionQuotaLifecycle(resolved, {
+      type: "search_ready",
+      query: "civic",
+    });
+    const exempt = transitionQuotaLifecycle(recording, {
+      type: "paid_tier_resolved",
+    });
+
+    expect(
+      transitionQuotaLifecycle(exempt, {
+        type: "record_succeeded",
+        userId: "user-1",
+        query: "civic",
+        allowed: false,
+      }),
+    ).toEqual(exempt);
+    expect(
+      transitionQuotaLifecycle(exempt, {
+        type: "record_failed",
+        userId: "user-1",
+        query: "civic",
+      }),
+    ).toEqual(exempt);
+    expect(quotaStatusForQuery(exempt, "civic")).toBe("allowed");
+
+    const downgraded = transitionQuotaLifecycle(exempt, {
+      type: "free_tier_resolved",
+    });
+    expect(quotaStatusForQuery(downgraded, "civic")).toBe("verifying");
   });
 
   test("ignores stale, malformed, and cross-account storage", () => {

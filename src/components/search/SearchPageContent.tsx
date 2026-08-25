@@ -91,12 +91,10 @@ import { getSearchCapabilityPollInterval } from "~/lib/search-capability-polling
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
-import {
-  SearchQuotaOverlay,
-  useSearchQuotaGate,
-  usePlanTier,
-} from "~/components/plan-gates";
+import { SearchQuotaOverlay } from "~/components/search/SearchQuotaOverlay";
 import { useCheckoutConfirmation } from "~/hooks/use-checkout-confirmation";
+import { useSearchQuotaGate } from "~/hooks/use-daily-search-quota";
+import { usePlanAccess } from "~/hooks/use-plan-access";
 import { api } from "~/trpc/react";
 
 function clampRouteYear(
@@ -1298,6 +1296,7 @@ function AlgoliaSearchInner({
                     <SaveSearchDialog
                       query={query}
                       filters={currentSaveSearchFilters}
+                      planAccess={planAccess}
                       disabled={!hasActiveSearch}
                       isLoggedIn={isLoggedIn}
                       autoOpen={autoOpenSaveDialog}
@@ -1309,6 +1308,7 @@ function AlgoliaSearchInner({
                 ) : (
                   <MorphingFilterBar
                     query={query}
+                    planAccess={planAccess}
                     sortBy={sortBy}
                     onSortChange={handleSortChange}
                     activeFilterCount={activeFilterCount}
@@ -1473,6 +1473,7 @@ function AlgoliaSearchInner({
                     <SaveSearchDialog
                       query={query}
                       filters={currentSaveSearchFilters}
+                      planAccess={planAccess}
                       disabled={!hasActiveSearch}
                       isLoggedIn={isLoggedIn}
                     />
@@ -1547,7 +1548,7 @@ export function SearchPageContent({
       searchParams.has("customer_session_token"),
   );
   const isLoggedIn = viewer.kind === "authenticated";
-  const planAccess = usePlanTier(isLoggedIn, {
+  const planAccess = usePlanAccess(isLoggedIn, {
     initialAccess: initialPlanAccess,
     refreshUntilPaid,
   });

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { useIsMediumScreen } from "~/hooks/use-media-query";
+import type { PlanAccessState } from "~/lib/plans";
 import { SavedSearchesDropdown } from "./SavedSearchesDropdown";
 import { SaveSearchDialog } from "./SaveSearchDialog";
 
@@ -35,6 +36,7 @@ interface MorphingFilterBarProps {
     maxYear: number;
     sortBy: string;
   };
+  planAccess: PlanAccessState;
   autoOpenSaveDialog?: boolean;
   onAutoOpenHandled?: () => void;
   disabled?: boolean;
@@ -53,6 +55,7 @@ export const MorphingFilterBar = forwardRef<
     onToggleFilters,
     isLoggedIn,
     filters,
+    planAccess,
     autoOpenSaveDialog,
     onAutoOpenHandled,
     disabled,
@@ -174,6 +177,7 @@ export const MorphingFilterBar = forwardRef<
       <SaveSearchDialog
         query={query}
         filters={filters}
+        planAccess={planAccess}
         disabled={disabled}
         isLoggedIn={isLoggedIn}
         autoOpen={autoOpenSaveDialog}

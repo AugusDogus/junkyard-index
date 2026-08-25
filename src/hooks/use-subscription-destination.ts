@@ -1,42 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { toast } from "sonner";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { authClient } from "~/lib/auth-client";
-import type { PaidPlanTier } from "~/lib/plans";
-import { api } from "~/trpc/react";
+import { useBillingAccount } from "~/hooks/use-billing-account";
 import posthog from "posthog-js";
-
-export type SubscriptionDestinationState =
-  | { kind: "loading" }
-  | { kind: "unavailable" }
-  | { kind: "none" }
-  | { kind: "active"; tier: PaidPlanTier }
-  | { kind: "needs_attention" };
 
 export function useSubscriptionDestination(input: {
   source: string;
   enabled?: boolean;
 }) {
   const router = useRouter();
-  const accountOverview = api.subscription.getAccountOverview.useQuery(
-    undefined,
-    { enabled: input.enabled },
-  );
-  const overview = accountOverview.data;
-  const state = useMemo<SubscriptionDestinationState>(() => {
-    if (accountOverview.isLoading) return { kind: "loading" };
-    if (
-      accountOverview.isError ||
-      !overview ||
-      overview.kind === "unrecognized"
-    ) {
-      return { kind: "unavailable" };
-    }
-    return overview;
-  }, [accountOverview.isError, accountOverview.isLoading, overview]);
+  const { state, retry } = useBillingAccount({ enabled: input.enabled });
 
   const open = useCallback(async () => {
     if (state.kind === "loading" || state.kind === "unavailable") {
@@ -79,6 +56,6 @@ export function useSubscriptionDestination(input: {
   return {
     state,
     open,
-    retry: accountOverview.refetch,
+    retry,
   };
 }

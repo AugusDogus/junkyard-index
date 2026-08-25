@@ -66,6 +66,9 @@ export function useDailySearchQuota(
   );
   const guestRequestActive = useRef(false);
   const recordRequestActive = useRef<string | null>(null);
+  const quotaApplies = args.planTier === null || args.planTier === "free";
+  const quotaAppliesRef = useRef(quotaApplies);
+  quotaAppliesRef.current = quotaApplies;
   const recordSearchMutation = api.usage.recordSearch.useMutation();
   const { data: authSession, isPending: isSessionPending } = useSession();
   const viewer = resolveQuotaViewer(
@@ -86,10 +89,10 @@ export function useDailySearchQuota(
   }, [viewerUserId, args.analyticsSearchValue]);
 
   useEffect(() => {
-    if (args.planTier !== null && args.planTier !== "free") {
-      dispatch({ type: "paid_tier_resolved" });
-    }
-  }, [args.planTier]);
+    dispatch({
+      type: quotaApplies ? "free_tier_resolved" : "paid_tier_resolved",
+    });
+  }, [quotaApplies]);
 
   useEffect(() => {
     if (args.planTier !== null && args.planTier !== "free") return;
@@ -101,11 +104,11 @@ export function useDailySearchQuota(
     args.hasError,
     args.planTier,
     state.userId,
-    state.activity.kind,
+    state.phase.kind,
   ]);
 
   useEffect(() => {
-    if (state.activity.kind !== "creating_guest") return;
+    if (state.phase.kind !== "creating_guest") return;
     if (guestRequestActive.current) return;
     guestRequestActive.current = true;
     void establishAnonymousQuotaSession(() => signIn.anonymous())
@@ -115,16 +118,17 @@ export function useDailySearchQuota(
       .finally(() => {
         guestRequestActive.current = false;
       });
-  }, [state.activity]);
+  }, [state.phase]);
 
   useEffect(() => {
-    if (state.activity.kind !== "recording") return;
-    const { userId, query } = state.activity;
+    if (state.phase.kind !== "recording") return;
+    const { userId, query } = state.phase;
     const requestKey = JSON.stringify([userId, query]);
     if (recordRequestActive.current === requestKey) return;
     recordRequestActive.current = requestKey;
     recordSearchMutation.mutate(undefined, {
       onSuccess: ({ allowed }) => {
+        if (!quotaAppliesRef.current) return;
         dispatch({ type: "record_succeeded", userId, query, allowed });
         writeStoredRecord({
           userId,
@@ -133,14 +137,18 @@ export function useDailySearchQuota(
           day: currentUtcDay(),
         });
       },
-      onError: () => dispatch({ type: "record_failed", userId, query }),
+      onError: () => {
+        if (quotaAppliesRef.current) {
+          dispatch({ type: "record_failed", userId, query });
+        }
+      },
       onSettled: () => {
         if (recordRequestActive.current === requestKey) {
           recordRequestActive.current = null;
         }
       },
     });
-  }, [state.activity, recordSearchMutation]);
+  }, [state.phase, recordSearchMutation]);
 
   return quotaStatusForQuery(state, args.analyticsSearchValue);
 }
