@@ -3,11 +3,11 @@ import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
+import { PLANS } from "~/lib/plans";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description:
-    "Search salvage yard inventory free, upgrade to Lite ($3/mo) for filters and saved searches, or Full ($7/mo) for email and Discord alerts on new matches.",
+  description: `Search salvage yard inventory free, upgrade to Lite ($${PLANS.lite.monthlyPrice}/mo) for filters and saved searches, or Full ($${PLANS.full.monthlyPrice}/mo) for email and Discord alerts on new matches.`,
   alternates: {
     canonical: "/pricing",
   },
@@ -21,9 +21,7 @@ export default function PricingPage() {
       <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-muted-foreground text-sm font-medium">
-              Pricing
-            </p>
+            <p className="text-muted-foreground text-sm font-medium">Pricing</p>
             <h1 className="mt-3 text-4xl font-bold tracking-tight text-balance sm:text-5xl">
               Search free. Upgrade when you want inventory tracked for you.
             </h1>

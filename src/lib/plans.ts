@@ -38,8 +38,22 @@ export type PlanFeature =
 
 export type PlanAccessState =
   | { kind: "loading" }
-  | { kind: "unavailable" }
+  | {
+      kind: "unavailable";
+      reason: "lookup_failed" | "confirmation_timeout";
+    }
   | { kind: "resolved"; tier: PlanTier };
+
+export const CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS = 30_000;
+
+export function checkoutTierConfirmationStatus(input: {
+  tier: PlanTier | null;
+  nowMs: number;
+  deadlineMs: number;
+}): "poll" | "confirmed" | "timed_out" {
+  if (input.tier === "lite" || input.tier === "full") return "confirmed";
+  return input.nowMs >= input.deadlineMs ? "timed_out" : "poll";
+}
 
 interface PlanFeaturePolicy {
   minimumTier: PaidPlanTier;

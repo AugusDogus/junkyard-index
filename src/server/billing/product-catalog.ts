@@ -1,9 +1,5 @@
-import {
-  BILLING_INTERVALS,
-  PAID_PLAN_TIERS,
-  type BillingInterval,
-  type PaidPlanTier,
-} from "~/lib/plans";
+import type { BillingInterval, PaidPlanTier } from "~/lib/plans";
+import type { EntitlementProduct } from "~/server/billing/plan-tier";
 
 export type BillingProductKey = `${PaidPlanTier}_${BillingInterval}`;
 
@@ -21,30 +17,40 @@ export type BillingProduct =
 
 export type BillingProductIds = Record<BillingProductKey, string>;
 
+export interface BillingProductCatalog {
+  checkoutProducts: Readonly<Record<BillingProductKey, CheckoutBillingProduct>>;
+  allProducts: readonly BillingProduct[];
+  entitlementProducts: readonly EntitlementProduct[];
+  productById: ReadonlyMap<string, BillingProduct>;
+}
+
+function checkoutProduct(
+  ids: BillingProductIds,
+  tier: PaidPlanTier,
+  interval: BillingInterval,
+): CheckoutBillingProduct {
+  const key = getBillingProductKey(tier, interval);
+  return { kind: "checkout", key, tier, interval, productId: ids[key] };
+}
+
 export function createBillingProductCatalog(input: {
   checkoutProductIds: BillingProductIds;
   legacyProductId?: string;
-}): readonly BillingProduct[] {
-  const checkoutProducts = PAID_PLAN_TIERS.flatMap((tier) =>
-    BILLING_INTERVALS.map((interval) => {
-      const key = getBillingProductKey(tier, interval);
-      return {
-        kind: "checkout" as const,
-        key,
-        tier,
-        interval,
-        productId: input.checkoutProductIds[key],
-      };
-    }),
-  );
-  const catalog: readonly BillingProduct[] = [
-    ...checkoutProducts,
+}): BillingProductCatalog {
+  const checkoutProducts: Record<BillingProductKey, CheckoutBillingProduct> = {
+    lite_monthly: checkoutProduct(input.checkoutProductIds, "lite", "monthly"),
+    lite_annual: checkoutProduct(input.checkoutProductIds, "lite", "annual"),
+    full_monthly: checkoutProduct(input.checkoutProductIds, "full", "monthly"),
+    full_annual: checkoutProduct(input.checkoutProductIds, "full", "annual"),
+  };
+  const allProducts: readonly BillingProduct[] = [
+    ...Object.values(checkoutProducts),
     ...(input.legacyProductId
       ? [{ kind: "legacy" as const, productId: input.legacyProductId }]
       : []),
   ];
   const seenProductIds = new Set<string>();
-  for (const product of catalog) {
+  for (const product of allProducts) {
     if (seenProductIds.has(product.productId)) {
       throw new Error(
         `Billing product ID ${product.productId} is configured more than once. Each checkout and legacy product must use a unique ID.`,
@@ -52,15 +58,17 @@ export function createBillingProductCatalog(input: {
     }
     seenProductIds.add(product.productId);
   }
-  return catalog;
-}
-
-export function getCheckoutBillingProducts(
-  catalog: readonly BillingProduct[],
-): readonly CheckoutBillingProduct[] {
-  return catalog.filter(
-    (product): product is CheckoutBillingProduct => product.kind === "checkout",
-  );
+  return {
+    checkoutProducts,
+    allProducts,
+    entitlementProducts: allProducts.map((product) => ({
+      productId: product.productId,
+      tier: product.kind === "legacy" ? "full" : product.tier,
+    })),
+    productById: new Map(
+      allProducts.map((product) => [product.productId, product]),
+    ),
+  };
 }
 
 export function getBillingProductKey(
@@ -68,8 +76,4 @@ export function getBillingProductKey(
   interval: BillingInterval,
 ): BillingProductKey {
   return `${tier}_${interval}`;
-}
-
-export function getBillingProductTier(product: BillingProduct): PaidPlanTier {
-  return product.kind === "legacy" ? "full" : product.tier;
 }

@@ -41,6 +41,7 @@ describe("quota lifecycle", () => {
     const failed = transitionQuotaLifecycle(creatingGuest, {
       type: "guest_creation_failed",
     });
+    expect(failed.quotaVerificationFailed).toBe(true);
 
     expect(
       transitionQuotaLifecycle(failed, {
@@ -48,12 +49,52 @@ describe("quota lifecycle", () => {
         query: "civic",
       }),
     ).toEqual(failed);
+    const retrying = transitionQuotaLifecycle(failed, {
+      type: "search_ready",
+      query: "accord",
+    });
+    expect(retrying.activity).toEqual({
+      kind: "creating_guest",
+      query: "accord",
+    });
+    expect(retrying.quotaVerificationFailed).toBe(false);
+  });
+
+  test("fails closed when recording cannot be verified", () => {
+    const resolved = transitionQuotaLifecycle(initialQuotaLifecycleState, {
+      type: "viewer_resolved",
+      userId: "user-1",
+      currentQuery: "civic",
+      stored: null,
+    });
+    const recording = transitionQuotaLifecycle(resolved, {
+      type: "search_ready",
+      query: "civic",
+    });
+    const failed = transitionQuotaLifecycle(recording, {
+      type: "record_failed",
+      userId: "user-1",
+      query: "civic",
+    });
+
+    expect(failed.quotaVerificationFailed).toBe(true);
     expect(
       transitionQuotaLifecycle(failed, {
         type: "search_ready",
-        query: "accord",
-      }).activity,
-    ).toEqual({ kind: "creating_guest", query: "accord" });
+        query: "civic",
+      }),
+    ).toEqual(failed);
+
+    const nextSearch = transitionQuotaLifecycle(failed, {
+      type: "search_ready",
+      query: "accord",
+    });
+    expect(nextSearch.quotaVerificationFailed).toBe(false);
+    expect(nextSearch.activity).toEqual({
+      kind: "recording",
+      userId: "user-1",
+      query: "accord",
+    });
   });
 
   test("does not recount the current query after an account identity change", () => {
@@ -103,6 +144,15 @@ describe("quota lifecycle", () => {
     expect(
       transitionQuotaLifecycle(blocked, { type: "paid_tier_resolved" })
         .quotaExceeded,
+    ).toBe(false);
+
+    const unavailable = {
+      ...blocked,
+      quotaVerificationFailed: true,
+    };
+    expect(
+      transitionQuotaLifecycle(unavailable, { type: "paid_tier_resolved" })
+        .quotaVerificationFailed,
     ).toBe(false);
   });
 

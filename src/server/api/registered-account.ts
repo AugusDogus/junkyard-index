@@ -3,9 +3,13 @@ import { isGuestSession } from "~/lib/session-user";
 
 type AccountLike = { isAnonymous?: boolean | null };
 
+export type RegisteredAccount<T extends AccountLike> = T & {
+  isAnonymous?: false | null;
+};
+
 export function requireRegisteredAccount<T extends AccountLike>(
   user: T | null | undefined,
-): asserts user is T {
+): asserts user is RegisteredAccount<T> {
   if (!user || isGuestSession(user)) {
     throw new TRPCError({
       code: "UNAUTHORIZED",

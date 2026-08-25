@@ -154,7 +154,12 @@ export const protectedProcedure = t.procedure
 
 const enforceUserIsRegistered = t.middleware(async ({ ctx, next }) => {
   requireRegisteredAccount(ctx.user);
-  return next();
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+    },
+  });
 });
 
 /** Requires a non-anonymous account. Use for billing and account settings. */

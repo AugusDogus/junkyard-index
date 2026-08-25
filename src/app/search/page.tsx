@@ -52,7 +52,7 @@ export default async function SearchPage() {
         tier: await refreshPlanTier(viewer.userId),
       };
     } catch {
-      initialPlanAccess = { kind: "unavailable" };
+      initialPlanAccess = { kind: "unavailable", reason: "lookup_failed" };
     }
   }
 

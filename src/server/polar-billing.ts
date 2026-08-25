@@ -5,11 +5,7 @@ import {
   BillingSubscription,
   type BillingSubscription as DomainBillingSubscription,
 } from "~/server/billing";
-import {
-  getBillingProductTier,
-  getCheckoutBillingProducts,
-  type BillingProduct,
-} from "~/server/billing/product-catalog";
+import type { BillingProductCatalog } from "~/server/billing/product-catalog";
 import { resolvePlanTierFromCustomerState } from "~/server/billing/plan-tier";
 
 type PolarPage<T> = {
@@ -108,15 +104,11 @@ function normalizeOutstandingCheckout(
 export function createPolarBillingGateway(
   operations: PolarBillingOperations,
   config: {
-    catalog: readonly BillingProduct[];
+    catalog: BillingProductCatalog;
     appUrl: string;
   },
 ): AccountBillingGateway {
-  const checkoutProducts = getCheckoutBillingProducts(config.catalog);
-  const entitlementProducts = config.catalog.map((product) => ({
-    productId: product.productId,
-    tier: getBillingProductTier(product),
-  }));
+  const { checkoutProducts, entitlementProducts, productById } = config.catalog;
   const listSubscriptions = async (
     userId: string,
   ): Promise<readonly DomainBillingSubscription[]> => {
@@ -142,18 +134,16 @@ export function createPolarBillingGateway(
         status: ["open", "confirmed"],
         limit: 100,
       });
-      const productKeys = new Map(
-        checkoutProducts.map(({ key, productId }) => [productId, key]),
-      );
       const checkouts: PolarCheckout[] = [];
       for await (const page of pages) checkouts.push(...page.result.items);
 
       return checkouts.flatMap((checkout) => {
+        const product = checkout.productId
+          ? productById.get(checkout.productId)
+          : undefined;
         const normalized = normalizeOutstandingCheckout(
           checkout,
-          checkout.productId
-            ? (productKeys.get(checkout.productId) ?? null)
-            : null,
+          product?.kind === "checkout" ? product.key : null,
         );
         return normalized ? [normalized] : [];
       });
@@ -187,9 +177,7 @@ export function createPolarBillingGateway(
       termsVersion,
       termsAcceptedAt,
     }) => {
-      const product = checkoutProducts.find(({ key }) => key === productKey);
-      if (!product)
-        throw new Error(`Billing product ${productKey} is not configured.`);
+      const product = checkoutProducts[productKey];
       const checkout = await operations.createCheckout({
         externalCustomerId: userId,
         products: [product.productId],

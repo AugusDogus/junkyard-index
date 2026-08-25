@@ -35,10 +35,13 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
   // Use session user if available (for real-time updates), otherwise fall back to initial user
   const user = session?.user ?? initialUser;
 
-  const { hasManageableSubscription, open: openSubscriptionDestination } =
+  const { state: subscriptionState, open: openSubscriptionDestination } =
     useSubscriptionDestination({
       source: "user_menu",
     });
+  const hasManageableSubscription =
+    subscriptionState.kind === "active" ||
+    subscriptionState.kind === "needs_attention";
 
   if (!user) {
     return null;
