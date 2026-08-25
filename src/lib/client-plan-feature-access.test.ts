@@ -26,7 +26,7 @@ describe("resolveClientPlanFeatureAccess", () => {
     ).toBe(true);
     expect(
       resolveClientPlanFeatureAccess({
-        access: { kind: "loading" },
+        access: { kind: "unavailable", reason: "lookup_failed" },
         feature: "alerts",
       }),
     ).toBe(true);
