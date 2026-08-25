@@ -70,8 +70,7 @@ export const yardRequestsRouter = createTRPCRouter({
       await sendYardRequestNotification({
         yardName: input.yardName,
         website: input.website ?? null,
-        requesterEmail: input.requesterEmail ?? null,
-        accountEmail: ctx.user?.email ?? null,
+        followUpEmail: input.requesterEmail ?? null,
       });
 
       return { id };

@@ -233,7 +233,7 @@ export const yardRequest = sqliteTable(
   {
     id: text("id").primaryKey(),
     userId: text("user_id").references(() => user.id, {
-      onDelete: "set null",
+      onDelete: "cascade",
     }),
     yardName: text("yard_name").notNull(),
     website: text("website"),

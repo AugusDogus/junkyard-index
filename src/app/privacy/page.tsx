@@ -93,9 +93,11 @@ export default function PrivacyPage() {
             If you submit a yard request, we collect the yard name you provide,
             plus an optional website address and follow-up email. We also
             process your IP address to rate-limit submissions and prevent abuse
-            of this form. Requests are retained while we evaluate adding the
-            suggested yard; follow-up emails are used only to contact you about
-            your request if you provided one.
+            of this form. If you are signed in, the request is linked to your
+            account and is deleted when you delete that account. We retain
+            anonymous requests while they remain useful for evaluating and
+            maintaining yard coverage; you may contact us to request deletion. A
+            follow-up email is used only when you provide one.
           </p>
         </section>
 
