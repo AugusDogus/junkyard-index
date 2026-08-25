@@ -5,8 +5,9 @@ import {
 } from "./pricing-plan-cta";
 
 describe("pricing plan CTA", () => {
-  test("keeps every CTA disabled while authentication is pending", () => {
+  test("uses the signed-out server state while authentication is pending", () => {
     const viewer = resolvePricingViewerState({
+      initialIsRegistered: false,
       isPending: true,
       isRegistered: false,
     });
@@ -17,7 +18,21 @@ describe("pricing plan CTA", () => {
         interval: "monthly",
         account: { kind: "loading" },
       }),
-    ).toEqual({ kind: "disabled", label: "Checking account..." });
+    ).toEqual({
+      kind: "signup",
+      href: "/auth/sign-up?returnTo=%2Fpricing",
+      label: "Get Full",
+    });
+  });
+
+  test("uses the signed-in server state while authentication is pending", () => {
+    expect(
+      resolvePricingViewerState({
+        initialIsRegistered: true,
+        isPending: true,
+        isRegistered: false,
+      }),
+    ).toEqual({ kind: "registered" });
   });
 
   test("shows a registered free account as the current plan", () => {
