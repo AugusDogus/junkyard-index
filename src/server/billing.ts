@@ -1,7 +1,8 @@
-import type { PaidPlanTier } from "~/lib/plans";
+import type { BillingAccountOverview } from "~/lib/billing-account";
 import type { BillingProductKey } from "~/server/billing/product-catalog";
 
 export type { BillingProductKey } from "~/server/billing/product-catalog";
+export type { BillingAccountOverview } from "~/lib/billing-account";
 
 export type BillingSubscription =
   | { id: string; state: "charge_capable" }
@@ -40,12 +41,6 @@ export const BillingCheckout = {
     return checkout.state === "confirmation_pending";
   },
 } as const;
-
-export type BillingAccountOverview =
-  | { kind: "none" }
-  | { kind: "active"; tier: PaidPlanTier }
-  | { kind: "needs_attention" }
-  | { kind: "unrecognized" };
 
 export type BillingSubscriptionReader = {
   listSubscriptions(userId: string): Promise<readonly BillingSubscription[]>;

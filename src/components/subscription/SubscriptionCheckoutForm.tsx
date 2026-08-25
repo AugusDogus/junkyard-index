@@ -110,7 +110,12 @@ export function SubscriptionCheckoutForm() {
         <CardContent>
           <Button
             className="w-full"
-            onClick={() => void openSubscriptionDestination()}
+            onClick={() =>
+              void openSubscriptionDestination({
+                kind: "upgrade",
+                selection: { tier, interval },
+              })
+            }
           >
             Manage Subscription
           </Button>

@@ -128,3 +128,41 @@ export function setUserAlertChannel(params: {
     enabled: params.enabled,
   });
 }
+
+export async function disableUserAlertChannels(params: {
+  database: LibSQLDatabase;
+  userId: string;
+}): Promise<string[]> {
+  const matchingSearchIds = params.database
+    .select({ id: savedSearch.id })
+    .from(savedSearch)
+    .where(eq(savedSearch.userId, params.userId));
+  const [updated] = await params.database.batch([
+    params.database
+      .update(savedSearch)
+      .set({
+        emailAlertsEnabled: false,
+        discordAlertsEnabled: false,
+        emailConfigVersion: sql`${savedSearch.emailConfigVersion} + 1`,
+        discordConfigVersion: sql`${savedSearch.discordConfigVersion} + 1`,
+      })
+      .where(eq(savedSearch.userId, params.userId))
+      .returning({ id: savedSearch.id }),
+    params.database
+      .update(searchNotificationIntent)
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        claimToken: null,
+      })
+      .where(
+        and(
+          inArray(searchNotificationIntent.savedSearchId, matchingSearchIds),
+          inArray(searchNotificationIntent.channel, ["email", "discord"]),
+          sql`${searchNotificationIntent.deliveredAt} is null`,
+          sql`${searchNotificationIntent.cancelledAt} is null`,
+        ),
+      ),
+  ]);
+  return updated.map(({ id }) => id);
+}

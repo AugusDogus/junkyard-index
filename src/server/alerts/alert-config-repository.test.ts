@@ -4,7 +4,10 @@ import { drizzle } from "drizzle-orm/libsql";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { setSearchAlertChannel } from "./alert-config-repository";
+import {
+  disableUserAlertChannels,
+  setSearchAlertChannel,
+} from "./alert-config-repository";
 
 const TEST_SCHEMA = `
   create table user (id text primary key);
@@ -80,6 +83,52 @@ describe("alert configuration versions", () => {
       expect(intents.rows[0]?.status).toBe("pending");
       expect(intents.rows[1]?.id).toBe("email-1");
       expect(intents.rows[1]?.status).toBe("cancelled");
+    } finally {
+      client.close();
+      rmSync(directory, { recursive: true });
+    }
+  });
+
+  test("disabling a user's alerts updates both channels and intents atomically", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "alert-config-test-"));
+    const client = createClient({ url: `file:${join(directory, "test.db")}` });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      await client.executeMultiple(`
+        insert into user (id) values ('user-1');
+        insert into ingestion_run (id, publication_sequence) values ('run-1', 4);
+        insert into saved_search (
+          id, user_id, name, query, filters, email_alerts_enabled,
+          discord_alerts_enabled, created_at, updated_at
+        ) values ('search-1', 'user-1', 'Search', 'ford', '{}', 1, 1, 1, 1);
+        insert into search_notification_intent (
+          id, run_id, publication_sequence, saved_search_id, user_id, channel,
+          search_match_version, channel_config_version, payload, status,
+          attempts, created_at
+        ) values
+          ('email-1', 'run-1', 4, 'search-1', 'user-1', 'email', 1, 1, '{}', 'pending', 0, 1),
+          ('discord-1', 'run-1', 4, 'search-1', 'user-1', 'discord', 1, 1, '{}', 'pending', 0, 1);
+      `);
+      const database = drizzle(client);
+
+      expect(
+        await disableUserAlertChannels({ database, userId: "user-1" }),
+      ).toEqual(["search-1"]);
+
+      const search = await client.execute(
+        "select email_alerts_enabled, discord_alerts_enabled, email_config_version, discord_config_version from saved_search",
+      );
+      expect(search.rows[0]?.email_alerts_enabled).toBe(0);
+      expect(search.rows[0]?.discord_alerts_enabled).toBe(0);
+      expect(search.rows[0]?.email_config_version).toBe(2);
+      expect(search.rows[0]?.discord_config_version).toBe(2);
+      const intents = await client.execute(
+        "select status from search_notification_intent order by id",
+      );
+      expect(intents.rows.map(({ status }) => status)).toEqual([
+        "cancelled",
+        "cancelled",
+      ]);
     } finally {
       client.close();
       rmSync(directory, { recursive: true });
