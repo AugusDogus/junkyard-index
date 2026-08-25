@@ -41,7 +41,7 @@ describe("quota lifecycle", () => {
     const failed = transitionQuotaLifecycle(creatingGuest, {
       type: "guest_creation_failed",
     });
-    expect(failed.quotaVerificationFailed).toBe(true);
+    expect(failed.status).toBe("verification_unavailable");
 
     expect(
       transitionQuotaLifecycle(failed, {
@@ -57,7 +57,7 @@ describe("quota lifecycle", () => {
       kind: "creating_guest",
       query: "accord",
     });
-    expect(retrying.quotaVerificationFailed).toBe(false);
+    expect(retrying.status).toBe("allowed");
   });
 
   test("fails closed when recording cannot be verified", () => {
@@ -77,7 +77,7 @@ describe("quota lifecycle", () => {
       query: "civic",
     });
 
-    expect(failed.quotaVerificationFailed).toBe(true);
+    expect(failed.status).toBe("verification_unavailable");
     expect(
       transitionQuotaLifecycle(failed, {
         type: "search_ready",
@@ -89,7 +89,7 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "accord",
     });
-    expect(nextSearch.quotaVerificationFailed).toBe(false);
+    expect(nextSearch.status).toBe("allowed");
     expect(nextSearch.activity).toEqual({
       kind: "recording",
       userId: "user-1",
@@ -140,20 +140,19 @@ describe("quota lifecycle", () => {
         day: "2026-08-24",
       },
     });
-    expect(blocked.quotaExceeded).toBe(true);
+    expect(blocked.status).toBe("limit_exceeded");
     expect(
-      transitionQuotaLifecycle(blocked, { type: "paid_tier_resolved" })
-        .quotaExceeded,
-    ).toBe(false);
+      transitionQuotaLifecycle(blocked, { type: "paid_tier_resolved" }).status,
+    ).toBe("allowed");
 
     const unavailable = {
       ...blocked,
-      quotaVerificationFailed: true,
+      status: "verification_unavailable" as const,
     };
     expect(
       transitionQuotaLifecycle(unavailable, { type: "paid_tier_resolved" })
-        .quotaVerificationFailed,
-    ).toBe(false);
+        .status,
+    ).toBe("allowed");
   });
 
   test("ignores stale, malformed, and cross-account storage", () => {

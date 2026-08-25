@@ -59,3 +59,8 @@ export async function getFreshPlanTier(userId: string): Promise<PlanTier> {
 export async function refreshPlanTier(userId: string): Promise<PlanTier> {
   return defaultService.refreshPlanTier(userId);
 }
+
+/** Reuses an authoritative tier already resolved from the same customer snapshot. */
+export function rememberPlanTier(userId: string, tier: PlanTier): void {
+  defaultService.rememberPlanTier(userId, tier);
+}

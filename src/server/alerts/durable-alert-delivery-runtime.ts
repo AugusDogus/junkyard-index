@@ -2,7 +2,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailDigest } from "~/lib/email";
+import { hasPlanFeature } from "~/lib/plans";
 import { savedSearch, searchNotificationIntent, user } from "~/schema";
+import { getFreshPlanTier } from "~/server/billing/user-plan";
 import {
   deliverDurableAlertIntentBatch,
   type ClaimedNotificationIntent,
@@ -14,9 +16,6 @@ import {
   claimEmailNotificationIntentGroup,
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
-import { polarClient } from "~/lib/polar";
-import { hasPlanFeature } from "~/lib/plans";
-import { resolveCustomerPlanTier } from "~/server/billing/user-plan";
 
 const DELIVERY_BATCH_SIZE = 20;
 const DELIVERY_LEASE_MS = 15 * 60 * 1000;
@@ -85,16 +84,8 @@ const operations: DurableAlertDeliveryOperations = {
   },
   parsePayload: parseNotificationIntentPayload,
   hasActiveSubscription: async (userId) => {
-    const customerState = await polarClient.customers.getStateExternal({
-      externalId: userId,
-    });
-    const resolution = resolveCustomerPlanTier(customerState);
-    if (resolution.kind === "unrecognized") {
-      throw new Error(
-        `User ${userId} has active Polar subscriptions matching no configured product.`,
-      );
-    }
-    return hasPlanFeature(resolution.tier, "alerts");
+    const tier = await getFreshPlanTier(userId);
+    return hasPlanFeature(tier, "alerts");
   },
   sendEmailDigest,
   sendDiscordAlert,

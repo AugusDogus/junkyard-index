@@ -10,7 +10,11 @@ import {
 } from "~/lib/quota-lifecycle";
 import type { PlanTier } from "~/lib/plans";
 import { currentUtcDay } from "~/lib/search-quota";
-import { resolveQuotaViewer, type QuotaViewer } from "~/lib/quota-viewer";
+import {
+  establishAnonymousQuotaSession,
+  resolveQuotaViewer,
+  type QuotaViewer,
+} from "~/lib/quota-viewer";
 import { api } from "~/trpc/react";
 
 interface DailySearchQuotaArgs {
@@ -27,6 +31,11 @@ export type DailySearchQuotaStatus =
   | "allowed"
   | "limit_exceeded"
   | "verification_unavailable";
+
+export type SearchQuotaGateState =
+  | { kind: "open" }
+  | { kind: "limit_exceeded" }
+  | { kind: "verification_unavailable" };
 
 function readStoredRecord(userId: string): StoredQuotaRecord | null {
   try {
@@ -58,8 +67,13 @@ export function useDailySearchQuota(
   const guestRequestActive = useRef(false);
   const recordRequestActive = useRef<string | null>(null);
   const recordSearchMutation = api.usage.recordSearch.useMutation();
-  const { data: authSession } = useSession();
-  const viewer = resolveQuotaViewer(args.initialViewer, authSession?.user);
+  const { data: authSession, isPending: isSessionPending } = useSession();
+  const viewer = resolveQuotaViewer(
+    args.initialViewer,
+    isSessionPending
+      ? { kind: "loading" }
+      : { kind: "resolved", user: authSession?.user ?? null },
+  );
   const viewerUserId = viewer.kind === "signed_out" ? null : viewer.userId;
 
   useEffect(() => {
@@ -94,9 +108,10 @@ export function useDailySearchQuota(
     if (state.activity.kind !== "creating_guest") return;
     if (guestRequestActive.current) return;
     guestRequestActive.current = true;
-    void signIn
-      .anonymous()
-      .catch(() => dispatch({ type: "guest_creation_failed" }))
+    void establishAnonymousQuotaSession(() => signIn.anonymous())
+      .then((result) => {
+        if (result === "failed") dispatch({ type: "guest_creation_failed" });
+      })
       .finally(() => {
         guestRequestActive.current = false;
       });
@@ -127,6 +142,15 @@ export function useDailySearchQuota(
     });
   }, [state.activity, recordSearchMutation]);
 
-  if (state.quotaVerificationFailed) return "verification_unavailable";
-  return state.quotaExceeded ? "limit_exceeded" : "allowed";
+  return state.status;
+}
+
+export function useSearchQuotaGate(
+  args: DailySearchQuotaArgs & { hasActiveSearch: boolean },
+): SearchQuotaGateState {
+  const status = useDailySearchQuota(args);
+  if (!args.hasActiveSearch || args.isSearching || status === "allowed") {
+    return { kind: "open" };
+  }
+  return { kind: status };
 }

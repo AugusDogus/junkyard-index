@@ -5,6 +5,15 @@ export type QuotaViewer =
 
 type SessionUser = { id: string; isAnonymous?: boolean | null };
 
+export type LiveQuotaSession =
+  | { kind: "loading" }
+  | { kind: "resolved"; user: SessionUser | null };
+
+interface AnonymousSignInResponse {
+  data: unknown | null;
+  error: unknown | null;
+}
+
 export function quotaViewerFromSessionUser(
   user: SessionUser | null | undefined,
 ): QuotaViewer {
@@ -16,8 +25,20 @@ export function quotaViewerFromSessionUser(
 
 export function resolveQuotaViewer(
   initialViewer: QuotaViewer,
-  liveUser: SessionUser | null | undefined,
+  liveSession: LiveQuotaSession,
 ): QuotaViewer {
-  if (!liveUser) return initialViewer;
-  return quotaViewerFromSessionUser(liveUser);
+  return liveSession.kind === "loading"
+    ? initialViewer
+    : quotaViewerFromSessionUser(liveSession.user);
+}
+
+export async function establishAnonymousQuotaSession(
+  signInAnonymous: () => Promise<AnonymousSignInResponse>,
+): Promise<"created" | "failed"> {
+  try {
+    const result = await signInAnonymous();
+    return result.error === null && result.data !== null ? "created" : "failed";
+  } catch {
+    return "failed";
+  }
 }
