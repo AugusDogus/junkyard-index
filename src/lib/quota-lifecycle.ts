@@ -5,6 +5,12 @@ export interface StoredQuotaRecord {
   day: string;
 }
 
+export type QuotaLifecycleStatus =
+  | "allowed"
+  | "verifying"
+  | "limit_exceeded"
+  | "verification_unavailable";
+
 type QuotaActivity =
   | { kind: "idle" }
   | { kind: "creating_guest"; query: string }
@@ -14,7 +20,7 @@ type QuotaActivity =
 export interface QuotaLifecycleState {
   userId: string | null;
   lastQuery: string;
-  status: "allowed" | "limit_exceeded" | "verification_unavailable";
+  status: QuotaLifecycleStatus;
   activity: QuotaActivity;
 }
 
@@ -74,14 +80,14 @@ export function transitionQuotaLifecycle(
       if (state.userId === null) {
         return {
           ...state,
-          status: "allowed",
+          status: "verifying",
           activity: { kind: "creating_guest", query: event.query },
         };
       }
       return {
         ...state,
         lastQuery: event.query,
-        status: "allowed",
+        status: "verifying",
         activity: {
           kind: "recording",
           userId: state.userId,
@@ -124,6 +130,22 @@ export function transitionQuotaLifecycle(
         ? state
         : { ...state, status: "allowed" };
   }
+}
+
+export function quotaStatusForQuery(
+  state: QuotaLifecycleState,
+  query: string,
+): QuotaLifecycleStatus {
+  if (
+    state.status === "allowed" &&
+    query.length > 0 &&
+    (state.lastQuery !== query ||
+      state.activity.kind === "creating_guest" ||
+      state.activity.kind === "recording")
+  ) {
+    return "verifying";
+  }
+  return state.status;
 }
 
 export function parseStoredQuotaRecord(input: {

@@ -18,7 +18,7 @@ import {
   setSearchAlertChannel,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
-import { getFreshPlanTier } from "~/server/billing/user-plan";
+import { getAuthoritativePlanTier as resolveAuthoritativePlanTier } from "~/server/billing/user-plan";
 
 function planGateError(feature: SavedSearchGateFeature): PlanGateError {
   const message =
@@ -30,7 +30,7 @@ function planGateError(feature: SavedSearchGateFeature): PlanGateError {
 
 async function getAuthoritativePlanTier(userId: string) {
   try {
-    return await getFreshPlanTier(userId);
+    return await resolveAuthoritativePlanTier(userId);
   } catch (cause) {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",

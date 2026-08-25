@@ -19,7 +19,6 @@ export type BillingProductIds = Record<BillingProductKey, string>;
 
 export interface BillingProductCatalog {
   checkoutProducts: Readonly<Record<BillingProductKey, CheckoutBillingProduct>>;
-  allProducts: readonly BillingProduct[];
   entitlementProducts: readonly EntitlementProduct[];
   productById: ReadonlyMap<string, BillingProduct>;
 }
@@ -60,7 +59,6 @@ export function createBillingProductCatalog(input: {
   }
   return {
     checkoutProducts,
-    allProducts,
     entitlementProducts: allProducts.map((product) => ({
       productId: product.productId,
       tier: product.kind === "legacy" ? "full" : product.tier,

@@ -4,9 +4,8 @@ import { createTierCache } from "./tier-cache";
 
 export interface PlanTierService {
   getPlanTier(userId: string): Promise<PlanTier>;
-  getFreshPlanTier(userId: string): Promise<PlanTier>;
-  refreshPlanTier(userId: string): Promise<PlanTier>;
-  rememberPlanTier(userId: string, tier: PlanTier): void;
+  getAuthoritativePlanTier(userId: string): Promise<PlanTier>;
+  rememberPlanTierFromSnapshot(userId: string, tier: PlanTier): void;
 }
 
 export function createPlanTierService(options: {
@@ -30,9 +29,11 @@ export function createPlanTierService(options: {
   const fetchResolved = async (userId: string): Promise<PlanTier> =>
     resolveTier(await fetchCustomerState(userId));
 
-  const resolveFresh = async (userId: string): Promise<PlanTier> => {
+  const resolveAuthoritative = async (userId: string): Promise<PlanTier> => {
     try {
-      return await fetchResolved(userId);
+      const tier = await fetchResolved(userId);
+      cache.set(userId, tier);
+      return tier;
     } catch (error) {
       onError(userId, error);
       throw error;
@@ -52,13 +53,8 @@ export function createPlanTierService(options: {
         return "free";
       }
     },
-    getFreshPlanTier: resolveFresh,
-    async refreshPlanTier(userId) {
-      const tier = await resolveFresh(userId);
-      cache.set(userId, tier);
-      return tier;
-    },
-    rememberPlanTier(userId, tier) {
+    getAuthoritativePlanTier: resolveAuthoritative,
+    rememberPlanTierFromSnapshot(userId, tier) {
       cache.set(userId, tier);
     },
   };

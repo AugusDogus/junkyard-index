@@ -56,10 +56,8 @@ describe("billing product catalog", () => {
       legacyProductId: "legacy-id",
     });
     expect(Object.values(catalog.checkoutProducts)).toHaveLength(4);
-    const legacy = catalog.allProducts.find(
-      (product) => product.kind === "legacy",
-    );
-    expect(legacy?.productId).toBe("legacy-id");
+    const legacy = catalog.productById.get("legacy-id");
+    expect(legacy).toEqual({ kind: "legacy", productId: "legacy-id" });
     expect(
       catalog.entitlementProducts.find(
         (product) => product.productId === "legacy-id",

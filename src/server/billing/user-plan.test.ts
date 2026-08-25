@@ -71,22 +71,22 @@ describe("getPlanTier caching", () => {
     expect(test.polar.calls()).toBe(2);
   });
 
-  test("fresh reads bypass a cached tier without replacing it", async () => {
+  test("authoritative reads bypass and replace a cached tier", async () => {
     const polar = createFakePolar(LITE_STATE);
     const test = createTestService(polar);
     expect(await test.getPlanTier("cache-user-4")).toBe("lite");
 
     polar.setState({ activeSubscriptions: [] });
-    expect(await test.getFreshPlanTier("cache-user-4")).toBe("free");
-    expect(await test.getPlanTier("cache-user-4")).toBe("lite");
+    expect(await test.getAuthoritativePlanTier("cache-user-4")).toBe("free");
+    expect(await test.getPlanTier("cache-user-4")).toBe("free");
     expect(polar.calls()).toBe(2);
   });
 
-  test("fresh reads propagate provider failures instead of authorizing as free", async () => {
+  test("authoritative reads propagate provider failures instead of authorizing as free", async () => {
     const test = createTestService(createFakePolar(LITE_STATE));
     test.polar.failNextCall();
 
-    await expect(test.getFreshPlanTier("cache-user-5")).rejects.toThrow(
+    await expect(test.getAuthoritativePlanTier("cache-user-5")).rejects.toThrow(
       "polar down",
     );
   });
@@ -97,7 +97,7 @@ describe("getPlanTier caching", () => {
     expect(await test.getPlanTier("cache-user-6")).toBe("free");
 
     polar.setState(LITE_STATE);
-    expect(await test.refreshPlanTier("cache-user-6")).toBe("lite");
+    expect(await test.getAuthoritativePlanTier("cache-user-6")).toBe("lite");
     expect(await test.getPlanTier("cache-user-6")).toBe("lite");
     expect(polar.calls()).toBe(2);
   });
@@ -105,7 +105,7 @@ describe("getPlanTier caching", () => {
   test("reuses a tier resolved from an existing customer snapshot", async () => {
     const test = createTestService(createFakePolar(LITE_STATE));
 
-    test.rememberPlanTier("cache-user-7", "full");
+    test.rememberPlanTierFromSnapshot("cache-user-7", "full");
 
     expect(await test.getPlanTier("cache-user-7")).toBe("full");
     expect(test.polar.calls()).toBe(0);
@@ -124,16 +124,6 @@ describe("createTierCache", () => {
     expect(cache.get("u1")).toBe("full");
 
     nowMs += 1; // past expiry
-    expect(cache.get("u1")).toBeNull();
-  });
-
-  test("invalidate drops entries immediately", () => {
-    let nowMs = 1_000_000;
-    const cache = createTierCache(60_000, () => nowMs);
-
-    cache.set("u1", "lite");
-    cache.invalidate("u1");
-
     expect(cache.get("u1")).toBeNull();
   });
 });

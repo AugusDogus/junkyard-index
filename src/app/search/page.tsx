@@ -11,7 +11,7 @@ import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
 import type { PlanAccessState } from "~/lib/plans";
 import { quotaViewerFromSessionUser } from "~/lib/quota-viewer";
-import { refreshPlanTier } from "~/server/billing/user-plan";
+import { getAuthoritativePlanTier } from "~/server/billing/user-plan";
 
 export const metadata: Metadata = {
   title: "Search Salvage Yard Inventory",
@@ -49,7 +49,7 @@ export default async function SearchPage() {
     try {
       initialPlanAccess = {
         kind: "resolved",
-        tier: await refreshPlanTier(viewer.userId),
+        tier: await getAuthoritativePlanTier(viewer.userId),
       };
     } catch {
       initialPlanAccess = { kind: "unavailable", reason: "lookup_failed" };

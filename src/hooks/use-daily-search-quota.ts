@@ -5,7 +5,9 @@ import { signIn, useSession } from "~/lib/auth-client";
 import {
   initialQuotaLifecycleState,
   parseStoredQuotaRecord,
+  quotaStatusForQuery,
   transitionQuotaLifecycle,
+  type QuotaLifecycleStatus,
   type StoredQuotaRecord,
 } from "~/lib/quota-lifecycle";
 import type { PlanTier } from "~/lib/plans";
@@ -27,13 +29,11 @@ interface DailySearchQuotaArgs {
 
 const QUOTA_DEDUPE_KEY = "ji:quotaDedupe";
 
-export type DailySearchQuotaStatus =
-  | "allowed"
-  | "limit_exceeded"
-  | "verification_unavailable";
+export type DailySearchQuotaStatus = QuotaLifecycleStatus;
 
 export type SearchQuotaGateState =
   | { kind: "open" }
+  | { kind: "verifying" }
   | { kind: "limit_exceeded" }
   | { kind: "verification_unavailable" };
 
@@ -142,14 +142,14 @@ export function useDailySearchQuota(
     });
   }, [state.activity, recordSearchMutation]);
 
-  return state.status;
+  return quotaStatusForQuery(state, args.analyticsSearchValue);
 }
 
 export function useSearchQuotaGate(
   args: DailySearchQuotaArgs & { hasActiveSearch: boolean },
 ): SearchQuotaGateState {
   const status = useDailySearchQuota(args);
-  if (!args.hasActiveSearch || args.isSearching || status === "allowed") {
+  if (!args.hasActiveSearch || args.hasError || status === "allowed") {
     return { kind: "open" };
   }
   return { kind: status };
