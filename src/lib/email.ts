@@ -79,8 +79,7 @@ export interface EmailDigestRecipient {
 export interface YardRequestNotification {
   yardName: string;
   website: string | null;
-  requesterEmail: string | null;
-  accountEmail: string | null;
+  followUpEmail: string | null;
 }
 
 /** Strips control characters that could break email subject headers. */
@@ -92,24 +91,18 @@ export async function sendYardRequestNotification(
   input: YardRequestNotification,
 ): Promise<NotificationDeliveryResult> {
   try {
-    const followUpEmail = input.requesterEmail ?? input.accountEmail;
     const subject = `Yard Request: ${sanitizeEmailSubject(input.yardName)}`;
 
     const { error } = await resend.emails.send({
       from: `Junkyard Index <${env.RESEND_FROM_EMAIL}>`,
       to: env.CONTACT_EMAIL,
-      ...(followUpEmail ? { replyTo: followUpEmail } : {}),
+      ...(input.followUpEmail ? { replyTo: input.followUpEmail } : {}),
       subject,
       text: [
         `Yard name: ${input.yardName}`,
         input.website ? `Website: ${input.website}` : "Website: (none)",
-        `Follow-up email: ${followUpEmail ?? "(none)"}`,
-        input.accountEmail
-          ? `Submitted by account: ${input.accountEmail}`
-          : null,
-      ]
-        .filter((line): line is string => line !== null)
-        .join("\n"),
+        `Follow-up email: ${input.followUpEmail ?? "(none)"}`,
+      ].join("\n"),
       html: `
         <h2>New Yard Request</h2>
         <p><strong>Yard name:</strong> ${escapeHtml(input.yardName)}</p>
@@ -117,13 +110,8 @@ export async function sendYardRequestNotification(
           input.website ? escapeHtml(input.website) : "(none)"
         }</p>
         <p><strong>Follow-up email:</strong> ${
-          followUpEmail ? escapeHtml(followUpEmail) : "(none)"
+          input.followUpEmail ? escapeHtml(input.followUpEmail) : "(none)"
         }</p>
-        ${
-          input.accountEmail
-            ? `<p><strong>Submitted by account:</strong> ${escapeHtml(input.accountEmail)}</p>`
-            : ""
-        }
       `,
     });
 

@@ -88,6 +88,22 @@ describe("Terms and billing operation migration", () => {
         ),
       ).resolves.toBeDefined();
 
+      await client.execute(
+        `insert into yard_request (id, user_id, yard_name, requester_email)
+         values ('linked-request', 'existing-user', 'Linked Yard', 'existing@example.com')`,
+      );
+      await client.execute(
+        `insert into yard_request (id, user_id, yard_name, requester_email)
+         values ('anonymous-request', null, 'Anonymous Yard', null)`,
+      );
+      await client.execute("delete from user where id = 'existing-user'");
+      const remainingRequests = await client.execute(
+        "select id from yard_request order by id",
+      );
+      expect(remainingRequests.rows.map((row) => row.id)).toEqual([
+        "anonymous-request",
+      ]);
+
       const journal = await client.execute(
         "select count(*) as count from __drizzle_migrations",
       );
