@@ -1,10 +1,8 @@
 import type { PlanTier } from "~/lib/plans";
 
-export interface PolarProductIds {
-  lite: string[];
-  full: string[];
-  /** Legacy "Email-Notifications" product; subscribers are grandfathered as Full. */
-  legacy?: string;
+export interface EntitlementProduct {
+  productId: string;
+  tier: Exclude<PlanTier, "free">;
 }
 
 interface SubscriptionLike {
@@ -31,24 +29,23 @@ function subscriptionProductIds(state: CustomerStateLike): string[] {
 }
 
 /**
- * True when the customer holds active subscriptions but none of their product
- * IDs match the configured products. This indicates an env/config problem
+ * True when any active subscription lacks a valid configured product ID. This
+ * indicates a provider-shape or env/config problem
  * (e.g. legacy ID removed too early) rather than a genuine downgrade, so
  * callers must not strip entitlements based on it.
  */
 export function hasUnrecognizedSubscriptions(
   state: CustomerStateLike,
-  productIds: PolarProductIds,
+  products: readonly EntitlementProduct[],
 ): boolean {
   const ids = subscriptionProductIds(state);
-  if (ids.length === 0) {
+  const activeSubscriptionCount = state.activeSubscriptions?.length ?? 0;
+  if (activeSubscriptionCount === 0) {
     return false;
   }
-  return !ids.some(
-    (id) =>
-      id === productIds.legacy ||
-      productIds.lite.includes(id) ||
-      productIds.full.includes(id),
+  if (ids.length !== activeSubscriptionCount) return true;
+  return ids.some(
+    (id) => !products.some((product) => product.productId === id),
   );
 }
 
@@ -59,16 +56,21 @@ export function hasUnrecognizedSubscriptions(
  */
 export function resolvePlanTierFromCustomerState(
   state: CustomerStateLike,
-  productIds: PolarProductIds,
+  products: readonly EntitlementProduct[],
 ): PlanTier {
   const ids = new Set(subscriptionProductIds(state));
   if (
-    ids.has(productIds.legacy ?? "") ||
-    productIds.full.some((id) => ids.has(id))
+    products.some(
+      ({ productId, tier }) => tier === "full" && ids.has(productId),
+    )
   ) {
     return "full";
   }
-  if (productIds.lite.some((id) => ids.has(id))) {
+  if (
+    products.some(
+      ({ productId, tier }) => tier === "lite" && ids.has(productId),
+    )
+  ) {
     return "lite";
   }
   return "free";

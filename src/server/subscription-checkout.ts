@@ -13,6 +13,7 @@ import {
   type BillingSubscription as BillingSubscriptionRecord,
   type SubscriptionCheckoutBilling,
 } from "~/server/billing";
+import type { BillingProductKey } from "~/server/billing/product-catalog";
 
 export type SubscriptionCheckoutBlocked =
   | {
@@ -55,6 +56,7 @@ export async function createSubscriptionCheckout(input: {
   termsAcceptedAt: Date;
   now: Date;
   claimToken: string;
+  productKey: BillingProductKey;
 }): Promise<SubscriptionCheckoutResult> {
   const claim = await claimCheckoutBillingOperation({
     database: input.database,
@@ -137,7 +139,25 @@ export async function createSubscriptionCheckout(input: {
     return { status: "failed", reason: "billing_lookup_failed", cause };
   }
 
-  const pendingCheckout = outstandingCheckouts.find(
+  const matchingCheckouts = outstandingCheckouts.filter(
+    ({ productKey }) => productKey === input.productKey,
+  );
+  const conflictingCheckout = outstandingCheckouts.find(
+    ({ productKey }) => productKey !== input.productKey,
+  );
+  if (conflictingCheckout) {
+    return (await finishClaim({
+      operation: "checkout",
+      expiresAt: conflictingCheckout.expiresAt,
+    }))
+      ? {
+          status: "blocked",
+          reason: "checkout_pending",
+          retryAt: conflictingCheckout.expiresAt,
+        }
+      : { status: "blocked", reason: "state_changed" };
+  }
+  const pendingCheckout = matchingCheckouts.find(
     BillingCheckout.isConfirmationPending,
   );
   if (pendingCheckout) {
@@ -153,9 +173,7 @@ export async function createSubscriptionCheckout(input: {
       : { status: "blocked", reason: "state_changed" };
   }
 
-  const reusableCheckout = outstandingCheckouts.find(
-    BillingCheckout.isReusable,
-  );
+  const reusableCheckout = matchingCheckouts.find(BillingCheckout.isReusable);
   if (reusableCheckout) {
     if (
       !(await finishClaim({
@@ -172,6 +190,7 @@ export async function createSubscriptionCheckout(input: {
   try {
     checkout = await input.billing.createCheckout({
       userId: input.userId,
+      productKey: input.productKey,
       termsVersion: input.termsVersion,
       termsAcceptedAt: input.termsAcceptedAt,
     });

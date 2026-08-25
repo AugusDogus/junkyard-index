@@ -162,7 +162,7 @@ export function SubscriptionCheckoutForm() {
             <Link href="/privacy" className="text-primary hover:underline">
               Privacy Policy
             </Link>
-            , including the monthly auto-renewal and cancellation terms above.
+            , including the recurring auto-renewal and cancellation terms above.
           </Label>
         </div>
 

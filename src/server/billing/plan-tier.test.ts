@@ -1,16 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { type PlanTier } from "~/lib/plans";
 import {
-  type PolarProductIds,
+  type EntitlementProduct,
   type CustomerStateLike,
+  hasUnrecognizedSubscriptions,
   resolvePlanTierFromCustomerState,
 } from "~/server/billing/plan-tier";
 
-const IDS: PolarProductIds = {
-  lite: ["lite-monthly", "lite-annual"],
-  full: ["full-monthly", "full-annual"],
-  legacy: "legacy-email-notifications",
-};
+const PRODUCTS: readonly EntitlementProduct[] = [
+  { productId: "lite-monthly", tier: "lite" },
+  { productId: "lite-annual", tier: "lite" },
+  { productId: "full-monthly", tier: "full" },
+  { productId: "full-annual", tier: "full" },
+  { productId: "legacy-email-notifications", tier: "full" },
+];
 
 function stateWith(
   ...productIds: (string | { productId?: string; product?: { id: string } })[]
@@ -25,38 +28,38 @@ function stateWith(
 describe("resolvePlanTierFromCustomerState", () => {
   test("no subscriptions resolves to free", () => {
     expect(
-      resolvePlanTierFromCustomerState({ activeSubscriptions: [] }, IDS),
+      resolvePlanTierFromCustomerState({ activeSubscriptions: [] }, PRODUCTS),
     ).toBe("free");
-    expect(resolvePlanTierFromCustomerState({}, IDS)).toBe("free");
+    expect(resolvePlanTierFromCustomerState({}, PRODUCTS)).toBe("free");
   });
 
   test("legacy subscribers are grandfathered as full", () => {
     const tier = resolvePlanTierFromCustomerState(
       stateWith("legacy-email-notifications"),
-      IDS,
+      PRODUCTS,
     );
     expect(tier).toBe("full");
   });
 
   test("monthly and annual products map to their tier", () => {
     expect(
-      resolvePlanTierFromCustomerState(stateWith("lite-monthly"), IDS),
+      resolvePlanTierFromCustomerState(stateWith("lite-monthly"), PRODUCTS),
     ).toBe("lite");
     expect(
-      resolvePlanTierFromCustomerState(stateWith("lite-annual"), IDS),
+      resolvePlanTierFromCustomerState(stateWith("lite-annual"), PRODUCTS),
     ).toBe("lite");
     expect(
-      resolvePlanTierFromCustomerState(stateWith("full-monthly"), IDS),
+      resolvePlanTierFromCustomerState(stateWith("full-monthly"), PRODUCTS),
     ).toBe("full");
     expect(
-      resolvePlanTierFromCustomerState(stateWith("full-annual"), IDS),
+      resolvePlanTierFromCustomerState(stateWith("full-annual"), PRODUCTS),
     ).toBe("full");
   });
 
   test("full wins over lite when both are held", () => {
     const tier = resolvePlanTierFromCustomerState(
       stateWith("lite-monthly", "full-monthly"),
-      IDS,
+      PRODUCTS,
     );
     expect(tier).toBe<PlanTier>("full");
   });
@@ -64,7 +67,7 @@ describe("resolvePlanTierFromCustomerState", () => {
   test("unknown product ids resolve to free", () => {
     const tier = resolvePlanTierFromCustomerState(
       stateWith("some-other-product"),
-      IDS,
+      PRODUCTS,
     );
     expect(tier).toBe<PlanTier>("free");
   });
@@ -72,8 +75,20 @@ describe("resolvePlanTierFromCustomerState", () => {
   test("reads product.id when productId is missing", () => {
     const tier = resolvePlanTierFromCustomerState(
       stateWith({ product: { id: "lite-annual" } }),
-      IDS,
+      PRODUCTS,
     );
     expect(tier).toBe<PlanTier>("lite");
+  });
+
+  test("reports malformed and mixed unknown active subscriptions", () => {
+    expect(
+      hasUnrecognizedSubscriptions({ activeSubscriptions: [{}] }, PRODUCTS),
+    ).toBe(true);
+    expect(
+      hasUnrecognizedSubscriptions(
+        stateWith("lite-monthly", "unknown-product"),
+        PRODUCTS,
+      ),
+    ).toBe(true);
   });
 });

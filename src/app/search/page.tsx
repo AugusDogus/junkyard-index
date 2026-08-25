@@ -52,6 +52,7 @@ export default async function SearchPage() {
               <SearchPageContent
                 isLoggedIn={isVisibleSessionUser(session?.user)}
                 isAnonymousUser={isGuestSession(session?.user)}
+                sessionUserId={session?.user.id}
                 userLocation={geo}
               />
             </Suspense>

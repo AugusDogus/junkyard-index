@@ -6,8 +6,7 @@ import { TERMS_METADATA } from "~/lib/legal";
 import posthog from "~/lib/posthog-server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { polarBillingGateway } from "~/server/polar-billing-gateway";
-import { createPolarBillingGatewayForCheckout } from "~/server/polar-billing-gateway";
-import { env } from "~/env";
+import { getBillingProductKey } from "~/server/billing/product-catalog";
 import {
   createSubscriptionCheckout,
   type SubscriptionCheckoutBlocked,
@@ -36,20 +35,6 @@ function checkoutBlockedMessage(result: SubscriptionCheckoutBlocked): string {
 const paidTierSchema = z.enum(["lite", "full"]);
 const billingIntervalSchema = z.enum(["monthly", "annual"]);
 
-function checkoutProductId(
-  tier: z.infer<typeof paidTierSchema>,
-  interval: z.infer<typeof billingIntervalSchema>,
-): string {
-  if (tier === "lite") {
-    return interval === "monthly"
-      ? env.POLAR_LITE_PRODUCT_ID
-      : env.POLAR_LITE_ANNUAL_PRODUCT_ID;
-  }
-  return interval === "monthly"
-    ? env.POLAR_FULL_PRODUCT_ID
-    : env.POLAR_FULL_ANNUAL_PRODUCT_ID;
-}
-
 export const subscriptionRouter = createTRPCRouter({
   createCheckout: protectedProcedure
     .input(
@@ -63,9 +48,8 @@ export const subscriptionRouter = createTRPCRouter({
       const now = new Date();
       const result = await createSubscriptionCheckout({
         database: ctx.db,
-        billing: createPolarBillingGatewayForCheckout(
-          checkoutProductId(input.tier, input.interval),
-        ),
+        billing: polarBillingGateway,
+        productKey: getBillingProductKey(input.tier, input.interval),
         userId: ctx.user.id,
         termsVersion: TERMS_METADATA.version,
         termsAcceptedAt: new Date(),
@@ -119,4 +103,8 @@ export const subscriptionRouter = createTRPCRouter({
       });
     }
   }),
+
+  getTier: protectedProcedure.query(async ({ ctx }) => ({
+    tier: ctx.user.isAnonymous ? "free" : await getPlanTier(ctx.user.id),
+  })),
 });

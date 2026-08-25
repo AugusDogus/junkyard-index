@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { APIError, getOAuthState } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { anonymous, oAuthProxy } from "better-auth/plugins";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
 import { env } from "~/env";
@@ -17,11 +17,11 @@ import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
 import { recordCheckoutCompletion } from "~/server/billing-operation";
 import {
   hasUnrecognizedSubscriptions,
-  invalidatePlanTierCache,
   resolveCustomerPlanTier,
 } from "~/server/billing/user-plan";
 import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
+import { transferAnonymousSearchUsage } from "~/server/auth/anonymous-search-usage-transfer";
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -139,15 +139,11 @@ export const auth = betterAuth({
     oAuthProxy({ productionURL }),
     anonymous({
       onLinkAccount: async ({ anonymousUser, newUser }) => {
-        await db.run(sql`
-          insert into search_usage (user_id, day, count, updated_at)
-          select ${newUser.user.id}, day, count, updated_at
-          from search_usage
-          where user_id = ${anonymousUser.user.id}
-          on conflict(user_id, day) do update set
-            count = search_usage.count + excluded.count,
-            updated_at = excluded.updated_at
-        `);
+        await transferAnonymousSearchUsage({
+          database: db,
+          anonymousUserId: anonymousUser.user.id,
+          newUserId: newUser.user.id,
+        });
       },
     }),
     polar({
@@ -164,7 +160,6 @@ export const auth = betterAuth({
               activeSubscriptions: [payload.data],
             });
             if (externalId && planTier !== "free") {
-              invalidatePlanTierCache(externalId);
               await recordCheckoutCompletion({
                 database: db,
                 userId: externalId,
@@ -203,7 +198,6 @@ export const auth = betterAuth({
             const planTier = resolveCustomerPlanTier(customerState);
 
             if (customerState.externalId) {
-              invalidatePlanTierCache(customerState.externalId);
               posthog.capture({
                 distinctId: customerState.externalId,
                 event: "subscription_state_changed",

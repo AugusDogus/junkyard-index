@@ -108,6 +108,7 @@ interface SearchPageContentProps {
   isLoggedIn?: boolean;
   /** Visitor has a Better Auth anonymous (guest) session already. */
   isAnonymousUser?: boolean;
+  sessionUserId?: string;
   userLocation?: { lat: number; lng: number };
 }
 
@@ -301,6 +302,7 @@ function DistancePreferenceDialog({
 function AlgoliaSearchInner({
   isLoggedIn,
   isAnonymousUser = false,
+  sessionUserId,
   userLocation: _userLocation,
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
@@ -772,8 +774,12 @@ function AlgoliaSearchInner({
     hasActiveSearch && (status === "loading" || status === "stalled");
 
   const quotaExceeded = useDailySearchQuota({
-    isLoggedIn: !!isLoggedIn,
-    isAnonymousUser: !!isAnonymousUser,
+    initialViewer: sessionUserId
+      ? {
+          kind: isAnonymousUser ? "guest" : "authenticated",
+          userId: sessionUserId,
+        }
+      : { kind: "signed_out" },
     planTier,
     analyticsSearchValue,
     isSearching,
@@ -1564,6 +1570,7 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 export function SearchPageContent({
   isLoggedIn,
   isAnonymousUser,
+  sessionUserId,
   userLocation,
 }: SearchPageContentProps) {
   const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
@@ -1599,6 +1606,7 @@ export function SearchPageContent({
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           isAnonymousUser={isAnonymousUser}
+          sessionUserId={sessionUserId}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
         />

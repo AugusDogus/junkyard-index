@@ -14,7 +14,7 @@ describe("Polar billing gateway", () => {
   test("collects every subscription page without the active-only filter", async () => {
     const requests: Array<{
       externalCustomerId: string;
-      productId: string;
+      productId?: string;
       limit: number;
     }> = [];
     const operations = operationsWith({
@@ -35,7 +35,6 @@ describe("Polar billing gateway", () => {
     expect(requests).toEqual([
       {
         externalCustomerId: "user-1",
-        productId: "product-1",
         limit: 100,
       },
     ]);
@@ -86,6 +85,7 @@ describe("Polar billing gateway", () => {
     await expect(gateway.listOutstandingCheckouts("user-1")).resolves.toEqual([
       {
         id: "checkout",
+        productKey: "full_monthly",
         state: "reusable",
         url: "https://checkout.example",
         expiresAt: new Date("2026-08-25T00:00:00.000Z"),
@@ -120,6 +120,7 @@ describe("Polar billing gateway", () => {
 
     await gateway.createCheckout({
       userId: "user-1",
+      productKey: "full_monthly",
       termsVersion: "2026-08-24",
       termsAcceptedAt: new Date("2026-08-24T12:00:00.000Z"),
     });
@@ -129,7 +130,7 @@ describe("Polar billing gateway", () => {
         externalCustomerId: "user-1",
         products: ["product-1"],
         successUrl: "https://app.example/search?subscription=success",
-        returnUrl: "https://app.example/subscribe",
+        returnUrl: "https://app.example/subscribe?tier=full&interval=monthly",
         metadata: {
           terms_version: "2026-08-24",
           terms_accepted_at: "2026-08-24T12:00:00.000Z",
@@ -170,29 +171,43 @@ describe("Polar billing gateway", () => {
     await expect(gateway.hasActiveSubscription("user-1")).resolves.toBe(false);
   });
 
-  test("recognizes and enumerates every configured tier product", async () => {
-    const listedProducts: string[] = [];
+  test("recognizes every configured tier product and enumerates all customer subscriptions", async () => {
+    let subscriptionLists = 0;
     const gateway = createPolarBillingGateway(
       operationsWith({
         getCustomerState: async () => ({
           id: "customer-1",
           activeSubscriptions: [{ productId: "product-2" }],
         }),
-        listSubscriptions: async ({ productId }) => {
-          listedProducts.push(productId);
-          return pages([{ id: productId, status: "active" }]);
+        listSubscriptions: async () => {
+          subscriptionLists += 1;
+          return pages([{ id: "subscription-1", status: "active" }]);
         },
       }),
       {
-        productIds: ["product-1", "product-2"],
-        checkoutProductId: "product-2",
+        products: [
+          {
+            kind: "checkout",
+            key: "lite_monthly",
+            productId: "product-1",
+            tier: "lite",
+            interval: "monthly",
+          },
+          {
+            kind: "checkout",
+            key: "full_monthly",
+            productId: "product-2",
+            tier: "full",
+            interval: "monthly",
+          },
+        ],
         appUrl: "https://app.example",
       },
     );
 
     await expect(gateway.hasActiveSubscription("user-1")).resolves.toBe(true);
-    await expect(gateway.listSubscriptions("user-1")).resolves.toHaveLength(2);
-    expect(listedProducts).toEqual(["product-1", "product-2"]);
+    await expect(gateway.listSubscriptions("user-1")).resolves.toHaveLength(1);
+    expect(subscriptionLists).toBe(1);
   });
 
   test("does not require subscription enumeration for active entitlement", async () => {
@@ -217,8 +232,15 @@ describe("Polar billing gateway", () => {
 });
 
 const config = {
-  productIds: ["product-1"],
-  checkoutProductId: "product-1",
+  products: [
+    {
+      kind: "checkout" as const,
+      key: "full_monthly" as const,
+      productId: "product-1",
+      tier: "full" as const,
+      interval: "monthly" as const,
+    },
+  ],
   appUrl: "https://app.example",
 };
 
