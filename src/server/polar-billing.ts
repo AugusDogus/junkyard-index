@@ -12,7 +12,7 @@ type PolarPage<T> = {
   result: { items: readonly T[] };
 };
 
-type PolarSubscription = { id: string; status: string };
+type PolarSubscription = { id: string; status: string; productId: string };
 type PolarCheckout = {
   id: string;
   url: string;
@@ -24,7 +24,7 @@ type PolarCheckout = {
 export type PolarBillingOperations = {
   listSubscriptions(input: {
     externalCustomerId: string;
-    productId?: string;
+    productId?: string | string[];
     limit: number;
   }): Promise<AsyncIterable<PolarPage<PolarSubscription>>>;
   revokeSubscription(input: { id: string }): Promise<unknown>;
@@ -34,7 +34,7 @@ export type PolarBillingOperations = {
   }>;
   listCheckouts(input: {
     customerId: string;
-    productId?: string;
+    productId?: string | string[];
     status: Array<"open" | "confirmed">;
     limit: number;
   }): Promise<AsyncIterable<PolarPage<PolarCheckout>>>;
@@ -109,16 +109,22 @@ export function createPolarBillingGateway(
   },
 ): AccountBillingGateway {
   const { checkoutProducts, entitlementProducts, productById } = config.catalog;
+  const applicationProductIds = [...productById.keys()];
   const listSubscriptions = async (
     userId: string,
   ): Promise<readonly DomainBillingSubscription[]> => {
     const subscriptions: DomainBillingSubscription[] = [];
     const pages = await operations.listSubscriptions({
       externalCustomerId: userId,
+      productId: applicationProductIds,
       limit: 100,
     });
     for await (const page of pages) {
-      subscriptions.push(...page.result.items.map(normalizeSubscription));
+      subscriptions.push(
+        ...page.result.items
+          .filter(({ productId }) => productById.has(productId))
+          .map(normalizeSubscription),
+      );
     }
 
     return subscriptions;
@@ -131,6 +137,7 @@ export function createPolarBillingGateway(
       });
       const pages = await operations.listCheckouts({
         customerId: customer.id,
+        productId: applicationProductIds,
         status: ["open", "confirmed"],
         limit: 100,
       });
@@ -141,6 +148,7 @@ export function createPolarBillingGateway(
         const product = checkout.productId
           ? productById.get(checkout.productId)
           : undefined;
+        if (!product) return [];
         const normalized = normalizeOutstandingCheckout(
           checkout,
           product?.kind === "checkout" ? product.key : null,
