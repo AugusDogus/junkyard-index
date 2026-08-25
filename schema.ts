@@ -29,9 +29,6 @@ export const user = sqliteTable("user", {
   locationLng: real("location_lng"),
   termsAcceptedAt: integer("terms_accepted_at", { mode: "timestamp_ms" }),
   termsVersion: text("terms_version"),
-  isAnonymous: integer("is_anonymous", { mode: "boolean" })
-    .default(false)
-    .notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),

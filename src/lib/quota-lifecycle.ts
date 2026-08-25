@@ -1,6 +1,15 @@
-export interface StoredQuotaRecord {
+import { evaluateSearchQuota } from "~/lib/search-quota";
+
+export interface StoredAccountQuotaRecord {
   userId: string;
   query: string;
+  exceeded: boolean;
+  day: string;
+}
+
+export interface StoredBrowserQuotaRecord {
+  query: string;
+  count: number;
   exceeded: boolean;
   day: string;
 }
@@ -14,9 +23,8 @@ export type QuotaLifecycleStatus =
 type QuotaLifecyclePhase =
   | { kind: "exempt" }
   | { kind: "idle"; access: "allowed" | "limit_exceeded" }
-  | { kind: "creating_guest"; query: string }
-  | { kind: "guest_creation_failed"; query: string }
-  | { kind: "recording"; userId: string; query: string }
+  | { kind: "recording_browser"; query: string }
+  | { kind: "recording_account"; userId: string; query: string }
   | { kind: "record_failed"; userId: string; query: string };
 
 export interface QuotaLifecycleState {
@@ -30,13 +38,13 @@ export type QuotaLifecycleEvent =
       type: "viewer_resolved";
       userId: string | null;
       currentQuery: string;
-      stored: StoredQuotaRecord | null;
+      stored: StoredAccountQuotaRecord | null;
     }
   | { type: "search_ready"; query: string }
-  | { type: "guest_creation_failed" }
-  | { type: "record_failed"; userId: string; query: string }
+  | { type: "browser_record_succeeded"; query: string; allowed: boolean }
+  | { type: "account_record_failed"; userId: string; query: string }
   | {
-      type: "record_succeeded";
+      type: "account_record_succeeded";
       userId: string;
       query: string;
       allowed: boolean;
@@ -86,42 +94,41 @@ export function transitionQuotaLifecycle(
     case "search_ready":
       if (
         state.phase.kind === "exempt" ||
-        state.phase.kind === "creating_guest" ||
-        state.phase.kind === "recording" ||
+        state.phase.kind === "recording_browser" ||
+        state.phase.kind === "recording_account" ||
         event.query.length === 0 ||
-        event.query === state.lastQuery ||
-        (state.phase.kind === "guest_creation_failed" &&
-          event.query === state.phase.query)
+        event.query === state.lastQuery
       ) {
         return state;
       }
-      if (state.userId === null) {
-        return {
-          ...state,
-          phase: { kind: "creating_guest", query: event.query },
-        };
-      }
-      return {
-        ...state,
-        lastQuery: event.query,
-        phase: {
-          kind: "recording",
-          userId: state.userId,
-          query: event.query,
-        },
-      };
-    case "guest_creation_failed":
-      return state.phase.kind === "creating_guest"
+      return state.userId === null
         ? {
             ...state,
+            phase: { kind: "recording_browser", query: event.query },
+          }
+        : {
+            ...state,
+            lastQuery: event.query,
             phase: {
-              kind: "guest_creation_failed",
-              query: state.phase.query,
+              kind: "recording_account",
+              userId: state.userId,
+              query: event.query,
+            },
+          };
+    case "browser_record_succeeded":
+      return state.phase.kind === "recording_browser" &&
+        state.phase.query === event.query
+        ? {
+            ...state,
+            lastQuery: event.query,
+            phase: {
+              kind: "idle",
+              access: event.allowed ? "allowed" : "limit_exceeded",
             },
           }
         : state;
-    case "record_failed":
-      return state.phase.kind === "recording" &&
+    case "account_record_failed":
+      return state.phase.kind === "recording_account" &&
         state.phase.userId === event.userId &&
         state.phase.query === event.query
         ? {
@@ -133,8 +140,8 @@ export function transitionQuotaLifecycle(
             },
           }
         : state;
-    case "record_succeeded":
-      return state.phase.kind === "recording" &&
+    case "account_record_succeeded":
+      return state.phase.kind === "recording_account" &&
         state.phase.userId === event.userId &&
         state.phase.query === event.query
         ? {
@@ -167,10 +174,9 @@ export function quotaStatusForQuery(
   switch (state.phase.kind) {
     case "exempt":
       return "allowed";
-    case "creating_guest":
-    case "recording":
+    case "recording_browser":
+    case "recording_account":
       return "verifying";
-    case "guest_creation_failed":
     case "record_failed":
       return "verification_unavailable";
     case "idle":
@@ -181,11 +187,11 @@ export function quotaStatusForQuery(
   }
 }
 
-export function parseStoredQuotaRecord(input: {
+export function parseStoredAccountQuotaRecord(input: {
   raw: string | null;
   today: string;
   userId: string;
-}): StoredQuotaRecord | null {
+}): StoredAccountQuotaRecord | null {
   if (input.raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(input.raw);
@@ -214,4 +220,55 @@ export function parseStoredQuotaRecord(input: {
   } catch {
     return null;
   }
+}
+
+export function parseStoredBrowserQuotaRecord(input: {
+  raw: string | null;
+  today: string;
+}): StoredBrowserQuotaRecord | null {
+  if (input.raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(input.raw);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("query" in parsed) ||
+      !("count" in parsed) ||
+      !("exceeded" in parsed) ||
+      !("day" in parsed) ||
+      typeof parsed.query !== "string" ||
+      typeof parsed.count !== "number" ||
+      !Number.isInteger(parsed.count) ||
+      parsed.count < 0 ||
+      typeof parsed.exceeded !== "boolean" ||
+      typeof parsed.day !== "string" ||
+      parsed.day !== input.today
+    ) {
+      return null;
+    }
+    return {
+      query: parsed.query,
+      count: parsed.count,
+      exceeded: parsed.exceeded,
+      day: parsed.day,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function recordBrowserSearch(input: {
+  prior: StoredBrowserQuotaRecord | null;
+  query: string;
+  today: string;
+}): StoredBrowserQuotaRecord {
+  const prior = input.prior?.day === input.today ? input.prior : null;
+  const count =
+    prior?.query === input.query ? prior.count : (prior?.count ?? 0) + 1;
+  return {
+    query: input.query,
+    count,
+    exceeded: !evaluateSearchQuota(count).allowed,
+    day: input.today,
+  };
 }

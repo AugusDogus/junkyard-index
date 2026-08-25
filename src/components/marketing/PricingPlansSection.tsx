@@ -6,7 +6,6 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { useSession } from "~/lib/auth-client";
-import { isRegisteredSessionUser } from "~/lib/session-user";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLAN_TIERS,
@@ -64,9 +63,7 @@ const PRICING_PLAN_CONTENT: Record<
 export function PricingPlansSection() {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
   const { data: session, isPending } = useSession();
-  // Anonymous guest sessions can't check out: Polar would bind the
-  // subscription to a user that Better Auth deletes on account conversion.
-  const isLoggedIn = isRegisteredSessionUser(session?.user);
+  const isLoggedIn = Boolean(session?.user);
   const viewer = resolvePricingViewerState({
     isPending,
     isRegistered: isLoggedIn,

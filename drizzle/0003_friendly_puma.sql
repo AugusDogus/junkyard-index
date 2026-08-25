@@ -6,5 +6,3 @@ CREATE TABLE `search_usage` (
 	PRIMARY KEY(`user_id`, `day`),
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
---> statement-breakpoint
-ALTER TABLE `user` ADD `is_anonymous` integer DEFAULT false NOT NULL;

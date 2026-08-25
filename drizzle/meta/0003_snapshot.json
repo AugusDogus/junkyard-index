@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8685c1fb-504d-4a3e-8740-b67127e3eef3",
+  "id": "a3e6c6ea-7b74-40c0-8cba-95f3f9e19698",
   "prevId": "445fbf91-8e12-43fe-b5a1-61ddf47f6903",
   "tables": {
     "account": {
@@ -1375,14 +1375,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "is_anonymous": {
-          "name": "is_anonymous",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
         },
         "created_at": {
           "name": "created_at",

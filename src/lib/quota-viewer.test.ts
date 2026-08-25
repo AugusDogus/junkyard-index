@@ -1,92 +1,44 @@
 import { describe, expect, test } from "bun:test";
-import {
-  establishAnonymousQuotaSession,
-  quotaViewerFromSessionUser,
-  resolveQuotaViewer,
-} from "./quota-viewer";
+import { quotaViewerFromSessionUser, resolveQuotaViewer } from "./quota-viewer";
 
 describe("quotaViewerFromSessionUser", () => {
-  test("models each session identity as one valid viewer state", () => {
+  test("distinguishes signed-out and authenticated viewers", () => {
     expect(quotaViewerFromSessionUser(undefined)).toEqual({
       kind: "signed_out",
     });
-    expect(
-      quotaViewerFromSessionUser({ id: "guest-1", isAnonymous: true }),
-    ).toEqual({ kind: "guest", userId: "guest-1" });
-    expect(
-      quotaViewerFromSessionUser({ id: "user-1", isAnonymous: false }),
-    ).toEqual({ kind: "authenticated", userId: "user-1" });
+    expect(quotaViewerFromSessionUser({ id: "user-1" })).toEqual({
+      kind: "authenticated",
+      userId: "user-1",
+    });
   });
 });
 
 describe("resolveQuotaViewer", () => {
   test("keeps the server identity while the client session hydrates", () => {
-    expect(
-      resolveQuotaViewer(
-        { kind: "guest", userId: "guest-1" },
-        { kind: "loading" },
-      ),
-    ).toEqual({ kind: "guest", userId: "guest-1" });
+    const viewer = { kind: "authenticated", userId: "user-1" } as const;
+    expect(resolveQuotaViewer(viewer, { kind: "loading" })).toEqual(viewer);
   });
 
-  test("adopts a guest identity only after anonymous sign-in completes", () => {
-    expect(
-      resolveQuotaViewer({ kind: "signed_out" }, { kind: "loading" }),
-    ).toEqual({ kind: "signed_out" });
+  test("keeps the server identity when session refresh fails", () => {
+    const viewer = { kind: "authenticated", userId: "user-1" } as const;
+    expect(resolveQuotaViewer(viewer, { kind: "failed" })).toEqual(viewer);
+  });
+
+  test("adopts an authenticated session after sign-in", () => {
     expect(
       resolveQuotaViewer(
         { kind: "signed_out" },
-        {
-          kind: "resolved",
-          user: { id: "guest-1", isAnonymous: true },
-        },
-      ),
-    ).toEqual({ kind: "guest", userId: "guest-1" });
-  });
-
-  test("replaces a prior identity after an account change", () => {
-    expect(
-      resolveQuotaViewer(
-        { kind: "guest", userId: "guest-1" },
-        {
-          kind: "resolved",
-          user: { id: "user-1", isAnonymous: false },
-        },
+        { kind: "resolved", user: { id: "user-1" } },
       ),
     ).toEqual({ kind: "authenticated", userId: "user-1" });
   });
 
-  test("replaces the server identity after a resolved sign-out", () => {
+  test("adopts a confirmed sign-out", () => {
     expect(
       resolveQuotaViewer(
         { kind: "authenticated", userId: "user-1" },
         { kind: "resolved", user: null },
       ),
     ).toEqual({ kind: "signed_out" });
-  });
-});
-
-describe("establishAnonymousQuotaSession", () => {
-  test("fails when Better Auth resolves an HTTP error response", async () => {
-    await expect(
-      establishAnonymousQuotaSession(async () => ({
-        data: null,
-        error: { message: "request failed" },
-      })),
-    ).resolves.toBe("failed");
-  });
-
-  test("distinguishes successful and thrown sign-in requests", async () => {
-    await expect(
-      establishAnonymousQuotaSession(async () => ({
-        data: { token: "guest-session" },
-        error: null,
-      })),
-    ).resolves.toBe("created");
-    await expect(
-      establishAnonymousQuotaSession(async () => {
-        throw new Error("network unavailable");
-      }),
-    ).resolves.toBe("failed");
   });
 });

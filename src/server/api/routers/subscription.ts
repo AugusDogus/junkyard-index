@@ -5,7 +5,7 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import { TERMS_METADATA } from "~/lib/legal";
 import { BILLING_INTERVALS, PAID_PLAN_TIERS } from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import { createTRPCRouter, registeredProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { polarBillingGateway } from "~/server/polar-billing-gateway";
 import { getBillingProductKey } from "~/server/billing/product-catalog";
 import {
@@ -37,7 +37,7 @@ const paidTierSchema = z.enum(PAID_PLAN_TIERS);
 const billingIntervalSchema = z.enum(BILLING_INTERVALS);
 
 export const subscriptionRouter = createTRPCRouter({
-  createCheckout: registeredProcedure
+  createCheckout: protectedProcedure
     .input(
       z.object({
         termsVersion: z.literal(TERMS_METADATA.version),
@@ -89,7 +89,7 @@ export const subscriptionRouter = createTRPCRouter({
       return { url: result.url };
     }),
 
-  getAccountOverview: registeredProcedure.query(async ({ ctx }) => {
+  getAccountOverview: protectedProcedure.query(async ({ ctx }) => {
     try {
       const overview = await polarBillingGateway.getAccountOverview(
         ctx.user.id,

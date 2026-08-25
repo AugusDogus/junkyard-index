@@ -12,7 +12,6 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { auth } from "~/lib/auth";
 import { db } from "~/lib/db";
-import { requireRegisteredAccount } from "~/server/api/registered-account";
 import { PlanGateError } from "~/server/plan-gate-error";
 
 /**
@@ -151,18 +150,3 @@ const enforceUserIsAuthed = t.middleware(async ({ ctx, next }) => {
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(enforceUserIsAuthed);
-
-const enforceUserIsRegistered = t.middleware(async ({ ctx, next }) => {
-  requireRegisteredAccount(ctx.user);
-  return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user,
-    },
-  });
-});
-
-/** Requires a non-anonymous account. Use for billing and account settings. */
-export const registeredProcedure = protectedProcedure.use(
-  enforceUserIsRegistered,
-);

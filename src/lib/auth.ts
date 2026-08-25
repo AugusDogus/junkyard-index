@@ -3,7 +3,7 @@ import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
 import { APIError, getOAuthState } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { anonymous, oAuthProxy } from "better-auth/plugins";
+import { oAuthProxy } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
@@ -13,7 +13,6 @@ import { TERMS_METADATA } from "~/lib/legal";
 import { polarClient } from "~/lib/polar";
 import { TermsAcceptance } from "~/lib/terms-acceptance";
 import * as schema from "~/schema";
-import { transferAnonymousSearchUsage } from "~/server/auth/anonymous-search-usage-transfer";
 import {
   handleCustomerStateChanged,
   handleSubscriptionCreated,
@@ -81,9 +80,6 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (newUser) => {
-          if (newUser.isAnonymous === true) {
-            return { data: newUser };
-          }
           const acceptedCurrentTerms =
             await TermsAcceptance.isAcceptedAtAuthBoundary({
               directVersion: newUser.termsVersion,
@@ -133,19 +129,6 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   plugins: [
     oAuthProxy({ productionURL }),
-    anonymous({
-      disableDeleteAnonymousUser: true,
-      onLinkAccount: async ({ anonymousUser, newUser }) => {
-        await transferAnonymousSearchUsage({
-          database: db,
-          anonymousUserId: anonymousUser.user.id,
-          newUserId: newUser.user.id,
-        });
-        await db
-          .delete(schema.user)
-          .where(eq(schema.user.id, anonymousUser.user.id));
-      },
-    }),
     polar({
       client: polarClient,
       createCustomerOnSignUp: true,
