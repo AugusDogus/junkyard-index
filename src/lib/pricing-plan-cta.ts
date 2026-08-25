@@ -11,7 +11,6 @@ type ActionablePricingUpgrade = Extract<
 >;
 
 export type PricingViewerState =
-  | { kind: "loading" }
   | { kind: "guest" }
   | { kind: "registered" };
 
@@ -21,11 +20,14 @@ export type PricingPlanCta =
   | ActionablePricingUpgrade;
 
 export function resolvePricingViewerState(input: {
+  initialIsRegistered: boolean;
   isPending: boolean;
   isRegistered: boolean;
 }): PricingViewerState {
-  if (input.isPending) return { kind: "loading" };
-  return input.isRegistered ? { kind: "registered" } : { kind: "guest" };
+  const isRegistered = input.isPending
+    ? input.initialIsRegistered
+    : input.isRegistered;
+  return isRegistered ? { kind: "registered" } : { kind: "guest" };
 }
 
 function registeredFreeLabel(account: BillingAccountState): string {
@@ -63,8 +65,6 @@ export function resolvePricingPlanCta(input: {
   account: BillingAccountState;
 }): PricingPlanCta {
   switch (input.viewer.kind) {
-    case "loading":
-      return { kind: "disabled", label: "Checking account..." };
     case "guest":
       return input.tier === "free"
         ? {

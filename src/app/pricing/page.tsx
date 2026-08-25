@@ -1,4 +1,6 @@
+import { getSessionCookie } from "better-auth/cookies";
 import { type Metadata } from "next";
+import { headers } from "next/headers";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
@@ -13,7 +15,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  // This is an optimistic first-render hint. The client session remains
+  // authoritative after hydration.
+  const initialIsRegistered = Boolean(
+    getSessionCookie(new Headers(await headers())),
+  );
+
   return (
     <div className="bg-background flex min-h-dvh flex-col">
       <Header />
@@ -33,7 +41,9 @@ export default function PricingPage() {
           </div>
 
           <div className="mt-10">
-            <PricingPlansSection />
+            <PricingPlansSection
+              initialIsRegistered={initialIsRegistered}
+            />
           </div>
 
           <div className="mt-12 rounded-lg border p-6 text-center">

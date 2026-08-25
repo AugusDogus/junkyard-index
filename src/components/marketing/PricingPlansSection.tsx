@@ -59,11 +59,16 @@ const PRICING_PLAN_CONTENT: Record<
   },
 };
 
-export function PricingPlansSection() {
+export function PricingPlansSection({
+  initialIsRegistered,
+}: {
+  initialIsRegistered: boolean;
+}) {
   const [interval, setInterval] = useState<BillingInterval>("annual");
   const { data: session, isPending } = useSession();
   const isLoggedIn = Boolean(session?.user);
   const viewer = resolvePricingViewerState({
+    initialIsRegistered,
     isPending,
     isRegistered: isLoggedIn,
   });
