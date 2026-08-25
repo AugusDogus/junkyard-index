@@ -12,10 +12,20 @@ import {
   CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
   checkoutTierConfirmationStatus,
   type PlanAccessState,
+  type PlanTier,
 } from "~/lib/plans";
+import type { BillingAccountOverview } from "~/server/billing";
 import { api } from "~/trpc/react";
+import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
 
-export { useDailySearchQuota } from "~/hooks/use-daily-search-quota";
+export { useSearchQuotaGate } from "~/hooks/use-daily-search-quota";
+
+function overviewTier(
+  overview: BillingAccountOverview | undefined,
+): PlanTier | null {
+  if (!overview || overview.kind === "unrecognized") return null;
+  return overview.kind === "active" ? overview.tier : "free";
+}
 
 /** Subscribes to the viewer's plan tier via tRPC. */
 export function usePlanTier(
@@ -32,16 +42,12 @@ export function usePlanTier(
     options.initialAccess === undefined ||
     options.initialAccess.kind === "unavailable" ||
     options.refreshUntilPaid === true;
-  const query = api.subscription.getTier.useQuery(undefined, {
+  const query = api.subscription.getAccountOverview.useQuery(undefined, {
     enabled: isLoggedIn && shouldQuery,
-    placeholderData:
-      options.initialAccess?.kind === "resolved"
-        ? { tier: options.initialAccess.tier }
-        : undefined,
     refetchInterval: (result) => {
       if (!options.refreshUntilPaid) return false;
       return checkoutTierConfirmationStatus({
-        tier: result.state.data?.tier ?? null,
+        tier: overviewTier(result.state.data),
         nowMs: Date.now(),
         deadlineMs: confirmationDeadlineMs,
       }) === "poll"
@@ -54,7 +60,7 @@ export function usePlanTier(
   if (
     options.refreshUntilPaid &&
     checkoutTierConfirmationStatus({
-      tier: query.data?.tier ?? null,
+      tier: overviewTier(query.data),
       nowMs: Date.now(),
       deadlineMs: confirmationDeadlineMs,
     }) === "timed_out"
@@ -64,7 +70,11 @@ export function usePlanTier(
   if (query.isError) {
     return { kind: "unavailable", reason: "lookup_failed" };
   }
-  if (query.data) return { kind: "resolved", tier: query.data.tier };
+  if (query.data?.kind === "unrecognized") {
+    return { kind: "unavailable", reason: "lookup_failed" };
+  }
+  const tier = overviewTier(query.data);
+  if (tier) return { kind: "resolved", tier };
   return options.initialAccess ?? { kind: "loading" };
 }
 
@@ -120,4 +130,23 @@ export function QuotaVerificationOverlay() {
       </p>
     </div>
   );
+}
+
+export function SearchQuotaOverlay({
+  gate,
+  query,
+  isGuest,
+}: {
+  gate: SearchQuotaGateState;
+  query: string;
+  isGuest: boolean;
+}) {
+  switch (gate.kind) {
+    case "open":
+      return null;
+    case "limit_exceeded":
+      return <FreeQuotaOverlay query={query} isGuest={isGuest} />;
+    case "verification_unavailable":
+      return <QuotaVerificationOverlay />;
+  }
 }

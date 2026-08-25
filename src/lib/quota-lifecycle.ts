@@ -14,8 +14,7 @@ type QuotaActivity =
 export interface QuotaLifecycleState {
   userId: string | null;
   lastQuery: string;
-  quotaExceeded: boolean;
-  quotaVerificationFailed: boolean;
+  status: "allowed" | "limit_exceeded" | "verification_unavailable";
   activity: QuotaActivity;
 }
 
@@ -40,8 +39,7 @@ export type QuotaLifecycleEvent =
 export const initialQuotaLifecycleState: QuotaLifecycleState = {
   userId: null,
   lastQuery: "",
-  quotaExceeded: false,
-  quotaVerificationFailed: false,
+  status: "allowed",
   activity: { kind: "idle" },
 };
 
@@ -58,8 +56,7 @@ export function transitionQuotaLifecycle(
         userId: event.userId,
         lastQuery:
           event.stored?.query ?? (isIdentityChange ? event.currentQuery : ""),
-        quotaExceeded: event.stored?.exceeded ?? false,
-        quotaVerificationFailed: false,
+        status: event.stored?.exceeded ? "limit_exceeded" : "allowed",
         activity: { kind: "idle" },
       };
     }
@@ -77,14 +74,14 @@ export function transitionQuotaLifecycle(
       if (state.userId === null) {
         return {
           ...state,
-          quotaVerificationFailed: false,
+          status: "allowed",
           activity: { kind: "creating_guest", query: event.query },
         };
       }
       return {
         ...state,
         lastQuery: event.query,
-        quotaVerificationFailed: false,
+        status: "allowed",
         activity: {
           kind: "recording",
           userId: state.userId,
@@ -95,7 +92,7 @@ export function transitionQuotaLifecycle(
       return state.activity.kind === "creating_guest"
         ? {
             ...state,
-            quotaVerificationFailed: true,
+            status: "verification_unavailable",
             activity: {
               kind: "guest_creation_failed",
               query: state.activity.query,
@@ -108,7 +105,7 @@ export function transitionQuotaLifecycle(
         state.activity.query === event.query
         ? {
             ...state,
-            quotaVerificationFailed: true,
+            status: "verification_unavailable",
             activity: { kind: "idle" },
           }
         : state;
@@ -118,19 +115,14 @@ export function transitionQuotaLifecycle(
         state.activity.query === event.query
         ? {
             ...state,
-            quotaExceeded: !event.allowed,
-            quotaVerificationFailed: false,
+            status: event.allowed ? "allowed" : "limit_exceeded",
             activity: { kind: "idle" },
           }
         : state;
     case "paid_tier_resolved":
-      return state.quotaExceeded || state.quotaVerificationFailed
-        ? {
-            ...state,
-            quotaExceeded: false,
-            quotaVerificationFailed: false,
-          }
-        : state;
+      return state.status === "allowed"
+        ? state
+        : { ...state, status: "allowed" };
   }
 }
 

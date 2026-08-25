@@ -101,6 +101,15 @@ describe("getPlanTier caching", () => {
     expect(await test.getPlanTier("cache-user-6")).toBe("lite");
     expect(polar.calls()).toBe(2);
   });
+
+  test("reuses a tier resolved from an existing customer snapshot", async () => {
+    const test = createTestService(createFakePolar(LITE_STATE));
+
+    test.rememberPlanTier("cache-user-7", "full");
+
+    expect(await test.getPlanTier("cache-user-7")).toBe("full");
+    expect(test.polar.calls()).toBe(0);
+  });
 });
 
 describe("createTierCache", () => {

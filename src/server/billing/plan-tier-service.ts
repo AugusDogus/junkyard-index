@@ -6,6 +6,7 @@ export interface PlanTierService {
   getPlanTier(userId: string): Promise<PlanTier>;
   getFreshPlanTier(userId: string): Promise<PlanTier>;
   refreshPlanTier(userId: string): Promise<PlanTier>;
+  rememberPlanTier(userId: string, tier: PlanTier): void;
 }
 
 export function createPlanTierService(options: {
@@ -56,6 +57,9 @@ export function createPlanTierService(options: {
       const tier = await resolveFresh(userId);
       cache.set(userId, tier);
       return tier;
+    },
+    rememberPlanTier(userId, tier) {
+      cache.set(userId, tier);
     },
   };
 }

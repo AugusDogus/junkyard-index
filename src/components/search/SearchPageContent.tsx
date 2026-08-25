@@ -92,11 +92,11 @@ import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import {
-  FreeQuotaOverlay,
-  QuotaVerificationOverlay,
-  useDailySearchQuota,
+  SearchQuotaOverlay,
+  useSearchQuotaGate,
   usePlanTier,
 } from "~/components/plan-gates";
+import { useCheckoutConfirmation } from "~/hooks/use-checkout-confirmation";
 import { api } from "~/trpc/react";
 
 function clampRouteYear(
@@ -322,6 +322,7 @@ function AlgoliaSearchInner({
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useCheckoutConfirmation(planAccess);
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
@@ -391,47 +392,6 @@ function AlgoliaSearchInner({
       clearPendingSaveSearch();
     }
   }, [saveSearchParam, isLoggedIn, setSaveSearchParam]);
-
-  // Handle subscription success
-  const [subscriptionParam, setSubscriptionParam] =
-    useQueryState("subscription");
-  const [customerSessionToken, setCustomerSessionToken] = useQueryState(
-    "customer_session_token",
-  );
-
-  useEffect(() => {
-    const isCheckoutSuccess =
-      subscriptionParam === "success" || customerSessionToken;
-    const confirmationTimedOut =
-      planAccess.kind === "unavailable" &&
-      planAccess.reason === "confirmation_timeout";
-    if (isCheckoutSuccess && confirmationTimedOut) {
-      toast.error(
-        "Subscription confirmation is taking longer than expected. Refresh this page or check Settings before trying checkout again.",
-      );
-      if (subscriptionParam) void setSubscriptionParam(null);
-      if (customerSessionToken) void setCustomerSessionToken(null);
-      return;
-    }
-    const hasPaidAccess =
-      planAccess.kind === "resolved" && planAccess.tier !== "free";
-    if (isCheckoutSuccess && hasPaidAccess) {
-      posthog.capture(AnalyticsEvents.SUBSCRIPTION_ACTIVATED, {
-        source: "checkout_redirect",
-      });
-      toast.success(
-        "Subscription activated! Manage your plan anytime from Settings.",
-      );
-      if (subscriptionParam) void setSubscriptionParam(null);
-      if (customerSessionToken) void setCustomerSessionToken(null);
-    }
-  }, [
-    subscriptionParam,
-    setSubscriptionParam,
-    customerSessionToken,
-    setCustomerSessionToken,
-    planAccess,
-  ]);
 
   const handleAutoOpenHandled = useCallback(() => {
     setAutoOpenSaveDialog(false);
@@ -787,10 +747,11 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
-  const quotaStatus = useDailySearchQuota({
+  const quotaGate = useSearchQuotaGate({
     initialViewer: viewer,
     planTier,
     analyticsSearchValue,
+    hasActiveSearch,
     isSearching,
     hasError: !!error,
   });
@@ -892,13 +853,7 @@ function AlgoliaSearchInner({
     );
   }, [isAnonymousCapped, analyticsSearchValue, searchResult, signUpHref]);
 
-  const showFreeQuotaBlock =
-    quotaStatus === "limit_exceeded" && hasActiveSearch && !isSearching;
-  const showQuotaVerificationBlock =
-    quotaStatus === "verification_unavailable" &&
-    hasActiveSearch &&
-    !isSearching;
-  const showQuotaBlock = showFreeQuotaBlock || showQuotaVerificationBlock;
+  const showQuotaBlock = quotaGate.kind !== "open";
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -1428,15 +1383,11 @@ function AlgoliaSearchInner({
             </div>
           )}
 
-          {/* Free-tier quota block */}
-          {showFreeQuotaBlock && (
-            <FreeQuotaOverlay
-              query={analyticsSearchValue}
-              isGuest={!isLoggedIn && !!isAnonymousUser}
-            />
-          )}
-
-          {showQuotaVerificationBlock && <QuotaVerificationOverlay />}
+          <SearchQuotaOverlay
+            gate={quotaGate}
+            query={analyticsSearchValue}
+            isGuest={!isLoggedIn && !!isAnonymousUser}
+          />
 
           {/* Search Results */}
           {(searchResult ?? isSearching) && !error && !showQuotaBlock && (

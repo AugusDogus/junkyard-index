@@ -21,10 +21,9 @@ import {
 import posthog from "posthog-js";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { resolvePlanFeatureAccess } from "~/lib/plans";
+import { hasPlanFeature } from "~/lib/plans";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
-import { usePlanTier } from "~/components/plan-gates";
 
 export function SavedSearchesList() {
   const utils = api.useUtils();
@@ -33,14 +32,11 @@ export function SavedSearchesList() {
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery();
 
-  const { open: openSubscriptionDestination } = useSubscriptionDestination({
-    source: "saved_searches_list",
-  });
-  const planAccess = usePlanTier(true);
-  const canUseAlerts = resolvePlanFeatureAccess({
-    access: planAccess,
-    feature: "alerts",
-  });
+  const { state: subscriptionState, open: openSubscriptionDestination } =
+    useSubscriptionDestination({ source: "saved_searches_list" });
+  const canUseAlerts =
+    subscriptionState.kind === "active" &&
+    hasPlanFeature(subscriptionState.tier, "alerts");
   const canUseDiscord =
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;

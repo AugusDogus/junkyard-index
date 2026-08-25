@@ -5,18 +5,14 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import { TERMS_METADATA } from "~/lib/legal";
 import { BILLING_INTERVALS, PAID_PLAN_TIERS } from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  registeredProcedure,
-} from "~/server/api/trpc";
+import { createTRPCRouter, registeredProcedure } from "~/server/api/trpc";
 import { polarBillingGateway } from "~/server/polar-billing-gateway";
 import { getBillingProductKey } from "~/server/billing/product-catalog";
 import {
   createSubscriptionCheckout,
   type SubscriptionCheckoutBlocked,
 } from "~/server/subscription-checkout";
-import { refreshPlanTier } from "~/server/billing/user-plan";
+import { rememberPlanTier } from "~/server/billing/user-plan";
 
 function checkoutBlockedMessage(result: SubscriptionCheckoutBlocked): string {
   switch (result.reason) {
@@ -95,7 +91,18 @@ export const subscriptionRouter = createTRPCRouter({
 
   getAccountOverview: registeredProcedure.query(async ({ ctx }) => {
     try {
-      return await polarBillingGateway.getAccountOverview(ctx.user.id);
+      const overview = await polarBillingGateway.getAccountOverview(
+        ctx.user.id,
+      );
+      if (overview.kind === "active") {
+        rememberPlanTier(ctx.user.id, overview.tier);
+      } else if (
+        overview.kind === "none" ||
+        overview.kind === "needs_attention"
+      ) {
+        rememberPlanTier(ctx.user.id, "free");
+      }
+      return overview;
     } catch (cause) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -104,8 +111,4 @@ export const subscriptionRouter = createTRPCRouter({
       });
     }
   }),
-
-  getTier: protectedProcedure.query(async ({ ctx }) => ({
-    tier: ctx.user.isAnonymous ? "free" : await refreshPlanTier(ctx.user.id),
-  })),
 });

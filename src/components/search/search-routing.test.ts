@@ -9,8 +9,12 @@ const LOCATION = {
 
 describe("search routing", () => {
   test("keeps a ready VIN pattern out of Algolia's text query state", () => {
-    const readyRouting = createSearchRouting(ALGOLIA_INDEX_NAME, true);
-    const disabledRouting = createSearchRouting(ALGOLIA_INDEX_NAME, false);
+    const readyRouting = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
+    const disabledRouting = createSearchRouting(
+      ALGOLIA_INDEX_NAME,
+      false,
+      true,
+    );
 
     expect(readyRouting.router.parseURL({ location: LOCATION })).toEqual({
       [ALGOLIA_INDEX_NAME]: {},
@@ -21,7 +25,7 @@ describe("search routing", () => {
   });
 
   test("normalizes a ready VIN when rebuilding the URL", () => {
-    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true);
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
 
     expect(
       routing.router.createURL({
@@ -32,7 +36,7 @@ describe("search routing", () => {
   });
 
   test("maps stable sort keys and removes unknown sources", () => {
-    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true);
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
 
     expect(
       routing.stateMapping.routeToState({

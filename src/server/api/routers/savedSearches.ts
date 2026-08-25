@@ -11,7 +11,7 @@ import {
   type SavedSearchGateFeature,
 } from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, registeredProcedure } from "~/server/api/trpc";
 import { PlanGateError } from "~/server/plan-gate-error";
 import {
   currentSearchPublicationSequence,
@@ -42,7 +42,7 @@ async function getAuthoritativePlanTier(userId: string) {
 }
 
 export const savedSearchesRouter = createTRPCRouter({
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: registeredProcedure.query(async ({ ctx }) => {
     const searches = await ctx.db
       .select()
       .from(savedSearch)
@@ -65,7 +65,7 @@ export const savedSearchesRouter = createTRPCRouter({
     });
   }),
 
-  create: protectedProcedure
+  create: registeredProcedure
     .input(
       z.object({
         name: z.string().min(1).max(100),
@@ -131,7 +131,7 @@ export const savedSearchesRouter = createTRPCRouter({
       return { id };
     }),
 
-  delete: protectedProcedure
+  delete: registeredProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db
@@ -154,7 +154,7 @@ export const savedSearchesRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  toggleEmailAlerts: protectedProcedure
+  toggleEmailAlerts: registeredProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const [existingSavedSearch] = await ctx.db
@@ -205,7 +205,7 @@ export const savedSearchesRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  toggleDiscordAlerts: protectedProcedure
+  toggleDiscordAlerts: registeredProcedure
     .input(z.object({ id: z.string(), enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const [existingSavedSearch] = await ctx.db

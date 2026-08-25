@@ -238,7 +238,7 @@ function createAdvancedFilterPolicy(allowed: boolean): AdvancedFilterPolicy {
 export function createSearchRouting(
   indexName: string,
   vinPatternIndexReady: boolean,
-  allowAdvancedFilters: boolean = true,
+  allowAdvancedFilters: boolean,
 ) {
   const advancedFilterPolicy = createAdvancedFilterPolicy(allowAdvancedFilters);
   return {
