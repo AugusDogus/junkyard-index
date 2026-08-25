@@ -63,7 +63,9 @@ export function SubscriptionSettingsCard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void openSubscriptionDestination()}
+              onClick={() =>
+                void openSubscriptionDestination({ kind: "manage" })
+              }
             >
               Manage Subscription
             </Button>
@@ -77,7 +79,9 @@ export function SubscriptionSettingsCard() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void openSubscriptionDestination()}
+              onClick={() =>
+                void openSubscriptionDestination({ kind: "manage" })
+              }
             >
               Manage Subscription
             </Button>

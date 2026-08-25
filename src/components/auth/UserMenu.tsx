@@ -146,7 +146,9 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
         </DropdownMenuItem>
         {/* Subscription management */}
         {hasManageableSubscription ? (
-          <DropdownMenuItem onClick={() => void openSubscriptionDestination()}>
+          <DropdownMenuItem
+            onClick={() => void openSubscriptionDestination({ kind: "manage" })}
+          >
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Manage Subscription</span>
           </DropdownMenuItem>

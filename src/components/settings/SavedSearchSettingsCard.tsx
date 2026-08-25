@@ -69,7 +69,10 @@ export function SavedSearchSettingsCard() {
 
   const setEmailAlerts = (id: string, enabled: boolean) => {
     if (enabled && !canUseAlerts) {
-      void openSubscriptionDestination();
+      void openSubscriptionDestination({
+        kind: "upgrade",
+        selection: { tier: "full", interval: "monthly" },
+      });
       return;
     }
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED, {
@@ -82,7 +85,10 @@ export function SavedSearchSettingsCard() {
 
   const setDiscordAlerts = (id: string, enabled: boolean) => {
     if (enabled && !canUseAlerts) {
-      void openSubscriptionDestination();
+      void openSubscriptionDestination({
+        kind: "upgrade",
+        selection: { tier: "full", interval: "monthly" },
+      });
       return;
     }
     if (enabled && !canUseDiscord) {

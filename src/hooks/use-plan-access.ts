@@ -1,23 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import {
-  useBillingAccount,
-  type BillingAccountState,
-} from "~/hooks/use-billing-account";
+import { useEffect, useRef, useState } from "react";
+import { useBillingAccount } from "~/hooks/use-billing-account";
+import { billingAccountTier } from "~/lib/billing-account";
 import {
   CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
-  checkoutTierConfirmationStatus,
   planAccessRefetchInterval,
   type PlanAccessState,
-  type PlanTier,
 } from "~/lib/plans";
-
-function billingStateTier(state: BillingAccountState): PlanTier | null {
-  if (state.kind === "active") return state.tier;
-  if (state.kind === "none" || state.kind === "needs_attention") return "free";
-  return null;
-}
 
 export function usePlanAccess(
   isLoggedIn: boolean,
@@ -28,30 +18,48 @@ export function usePlanAccess(
   const [confirmationDeadlineMs] = useState(
     () => Date.now() + CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
   );
+  const [confirmationTimedOut, setConfirmationTimedOut] = useState(false);
+  const confirmationSettled = useRef(false);
   const billingAccount = useBillingAccount({
     enabled: isLoggedIn,
-    refetchInterval: (overview) =>
+    refetchInterval: (state) =>
       planAccessRefetchInterval({
         refreshUntilPaid: options.refreshUntilPaid === true,
-        tier:
-          overview?.kind === "active"
-            ? overview.tier
-            : overview && overview.kind !== "unrecognized"
-              ? "free"
-              : null,
+        tier: billingAccountTier(state),
         nowMs: Date.now(),
         deadlineMs: confirmationDeadlineMs,
       }),
   });
+  const tier = billingAccountTier(billingAccount.state);
+  const hasPaidTier = tier === "lite" || tier === "full";
+  if (hasPaidTier) confirmationSettled.current = true;
+
+  useEffect(() => {
+    if (
+      !isLoggedIn ||
+      options.refreshUntilPaid !== true ||
+      confirmationSettled.current
+    ) {
+      return;
+    }
+    const timeoutId = window.setTimeout(
+      () => setConfirmationTimedOut(true),
+      Math.max(0, confirmationDeadlineMs - Date.now()),
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    confirmationDeadlineMs,
+    hasPaidTier,
+    isLoggedIn,
+    options.refreshUntilPaid,
+  ]);
+
   if (!isLoggedIn) return { kind: "resolved", tier: "free" };
-  const tier = billingStateTier(billingAccount.state);
   if (
     options.refreshUntilPaid &&
-    checkoutTierConfirmationStatus({
-      tier,
-      nowMs: Date.now(),
-      deadlineMs: confirmationDeadlineMs,
-    }) === "timed_out"
+    confirmationTimedOut &&
+    !confirmationSettled.current &&
+    !hasPaidTier
   ) {
     return { kind: "unavailable", reason: "confirmation_timeout" };
   }

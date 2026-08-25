@@ -4,9 +4,12 @@ import { env } from "~/env";
 import { db } from "~/lib/db";
 import { hasPlanFeature } from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
+import { disableUserAlertChannels } from "~/server/alerts/alert-config-repository";
 import { recordCheckoutCompletion } from "~/server/billing-operation";
-import { resolveCustomerPlanTier } from "./user-plan";
+import {
+  rememberPlanTierFromSnapshot,
+  resolveCustomerPlanTier,
+} from "./user-plan";
 
 export async function handleSubscriptionCreated(
   payload: WebhookSubscriptionCreatedPayload,
@@ -68,6 +71,7 @@ export async function handleCustomerStateChanged(
   const planTier = resolution.tier;
 
   if (customerState.externalId) {
+    rememberPlanTierFromSnapshot(customerState.externalId, planTier);
     posthog.capture({
       distinctId: customerState.externalId,
       event: "subscription_state_changed",
@@ -80,19 +84,9 @@ export async function handleCustomerStateChanged(
   }
 
   if (!hasPlanFeature(planTier, "alerts") && customerState.externalId) {
-    await Promise.all([
-      setUserAlertChannel({
-        database: db,
-        userId: customerState.externalId,
-        channel: "email",
-        enabled: false,
-      }),
-      setUserAlertChannel({
-        database: db,
-        userId: customerState.externalId,
-        channel: "discord",
-        enabled: false,
-      }),
-    ]);
+    await disableUserAlertChannels({
+      database: db,
+      userId: customerState.externalId,
+    });
   }
 }

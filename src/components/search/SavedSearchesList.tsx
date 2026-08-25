@@ -148,7 +148,10 @@ export function SavedSearchesList() {
 
     // If trying to enable but no subscription, redirect to checkout
     if (!currentState && !canUseAlerts) {
-      void openSubscriptionDestination();
+      void openSubscriptionDestination({
+        kind: "upgrade",
+        selection: { tier: "full", interval: "monthly" },
+      });
       return;
     }
 
@@ -172,7 +175,10 @@ export function SavedSearchesList() {
 
     // If trying to enable but no subscription, redirect to checkout
     if (!currentState && !canUseAlerts) {
-      void openSubscriptionDestination();
+      void openSubscriptionDestination({
+        kind: "upgrade",
+        selection: { tier: "full", interval: "monthly" },
+      });
       return;
     }
 

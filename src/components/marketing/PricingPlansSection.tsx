@@ -4,11 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
+import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { useSession } from "~/lib/auth-client";
-import { AnalyticsEvents } from "~/lib/analytics-events";
-import posthog from "posthog-js";
 import { isRegisteredSessionUser } from "~/lib/session-user";
-import { subscriptionReturnTo } from "~/lib/subscription-selection";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLAN_TIERS,
@@ -64,16 +62,17 @@ export function PricingPlansSection() {
   // Anonymous guest sessions can't check out: Polar would bind the
   // subscription to a user that Better Auth deletes on account conversion.
   const isLoggedIn = isRegisteredSessionUser(session?.user);
-
-  const handleCheckout = (tier: PaidPlanTier, ctaLocation: string) => {
-    posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
+  const { state: subscriptionState, open: openSubscriptionDestination } =
+    useSubscriptionDestination({
       source: "pricing_flow",
-      source_page: "pricing",
-      cta_location: ctaLocation,
-      plan_tier: tier,
-      billing_interval: interval,
+      enabled: isLoggedIn,
     });
-    window.location.assign(subscriptionReturnTo({ tier, interval }));
+
+  const handleCheckout = (tier: PaidPlanTier) => {
+    void openSubscriptionDestination({
+      kind: "upgrade",
+      selection: { tier, interval },
+    });
   };
 
   return (
@@ -126,9 +125,18 @@ export function PricingPlansSection() {
                   <Button
                     variant={content.featured ? "default" : "outline"}
                     className="w-full"
-                    onClick={() => void handleCheckout(tier, `${tier}_plan`)}
+                    disabled={subscriptionState.kind === "loading"}
+                    onClick={() => handleCheckout(tier)}
                   >
-                    Upgrade to {PLANS[tier].name}
+                    {subscriptionState.kind === "loading"
+                      ? "Checking subscription..."
+                      : subscriptionState.kind === "active"
+                        ? subscriptionState.tier === tier
+                          ? `Manage ${PLANS[tier].name}`
+                          : `Change to ${PLANS[tier].name}`
+                        : subscriptionState.kind === "needs_attention"
+                          ? "Manage Subscription"
+                          : `Get ${PLANS[tier].name}`}
                   </Button>
                 ) : (
                   <Button
