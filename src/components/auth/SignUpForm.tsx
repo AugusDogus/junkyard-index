@@ -171,7 +171,7 @@ export function SignUpForm() {
         />
         <Label
           htmlFor="legal-acceptance"
-          className="text-muted-foreground leading-5 font-normal"
+          className="text-muted-foreground block leading-5 font-normal"
         >
           I agree to the{" "}
           <Link href="/terms" className="text-primary hover:underline">
