@@ -189,7 +189,7 @@ export function createPolarBillingGateway(
       const checkout = await operations.createCheckout({
         externalCustomerId: userId,
         products: [product.productId],
-        successUrl: `${config.appUrl}/search?subscription=success`,
+        successUrl: `${config.appUrl}/api/billing/checkout-return`,
         returnUrl: `${config.appUrl}/subscribe?tier=${product.tier}&interval=${product.interval}`,
         metadata: {
           terms_version: termsVersion,

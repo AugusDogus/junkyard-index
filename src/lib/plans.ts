@@ -36,64 +36,15 @@ export type PlanFeature =
   | "unlimited_searches"
   | "alerts";
 
-export type PlanAccessState =
-  | { kind: "loading" }
-  | {
-      kind: "unavailable";
-      reason: "lookup_failed" | "confirmation_timeout";
-    }
-  | { kind: "resolved"; tier: PlanTier };
-
-export function resolvePlanAccess(input: {
-  isLoggedIn: boolean;
-  tier: PlanTier | null;
-  confirmationTimedOut: boolean;
-  lookupUnavailable: boolean;
-}): PlanAccessState {
-  if (!input.isLoggedIn) return { kind: "resolved", tier: "free" };
-  if (input.tier === "lite" || input.tier === "full") {
-    return { kind: "resolved", tier: input.tier };
-  }
-  if (input.confirmationTimedOut) {
-    return { kind: "unavailable", reason: "confirmation_timeout" };
-  }
-  if (input.tier === "free") return { kind: "resolved", tier: "free" };
-  if (input.lookupUnavailable) {
-    return { kind: "unavailable", reason: "lookup_failed" };
-  }
-  return { kind: "loading" };
-}
-
-interface PlanFeaturePolicy {
-  minimumTier: PaidPlanTier;
-  unresolvedAccess: "allow" | "deny";
-}
-
-// Client-only gates deny access until the tier resolves. Server-enforced
-// actions stay usable during hydration and are authorized again on mutation.
-const PLAN_FEATURE_POLICIES: Record<PlanFeature, PlanFeaturePolicy> = {
-  advanced_filters: { minimumTier: "lite", unresolvedAccess: "deny" },
-  saved_searches: { minimumTier: "lite", unresolvedAccess: "allow" },
-  unlimited_searches: { minimumTier: "lite", unresolvedAccess: "allow" },
-  alerts: { minimumTier: "full", unresolvedAccess: "allow" },
+const PLAN_FEATURE_MINIMUM_TIER: Record<PlanFeature, PaidPlanTier> = {
+  advanced_filters: "lite",
+  saved_searches: "lite",
+  unlimited_searches: "lite",
+  alerts: "full",
 };
 
 export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
-  return tierSatisfies(tier, PLAN_FEATURE_POLICIES[feature].minimumTier);
-}
-
-export function resolvePlanFeatureAccess(input: {
-  access: PlanAccessState;
-  feature: PlanFeature;
-}): boolean {
-  if (input.access.kind === "resolved") {
-    return hasPlanFeature(input.access.tier, input.feature);
-  }
-  return PLAN_FEATURE_POLICIES[input.feature].unresolvedAccess === "allow";
-}
-
-export function resolvedPlanTier(access: PlanAccessState): PlanTier | null {
-  return access.kind === "resolved" ? access.tier : null;
+  return tierSatisfies(tier, PLAN_FEATURE_MINIMUM_TIER[feature]);
 }
 
 /**

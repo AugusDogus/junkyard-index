@@ -17,7 +17,7 @@ import { SearchQuotaOverlay } from "~/components/search/SearchQuotaOverlay";
 import { Button } from "~/components/ui/button";
 import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import type { PlanAccessState } from "~/lib/plans";
+import type { PlanAccessState } from "~/lib/plan-access";
 import type { SearchResult } from "~/lib/types";
 
 type ClosedQuotaGate = Exclude<SearchQuotaGateState, { kind: "open" }>;

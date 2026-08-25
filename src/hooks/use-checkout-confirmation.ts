@@ -5,18 +5,14 @@ import posthog from "posthog-js";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import type { PlanAccessState } from "~/lib/plans";
+import type { PlanAccessState } from "~/lib/plan-access";
 
 export function useCheckoutConfirmation(planAccess: PlanAccessState): void {
   const [subscriptionParam, setSubscriptionParam] =
     useQueryState("subscription");
-  const [customerSessionToken, setCustomerSessionToken] = useQueryState(
-    "customer_session_token",
-  );
 
   useEffect(() => {
-    const isCheckoutSuccess =
-      subscriptionParam === "success" || customerSessionToken;
+    const isCheckoutSuccess = subscriptionParam === "success";
     const confirmationTimedOut =
       planAccess.kind === "unavailable" &&
       planAccess.reason === "confirmation_timeout";
@@ -24,8 +20,7 @@ export function useCheckoutConfirmation(planAccess: PlanAccessState): void {
       toast.error(
         "Subscription confirmation is taking longer than expected. Refresh this page or check Settings before trying checkout again.",
       );
-      if (subscriptionParam) void setSubscriptionParam(null);
-      if (customerSessionToken) void setCustomerSessionToken(null);
+      void setSubscriptionParam(null);
       return;
     }
 
@@ -39,13 +34,6 @@ export function useCheckoutConfirmation(planAccess: PlanAccessState): void {
     toast.success(
       "Subscription activated! Manage your plan anytime from Settings.",
     );
-    if (subscriptionParam) void setSubscriptionParam(null);
-    if (customerSessionToken) void setCustomerSessionToken(null);
-  }, [
-    subscriptionParam,
-    setSubscriptionParam,
-    customerSessionToken,
-    setCustomerSessionToken,
-    planAccess,
-  ]);
+    void setSubscriptionParam(null);
+  }, [subscriptionParam, setSubscriptionParam, planAccess]);
 }

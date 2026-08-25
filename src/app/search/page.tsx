@@ -1,6 +1,7 @@
 import { geolocation } from "@vercel/functions";
 import { type Metadata } from "next";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
@@ -21,7 +22,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function SearchPage() {
+interface SearchPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const params = await searchParams;
+  if (params.customer_session_token !== undefined) {
+    redirect("/search?subscription=success");
+  }
+
   const reqHeaders = await headers();
 
   const [session, geo] = await Promise.all([
