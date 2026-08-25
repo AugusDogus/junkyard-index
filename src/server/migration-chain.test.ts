@@ -47,20 +47,29 @@ const LEGACY_SCHEMA = `
   create index vehicle_change_processed_at_idx on vehicle_change(processed_at, id);
 `;
 
-describe("Terms and billing operation migration", () => {
-  test("runs the complete migration chain and enforces billing states", async () => {
-    const client = createClient({ url: ":memory:" });
-    const migrationsFolder = resolve(import.meta.dir, "../../drizzle");
+const MIGRATIONS_FOLDER = resolve(import.meta.dir, "../../drizzle");
+
+async function createMigratedClient() {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(LEGACY_SCHEMA);
+    await client.execute(
+      "insert into user (id, name, email) values ('existing-user', 'Existing', 'existing@example.com')",
+    );
+    await migrate(drizzle(client), {
+      migrationsFolder: MIGRATIONS_FOLDER,
+    });
+    return client;
+  } catch (error) {
+    client.close();
+    throw error;
+  }
+}
+
+describe("migration chain", () => {
+  test("applies every migration and preserves billing constraints", async () => {
+    const client = await createMigratedClient();
     try {
-      await client.executeMultiple(LEGACY_SCHEMA);
-      await client.execute(
-        "insert into user (id, name, email) values ('existing-user', 'Existing', 'existing@example.com')",
-      );
-
-      await migrate(drizzle(client), {
-        migrationsFolder,
-      });
-
       const result = await client.execute(
         `select terms_accepted_at, terms_version
          from user where id = 'existing-user'`,
@@ -88,6 +97,21 @@ describe("Terms and billing operation migration", () => {
         ),
       ).resolves.toBeDefined();
 
+      const journal = await client.execute(
+        "select count(*) as count from __drizzle_migrations",
+      );
+      const migrationCount = (await readdir(MIGRATIONS_FOLDER)).filter(
+        (fileName) => fileName.endsWith(".sql"),
+      ).length;
+      expect(journal.rows[0]?.count).toBe(migrationCount);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("deletes account-linked yard requests but preserves anonymous requests", async () => {
+    const client = await createMigratedClient();
+    try {
       await client.execute(
         `insert into yard_request (id, user_id, yard_name, requester_email)
          values ('linked-request', 'existing-user', 'Linked Yard', 'existing@example.com')`,
@@ -96,21 +120,15 @@ describe("Terms and billing operation migration", () => {
         `insert into yard_request (id, user_id, yard_name, requester_email)
          values ('anonymous-request', null, 'Anonymous Yard', null)`,
       );
+
       await client.execute("delete from user where id = 'existing-user'");
+
       const remainingRequests = await client.execute(
         "select id from yard_request order by id",
       );
       expect(remainingRequests.rows.map((row) => row.id)).toEqual([
         "anonymous-request",
       ]);
-
-      const journal = await client.execute(
-        "select count(*) as count from __drizzle_migrations",
-      );
-      const migrationCount = (await readdir(migrationsFolder)).filter(
-        (fileName) => fileName.endsWith(".sql"),
-      ).length;
-      expect(journal.rows[0]?.count).toBe(migrationCount);
     } finally {
       client.close();
     }

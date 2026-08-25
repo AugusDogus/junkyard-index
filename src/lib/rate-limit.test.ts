@@ -1,9 +1,5 @@
-// Keep env validation from running when the module graph loads without secrets.
-process.env.SKIP_ENV_VALIDATION = "1";
-
 import { describe, expect, test } from "bun:test";
-
-const { checkRateLimit, getClientIp } = await import("./rate-limit");
+import { checkRateLimit, getClientIp } from "./rate-limit";
 
 describe("getClientIp", () => {
   test("prefers the proxy-set real IP", () => {

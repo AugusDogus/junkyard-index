@@ -1,15 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import {
-  checkRateLimit,
-  getClientIp,
-  yardRequestLimiter,
-} from "~/lib/rate-limit";
 import { yardRequestWebsiteSchema } from "~/lib/yard-request-website";
 import posthog from "~/lib/posthog-server";
 import { sendYardRequestNotification } from "~/lib/email";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { checkYardRequestRateLimit } from "~/server/yard-request-rate-limit";
 import { yardRequest } from "~/schema";
 
 export const yardRequestsRouter = createTRPCRouter({
@@ -26,10 +22,7 @@ export const yardRequestsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const allowed = await checkRateLimit(
-        yardRequestLimiter,
-        getClientIp(ctx.headers),
-      );
+      const allowed = await checkYardRequestRateLimit(ctx.headers);
       if (!allowed) {
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",

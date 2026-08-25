@@ -96,11 +96,7 @@ export function SearchableCheckboxList({
       >
         {sorted.length === 0 ? (
           query ? (
-            <p
-              className="text-muted-foreground px-3 py-2 text-sm"
-              role="status"
-              aria-live="polite"
-            >
+            <p className="text-muted-foreground px-3 py-2 text-sm" role="status" aria-live="polite">
               No matches
             </p>
           ) : null
