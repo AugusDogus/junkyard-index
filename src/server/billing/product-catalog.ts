@@ -1,19 +1,17 @@
-import type { BillingInterval, PlanTier } from "~/lib/plans";
+import {
+  BILLING_INTERVALS,
+  PAID_PLAN_TIERS,
+  type BillingInterval,
+  type PaidPlanTier,
+} from "~/lib/plans";
 
-type PaidTier = Exclude<PlanTier, "free">;
-
-export const BILLING_PRODUCT_KEYS = [
-  "lite_monthly",
-  "lite_annual",
-  "full_monthly",
-  "full_annual",
-] as const;
-
-export type BillingProductKey = (typeof BILLING_PRODUCT_KEYS)[number];
+export type BillingProductKey = `${PaidPlanTier}_${BillingInterval}`;
 
 export type CheckoutBillingProduct = {
   kind: "checkout";
   key: BillingProductKey;
+  tier: PaidPlanTier;
+  interval: BillingInterval;
   productId: string;
 };
 
@@ -27,11 +25,18 @@ export function createBillingProductCatalog(input: {
   checkoutProductIds: BillingProductIds;
   legacyProductId?: string;
 }): readonly BillingProduct[] {
-  const checkoutProducts = BILLING_PRODUCT_KEYS.map((key) => ({
-    kind: "checkout" as const,
-    key,
-    productId: input.checkoutProductIds[key],
-  }));
+  const checkoutProducts = PAID_PLAN_TIERS.flatMap((tier) =>
+    BILLING_INTERVALS.map((interval) => {
+      const key = getBillingProductKey(tier, interval);
+      return {
+        kind: "checkout" as const,
+        key,
+        tier,
+        interval,
+        productId: input.checkoutProductIds[key],
+      };
+    }),
+  );
   const catalog: readonly BillingProduct[] = [
     ...checkoutProducts,
     ...(input.legacyProductId
@@ -59,30 +64,12 @@ export function getCheckoutBillingProducts(
 }
 
 export function getBillingProductKey(
-  tier: PaidTier,
+  tier: PaidPlanTier,
   interval: BillingInterval,
 ): BillingProductKey {
   return `${tier}_${interval}`;
 }
 
-export function parseBillingProductKey(key: BillingProductKey): {
-  tier: PaidTier;
-  interval: BillingInterval;
-} {
-  switch (key) {
-    case "lite_monthly":
-      return { tier: "lite", interval: "monthly" };
-    case "lite_annual":
-      return { tier: "lite", interval: "annual" };
-    case "full_monthly":
-      return { tier: "full", interval: "monthly" };
-    case "full_annual":
-      return { tier: "full", interval: "annual" };
-  }
-}
-
-export function getBillingProductTier(product: BillingProduct): PaidTier {
-  return product.kind === "legacy"
-    ? "full"
-    : parseBillingProductKey(product.key).tier;
+export function getBillingProductTier(product: BillingProduct): PaidPlanTier {
+  return product.kind === "legacy" ? "full" : product.tier;
 }

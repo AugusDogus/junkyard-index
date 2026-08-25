@@ -43,7 +43,7 @@ export function usePlanTier(isLoggedIn: boolean): {
   // them. Advanced filters are client-only, so they remain locked until the
   // tier is authoritative.
   const resolveGate = (feature: PlanFeature): boolean =>
-    resolvePlanFeatureAccess({ tier: planTier, isLoggedIn, feature });
+    resolvePlanFeatureAccess({ tier: planTier, feature });
 
   return {
     planTier,

@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { type PlanTier } from "~/lib/plans";
 import {
   type EntitlementProduct,
   type CustomerStateLike,
-  hasUnrecognizedSubscriptions,
   resolvePlanTierFromCustomerState,
 } from "~/server/billing/plan-tier";
 
@@ -29,8 +27,11 @@ describe("resolvePlanTierFromCustomerState", () => {
   test("no subscriptions resolves to free", () => {
     expect(
       resolvePlanTierFromCustomerState({ activeSubscriptions: [] }, PRODUCTS),
-    ).toBe("free");
-    expect(resolvePlanTierFromCustomerState({}, PRODUCTS)).toBe("free");
+    ).toEqual({ kind: "resolved", tier: "free" });
+    expect(resolvePlanTierFromCustomerState({}, PRODUCTS)).toEqual({
+      kind: "resolved",
+      tier: "free",
+    });
   });
 
   test("legacy subscribers are grandfathered as full", () => {
@@ -38,22 +39,22 @@ describe("resolvePlanTierFromCustomerState", () => {
       stateWith("legacy-email-notifications"),
       PRODUCTS,
     );
-    expect(tier).toBe("full");
+    expect(tier).toEqual({ kind: "resolved", tier: "full" });
   });
 
   test("monthly and annual products map to their tier", () => {
     expect(
       resolvePlanTierFromCustomerState(stateWith("lite-monthly"), PRODUCTS),
-    ).toBe("lite");
+    ).toEqual({ kind: "resolved", tier: "lite" });
     expect(
       resolvePlanTierFromCustomerState(stateWith("lite-annual"), PRODUCTS),
-    ).toBe("lite");
+    ).toEqual({ kind: "resolved", tier: "lite" });
     expect(
       resolvePlanTierFromCustomerState(stateWith("full-monthly"), PRODUCTS),
-    ).toBe("full");
+    ).toEqual({ kind: "resolved", tier: "full" });
     expect(
       resolvePlanTierFromCustomerState(stateWith("full-annual"), PRODUCTS),
-    ).toBe("full");
+    ).toEqual({ kind: "resolved", tier: "full" });
   });
 
   test("full wins over lite when both are held", () => {
@@ -61,15 +62,18 @@ describe("resolvePlanTierFromCustomerState", () => {
       stateWith("lite-monthly", "full-monthly"),
       PRODUCTS,
     );
-    expect(tier).toBe<PlanTier>("full");
+    expect(tier).toEqual({ kind: "resolved", tier: "full" });
   });
 
-  test("unknown product ids resolve to free", () => {
+  test("unknown product ids remain an explicit unresolved state", () => {
     const tier = resolvePlanTierFromCustomerState(
       stateWith("some-other-product"),
       PRODUCTS,
     );
-    expect(tier).toBe<PlanTier>("free");
+    expect(tier).toEqual({
+      kind: "unrecognized",
+      activeSubscriptionCount: 1,
+    });
   });
 
   test("reads product.id when productId is missing", () => {
@@ -77,18 +81,18 @@ describe("resolvePlanTierFromCustomerState", () => {
       stateWith({ product: { id: "lite-annual" } }),
       PRODUCTS,
     );
-    expect(tier).toBe<PlanTier>("lite");
+    expect(tier).toEqual({ kind: "resolved", tier: "lite" });
   });
 
   test("reports malformed and mixed unknown active subscriptions", () => {
     expect(
-      hasUnrecognizedSubscriptions({ activeSubscriptions: [{}] }, PRODUCTS),
-    ).toBe(true);
+      resolvePlanTierFromCustomerState({ activeSubscriptions: [{}] }, PRODUCTS),
+    ).toEqual({ kind: "unrecognized", activeSubscriptionCount: 1 });
     expect(
-      hasUnrecognizedSubscriptions(
+      resolvePlanTierFromCustomerState(
         stateWith("lite-monthly", "unknown-product"),
         PRODUCTS,
       ),
-    ).toBe(true);
+    ).toEqual({ kind: "unrecognized", activeSubscriptionCount: 2 });
   });
 });

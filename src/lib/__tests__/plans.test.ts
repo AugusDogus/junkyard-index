@@ -44,14 +44,12 @@ describe("plan tiers", () => {
     expect(
       resolvePlanFeatureAccess({
         tier: null,
-        isLoggedIn: true,
         feature: "advanced_filters",
       }),
     ).toBe(false);
     expect(
       resolvePlanFeatureAccess({
         tier: null,
-        isLoggedIn: true,
         feature: "saved_searches",
       }),
     ).toBe(true);

@@ -13,6 +13,7 @@ import { ZodError } from "zod";
 import { auth } from "~/lib/auth";
 import { db } from "~/lib/db";
 import type { SavedSearchGateFeature } from "~/lib/plans";
+import { requireRegisteredAccount } from "~/server/api/registered-account";
 
 /**
  * FORBIDDEN due to an unmet plan-feature gate. Carries the blocking feature
@@ -165,3 +166,18 @@ const enforceUserIsAuthed = t.middleware(async ({ ctx, next }) => {
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
   .use(enforceUserIsAuthed);
+
+const enforceUserIsRegistered = t.middleware(async ({ ctx, next }) => {
+  requireRegisteredAccount(ctx.user);
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+    },
+  });
+});
+
+/** Requires a non-anonymous account. Use for billing and account settings. */
+export const registeredProcedure = t.procedure
+  .use(timingMiddleware)
+  .use(enforceUserIsRegistered);

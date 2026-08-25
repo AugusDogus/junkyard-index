@@ -15,10 +15,7 @@ import { polarClient } from "~/lib/polar";
 import { TermsAcceptance } from "~/lib/terms-acceptance";
 import { setUserAlertChannel } from "~/server/alerts/alert-config-repository";
 import { recordCheckoutCompletion } from "~/server/billing-operation";
-import {
-  hasUnrecognizedSubscriptions,
-  resolveCustomerPlanTier,
-} from "~/server/billing/user-plan";
+import { resolveCustomerPlanTier } from "~/server/billing/user-plan";
 import posthog from "~/lib/posthog-server";
 import * as schema from "~/schema";
 import { transferAnonymousSearchUsage } from "~/server/auth/anonymous-search-usage-transfer";
@@ -156,9 +153,16 @@ export const auth = betterAuth({
           secret: env.POLAR_WEBHOOK_SECRET,
           onSubscriptionCreated: async (payload) => {
             const externalId = payload.data.customer?.externalId;
-            const planTier = resolveCustomerPlanTier({
+            const resolution = resolveCustomerPlanTier({
               activeSubscriptions: [payload.data],
             });
+            if (resolution.kind === "unrecognized") {
+              console.error(
+                "Polar subscription-created webhook referenced an unconfigured product. Billing state was preserved for manual recovery.",
+              );
+              return;
+            }
+            const planTier = resolution.tier;
             if (externalId && planTier !== "free") {
               await recordCheckoutCompletion({
                 database: db,
@@ -195,7 +199,14 @@ export const auth = betterAuth({
           },
           onCustomerStateChanged: async (payload) => {
             const customerState = payload.data;
-            const planTier = resolveCustomerPlanTier(customerState);
+            const resolution = resolveCustomerPlanTier(customerState);
+            if (resolution.kind === "unrecognized") {
+              console.error(
+                `Polar customer ${customerState.externalId ?? "without an external ID"} has active subscriptions matching no configured product. Existing alert settings were preserved.`,
+              );
+              return;
+            }
+            const planTier = resolution.tier;
 
             if (customerState.externalId) {
               posthog.capture({
@@ -212,8 +223,7 @@ export const auth = betterAuth({
 
             if (
               !hasPlanFeature(planTier, "alerts") &&
-              customerState.externalId &&
-              !hasUnrecognizedSubscriptions(customerState)
+              customerState.externalId
             ) {
               await Promise.all([
                 setUserAlertChannel({

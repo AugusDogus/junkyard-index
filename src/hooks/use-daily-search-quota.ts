@@ -8,7 +8,8 @@ import {
   transitionQuotaLifecycle,
   type StoredQuotaRecord,
 } from "~/lib/quota-lifecycle";
-import { currentUtcDay, type PlanTier } from "~/lib/plans";
+import type { PlanTier } from "~/lib/plans";
+import { currentUtcDay } from "~/lib/search-quota";
 import { resolveQuotaViewer, type QuotaViewer } from "~/lib/quota-viewer";
 import { api } from "~/trpc/react";
 

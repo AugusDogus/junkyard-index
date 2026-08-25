@@ -204,11 +204,15 @@ describe("Polar billing gateway", () => {
           {
             kind: "checkout",
             key: "lite_monthly",
+            tier: "lite",
+            interval: "monthly",
             productId: "product-1",
           },
           {
             kind: "checkout",
             key: "full_monthly",
+            tier: "full",
+            interval: "monthly",
             productId: "product-2",
           },
         ],
@@ -247,6 +251,8 @@ const config = {
     {
       kind: "checkout" as const,
       key: "full_monthly" as const,
+      tier: "full" as const,
+      interval: "monthly" as const,
       productId: "product-1",
     },
   ],
