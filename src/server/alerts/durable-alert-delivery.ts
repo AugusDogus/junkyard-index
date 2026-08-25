@@ -32,7 +32,7 @@ type IntentCancellationReason =
   | "search_match_version_changed"
   | "channel_no_longer_eligible"
   | "invalid_intent_payload"
-  | "subscription_inactive";
+  | "alert_entitlement_missing";
 
 export interface DurableAlertDeliveryOperations {
   deliveryBatchSize: number;
@@ -40,7 +40,7 @@ export interface DurableAlertDeliveryOperations {
   claimDiscordBatch(): Promise<ClaimedNotificationIntent[]>;
   loadTarget(savedSearchId: string): Promise<NotificationIntentTarget | null>;
   parsePayload(payload: string): SearchAlertData;
-  hasActiveSubscription(userId: string): Promise<boolean>;
+  hasAlertEntitlement(userId: string): Promise<boolean>;
   sendEmailDigest(
     recipient: { userId: string; email: string },
     digest: SearchAlertDigest,
@@ -141,14 +141,14 @@ async function revalidateIntent(
   }
 }
 
-async function retainSubscribedIntents(
+async function retainAlertEntitledIntents(
   eligible: readonly EligibleIntent[],
   operations: DurableAlertDeliveryOperations,
 ): Promise<boolean> {
   const first = eligible[0];
   if (!first) return false;
   try {
-    if (await operations.hasActiveSubscription(first.intent.userId)) {
+    if (await operations.hasAlertEntitlement(first.intent.userId)) {
       return true;
     }
   } catch (error) {
@@ -160,7 +160,7 @@ async function retainSubscribedIntents(
   }
   await operations.cancelIntents(
     eligible.map(({ intent }) => intent),
-    "subscription_inactive",
+    "alert_entitlement_missing",
   );
   return false;
 }
@@ -190,7 +190,7 @@ async function deliverEmailGroup(
     const item = await revalidateIntent(intent, operations);
     if (item) eligible.push(item);
   }
-  if (!(await retainSubscribedIntents(eligible, operations))) return;
+  if (!(await retainAlertEntitledIntents(eligible, operations))) return;
   const firstEligible = eligible[0];
   if (!firstEligible) return;
 
@@ -229,7 +229,7 @@ async function deliverDiscordIntent(
   requireClaimed([intent]);
   const eligible = await revalidateIntent(intent, operations);
   if (!eligible) return;
-  if (!(await retainSubscribedIntents([eligible], operations))) return;
+  if (!(await retainAlertEntitledIntents([eligible], operations))) return;
 
   let delivery: NotificationDeliveryResult;
   try {

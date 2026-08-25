@@ -22,9 +22,8 @@ export function SavedSearchSettingsCard() {
   const utils = api.useUtils();
   const { data: searches, isLoading } = api.savedSearches.list.useQuery();
   const { data: notifications } = api.user.getNotificationSettings.useQuery();
-  const { canUseAlerts, openAlertUpgrade } = useAlertSubscriptionAccess(
-    "settings_saved_searches",
-  );
+  const { canAttemptAlertInteraction, openAlertUpgrade } =
+    useAlertSubscriptionAccess("settings_saved_searches");
   const canUseDiscord =
     notifications?.hasDiscordLinked && notifications.discordAppInstalled;
 
@@ -65,7 +64,7 @@ export function SavedSearchSettingsCard() {
     deleteSearch.isPending || toggleEmail.isPending || toggleDiscord.isPending;
 
   const setEmailAlerts = (id: string, enabled: boolean) => {
-    if (enabled && !canUseAlerts) {
+    if (enabled && !canAttemptAlertInteraction) {
       void openAlertUpgrade();
       return;
     }
@@ -78,7 +77,7 @@ export function SavedSearchSettingsCard() {
   };
 
   const setDiscordAlerts = (id: string, enabled: boolean) => {
-    if (enabled && !canUseAlerts) {
+    if (enabled && !canAttemptAlertInteraction) {
       void openAlertUpgrade();
       return;
     }
@@ -162,7 +161,7 @@ export function SavedSearchSettingsCard() {
                     aria-label={
                       search.emailAlertsEnabled
                         ? "Turn off email alerts"
-                        : canUseAlerts
+                        : canAttemptAlertInteraction
                           ? "Turn on email alerts"
                           : "Subscribe to enable email alerts"
                     }
@@ -189,7 +188,7 @@ export function SavedSearchSettingsCard() {
                     aria-label={
                       search.discordAlertsEnabled
                         ? "Turn off Discord alerts"
-                        : !canUseAlerts
+                        : !canAttemptAlertInteraction
                           ? "Subscribe to enable Discord alerts"
                           : !canUseDiscord
                             ? "Set up Discord to enable alerts"

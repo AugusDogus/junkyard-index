@@ -71,9 +71,11 @@ function createOperations(params: {
   emailIntents?: ClaimedNotificationIntent[];
   discordIntents?: ClaimedNotificationIntent[];
   targets: NotificationIntentTarget[];
+  hasAlertEntitlement?: boolean;
   emailDelivery?: { success: true } | { success: false; error: string };
 }) {
   const cancelled: string[] = [];
+  const cancellationReasons: string[] = [];
   const retried: string[] = [];
   const delivered: string[] = [];
   const sentDigests: Array<{
@@ -83,7 +85,7 @@ function createOperations(params: {
   const targetBySearch = new Map(
     params.targets.map((item) => [item.searchId, item] as const),
   );
-  let subscriptionChecks = 0;
+  let alertEntitlementChecks = 0;
   let emailClaimed = false;
   let discordClaimed = false;
 
@@ -101,17 +103,18 @@ function createOperations(params: {
     },
     loadTarget: async (searchId) => targetBySearch.get(searchId) ?? null,
     parsePayload: parseNotificationIntentPayload,
-    hasActiveSubscription: async () => {
-      subscriptionChecks += 1;
-      return true;
+    hasAlertEntitlement: async () => {
+      alertEntitlementChecks += 1;
+      return params.hasAlertEntitlement ?? true;
     },
     sendEmailDigest: async (_recipient, digest, options) => {
       sentDigests.push({ digest, idempotencyKey: options.idempotencyKey });
       return params.emailDelivery ?? { success: true };
     },
     sendDiscordAlert: async () => ({ success: true }),
-    cancelIntents: async (intents) => {
+    cancelIntents: async (intents, reason) => {
       cancelled.push(...intents.map(({ id }) => id));
+      cancellationReasons.push(reason);
     },
     retryIntents: async (intents) => {
       retried.push(...intents.map(({ id }) => id));
@@ -124,10 +127,11 @@ function createOperations(params: {
   return {
     operations,
     cancelled,
+    cancellationReasons,
     retried,
     delivered,
     sentDigests,
-    subscriptionChecks: () => subscriptionChecks,
+    alertEntitlementChecks: () => alertEntitlementChecks,
   };
 }
 
@@ -150,7 +154,7 @@ describe("durable alert delivery", () => {
     expect(harness.sentDigests[0]?.digest.alertCount).toBe(2);
     expect(harness.sentDigests[0]?.digest.vehicleCount).toBe(3);
     expect(harness.sentDigests[0]?.idempotencyKey).toBe("email:run-1:7:user-1");
-    expect(harness.subscriptionChecks()).toBe(1);
+    expect(harness.alertEntitlementChecks()).toBe(1);
     expect(harness.delivered).toEqual(["email-1", "email-2"]);
   });
 
@@ -187,5 +191,19 @@ describe("durable alert delivery", () => {
 
     expect(harness.retried).toEqual(["email-1", "email-2"]);
     expect(harness.delivered).toEqual([]);
+  });
+
+  test("cancels intents when the account lacks alert entitlement", async () => {
+    const harness = createOperations({
+      emailIntents: [intent("email-1", "search-1")],
+      targets: [target("search-1")],
+      hasAlertEntitlement: false,
+    });
+
+    await deliverDurableAlertIntentBatch(harness.operations);
+
+    expect(harness.cancelled).toEqual(["email-1"]);
+    expect(harness.cancellationReasons).toEqual(["alert_entitlement_missing"]);
+    expect(harness.sentDigests).toEqual([]);
   });
 });

@@ -31,9 +31,8 @@ export function SavedSearchesList() {
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery();
 
-  const { canUseAlerts, openAlertUpgrade } = useAlertSubscriptionAccess(
-    "saved_searches_list",
-  );
+  const { canAttemptAlertInteraction, openAlertUpgrade } =
+    useAlertSubscriptionAccess("saved_searches_list");
   const canUseDiscord =
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;
@@ -143,8 +142,8 @@ export function SavedSearchesList() {
     e.preventDefault();
     e.stopPropagation();
 
-    // If trying to enable but no subscription, redirect to checkout
-    if (!currentState && !canUseAlerts) {
+    // A resolved tier below Full should use the upgrade destination.
+    if (!currentState && !canAttemptAlertInteraction) {
       void openAlertUpgrade();
       return;
     }
@@ -167,8 +166,8 @@ export function SavedSearchesList() {
     e.preventDefault();
     e.stopPropagation();
 
-    // If trying to enable but no subscription, redirect to checkout
-    if (!currentState && !canUseAlerts) {
+    // A resolved tier below Full should use the upgrade destination.
+    if (!currentState && !canAttemptAlertInteraction) {
       void openAlertUpgrade();
       return;
     }
@@ -332,7 +331,7 @@ export function SavedSearchesList() {
                         aria-label={
                           hasEmail
                             ? "Disable email alerts for this search"
-                            : canUseAlerts
+                            : canAttemptAlertInteraction
                               ? "Enable email alerts for this search"
                               : "Subscribe to enable email alerts"
                         }
@@ -343,7 +342,7 @@ export function SavedSearchesList() {
                     <TooltipContent>
                       {hasEmail
                         ? "Email alerts enabled - click to disable"
-                        : canUseAlerts
+                        : canAttemptAlertInteraction
                           ? "Click to enable email alerts"
                           : "Subscribe to enable email alerts"}
                     </TooltipContent>
@@ -367,7 +366,7 @@ export function SavedSearchesList() {
                         aria-label={
                           hasDiscord
                             ? "Disable Discord alerts for this search"
-                            : !canUseAlerts
+                            : !canAttemptAlertInteraction
                               ? "Subscribe to enable Discord alerts"
                               : !canUseDiscord
                                 ? "Set up Discord to enable alerts"
@@ -380,7 +379,7 @@ export function SavedSearchesList() {
                     <TooltipContent>
                       {hasDiscord
                         ? "Discord alerts enabled - click to disable"
-                        : !canUseAlerts
+                        : !canAttemptAlertInteraction
                           ? "Subscribe to enable Discord alerts"
                           : !canUseDiscord
                             ? "Set up Discord in Settings first"
