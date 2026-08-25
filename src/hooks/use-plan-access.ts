@@ -8,7 +8,7 @@ import {
   checkoutConfirmationRefetchInterval,
   initialCheckoutConfirmationState,
 } from "~/lib/checkout-confirmation";
-import type { PlanAccessState } from "~/lib/plans";
+import { resolvePlanAccess, type PlanAccessState } from "~/lib/plans";
 
 export function usePlanAccess(
   isLoggedIn: boolean,
@@ -49,13 +49,10 @@ export function usePlanAccess(
     return () => window.clearTimeout(timeoutId);
   }, [confirmation, isLoggedIn]);
 
-  if (!isLoggedIn) return { kind: "resolved", tier: "free" };
-  if (tier) return { kind: "resolved", tier };
-  if (confirmation.kind === "timed_out") {
-    return { kind: "unavailable", reason: "confirmation_timeout" };
-  }
-  if (billingAccount.state.kind === "unavailable") {
-    return { kind: "unavailable", reason: "lookup_failed" };
-  }
-  return { kind: "loading" };
+  return resolvePlanAccess({
+    isLoggedIn,
+    tier,
+    confirmationTimedOut: confirmation.kind === "timed_out",
+    lookupUnavailable: billingAccount.state.kind === "unavailable",
+  });
 }
