@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { useSession } from "~/lib/auth-client";
 import {
@@ -54,14 +53,14 @@ const PRICING_PLAN_CONTENT: Record<
       "Everything in Lite",
       "Email alerts when new matches arrive",
       "Discord alerts when new matches arrive",
-      "Faster follow-up on hard-to-find donor vehicles",
+      "Alerts checked after each hourly inventory update",
     ],
     featured: true,
   },
 };
 
 export function PricingPlansSection() {
-  const [interval, setInterval] = useState<BillingInterval>("monthly");
+  const [interval, setInterval] = useState<BillingInterval>("annual");
   const { data: session, isPending } = useSession();
   const isLoggedIn = Boolean(session?.user);
   const viewer = resolvePricingViewerState({
@@ -75,24 +74,37 @@ export function PricingPlansSection() {
 
   return (
     <div>
-      <div className="flex items-center justify-center gap-2">
-        <Button
+      <div
+        className="border-border mx-auto flex w-fit border-b"
+        aria-label="Billing interval"
+        role="group"
+      >
+        <button
           type="button"
-          variant={interval === "monthly" ? "default" : "outline"}
-          size="sm"
+          className={cn(
+            "focus-visible:ring-ring/50 -mb-px border-b px-4 pb-2 text-sm font-medium transition-colors outline-none focus-visible:rounded-sm focus-visible:ring-[3px]",
+            interval === "monthly"
+              ? "border-foreground text-foreground"
+              : "text-muted-foreground hover:text-foreground border-transparent",
+          )}
+          aria-pressed={interval === "monthly"}
           onClick={() => setInterval("monthly")}
         >
           Monthly
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          variant={interval === "annual" ? "default" : "outline"}
-          size="sm"
+          className={cn(
+            "focus-visible:ring-ring/50 -mb-px border-b px-4 pb-2 text-sm font-medium transition-colors outline-none focus-visible:rounded-sm focus-visible:ring-[3px]",
+            interval === "annual"
+              ? "border-foreground text-foreground"
+              : "text-muted-foreground hover:text-foreground border-transparent",
+          )}
+          aria-pressed={interval === "annual"}
           onClick={() => setInterval("annual")}
         >
           Annual
-          <Badge className="ml-1">Save with annual</Badge>
-        </Button>
+        </button>
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-3">

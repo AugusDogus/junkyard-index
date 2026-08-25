@@ -5,7 +5,6 @@ import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import { FREE_DAILY_SEARCH_LIMIT, PLANS } from "~/lib/plans";
@@ -55,13 +54,6 @@ export default async function Home() {
             <div className="flex flex-1 flex-col justify-between gap-10 sm:block sm:flex-none">
               {/* Zone A — intro */}
               <div>
-                <Badge
-                  variant="outline"
-                  className="mb-6 gap-2 px-3 py-1 sm:mb-5"
-                >
-                  <span className="inline-flex size-2 rounded-full bg-green-500" />
-                  Search is free. Plans from ${PLANS.lite.monthlyPrice}/mo.
-                </Badge>
                 <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
                   Search salvage yard inventory before the right donor vehicle
                   is gone.
