@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { useIsMediumScreen } from "~/hooks/use-media-query";
-import type { PlanAccessState } from "~/lib/plans";
+import type { PlanAccessState } from "~/lib/plan-access";
 import { SavedSearchesDropdown } from "./SavedSearchesDropdown";
 import { SaveSearchDialog } from "./SaveSearchDialog";
 

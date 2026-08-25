@@ -8,7 +8,7 @@ import {
   checkoutConfirmationRefetchInterval,
   initialCheckoutConfirmationState,
 } from "~/lib/checkout-confirmation";
-import { resolvePlanAccess, type PlanAccessState } from "~/lib/plans";
+import { resolvePlanAccess, type PlanAccessState } from "~/lib/plan-access";
 
 export function usePlanAccess(
   isLoggedIn: boolean,
@@ -51,8 +51,7 @@ export function usePlanAccess(
 
   return resolvePlanAccess({
     isLoggedIn,
-    tier,
-    confirmationTimedOut: confirmation.kind === "timed_out",
-    lookupUnavailable: billingAccount.state.kind === "unavailable",
+    billingAccount: billingAccount.state,
+    confirmation,
   });
 }

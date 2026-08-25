@@ -7,7 +7,8 @@ import { createSearchRouting } from "~/components/search/search-routing";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
-import { resolvePlanFeatureAccess, type PlanAccessState } from "~/lib/plans";
+import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
+import type { PlanAccessState } from "~/lib/plan-access";
 import type { QuotaViewer } from "~/lib/quota-viewer";
 import { api } from "~/trpc/react";
 
@@ -26,7 +27,7 @@ export function SearchAccessShell({
   children,
 }: SearchAccessShellProps) {
   const planAccess = useCheckoutPlanAccess(viewer.kind === "authenticated");
-  const canUseAdvancedFilters = resolvePlanFeatureAccess({
+  const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
   });

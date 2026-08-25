@@ -67,13 +67,10 @@ import {
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
-import {
-  PLANS,
-  resolvePlanFeatureAccess,
-  resolvedPlanTier,
-  type PlanAccessState,
-} from "~/lib/plans";
+import { resolvedPlanTier, type PlanAccessState } from "~/lib/plan-access";
+import { PLANS } from "~/lib/plans";
 import type { QuotaViewer } from "~/lib/quota-viewer";
 import {
   hasFiniteCoordinates,
@@ -305,7 +302,7 @@ function AlgoliaSearchInner({
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
   const isLoggedIn = viewer.kind === "authenticated";
-  const canUseAdvancedFilters = resolvePlanFeatureAccess({
+  const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
   });

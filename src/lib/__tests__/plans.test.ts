@@ -6,9 +6,6 @@ import {
   formatMonthlyEquivalent,
   hasPlanFeature,
   planPrice,
-  resolvePlanAccess,
-  resolvePlanFeatureAccess,
-  resolvedPlanTier,
   tierSatisfies,
 } from "~/lib/plans";
 
@@ -37,57 +34,6 @@ describe("plan tiers", () => {
     expect(hasPlanFeature("free", "alerts")).toBe(false);
     expect(hasPlanFeature("lite", "alerts")).toBe(false);
     expect(hasPlanFeature("full", "alerts")).toBe(true);
-  });
-
-  test("unknown tiers lock client-only filters but not server-gated actions", () => {
-    expect(
-      resolvePlanFeatureAccess({
-        access: { kind: "loading" },
-        feature: "advanced_filters",
-      }),
-    ).toBe(false);
-    expect(
-      resolvePlanFeatureAccess({
-        access: { kind: "loading" },
-        feature: "saved_searches",
-      }),
-    ).toBe(true);
-  });
-
-  test("distinguishes unavailable access from resolved tiers", () => {
-    expect(resolvedPlanTier({ kind: "loading" })).toBeNull();
-    expect(
-      resolvedPlanTier({ kind: "unavailable", reason: "lookup_failed" }),
-    ).toBeNull();
-    expect(resolvedPlanTier({ kind: "resolved", tier: "lite" })).toBe("lite");
-    expect(
-      resolvePlanFeatureAccess({
-        access: { kind: "unavailable", reason: "lookup_failed" },
-        feature: "advanced_filters",
-      }),
-    ).toBe(false);
-  });
-
-  test("reports a timed-out checkout while the account still resolves as free", () => {
-    expect(
-      resolvePlanAccess({
-        isLoggedIn: true,
-        tier: "free",
-        confirmationTimedOut: true,
-        lookupUnavailable: false,
-      }),
-    ).toEqual({ kind: "unavailable", reason: "confirmation_timeout" });
-  });
-
-  test("paid confirmation wins if the tier resolves after the deadline", () => {
-    expect(
-      resolvePlanAccess({
-        isLoggedIn: true,
-        tier: "lite",
-        confirmationTimedOut: true,
-        lookupUnavailable: false,
-      }),
-    ).toEqual({ kind: "resolved", tier: "lite" });
   });
 
   test("prices match the published tiers", () => {

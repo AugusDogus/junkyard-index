@@ -208,7 +208,7 @@ describe("Polar billing gateway", () => {
       {
         externalCustomerId: "user-1",
         products: ["product-1"],
-        successUrl: "https://app.example/search?subscription=success",
+        successUrl: "https://app.example/api/billing/checkout-return",
         returnUrl: "https://app.example/subscribe?tier=full&interval=monthly",
         metadata: {
           terms_version: "2026-08-24",
