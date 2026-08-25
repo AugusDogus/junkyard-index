@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   initialQuotaLifecycleState,
   parseStoredQuotaRecord,
+  quotaStatusForQuery,
   transitionQuotaLifecycle,
 } from "./quota-lifecycle";
 
@@ -57,7 +58,7 @@ describe("quota lifecycle", () => {
       kind: "creating_guest",
       query: "accord",
     });
-    expect(retrying.status).toBe("allowed");
+    expect(retrying.status).toBe("verifying");
   });
 
   test("fails closed when recording cannot be verified", () => {
@@ -89,7 +90,7 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "accord",
     });
-    expect(nextSearch.status).toBe("allowed");
+    expect(nextSearch.status).toBe("verifying");
     expect(nextSearch.activity).toEqual({
       kind: "recording",
       userId: "user-1",
@@ -126,6 +127,32 @@ describe("quota lifecycle", () => {
         query: "civic",
       }),
     ).toEqual(linked);
+  });
+
+  test("keeps a new query hidden until quota recording succeeds", () => {
+    expect(quotaStatusForQuery(initialQuotaLifecycleState, "civic")).toBe(
+      "verifying",
+    );
+    const resolved = transitionQuotaLifecycle(initialQuotaLifecycleState, {
+      type: "viewer_resolved",
+      userId: "user-1",
+      currentQuery: "",
+      stored: null,
+    });
+    const recording = transitionQuotaLifecycle(resolved, {
+      type: "search_ready",
+      query: "civic",
+    });
+    expect(recording.status).toBe("verifying");
+    expect(quotaStatusForQuery(recording, "civic")).toBe("verifying");
+
+    const recorded = transitionQuotaLifecycle(recording, {
+      type: "record_succeeded",
+      userId: "user-1",
+      query: "civic",
+      allowed: true,
+    });
+    expect(quotaStatusForQuery(recorded, "civic")).toBe("allowed");
   });
 
   test("restores a same-day block and clears it for a paid tier", () => {

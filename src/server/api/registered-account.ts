@@ -1,16 +1,14 @@
 import { TRPCError } from "@trpc/server";
-import { isGuestSession } from "~/lib/session-user";
+import {
+  isRegisteredSessionUser,
+  type RegisteredSessionUser,
+  type SessionUserLike,
+} from "~/lib/session-user";
 
-type AccountLike = { isAnonymous?: boolean | null };
-
-export type RegisteredAccount<T extends AccountLike> = T & {
-  isAnonymous?: false | null;
-};
-
-export function requireRegisteredAccount<T extends AccountLike>(
+export function requireRegisteredAccount<T extends SessionUserLike>(
   user: T | null | undefined,
-): asserts user is RegisteredAccount<T> {
-  if (!user || isGuestSession(user)) {
+): asserts user is RegisteredSessionUser<T> {
+  if (!isRegisteredSessionUser(user)) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "Sign in to a registered account to manage billing.",

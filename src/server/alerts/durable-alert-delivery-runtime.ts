@@ -4,7 +4,7 @@ import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailDigest } from "~/lib/email";
 import { hasPlanFeature } from "~/lib/plans";
 import { savedSearch, searchNotificationIntent, user } from "~/schema";
-import { getFreshPlanTier } from "~/server/billing/user-plan";
+import { getAuthoritativePlanTier } from "~/server/billing/user-plan";
 import {
   deliverDurableAlertIntentBatch,
   type ClaimedNotificationIntent,
@@ -84,7 +84,7 @@ const operations: DurableAlertDeliveryOperations = {
   },
   parsePayload: parseNotificationIntentPayload,
   hasActiveSubscription: async (userId) => {
-    const tier = await getFreshPlanTier(userId);
+    const tier = await getAuthoritativePlanTier(userId);
     return hasPlanFeature(tier, "alerts");
   },
   sendEmailDigest,

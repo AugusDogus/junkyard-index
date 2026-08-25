@@ -11,6 +11,7 @@ import {
   PLANS,
   CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
   checkoutTierConfirmationStatus,
+  planAccessRefetchInterval,
   type PlanAccessState,
   type PlanTier,
 } from "~/lib/plans";
@@ -38,21 +39,15 @@ export function usePlanTier(
   const [confirmationDeadlineMs] = useState(
     () => Date.now() + CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
   );
-  const shouldQuery =
-    options.initialAccess === undefined ||
-    options.initialAccess.kind === "unavailable" ||
-    options.refreshUntilPaid === true;
   const query = api.subscription.getAccountOverview.useQuery(undefined, {
-    enabled: isLoggedIn && shouldQuery,
+    enabled: isLoggedIn,
     refetchInterval: (result) => {
-      if (!options.refreshUntilPaid) return false;
-      return checkoutTierConfirmationStatus({
+      return planAccessRefetchInterval({
+        refreshUntilPaid: options.refreshUntilPaid === true,
         tier: overviewTier(result.state.data),
         nowMs: Date.now(),
         deadlineMs: confirmationDeadlineMs,
-      }) === "poll"
-        ? 2_000
-        : false;
+      });
     },
     retry: false,
   });
@@ -132,6 +127,17 @@ export function QuotaVerificationOverlay() {
   );
 }
 
+function QuotaVerificationPendingOverlay() {
+  return (
+    <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
+      <p className="text-sm font-medium">Verifying search limit</p>
+      <p className="text-muted-foreground mt-2 text-sm text-pretty">
+        Results will appear as soon as your daily search allowance is confirmed.
+      </p>
+    </div>
+  );
+}
+
 export function SearchQuotaOverlay({
   gate,
   query,
@@ -144,6 +150,8 @@ export function SearchQuotaOverlay({
   switch (gate.kind) {
     case "open":
       return null;
+    case "verifying":
+      return <QuotaVerificationPendingOverlay />;
     case "limit_exceeded":
       return <FreeQuotaOverlay query={query} isGuest={isGuest} />;
     case "verification_unavailable":

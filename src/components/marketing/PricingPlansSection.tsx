@@ -5,8 +5,10 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { useSession } from "~/lib/auth-client";
-import { startTierCheckout } from "~/lib/checkout";
-import { isVisibleSessionUser } from "~/lib/session-user";
+import { subscriptionUrl } from "~/lib/checkout";
+import { AnalyticsEvents } from "~/lib/analytics-events";
+import posthog from "posthog-js";
+import { isRegisteredSessionUser } from "~/lib/session-user";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLAN_TIERS,
@@ -61,13 +63,18 @@ export function PricingPlansSection() {
   const { data: session } = useSession();
   // Anonymous guest sessions can't check out: Polar would bind the
   // subscription to a user that Better Auth deletes on account conversion.
-  const isLoggedIn = isVisibleSessionUser(session?.user);
+  const isLoggedIn = isRegisteredSessionUser(session?.user);
 
-  const handleCheckout = (tier: PaidPlanTier, ctaLocation: string) =>
-    startTierCheckout(tier, interval, {
+  const handleCheckout = (tier: PaidPlanTier, ctaLocation: string) => {
+    posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
+      source: "pricing_flow",
       source_page: "pricing",
       cta_location: ctaLocation,
+      plan_tier: tier,
+      billing_interval: interval,
     });
+    window.location.assign(subscriptionUrl(tier, interval));
+  };
 
   return (
     <div>

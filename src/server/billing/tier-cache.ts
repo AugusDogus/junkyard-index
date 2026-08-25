@@ -3,7 +3,6 @@ import type { PlanTier } from "~/lib/plans";
 export interface TierCache {
   get: (userId: string) => PlanTier | null;
   set: (userId: string, tier: PlanTier) => void;
-  invalidate: (userId: string) => void;
 }
 
 /**
@@ -35,9 +34,6 @@ export function createTierCache(
     },
     set(userId, tier) {
       entries.set(userId, { tier, expiresAt: now() + ttlMs });
-    },
-    invalidate(userId) {
-      entries.delete(userId);
     },
   };
 }

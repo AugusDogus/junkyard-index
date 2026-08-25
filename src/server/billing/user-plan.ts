@@ -50,17 +50,17 @@ export async function getPlanTier(userId: string): Promise<PlanTier> {
   return defaultService.getPlanTier(userId);
 }
 
-/** Resolves authoritative state without consulting or updating the UI cache. */
-export async function getFreshPlanTier(userId: string): Promise<PlanTier> {
-  return defaultService.getFreshPlanTier(userId);
-}
-
-/** Refreshes authoritative state and replaces the local UI cache entry. */
-export async function refreshPlanTier(userId: string): Promise<PlanTier> {
-  return defaultService.refreshPlanTier(userId);
+/** Resolves authoritative state and replaces the local cache on success. */
+export async function getAuthoritativePlanTier(
+  userId: string,
+): Promise<PlanTier> {
+  return defaultService.getAuthoritativePlanTier(userId);
 }
 
 /** Reuses an authoritative tier already resolved from the same customer snapshot. */
-export function rememberPlanTier(userId: string, tier: PlanTier): void {
-  defaultService.rememberPlanTier(userId, tier);
+export function rememberPlanTierFromSnapshot(
+  userId: string,
+  tier: PlanTier,
+): void {
+  defaultService.rememberPlanTierFromSnapshot(userId, tier);
 }

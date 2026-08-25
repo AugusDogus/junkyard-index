@@ -12,7 +12,7 @@ import {
   createSubscriptionCheckout,
   type SubscriptionCheckoutBlocked,
 } from "~/server/subscription-checkout";
-import { rememberPlanTier } from "~/server/billing/user-plan";
+import { rememberPlanTierFromSnapshot } from "~/server/billing/user-plan";
 
 function checkoutBlockedMessage(result: SubscriptionCheckoutBlocked): string {
   switch (result.reason) {
@@ -95,12 +95,12 @@ export const subscriptionRouter = createTRPCRouter({
         ctx.user.id,
       );
       if (overview.kind === "active") {
-        rememberPlanTier(ctx.user.id, overview.tier);
+        rememberPlanTierFromSnapshot(ctx.user.id, overview.tier);
       } else if (
         overview.kind === "none" ||
         overview.kind === "needs_attention"
       ) {
-        rememberPlanTier(ctx.user.id, "free");
+        rememberPlanTierFromSnapshot(ctx.user.id, "free");
       }
       return overview;
     } catch (cause) {
