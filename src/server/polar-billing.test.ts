@@ -15,15 +15,21 @@ describe("Polar billing gateway", () => {
   test("collects every subscription page without the active-only filter", async () => {
     const requests: Array<{
       externalCustomerId: string;
-      productId?: string;
+      productId?: string | string[];
       limit: number;
     }> = [];
     const operations = operationsWith({
       listSubscriptions: async (input) => {
         requests.push(input);
         return pages(
-          [{ id: "active", status: "active" }],
-          [{ id: "past-due", status: "past_due" }],
+          [{ id: "active", status: "active", productId: "product-1" }],
+          [
+            {
+              id: "past-due",
+              status: "past_due",
+              productId: "legacy-product",
+            },
+          ],
         );
       },
     });
@@ -36,6 +42,7 @@ describe("Polar billing gateway", () => {
     expect(requests).toEqual([
       {
         externalCustomerId: "user-1",
+        productId: APPLICATION_PRODUCT_IDS,
         limit: 100,
       },
     ]);
@@ -46,9 +53,13 @@ describe("Polar billing gateway", () => {
       operationsWith({
         listSubscriptions: async () =>
           pages([
-            { id: "canceled", status: "canceled" },
-            { id: "expired", status: "incomplete_expired" },
-            { id: "unpaid", status: "unpaid" },
+            { id: "canceled", status: "canceled", productId: "product-1" },
+            {
+              id: "expired",
+              status: "incomplete_expired",
+              productId: "product-1",
+            },
+            { id: "unpaid", status: "unpaid", productId: "product-1" },
           ]),
       }),
       config,
@@ -61,10 +72,61 @@ describe("Polar billing gateway", () => {
     ]);
   });
 
+  test("ignores subscriptions and checkouts for unrelated products", async () => {
+    const gateway = createPolarBillingGateway(
+      operationsWith({
+        listSubscriptions: async () =>
+          pages([
+            {
+              id: "app-subscription",
+              status: "active",
+              productId: "product-1",
+            },
+            {
+              id: "other-subscription",
+              status: "active",
+              productId: "other-product",
+            },
+          ]),
+        listCheckouts: async () =>
+          pages([
+            {
+              id: "app-checkout",
+              url: "https://checkout.example/app",
+              expiresAt: new Date("2026-08-25T00:00:00.000Z"),
+              status: "open",
+              productId: "product-1",
+            },
+            {
+              id: "other-checkout",
+              url: "https://checkout.example/other",
+              expiresAt: new Date("2026-08-25T00:00:00.000Z"),
+              status: "open",
+              productId: "other-product",
+            },
+          ]),
+      }),
+      config,
+    );
+
+    await expect(gateway.listSubscriptions("user-1")).resolves.toEqual([
+      { id: "app-subscription", state: "charge_capable" },
+    ]);
+    await expect(gateway.listOutstandingCheckouts("user-1")).resolves.toEqual([
+      {
+        id: "app-checkout",
+        productKey: "full_monthly",
+        state: "reusable",
+        url: "https://checkout.example/app",
+        expiresAt: new Date("2026-08-25T00:00:00.000Z"),
+      },
+    ]);
+  });
+
   test("queries every checkout state that can still complete", async () => {
     const requests: Array<{
       customerId: string;
-      productId?: string;
+      productId?: string | string[];
       status: Array<"open" | "confirmed">;
       limit: number;
     }> = [];
@@ -111,6 +173,7 @@ describe("Polar billing gateway", () => {
     expect(requests).toEqual([
       {
         customerId: "customer-1",
+        productId: APPLICATION_PRODUCT_IDS,
         status: ["open", "confirmed"],
         limit: 100,
       },
@@ -163,7 +226,9 @@ describe("Polar billing gateway", () => {
           activeSubscriptions: [],
         }),
         listSubscriptions: async () =>
-          pages([{ id: "past-due", status: "past_due" }]),
+          pages([
+            { id: "past-due", status: "past_due", productId: "product-1" },
+          ]),
       }),
       config,
     );
@@ -199,7 +264,9 @@ describe("Polar billing gateway", () => {
         }),
         listSubscriptions: async () => {
           subscriptionLists += 1;
-          return pages([{ id: "subscription-1", status: "active" }]);
+          return pages([
+            { id: "subscription-1", status: "active", productId: "product-2" },
+          ]);
         },
       }),
       {
@@ -259,6 +326,14 @@ const config = {
   }),
   appUrl: "https://app.example",
 };
+
+const APPLICATION_PRODUCT_IDS = [
+  "product-lite-monthly",
+  "product-lite-annual",
+  "product-1",
+  "product-full-annual",
+  "legacy-product",
+];
 
 function operationsWith(
   overrides: Partial<PolarBillingOperations>,
