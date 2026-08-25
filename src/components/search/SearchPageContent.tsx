@@ -110,7 +110,6 @@ function clampRouteYear(
 
 interface SearchPageContentProps {
   viewer: QuotaViewer;
-  initialPlanAccess: PlanAccessState;
   userLocation?: { lat: number; lng: number };
 }
 
@@ -1538,7 +1537,6 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
  */
 export function SearchPageContent({
   viewer,
-  initialPlanAccess,
   userLocation,
 }: SearchPageContentProps) {
   const searchParams = useSearchParams();
@@ -1549,7 +1547,6 @@ export function SearchPageContent({
   );
   const isLoggedIn = viewer.kind === "authenticated";
   const planAccess = usePlanAccess(isLoggedIn, {
-    initialAccess: initialPlanAccess,
     refreshUntilPaid,
   });
   const canUseAdvancedFilters = resolvePlanFeatureAccess({

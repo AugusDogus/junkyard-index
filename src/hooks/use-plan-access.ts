@@ -22,7 +22,6 @@ function billingStateTier(state: BillingAccountState): PlanTier | null {
 export function usePlanAccess(
   isLoggedIn: boolean,
   options: {
-    initialAccess?: PlanAccessState;
     refreshUntilPaid?: boolean;
   } = {},
 ): PlanAccessState {
@@ -60,5 +59,5 @@ export function usePlanAccess(
     return { kind: "unavailable", reason: "lookup_failed" };
   }
   if (tier) return { kind: "resolved", tier };
-  return options.initialAccess ?? { kind: "loading" };
+  return { kind: "loading" };
 }
