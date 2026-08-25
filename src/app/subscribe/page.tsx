@@ -43,7 +43,7 @@ export default async function SubscribePage({
         <p className="text-muted-foreground mb-8">
           Review the renewal terms before continuing to secure checkout.
         </p>
-        <SubscriptionCheckoutForm />
+        <SubscriptionCheckoutForm selection={selection} />
       </main>
       <Footer />
     </div>

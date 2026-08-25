@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -22,7 +21,7 @@ import {
   planPrice,
   type PaidPlanTier,
 } from "~/lib/plans";
-import { parseSubscriptionSelection } from "~/lib/subscription-selection";
+import type { SubscriptionSelection } from "~/lib/subscription-selection";
 import { api } from "~/trpc/react";
 
 const PLAN_SUMMARIES: Record<PaidPlanTier, string> = {
@@ -30,12 +29,11 @@ const PLAN_SUMMARIES: Record<PaidPlanTier, string> = {
   full: "Unlimited search, advanced filters, saved searches, and alerts.",
 };
 
-export function SubscriptionCheckoutForm() {
-  const searchParams = useSearchParams();
-  const { tier, interval } = parseSubscriptionSelection({
-    tier: searchParams.get("tier"),
-    interval: searchParams.get("interval"),
-  });
+export function SubscriptionCheckoutForm({
+  selection: { tier, interval },
+}: {
+  selection: SubscriptionSelection;
+}) {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const createCheckout = api.subscription.createCheckout.useMutation();
