@@ -16,19 +16,16 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { TERMS_METADATA } from "~/lib/legal";
-import {
-  PLANS,
-  type BillingInterval,
-  formatMonthlyEquivalent,
-  planPrice,
-} from "~/lib/plans";
+import { PLANS, formatMonthlyEquivalent, planPrice } from "~/lib/plans";
+import { parseSubscriptionSelection } from "~/lib/subscription-selection";
 import { api } from "~/trpc/react";
 
 export function SubscriptionCheckoutForm() {
   const searchParams = useSearchParams();
-  const tier = searchParams.get("tier") === "lite" ? "lite" : "full";
-  const interval: BillingInterval =
-    searchParams.get("interval") === "annual" ? "annual" : "monthly";
+  const { tier, interval } = parseSubscriptionSelection({
+    tier: searchParams.get("tier"),
+    interval: searchParams.get("interval"),
+  });
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const createCheckout = api.subscription.createCheckout.useMutation();

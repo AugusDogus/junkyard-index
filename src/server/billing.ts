@@ -1,7 +1,6 @@
-import type { BillingInterval, PlanTier } from "~/lib/plans";
+import type { BillingProductKey } from "~/server/billing/product-catalog";
 
-export type BillingProductKey =
-  `${Exclude<PlanTier, "free">}_${BillingInterval}`;
+export type { BillingProductKey } from "~/server/billing/product-catalog";
 
 export type BillingSubscription =
   | { id: string; state: "charge_capable" }
@@ -51,10 +50,6 @@ export type BillingCheckoutReader = {
   listOutstandingCheckouts(userId: string): Promise<readonly BillingCheckout[]>;
 };
 
-export type BillingEntitlementReader = {
-  hasActiveSubscription(userId: string): Promise<boolean>;
-};
-
 export type BillingAccountReader = {
   getAccountState(userId: string): Promise<BillingAccountState>;
 };
@@ -82,5 +77,4 @@ export type AccountDeletionBilling = BillingSubscriptionReader &
 
 export type AccountBillingGateway = SubscriptionCheckoutBilling &
   AccountDeletionBilling &
-  BillingEntitlementReader &
   BillingAccountReader;

@@ -31,6 +31,19 @@ function planGateError(feature: SavedSearchGateFeature): PlanGateError {
   return new PlanGateError(feature, message);
 }
 
+async function getAuthoritativePlanTier(userId: string) {
+  try {
+    return await getFreshPlanTier(userId);
+  } catch (cause) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message:
+        "Subscription status could not be verified. No changes were made. Please try again.",
+      cause,
+    });
+  }
+}
+
 export const savedSearchesRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
     const searches = await ctx.db
@@ -66,7 +79,7 @@ export const savedSearchesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const planTier = await getFreshPlanTier(ctx.user.id);
+      const planTier = await getAuthoritativePlanTier(ctx.user.id);
       const wantsAlerts =
         (input.emailAlertsEnabled ?? false) ||
         (input.discordAlertsEnabled ?? false);
@@ -169,7 +182,7 @@ export const savedSearchesRouter = createTRPCRouter({
       }
 
       if (input.enabled) {
-        const planTier = await getFreshPlanTier(ctx.user.id);
+        const planTier = await getAuthoritativePlanTier(ctx.user.id);
         if (!hasPlanFeature(planTier, "alerts")) {
           throw planGateError("alerts");
         }
@@ -220,7 +233,7 @@ export const savedSearchesRouter = createTRPCRouter({
       }
 
       if (input.enabled) {
-        const planTier = await getFreshPlanTier(ctx.user.id);
+        const planTier = await getAuthoritativePlanTier(ctx.user.id);
         if (!hasPlanFeature(planTier, "alerts")) {
           throw planGateError("alerts");
         }

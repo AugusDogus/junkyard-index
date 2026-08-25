@@ -24,17 +24,22 @@ export type PlanFeature =
   | "unlimited_searches"
   | "alerts";
 
-// A feature gated at "free" would be no gate at all, so the map's values
-// exclude it and the compiler rejects future gates that try.
-const FEATURE_MIN_TIER: Record<PlanFeature, Exclude<PlanTier, "free">> = {
-  advanced_filters: "lite",
-  saved_searches: "lite",
-  unlimited_searches: "lite",
-  alerts: "full",
+interface PlanFeaturePolicy {
+  minimumTier: Exclude<PlanTier, "free">;
+  unresolvedAccess: "allow" | "deny";
+}
+
+// Client-only gates deny access until the tier resolves. Server-enforced
+// actions stay usable during hydration and are authorized again on mutation.
+const PLAN_FEATURE_POLICIES: Record<PlanFeature, PlanFeaturePolicy> = {
+  advanced_filters: { minimumTier: "lite", unresolvedAccess: "deny" },
+  saved_searches: { minimumTier: "lite", unresolvedAccess: "allow" },
+  unlimited_searches: { minimumTier: "lite", unresolvedAccess: "allow" },
+  alerts: { minimumTier: "full", unresolvedAccess: "allow" },
 };
 
 export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
-  return tierSatisfies(tier, FEATURE_MIN_TIER[feature]);
+  return tierSatisfies(tier, PLAN_FEATURE_POLICIES[feature].minimumTier);
 }
 
 export function resolvePlanFeatureAccess(input: {
@@ -43,7 +48,14 @@ export function resolvePlanFeatureAccess(input: {
   feature: PlanFeature;
 }): boolean {
   if (input.tier !== null) return hasPlanFeature(input.tier, input.feature);
-  return input.isLoggedIn && input.feature !== "advanced_filters";
+  return (
+    input.isLoggedIn &&
+    PLAN_FEATURE_POLICIES[input.feature].unresolvedAccess === "allow"
+  );
+}
+
+export function shouldClearAdvancedFilters(tier: PlanTier | null): boolean {
+  return tier === "free";
 }
 
 /**
@@ -85,7 +97,7 @@ export function savedSearchUpgradeTier(
 export function featureUpgradeTier(
   feature: PlanFeature,
 ): Exclude<PlanTier, "free"> {
-  return FEATURE_MIN_TIER[feature];
+  return PLAN_FEATURE_POLICIES[feature].minimumTier;
 }
 
 interface PlanDefinition {

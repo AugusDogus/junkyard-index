@@ -11,6 +11,7 @@ import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
   resolvePlanFeatureAccess,
+  shouldClearAdvancedFilters,
   type PlanFeature,
   type PlanTier,
 } from "~/lib/plans";
@@ -27,8 +28,6 @@ export { useDailySearchQuota } from "~/hooks/use-daily-search-quota";
 export function usePlanTier(isLoggedIn: boolean): {
   /** Resolved plan tier; null means "not known yet", never "free". */
   planTier: PlanTier | null;
-  isResolved: boolean;
-  isPaid: boolean;
   canUseAdvancedFilters: boolean;
   canSaveSearches: boolean;
   canUseAlerts: boolean;
@@ -48,8 +47,6 @@ export function usePlanTier(isLoggedIn: boolean): {
 
   return {
     planTier,
-    isResolved: planTier !== null,
-    isPaid: planTier !== null && planTier !== "free",
     canUseAdvancedFilters: resolveGate("advanced_filters"),
     canSaveSearches: resolveGate("saved_searches"),
     canUseAlerts: resolveGate("alerts"),
@@ -57,7 +54,7 @@ export function usePlanTier(isLoggedIn: boolean): {
 }
 
 interface AdvancedFilterGateArgs {
-  canUseAdvancedFilters: boolean;
+  planTier: PlanTier | null;
   indexUiState: InstantSearchUiState;
   setIndexUiState: (
     updater: (prev: InstantSearchUiState) => InstantSearchUiState,
@@ -69,10 +66,10 @@ interface AdvancedFilterGateArgs {
  * Algolia. Unknown tiers remain locked because Algolia has no server gate.
  */
 export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
-  const { canUseAdvancedFilters, indexUiState, setIndexUiState } = args;
+  const { planTier, indexUiState, setIndexUiState } = args;
 
   useEffect(() => {
-    if (canUseAdvancedFilters) return;
+    if (!shouldClearAdvancedFilters(planTier)) return;
     const hasAdvancedRefinements =
       Object.keys(indexUiState.refinementList ?? {}).length > 0 ||
       Object.keys(indexUiState.range ?? {}).length > 0;
@@ -86,7 +83,7 @@ export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
       reason: "plan_restricted",
     });
     toast.info("Filters are available on Lite and Full plans.");
-  }, [canUseAdvancedFilters, indexUiState, setIndexUiState]);
+  }, [planTier, indexUiState, setIndexUiState]);
 }
 
 export function FreeQuotaOverlay({

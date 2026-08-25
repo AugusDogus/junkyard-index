@@ -183,7 +183,7 @@ describe("Polar billing gateway", () => {
       config,
     );
 
-    await expect(gateway.hasActiveSubscription("user-1")).resolves.toBe(false);
+    await expect(gateway.getAccountState("user-1")).resolves.toBe("none");
   });
 
   test("recognizes every configured tier product and enumerates all customer subscriptions", async () => {
@@ -200,7 +200,7 @@ describe("Polar billing gateway", () => {
         },
       }),
       {
-        products: [
+        catalog: [
           {
             kind: "checkout",
             key: "lite_monthly",
@@ -216,7 +216,7 @@ describe("Polar billing gateway", () => {
       },
     );
 
-    await expect(gateway.hasActiveSubscription("user-1")).resolves.toBe(true);
+    await expect(gateway.getAccountState("user-1")).resolves.toBe("active");
     await expect(gateway.listSubscriptions("user-1")).resolves.toHaveLength(1);
     expect(subscriptionLists).toBe(1);
   });
@@ -243,7 +243,7 @@ describe("Polar billing gateway", () => {
 });
 
 const config = {
-  products: [
+  catalog: [
     {
       kind: "checkout" as const,
       key: "full_monthly" as const,

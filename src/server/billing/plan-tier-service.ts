@@ -19,7 +19,7 @@ export function createPlanTierService(options: {
     ttlMs = 60_000,
     onError = (userId, error) =>
       console.error(
-        `Failed to resolve plan tier from Polar for user ${userId}; treating as free.`,
+        `Failed to resolve plan tier from Polar for user ${userId}.`,
         error,
       ),
   } = options;
@@ -33,7 +33,7 @@ export function createPlanTierService(options: {
       return await fetchResolved(userId);
     } catch (error) {
       onError(userId, error);
-      return "free";
+      throw error;
     }
   };
 

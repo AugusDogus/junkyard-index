@@ -42,6 +42,7 @@ function createTestService(
       state.activeSubscriptions?.some((s) => s.productId === "lite-monthly-id")
         ? "lite"
         : "free",
+    onError: () => {},
   });
   return { ...service, polar };
 }
@@ -79,6 +80,15 @@ describe("getPlanTier caching", () => {
     expect(await test.getFreshPlanTier("cache-user-4")).toBe("free");
     expect(await test.getPlanTier("cache-user-4")).toBe("lite");
     expect(polar.calls()).toBe(2);
+  });
+
+  test("fresh reads propagate provider failures instead of authorizing as free", async () => {
+    const test = createTestService(createFakePolar(LITE_STATE));
+    test.polar.failNextCall();
+
+    await expect(test.getFreshPlanTier("cache-user-5")).rejects.toThrow(
+      "polar down",
+    );
   });
 });
 

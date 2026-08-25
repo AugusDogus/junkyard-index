@@ -73,6 +73,7 @@ import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import { PLANS } from "~/lib/plans";
+import type { QuotaViewer } from "~/lib/quota-viewer";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -105,10 +106,7 @@ function clampRouteYear(
 }
 
 interface SearchPageContentProps {
-  isLoggedIn?: boolean;
-  /** Visitor has a Better Auth anonymous (guest) session already. */
-  isAnonymousUser?: boolean;
-  sessionUserId?: string;
+  viewer: QuotaViewer;
   userLocation?: { lat: number; lng: number };
 }
 
@@ -300,12 +298,12 @@ function DistancePreferenceDialog({
  * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
  */
 function AlgoliaSearchInner({
-  isLoggedIn,
-  isAnonymousUser = false,
-  sessionUserId,
+  viewer,
   userLocation: _userLocation,
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
+  const isLoggedIn = viewer.kind === "authenticated";
+  const isAnonymousUser = viewer.kind === "guest";
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -492,7 +490,7 @@ function AlgoliaSearchInner({
   // Free-tier users cannot apply advanced filters; strip any that arrive
   // via URL routing before they reach Algolia.
   useAdvancedFilterGate({
-    canUseAdvancedFilters,
+    planTier,
     indexUiState,
     setIndexUiState,
   });
@@ -771,12 +769,7 @@ function AlgoliaSearchInner({
     hasActiveSearch && (status === "loading" || status === "stalled");
 
   const quotaExceeded = useDailySearchQuota({
-    initialViewer: sessionUserId
-      ? {
-          kind: isAnonymousUser ? "guest" : "authenticated",
-          userId: sessionUserId,
-        }
-      : { kind: "signed_out" },
+    initialViewer: viewer,
     planTier,
     analyticsSearchValue,
     isSearching,
@@ -1565,9 +1558,7 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
  * Main SearchPageContent — wraps everything in InstantSearch provider.
  */
 export function SearchPageContent({
-  isLoggedIn,
-  isAnonymousUser,
-  sessionUserId,
+  viewer,
   userLocation,
 }: SearchPageContentProps) {
   const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
@@ -1601,9 +1592,7 @@ export function SearchPageContent({
     >
       <ErrorBoundary>
         <AlgoliaSearchInner
-          isLoggedIn={isLoggedIn}
-          isAnonymousUser={isAnonymousUser}
-          sessionUserId={sessionUserId}
+          viewer={viewer}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
         />

@@ -11,7 +11,10 @@ describe("quota lifecycle", () => {
       type: "search_ready",
       query: "civic",
     });
-    expect(creatingGuest.activity).toEqual({ kind: "creating_guest" });
+    expect(creatingGuest.activity).toEqual({
+      kind: "creating_guest",
+      query: "civic",
+    });
 
     const guestResolved = transitionQuotaLifecycle(creatingGuest, {
       type: "viewer_resolved",
@@ -28,6 +31,29 @@ describe("quota lifecycle", () => {
       userId: "guest-1",
       query: "civic",
     });
+  });
+
+  test("retries guest creation on the next distinct search after failure", () => {
+    const creatingGuest = transitionQuotaLifecycle(initialQuotaLifecycleState, {
+      type: "search_ready",
+      query: "civic",
+    });
+    const failed = transitionQuotaLifecycle(creatingGuest, {
+      type: "guest_creation_failed",
+    });
+
+    expect(
+      transitionQuotaLifecycle(failed, {
+        type: "search_ready",
+        query: "civic",
+      }),
+    ).toEqual(failed);
+    expect(
+      transitionQuotaLifecycle(failed, {
+        type: "search_ready",
+        query: "accord",
+      }).activity,
+    ).toEqual({ kind: "creating_guest", query: "accord" });
   });
 
   test("does not recount the current query after an account identity change", () => {

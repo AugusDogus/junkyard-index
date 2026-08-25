@@ -119,7 +119,6 @@ export function SaveSearchDialog({
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [discordEnabled, setDiscordEnabled] = useState(false);
   const [notificationsExpanded, setNotificationsExpanded] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const [isNavigatingToAuth, setIsNavigatingToAuth] = useState(false);
 
   const utils = api.useUtils();
@@ -207,7 +206,6 @@ export function SaveSearchDialog({
         return;
       }
       toast.error(error.message || "Failed to save search");
-      setIsRedirecting(false);
       if (canCreateWithSelectedFeatures) {
         setOpen(true);
       }
@@ -268,7 +266,7 @@ export function SaveSearchDialog({
     });
   };
 
-  const isSaving = createMutation.isPending || isRedirecting;
+  const isSaving = createMutation.isPending;
 
   const handleButtonClick = () => {
     if (isLoggedIn) {
@@ -523,11 +521,7 @@ export function SaveSearchDialog({
         </div>
         <DialogFooter>
           <Button onClick={handleSave} disabled={!name.trim() || isSaving}>
-            {isRedirecting
-              ? "Redirecting to checkout..."
-              : createMutation.isPending
-                ? "Saving..."
-                : "Save Search"}
+            {createMutation.isPending ? "Saving..." : "Save Search"}
           </Button>
         </DialogFooter>
       </DialogContent>
