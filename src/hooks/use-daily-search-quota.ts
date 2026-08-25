@@ -26,6 +26,10 @@ interface DailySearchQuotaArgs {
   hasError: boolean;
 }
 
+// This is intentionally a soft product limit, not a security boundary. Keeping
+// signed-out counters browser-local preserves direct, low-latency search, while
+// accepting that a determined user can clear or bypass them. Signed-in usage is
+// still recorded per account on the server.
 const ACCOUNT_QUOTA_DEDUPE_KEY_PREFIX = "ji:accountQuotaDedupe:";
 const BROWSER_QUOTA_KEY = "ji:browserSearchQuota";
 
