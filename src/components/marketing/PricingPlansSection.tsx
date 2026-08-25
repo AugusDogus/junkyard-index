@@ -5,10 +5,10 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { useSession } from "~/lib/auth-client";
-import { subscriptionUrl } from "~/lib/checkout";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import posthog from "posthog-js";
 import { isRegisteredSessionUser } from "~/lib/session-user";
+import { subscriptionReturnTo } from "~/lib/subscription-selection";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLAN_TIERS,
@@ -73,7 +73,7 @@ export function PricingPlansSection() {
       plan_tier: tier,
       billing_interval: interval,
     });
-    window.location.assign(subscriptionUrl(tier, interval));
+    window.location.assign(subscriptionReturnTo({ tier, interval }));
   };
 
   return (
