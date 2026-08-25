@@ -12,7 +12,7 @@ const ALERT_UPGRADE = {
 
 export function useAlertSubscriptionAccess(source: string) {
   const { state, open } = useSubscriptionDestination({ source });
-  const canUseAlerts = resolveClientPlanFeatureAccess({
+  const canAttemptAlertInteraction = resolveClientPlanFeatureAccess({
     access: resolvePlanAccess({
       isLoggedIn: true,
       billingAccount: state,
@@ -22,5 +22,5 @@ export function useAlertSubscriptionAccess(source: string) {
   });
   const openAlertUpgrade = useCallback(() => open(ALERT_UPGRADE), [open]);
 
-  return { canUseAlerts, openAlertUpgrade } as const;
+  return { canAttemptAlertInteraction, openAlertUpgrade } as const;
 }

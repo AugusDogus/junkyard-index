@@ -83,7 +83,7 @@ const operations: DurableAlertDeliveryOperations = {
     return target ?? null;
   },
   parsePayload: parseNotificationIntentPayload,
-  hasActiveSubscription: async (userId) => {
+  hasAlertEntitlement: async (userId) => {
     const tier = await getAuthoritativePlanTier(userId);
     return hasPlanFeature(tier, "alerts");
   },

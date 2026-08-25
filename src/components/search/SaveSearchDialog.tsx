@@ -126,11 +126,11 @@ export function SaveSearchDialog({
 
   const utils = api.useUtils();
 
-  const canSaveSearches = resolveClientPlanFeatureAccess({
+  const canAttemptSaveSearch = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "saved_searches",
   });
-  const canUseAlerts = resolveClientPlanFeatureAccess({
+  const canAttemptAlertInteraction = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "alerts",
   });
@@ -146,7 +146,7 @@ export function SaveSearchDialog({
   const wantsNotifications =
     notificationsEnabled && (emailEnabled || discordEnabled);
   const canCreateWithSelectedFeatures =
-    canSaveSearches && (!wantsNotifications || canUseAlerts);
+    canAttemptSaveSearch && (!wantsNotifications || canAttemptAlertInteraction);
 
   const createMutation = api.savedSearches.create.useMutation({
     onMutate: async (newSearch) => {
@@ -338,10 +338,10 @@ export function SaveSearchDialog({
         <DialogHeader>
           <DialogTitle>Save Search</DialogTitle>
           <DialogDescription>
-            {canSaveSearches
+            {canAttemptSaveSearch
               ? "Save this search to revisit it later."
               : `Saved searches are included in the ${PLANS.lite.name} plan ($${PLANS.lite.monthlyPrice}/mo).`}
-            {!canUseAlerts &&
+            {!canAttemptAlertInteraction &&
               ` Alerts are included in the Full plan ($${PLANS.full.monthlyPrice}/mo).`}
           </DialogDescription>
         </DialogHeader>
@@ -411,7 +411,7 @@ export function SaveSearchDialog({
                     className="cursor-pointer font-medium"
                   >
                     Enable notifications
-                    {!canUseAlerts && (
+                    {!canAttemptAlertInteraction && (
                       <span className="text-muted-foreground ml-1.5 text-sm font-normal">
                         (${PLANS.full.monthlyPrice}/mo)
                       </span>
