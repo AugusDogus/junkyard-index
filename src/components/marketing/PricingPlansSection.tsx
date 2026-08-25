@@ -39,10 +39,10 @@ const PRICING_PLAN_CONTENT: Record<
   lite: {
     description: "For serious searchers who need filters and saved searches.",
     items: [
+      "Everything in Free",
       "Unlimited searches",
       "Advanced filters: yard, make, year, color, state, lot",
       "Unlimited saved searches",
-      "Everything in Free",
     ],
     featured: false,
   },
@@ -53,7 +53,7 @@ const PRICING_PLAN_CONTENT: Record<
       "Everything in Lite",
       "Email alerts when new matches arrive",
       "Discord alerts when new matches arrive",
-      "Alerts checked after each hourly inventory update",
+      "Control alerts separately for each saved search",
     ],
     featured: true,
   },
@@ -225,7 +225,7 @@ function PricingPlanCard({
   return (
     <div
       className={cn(
-        "rounded-lg border p-6",
+        "flex h-full flex-col rounded-lg border p-6",
         featured && "border-primary bg-primary/5",
       )}
     >
@@ -249,7 +249,7 @@ function PricingPlanCard({
           </li>
         ))}
       </ul>
-      <div className="mt-6">{cta}</div>
+      <div className="mt-auto pt-6">{cta}</div>
     </div>
   );
 }
