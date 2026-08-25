@@ -9,6 +9,7 @@ import {
   planPrice,
   resolvePlanFeatureAccess,
   savedSearchUpgradeTier,
+  shouldClearAdvancedFilters,
   tierSatisfies,
 } from "~/lib/plans";
 
@@ -54,6 +55,13 @@ describe("plan tiers", () => {
         feature: "saved_searches",
       }),
     ).toBe(true);
+  });
+
+  test("preserves advanced filters while a paid tier hydrates", () => {
+    expect(shouldClearAdvancedFilters(null)).toBe(false);
+    expect(shouldClearAdvancedFilters("lite")).toBe(false);
+    expect(shouldClearAdvancedFilters("full")).toBe(false);
+    expect(shouldClearAdvancedFilters("free")).toBe(true);
   });
 
   test("prices match the published tiers", () => {

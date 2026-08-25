@@ -7,8 +7,8 @@ export interface StoredQuotaRecord {
 
 type QuotaActivity =
   | { kind: "idle" }
-  | { kind: "creating_guest" }
-  | { kind: "guest_creation_failed" }
+  | { kind: "creating_guest"; query: string }
+  | { kind: "guest_creation_failed"; query: string }
   | { kind: "recording"; userId: string; query: string };
 
 export interface QuotaLifecycleState {
@@ -62,14 +62,20 @@ export function transitionQuotaLifecycle(
     }
     case "search_ready":
       if (
-        state.activity.kind !== "idle" ||
+        state.activity.kind === "creating_guest" ||
+        state.activity.kind === "recording" ||
         event.query.length === 0 ||
-        event.query === state.lastQuery
+        event.query === state.lastQuery ||
+        (state.activity.kind === "guest_creation_failed" &&
+          event.query === state.activity.query)
       ) {
         return state;
       }
       if (state.userId === null) {
-        return { ...state, activity: { kind: "creating_guest" } };
+        return {
+          ...state,
+          activity: { kind: "creating_guest", query: event.query },
+        };
       }
       return {
         ...state,
@@ -82,7 +88,13 @@ export function transitionQuotaLifecycle(
       };
     case "guest_creation_failed":
       return state.activity.kind === "creating_guest"
-        ? { ...state, activity: { kind: "guest_creation_failed" } }
+        ? {
+            ...state,
+            activity: {
+              kind: "guest_creation_failed",
+              query: state.activity.query,
+            },
+          }
         : state;
     case "record_failed":
       return state.activity.kind === "recording" &&

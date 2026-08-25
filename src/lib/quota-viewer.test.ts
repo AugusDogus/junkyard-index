@@ -1,5 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { resolveQuotaViewer } from "./quota-viewer";
+import { quotaViewerFromSessionUser, resolveQuotaViewer } from "./quota-viewer";
+
+describe("quotaViewerFromSessionUser", () => {
+  test("models each session identity as one valid viewer state", () => {
+    expect(quotaViewerFromSessionUser(undefined)).toEqual({
+      kind: "signed_out",
+    });
+    expect(
+      quotaViewerFromSessionUser({ id: "guest-1", isAnonymous: true }),
+    ).toEqual({ kind: "guest", userId: "guest-1" });
+    expect(
+      quotaViewerFromSessionUser({ id: "user-1", isAnonymous: false }),
+    ).toEqual({ kind: "authenticated", userId: "user-1" });
+  });
+});
 
 describe("resolveQuotaViewer", () => {
   test("keeps the server identity while the client session hydrates", () => {

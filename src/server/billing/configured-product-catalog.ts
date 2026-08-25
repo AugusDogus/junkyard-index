@@ -2,7 +2,6 @@ import { env } from "~/env";
 import {
   createBillingProductCatalog,
   getBillingProductTier,
-  getCheckoutBillingProducts,
 } from "./product-catalog";
 
 export const billingProductCatalog = createBillingProductCatalog({
@@ -14,10 +13,6 @@ export const billingProductCatalog = createBillingProductCatalog({
   },
   ...(env.POLAR_PRODUCT_ID ? { legacyProductId: env.POLAR_PRODUCT_ID } : {}),
 });
-
-export const checkoutBillingProducts = getCheckoutBillingProducts(
-  billingProductCatalog,
-);
 
 export const entitlementBillingProducts = billingProductCatalog.map(
   (product) => ({

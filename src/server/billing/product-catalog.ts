@@ -1,7 +1,15 @@
 import type { BillingInterval, PlanTier } from "~/lib/plans";
-import type { BillingProductKey } from "~/server/billing";
 
 type PaidTier = Exclude<PlanTier, "free">;
+
+export const BILLING_PRODUCT_KEYS = [
+  "lite_monthly",
+  "lite_annual",
+  "full_monthly",
+  "full_annual",
+] as const;
+
+export type BillingProductKey = (typeof BILLING_PRODUCT_KEYS)[number];
 
 export type CheckoutBillingProduct = {
   kind: "checkout";
@@ -15,13 +23,6 @@ export type BillingProduct =
 
 export type BillingProductIds = Record<BillingProductKey, string>;
 
-const BILLING_PRODUCT_KEYS = [
-  "lite_monthly",
-  "lite_annual",
-  "full_monthly",
-  "full_annual",
-] as const satisfies readonly BillingProductKey[];
-
 export function createBillingProductCatalog(input: {
   checkoutProductIds: BillingProductIds;
   legacyProductId?: string;
@@ -31,12 +32,22 @@ export function createBillingProductCatalog(input: {
     key,
     productId: input.checkoutProductIds[key],
   }));
-  return [
+  const catalog: readonly BillingProduct[] = [
     ...checkoutProducts,
     ...(input.legacyProductId
       ? [{ kind: "legacy" as const, productId: input.legacyProductId }]
       : []),
   ];
+  const seenProductIds = new Set<string>();
+  for (const product of catalog) {
+    if (seenProductIds.has(product.productId)) {
+      throw new Error(
+        `Billing product ID ${product.productId} is configured more than once. Each checkout and legacy product must use a unique ID.`,
+      );
+    }
+    seenProductIds.add(product.productId);
+  }
+  return catalog;
 }
 
 export function getCheckoutBillingProducts(

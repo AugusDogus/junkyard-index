@@ -35,4 +35,22 @@ describe("billing product catalog", () => {
     expect(legacy?.productId).toBe("legacy-id");
     expect(legacy ? getBillingProductTier(legacy) : null).toBe("full");
   });
+
+  test("rejects duplicate checkout and legacy product IDs", () => {
+    expect(() =>
+      createBillingProductCatalog({
+        checkoutProductIds: {
+          ...PRODUCT_IDS,
+          full_monthly: PRODUCT_IDS.lite_monthly,
+        },
+      }),
+    ).toThrow("configured more than once");
+
+    expect(() =>
+      createBillingProductCatalog({
+        checkoutProductIds: PRODUCT_IDS,
+        legacyProductId: PRODUCT_IDS.lite_monthly,
+      }),
+    ).toThrow("configured more than once");
+  });
 });

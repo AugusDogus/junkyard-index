@@ -9,7 +9,7 @@ import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
-import { isGuestSession, isVisibleSessionUser } from "~/lib/session-user";
+import { quotaViewerFromSessionUser } from "~/lib/quota-viewer";
 
 export const metadata: Metadata = {
   title: "Search Salvage Yard Inventory",
@@ -50,9 +50,7 @@ export default async function SearchPage() {
           <ErrorBoundary>
             <Suspense>
               <SearchPageContent
-                isLoggedIn={isVisibleSessionUser(session?.user)}
-                isAnonymousUser={isGuestSession(session?.user)}
-                sessionUserId={session?.user.id}
+                viewer={quotaViewerFromSessionUser(session?.user)}
                 userLocation={geo}
               />
             </Suspense>
