@@ -15,8 +15,11 @@ import {
 import { DiscordIcon } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
+import { usePlanAccess } from "~/hooks/use-plan-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { api } from "~/trpc/react";
+import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
 
 export function SavedSearchSettingsCard() {
   const utils = api.useUtils();
@@ -24,6 +27,11 @@ export function SavedSearchSettingsCard() {
   const { data: notifications } = api.user.getNotificationSettings.useQuery();
   const { canAttemptAlertInteraction, openAlertUpgrade } =
     useAlertSubscriptionAccess("settings_saved_searches");
+  const planAccess = usePlanAccess(true);
+  const savedSearchesLocked = !resolveClientPlanFeatureAccess({
+    access: planAccess,
+    feature: "saved_searches",
+  });
   const canUseDiscord =
     notifications?.hasDiscordLinked && notifications.discordAppInstalled;
 
@@ -109,8 +117,9 @@ export function SavedSearchSettingsCard() {
           Saved Searches
         </CardTitle>
         <CardDescription>
-          Manage notifications for your saved searches. Toggle email or Discord
-          alerts for each search.
+          {savedSearchesLocked
+            ? "Your saved searches remain available if you upgrade again."
+            : "Manage notifications for your saved searches. Toggle email or Discord alerts for each search."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -131,6 +140,7 @@ export function SavedSearchSettingsCard() {
           </div>
         ) : (
           <div className="space-y-3">
+            {savedSearchesLocked && <SavedSearchUpgradeNotice />}
             {searches.map((search) => (
               <div
                 key={search.id}
@@ -145,58 +155,65 @@ export function SavedSearchSettingsCard() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-8 w-8 p-0 ${search.emailAlertsEnabled ? "text-blue-500" : "text-muted-foreground"}`}
-                    onClick={() =>
-                      setEmailAlerts(search.id, !search.emailAlertsEnabled)
-                    }
-                    disabled={isMutating}
-                    title={
-                      search.emailAlertsEnabled
-                        ? "Email alerts on"
-                        : "Email alerts off"
-                    }
-                    aria-label={
-                      search.emailAlertsEnabled
-                        ? "Turn off email alerts"
-                        : canAttemptAlertInteraction
-                          ? "Turn on email alerts"
-                          : "Subscribe to enable email alerts"
-                    }
-                  >
-                    {search.emailAlertsEnabled ? (
-                      <Mail className="h-4 w-4" />
-                    ) : (
-                      <BellOff className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={`h-8 w-8 p-0 ${search.discordAlertsEnabled ? "text-[#5865F2]" : "text-muted-foreground"}`}
-                    onClick={() =>
-                      setDiscordAlerts(search.id, !search.discordAlertsEnabled)
-                    }
-                    disabled={isMutating}
-                    title={
-                      search.discordAlertsEnabled
-                        ? "Discord alerts on"
-                        : "Discord alerts off"
-                    }
-                    aria-label={
-                      search.discordAlertsEnabled
-                        ? "Turn off Discord alerts"
-                        : !canAttemptAlertInteraction
-                          ? "Subscribe to enable Discord alerts"
-                          : !canUseDiscord
-                            ? "Set up Discord to enable alerts"
-                            : "Turn on Discord alerts"
-                    }
-                  >
-                    <DiscordIcon className="h-4 w-4" />
-                  </Button>
+                  {!savedSearchesLocked && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 w-8 p-0 ${search.emailAlertsEnabled ? "text-blue-500" : "text-muted-foreground"}`}
+                        onClick={() =>
+                          setEmailAlerts(search.id, !search.emailAlertsEnabled)
+                        }
+                        disabled={isMutating}
+                        title={
+                          search.emailAlertsEnabled
+                            ? "Email alerts on"
+                            : "Email alerts off"
+                        }
+                        aria-label={
+                          search.emailAlertsEnabled
+                            ? "Turn off email alerts"
+                            : canAttemptAlertInteraction
+                              ? "Turn on email alerts"
+                              : "Subscribe to enable email alerts"
+                        }
+                      >
+                        {search.emailAlertsEnabled ? (
+                          <Mail className="h-4 w-4" />
+                        ) : (
+                          <BellOff className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 w-8 p-0 ${search.discordAlertsEnabled ? "text-[#5865F2]" : "text-muted-foreground"}`}
+                        onClick={() =>
+                          setDiscordAlerts(
+                            search.id,
+                            !search.discordAlertsEnabled,
+                          )
+                        }
+                        disabled={isMutating}
+                        title={
+                          search.discordAlertsEnabled
+                            ? "Discord alerts on"
+                            : "Discord alerts off"
+                        }
+                        aria-label={
+                          search.discordAlertsEnabled
+                            ? "Turn off Discord alerts"
+                            : !canAttemptAlertInteraction
+                              ? "Subscribe to enable Discord alerts"
+                              : !canUseDiscord
+                                ? "Set up Discord to enable alerts"
+                                : "Turn on Discord alerts"
+                        }
+                      >
+                        <DiscordIcon className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -215,7 +232,9 @@ export function SavedSearchSettingsCard() {
               <Link href="/search">
                 <Button variant="outline" size="sm" className="w-full">
                   <Search className="mr-2 h-4 w-4" />
-                  Create New Search
+                  {savedSearchesLocked
+                    ? "Search Inventory"
+                    : "Create New Search"}
                 </Button>
               </Link>
             </div>

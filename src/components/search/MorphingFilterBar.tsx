@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { useIsMediumScreen } from "~/hooks/use-media-query";
+import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { SavedSearchesDropdown } from "./SavedSearchesDropdown";
 import { SaveSearchDialog } from "./SaveSearchDialog";
@@ -141,6 +142,10 @@ export const MorphingFilterBar = forwardRef<
 
   const SortIcon = getSortIcon(sortBy);
   const isMediumScreen = useIsMediumScreen();
+  const savedSearchesLocked = !resolveClientPlanFeatureAccess({
+    access: planAccess,
+    feature: "saved_searches",
+  });
   // Compact when scrolled to save space
   const isCompact = style ? style.progress > 0.5 : false;
   // Icon-only mode on medium screens (768-1023px) to fit in header
@@ -172,7 +177,11 @@ export const MorphingFilterBar = forwardRef<
       className={`flex items-center whitespace-nowrap transition-all duration-100 ${isCompact || isIconOnly ? "gap-1.5" : "gap-2 sm:gap-4"}`}
     >
       {isLoggedIn && (
-        <SavedSearchesDropdown compact={isCompact} iconOnly={isIconOnly} />
+        <SavedSearchesDropdown
+          compact={isCompact}
+          iconOnly={isIconOnly}
+          locked={savedSearchesLocked}
+        />
       )}
       <SaveSearchDialog
         query={query}

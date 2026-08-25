@@ -35,6 +35,12 @@ describe("resolveClientPlanFeatureAccess", () => {
   test("uses authoritative plan entitlement after access resolves", () => {
     expect(
       resolveClientPlanFeatureAccess({
+        access: { kind: "resolved", tier: "free" },
+        feature: "saved_searches",
+      }),
+    ).toBe(false);
+    expect(
+      resolveClientPlanFeatureAccess({
         access: { kind: "resolved", tier: "lite" },
         feature: "saved_searches",
       }),
