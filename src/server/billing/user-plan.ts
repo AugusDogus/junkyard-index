@@ -1,4 +1,4 @@
-import { polarClient } from "./polar-client";
+import { polarClient } from "~/lib/polar";
 import { env } from "~/env";
 import type { PlanTier } from "~/lib/plans";
 import {

@@ -29,6 +29,9 @@ export const user = sqliteTable("user", {
   locationLng: real("location_lng"),
   termsAcceptedAt: integer("terms_accepted_at", { mode: "timestamp_ms" }),
   termsVersion: text("terms_version"),
+  isAnonymous: integer("is_anonymous", { mode: "boolean" })
+    .default(false)
+    .notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),
@@ -211,10 +214,34 @@ export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
   }),
 }));
 
+export const searchUsage = sqliteTable(
+  "search_usage",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    count: integer("count").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.day] })],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   savedSearches: many(savedSearch),
+  searchUsage: many(searchUsage),
+}));
+
+export const searchUsageRelations = relations(searchUsage, ({ one }) => ({
+  user: one(user, {
+    fields: [searchUsage.userId],
+    references: [user.id],
+  }),
 }));
 
 // ── Ingestion Pipeline Tables ───────────────────────────────────────────────

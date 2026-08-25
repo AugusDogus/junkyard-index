@@ -6,25 +6,6 @@ export type PlanTier = "free" | "lite" | "full";
 
 export type BillingInterval = "monthly" | "annual";
 
-// One slug per Polar product. Annual is a separate product because the Better
-// Auth Polar plugin resolves checkouts by slug only and cannot pass an
-// interval to an existing product.
-export const CHECKOUT_SLUGS = {
-  lite_monthly: "Lite",
-  lite_annual: "Lite-Annual",
-  full_monthly: "Full",
-  full_annual: "Full-Annual",
-} as const;
-
-export function checkoutSlugFor(
-  tier: Exclude<PlanTier, "free">,
-  interval: BillingInterval,
-): (typeof CHECKOUT_SLUGS)[keyof typeof CHECKOUT_SLUGS] {
-  return interval === "annual"
-    ? CHECKOUT_SLUGS[`${tier}_annual`]
-    : CHECKOUT_SLUGS[`${tier}_monthly`];
-}
-
 export const FREE_DAILY_SEARCH_LIMIT = 10;
 
 const TIER_RANK: Record<PlanTier, number> = {

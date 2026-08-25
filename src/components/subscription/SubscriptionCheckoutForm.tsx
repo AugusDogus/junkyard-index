@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -14,11 +15,20 @@ import {
 import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { TERMS_METADATA } from "~/lib/legal";
+import {
+  PLANS,
+  type BillingInterval,
+  formatMonthlyEquivalent,
+  planPrice,
+} from "~/lib/plans";
 import { api } from "~/trpc/react";
 
 export function SubscriptionCheckoutForm() {
+  const searchParams = useSearchParams();
+  const tier = searchParams.get("tier") === "lite" ? "lite" : "full";
+  const interval: BillingInterval =
+    searchParams.get("interval") === "annual" ? "annual" : "monthly";
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const createCheckout = api.subscription.createCheckout.useMutation();
@@ -42,6 +52,8 @@ export function SubscriptionCheckoutForm() {
     try {
       const checkout = await createCheckout.mutateAsync({
         termsVersion: TERMS_METADATA.version,
+        tier,
+        interval,
       });
       window.location.assign(checkout.url);
     } catch (error) {
@@ -84,7 +96,7 @@ export function SubscriptionCheckoutForm() {
               : "Subscription needs attention"}
           </CardTitle>
           <CardDescription>
-            Manage your existing Alerts Plan instead of starting another
+            Manage your existing subscription instead of starting another
             checkout.
           </CardDescription>
         </CardHeader>
@@ -103,21 +115,28 @@ export function SubscriptionCheckoutForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Alerts Plan</CardTitle>
+        <CardTitle>{PLANS[tier].name} Plan</CardTitle>
         <CardDescription>
-          Email and Discord alerts for your saved searches.
+          {tier === "full"
+            ? "Unlimited search, advanced filters, saved searches, and alerts."
+            : "Unlimited search, advanced filters, and saved searches."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
           <p className="text-3xl font-bold">
-            ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
+            ${planPrice(tier, interval)}
             <span className="text-muted-foreground text-base font-normal">
-              /month
+              {interval === "annual" ? "/year" : "/month"}
             </span>
           </p>
           <p className="text-muted-foreground mt-2 text-sm">
-            Your subscription renews automatically each month until you cancel.
+            Your subscription renews automatically{" "}
+            {interval === "annual" ? "each year" : "each month"} until you
+            cancel.
+            {interval === "annual"
+              ? ` That is ${formatMonthlyEquivalent(tier)} per month.`
+              : ""}{" "}
             You can cancel anytime from Manage Subscription. Polar handles
             payment, taxes, billing, and payment-related refunds.
           </p>

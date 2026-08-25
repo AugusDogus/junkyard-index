@@ -1,14 +1,8 @@
 "use client";
 
 import posthog from "posthog-js";
-import { toast } from "sonner";
-import { authClient } from "~/lib/auth-client";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import {
-  type BillingInterval,
-  type PlanTier,
-  checkoutSlugFor,
-} from "~/lib/plans";
+import { type BillingInterval, type PlanTier } from "~/lib/plans";
 
 export interface CheckoutAttribution {
   source_page: string;
@@ -31,12 +25,7 @@ export async function startTierCheckout(
     plan_tier: tier,
     billing_interval: interval,
   });
-  try {
-    await authClient.checkout({ slug: checkoutSlugFor(tier, interval) });
-    return true;
-  } catch (error) {
-    console.error("Failed to open checkout:", error);
-    toast.error("Failed to open checkout. Please try again.");
-    return false;
-  }
+  const params = new URLSearchParams({ tier, interval });
+  window.location.assign(`/subscribe?${params.toString()}`);
+  return true;
 }

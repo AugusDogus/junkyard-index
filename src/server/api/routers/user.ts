@@ -18,6 +18,8 @@ import {
 import { sendTestDM } from "~/lib/discord";
 import { deleteAccountSafely } from "~/server/account-deletion";
 import { polarBillingGateway } from "~/server/polar-billing-gateway";
+import { getPlanTier } from "~/server/billing/user-plan";
+import { hasPlanFeature } from "~/lib/plans";
 
 async function resolveZipCode(zipCode: string) {
   const normalizedZipCode = normalizeZipCode(zipCode);
@@ -333,17 +335,15 @@ export const userRouter = createTRPCRouter({
     }
 
     // Check subscription status for the DM message
-    let hasActiveSubscription = false;
+    let canUseAlerts = false;
     try {
-      hasActiveSubscription = await polarBillingGateway.hasActiveSubscription(
-        ctx.user.id,
-      );
+      canUseAlerts = hasPlanFeature(await getPlanTier(ctx.user.id), "alerts");
     } catch {
       // Customer might not exist yet, that's fine
     }
 
     // Try to send a test DM
-    const result = await sendTestDM(discordId, hasActiveSubscription);
+    const result = await sendTestDM(discordId, canUseAlerts);
 
     if (!result.success) {
       posthog.capture({

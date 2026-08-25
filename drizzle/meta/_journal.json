@@ -22,6 +22,13 @@
       "when": 1787601903761,
       "tag": "0002_mean_puck",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787619083009,
+      "tag": "0003_flawless_red_ghost",
+      "breakpoints": true
     }
   ]
 }

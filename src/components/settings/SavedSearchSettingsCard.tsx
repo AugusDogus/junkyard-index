@@ -17,15 +17,16 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { api } from "~/trpc/react";
+import { usePlanTier } from "~/components/plan-gates";
 
 export function SavedSearchSettingsCard() {
   const utils = api.useUtils();
   const { data: searches, isLoading } = api.savedSearches.list.useQuery();
   const { data: notifications } = api.user.getNotificationSettings.useQuery();
-  const { hasActiveSubscription, open: openSubscriptionDestination } =
-    useSubscriptionDestination({
-      source: "settings_saved_searches",
-    });
+  const { open: openSubscriptionDestination } = useSubscriptionDestination({
+    source: "settings_saved_searches",
+  });
+  const { canUseAlerts } = usePlanTier(true);
   const canUseDiscord =
     notifications?.hasDiscordLinked && notifications.discordAppInstalled;
 
@@ -66,7 +67,7 @@ export function SavedSearchSettingsCard() {
     deleteSearch.isPending || toggleEmail.isPending || toggleDiscord.isPending;
 
   const setEmailAlerts = (id: string, enabled: boolean) => {
-    if (enabled && !hasActiveSubscription) {
+    if (enabled && !canUseAlerts) {
       void openSubscriptionDestination();
       return;
     }
@@ -79,7 +80,7 @@ export function SavedSearchSettingsCard() {
   };
 
   const setDiscordAlerts = (id: string, enabled: boolean) => {
-    if (enabled && !hasActiveSubscription) {
+    if (enabled && !canUseAlerts) {
       void openSubscriptionDestination();
       return;
     }
@@ -163,7 +164,7 @@ export function SavedSearchSettingsCard() {
                     aria-label={
                       search.emailAlertsEnabled
                         ? "Turn off email alerts"
-                        : hasActiveSubscription
+                        : canUseAlerts
                           ? "Turn on email alerts"
                           : "Subscribe to enable email alerts"
                     }
@@ -190,7 +191,7 @@ export function SavedSearchSettingsCard() {
                     aria-label={
                       search.discordAlertsEnabled
                         ? "Turn off Discord alerts"
-                        : !hasActiveSubscription
+                        : !canUseAlerts
                           ? "Subscribe to enable Discord alerts"
                           : !canUseDiscord
                             ? "Set up Discord to enable alerts"
