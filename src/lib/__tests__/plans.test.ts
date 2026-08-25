@@ -7,6 +7,7 @@ import {
   formatMonthlyEquivalent,
   hasPlanFeature,
   planPrice,
+  resolvePlanFeatureAccess,
   savedSearchUpgradeTier,
   tierSatisfies,
 } from "~/lib/plans";
@@ -36,6 +37,23 @@ describe("plan tiers", () => {
     expect(hasPlanFeature("free", "alerts")).toBe(false);
     expect(hasPlanFeature("lite", "alerts")).toBe(false);
     expect(hasPlanFeature("full", "alerts")).toBe(true);
+  });
+
+  test("unknown tiers lock client-only filters but not server-gated actions", () => {
+    expect(
+      resolvePlanFeatureAccess({
+        tier: null,
+        isLoggedIn: true,
+        feature: "advanced_filters",
+      }),
+    ).toBe(false);
+    expect(
+      resolvePlanFeatureAccess({
+        tier: null,
+        isLoggedIn: true,
+        feature: "saved_searches",
+      }),
+    ).toBe(true);
   });
 
   test("prices match the published tiers", () => {

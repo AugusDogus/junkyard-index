@@ -11,9 +11,9 @@ import {
   type BillingCheckout as BillingCheckoutRecord,
   BillingSubscription,
   type BillingSubscription as BillingSubscriptionRecord,
+  type BillingProductKey,
   type SubscriptionCheckoutBilling,
 } from "~/server/billing";
-import type { BillingProductKey } from "~/server/billing/product-catalog";
 
 export type SubscriptionCheckoutBlocked =
   | {

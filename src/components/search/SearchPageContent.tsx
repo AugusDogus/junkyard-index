@@ -353,8 +353,7 @@ function AlgoliaSearchInner({
   // Prefetch saved searches
   api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
 
-  const { planTier, canUseAdvancedFilters, isResolved } =
-    usePlanTier(!!isLoggedIn);
+  const { planTier, canUseAdvancedFilters } = usePlanTier(!!isLoggedIn);
 
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
@@ -494,8 +493,6 @@ function AlgoliaSearchInner({
   // via URL routing before they reach Algolia.
   useAdvancedFilterGate({
     canUseAdvancedFilters,
-    isLoggedIn: !!isLoggedIn,
-    isTierResolved: isResolved,
     indexUiState,
     setIndexUiState,
   });

@@ -1,3 +1,8 @@
+import type { BillingInterval, PlanTier } from "~/lib/plans";
+
+export type BillingProductKey =
+  `${Exclude<PlanTier, "free">}_${BillingInterval}`;
+
 export type BillingSubscription =
   | { id: string; state: "charge_capable" }
   | { id: string; state: "terminal" };
@@ -11,14 +16,14 @@ export const BillingSubscription = {
 export type BillingCheckout =
   | {
       id: string;
-      productKey: BillingProductKey;
+      productKey: BillingProductKey | null;
       state: "reusable";
       url: string;
       expiresAt: Date;
     }
   | {
       id: string;
-      productKey: BillingProductKey;
+      productKey: BillingProductKey | null;
       state: "confirmation_pending";
       expiresAt: Date;
     };
@@ -79,4 +84,3 @@ export type AccountBillingGateway = SubscriptionCheckoutBilling &
   AccountDeletionBilling &
   BillingEntitlementReader &
   BillingAccountReader;
-import type { BillingProductKey } from "~/server/billing/product-catalog";

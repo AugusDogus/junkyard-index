@@ -63,7 +63,7 @@ describe("Polar billing gateway", () => {
   test("queries every checkout state that can still complete", async () => {
     const requests: Array<{
       customerId: string;
-      productId: string;
+      productId?: string;
       status: Array<"open" | "confirmed">;
       limit: number;
     }> = [];
@@ -76,6 +76,14 @@ describe("Polar billing gateway", () => {
             url: "https://checkout.example",
             expiresAt: new Date("2026-08-25T00:00:00.000Z"),
             status: "open" as const,
+            productId: "product-1",
+          },
+          {
+            id: "legacy-checkout",
+            url: "https://checkout.example/legacy",
+            expiresAt: new Date("2026-08-25T01:00:00.000Z"),
+            status: "open" as const,
+            productId: "legacy-product",
           },
         ]);
       },
@@ -90,12 +98,18 @@ describe("Polar billing gateway", () => {
         url: "https://checkout.example",
         expiresAt: new Date("2026-08-25T00:00:00.000Z"),
       },
+      {
+        id: "legacy-checkout",
+        productKey: null,
+        state: "reusable",
+        url: "https://checkout.example/legacy",
+        expiresAt: new Date("2026-08-25T01:00:00.000Z"),
+      },
     ]);
 
     expect(requests).toEqual([
       {
         customerId: "customer-1",
-        productId: "product-1",
         status: ["open", "confirmed"],
         limit: 100,
       },
@@ -113,6 +127,7 @@ describe("Polar billing gateway", () => {
           url: "https://checkout.example",
           expiresAt: new Date("2026-08-25T00:00:00.000Z"),
           status: "open",
+          productId: "product-1",
         };
       },
     });
@@ -190,15 +205,11 @@ describe("Polar billing gateway", () => {
             kind: "checkout",
             key: "lite_monthly",
             productId: "product-1",
-            tier: "lite",
-            interval: "monthly",
           },
           {
             kind: "checkout",
             key: "full_monthly",
             productId: "product-2",
-            tier: "full",
-            interval: "monthly",
           },
         ],
         appUrl: "https://app.example",
@@ -237,8 +248,6 @@ const config = {
       kind: "checkout" as const,
       key: "full_monthly" as const,
       productId: "product-1",
-      tier: "full" as const,
-      interval: "monthly" as const,
     },
   ],
   appUrl: "https://app.example",
@@ -260,6 +269,7 @@ function operationsWith(
       url: "https://checkout.example",
       expiresAt: new Date("2026-08-25T00:00:00.000Z"),
       status: "open",
+      productId: "product-1",
     }),
     ...overrides,
   };

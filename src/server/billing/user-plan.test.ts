@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { PlanTier } from "~/lib/plans";
 import type { CustomerStateLike } from "~/server/billing/plan-tier";
 import {
   createPlanTierService,
   type PlanTierService,
-} from "~/server/billing/user-plan";
+} from "~/server/billing/plan-tier-service";
 import { createTierCache } from "~/server/billing/tier-cache";
 
 function createFakePolar(initial: CustomerStateLike) {
@@ -13,6 +12,9 @@ function createFakePolar(initial: CustomerStateLike) {
   let calls = 0;
   return {
     calls: () => calls,
+    setState(next: CustomerStateLike) {
+      state = next;
+    },
     failNextCall() {
       failNext = true;
     },
@@ -39,7 +41,7 @@ function createTestService(
     resolveTier: (state) =>
       state.activeSubscriptions?.some((s) => s.productId === "lite-monthly-id")
         ? "lite"
-        : ("free" as PlanTier),
+        : "free",
   });
   return { ...service, polar };
 }
@@ -66,6 +68,17 @@ describe("getPlanTier caching", () => {
     const recovered = await test.getPlanTier("cache-user-3");
     expect(recovered).toBe("lite");
     expect(test.polar.calls()).toBe(2);
+  });
+
+  test("fresh reads bypass a cached tier without replacing it", async () => {
+    const polar = createFakePolar(LITE_STATE);
+    const test = createTestService(polar);
+    expect(await test.getPlanTier("cache-user-4")).toBe("lite");
+
+    polar.setState({ activeSubscriptions: [] });
+    expect(await test.getFreshPlanTier("cache-user-4")).toBe("free");
+    expect(await test.getPlanTier("cache-user-4")).toBe("lite");
+    expect(polar.calls()).toBe(2);
   });
 });
 

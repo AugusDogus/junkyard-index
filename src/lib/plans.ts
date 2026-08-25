@@ -37,6 +37,15 @@ export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
   return tierSatisfies(tier, FEATURE_MIN_TIER[feature]);
 }
 
+export function resolvePlanFeatureAccess(input: {
+  tier: PlanTier | null;
+  isLoggedIn: boolean;
+  feature: PlanFeature;
+}): boolean {
+  if (input.tier !== null) return hasPlanFeature(input.tier, input.feature);
+  return input.isLoggedIn && input.feature !== "advanced_filters";
+}
+
 /**
  * First unmet gate for creating a saved search (with optional alerts), in the
  * order the server enforces them: Lite is checked before Full so free users
