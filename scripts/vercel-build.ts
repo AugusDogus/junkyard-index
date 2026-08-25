@@ -6,7 +6,9 @@ const MIGRATE_STEP = ["bun", "run", "db:migrate"] as const satisfies BuildStep;
 export function getVercelBuildSteps(
   vercelEnvironment: string | undefined,
 ): readonly BuildStep[] {
-  return vercelEnvironment === "production"
+  const isDeployment =
+    vercelEnvironment === "production" || vercelEnvironment === "preview";
+  return isDeployment
     ? [MIGRATE_STEP, BUILD_STEP]
     : [BUILD_STEP];
 }
