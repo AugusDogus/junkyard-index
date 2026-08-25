@@ -1,23 +1,5 @@
 import { ipAddress } from "@vercel/functions";
 import * as Sentry from "@sentry/nextjs";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
-import { env } from "~/env";
-
-function createLimiter(
-  prefix: string,
-  limit: number,
-  window: `${number} ${"ms" | "s" | "m" | "h" | "d"}`,
-): Ratelimit {
-  return new Ratelimit({
-    redis: new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
-    }),
-    limiter: Ratelimit.slidingWindow(limit, window),
-    prefix,
-  });
-}
 
 /**
  * Returns the client IP as the rate-limit identifier.
@@ -43,7 +25,7 @@ export function getClientIp(headers: Headers): string {
 }
 
 /** Structural type so tests can stub a limiter without the Upstash SDK. */
-interface RateLimiterLike {
+export interface RateLimiterLike {
   limit(identifier: string): Promise<{ success: boolean }>;
 }
 
@@ -64,9 +46,3 @@ export async function checkRateLimit(
     return true;
   }
 }
-
-export const yardRequestLimiter = createLimiter(
-  "ratelimit:yard-request",
-  3,
-  "1 h",
-);
