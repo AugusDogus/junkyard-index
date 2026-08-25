@@ -89,6 +89,12 @@ export async function createSubscriptionCheckout(input: {
       token: input.claimToken,
       next,
     });
+  const blockForPendingCheckout = async (
+    retryAt: Date,
+  ): Promise<SubscriptionCheckoutBlocked> =>
+    (await finishClaim({ operation: "checkout", expiresAt: retryAt }))
+      ? { status: "blocked", reason: "checkout_pending", retryAt }
+      : { status: "blocked", reason: "state_changed" };
 
   try {
     const acceptance = await input.database
@@ -142,35 +148,12 @@ export async function createSubscriptionCheckout(input: {
   const matchingCheckouts = outstandingCheckouts.filter(
     ({ productKey }) => productKey === input.productKey,
   );
-  const conflictingCheckout = outstandingCheckouts.find(
-    ({ productKey }) => productKey !== input.productKey,
-  );
-  if (conflictingCheckout) {
-    return (await finishClaim({
-      operation: "checkout",
-      expiresAt: conflictingCheckout.expiresAt,
-    }))
-      ? {
-          status: "blocked",
-          reason: "checkout_pending",
-          retryAt: conflictingCheckout.expiresAt,
-        }
-      : { status: "blocked", reason: "state_changed" };
-  }
-  const pendingCheckout = matchingCheckouts.find(
-    BillingCheckout.isConfirmationPending,
-  );
-  if (pendingCheckout) {
-    return (await finishClaim({
-      operation: "checkout",
-      expiresAt: pendingCheckout.expiresAt,
-    }))
-      ? {
-          status: "blocked",
-          reason: "checkout_pending",
-          retryAt: pendingCheckout.expiresAt,
-        }
-      : { status: "blocked", reason: "state_changed" };
+  const blockingCheckout =
+    outstandingCheckouts.find(
+      ({ productKey }) => productKey !== input.productKey,
+    ) ?? matchingCheckouts.find(BillingCheckout.isConfirmationPending);
+  if (blockingCheckout) {
+    return blockForPendingCheckout(blockingCheckout.expiresAt);
   }
 
   const reusableCheckout = matchingCheckouts.find(BillingCheckout.isReusable);
@@ -211,16 +194,7 @@ export async function createSubscriptionCheckout(input: {
   }
 
   if (checkout.state === "confirmation_pending") {
-    return (await finishClaim({
-      operation: "checkout",
-      expiresAt: checkout.expiresAt,
-    }))
-      ? {
-          status: "blocked",
-          reason: "checkout_pending",
-          retryAt: checkout.expiresAt,
-        }
-      : { status: "blocked", reason: "state_changed" };
+    return blockForPendingCheckout(checkout.expiresAt);
   }
 
   if (

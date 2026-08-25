@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { env } from "~/env";
-import { getAlertMatchStats } from "~/lib/algolia-alert-search";
+import { getAlertMatchStats } from "~/server/alerts/algolia-alert-search";
 import { db, dbClient } from "~/lib/db";
 import {
   SearchAlertMatch,

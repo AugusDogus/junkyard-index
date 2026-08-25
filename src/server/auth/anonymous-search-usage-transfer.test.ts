@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
+import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { transferAnonymousSearchUsage } from "./anonymous-search-usage-transfer";
 

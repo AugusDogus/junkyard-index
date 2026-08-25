@@ -1,17 +1,27 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  buildAlertFiltersString,
-  getAlertMatchStats,
+  compileAlertFilters,
   scanAlertMatchPages,
   toAlertSearchPage,
   type AlertSearchPage,
 } from "~/lib/algolia-alert-search";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 
+function compileValidFilters(
+  filters: Parameters<typeof compileAlertFilters>[0],
+  lastCheckedAt: Date | null,
+): string | undefined {
+  const compilation = compileAlertFilters(filters, lastCheckedAt);
+  if (compilation.kind === "no_match") {
+    throw new Error("Expected valid alert filters");
+  }
+  return compilation.value;
+}
+
 describe("algolia alert search helpers", () => {
   test("builds timestamp and numeric year constraints", () => {
-    const filters = buildAlertFiltersString(
+    const filters = compileValidFilters(
       { minYear: 2012, maxYear: 2018 },
       new Date("2026-01-01T00:00:01.999Z"),
     );
@@ -22,7 +32,7 @@ describe("algolia alert search helpers", () => {
   });
 
   test("builds OR facets for multi-value filters", () => {
-    const filters = buildAlertFiltersString(
+    const filters = compileValidFilters(
       {
         makes: ["Honda", "Toyota"],
         states: ["California", "Nevada"],
@@ -49,7 +59,7 @@ describe("algolia alert search helpers", () => {
   });
 
   test("builds position-aware VIN constraints", () => {
-    const filters = buildAlertFiltersString(
+    const filters = compileValidFilters(
       { vinPattern: "YV4C[0-2]85**********" },
       null,
     );
@@ -61,7 +71,7 @@ describe("algolia alert search helpers", () => {
   });
 
   test("drops empty and whitespace facet values", () => {
-    const filters = buildAlertFiltersString(
+    const filters = compileValidFilters(
       {
         makes: ["Honda", "", "   ", "Toyota"],
       },
@@ -73,7 +83,7 @@ describe("algolia alert search helpers", () => {
   });
 
   test("handles finite and inverted year ranges safely", () => {
-    const filters = buildAlertFiltersString(
+    const filters = compileValidFilters(
       {
         minYear: Number.POSITIVE_INFINITY,
         maxYear: Number.NaN,
@@ -82,7 +92,7 @@ describe("algolia alert search helpers", () => {
     );
     expect(filters).toBeUndefined();
 
-    const swappedRange = buildAlertFiltersString(
+    const swappedRange = compileValidFilters(
       {
         minYear: 2020,
         maxYear: 2015,
@@ -94,12 +104,12 @@ describe("algolia alert search helpers", () => {
   });
 
   test("rejects invalid and unconstrained VIN patterns", () => {
-    expect(buildAlertFiltersString({ vinPattern: "YV4C*85" }, null)).toBe(
-      'vinPositionTokens:"__no_match__"',
-    );
+    expect(compileAlertFilters({ vinPattern: "YV4C*85" }, null)).toEqual({
+      kind: "no_match",
+    });
     expect(
-      buildAlertFiltersString({ vinPattern: "*****************" }, null),
-    ).toBe('vinPositionTokens:"__no_match__"');
+      compileAlertFilters({ vinPattern: "*****************" }, null),
+    ).toEqual({ kind: "no_match" });
   });
 
   test("maps algolia hits to search vehicle shape", () => {
@@ -153,7 +163,7 @@ describe("algolia alert search helpers", () => {
   });
 });
 
-describe("getAlertMatchStats pagination", () => {
+describe("scanAlertMatchPages pagination", () => {
   const createHits = (
     count: number,
     prefix: string,
@@ -184,20 +194,6 @@ describe("getAlertMatchStats pagination", () => {
       requestedPages.push(page);
       return pages.get(page) ?? null;
     };
-
-  test("does not query Algolia for an invalid VIN pattern", async () => {
-    const result = await getAlertMatchStats(
-      "",
-      { vinPattern: "YV4C*85" },
-      null,
-    );
-
-    expect(result).toEqual({
-      matchedCount: 0,
-      completion: complete,
-      vehicles: [],
-    });
-  });
 
   test("normalizes modern and legacy Algolia exhaustiveness metadata", () => {
     const hits = createHits(2, "VIN");

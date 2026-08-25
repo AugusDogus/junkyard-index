@@ -19,9 +19,8 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip";
 import posthog from "posthog-js";
-import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
+import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { hasPlanFeature } from "~/lib/plans";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
 
@@ -32,11 +31,9 @@ export function SavedSearchesList() {
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery();
 
-  const { state: subscriptionState, open: openSubscriptionDestination } =
-    useSubscriptionDestination({ source: "saved_searches_list" });
-  const canUseAlerts =
-    subscriptionState.kind === "active" &&
-    hasPlanFeature(subscriptionState.tier, "alerts");
+  const { canUseAlerts, openAlertUpgrade } = useAlertSubscriptionAccess(
+    "saved_searches_list",
+  );
   const canUseDiscord =
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;
@@ -148,10 +145,7 @@ export function SavedSearchesList() {
 
     // If trying to enable but no subscription, redirect to checkout
     if (!currentState && !canUseAlerts) {
-      void openSubscriptionDestination({
-        kind: "upgrade",
-        selection: { tier: "full", interval: "monthly" },
-      });
+      void openAlertUpgrade();
       return;
     }
 
@@ -175,10 +169,7 @@ export function SavedSearchesList() {
 
     // If trying to enable but no subscription, redirect to checkout
     if (!currentState && !canUseAlerts) {
-      void openSubscriptionDestination({
-        kind: "upgrade",
-        selection: { tier: "full", interval: "monthly" },
-      });
+      void openAlertUpgrade();
       return;
     }
 

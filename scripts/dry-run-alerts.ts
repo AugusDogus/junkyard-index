@@ -13,11 +13,13 @@
  * 1) "now" pass using current lastCheckedAt (what cron would do right now)
  * 2) "next" pass using a simulated lastCheckedAt=now baseline
  */
+import { algoliasearch } from "algoliasearch";
 import { eq, or } from "drizzle-orm";
+import { type AlertScanCompletion } from "~/lib/algolia-alert-search";
 import {
-  getAlertMatchStats,
-  type AlertScanCompletion,
-} from "~/lib/algolia-alert-search";
+  getAlertMatchStatsWithClient,
+  type AlertSearchClient,
+} from "~/lib/alert-match-search";
 import { db } from "~/lib/db";
 import {
   filtersSchema,
@@ -38,6 +40,7 @@ interface SearchWithAlerts {
 }
 
 async function getMatchStats(
+  searchClient: AlertSearchClient,
   searchQuery: string,
   filters: ParsedFilters,
   lastCheckedAt: Date | null,
@@ -47,11 +50,13 @@ async function getMatchStats(
   sampleCount: number;
   sampleVins: string[];
 }> {
-  const { matchedCount, completion, vehicles } = await getAlertMatchStats(
-    searchQuery,
-    filters,
-    lastCheckedAt,
-  );
+  const { matchedCount, completion, vehicles } =
+    await getAlertMatchStatsWithClient(
+      searchClient,
+      searchQuery,
+      filters,
+      lastCheckedAt,
+    );
 
   return {
     matchedCount,
@@ -67,9 +72,14 @@ function formatCompletion(completion: AlertScanCompletion): string {
     : `incomplete:${completion.reason} (checkpoint preserved)`;
 }
 
-async function main() {
+export async function main() {
   await import("dotenv/config");
+  const { env } = await import("~/env");
 
+  const searchClient = algoliasearch(
+    env.NEXT_PUBLIC_ALGOLIA_APP_ID,
+    env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
+  );
   const now = new Date();
   const searches = await db
     .select({
@@ -120,11 +130,17 @@ async function main() {
     }
 
     const nowPass = await getMatchStats(
+      searchClient,
       search.query,
       parsedFilters,
       search.lastCheckedAt,
     );
-    const nextPass = await getMatchStats(search.query, parsedFilters, now);
+    const nextPass = await getMatchStats(
+      searchClient,
+      search.query,
+      parsedFilters,
+      now,
+    );
 
     const wouldNotifyNow = nowPass.sampleCount > 0;
     const wouldNotifyNext = nextPass.sampleCount > 0;
@@ -165,7 +181,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error("[dry-run-alerts] failed:", error);
-  process.exitCode = 1;
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error("[dry-run-alerts] failed:", error);
+    process.exitCode = 1;
+  });
+}

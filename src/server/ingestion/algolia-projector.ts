@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
-import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { db as database, dbClient } from "~/lib/db";
 import { ingestionRun, vehicle, vehicleChange } from "~/schema";
 import {
@@ -35,18 +35,18 @@ function rebuildIndexName(
 }
 
 async function waitForAlgoliaTask(indexName: string, taskID: number) {
-  await algoliaClient.waitForTask({ indexName, taskID });
+  await algoliaAdminClient.waitForTask({ indexName, taskID });
 }
 
 async function markIndexGeneration(indexName: string, runId: string) {
-  const settings = await algoliaClient.getSettings({ indexName });
+  const settings = await algoliaAdminClient.getSettings({ indexName });
   const userData = withIndexGeneration(settings.userData, runId);
   if (!userData.success) {
     throw new Error(
       `Algolia index ${indexName} has incompatible userData; cannot record rebuild generation ${runId}.`,
     );
   }
-  const updated = await algoliaClient.setSettings({
+  const updated = await algoliaAdminClient.setSettings({
     indexName,
     indexSettings: { userData: userData.data },
   });
@@ -71,7 +71,7 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
 
 async function prepareFullReindex(runId: string) {
   const temporaryIndex = rebuildIndexName(runId);
-  const copied = await algoliaClient.operationIndex({
+  const copied = await algoliaAdminClient.operationIndex({
     indexName: ALGOLIA_INDEX_NAME,
     operationIndexParams: {
       operation: "copy",
@@ -80,7 +80,7 @@ async function prepareFullReindex(runId: string) {
     },
   });
   await waitForAlgoliaTask(temporaryIndex, copied.taskID);
-  const cleared = await algoliaClient.clearObjects({
+  const cleared = await algoliaAdminClient.clearObjects({
     indexName: temporaryIndex,
   });
   await waitForAlgoliaTask(temporaryIndex, cleared.taskID);
@@ -179,7 +179,7 @@ async function publishFullReindex(
     runId,
     runStartedAt,
     database,
-    algolia: algoliaClient,
+    algolia: algoliaAdminClient,
     indexName: ALGOLIA_INDEX_NAME,
   });
 }

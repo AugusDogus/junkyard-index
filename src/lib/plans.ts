@@ -44,34 +44,6 @@ export type PlanAccessState =
     }
   | { kind: "resolved"; tier: PlanTier };
 
-export const CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS = 30_000;
-export const PLAN_ACCESS_REVALIDATION_INTERVAL_MS = 60_000;
-const CHECKOUT_TIER_CONFIRMATION_POLL_INTERVAL_MS = 2_000;
-
-export function checkoutTierConfirmationStatus(input: {
-  tier: PlanTier | null;
-  nowMs: number;
-  deadlineMs: number;
-}): "poll" | "confirmed" | "timed_out" {
-  if (input.tier === "lite" || input.tier === "full") return "confirmed";
-  return input.nowMs >= input.deadlineMs ? "timed_out" : "poll";
-}
-
-export function planAccessRefetchInterval(input: {
-  refreshUntilPaid: boolean;
-  tier: PlanTier | null;
-  nowMs: number;
-  deadlineMs: number;
-}): number {
-  if (
-    input.refreshUntilPaid &&
-    checkoutTierConfirmationStatus(input) === "poll"
-  ) {
-    return CHECKOUT_TIER_CONFIRMATION_POLL_INTERVAL_MS;
-  }
-  return PLAN_ACCESS_REVALIDATION_INTERVAL_MS;
-}
-
 interface PlanFeaturePolicy {
   minimumTier: PaidPlanTier;
   unresolvedAccess: "allow" | "deny";
