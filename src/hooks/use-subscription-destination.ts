@@ -8,6 +8,7 @@ import { authClient } from "~/lib/auth-client";
 import { useBillingAccount } from "~/hooks/use-billing-account";
 import {
   resolveSubscriptionAction,
+  type SubscriptionAction,
   type SubscriptionIntent,
 } from "~/lib/subscription-action";
 import { subscriptionReturnTo } from "~/lib/subscription-selection";
@@ -20,9 +21,8 @@ export function useSubscriptionDestination(input: {
   const router = useRouter();
   const { state, retry } = useBillingAccount({ enabled: input.enabled });
 
-  const open = useCallback(
-    async (intent: SubscriptionIntent) => {
-      const action = resolveSubscriptionAction(state, intent);
+  const openAction = useCallback(
+    async (action: SubscriptionAction) => {
       if (action.kind === "loading" || action.kind === "unavailable") {
         toast.error(
           "We could not verify your subscription status. Please try again.",
@@ -65,12 +65,18 @@ export function useSubscriptionDestination(input: {
         return false;
       }
     },
-    [input.source, router, state],
+    [input.source, router],
+  );
+  const open = useCallback(
+    (intent: SubscriptionIntent) =>
+      openAction(resolveSubscriptionAction(state, intent)),
+    [openAction, state],
   );
 
   return {
     state,
     open,
+    openAction,
     retry,
   };
 }

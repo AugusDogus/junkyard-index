@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { IndexSettings } from "algoliasearch";
-import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { buildAlgoliaSettingsPlan } from "./algolia-settings-plan";
 import type { AlgoliaVehicleRecord } from "./types";
 
@@ -70,7 +70,7 @@ function waitForTaskEffect(
 ): Effect.Effect<void, Error> {
   return Effect.tryPromise({
     try: () =>
-      algoliaClient.waitForTask({
+      algoliaAdminClient.waitForTask({
         indexName,
         taskID,
       }),
@@ -87,7 +87,7 @@ function setIndexSettingsEffect(params: {
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () =>
-        algoliaClient.setSettings({
+        algoliaAdminClient.setSettings({
           indexName: params.indexName,
           indexSettings: params.indexSettings,
           forwardToReplicas: params.forwardToReplicas,
@@ -99,7 +99,7 @@ function setIndexSettingsEffect(params: {
     if (taskID !== undefined) {
       yield* Effect.tryPromise({
         try: () =>
-          algoliaClient.waitForTask({
+          algoliaAdminClient.waitForTask({
             indexName: params.indexName,
             taskID,
           }),
@@ -116,7 +116,7 @@ function saveObjectsBatchEffect(
 ): Effect.Effect<unknown, Error> {
   return Effect.tryPromise({
     try: () =>
-      algoliaClient.saveObjects({
+      algoliaAdminClient.saveObjects({
         indexName,
         objects: [...objects],
         waitForTasks: false,
@@ -132,7 +132,7 @@ function deleteObjectsBatchEffect(
 ): Effect.Effect<unknown, Error> {
   return Effect.tryPromise({
     try: () =>
-      algoliaClient.deleteObjects({
+      algoliaAdminClient.deleteObjects({
         indexName,
         objectIDs,
         waitForTasks: false,
@@ -152,7 +152,7 @@ function waitForFinalTask(
       return;
     }
 
-    if (!hasWaitForTask(algoliaClient)) {
+    if (!hasWaitForTask(algoliaAdminClient)) {
       yield* Effect.logWarning(
         "[Algolia] Client does not expose waitForTask(); skipping explicit wait",
       );

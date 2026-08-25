@@ -14,20 +14,17 @@ import {
 } from "~/components/ui/card";
 import { DiscordIcon } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
+import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { hasPlanFeature } from "~/lib/plans";
 import { api } from "~/trpc/react";
 
 export function SavedSearchSettingsCard() {
   const utils = api.useUtils();
   const { data: searches, isLoading } = api.savedSearches.list.useQuery();
   const { data: notifications } = api.user.getNotificationSettings.useQuery();
-  const { state: subscriptionState, open: openSubscriptionDestination } =
-    useSubscriptionDestination({ source: "settings_saved_searches" });
-  const canUseAlerts =
-    subscriptionState.kind === "active" &&
-    hasPlanFeature(subscriptionState.tier, "alerts");
+  const { canUseAlerts, openAlertUpgrade } = useAlertSubscriptionAccess(
+    "settings_saved_searches",
+  );
   const canUseDiscord =
     notifications?.hasDiscordLinked && notifications.discordAppInstalled;
 
@@ -69,10 +66,7 @@ export function SavedSearchSettingsCard() {
 
   const setEmailAlerts = (id: string, enabled: boolean) => {
     if (enabled && !canUseAlerts) {
-      void openSubscriptionDestination({
-        kind: "upgrade",
-        selection: { tier: "full", interval: "monthly" },
-      });
+      void openAlertUpgrade();
       return;
     }
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED, {
@@ -85,10 +79,7 @@ export function SavedSearchSettingsCard() {
 
   const setDiscordAlerts = (id: string, enabled: boolean) => {
     if (enabled && !canUseAlerts) {
-      void openSubscriptionDestination({
-        kind: "upgrade",
-        selection: { tier: "full", interval: "monthly" },
-      });
+      void openAlertUpgrade();
       return;
     }
     if (enabled && !canUseDiscord) {

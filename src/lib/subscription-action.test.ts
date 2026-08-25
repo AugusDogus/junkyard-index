@@ -26,18 +26,37 @@ describe("subscription action", () => {
           selection: { tier: "full", interval: "monthly" },
         },
       ),
-    ).toEqual({ kind: "portal" });
+    ).toEqual({
+      kind: "portal",
+      account: { kind: "active", tier: "lite" },
+      selection: { tier: "full", interval: "monthly" },
+    });
     expect(
       resolveSubscriptionAction(
         { kind: "needs_attention" },
         { kind: "manage" },
       ),
-    ).toEqual({ kind: "portal" });
+    ).toEqual({
+      kind: "portal",
+      account: { kind: "needs_attention" },
+    });
   });
 
   test("sends accounts without a subscription to plan comparison", () => {
     expect(
       resolveSubscriptionAction({ kind: "none" }, { kind: "manage" }),
     ).toEqual({ kind: "compare_plans" });
+  });
+
+  test("keeps unavailable accounts non-actionable", () => {
+    expect(
+      resolveSubscriptionAction(
+        { kind: "unavailable" },
+        {
+          kind: "upgrade",
+          selection: { tier: "full", interval: "monthly" },
+        },
+      ),
+    ).toEqual({ kind: "unavailable" });
   });
 });

@@ -1,11 +1,11 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { isVinPatternSearchReady } from "~/lib/search-index-schema";
 
 async function readVinPatternSearchReadiness(): Promise<boolean> {
   try {
-    const settings = await algoliaClient.getSettings({
+    const settings = await algoliaAdminClient.getSettings({
       indexName: ALGOLIA_INDEX_NAME,
     });
     return isVinPatternSearchReady(settings.userData);

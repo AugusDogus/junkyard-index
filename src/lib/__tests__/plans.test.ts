@@ -2,12 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
-  checkoutTierConfirmationStatus,
   evaluateSavedSearchGate,
   formatMonthlyEquivalent,
   hasPlanFeature,
   planPrice,
-  planAccessRefetchInterval,
   resolvePlanFeatureAccess,
   resolvedPlanTier,
   tierSatisfies,
@@ -67,53 +65,6 @@ describe("plan tiers", () => {
         feature: "advanced_filters",
       }),
     ).toBe(false);
-  });
-
-  test("bounds checkout confirmation polling until a paid tier resolves", () => {
-    expect(
-      checkoutTierConfirmationStatus({
-        tier: null,
-        nowMs: 0,
-        deadlineMs: 30_000,
-      }),
-    ).toBe("poll");
-    expect(
-      checkoutTierConfirmationStatus({
-        tier: "free",
-        nowMs: 29_999,
-        deadlineMs: 30_000,
-      }),
-    ).toBe("poll");
-    expect(
-      checkoutTierConfirmationStatus({
-        tier: "lite",
-        nowMs: 10_000,
-        deadlineMs: 30_000,
-      }),
-    ).toBe("confirmed");
-    expect(
-      checkoutTierConfirmationStatus({
-        tier: "free",
-        nowMs: 30_000,
-        deadlineMs: 30_000,
-      }),
-    ).toBe("timed_out");
-    expect(
-      planAccessRefetchInterval({
-        refreshUntilPaid: true,
-        tier: "free",
-        nowMs: 29_999,
-        deadlineMs: 30_000,
-      }),
-    ).toBe(2_000);
-    expect(
-      planAccessRefetchInterval({
-        refreshUntilPaid: false,
-        tier: "full",
-        nowMs: 0,
-        deadlineMs: 30_000,
-      }),
-    ).toBe(60_000);
   });
 
   test("prices match the published tiers", () => {

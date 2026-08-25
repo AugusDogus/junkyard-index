@@ -1,8 +1,6 @@
 import type { SearchResponse } from "algoliasearch/lite";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 import type { SearchVehicle } from "~/lib/types";
-import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
-import { ALGOLIA_PAGINATION_LIMIT } from "~/lib/constants";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { MAX_SEARCH_ALERT_PREVIEW_VEHICLES } from "~/lib/search-alert-data";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -40,7 +38,7 @@ interface AlertScanConfig {
   paginationLimit: number;
 }
 
-type FetchAlertSearchPage = (
+export type FetchAlertSearchPage = (
   page: number,
   hitsPerPage: number,
 ) => Promise<AlertSearchPage | null>;
@@ -61,8 +59,9 @@ export function toAlertSearchPage(
   };
 }
 
-// Indexed VIN tokens always use "<position>:<character>", so this cannot match.
-const NO_MATCH_VIN_FILTER = 'vinPositionTokens:"__no_match__"';
+export type AlertFilterCompilation =
+  | { kind: "no_match" }
+  | { kind: "filter"; value: string | undefined };
 
 function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -79,23 +78,25 @@ function buildStringOrFilter(
   const clauses = cleanedValues.map(
     (value) => `${attribute}:"${escapeFilterValue(value)}"`,
   );
-  return clauses.length === 1 ? clauses[0]! : `(${clauses.join(" OR ")})`;
+  const firstClause = clauses[0];
+  if (firstClause === undefined) return null;
+  return clauses.length === 1 ? firstClause : `(${clauses.join(" OR ")})`;
 }
 
-export function buildAlertFiltersString(
+export function compileAlertFilters(
   filters: AlertFilters,
   lastCheckedAt: Date | null,
-): string | undefined {
+): AlertFilterCompilation {
   const clauses: string[] = [];
 
   if (filters.vinPattern) {
     const parsedPattern = VinPattern.parse(filters.vinPattern);
     if (!parsedPattern.success) {
-      return NO_MATCH_VIN_FILTER;
+      return { kind: "no_match" };
     }
     const vinClause = VinPattern.toAlgoliaFilter(parsedPattern.data);
     if (!vinClause) {
-      return NO_MATCH_VIN_FILTER;
+      return { kind: "no_match" };
     }
     clauses.push(vinClause);
   }
@@ -140,7 +141,10 @@ export function buildAlertFiltersString(
     clauses.push(`year <= ${maxYear}`);
   }
 
-  return clauses.length > 0 ? clauses.join(" AND ") : undefined;
+  return {
+    kind: "filter",
+    value: clauses.length > 0 ? clauses.join(" AND ") : undefined,
+  };
 }
 
 export async function scanAlertMatchPages(
@@ -217,41 +221,4 @@ export async function scanAlertMatchPages(
 
     page += 1;
   }
-}
-
-export async function getAlertMatchStats(
-  query: string,
-  filters: AlertFilters,
-  lastCheckedAt: Date | null,
-): Promise<AlertMatchStats> {
-  const filtersString = buildAlertFiltersString(filters, lastCheckedAt);
-  if (filtersString === NO_MATCH_VIN_FILTER) {
-    return {
-      matchedCount: 0,
-      completion: { status: "complete" },
-      vehicles: [],
-    };
-  }
-
-  const fetchPage: FetchAlertSearchPage = async (page, hitsPerPage) => {
-    const response = await searchClient.searchForHits<Record<string, unknown>>({
-      requests: [
-        {
-          indexName: ALGOLIA_INDEX_NAME,
-          query: query.trim(),
-          filters: filtersString,
-          hitsPerPage,
-          page,
-        },
-      ],
-    });
-    const result = response.results[0];
-    if (!result) return null;
-    return toAlertSearchPage(result);
-  };
-
-  return scanAlertMatchPages(fetchPage, {
-    hitsPerPage: 100,
-    paginationLimit: ALGOLIA_PAGINATION_LIMIT,
-  });
 }

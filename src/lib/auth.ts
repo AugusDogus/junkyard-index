@@ -134,12 +134,16 @@ export const auth = betterAuth({
   plugins: [
     oAuthProxy({ productionURL }),
     anonymous({
+      disableDeleteAnonymousUser: true,
       onLinkAccount: async ({ anonymousUser, newUser }) => {
         await transferAnonymousSearchUsage({
           database: db,
           anonymousUserId: anonymousUser.user.id,
           newUserId: newUser.user.id,
         });
+        await db
+          .delete(schema.user)
+          .where(eq(schema.user.id, anonymousUser.user.id));
       },
     }),
     polar({

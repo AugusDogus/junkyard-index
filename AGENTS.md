@@ -39,4 +39,4 @@ bun test src         # bun test runner — all unit/integration tests
 
 - The `next.config.js` imports `./src/env.js` at the top level, so env validation runs on every `next build`/`next dev` unless `SKIP_ENV_VALIDATION=1` is set.
 - Port 3000 can get stuck if a previous dev server wasn't cleanly shut down; delete `.next/dev/lock` and kill stale node processes if you see "is another instance of next dev running?".
-- The Algolia search on `/search` requires valid `NEXT_PUBLIC_ALGOLIA_APP_ID` and `NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY` to return results — dummy values will render an empty search.
+- The Algolia search on `/search` requires valid `NEXT_PUBLIC_ALGOLIA_APP_ID` and `NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY` values to return results. The public key must be restricted to search-only access for the vehicle indices. Dummy values will render an empty search.

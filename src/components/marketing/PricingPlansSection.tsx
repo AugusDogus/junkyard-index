@@ -12,11 +12,16 @@ import {
   PLAN_TIERS,
   PLANS,
   type BillingInterval,
-  type PaidPlanTier,
   type PlanTier,
   formatMonthlyEquivalent,
   planPrice,
 } from "~/lib/plans";
+import {
+  resolvePricingPlanCta,
+  resolvePricingViewerState,
+  type PricingPlanCta,
+} from "~/lib/pricing-plan-cta";
+import type { SubscriptionAction } from "~/lib/subscription-action";
 import { cn } from "~/lib/utils";
 
 const PRICING_PLAN_CONTENT: Record<
@@ -58,22 +63,18 @@ const PRICING_PLAN_CONTENT: Record<
 
 export function PricingPlansSection() {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
-  const { data: session } = useSession();
+  const { data: session, isPending } = useSession();
   // Anonymous guest sessions can't check out: Polar would bind the
   // subscription to a user that Better Auth deletes on account conversion.
   const isLoggedIn = isRegisteredSessionUser(session?.user);
-  const { state: subscriptionState, open: openSubscriptionDestination } =
-    useSubscriptionDestination({
-      source: "pricing_flow",
-      enabled: isLoggedIn,
-    });
-
-  const handleCheckout = (tier: PaidPlanTier) => {
-    void openSubscriptionDestination({
-      kind: "upgrade",
-      selection: { tier, interval },
-    });
-  };
+  const viewer = resolvePricingViewerState({
+    isPending,
+    isRegistered: isLoggedIn,
+  });
+  const { state: subscriptionState, openAction } = useSubscriptionDestination({
+    source: "pricing_flow",
+    enabled: viewer.kind === "registered",
+  });
 
   return (
     <div>
@@ -101,6 +102,12 @@ export function PricingPlansSection() {
         {PLAN_TIERS.map((tier) => {
           const content = PRICING_PLAN_CONTENT[tier];
           const isFree = tier === "free";
+          const cta = resolvePricingPlanCta({
+            viewer,
+            tier,
+            interval,
+            account: subscriptionState,
+          });
           return (
             <PricingPlanCard
               key={tier}
@@ -117,38 +124,11 @@ export function PricingPlansSection() {
               items={content.items}
               featured={content.featured}
               cta={
-                isFree ? (
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/auth/sign-up">Create Free Account</Link>
-                  </Button>
-                ) : isLoggedIn ? (
-                  <Button
-                    variant={content.featured ? "default" : "outline"}
-                    className="w-full"
-                    disabled={subscriptionState.kind === "loading"}
-                    onClick={() => handleCheckout(tier)}
-                  >
-                    {subscriptionState.kind === "loading"
-                      ? "Checking subscription..."
-                      : subscriptionState.kind === "active"
-                        ? subscriptionState.tier === tier
-                          ? `Manage ${PLANS[tier].name}`
-                          : `Change to ${PLANS[tier].name}`
-                        : subscriptionState.kind === "needs_attention"
-                          ? "Manage Subscription"
-                          : `Get ${PLANS[tier].name}`}
-                  </Button>
-                ) : (
-                  <Button
-                    asChild
-                    variant={content.featured ? "default" : "outline"}
-                    className="w-full"
-                  >
-                    <Link href="/auth/sign-up?returnTo=%2Fpricing">
-                      Get {PLANS[tier].name}
-                    </Link>
-                  </Button>
-                )
+                <PricingPlanCtaButton
+                  cta={cta}
+                  featured={content.featured}
+                  onAction={(action) => void openAction(action)}
+                />
               }
             />
           );
@@ -163,6 +143,57 @@ export function PricingPlansSection() {
       )}
     </div>
   );
+}
+
+function PricingPlanCtaButton({
+  cta,
+  featured,
+  onAction,
+}: {
+  cta: PricingPlanCta;
+  featured: boolean;
+  onAction(action: SubscriptionAction): void;
+}) {
+  const variant = featured ? "default" : "outline";
+  switch (cta.kind) {
+    case "disabled":
+      return (
+        <Button variant={variant} className="w-full" disabled>
+          {cta.label}
+        </Button>
+      );
+    case "signup":
+      return (
+        <Button asChild variant={variant} className="w-full">
+          <Link href={cta.href}>{cta.label}</Link>
+        </Button>
+      );
+    case "checkout":
+      return (
+        <Button
+          variant={variant}
+          className="w-full"
+          onClick={() => onAction(cta)}
+        >
+          Get {PLANS[cta.selection.tier].name}
+        </Button>
+      );
+    case "portal":
+      const targetTier = cta.selection.tier;
+      return (
+        <Button
+          variant={variant}
+          className="w-full"
+          onClick={() => onAction(cta)}
+        >
+          {cta.account.kind === "needs_attention"
+            ? "Manage Subscription"
+            : cta.account.tier === targetTier
+              ? `Manage ${PLANS[targetTier].name}`
+              : `Change to ${PLANS[targetTier].name}`}
+        </Button>
+      );
+  }
 }
 
 function PricingPlanCard({

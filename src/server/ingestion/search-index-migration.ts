@@ -1,5 +1,5 @@
 import { asc, gt } from "drizzle-orm";
-import { algoliaClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { ALGOLIA_SEARCH_INDEX_NAMES } from "~/lib/constants";
 import { db } from "~/lib/db";
 import {
@@ -62,7 +62,9 @@ async function readVehicleBatch(cursor: string | null, batchSize: number) {
 
 async function validateVinFilters(vins: string[]): Promise<void> {
   for (const vin of vins) {
-    const response = await algoliaClient.searchForHits<{ objectID?: string }>({
+    const response = await algoliaAdminClient.searchForHits<{
+      objectID?: string;
+    }>({
       requests: buildVinFilterValidationRequests(vin),
     });
     for (const [index, indexName] of ALGOLIA_SEARCH_INDEX_NAMES.entries()) {
@@ -87,18 +89,18 @@ async function markSchemaReady(userData: unknown): Promise<void> {
     );
   }
 
-  const response = await algoliaClient.setSettings({
+  const response = await algoliaAdminClient.setSettings({
     indexName: ALGOLIA_INDEX_NAME,
     indexSettings: { userData: updatedUserData.data },
   });
-  await algoliaClient.waitForTask({
+  await algoliaAdminClient.waitForTask({
     indexName: ALGOLIA_INDEX_NAME,
     taskID: response.taskID,
   });
 }
 
 export async function initializeSearchIndexMigration(): Promise<InitializeSearchIndexMigrationResult> {
-  const settings = await algoliaClient.getSettings({
+  const settings = await algoliaAdminClient.getSettings({
     indexName: ALGOLIA_INDEX_NAME,
   });
   const currentVersion = getSearchSchemaVersion(settings.userData);
@@ -174,7 +176,7 @@ export async function finalizeSearchIndexMigration(
   }
 
   await validateVinFilters(state.validationVins);
-  const latestSettings = await algoliaClient.getSettings({
+  const latestSettings = await algoliaAdminClient.getSettings({
     indexName: ALGOLIA_INDEX_NAME,
   });
   await markSchemaReady(latestSettings.userData);

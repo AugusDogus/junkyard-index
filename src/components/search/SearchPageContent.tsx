@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  AlertCircle,
   ArrowUpDown,
   Calendar,
   Filter,
@@ -24,7 +23,6 @@ import {
   useSortBy,
   useStats,
 } from "react-instantsearch";
-import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
@@ -33,14 +31,14 @@ import { MorphingSearchBar } from "~/components/search/MorphingSearchBar";
 import {
   clearPendingSaveSearch,
   SaveSearchDialog,
-  storePendingSaveSearch,
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SavedSearchesList } from "~/components/search/SavedSearchesList";
+import { SearchAccessShell } from "~/components/search/SearchAccessShell";
 import {
-  SearchResults,
-  SearchSummary,
-} from "~/components/search/SearchResults";
+  resolveSearchResultsPanelModel,
+  SearchResultsPanel,
+} from "~/components/search/SearchResultsPanel";
 import { Sidebar } from "~/components/search/Sidebar";
 import { Button } from "~/components/ui/button";
 import {
@@ -58,9 +56,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "~/components/ui/select";
-import { Skeleton } from "~/components/ui/skeleton";
 import {
-  createSearchRouting,
   getSearchableVinPattern,
   getSearchSortIndex,
   getSearchSortKey,
@@ -70,7 +66,7 @@ import {
 } from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import {
   PLANS,
@@ -87,14 +83,10 @@ import {
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
-import { getSearchCapabilityPollInterval } from "~/lib/search-capability-polling";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
-import { SearchQuotaOverlay } from "~/components/search/SearchQuotaOverlay";
-import { useCheckoutConfirmation } from "~/hooks/use-checkout-confirmation";
 import { useSearchQuotaGate } from "~/hooks/use-daily-search-quota";
-import { usePlanAccess } from "~/hooks/use-plan-access";
 import { api } from "~/trpc/react";
 
 function clampRouteYear(
@@ -311,7 +303,6 @@ function AlgoliaSearchInner({
 }: AlgoliaSearchInnerProps) {
   const isLoggedIn = viewer.kind === "authenticated";
   const isAnonymousUser = viewer.kind === "guest";
-  const planTier = resolvedPlanTier(planAccess);
   const canUseAdvancedFilters = resolvePlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
@@ -319,7 +310,6 @@ function AlgoliaSearchInner({
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  useCheckoutConfirmation(planAccess);
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
@@ -746,11 +736,11 @@ function AlgoliaSearchInner({
 
   const quotaGate = useSearchQuotaGate({
     initialViewer: viewer,
-    planTier,
+    planTier: resolvedPlanTier(planAccess),
     analyticsSearchValue,
     hasActiveSearch,
     isSearching,
-    hasError: !!error,
+    hasError: Boolean(error),
   });
 
   const anonymousVisibleLimit = isMobile
@@ -849,8 +839,6 @@ function AlgoliaSearchInner({
       </div>
     );
   }, [isAnonymousCapped, analyticsSearchValue, searchResult, signUpHref]);
-
-  const showQuotaBlock = quotaGate.kind !== "open";
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -1169,6 +1157,98 @@ function AlgoliaSearchInner({
     />
   );
 
+  const searchResultActions = isMobile ? (
+    <div className="flex items-center gap-1.5">
+      {isLoggedIn && <SavedSearchesDropdown iconOnly />}
+      <Select value={sortBy} onValueChange={handleSortChange}>
+        <SelectTrigger size="sm" className="w-fit">
+          <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
+        </SelectTrigger>
+        <SelectContent>
+          {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
+            <SelectItem key={key} value={key}>
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <SaveSearchDialog
+        query={query}
+        filters={currentSaveSearchFilters}
+        planAccess={planAccess}
+        disabled={!hasActiveSearch}
+        isLoggedIn={isLoggedIn}
+        autoOpen={autoOpenSaveDialog}
+        onAutoOpenHandled={handleAutoOpenHandled}
+        iconOnly
+      />
+      {mobileFiltersDrawer}
+    </div>
+  ) : (
+    <MorphingFilterBar
+      query={query}
+      planAccess={planAccess}
+      sortBy={sortBy}
+      onSortChange={handleSortChange}
+      activeFilterCount={activeFilterCount}
+      showFilters={showFilters}
+      onToggleFilters={handleToggleFilters}
+      isLoggedIn={isLoggedIn}
+      filters={currentSaveSearchFilters}
+      autoOpenSaveDialog={autoOpenSaveDialog}
+      onAutoOpenHandled={handleAutoOpenHandled}
+      disabled={!hasActiveSearch}
+      loading={isSearching}
+    />
+  );
+  const searchResultsPanelModel = resolveSearchResultsPanelModel({
+    lifecycle: {
+      hasActiveSearch,
+      quotaGate,
+      isSearching,
+      hasError: Boolean(error),
+      searchResult,
+    },
+    header: {
+      actions: searchResultActions,
+      processingTimeMS,
+      visibleCount: isAnonymousCapped ? anonymousVisibleLimit : null,
+    },
+    quota: {
+      query: analyticsSearchValue,
+      isGuest: !isLoggedIn && Boolean(isAnonymousUser),
+    },
+    loading: {
+      sidebarOpen: !isMobile && showFilters,
+      showMore,
+    },
+    empty: {
+      activeFilterCount,
+      clearAllFilters,
+      isLoggedIn,
+      query,
+      filters: currentSaveSearchFilters,
+      planAccess,
+      saveSearchSignUpHref,
+      analyticsQuery: analyticsSearchValue,
+    },
+    results: {
+      isLoading: isSearching && hits.length === 0,
+      sidebarOpen: !isMobile && showFilters,
+      showMore,
+      isLastPage: isAnonymousCapped || isLastPage,
+      isFetchingNextPage:
+        !isAnonymousCapped && (status === "loading" || status === "stalled"),
+      lockedPreview: anonymousResultsOverlay
+        ? {
+            clearRows: anonymousClearRows,
+            overlay: anonymousResultsOverlay,
+          }
+        : undefined,
+      visibleCount: isAnonymousCapped ? anonymousVisibleLimit : undefined,
+    },
+  });
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
       <Configure
@@ -1254,88 +1334,6 @@ function AlgoliaSearchInner({
 
         {/* Main Content */}
         <div className="min-w-0 flex-1">
-          {/* Search Results Header */}
-          {(isSearching || searchResult) && (
-            <div className="mb-6">
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                {isSearching ? (
-                  <div>
-                    <Skeleton className="mb-2 h-8 w-48" />
-                    <Skeleton className="h-4 w-32" />
-                  </div>
-                ) : searchResult ? (
-                  <div>
-                    <h2 className="text-foreground text-2xl font-black">
-                      Search Results
-                    </h2>
-                    <p className="text-muted-foreground">
-                      {isAnonymousCapped
-                        ? `Showing ${anonymousVisibleLimit} of ${searchResult.totalCount.toLocaleString()} vehicles`
-                        : `${searchResult.totalCount.toLocaleString()} vehicles found`}
-                    </p>
-                  </div>
-                ) : null}
-
-                {/* Filter buttons */}
-                {isMobile ? (
-                  <div className="flex items-center gap-1.5">
-                    {isLoggedIn && <SavedSearchesDropdown iconOnly />}
-                    <Select value={sortBy} onValueChange={handleSortChange}>
-                      <SelectTrigger size="sm" className="w-fit">
-                        <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <SaveSearchDialog
-                      query={query}
-                      filters={currentSaveSearchFilters}
-                      planAccess={planAccess}
-                      disabled={!hasActiveSearch}
-                      isLoggedIn={isLoggedIn}
-                      autoOpen={autoOpenSaveDialog}
-                      onAutoOpenHandled={handleAutoOpenHandled}
-                      iconOnly
-                    />
-                    {mobileFiltersDrawer}
-                  </div>
-                ) : (
-                  <MorphingFilterBar
-                    query={query}
-                    planAccess={planAccess}
-                    sortBy={sortBy}
-                    onSortChange={handleSortChange}
-                    activeFilterCount={activeFilterCount}
-                    showFilters={showFilters}
-                    onToggleFilters={handleToggleFilters}
-                    isLoggedIn={isLoggedIn}
-                    filters={currentSaveSearchFilters}
-                    autoOpenSaveDialog={autoOpenSaveDialog}
-                    onAutoOpenHandled={handleAutoOpenHandled}
-                    disabled={!hasActiveSearch}
-                    loading={isSearching}
-                  />
-                )}
-              </div>
-
-              {/* Search Stats */}
-              {isSearching ? (
-                <div className="mb-6 flex items-center justify-between text-sm">
-                  <Skeleton className="h-4 w-48" />
-                </div>
-              ) : searchResult ? (
-                <div className="text-muted-foreground mb-6 flex items-center justify-between text-sm">
-                  <span>Results in {processingTimeMS}ms</span>
-                </div>
-              ) : null}
-            </div>
-          )}
-
           {/* Empty State */}
           {!hasActiveSearch && !isSearching && (
             <div className="py-8 sm:py-12">
@@ -1382,219 +1380,27 @@ function AlgoliaSearchInner({
             </div>
           )}
 
-          <SearchQuotaOverlay
-            gate={quotaGate}
-            query={analyticsSearchValue}
-            isGuest={!isLoggedIn && !!isAnonymousUser}
-          />
-
-          {/* Search Results */}
-          {(searchResult ?? isSearching) && !error && !showQuotaBlock && (
-            <SearchResults
-              searchResult={
-                searchResult ?? {
-                  vehicles: [],
-                  totalCount: 0,
-                  page: 1,
-                  hasMore: false,
-                  searchTime: 0,
-                  locationsCovered: 0,
-                  locationsWithErrors: [],
-                }
-              }
-              isLoading={isSearching && hits.length === 0}
-              sidebarOpen={!isMobile && showFilters}
-              showMore={showMore}
-              isLastPage={isAnonymousCapped ? true : isLastPage}
-              isFetchingNextPage={
-                isAnonymousCapped
-                  ? false
-                  : status === "loading" || status === "stalled"
-              }
-              lockedPreview={
-                anonymousResultsOverlay
-                  ? {
-                      clearRows: anonymousClearRows,
-                      overlay: anonymousResultsOverlay,
-                    }
-                  : undefined
-              }
-            />
-          )}
-
-          {/* Search Error */}
-          {error && !isSearching && (
-            <div className="py-12 text-center">
-              <div className="bg-destructive/10 mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-                <AlertCircle className="text-destructive h-12 w-12" />
-              </div>
-              <h2 className="text-foreground mb-2 text-lg font-medium">
-                Search unavailable
-              </h2>
-              <p className="text-muted-foreground mx-auto max-w-md">
-                We&apos;re having trouble connecting to search. Please try again
-                in a moment.
-              </p>
-            </div>
-          )}
-
-          {/* No Results */}
-          {hasActiveSearch &&
-            searchResult?.totalCount === 0 &&
-            !isSearching &&
-            !error && (
-              <div className="py-12 text-center">
-                <div className="bg-muted mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-                  <AlertCircle className="text-muted-foreground h-8 w-8" />
-                </div>
-                <h2 className="text-foreground mb-2 text-lg font-medium">
-                  No vehicles found
-                </h2>
-                <p className="text-muted-foreground mx-auto max-w-sm text-sm">
-                  {activeFilterCount > 0
-                    ? "No vehicles match your current filters. Try broadening your search."
-                    : "No vehicles match your search. Try different terms."}
-                </p>
-
-                {activeFilterCount > 0 && (
-                  <Button
-                    onClick={clearAllFilters}
-                    variant="outline"
-                    size="sm"
-                    className="mt-5"
-                  >
-                    Clear Filters
-                  </Button>
-                )}
-
-                <p className="text-muted-foreground mt-6 text-xs">
-                  {isLoggedIn ? (
-                    <SaveSearchDialog
-                      query={query}
-                      filters={currentSaveSearchFilters}
-                      planAccess={planAccess}
-                      disabled={!hasActiveSearch}
-                      isLoggedIn={isLoggedIn}
-                    />
-                  ) : (
-                    <Link
-                      href={saveSearchSignUpHref}
-                      className="hover:text-foreground underline underline-offset-2"
-                      onClick={() => {
-                        storePendingSaveSearch(query, currentSaveSearchFilters);
-                        posthog.capture(
-                          AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED,
-                          {
-                            source_page: "search",
-                            cta_location: "no_results",
-                            query: analyticsSearchValue,
-                            result_count: 0,
-                            visible_result_count: 0,
-                          },
-                        );
-                      }}
-                    >
-                      Save this search
-                    </Link>
-                  )}{" "}
-                  ·{" "}
-                  <Link
-                    href="/pricing"
-                    className="hover:text-foreground underline underline-offset-2"
-                    onClick={() =>
-                      posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
-                        source_page: "search",
-                        cta_location: "no_results",
-                        query: analyticsSearchValue,
-                        result_count: 0,
-                        visible_result_count: 0,
-                        is_logged_in: isLoggedIn,
-                      })
-                    }
-                  >
-                    Get alerts
-                  </Link>
-                </p>
-              </div>
-            )}
+          <SearchResultsPanel model={searchResultsPanelModel} />
         </div>
       </div>
-
-      {searchResult && !showQuotaBlock && (
-        <SearchSummary
-          searchResult={searchResult}
-          visibleCount={isAnonymousCapped ? anonymousVisibleLimit : undefined}
-        />
-      )}
     </div>
   );
 }
 
-const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
-
-/**
- * Main SearchPageContent — wraps everything in InstantSearch provider.
- */
 export function SearchPageContent({
   viewer,
   userLocation,
 }: SearchPageContentProps) {
-  const searchParams = useSearchParams();
-  const [refreshUntilPaid] = useState(
-    () =>
-      searchParams.get("subscription") === "success" ||
-      searchParams.has("customer_session_token"),
-  );
-  const isLoggedIn = viewer.kind === "authenticated";
-  const planAccess = usePlanAccess(isLoggedIn, {
-    refreshUntilPaid,
-  });
-  const canUseAdvancedFilters = resolvePlanFeatureAccess({
-    access: planAccess,
-    feature: "advanced_filters",
-  });
-  const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
-    undefined,
-    {
-      retry: false,
-      refetchInterval: (query) => {
-        const attempts =
-          query.state.dataUpdateCount + query.state.fetchFailureCount;
-        return getSearchCapabilityPollInterval(
-          query.state.data?.vinPatternSearchReady === true,
-          attempts,
-        );
-      },
-    },
-  );
-  const vinPatternIndexReady =
-    searchCapabilities?.vinPatternSearchReady ?? false;
-  const routing = useMemo(
-    () =>
-      createSearchRouting(
-        ALGOLIA_INDEX_NAME,
-        vinPatternIndexReady,
-        canUseAdvancedFilters,
-      ),
-    [vinPatternIndexReady, canUseAdvancedFilters],
-  );
-
   return (
-    <InstantSearchNext
-      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
-      searchClient={searchClient}
-      indexName={ALGOLIA_INDEX_NAME}
-      routing={routing}
-      future={INSTANT_SEARCH_FUTURE}
-    >
-      <ErrorBoundary>
+    <SearchAccessShell viewer={viewer}>
+      {({ planAccess, vinPatternIndexReady }) => (
         <AlgoliaSearchInner
           viewer={viewer}
           planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
         />
-      </ErrorBoundary>
-    </InstantSearchNext>
+      )}
+    </SearchAccessShell>
   );
 }

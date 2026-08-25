@@ -43,9 +43,12 @@ export default async function SearchPage() {
     }),
   ]);
   const viewer = quotaViewerFromSessionUser(session?.user);
-  if (viewer.kind === "authenticated") {
-    await api.subscription.getAccountOverview.prefetch();
-  }
+  await Promise.all([
+    api.status.searchCapabilities.prefetch(),
+    viewer.kind === "authenticated"
+      ? api.subscription.getAccountOverview.prefetch()
+      : Promise.resolve(),
+  ]);
 
   return (
     <SearchVisibilityProvider>
