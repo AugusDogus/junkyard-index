@@ -3,6 +3,7 @@ import {
   createPolarBillingGateway,
   type PolarBillingOperations,
 } from "./polar-billing";
+import { createBillingProductCatalog } from "./billing/product-catalog";
 
 async function* pages<T>(...items: readonly (readonly T[])[]) {
   for (const pageItems of items) {
@@ -202,22 +203,14 @@ describe("Polar billing gateway", () => {
         },
       }),
       {
-        catalog: [
-          {
-            kind: "checkout",
-            key: "lite_monthly",
-            tier: "lite",
-            interval: "monthly",
-            productId: "product-1",
+        catalog: createBillingProductCatalog({
+          checkoutProductIds: {
+            lite_monthly: "product-1",
+            lite_annual: "product-lite-annual",
+            full_monthly: "product-2",
+            full_annual: "product-full-annual",
           },
-          {
-            kind: "checkout",
-            key: "full_monthly",
-            tier: "full",
-            interval: "monthly",
-            productId: "product-2",
-          },
-        ],
+        }),
         appUrl: "https://app.example",
       },
     );
@@ -255,15 +248,15 @@ describe("Polar billing gateway", () => {
 });
 
 const config = {
-  catalog: [
-    {
-      kind: "checkout" as const,
-      key: "full_monthly" as const,
-      tier: "full" as const,
-      interval: "monthly" as const,
-      productId: "product-1",
+  catalog: createBillingProductCatalog({
+    checkoutProductIds: {
+      lite_monthly: "product-lite-monthly",
+      lite_annual: "product-lite-annual",
+      full_monthly: "product-1",
+      full_annual: "product-full-annual",
     },
-  ],
+    legacyProductId: "legacy-product",
+  }),
   appUrl: "https://app.example",
 };
 

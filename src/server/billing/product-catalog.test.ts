@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   createBillingProductCatalog,
   getBillingProductKey,
-  getBillingProductTier,
-  getCheckoutBillingProducts,
 } from "./product-catalog";
 
 const PRODUCT_IDS = {
@@ -20,7 +18,7 @@ describe("billing product catalog", () => {
     const catalog = createBillingProductCatalog({
       checkoutProductIds: PRODUCT_IDS,
     });
-    expect(getCheckoutBillingProducts(catalog)).toEqual([
+    expect(Object.values(catalog.checkoutProducts)).toEqual([
       {
         kind: "checkout",
         key: "lite_monthly",
@@ -57,10 +55,17 @@ describe("billing product catalog", () => {
       checkoutProductIds: PRODUCT_IDS,
       legacyProductId: "legacy-id",
     });
-    expect(getCheckoutBillingProducts(catalog)).toHaveLength(4);
-    const legacy = catalog.find((product) => product.kind === "legacy");
+    expect(Object.values(catalog.checkoutProducts)).toHaveLength(4);
+    const legacy = catalog.allProducts.find(
+      (product) => product.kind === "legacy",
+    );
     expect(legacy?.productId).toBe("legacy-id");
-    expect(legacy ? getBillingProductTier(legacy) : null).toBe("full");
+    expect(
+      catalog.entitlementProducts.find(
+        (product) => product.productId === "legacy-id",
+      )?.tier,
+    ).toBe("full");
+    expect(catalog.productById.get("legacy-id")).toEqual(legacy);
   });
 
   test("rejects duplicate checkout and legacy product IDs", () => {

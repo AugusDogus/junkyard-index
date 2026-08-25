@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
+  checkoutTierConfirmationStatus,
   evaluateSavedSearchGate,
   featureUpgradeTier,
   formatMonthlyEquivalent,
@@ -57,14 +58,47 @@ describe("plan tiers", () => {
 
   test("distinguishes unavailable access from resolved tiers", () => {
     expect(resolvedPlanTier({ kind: "loading" })).toBeNull();
-    expect(resolvedPlanTier({ kind: "unavailable" })).toBeNull();
+    expect(
+      resolvedPlanTier({ kind: "unavailable", reason: "lookup_failed" }),
+    ).toBeNull();
     expect(resolvedPlanTier({ kind: "resolved", tier: "lite" })).toBe("lite");
     expect(
       resolvePlanFeatureAccess({
-        access: { kind: "unavailable" },
+        access: { kind: "unavailable", reason: "lookup_failed" },
         feature: "advanced_filters",
       }),
     ).toBe(false);
+  });
+
+  test("bounds checkout confirmation polling until a paid tier resolves", () => {
+    expect(
+      checkoutTierConfirmationStatus({
+        tier: null,
+        nowMs: 0,
+        deadlineMs: 30_000,
+      }),
+    ).toBe("poll");
+    expect(
+      checkoutTierConfirmationStatus({
+        tier: "free",
+        nowMs: 29_999,
+        deadlineMs: 30_000,
+      }),
+    ).toBe("poll");
+    expect(
+      checkoutTierConfirmationStatus({
+        tier: "lite",
+        nowMs: 10_000,
+        deadlineMs: 30_000,
+      }),
+    ).toBe("confirmed");
+    expect(
+      checkoutTierConfirmationStatus({
+        tier: "free",
+        nowMs: 30_000,
+        deadlineMs: 30_000,
+      }),
+    ).toBe("timed_out");
   });
 
   test("prices match the published tiers", () => {

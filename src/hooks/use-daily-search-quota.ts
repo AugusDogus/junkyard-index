@@ -23,6 +23,11 @@ interface DailySearchQuotaArgs {
 
 const QUOTA_DEDUPE_KEY = "ji:quotaDedupe";
 
+export type DailySearchQuotaStatus =
+  | "allowed"
+  | "limit_exceeded"
+  | "verification_unavailable";
+
 function readStoredRecord(userId: string): StoredQuotaRecord | null {
   try {
     return parseStoredQuotaRecord({
@@ -43,7 +48,9 @@ function writeStoredRecord(record: StoredQuotaRecord): void {
   }
 }
 
-export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
+export function useDailySearchQuota(
+  args: DailySearchQuotaArgs,
+): DailySearchQuotaStatus {
   const [state, dispatch] = useReducer(
     transitionQuotaLifecycle,
     initialQuotaLifecycleState,
@@ -120,5 +127,6 @@ export function useDailySearchQuota(args: DailySearchQuotaArgs): boolean {
     });
   }, [state.activity, recordSearchMutation]);
 
-  return state.quotaExceeded;
+  if (state.quotaVerificationFailed) return "verification_unavailable";
+  return state.quotaExceeded ? "limit_exceeded" : "allowed";
 }

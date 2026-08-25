@@ -2,13 +2,15 @@
 
 import posthog from "posthog-js";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
+  CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
+  checkoutTierConfirmationStatus,
   type PlanAccessState,
 } from "~/lib/plans";
 import { api } from "~/trpc/react";
@@ -23,35 +25,45 @@ export function usePlanTier(
     refreshUntilPaid?: boolean;
   } = {},
 ): PlanAccessState {
-  const utils = api.useUtils();
-  const recoverUnavailable = options.initialAccess?.kind === "unavailable";
-  const useFreshRead = options.refreshUntilPaid === true || recoverUnavailable;
-  const query = api.subscription.getTier.useQuery(
-    { fresh: useFreshRead },
-    {
-      enabled:
-        isLoggedIn && (options.initialAccess === undefined || useFreshRead),
-      placeholderData:
-        options.initialAccess?.kind === "resolved"
-          ? { tier: options.initialAccess.tier }
-          : undefined,
-      refetchInterval: (result) => {
-        if (!useFreshRead) return false;
-        const tier = result.state.data?.tier;
-        if (recoverUnavailable && tier) return false;
-        return tier === "lite" || tier === "full" ? false : 2_000;
-      },
-      retry: false,
-    },
+  const [confirmationDeadlineMs] = useState(
+    () => Date.now() + CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
   );
-  useEffect(() => {
-    const tier = query.data?.tier;
-    if (useFreshRead && (tier === "lite" || tier === "full")) {
-      utils.subscription.getTier.setData({ fresh: false }, { tier });
-    }
-  }, [query.data?.tier, useFreshRead, utils]);
+  const shouldQuery =
+    options.initialAccess === undefined ||
+    options.initialAccess.kind === "unavailable" ||
+    options.refreshUntilPaid === true;
+  const query = api.subscription.getTier.useQuery(undefined, {
+    enabled: isLoggedIn && shouldQuery,
+    placeholderData:
+      options.initialAccess?.kind === "resolved"
+        ? { tier: options.initialAccess.tier }
+        : undefined,
+    refetchInterval: (result) => {
+      if (!options.refreshUntilPaid) return false;
+      return checkoutTierConfirmationStatus({
+        tier: result.state.data?.tier ?? null,
+        nowMs: Date.now(),
+        deadlineMs: confirmationDeadlineMs,
+      }) === "poll"
+        ? 2_000
+        : false;
+    },
+    retry: false,
+  });
   if (!isLoggedIn) return { kind: "resolved", tier: "free" };
-  if (query.isError) return { kind: "unavailable" };
+  if (
+    options.refreshUntilPaid &&
+    checkoutTierConfirmationStatus({
+      tier: query.data?.tier ?? null,
+      nowMs: Date.now(),
+      deadlineMs: confirmationDeadlineMs,
+    }) === "timed_out"
+  ) {
+    return { kind: "unavailable", reason: "confirmation_timeout" };
+  }
+  if (query.isError) {
+    return { kind: "unavailable", reason: "lookup_failed" };
+  }
   if (query.data) return { kind: "resolved", tier: query.data.tier };
   return options.initialAccess ?? { kind: "loading" };
 }
@@ -91,6 +103,21 @@ export function FreeQuotaOverlay({
           </Link>
         </Button>
       </div>
+    </div>
+  );
+}
+
+export function QuotaVerificationOverlay() {
+  return (
+    <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
+      <p className="text-sm font-medium">Search temporarily unavailable</p>
+      <h3 className="mt-2 text-xl font-semibold tracking-tight text-balance">
+        We could not verify your daily search limit.
+      </h3>
+      <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
+        Results are hidden until the limit can be verified. Refresh the page to
+        try again. Your account and saved searches are unchanged.
+      </p>
     </div>
   );
 }

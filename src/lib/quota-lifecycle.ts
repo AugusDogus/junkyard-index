@@ -15,6 +15,7 @@ export interface QuotaLifecycleState {
   userId: string | null;
   lastQuery: string;
   quotaExceeded: boolean;
+  quotaVerificationFailed: boolean;
   activity: QuotaActivity;
 }
 
@@ -40,6 +41,7 @@ export const initialQuotaLifecycleState: QuotaLifecycleState = {
   userId: null,
   lastQuery: "",
   quotaExceeded: false,
+  quotaVerificationFailed: false,
   activity: { kind: "idle" },
 };
 
@@ -57,6 +59,7 @@ export function transitionQuotaLifecycle(
         lastQuery:
           event.stored?.query ?? (isIdentityChange ? event.currentQuery : ""),
         quotaExceeded: event.stored?.exceeded ?? false,
+        quotaVerificationFailed: false,
         activity: { kind: "idle" },
       };
     }
@@ -74,12 +77,14 @@ export function transitionQuotaLifecycle(
       if (state.userId === null) {
         return {
           ...state,
+          quotaVerificationFailed: false,
           activity: { kind: "creating_guest", query: event.query },
         };
       }
       return {
         ...state,
         lastQuery: event.query,
+        quotaVerificationFailed: false,
         activity: {
           kind: "recording",
           userId: state.userId,
@@ -90,6 +95,7 @@ export function transitionQuotaLifecycle(
       return state.activity.kind === "creating_guest"
         ? {
             ...state,
+            quotaVerificationFailed: true,
             activity: {
               kind: "guest_creation_failed",
               query: state.activity.query,
@@ -100,7 +106,11 @@ export function transitionQuotaLifecycle(
       return state.activity.kind === "recording" &&
         state.activity.userId === event.userId &&
         state.activity.query === event.query
-        ? { ...state, activity: { kind: "idle" } }
+        ? {
+            ...state,
+            quotaVerificationFailed: true,
+            activity: { kind: "idle" },
+          }
         : state;
     case "record_succeeded":
       return state.activity.kind === "recording" &&
@@ -109,11 +119,18 @@ export function transitionQuotaLifecycle(
         ? {
             ...state,
             quotaExceeded: !event.allowed,
+            quotaVerificationFailed: false,
             activity: { kind: "idle" },
           }
         : state;
     case "paid_tier_resolved":
-      return state.quotaExceeded ? { ...state, quotaExceeded: false } : state;
+      return state.quotaExceeded || state.quotaVerificationFailed
+        ? {
+            ...state,
+            quotaExceeded: false,
+            quotaVerificationFailed: false,
+          }
+        : state;
   }
 }
 

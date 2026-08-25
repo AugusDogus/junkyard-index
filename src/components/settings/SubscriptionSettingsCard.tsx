@@ -16,11 +16,7 @@ import { PLANS } from "~/lib/plans";
 
 export function SubscriptionSettingsCard() {
   const {
-    hasActiveSubscription,
-    hasManageableSubscription,
-    isError,
-    isLoading,
-    planTier,
+    state,
     open: openSubscriptionDestination,
     retry,
   } = useSubscriptionDestination({
@@ -45,9 +41,9 @@ export function SubscriptionSettingsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {state.kind === "loading" ? (
           <Skeleton className="h-10 w-48" />
-        ) : isError ? (
+        ) : state.kind === "unavailable" ? (
           <div className="flex items-center justify-between gap-4">
             <p className="text-destructive text-sm">
               Subscription status could not be verified.
@@ -56,12 +52,12 @@ export function SubscriptionSettingsCard() {
               Try Again
             </Button>
           </div>
-        ) : hasActiveSubscription ? (
+        ) : state.kind === "active" ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <CheckCircle className="h-5 w-5" />
               <span className="font-medium">
-                Active {planTier ? PLANS[planTier].name : "paid"} subscription
+                Active {PLANS[state.tier].name} subscription
               </span>
             </div>
             <Button
@@ -72,7 +68,7 @@ export function SubscriptionSettingsCard() {
               Manage Subscription
             </Button>
           </div>
-        ) : hasManageableSubscription ? (
+        ) : state.kind === "needs_attention" ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
               <AlertCircle className="h-5 w-5" />

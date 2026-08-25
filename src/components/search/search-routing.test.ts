@@ -62,4 +62,27 @@ describe("search routing", () => {
       [ALGOLIA_INDEX_NAME]: { query: "civic" },
     });
   });
+
+  test("preserves locked filter URLs but lets authorized users clear them", () => {
+    const location = {
+      href: "https://example.com/search?q=civic&makes=Honda",
+      search: "?q=civic&makes=Honda",
+    };
+    const routeState = {
+      [ALGOLIA_INDEX_NAME]: { query: "civic" },
+    };
+
+    expect(
+      createSearchRouting(ALGOLIA_INDEX_NAME, true, false).router.createURL({
+        routeState,
+        location,
+      }),
+    ).toBe("https://example.com/search?q=civic&makes=Honda");
+    expect(
+      createSearchRouting(ALGOLIA_INDEX_NAME, true, true).router.createURL({
+        routeState,
+        location,
+      }),
+    ).toBe("https://example.com/search?q=civic");
+  });
 });

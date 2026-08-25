@@ -88,12 +88,159 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const ADVANCED_REFINEMENTS = [
+  { routeKey: "makes", refinementKey: "make" },
+  { routeKey: "colors", refinementKey: "color" },
+  { routeKey: "states", refinementKey: "state" },
+  { routeKey: "yards", refinementKey: "locationName" },
+] as const;
+
+const ADVANCED_URL_KEYS = [
+  "makes",
+  "colors",
+  "states",
+  "yards",
+  "sources",
+  "minYear",
+  "maxYear",
+] as const;
+
+interface AdvancedRouteFilters {
+  makes?: string[];
+  colors?: string[];
+  states?: string[];
+  yards?: string[];
+  sources?: DataSource[];
+  minYear?: number;
+  maxYear?: number;
+}
+
+interface AdvancedUiFilters {
+  refinementList?: Record<string, string[]>;
+  range?: { year: string };
+}
+
+function parseAdvancedUrlFilters(
+  params: URLSearchParams,
+): AdvancedRouteFilters {
+  const filters: AdvancedRouteFilters = {};
+  for (const key of ["makes", "colors", "states", "yards"] as const) {
+    const value = params.get(key);
+    if (value) {
+      Object.assign(filters, { [key]: value.split(",").filter(Boolean) });
+    }
+  }
+  const sources = sanitizeSearchSources(params.get("sources")?.split(","));
+  if (sources.length > 0) filters.sources = sources;
+  for (const key of ["minYear", "maxYear"] as const) {
+    const value = params.get(key);
+    if (!value) continue;
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isNaN(parsed)) Object.assign(filters, { [key]: parsed });
+  }
+  return filters;
+}
+
+function writeAdvancedUrlFilters(
+  params: URLSearchParams,
+  state: Record<string, unknown>,
+  fallback?: URLSearchParams,
+): void {
+  for (const key of ADVANCED_URL_KEYS) {
+    const value = state[key];
+    if (Array.isArray(value) && value.length > 0) {
+      params.set(key, value.join(","));
+      continue;
+    }
+    if (typeof value === "number") {
+      params.set(key, String(value));
+      continue;
+    }
+    const fallbackValue = fallback?.get(key);
+    if (fallbackValue) params.set(key, fallbackValue);
+  }
+}
+
+function advancedRouteFromUiState(
+  indexState: Record<string, unknown>,
+): AdvancedRouteFilters {
+  const route: AdvancedRouteFilters = {};
+  const refinementList = indexState.refinementList;
+  if (isUnknownRecord(refinementList)) {
+    for (const { routeKey, refinementKey } of ADVANCED_REFINEMENTS) {
+      const values = refinementList[refinementKey];
+      if (Array.isArray(values)) {
+        const strings = values.filter(
+          (value): value is string => typeof value === "string",
+        );
+        if (strings.length > 0) Object.assign(route, { [routeKey]: strings });
+      }
+    }
+    const sources = sanitizeSearchSources(refinementList.source);
+    if (sources.length > 0) route.sources = sources;
+  }
+
+  const range = indexState.range;
+  if (isUnknownRecord(range) && typeof range.year === "string") {
+    const [min, max] = range.year.split(":");
+    const minYear = min ? Number.parseInt(min, 10) : Number.NaN;
+    const maxYear = max ? Number.parseInt(max, 10) : Number.NaN;
+    if (!Number.isNaN(minYear)) route.minYear = minYear;
+    if (!Number.isNaN(maxYear)) route.maxYear = maxYear;
+  }
+  return route;
+}
+
+function advancedUiStateFromRoute(
+  state: Record<string, unknown>,
+): AdvancedUiFilters {
+  const uiState: AdvancedUiFilters = {};
+  const refinementList: Record<string, string[]> = {};
+  for (const { routeKey, refinementKey } of ADVANCED_REFINEMENTS) {
+    const values = state[routeKey];
+    if (Array.isArray(values)) {
+      refinementList[refinementKey] = values.filter(
+        (value): value is string => typeof value === "string",
+      );
+    }
+  }
+  const sources = sanitizeSearchSources(state.sources);
+  if (sources.length > 0) refinementList.source = sources;
+  if (Object.keys(refinementList).length > 0) {
+    uiState.refinementList = refinementList;
+  }
+  if (state.minYear || state.maxYear) {
+    uiState.range = {
+      year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
+    };
+  }
+  return uiState;
+}
+
+interface AdvancedFilterPolicy {
+  preserveUrlFilters: boolean;
+  toUiState(state: Record<string, unknown>): AdvancedUiFilters;
+}
+
+function createAdvancedFilterPolicy(allowed: boolean): AdvancedFilterPolicy {
+  return allowed
+    ? {
+        preserveUrlFilters: false,
+        toUiState: advancedUiStateFromRoute,
+      }
+    : {
+        preserveUrlFilters: true,
+        toUiState: () => ({}),
+      };
+}
+
 /** Maps stable, human-readable search URLs to Algolia's index UI state. */
 export function createSearchRouting(
   indexName: string,
   vinPatternIndexReady: boolean,
   allowAdvancedFilters: boolean = true,
 ) {
+  const advancedFilterPolicy = createAdvancedFilterPolicy(allowAdvancedFilters);
   return {
     router: {
       cleanUrlOnDispose: false,
@@ -112,49 +259,16 @@ export function createSearchRouting(
           : null;
         if (vinPattern) params.set("q", vinPattern.normalized);
 
-        const state = routeState[indexName];
-        if (!state) {
-          const queryString = params.toString();
-          return queryString ? `${baseUrl}?${queryString}` : baseUrl;
-        }
+        const state = routeState[indexName] ?? {};
 
         if (state.query && !vinPattern) {
           params.set("q", String(state.query));
         }
-        if (allowAdvancedFilters) {
-          if (Array.isArray(state.makes)) {
-            params.set("makes", state.makes.join(","));
-          }
-          if (Array.isArray(state.colors)) {
-            params.set("colors", state.colors.join(","));
-          }
-          if (Array.isArray(state.states)) {
-            params.set("states", state.states.join(","));
-          }
-          if (Array.isArray(state.yards)) {
-            params.set("yards", state.yards.join(","));
-          }
-          if (Array.isArray(state.sources)) {
-            params.set("sources", state.sources.join(","));
-          }
-          if (state.minYear) params.set("minYear", String(state.minYear));
-          if (state.maxYear) params.set("maxYear", String(state.maxYear));
-        } else {
-          // Keep the URL recoverable while access is unavailable or locked,
-          // but never map these values into Algolia UI state.
-          for (const key of [
-            "makes",
-            "colors",
-            "states",
-            "yards",
-            "sources",
-            "minYear",
-            "maxYear",
-          ]) {
-            const value = locationParams.get(key);
-            if (value) params.set(key, value);
-          }
-        }
+        writeAdvancedUrlFilters(
+          params,
+          state,
+          advancedFilterPolicy.preserveUrlFilters ? locationParams : undefined,
+        );
         if (state.sort) params.set("sort", String(state.sort));
 
         const queryString = params.toString();
@@ -170,19 +284,7 @@ export function createSearchRouting(
           : null;
         if (query && !vinPattern) state.query = query;
 
-        if (allowAdvancedFilters) {
-          for (const key of ["makes", "colors", "states", "yards", "sources"]) {
-            const value = params.get(key);
-            if (value) state[key] = value.split(",").filter(Boolean);
-          }
-
-          for (const key of ["minYear", "maxYear"]) {
-            const value = params.get(key);
-            if (!value) continue;
-            const parsed = Number.parseInt(value, 10);
-            if (!Number.isNaN(parsed)) state[key] = parsed;
-          }
-        }
+        Object.assign(state, parseAdvancedUrlFilters(params));
 
         const sort = params.get("sort");
         if (sort) state.sort = sort;
@@ -201,53 +303,7 @@ export function createSearchRouting(
           state.sort = INDEX_TO_KEY[sortBy] ?? sortBy;
         }
 
-        const refinementList = indexState.refinementList;
-        if (allowAdvancedFilters && isUnknownRecord(refinementList)) {
-          const refinements = refinementList;
-          if (Array.isArray(refinements.make) && refinements.make.length > 0) {
-            state.makes = refinements.make;
-          }
-          if (
-            Array.isArray(refinements.color) &&
-            refinements.color.length > 0
-          ) {
-            state.colors = refinements.color;
-          }
-          if (
-            Array.isArray(refinements.state) &&
-            refinements.state.length > 0
-          ) {
-            state.states = refinements.state;
-          }
-          if (
-            Array.isArray(refinements.locationName) &&
-            refinements.locationName.length > 0
-          ) {
-            state.yards = refinements.locationName;
-          }
-          if (
-            Array.isArray(refinements.source) &&
-            refinements.source.length > 0
-          ) {
-            state.sources = refinements.source;
-          }
-        }
-
-        const range = indexState.range;
-        if (allowAdvancedFilters && isUnknownRecord(range)) {
-          const year = range.year;
-          if (typeof year === "string") {
-            const [min, max] = year.split(":");
-            if (min) {
-              const parsed = Number.parseInt(min, 10);
-              if (!Number.isNaN(parsed)) state.minYear = parsed;
-            }
-            if (max) {
-              const parsed = Number.parseInt(max, 10);
-              if (!Number.isNaN(parsed)) state.maxYear = parsed;
-            }
-          }
-        }
+        Object.assign(state, advancedRouteFromUiState(indexState));
 
         return { [indexName]: state };
       },
@@ -262,33 +318,7 @@ export function createSearchRouting(
           if (KNOWN_SORT_INDICES.has(mapped)) uiState.sortBy = mapped;
         }
 
-        if (allowAdvancedFilters) {
-          const refinementList: Record<string, string[]> = {};
-          for (const [routeKey, refinementKey] of [
-            ["makes", "make"],
-            ["colors", "color"],
-            ["states", "state"],
-            ["yards", "locationName"],
-          ] as const) {
-            const values = state[routeKey];
-            if (Array.isArray(values)) {
-              refinementList[refinementKey] = values.filter(
-                (value): value is string => typeof value === "string",
-              );
-            }
-          }
-          const sources = sanitizeSearchSources(state.sources);
-          if (sources.length > 0) refinementList.source = sources;
-          if (Object.keys(refinementList).length > 0) {
-            uiState.refinementList = refinementList;
-          }
-
-          if (state.minYear || state.maxYear) {
-            uiState.range = {
-              year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
-            };
-          }
-        }
+        Object.assign(uiState, advancedFilterPolicy.toUiState(state));
 
         return { [indexName]: uiState };
       },

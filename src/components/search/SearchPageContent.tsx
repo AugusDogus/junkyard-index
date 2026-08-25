@@ -93,6 +93,7 @@ import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import {
   FreeQuotaOverlay,
+  QuotaVerificationOverlay,
   useDailySearchQuota,
   usePlanTier,
 } from "~/components/plan-gates";
@@ -401,6 +402,17 @@ function AlgoliaSearchInner({
   useEffect(() => {
     const isCheckoutSuccess =
       subscriptionParam === "success" || customerSessionToken;
+    const confirmationTimedOut =
+      planAccess.kind === "unavailable" &&
+      planAccess.reason === "confirmation_timeout";
+    if (isCheckoutSuccess && confirmationTimedOut) {
+      toast.error(
+        "Subscription confirmation is taking longer than expected. Refresh this page or check Settings before trying checkout again.",
+      );
+      if (subscriptionParam) void setSubscriptionParam(null);
+      if (customerSessionToken) void setCustomerSessionToken(null);
+      return;
+    }
     const hasPaidAccess =
       planAccess.kind === "resolved" && planAccess.tier !== "free";
     if (isCheckoutSuccess && hasPaidAccess) {
@@ -775,7 +787,7 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
-  const quotaExceeded = useDailySearchQuota({
+  const quotaStatus = useDailySearchQuota({
     initialViewer: viewer,
     planTier,
     analyticsSearchValue,
@@ -880,7 +892,13 @@ function AlgoliaSearchInner({
     );
   }, [isAnonymousCapped, analyticsSearchValue, searchResult, signUpHref]);
 
-  const showFreeQuotaBlock = quotaExceeded && hasActiveSearch && !isSearching;
+  const showFreeQuotaBlock =
+    quotaStatus === "limit_exceeded" && hasActiveSearch && !isSearching;
+  const showQuotaVerificationBlock =
+    quotaStatus === "verification_unavailable" &&
+    hasActiveSearch &&
+    !isSearching;
+  const showQuotaBlock = showFreeQuotaBlock || showQuotaVerificationBlock;
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -1418,8 +1436,10 @@ function AlgoliaSearchInner({
             />
           )}
 
+          {showQuotaVerificationBlock && <QuotaVerificationOverlay />}
+
           {/* Search Results */}
-          {(searchResult ?? isSearching) && !error && !showFreeQuotaBlock && (
+          {(searchResult ?? isSearching) && !error && !showQuotaBlock && (
             <SearchResults
               searchResult={
                 searchResult ?? {
@@ -1549,7 +1569,7 @@ function AlgoliaSearchInner({
         </div>
       </div>
 
-      {searchResult && !showFreeQuotaBlock && (
+      {searchResult && !showQuotaBlock && (
         <SearchSummary
           searchResult={searchResult}
           visibleCount={isAnonymousCapped ? anonymousVisibleLimit : undefined}

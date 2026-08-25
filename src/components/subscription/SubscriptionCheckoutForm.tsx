@@ -40,10 +40,7 @@ export function SubscriptionCheckoutForm() {
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const createCheckout = api.subscription.createCheckout.useMutation();
   const {
-    hasActiveSubscription,
-    hasManageableSubscription,
-    isError: isSubscriptionError,
-    isLoading: isSubscriptionLoading,
+    state: subscriptionState,
     open: openSubscriptionDestination,
     retry: retrySubscription,
   } = useSubscriptionDestination({
@@ -74,7 +71,7 @@ export function SubscriptionCheckoutForm() {
     }
   };
 
-  if (isSubscriptionError) {
+  if (subscriptionState.kind === "unavailable") {
     return (
       <Card>
         <CardHeader>
@@ -93,12 +90,15 @@ export function SubscriptionCheckoutForm() {
     );
   }
 
-  if (hasManageableSubscription) {
+  if (
+    subscriptionState.kind === "active" ||
+    subscriptionState.kind === "needs_attention"
+  ) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>
-            {hasActiveSubscription
+            {subscriptionState.kind === "active"
               ? "Subscription already active"
               : "Subscription needs attention"}
           </CardTitle>
@@ -150,7 +150,7 @@ export function SubscriptionCheckoutForm() {
             id="subscription-legal-acceptance"
             checked={hasAcceptedTerms}
             onCheckedChange={(checked) => setHasAcceptedTerms(checked === true)}
-            disabled={isOpeningCheckout || isSubscriptionLoading}
+            disabled={isOpeningCheckout || subscriptionState.kind === "loading"}
             required
           />
           <Label
@@ -172,7 +172,9 @@ export function SubscriptionCheckoutForm() {
         <Button
           className="w-full"
           disabled={
-            !hasAcceptedTerms || isOpeningCheckout || isSubscriptionLoading
+            !hasAcceptedTerms ||
+            isOpeningCheckout ||
+            subscriptionState.kind === "loading"
           }
           onClick={() => void handleCheckout()}
         >
