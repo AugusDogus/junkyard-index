@@ -1,19 +1,35 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   filtersSchema,
   parseSavedSearchFilters,
 } from "~/lib/saved-search-filters";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
+import {
+  evaluateSavedSearchGate,
+  hasPlanFeature,
+  type SavedSearchGateFeature,
+} from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  PlanGateError,
+  protectedProcedure,
+} from "~/server/api/trpc";
 import {
   currentSearchPublicationSequence,
   setSearchAlertChannel,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
-import { polarBillingGateway } from "~/server/polar-billing-gateway";
+import { getPlanTier } from "~/server/billing/user-plan";
+
+function planGateError(feature: SavedSearchGateFeature): PlanGateError {
+  const message =
+    feature === "saved_searches"
+      ? "Saved searches are included in the Lite plan. Upgrade at /pricing to save searches."
+      : "Email and Discord alerts are included in the Full plan. Upgrade at /pricing to enable alerts.";
+  return new PlanGateError(feature, message);
+}
 
 export const savedSearchesRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -50,31 +66,13 @@ export const savedSearchesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      let hasActiveSubscription = false;
-      try {
-        hasActiveSubscription =
-          await polarBillingGateway.hasActiveSubscription(ctx.user.id);
-      } catch {
-        hasActiveSubscription = false;
-      }
-
-      if (!hasActiveSubscription) {
-        const [savedSearchCount] = await ctx.db
-          .select({
-            total: sql<number>`count(*)`,
-          })
-          .from(savedSearch)
-          .where(eq(savedSearch.userId, ctx.user.id));
-
-        if (
-          (savedSearchCount?.total ?? 0) >=
-          MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT
-        ) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Free accounts can save up to ${MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} searches. Upgrade to Alerts Plan to save more.`,
-          });
-        }
+      const planTier = await getPlanTier(ctx.user.id);
+      const wantsAlerts =
+        (input.emailAlertsEnabled ?? false) ||
+        (input.discordAlertsEnabled ?? false);
+      const blockedGate = evaluateSavedSearchGate(planTier, wantsAlerts);
+      if (blockedGate) {
+        throw planGateError(blockedGate);
       }
 
       const id = crypto.randomUUID();
@@ -170,29 +168,10 @@ export const savedSearchesRouter = createTRPCRouter({
         });
       }
 
-      // If enabling alerts, verify user has an active subscription
       if (input.enabled) {
-        try {
-          if (
-            !(await polarBillingGateway.hasActiveSubscription(ctx.user.id))
-          ) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message:
-                "An active subscription is required to enable email alerts",
-            });
-          }
-        } catch (error) {
-          // If it's already a TRPCError, rethrow it
-          if (error instanceof TRPCError) {
-            throw error;
-          }
-          // Otherwise, treat as no subscription (customer not found, etc.)
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "An active subscription is required to enable email alerts",
-          });
+        const planTier = await getPlanTier(ctx.user.id);
+        if (!hasPlanFeature(planTier, "alerts")) {
+          throw planGateError("alerts");
         }
       }
 
@@ -240,28 +219,10 @@ export const savedSearchesRouter = createTRPCRouter({
         });
       }
 
-      // If enabling alerts, verify user has an active subscription and Discord setup
       if (input.enabled) {
-        // Check subscription
-        try {
-          if (
-            !(await polarBillingGateway.hasActiveSubscription(ctx.user.id))
-          ) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message:
-                "An active subscription is required to enable Discord alerts",
-            });
-          }
-        } catch (error) {
-          if (error instanceof TRPCError) {
-            throw error;
-          }
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "An active subscription is required to enable Discord alerts",
-          });
+        const planTier = await getPlanTier(ctx.user.id);
+        if (!hasPlanFeature(planTier, "alerts")) {
+          throw planGateError("alerts");
         }
 
         // Check Discord setup

@@ -60,8 +60,7 @@ export default async function Home() {
                   className="mb-6 gap-2 px-3 py-1 sm:mb-5"
                 >
                   <span className="inline-flex size-2 rounded-full bg-green-500" />
-                  Search is free. Plans from $
-                  {PLANS.lite.monthlyPrice}/mo.
+                  Search is free. Plans from ${PLANS.lite.monthlyPrice}/mo.
                 </Badge>
                 <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-bold tracking-tight text-balance sm:text-4xl md:text-5xl lg:text-6xl">
                   Search salvage yard inventory before the right donor vehicle
@@ -81,7 +80,7 @@ export default async function Home() {
 
               {/* Zone C — proof, mobile only; bottom-anchored visual weight */}
               <div className="border-t pt-6 sm:hidden">
-                <p className="text-muted-foreground mb-4 text-[0.6875rem] font-medium uppercase tracking-[0.1em]">
+                <p className="text-muted-foreground mb-4 text-[0.6875rem] font-medium tracking-[0.1em] uppercase">
                   Live inventory
                 </p>
                 <div className="flex items-end justify-between gap-4 tabular-nums">
@@ -229,7 +228,7 @@ export default async function Home() {
               </Button>
               <TrackedPricingButton
                 href="/pricing"
-                label="Compare Free and Alerts Plan"
+                label="Compare Plans"
                 sourcePage="home"
                 ctaLocation="bottom_compare_plans"
                 variant="outline"

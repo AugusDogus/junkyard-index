@@ -9,21 +9,12 @@ type PolarPage<T> = {
   result: { items: readonly T[] };
 };
 
-type PolarSubscriptionStatus =
-  | "incomplete"
-  | "incomplete_expired"
-  | "trialing"
-  | "active"
-  | "past_due"
-  | "canceled"
-  | "unpaid";
-
-type PolarSubscription = { id: string; status: PolarSubscriptionStatus };
+type PolarSubscription = { id: string; status: string };
 type PolarCheckout = {
   id: string;
   url: string;
   expiresAt: Date;
-  status: "open" | "expired" | "confirmed" | "succeeded" | "failed";
+  status: string;
 };
 
 export type PolarBillingOperations = {
@@ -68,6 +59,10 @@ function normalizeSubscription(
     case "past_due":
     case "trialing":
       return { id: subscription.id, state: "charge_capable" };
+    default:
+      throw new Error(
+        `Polar subscription ${subscription.id} has unrecognized status ${subscription.status}.`,
+      );
   }
 }
 
@@ -92,25 +87,34 @@ function normalizeOutstandingCheckout(
     case "failed":
     case "succeeded":
       return null;
+    default:
+      throw new Error(
+        `Polar checkout ${checkout.id} has unrecognized status ${checkout.status}.`,
+      );
   }
 }
 
 export function createPolarBillingGateway(
   operations: PolarBillingOperations,
-  config: { productId: string; appUrl: string },
+  config: {
+    productIds: readonly string[];
+    checkoutProductId: string;
+    appUrl: string;
+  },
 ): AccountBillingGateway {
   const listSubscriptions = async (
     userId: string,
   ): Promise<readonly DomainBillingSubscription[]> => {
-    const pages = await operations.listSubscriptions({
-      externalCustomerId: userId,
-      productId: config.productId,
-      limit: 100,
-    });
     const subscriptions: DomainBillingSubscription[] = [];
-
-    for await (const page of pages) {
-      subscriptions.push(...page.result.items.map(normalizeSubscription));
+    for (const productId of config.productIds) {
+      const pages = await operations.listSubscriptions({
+        externalCustomerId: userId,
+        productId,
+        limit: 100,
+      });
+      for await (const page of pages) {
+        subscriptions.push(...page.result.items.map(normalizeSubscription));
+      }
     }
 
     return subscriptions;
@@ -122,16 +126,17 @@ export function createPolarBillingGateway(
       const customer = await operations.getCustomerState({
         externalId: userId,
       });
-      const pages = await operations.listCheckouts({
-        customerId: customer.id,
-        productId: config.productId,
-        status: ["open", "confirmed"],
-        limit: 100,
-      });
       const checkouts: PolarCheckout[] = [];
-
-      for await (const page of pages) {
-        checkouts.push(...page.result.items);
+      for (const productId of config.productIds) {
+        const pages = await operations.listCheckouts({
+          customerId: customer.id,
+          productId,
+          status: ["open", "confirmed"],
+          limit: 100,
+        });
+        for await (const page of pages) {
+          checkouts.push(...page.result.items);
+        }
       }
 
       return checkouts.flatMap((checkout) => {
@@ -143,8 +148,8 @@ export function createPolarBillingGateway(
       const customer = await operations.getCustomerState({
         externalId: userId,
       });
-      return customer.activeSubscriptions.some(
-        ({ productId }) => productId === config.productId,
+      return customer.activeSubscriptions.some(({ productId }) =>
+        config.productIds.includes(productId),
       );
     },
     getAccountState: async (userId) => {
@@ -152,8 +157,8 @@ export function createPolarBillingGateway(
         externalId: userId,
       });
       if (
-        customer.activeSubscriptions.some(
-          ({ productId }) => productId === config.productId,
+        customer.activeSubscriptions.some(({ productId }) =>
+          config.productIds.includes(productId),
         )
       ) {
         return "active";
@@ -170,7 +175,7 @@ export function createPolarBillingGateway(
     createCheckout: async ({ userId, termsVersion, termsAcceptedAt }) => {
       const checkout = await operations.createCheckout({
         externalCustomerId: userId,
-        products: [config.productId],
+        products: [config.checkoutProductId],
         successUrl: `${config.appUrl}/search?subscription=success`,
         returnUrl: `${config.appUrl}/subscribe`,
         metadata: {

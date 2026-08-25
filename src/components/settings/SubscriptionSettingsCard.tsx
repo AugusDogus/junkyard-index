@@ -12,7 +12,7 @@ import {
 } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { PLANS } from "~/lib/plans";
 
 export function SubscriptionSettingsCard() {
   const {
@@ -20,6 +20,7 @@ export function SubscriptionSettingsCard() {
     hasManageableSubscription,
     isError,
     isLoading,
+    planTier,
     open: openSubscriptionDestination,
     retry,
   } = useSubscriptionDestination({
@@ -34,8 +35,9 @@ export function SubscriptionSettingsCard() {
           Subscription
         </CardTitle>
         <CardDescription>
-          Alerts Plan includes unlimited saved searches plus email and Discord
-          alerts for ${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo.{" "}
+          Lite includes filters and saved searches from $
+          {PLANS.lite.monthlyPrice}/mo. Full adds email and Discord alerts from
+          ${PLANS.full.monthlyPrice}/mo.{" "}
           <Link href="/pricing" className="text-primary hover:underline">
             Compare plans
           </Link>
@@ -58,7 +60,9 @@ export function SubscriptionSettingsCard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <CheckCircle className="h-5 w-5" />
-              <span className="font-medium">Active subscription</span>
+              <span className="font-medium">
+                Active {planTier ? PLANS[planTier].name : "paid"} subscription
+              </span>
             </div>
             <Button
               variant="outline"
@@ -88,11 +92,8 @@ export function SubscriptionSettingsCard() {
               <AlertCircle className="h-5 w-5" />
               <span>No active subscription</span>
             </div>
-            <Button
-              size="sm"
-              onClick={() => void openSubscriptionDestination()}
-            >
-              Subscribe (${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo)
+            <Button asChild size="sm">
+              <Link href="/pricing">Compare Plans</Link>
             </Button>
           </div>
         )}

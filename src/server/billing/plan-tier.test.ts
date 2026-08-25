@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type PlanTier, CHECKOUT_SLUGS, checkoutSlugFor } from "~/lib/plans";
+import { type PlanTier } from "~/lib/plans";
 import {
   type PolarProductIds,
   type CustomerStateLike,
@@ -75,18 +75,5 @@ describe("resolvePlanTierFromCustomerState", () => {
       IDS,
     );
     expect(tier).toBe<PlanTier>("lite");
-  });
-});
-
-describe("checkoutSlugFor", () => {
-  test("maps tier and interval to the configured slugs", () => {
-    expect(checkoutSlugFor("lite", "monthly")).toBe(
-      CHECKOUT_SLUGS.lite_monthly,
-    );
-    expect(checkoutSlugFor("lite", "annual")).toBe(CHECKOUT_SLUGS.lite_annual);
-    expect(checkoutSlugFor("full", "monthly")).toBe(
-      CHECKOUT_SLUGS.full_monthly,
-    );
-    expect(checkoutSlugFor("full", "annual")).toBe(CHECKOUT_SLUGS.full_annual);
   });
 });

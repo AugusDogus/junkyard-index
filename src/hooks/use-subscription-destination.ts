@@ -17,6 +17,7 @@ export function useSubscriptionDestination(input: {
     enabled: input.enabled,
   });
   const state = customerState.data?.state;
+  const planTier = customerState.data?.tier ?? null;
   const hasActiveSubscription = state === "active";
   const hasManageableSubscription =
     state === "active" || state === "needs_attention";
@@ -62,6 +63,7 @@ export function useSubscriptionDestination(input: {
   return {
     hasActiveSubscription,
     hasManageableSubscription,
+    planTier,
     isError: customerState.isError,
     isLoading: customerState.isLoading,
     open,

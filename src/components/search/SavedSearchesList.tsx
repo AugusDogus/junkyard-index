@@ -21,9 +21,9 @@ import {
 import posthog from "posthog-js";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
+import { usePlanTier } from "~/components/plan-gates";
 
 export function SavedSearchesList() {
   const utils = api.useUtils();
@@ -32,10 +32,10 @@ export function SavedSearchesList() {
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery();
 
-  const { hasActiveSubscription, open: openSubscriptionDestination } =
-    useSubscriptionDestination({
-      source: "saved_searches_list",
-    });
+  const { open: openSubscriptionDestination } = useSubscriptionDestination({
+    source: "saved_searches_list",
+  });
+  const { canUseAlerts } = usePlanTier(true);
   const canUseDiscord =
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;
@@ -146,7 +146,7 @@ export function SavedSearchesList() {
     e.stopPropagation();
 
     // If trying to enable but no subscription, redirect to checkout
-    if (!currentState && !hasActiveSubscription) {
+    if (!currentState && !canUseAlerts) {
       void openSubscriptionDestination();
       return;
     }
@@ -170,7 +170,7 @@ export function SavedSearchesList() {
     e.stopPropagation();
 
     // If trying to enable but no subscription, redirect to checkout
-    if (!currentState && !hasActiveSubscription) {
+    if (!currentState && !canUseAlerts) {
       void openSubscriptionDestination();
       return;
     }
@@ -260,12 +260,6 @@ export function SavedSearchesList() {
             <Bookmark className="text-muted-foreground h-4 w-4" />
             <h3 className="text-foreground text-sm font-semibold">
               Saved Searches
-              {!hasActiveSubscription && (
-                <span className="text-muted-foreground ml-1 font-normal">
-                  ({savedSearches.length}/
-                  {MONETIZATION_CONFIG.FREE_SAVED_SEARCH_LIMIT} free)
-                </span>
-              )}
             </h3>
           </div>
           <Link href="/settings">
@@ -340,7 +334,7 @@ export function SavedSearchesList() {
                         aria-label={
                           hasEmail
                             ? "Disable email alerts for this search"
-                            : hasActiveSubscription
+                            : canUseAlerts
                               ? "Enable email alerts for this search"
                               : "Subscribe to enable email alerts"
                         }
@@ -351,7 +345,7 @@ export function SavedSearchesList() {
                     <TooltipContent>
                       {hasEmail
                         ? "Email alerts enabled - click to disable"
-                        : hasActiveSubscription
+                        : canUseAlerts
                           ? "Click to enable email alerts"
                           : "Subscribe to enable email alerts"}
                     </TooltipContent>
@@ -375,7 +369,7 @@ export function SavedSearchesList() {
                         aria-label={
                           hasDiscord
                             ? "Disable Discord alerts for this search"
-                            : !hasActiveSubscription
+                            : !canUseAlerts
                               ? "Subscribe to enable Discord alerts"
                               : !canUseDiscord
                                 ? "Set up Discord to enable alerts"
@@ -388,7 +382,7 @@ export function SavedSearchesList() {
                     <TooltipContent>
                       {hasDiscord
                         ? "Discord alerts enabled - click to disable"
-                        : !hasActiveSubscription
+                        : !canUseAlerts
                           ? "Subscribe to enable Discord alerts"
                           : !canUseDiscord
                             ? "Set up Discord in Settings first"

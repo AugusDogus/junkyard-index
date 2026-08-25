@@ -25,15 +25,29 @@ import { DiscordIcon } from "~/components/ui/icons";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
-import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { PLANS, type SavedSearchGateFeature } from "~/lib/plans";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
+import { usePlanTier } from "~/components/plan-gates";
 
 const PENDING_SAVE_KEY = "pendingSaveSearch";
+
+function isPlanGateData(
+  data: unknown,
+): data is { planGateFeature?: SavedSearchGateFeature } {
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    !("planGateFeature" in data)
+  ) {
+    return false;
+  }
+  const feature: unknown = data.planGateFeature;
+  return feature === "saved_searches" || feature === "alerts";
+}
 
 export interface SaveSearchFilters {
   vinPattern?: string;
@@ -110,14 +124,7 @@ export function SaveSearchDialog({
 
   const utils = api.useUtils();
 
-  const {
-    hasActiveSubscription,
-    hasManageableSubscription,
-    open: openSubscriptionDestination,
-  } = useSubscriptionDestination({
-    source: "save_search_dialog",
-    enabled: isLoggedIn,
-  });
+  const { canSaveSearches, canUseAlerts } = usePlanTier(!!isLoggedIn);
 
   const { data: notificationSettings } =
     api.user.getNotificationSettings.useQuery(undefined, {
@@ -127,15 +134,14 @@ export function SaveSearchDialog({
     notificationSettings?.hasDiscordLinked &&
     notificationSettings?.discordAppInstalled;
 
-  // Determine if this save will require checkout
   const wantsNotifications =
     notificationsEnabled && (emailEnabled || discordEnabled);
-  const needsCheckout = wantsNotifications && !hasActiveSubscription;
+  const canCreateWithSelectedFeatures =
+    canSaveSearches && (!wantsNotifications || canUseAlerts);
 
   const createMutation = api.savedSearches.create.useMutation({
     onMutate: async (newSearch) => {
-      // Only do optimistic updates if we're NOT redirecting to checkout
-      if (!needsCheckout) {
+      if (canCreateWithSelectedFeatures) {
         await utils.savedSearches.list.cancel();
         const previousSearches = utils.savedSearches.list.getData();
 
@@ -176,24 +182,25 @@ export function SaveSearchDialog({
       if (context?.previousSearches) {
         utils.savedSearches.list.setData(undefined, context.previousSearches);
       }
-      if (
-        error.data?.code === "FORBIDDEN" &&
-        error.message.includes("saved searches")
-      ) {
+      if (error.data?.code === "FORBIDDEN") {
+        const gateFeature = isPlanGateData(error.data)
+          ? error.data.planGateFeature
+          : undefined;
         posthog.capture(AnalyticsEvents.SAVED_SEARCH_LIMIT_REACHED, {
           source_page: "search",
           cta_location: "save_search_dialog",
+          gate_feature: gateFeature,
         });
         toast.error(error.message, {
           action: {
-            label: hasManageableSubscription ? "Manage" : "Upgrade",
+            label: "Compare plans",
             onClick: () => {
               posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                 source_page: "search",
                 cta_location: "saved_search_limit_to_checkout",
                 is_logged_in: true,
               });
-              void openSubscriptionDestination();
+              router.push("/pricing");
             },
           },
         });
@@ -201,7 +208,7 @@ export function SaveSearchDialog({
       }
       toast.error(error.message || "Failed to save search");
       setIsRedirecting(false);
-      if (!needsCheckout) {
+      if (canCreateWithSelectedFeatures) {
         setOpen(true);
       }
     },
@@ -214,23 +221,7 @@ export function SaveSearchDialog({
         has_sources_filter: (filters.sources?.length ?? 0) > 0,
       });
 
-      if (
-        (variables.emailAlertsEnabled || variables.discordAlertsEnabled) &&
-        !hasActiveSubscription
-      ) {
-        setIsRedirecting(true);
-        const opened = await openSubscriptionDestination();
-        if (!opened) {
-          setIsRedirecting(false);
-          setOpen(false);
-          resetForm();
-          toast.success(
-            "Search saved. Alerts will remain inactive until subscription status is available.",
-          );
-        }
-      } else {
-        toast.success("Search saved!");
-      }
+      toast.success("Search saved!");
     },
     onSettled: () => {
       void utils.savedSearches.list.invalidate();
@@ -339,9 +330,11 @@ export function SaveSearchDialog({
         <DialogHeader>
           <DialogTitle>Save Search</DialogTitle>
           <DialogDescription>
-            Save this search to revisit it later. Upgrade to alerts for $
-            {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo when you want new
-            matches delivered automatically.
+            {canSaveSearches
+              ? "Save this search to revisit it later."
+              : `Saved searches are included in the ${PLANS.lite.name} plan ($${PLANS.lite.monthlyPrice}/mo).`}
+            {!canUseAlerts &&
+              ` Alerts are included in the Full plan ($${PLANS.full.monthlyPrice}/mo).`}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -410,9 +403,9 @@ export function SaveSearchDialog({
                     className="cursor-pointer font-medium"
                   >
                     Enable notifications
-                    {!hasActiveSubscription && (
+                    {!canUseAlerts && (
                       <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                        (${MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}/mo)
+                        (${PLANS.full.monthlyPrice}/mo)
                       </span>
                     )}
                   </Label>

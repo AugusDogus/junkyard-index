@@ -20,7 +20,7 @@ import posthog from "posthog-js";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signOut, useSession } from "~/lib/auth-client";
-import { MONETIZATION_CONFIG } from "~/lib/constants";
+import { PLANS } from "~/lib/plans";
 
 interface UserMenuProps {
   user?: { name: string; email: string; image?: string | null } | null;
@@ -148,13 +148,9 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
             <span>Manage Subscription</span>
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onClick={() => void openSubscriptionDestination()}>
+          <DropdownMenuItem onClick={() => router.push("/pricing")}>
             <CreditCard className="mr-2 h-4 w-4" />
-            <span>
-              Subscribe to Alerts ($
-              {MONETIZATION_CONFIG.ALERTS_PLAN_PRICE_MONTHLY}
-              /mo)
-            </span>
+            <span>Upgrade from ${PLANS.lite.monthlyPrice}/mo</span>
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
