@@ -44,6 +44,26 @@ export type PlanAccessState =
     }
   | { kind: "resolved"; tier: PlanTier };
 
+export function resolvePlanAccess(input: {
+  isLoggedIn: boolean;
+  tier: PlanTier | null;
+  confirmationTimedOut: boolean;
+  lookupUnavailable: boolean;
+}): PlanAccessState {
+  if (!input.isLoggedIn) return { kind: "resolved", tier: "free" };
+  if (input.tier === "lite" || input.tier === "full") {
+    return { kind: "resolved", tier: input.tier };
+  }
+  if (input.confirmationTimedOut) {
+    return { kind: "unavailable", reason: "confirmation_timeout" };
+  }
+  if (input.tier === "free") return { kind: "resolved", tier: "free" };
+  if (input.lookupUnavailable) {
+    return { kind: "unavailable", reason: "lookup_failed" };
+  }
+  return { kind: "loading" };
+}
+
 interface PlanFeaturePolicy {
   minimumTier: PaidPlanTier;
   unresolvedAccess: "allow" | "deny";

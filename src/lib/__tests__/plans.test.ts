@@ -6,6 +6,7 @@ import {
   formatMonthlyEquivalent,
   hasPlanFeature,
   planPrice,
+  resolvePlanAccess,
   resolvePlanFeatureAccess,
   resolvedPlanTier,
   tierSatisfies,
@@ -65,6 +66,28 @@ describe("plan tiers", () => {
         feature: "advanced_filters",
       }),
     ).toBe(false);
+  });
+
+  test("reports a timed-out checkout while the account still resolves as free", () => {
+    expect(
+      resolvePlanAccess({
+        isLoggedIn: true,
+        tier: "free",
+        confirmationTimedOut: true,
+        lookupUnavailable: false,
+      }),
+    ).toEqual({ kind: "unavailable", reason: "confirmation_timeout" });
+  });
+
+  test("paid confirmation wins if the tier resolves after the deadline", () => {
+    expect(
+      resolvePlanAccess({
+        isLoggedIn: true,
+        tier: "lite",
+        confirmationTimedOut: true,
+        lookupUnavailable: false,
+      }),
+    ).toEqual({ kind: "resolved", tier: "lite" });
   });
 
   test("prices match the published tiers", () => {
