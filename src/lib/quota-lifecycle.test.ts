@@ -1,29 +1,31 @@
 import { describe, expect, test } from "bun:test";
 import {
   initialQuotaLifecycleState,
-  parseStoredQuotaRecord,
+  parseStoredAccountQuotaRecord,
+  parseStoredBrowserQuotaRecord,
   quotaStatusForQuery,
+  recordBrowserSearch,
   transitionQuotaLifecycle,
 } from "./quota-lifecycle";
 
 describe("quota lifecycle", () => {
-  test("creates a guest before recording the first signed-out search", () => {
+  test("records the first signed-out search against the browser", () => {
     const state = transitionQuotaLifecycle(initialQuotaLifecycleState, {
       type: "search_ready",
       query: "Honda Civic",
     });
 
     expect(state.phase).toEqual({
-      kind: "creating_guest",
+      kind: "recording_browser",
       query: "Honda Civic",
     });
     expect(quotaStatusForQuery(state, "Honda Civic")).toBe("verifying");
   });
 
-  test("records a new query once an identity resolves", () => {
+  test("records authenticated searches against the account", () => {
     const identified = transitionQuotaLifecycle(initialQuotaLifecycleState, {
       type: "viewer_resolved",
-      userId: "guest-1",
+      userId: "user-1",
       currentQuery: "Honda Civic",
       stored: null,
     });
@@ -33,38 +35,52 @@ describe("quota lifecycle", () => {
     });
 
     expect(recording.phase).toEqual({
-      kind: "recording",
-      userId: "guest-1",
+      kind: "recording_account",
+      userId: "user-1",
       query: "Honda Civic",
     });
     expect(
       transitionQuotaLifecycle(recording, {
-        type: "record_succeeded",
-        userId: "guest-1",
+        type: "account_record_succeeded",
+        userId: "user-1",
         query: "Honda Civic",
         allowed: true,
       }).phase,
     ).toEqual({ kind: "idle", access: "allowed" });
   });
 
-  test("blocks rendering after the server reports the limit exceeded", () => {
-    const recording = {
+  test("blocks rendering after either quota reports the limit exceeded", () => {
+    const browserRecording = transitionQuotaLifecycle(
+      initialQuotaLifecycleState,
+      { type: "search_ready", query: "Toyota" },
+    );
+    const browserBlocked = transitionQuotaLifecycle(browserRecording, {
+      type: "browser_record_succeeded",
+      query: "Toyota",
+      allowed: false,
+    });
+    expect(quotaStatusForQuery(browserBlocked, "Toyota")).toBe(
+      "limit_exceeded",
+    );
+
+    const accountRecording = {
       userId: "user-1",
       lastQuery: "Toyota",
       phase: {
-        kind: "recording" as const,
+        kind: "recording_account" as const,
         userId: "user-1",
         query: "Toyota",
       },
     };
-    const blocked = transitionQuotaLifecycle(recording, {
-      type: "record_succeeded",
+    const accountBlocked = transitionQuotaLifecycle(accountRecording, {
+      type: "account_record_succeeded",
       userId: "user-1",
       query: "Toyota",
       allowed: false,
     });
-
-    expect(quotaStatusForQuery(blocked, "Toyota")).toBe("limit_exceeded");
+    expect(quotaStatusForQuery(accountBlocked, "Toyota")).toBe(
+      "limit_exceeded",
+    );
   });
 
   test("paid tiers remain exempt", () => {
@@ -82,8 +98,8 @@ describe("quota lifecycle", () => {
   });
 });
 
-describe("parseStoredQuotaRecord", () => {
-  test("accepts only the current viewer and UTC day", () => {
+describe("stored quota records", () => {
+  test("accepts account records only for the current viewer and UTC day", () => {
     const raw = JSON.stringify({
       userId: "user-1",
       query: "Ford",
@@ -92,7 +108,7 @@ describe("parseStoredQuotaRecord", () => {
     });
 
     expect(
-      parseStoredQuotaRecord({
+      parseStoredAccountQuotaRecord({
         raw,
         today: "2026-08-25",
         userId: "user-1",
@@ -104,18 +120,77 @@ describe("parseStoredQuotaRecord", () => {
       day: "2026-08-25",
     });
     expect(
-      parseStoredQuotaRecord({
+      parseStoredAccountQuotaRecord({
         raw,
         today: "2026-08-26",
         userId: "user-1",
       }),
     ).toBeNull();
+  });
+
+  test("accepts bounded browser records only for the current UTC day", () => {
+    const raw = JSON.stringify({
+      query: "Ford",
+      count: 10,
+      exceeded: false,
+      day: "2026-08-25",
+    });
+    expect(parseStoredBrowserQuotaRecord({ raw, today: "2026-08-25" })).toEqual(
+      {
+        query: "Ford",
+        count: 10,
+        exceeded: false,
+        day: "2026-08-25",
+      },
+    );
     expect(
-      parseStoredQuotaRecord({
-        raw,
+      parseStoredBrowserQuotaRecord({ raw, today: "2026-08-26" }),
+    ).toBeNull();
+    expect(
+      parseStoredBrowserQuotaRecord({
+        raw: JSON.stringify({
+          query: "Ford",
+          count: -1,
+          exceeded: false,
+          day: "2026-08-25",
+        }),
         today: "2026-08-25",
-        userId: "user-2",
       }),
     ).toBeNull();
+  });
+
+  test("counts distinct browser queries and resets on a new UTC day", () => {
+    let record = recordBrowserSearch({
+      prior: null,
+      query: "Ford",
+      today: "2026-08-25",
+    });
+    expect(record).toEqual({
+      query: "Ford",
+      count: 1,
+      exceeded: false,
+      day: "2026-08-25",
+    });
+
+    record = recordBrowserSearch({
+      prior: { ...record, count: 10 },
+      query: "Toyota",
+      today: "2026-08-25",
+    });
+    expect(record.count).toBe(11);
+    expect(record.exceeded).toBe(true);
+
+    expect(
+      recordBrowserSearch({
+        prior: record,
+        query: "Honda",
+        today: "2026-08-26",
+      }),
+    ).toEqual({
+      query: "Honda",
+      count: 1,
+      exceeded: false,
+      day: "2026-08-26",
+    });
   });
 });

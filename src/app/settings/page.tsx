@@ -6,13 +6,10 @@ import { Header } from "~/components/Header";
 import { SettingsDashboard } from "~/components/settings/SettingsDashboard";
 import { Skeleton } from "~/components/ui/skeleton";
 import { auth } from "~/lib/auth";
-import { isGuestSession } from "~/lib/session-user";
 
 export default async function SettingsPage() {
-  // Guest (anonymous) sessions are invisible in the UI; they have no
-  // settings to manage, so send them to sign-in like logged-out visitors.
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user || isGuestSession(session.user)) {
+  if (!session?.user) {
     redirect("/auth/sign-in?returnTo=%2Fsettings");
   }
 

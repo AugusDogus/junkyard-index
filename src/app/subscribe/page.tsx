@@ -5,7 +5,6 @@ import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { SubscriptionCheckoutForm } from "~/components/subscription/SubscriptionCheckoutForm";
 import { auth } from "~/lib/auth";
-import { isGuestSession } from "~/lib/session-user";
 import {
   parseSubscriptionSelection,
   subscriptionReturnTo,
@@ -28,7 +27,7 @@ export default async function SubscribePage({
   });
   const session = await auth.api.getSession({ headers: await headers() });
 
-  if (!session?.user || isGuestSession(session.user)) {
+  if (!session?.user) {
     redirect(
       `/auth/sign-in?returnTo=${encodeURIComponent(subscriptionReturnTo(selection))}`,
     );

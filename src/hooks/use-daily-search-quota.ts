@@ -1,22 +1,21 @@
 "use client";
 
 import { useEffect, useReducer, useRef } from "react";
-import { signIn, useSession } from "~/lib/auth-client";
+import { useSession } from "~/lib/auth-client";
 import {
   initialQuotaLifecycleState,
-  parseStoredQuotaRecord,
+  parseStoredAccountQuotaRecord,
+  parseStoredBrowserQuotaRecord,
   quotaStatusForQuery,
+  recordBrowserSearch,
   transitionQuotaLifecycle,
   type QuotaLifecycleStatus,
-  type StoredQuotaRecord,
+  type StoredAccountQuotaRecord,
+  type StoredBrowserQuotaRecord,
 } from "~/lib/quota-lifecycle";
 import type { PlanTier } from "~/lib/plans";
 import { currentUtcDay } from "~/lib/search-quota";
-import {
-  establishAnonymousQuotaSession,
-  resolveQuotaViewer,
-  type QuotaViewer,
-} from "~/lib/quota-viewer";
+import { resolveQuotaViewer, type QuotaViewer } from "~/lib/quota-viewer";
 import { api } from "~/trpc/react";
 
 interface DailySearchQuotaArgs {
@@ -27,7 +26,8 @@ interface DailySearchQuotaArgs {
   hasError: boolean;
 }
 
-const QUOTA_DEDUPE_KEY = "ji:quotaDedupe";
+const ACCOUNT_QUOTA_DEDUPE_KEY = "ji:accountQuotaDedupe";
+const BROWSER_QUOTA_KEY = "ji:browserSearchQuota";
 
 export type DailySearchQuotaStatus = QuotaLifecycleStatus;
 
@@ -37,10 +37,12 @@ export type SearchQuotaGateState =
   | { kind: "limit_exceeded" }
   | { kind: "verification_unavailable" };
 
-function readStoredRecord(userId: string): StoredQuotaRecord | null {
+function readStoredAccountRecord(
+  userId: string,
+): StoredAccountQuotaRecord | null {
   try {
-    return parseStoredQuotaRecord({
-      raw: window.sessionStorage.getItem(QUOTA_DEDUPE_KEY),
+    return parseStoredAccountQuotaRecord({
+      raw: window.sessionStorage.getItem(ACCOUNT_QUOTA_DEDUPE_KEY),
       today: currentUtcDay(),
       userId,
     });
@@ -49,11 +51,33 @@ function readStoredRecord(userId: string): StoredQuotaRecord | null {
   }
 }
 
-function writeStoredRecord(record: StoredQuotaRecord): void {
+function writeStoredAccountRecord(record: StoredAccountQuotaRecord): void {
   try {
-    window.sessionStorage.setItem(QUOTA_DEDUPE_KEY, JSON.stringify(record));
+    window.sessionStorage.setItem(
+      ACCOUNT_QUOTA_DEDUPE_KEY,
+      JSON.stringify(record),
+    );
   } catch {
-    // Storage unavailable; reducer state still deduplicates this mount.
+    // Reducer state still deduplicates this mount when storage is unavailable.
+  }
+}
+
+function readStoredBrowserRecord(): StoredBrowserQuotaRecord | null {
+  try {
+    return parseStoredBrowserQuotaRecord({
+      raw: window.localStorage.getItem(BROWSER_QUOTA_KEY),
+      today: currentUtcDay(),
+    });
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredBrowserRecord(record: StoredBrowserQuotaRecord): void {
+  try {
+    window.localStorage.setItem(BROWSER_QUOTA_KEY, JSON.stringify(record));
+  } catch {
+    // The in-memory record still enforces the quota for this mount.
   }
 }
 
@@ -64,18 +88,24 @@ export function useDailySearchQuota(
     transitionQuotaLifecycle,
     initialQuotaLifecycleState,
   );
-  const guestRequestActive = useRef(false);
-  const recordRequestActive = useRef<string | null>(null);
+  const browserRecord = useRef<StoredBrowserQuotaRecord | null>(null);
+  const accountRequestActive = useRef<string | null>(null);
   const quotaApplies = args.planTier === null || args.planTier === "free";
   const quotaAppliesRef = useRef(quotaApplies);
   quotaAppliesRef.current = quotaApplies;
   const recordSearchMutation = api.usage.recordSearch.useMutation();
-  const { data: authSession, isPending: isSessionPending } = useSession();
+  const {
+    data: authSession,
+    isPending: isSessionPending,
+    error: sessionError,
+  } = useSession();
   const viewer = resolveQuotaViewer(
     args.initialViewer,
     isSessionPending
       ? { kind: "loading" }
-      : { kind: "resolved", user: authSession?.user ?? null },
+      : sessionError
+        ? { kind: "failed" }
+        : { kind: "resolved", user: authSession?.user ?? null },
   );
   const viewerUserId = viewer.kind === "signed_out" ? null : viewer.userId;
 
@@ -84,7 +114,7 @@ export function useDailySearchQuota(
       type: "viewer_resolved",
       userId: viewerUserId,
       currentQuery: args.analyticsSearchValue,
-      stored: viewerUserId ? readStoredRecord(viewerUserId) : null,
+      stored: viewerUserId ? readStoredAccountRecord(viewerUserId) : null,
     });
   }, [viewerUserId, args.analyticsSearchValue]);
 
@@ -108,29 +138,38 @@ export function useDailySearchQuota(
   ]);
 
   useEffect(() => {
-    if (state.phase.kind !== "creating_guest") return;
-    if (guestRequestActive.current) return;
-    guestRequestActive.current = true;
-    void establishAnonymousQuotaSession(() => signIn.anonymous())
-      .then((result) => {
-        if (result === "failed") dispatch({ type: "guest_creation_failed" });
-      })
-      .finally(() => {
-        guestRequestActive.current = false;
-      });
+    if (state.phase.kind !== "recording_browser") return;
+    const { query } = state.phase;
+    const today = currentUtcDay();
+    const prior =
+      (browserRecord.current?.day === today ? browserRecord.current : null) ??
+      readStoredBrowserRecord();
+    const next = recordBrowserSearch({ prior, query, today });
+    browserRecord.current = next;
+    writeStoredBrowserRecord(next);
+    dispatch({
+      type: "browser_record_succeeded",
+      query,
+      allowed: !next.exceeded,
+    });
   }, [state.phase]);
 
   useEffect(() => {
-    if (state.phase.kind !== "recording") return;
+    if (state.phase.kind !== "recording_account") return;
     const { userId, query } = state.phase;
     const requestKey = JSON.stringify([userId, query]);
-    if (recordRequestActive.current === requestKey) return;
-    recordRequestActive.current = requestKey;
+    if (accountRequestActive.current === requestKey) return;
+    accountRequestActive.current = requestKey;
     recordSearchMutation.mutate(undefined, {
       onSuccess: ({ allowed }) => {
         if (!quotaAppliesRef.current) return;
-        dispatch({ type: "record_succeeded", userId, query, allowed });
-        writeStoredRecord({
+        dispatch({
+          type: "account_record_succeeded",
+          userId,
+          query,
+          allowed,
+        });
+        writeStoredAccountRecord({
           userId,
           query,
           exceeded: !allowed,
@@ -139,12 +178,12 @@ export function useDailySearchQuota(
       },
       onError: () => {
         if (quotaAppliesRef.current) {
-          dispatch({ type: "record_failed", userId, query });
+          dispatch({ type: "account_record_failed", userId, query });
         }
       },
       onSettled: () => {
-        if (recordRequestActive.current === requestKey) {
-          recordRequestActive.current = null;
+        if (accountRequestActive.current === requestKey) {
+          accountRequestActive.current = null;
         }
       },
     });

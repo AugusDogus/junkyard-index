@@ -2,8 +2,70 @@ import { calculateDistance } from "~/lib/utils";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource, SearchVehicle } from "~/lib/types";
 
+export const ALGOLIA_VEHICLE_HIT_ATTRIBUTES = [
+  "objectID",
+  "year",
+  "make",
+  "model",
+  "color",
+  "vin",
+  "stockNumber",
+  "availableDate",
+  "source",
+  "locationCode",
+  "locationName",
+  "locationCity",
+  "state",
+  "stateAbbr",
+  "_geoloc",
+  "section",
+  "row",
+  "space",
+  "imageUrl",
+  "detailsUrl",
+  "partsUrl",
+  "pricesUrl",
+  "engine",
+  "trim",
+  "transmission",
+  "isMissing",
+  "missingSinceAt",
+  "missingRunCount",
+] as const;
+
+type AlgoliaVehicleHitAttribute =
+  (typeof ALGOLIA_VEHICLE_HIT_ATTRIBUTES)[number];
+
+export type AlgoliaVehicleHit = Partial<
+  Record<AlgoliaVehicleHitAttribute, unknown>
+>;
+
 function parseDataSource(value: unknown): DataSource | null {
   return isIngestionSource(value) ? value : null;
+}
+
+function parseString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function parseNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function parseOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function parseGeoloc(value: unknown): { lat: number; lng: number } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const lat = "lat" in value ? value.lat : null;
+  const lng = "lng" in value ? value.lng : null;
+  return typeof lat === "number" &&
+    Number.isFinite(lat) &&
+    typeof lng === "number" &&
+    Number.isFinite(lng)
+    ? { lat, lng }
+    : null;
 }
 
 function getFallbackLocationCity(
@@ -20,40 +82,43 @@ function getFallbackLocationCity(
 }
 
 export function algoliaHitToSearchVehicle(
-  hit: Record<string, unknown>,
+  hit: AlgoliaVehicleHit,
   userLocation?: { lat: number; lng: number },
 ): SearchVehicle | null {
-  const geoloc = hit._geoloc as { lat: number; lng: number } | undefined;
+  const geoloc = parseGeoloc(hit._geoloc);
   const lat = geoloc?.lat ?? 0;
   const lng = geoloc?.lng ?? 0;
   const source = parseDataSource(hit.source);
   if (source === null) return null;
-  const locationName = (hit.locationName as string) ?? "";
-  const stateAbbr = (hit.stateAbbr as string) ?? "";
+  const locationName = parseString(hit.locationName);
+  const stateAbbr = parseString(hit.stateAbbr);
   const locationCity =
-    (hit.locationCity as string) ??
+    parseOptionalString(hit.locationCity) ??
     getFallbackLocationCity(locationName, stateAbbr);
   const missingSinceAtSeconds =
-    typeof hit.missingSinceAt === "number" ? hit.missingSinceAt : null;
+    typeof hit.missingSinceAt === "number" &&
+    Number.isFinite(hit.missingSinceAt)
+      ? hit.missingSinceAt
+      : null;
   const missingSinceAt =
     missingSinceAtSeconds !== null
       ? new Date(missingSinceAtSeconds * 1000).toISOString()
       : undefined;
 
   return {
-    id: (hit.objectID as string) ?? (hit.vin as string) ?? "",
-    year: (hit.year as number) ?? 0,
-    make: (hit.make as string) ?? "",
-    model: (hit.model as string) ?? "",
-    color: (hit.color as string) ?? "",
-    vin: (hit.vin as string) ?? (hit.objectID as string) ?? "",
-    stockNumber: (hit.stockNumber as string) ?? "",
-    availableDate: (hit.availableDate as string) ?? "",
+    id: parseOptionalString(hit.objectID) ?? parseString(hit.vin),
+    year: parseNumber(hit.year),
+    make: parseString(hit.make),
+    model: parseString(hit.model),
+    color: parseString(hit.color),
+    vin: parseOptionalString(hit.vin) ?? parseString(hit.objectID),
+    stockNumber: parseString(hit.stockNumber),
+    availableDate: parseString(hit.availableDate),
     source,
-    locationCode: (hit.locationCode as string) ?? "",
+    locationCode: parseString(hit.locationCode),
     locationName,
     locationCity,
-    state: (hit.state as string) ?? "",
+    state: parseString(hit.state),
     stateAbbr,
     lat,
     lng,
@@ -61,18 +126,18 @@ export function algoliaHitToSearchVehicle(
       userLocation && geoloc
         ? calculateDistance(userLocation.lat, userLocation.lng, lat, lng)
         : 0,
-    section: (hit.section as string) ?? "",
-    row: (hit.row as string) ?? "",
-    space: (hit.space as string) ?? "",
-    imageUrl: (hit.imageUrl as string) ?? null,
-    detailsUrl: (hit.detailsUrl as string) ?? "",
-    partsUrl: (hit.partsUrl as string) ?? "",
-    pricesUrl: (hit.pricesUrl as string) ?? "",
-    engine: (hit.engine as string) ?? undefined,
-    trim: (hit.trim as string) ?? undefined,
-    transmission: (hit.transmission as string) ?? undefined,
-    isMissing: (hit.isMissing as boolean) ?? false,
+    section: parseString(hit.section),
+    row: parseString(hit.row),
+    space: parseString(hit.space),
+    imageUrl: parseOptionalString(hit.imageUrl) ?? null,
+    detailsUrl: parseString(hit.detailsUrl),
+    partsUrl: parseString(hit.partsUrl),
+    pricesUrl: parseString(hit.pricesUrl),
+    engine: parseOptionalString(hit.engine),
+    trim: parseOptionalString(hit.trim),
+    transmission: parseOptionalString(hit.transmission),
+    isMissing: hit.isMissing === true,
     missingSinceAt,
-    missingRunCount: (hit.missingRunCount as number) ?? 0,
+    missingRunCount: parseNumber(hit.missingRunCount),
   };
 }

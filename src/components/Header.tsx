@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { auth } from "~/lib/auth";
-import { isRegisteredSessionUser } from "~/lib/session-user";
 import { api } from "~/trpc/server";
 import { HeaderContent } from "./HeaderContent";
 import type { HeaderStatusData } from "./HeaderStatusIndicator";
@@ -23,9 +22,5 @@ export async function Header() {
     }),
   ]);
 
-  const visibleUser = isRegisteredSessionUser(session?.user)
-    ? session.user
-    : null;
-
-  return <HeaderContent user={visibleUser} statusData={statusData} />;
+  return <HeaderContent user={session?.user ?? null} statusData={statusData} />;
 }

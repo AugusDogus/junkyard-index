@@ -8,37 +8,10 @@ import {
   type FetchAlertSearchPage,
 } from "~/lib/algolia-alert-search";
 import { ALGOLIA_INDEX_NAME, ALGOLIA_PAGINATION_LIMIT } from "~/lib/constants";
-
-const VEHICLE_RESULT_ATTRIBUTES = [
-  "objectID",
-  "year",
-  "make",
-  "model",
-  "color",
-  "vin",
-  "stockNumber",
-  "availableDate",
-  "source",
-  "locationCode",
-  "locationName",
-  "locationCity",
-  "state",
-  "stateAbbr",
-  "_geoloc",
-  "section",
-  "row",
-  "space",
-  "imageUrl",
-  "detailsUrl",
-  "partsUrl",
-  "pricesUrl",
-  "engine",
-  "trim",
-  "transmission",
-  "isMissing",
-  "missingSinceAt",
-  "missingRunCount",
-] as const;
+import {
+  ALGOLIA_VEHICLE_HIT_ATTRIBUTES,
+  type AlgoliaVehicleHit,
+} from "~/lib/search-vehicles";
 
 export interface AlertSearchClient {
   searchForHits<T>(input: {
@@ -70,7 +43,7 @@ export async function getAlertMatchStatsWithClient(
     };
   }
   const fetchPage: FetchAlertSearchPage = async (page, hitsPerPage) => {
-    const response = await searchClient.searchForHits<Record<string, unknown>>({
+    const response = await searchClient.searchForHits<AlgoliaVehicleHit>({
       requests: [
         {
           indexName: ALGOLIA_INDEX_NAME,
@@ -78,7 +51,7 @@ export async function getAlertMatchStatsWithClient(
           filters: compilation.value,
           hitsPerPage,
           page,
-          attributesToRetrieve: [...VEHICLE_RESULT_ATTRIBUTES],
+          attributesToRetrieve: [...ALGOLIA_VEHICLE_HIT_ATTRIBUTES],
           attributesToHighlight: [],
           attributesToSnippet: [],
         },

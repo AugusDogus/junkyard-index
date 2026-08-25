@@ -1,5 +1,8 @@
 import type { SearchResponse } from "algoliasearch/lite";
-import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import {
+  algoliaHitToSearchVehicle,
+  type AlgoliaVehicleHit,
+} from "~/lib/search-vehicles";
 import type { SearchVehicle } from "~/lib/types";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { MAX_SEARCH_ALERT_PREVIEW_VEHICLES } from "~/lib/search-alert-data";
@@ -17,7 +20,7 @@ export interface AlertFilters {
 }
 
 export interface AlertSearchPage {
-  hits: ReadonlyArray<Record<string, unknown>>;
+  hits: ReadonlyArray<AlgoliaVehicleHit>;
   reportedCount: number;
   reportedPageCount: number;
   countIsExhaustive: boolean;
@@ -44,7 +47,7 @@ export type FetchAlertSearchPage = (
 ) => Promise<AlertSearchPage | null>;
 
 export function toAlertSearchPage(
-  result: SearchResponse<Record<string, unknown>>,
+  result: SearchResponse<AlgoliaVehicleHit>,
 ): AlertSearchPage {
   const countIsExhaustive =
     (result.exhaustive?.nbHits ?? result.exhaustiveNbHits ?? false) &&

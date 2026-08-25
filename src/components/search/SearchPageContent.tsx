@@ -82,7 +82,10 @@ import {
   parseStoredLocationPreference,
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
-import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import {
+  algoliaHitToSearchVehicle,
+  type AlgoliaVehicleHit,
+} from "~/lib/search-vehicles";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -302,7 +305,6 @@ function AlgoliaSearchInner({
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
   const isLoggedIn = viewer.kind === "authenticated";
-  const isAnonymousUser = viewer.kind === "guest";
   const canUseAdvancedFilters = resolvePlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
@@ -411,7 +413,7 @@ function AlgoliaSearchInner({
   >;
   const yearRangeState = (indexUiState.range ?? {}) as Record<string, string>;
   const query = (indexUiState.query as string) ?? "";
-  const { hits, showMore, isLastPage } = useInfiniteHits();
+  const { hits, showMore, isLastPage } = useInfiniteHits<AlgoliaVehicleHit>();
   const { nbHits, processingTimeMS } = useStats();
 
   // Facets
@@ -603,10 +605,7 @@ function AlgoliaSearchInner({
   const vehicles = useMemo(
     () =>
       hits.flatMap((hit) => {
-        const vehicle = algoliaHitToSearchVehicle(
-          hit as Record<string, unknown>,
-          resolvedUserLocation,
-        );
+        const vehicle = algoliaHitToSearchVehicle(hit, resolvedUserLocation);
         return vehicle ? [vehicle] : [];
       }),
     [hits, resolvedUserLocation],
@@ -1216,7 +1215,7 @@ function AlgoliaSearchInner({
     },
     quota: {
       query: analyticsSearchValue,
-      isGuest: !isLoggedIn && Boolean(isAnonymousUser),
+      isGuest: !isLoggedIn,
     },
     loading: {
       sidebarOpen: !isMobile && showFilters,

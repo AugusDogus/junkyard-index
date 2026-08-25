@@ -3,10 +3,6 @@
   "buildCommand": "bun run vercel:build",
   "crons": [
     {
-      "path": "/api/cron/anonymous-user-cleanup",
-      "schedule": "15 5 * * *"
-    },
-    {
       "path": "/api/cron/search-index-migration",
       "schedule": "0 6 * * *"
     },
