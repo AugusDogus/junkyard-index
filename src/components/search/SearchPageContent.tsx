@@ -306,6 +306,10 @@ function AlgoliaSearchInner({
     access: planAccess,
     feature: "advanced_filters",
   });
+  const savedSearchesLocked = !resolveClientPlanFeatureAccess({
+    access: planAccess,
+    feature: "saved_searches",
+  });
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1155,7 +1159,9 @@ function AlgoliaSearchInner({
 
   const searchResultActions = isMobile ? (
     <div className="flex items-center gap-1.5">
-      {isLoggedIn && <SavedSearchesDropdown iconOnly />}
+      {isLoggedIn && (
+        <SavedSearchesDropdown iconOnly locked={savedSearchesLocked} />
+      )}
       <Select value={sortBy} onValueChange={handleSortChange}>
         <SelectTrigger size="sm" className="w-fit">
           <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
@@ -1357,7 +1363,9 @@ function AlgoliaSearchInner({
                     </button>
                   ))}
                 </div>
-                {isLoggedIn && <SavedSearchesList />}
+                {isLoggedIn && (
+                  <SavedSearchesList locked={savedSearchesLocked} />
+                )}
               </div>
 
               <div className="hidden text-center sm:block">
@@ -1371,7 +1379,9 @@ function AlgoliaSearchInner({
                   Enter a year, make, model, or any combination to search across
                   all available salvage yard locations.
                 </p>
-                {isLoggedIn && <SavedSearchesList />}
+                {isLoggedIn && (
+                  <SavedSearchesList locked={savedSearchesLocked} />
+                )}
               </div>
             </div>
           )}

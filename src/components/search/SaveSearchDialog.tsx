@@ -1,6 +1,6 @@
 "use client";
 
-import { Bookmark, ChevronDown, ExternalLink, Mail } from "lucide-react";
+import { Bookmark, ChevronDown, ExternalLink, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -307,40 +307,81 @@ export function SaveSearchDialog({
     }
   };
 
+  const dialogTrigger = (
+    <Button
+      variant="outline"
+      size={compact || iconOnly ? "sm" : "default"}
+      className={compact || iconOnly ? "h-8 text-xs" : ""}
+      aria-label={iconOnly ? "Save search" : undefined}
+      disabled={
+        disabled || (!query && !filters.vinPattern) || isNavigatingToAuth
+      }
+      onClick={(e) => {
+        if (!isLoggedIn) {
+          e.preventDefault();
+          handleButtonClick();
+        }
+      }}
+    >
+      <Bookmark className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
+    </Button>
+  );
+
+  if (!canAttemptSaveSearch) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Unlock Saved Searches</DialogTitle>
+            <DialogDescription>
+              Lite lets you reopen saved searches with every filter intact and
+              save new searches.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-muted/40 my-4 flex items-start gap-3 rounded-lg border p-4">
+            <Lock className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Your searches stay saved</p>
+              <p className="text-muted-foreground mt-1 text-sm text-pretty">
+                Nothing is deleted on the Free plan. Upgrade when you want to
+                reopen or add saved searches.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button asChild>
+              <Link
+                href="/pricing"
+                onClick={() =>
+                  posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                    source_page: "search",
+                    cta_location: "saved_search_gate",
+                    is_logged_in: true,
+                  })
+                }
+              >
+                Upgrade to Lite
+              </Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog
       open={open}
       onOpenChange={(newOpen) => !isSaving && setOpen(newOpen)}
     >
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size={compact || iconOnly ? "sm" : "default"}
-          className={compact || iconOnly ? "h-8 text-xs" : ""}
-          aria-label={iconOnly ? "Save search" : undefined}
-          disabled={
-            disabled || (!query && !filters.vinPattern) || isNavigatingToAuth
-          }
-          onClick={(e) => {
-            if (!isLoggedIn) {
-              e.preventDefault();
-              handleButtonClick();
-            }
-          }}
-        >
-          <Bookmark
-            className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
-          />
-          {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Save Search</DialogTitle>
           <DialogDescription>
-            {canAttemptSaveSearch
-              ? "Save this search to revisit it later."
-              : `Saved searches are included in the ${PLANS.lite.name} plan ($${PLANS.lite.monthlyPrice}/mo).`}
+            Save this search to revisit it later.
             {!canAttemptAlertInteraction &&
               ` Alerts are included in the Full plan ($${PLANS.full.monthlyPrice}/mo).`}
           </DialogDescription>

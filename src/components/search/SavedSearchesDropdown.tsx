@@ -1,6 +1,6 @@
 "use client";
 
-import { BookmarkCheck, FolderOpen, Trash2 } from "lucide-react";
+import { BookmarkCheck, FolderOpen, Lock, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -16,15 +16,18 @@ import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
+import { SavedSearchUpgradeNotice } from "./SavedSearchUpgradeNotice";
 
 interface SavedSearchesDropdownProps {
   compact?: boolean;
   iconOnly?: boolean;
+  locked?: boolean;
 }
 
 export function SavedSearchesDropdown({
   compact,
   iconOnly,
+  locked = false,
 }: SavedSearchesDropdownProps = {}) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -118,18 +121,35 @@ export function SavedSearchesDropdown({
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuLabel>Saved Searches</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {locked && (
+          <SavedSearchUpgradeNotice
+            compact
+            className="m-2 border-0 p-3 shadow-none"
+          />
+        )}
         {savedSearches.map((search) => (
           <DropdownMenuItem
             key={search.id}
-            className="flex cursor-pointer items-center justify-between"
-            onClick={() => handleLoadSearch(search)}
+            className={
+              locked
+                ? "flex cursor-default items-center justify-between"
+                : "flex cursor-pointer items-center justify-between"
+            }
+            onSelect={(event) => {
+              if (locked) {
+                event.preventDefault();
+                return;
+              }
+              handleLoadSearch(search);
+            }}
           >
-            <div className="flex flex-col">
+            <div className="flex min-w-0 flex-col">
               <span className="font-medium">{search.name}</span>
               <span className="text-muted-foreground text-xs">
                 {search.query || search.filters.vinPattern || "All vehicles"}
               </span>
             </div>
+            {locked && <Lock className="text-muted-foreground ml-2 size-3" />}
             <Button
               variant="ghost"
               size="sm"
