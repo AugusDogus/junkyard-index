@@ -256,13 +256,6 @@ export function SidebarContent({
             searchThreshold={6}
             maxHeight={240}
           />
-          <Link
-            href="/request-yard"
-            className="text-muted-foreground hover:text-foreground px-3 text-xs underline-offset-2 hover:underline"
-            onClick={() => trackRequestYardClick({ location: "lot_filter" })}
-          >
-            + Request a missing yard
-          </Link>
         </CollapsibleContent>
       </Collapsible>
 
@@ -288,6 +281,13 @@ export function SidebarContent({
             searchThreshold={6}
             maxHeight={240}
           />
+          <Link
+            href="/request-yard"
+            className="text-muted-foreground hover:text-foreground px-3 text-xs underline-offset-2 hover:underline"
+            onClick={() => trackRequestYardClick({ location: "lot_filter" })}
+          >
+            + Request a missing yard
+          </Link>
         </CollapsibleContent>
       </Collapsible>
     </div>
