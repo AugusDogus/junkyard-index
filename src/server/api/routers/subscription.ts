@@ -3,8 +3,13 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { TERMS_METADATA } from "~/lib/legal";
+import { BILLING_INTERVALS, PAID_PLAN_TIERS } from "~/lib/plans";
 import posthog from "~/lib/posthog-server";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  registeredProcedure,
+} from "~/server/api/trpc";
 import { polarBillingGateway } from "~/server/polar-billing-gateway";
 import { getBillingProductKey } from "~/server/billing/product-catalog";
 import {
@@ -32,11 +37,11 @@ function checkoutBlockedMessage(result: SubscriptionCheckoutBlocked): string {
   }
 }
 
-const paidTierSchema = z.enum(["lite", "full"]);
-const billingIntervalSchema = z.enum(["monthly", "annual"]);
+const paidTierSchema = z.enum(PAID_PLAN_TIERS);
+const billingIntervalSchema = z.enum(BILLING_INTERVALS);
 
 export const subscriptionRouter = createTRPCRouter({
-  createCheckout: protectedProcedure
+  createCheckout: registeredProcedure
     .input(
       z.object({
         termsVersion: z.literal(TERMS_METADATA.version),
@@ -88,7 +93,7 @@ export const subscriptionRouter = createTRPCRouter({
       return { url: result.url };
     }),
 
-  getCustomerState: protectedProcedure.query(async ({ ctx }) => {
+  getCustomerState: registeredProcedure.query(async ({ ctx }) => {
     try {
       const [state, tier] = await Promise.all([
         polarBillingGateway.getAccountState(ctx.user.id),

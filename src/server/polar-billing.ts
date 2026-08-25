@@ -7,7 +7,6 @@ import {
 } from "~/server/billing";
 import {
   getCheckoutBillingProducts,
-  parseBillingProductKey,
   type BillingProduct,
 } from "~/server/billing/product-catalog";
 
@@ -183,12 +182,11 @@ export function createPolarBillingGateway(
       const product = checkoutProducts.find(({ key }) => key === productKey);
       if (!product)
         throw new Error(`Billing product ${productKey} is not configured.`);
-      const selection = parseBillingProductKey(product.key);
       const checkout = await operations.createCheckout({
         externalCustomerId: userId,
         products: [product.productId],
         successUrl: `${config.appUrl}/search?subscription=success`,
-        returnUrl: `${config.appUrl}/subscribe?tier=${selection.tier}&interval=${selection.interval}`,
+        returnUrl: `${config.appUrl}/subscribe?tier=${product.tier}&interval=${product.interval}`,
         metadata: {
           terms_version: termsVersion,
           terms_accepted_at: termsAcceptedAt.toISOString(),

@@ -1,10 +1,7 @@
 import { sql } from "drizzle-orm";
 import { hasPlanFeature } from "~/lib/plans";
+import { currentUtcDay, evaluateSearchQuota } from "~/lib/search-quota";
 import { getPlanTier } from "~/server/billing/user-plan";
-import {
-  currentUtcDay,
-  evaluateSearchQuota,
-} from "~/server/billing/search-quota";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { searchUsage } from "~/schema";
 

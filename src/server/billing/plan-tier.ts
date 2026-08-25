@@ -1,13 +1,13 @@
-import type { PlanTier } from "~/lib/plans";
+import type { PaidPlanTier, PlanTier } from "~/lib/plans";
 
 export interface EntitlementProduct {
   productId: string;
-  tier: Exclude<PlanTier, "free">;
+  tier: PaidPlanTier;
 }
 
-interface ProductIdentity {
-  productId: string;
-}
+export type PlanTierResolution =
+  | { kind: "resolved"; tier: PlanTier }
+  | { kind: "unrecognized"; activeSubscriptionCount: number };
 
 interface SubscriptionLike {
   productId?: unknown;
@@ -33,27 +33,6 @@ function subscriptionProductIds(state: CustomerStateLike): string[] {
 }
 
 /**
- * True when any active subscription lacks a valid configured product ID. This
- * indicates a provider-shape or env/config problem (e.g. legacy ID removed
- * too early) rather than a genuine downgrade, so
- * callers must not strip entitlements based on it.
- */
-export function hasUnrecognizedSubscriptions(
-  state: CustomerStateLike,
-  products: readonly ProductIdentity[],
-): boolean {
-  const ids = subscriptionProductIds(state);
-  const activeSubscriptionCount = state.activeSubscriptions?.length ?? 0;
-  if (activeSubscriptionCount === 0) {
-    return false;
-  }
-  if (ids.length !== activeSubscriptionCount) return true;
-  return ids.some(
-    (id) => !products.some((product) => product.productId === id),
-  );
-}
-
-/**
  * Maps a Polar customer's active subscriptions to a plan tier.
  * Full wins over Lite if a customer somehow holds both. Pure so it can be
  * unit-tested without Polar credentials.
@@ -61,21 +40,29 @@ export function hasUnrecognizedSubscriptions(
 export function resolvePlanTierFromCustomerState(
   state: CustomerStateLike,
   products: readonly EntitlementProduct[],
-): PlanTier {
-  const ids = new Set(subscriptionProductIds(state));
+): PlanTierResolution {
+  const activeSubscriptionCount = state.activeSubscriptions?.length ?? 0;
+  const productIds = subscriptionProductIds(state);
+  const ids = new Set(productIds);
+  if (
+    productIds.length !== activeSubscriptionCount ||
+    [...ids].some((id) => !products.some((product) => product.productId === id))
+  ) {
+    return { kind: "unrecognized", activeSubscriptionCount };
+  }
   if (
     products.some(
       ({ productId, tier }) => tier === "full" && ids.has(productId),
     )
   ) {
-    return "full";
+    return { kind: "resolved", tier: "full" };
   }
   if (
     products.some(
       ({ productId, tier }) => tier === "lite" && ids.has(productId),
     )
   ) {
-    return "lite";
+    return { kind: "resolved", tier: "lite" };
   }
-  return "free";
+  return { kind: "resolved", tier: "free" };
 }

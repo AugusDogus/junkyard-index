@@ -1,7 +1,12 @@
-import type { BillingInterval, PlanTier } from "~/lib/plans";
+import {
+  isBillingInterval,
+  isPaidPlanTier,
+  type BillingInterval,
+  type PaidPlanTier,
+} from "~/lib/plans";
 
 export interface SubscriptionSelection {
-  tier: Exclude<PlanTier, "free">;
+  tier: PaidPlanTier;
   interval: BillingInterval;
 }
 
@@ -10,8 +15,8 @@ export function parseSubscriptionSelection(input: {
   interval: unknown;
 }): SubscriptionSelection {
   return {
-    tier: input.tier === "lite" ? "lite" : "full",
-    interval: input.interval === "annual" ? "annual" : "monthly",
+    tier: isPaidPlanTier(input.tier) ? input.tier : "full",
+    interval: isBillingInterval(input.interval) ? input.interval : "monthly",
   };
 }
 

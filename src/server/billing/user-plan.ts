@@ -2,26 +2,28 @@ import { env } from "~/env";
 import type { PlanTier } from "~/lib/plans";
 import { polarClient } from "~/lib/polar";
 import {
-  hasUnrecognizedSubscriptions as hasUnrecognizedSubscriptionsImpl,
   resolvePlanTierFromCustomerState,
   type CustomerStateLike,
+  type PlanTierResolution,
 } from "./plan-tier";
 import { createPlanTierService } from "./plan-tier-service";
-import {
-  billingProductCatalog,
-  entitlementBillingProducts,
-} from "./configured-product-catalog";
+import { entitlementBillingProducts } from "./configured-product-catalog";
 
-/** True when an active subscription has no configured product. */
-export function hasUnrecognizedSubscriptions(
+/** Resolves configured entitlements without collapsing unknown products. */
+export function resolveCustomerPlanTier(
   state: CustomerStateLike,
-): boolean {
-  return hasUnrecognizedSubscriptionsImpl(state, billingProductCatalog);
+): PlanTierResolution {
+  return resolvePlanTierFromCustomerState(state, entitlementBillingProducts);
 }
 
-/** Resolves a Polar customer state to a plan tier using configured products. */
-export function resolveCustomerPlanTier(state: CustomerStateLike): PlanTier {
-  return resolvePlanTierFromCustomerState(state, entitlementBillingProducts);
+function resolveCustomerPlanTierForAccess(state: CustomerStateLike): PlanTier {
+  const resolution = resolveCustomerPlanTier(state);
+  if (resolution.kind === "unrecognized") {
+    throw new Error(
+      `Polar returned ${resolution.activeSubscriptionCount} active subscription(s) matching no configured product.`,
+    );
+  }
+  return resolution.tier;
 }
 
 if (!env.POLAR_PRODUCT_ID) {
@@ -34,7 +36,7 @@ if (!env.POLAR_PRODUCT_ID) {
 const defaultService = createPlanTierService({
   fetchCustomerState: (externalId) =>
     polarClient.customers.getStateExternal({ externalId }),
-  resolveTier: resolveCustomerPlanTier,
+  resolveTier: resolveCustomerPlanTierForAccess,
 });
 
 /**

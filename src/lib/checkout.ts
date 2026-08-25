@@ -2,7 +2,7 @@
 
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { type BillingInterval, type PlanTier } from "~/lib/plans";
+import { type BillingInterval, type PaidPlanTier } from "~/lib/plans";
 
 export interface CheckoutAttribution {
   source_page: string;
@@ -15,7 +15,7 @@ export interface CheckoutAttribution {
  * error handling for every upgrade CTA in the app.
  */
 export async function startTierCheckout(
-  tier: Exclude<PlanTier, "free">,
+  tier: PaidPlanTier,
   interval: BillingInterval,
   attribution: CheckoutAttribution,
 ): Promise<boolean> {

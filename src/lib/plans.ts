@@ -2,9 +2,20 @@
 // Polar product ID mapping lives in src/server/billing (plan-tier.ts is the
 // pure resolver; user-plan.ts binds it to configured product IDs).
 
-export type PlanTier = "free" | "lite" | "full";
+export const PAID_PLAN_TIERS = ["lite", "full"] as const;
+export type PaidPlanTier = (typeof PAID_PLAN_TIERS)[number];
+export type PlanTier = "free" | PaidPlanTier;
 
-export type BillingInterval = "monthly" | "annual";
+export const BILLING_INTERVALS = ["monthly", "annual"] as const;
+export type BillingInterval = (typeof BILLING_INTERVALS)[number];
+
+export function isPaidPlanTier(value: unknown): value is PaidPlanTier {
+  return PAID_PLAN_TIERS.some((tier) => tier === value);
+}
+
+export function isBillingInterval(value: unknown): value is BillingInterval {
+  return BILLING_INTERVALS.some((interval) => interval === value);
+}
 
 export const FREE_DAILY_SEARCH_LIMIT = 10;
 
@@ -25,7 +36,7 @@ export type PlanFeature =
   | "alerts";
 
 interface PlanFeaturePolicy {
-  minimumTier: Exclude<PlanTier, "free">;
+  minimumTier: PaidPlanTier;
   unresolvedAccess: "allow" | "deny";
 }
 
@@ -44,14 +55,10 @@ export function hasPlanFeature(tier: PlanTier, feature: PlanFeature): boolean {
 
 export function resolvePlanFeatureAccess(input: {
   tier: PlanTier | null;
-  isLoggedIn: boolean;
   feature: PlanFeature;
 }): boolean {
   if (input.tier !== null) return hasPlanFeature(input.tier, input.feature);
-  return (
-    input.isLoggedIn &&
-    PLAN_FEATURE_POLICIES[input.feature].unresolvedAccess === "allow"
-  );
+  return PLAN_FEATURE_POLICIES[input.feature].unresolvedAccess === "allow";
 }
 
 export function shouldClearAdvancedFilters(tier: PlanTier | null): boolean {
@@ -87,16 +94,12 @@ export type SavedSearchGateFeature = Extract<
  * The cheapest paid tier that unblocks saved-search creation for this tier.
  * The checkout-side counterpart of evaluateSavedSearchGate.
  */
-export function savedSearchUpgradeTier(
-  tier: PlanTier,
-): Exclude<PlanTier, "free"> {
+export function savedSearchUpgradeTier(tier: PlanTier): PaidPlanTier {
   return hasPlanFeature(tier, "saved_searches") ? "full" : "lite";
 }
 
 /** The tier a plan must reach to unlock a feature. */
-export function featureUpgradeTier(
-  feature: PlanFeature,
-): Exclude<PlanTier, "free"> {
+export function featureUpgradeTier(feature: PlanFeature): PaidPlanTier {
   return PLAN_FEATURE_POLICIES[feature].minimumTier;
 }
 
@@ -113,7 +116,7 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
 };
 
 export function planPrice(
-  tier: Exclude<PlanTier, "free">,
+  tier: PaidPlanTier,
   interval: BillingInterval,
 ): number {
   return interval === "annual"
@@ -121,16 +124,9 @@ export function planPrice(
     : PLANS[tier].monthlyPrice;
 }
 
-export function formatMonthlyEquivalent(
-  tier: Exclude<PlanTier, "free">,
-): string {
+export function formatMonthlyEquivalent(tier: PaidPlanTier): string {
   const perMonth = PLANS[tier].annualPrice / 12;
   return Number.isInteger(perMonth)
     ? `$${perMonth}`
     : `$${perMonth.toFixed(2)}`;
-}
-
-/** UTC-day bucket key (YYYY-MM-DD). Quotas reset at midnight UTC. */
-export function currentUtcDay(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10);
 }

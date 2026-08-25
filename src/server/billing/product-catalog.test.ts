@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   createBillingProductCatalog,
+  getBillingProductKey,
   getBillingProductTier,
   getCheckoutBillingProducts,
-  parseBillingProductKey,
 } from "./product-catalog";
 
 const PRODUCT_IDS = {
@@ -15,14 +15,41 @@ const PRODUCT_IDS = {
 
 describe("billing product catalog", () => {
   test("derives tier and interval from the canonical product key", () => {
-    expect(parseBillingProductKey("lite_monthly")).toEqual({
-      tier: "lite",
-      interval: "monthly",
+    expect(getBillingProductKey("lite", "monthly")).toBe("lite_monthly");
+    expect(getBillingProductKey("full", "annual")).toBe("full_annual");
+    const catalog = createBillingProductCatalog({
+      checkoutProductIds: PRODUCT_IDS,
     });
-    expect(parseBillingProductKey("full_annual")).toEqual({
-      tier: "full",
-      interval: "annual",
-    });
+    expect(getCheckoutBillingProducts(catalog)).toEqual([
+      {
+        kind: "checkout",
+        key: "lite_monthly",
+        tier: "lite",
+        interval: "monthly",
+        productId: "lite-monthly-id",
+      },
+      {
+        kind: "checkout",
+        key: "lite_annual",
+        tier: "lite",
+        interval: "annual",
+        productId: "lite-annual-id",
+      },
+      {
+        kind: "checkout",
+        key: "full_monthly",
+        tier: "full",
+        interval: "monthly",
+        productId: "full-monthly-id",
+      },
+      {
+        kind: "checkout",
+        key: "full_annual",
+        tier: "full",
+        interval: "annual",
+        productId: "full-annual-id",
+      },
+    ]);
   });
 
   test("keeps legacy products recognizable but not checkoutable", () => {
