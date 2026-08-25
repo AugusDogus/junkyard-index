@@ -16,9 +16,19 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { TERMS_METADATA } from "~/lib/legal";
-import { PLANS, formatMonthlyEquivalent, planPrice } from "~/lib/plans";
+import {
+  PLANS,
+  formatMonthlyEquivalent,
+  planPrice,
+  type PaidPlanTier,
+} from "~/lib/plans";
 import { parseSubscriptionSelection } from "~/lib/subscription-selection";
 import { api } from "~/trpc/react";
+
+const PLAN_SUMMARIES: Record<PaidPlanTier, string> = {
+  lite: "Unlimited search, advanced filters, and saved searches.",
+  full: "Unlimited search, advanced filters, saved searches, and alerts.",
+};
 
 export function SubscriptionCheckoutForm() {
   const searchParams = useSearchParams();
@@ -113,11 +123,7 @@ export function SubscriptionCheckoutForm() {
     <Card>
       <CardHeader>
         <CardTitle>{PLANS[tier].name} Plan</CardTitle>
-        <CardDescription>
-          {tier === "full"
-            ? "Unlimited search, advanced filters, saved searches, and alerts."
-            : "Unlimited search, advanced filters, and saved searches."}
-        </CardDescription>
+        <CardDescription>{PLAN_SUMMARIES[tier]}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div>

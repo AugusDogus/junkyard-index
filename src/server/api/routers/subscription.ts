@@ -16,7 +16,7 @@ import {
   createSubscriptionCheckout,
   type SubscriptionCheckoutBlocked,
 } from "~/server/subscription-checkout";
-import { getPlanTier } from "~/server/billing/user-plan";
+import { getPlanTier, refreshPlanTier } from "~/server/billing/user-plan";
 
 function checkoutBlockedMessage(result: SubscriptionCheckoutBlocked): string {
   switch (result.reason) {
@@ -93,13 +93,9 @@ export const subscriptionRouter = createTRPCRouter({
       return { url: result.url };
     }),
 
-  getCustomerState: registeredProcedure.query(async ({ ctx }) => {
+  getAccountOverview: registeredProcedure.query(async ({ ctx }) => {
     try {
-      const [state, tier] = await Promise.all([
-        polarBillingGateway.getAccountState(ctx.user.id),
-        getPlanTier(ctx.user.id),
-      ]);
-      return { state, tier };
+      return await polarBillingGateway.getAccountOverview(ctx.user.id);
     } catch (cause) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -109,7 +105,11 @@ export const subscriptionRouter = createTRPCRouter({
     }
   }),
 
-  getTier: protectedProcedure.query(async ({ ctx }) => ({
-    tier: ctx.user.isAnonymous ? "free" : await getPlanTier(ctx.user.id),
-  })),
+  getTier: protectedProcedure
+    .input(z.object({ fresh: z.boolean() }))
+    .query(async ({ ctx, input }) => ({
+      tier: ctx.user.isAnonymous
+        ? "free"
+        : await (input.fresh ? refreshPlanTier : getPlanTier)(ctx.user.id),
+    })),
 });

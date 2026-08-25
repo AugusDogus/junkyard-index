@@ -5,6 +5,7 @@ import { createTierCache } from "./tier-cache";
 export interface PlanTierService {
   getPlanTier(userId: string): Promise<PlanTier>;
   getFreshPlanTier(userId: string): Promise<PlanTier>;
+  refreshPlanTier(userId: string): Promise<PlanTier>;
 }
 
 export function createPlanTierService(options: {
@@ -51,5 +52,10 @@ export function createPlanTierService(options: {
       }
     },
     getFreshPlanTier: resolveFresh,
+    async refreshPlanTier(userId) {
+      const tier = await resolveFresh(userId);
+      cache.set(userId, tier);
+      return tier;
+    },
   };
 }

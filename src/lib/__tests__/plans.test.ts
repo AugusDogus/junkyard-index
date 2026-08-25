@@ -8,8 +8,8 @@ import {
   hasPlanFeature,
   planPrice,
   resolvePlanFeatureAccess,
+  resolvedPlanTier,
   savedSearchUpgradeTier,
-  shouldClearAdvancedFilters,
   tierSatisfies,
 } from "~/lib/plans";
 
@@ -43,23 +43,28 @@ describe("plan tiers", () => {
   test("unknown tiers lock client-only filters but not server-gated actions", () => {
     expect(
       resolvePlanFeatureAccess({
-        tier: null,
+        access: { kind: "loading" },
         feature: "advanced_filters",
       }),
     ).toBe(false);
     expect(
       resolvePlanFeatureAccess({
-        tier: null,
+        access: { kind: "loading" },
         feature: "saved_searches",
       }),
     ).toBe(true);
   });
 
-  test("preserves advanced filters while a paid tier hydrates", () => {
-    expect(shouldClearAdvancedFilters(null)).toBe(false);
-    expect(shouldClearAdvancedFilters("lite")).toBe(false);
-    expect(shouldClearAdvancedFilters("full")).toBe(false);
-    expect(shouldClearAdvancedFilters("free")).toBe(true);
+  test("distinguishes unavailable access from resolved tiers", () => {
+    expect(resolvedPlanTier({ kind: "loading" })).toBeNull();
+    expect(resolvedPlanTier({ kind: "unavailable" })).toBeNull();
+    expect(resolvedPlanTier({ kind: "resolved", tier: "lite" })).toBe("lite");
+    expect(
+      resolvePlanFeatureAccess({
+        access: { kind: "unavailable" },
+        feature: "advanced_filters",
+      }),
+    ).toBe(false);
   });
 
   test("prices match the published tiers", () => {

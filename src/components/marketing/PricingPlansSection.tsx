@@ -9,33 +9,52 @@ import { startTierCheckout } from "~/lib/checkout";
 import { isVisibleSessionUser } from "~/lib/session-user";
 import {
   FREE_DAILY_SEARCH_LIMIT,
+  PLAN_TIERS,
   PLANS,
   type BillingInterval,
+  type PaidPlanTier,
+  type PlanTier,
   formatMonthlyEquivalent,
   planPrice,
 } from "~/lib/plans";
 import { cn } from "~/lib/utils";
 
-const FREE_PLAN_ITEMS = [
-  `${FREE_DAILY_SEARCH_LIMIT} searches per day`,
-  "Keyword and VIN search",
-  "Full results after creating a free account",
-  "No credit card required",
-];
-
-const LITE_PLAN_ITEMS = [
-  "Unlimited searches",
-  "Advanced filters: yard, make, year, color, state, lot",
-  "Unlimited saved searches",
-  "Everything in Free",
-];
-
-const FULL_PLAN_ITEMS = [
-  "Everything in Lite",
-  "Email alerts when new matches arrive",
-  "Discord alerts when new matches arrive",
-  "Faster follow-up on hard-to-find donor vehicles",
-];
+const PRICING_PLAN_CONTENT: Record<
+  PlanTier,
+  { description: string; items: readonly string[]; featured: boolean }
+> = {
+  free: {
+    description: "Best for one-off searches and casual inventory checks.",
+    items: [
+      `${FREE_DAILY_SEARCH_LIMIT} searches per day`,
+      "Keyword and VIN search",
+      "Full results after creating a free account",
+      "No credit card required",
+    ],
+    featured: false,
+  },
+  lite: {
+    description: "For serious searchers who need filters and saved searches.",
+    items: [
+      "Unlimited searches",
+      "Advanced filters: yard, make, year, color, state, lot",
+      "Unlimited saved searches",
+      "Everything in Free",
+    ],
+    featured: false,
+  },
+  full: {
+    description:
+      "Best for repeat parts hunters, rebuilders, and ongoing searches.",
+    items: [
+      "Everything in Lite",
+      "Email alerts when new matches arrive",
+      "Discord alerts when new matches arrive",
+      "Faster follow-up on hard-to-find donor vehicles",
+    ],
+    featured: true,
+  },
+};
 
 export function PricingPlansSection() {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
@@ -44,7 +63,7 @@ export function PricingPlansSection() {
   // subscription to a user that Better Auth deletes on account conversion.
   const isLoggedIn = isVisibleSessionUser(session?.user);
 
-  const handleCheckout = (tier: "lite" | "full", ctaLocation: string) =>
+  const handleCheckout = (tier: PaidPlanTier, ctaLocation: string) =>
     startTierCheckout(tier, interval, {
       source_page: "pricing",
       cta_location: ctaLocation,
@@ -73,72 +92,52 @@ export function PricingPlansSection() {
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
-        <PricingPlanCard
-          eyebrow={PLANS.free.name}
-          price="$0"
-          intervalLabel=""
-          description="Best for one-off searches and casual inventory checks."
-          items={FREE_PLAN_ITEMS}
-          featured={false}
-          cta={
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/auth/sign-up">Create Free Account</Link>
-            </Button>
-          }
-        />
-        <PricingPlanCard
-          eyebrow={PLANS.lite.name}
-          price={`$${planPrice("lite", interval)}`}
-          intervalLabel={
-            interval === "annual"
-              ? `/yr (${formatMonthlyEquivalent("lite")}/mo)`
-              : "/mo"
-          }
-          description="For serious searchers who need filters and saved searches."
-          items={LITE_PLAN_ITEMS}
-          featured={false}
-          cta={
-            isLoggedIn ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => void handleCheckout("lite", "lite_plan")}
-              >
-                Upgrade to Lite
-              </Button>
-            ) : (
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/auth/sign-up?returnTo=%2Fpricing">Get Lite</Link>
-              </Button>
-            )
-          }
-        />
-        <PricingPlanCard
-          eyebrow={PLANS.full.name}
-          price={`$${planPrice("full", interval)}`}
-          intervalLabel={
-            interval === "annual"
-              ? `/yr (${formatMonthlyEquivalent("full")}/mo)`
-              : "/mo"
-          }
-          description="Best for repeat parts hunters, rebuilders, and ongoing searches."
-          items={FULL_PLAN_ITEMS}
-          featured
-          cta={
-            isLoggedIn ? (
-              <Button
-                className="w-full"
-                onClick={() => void handleCheckout("full", "full_plan")}
-              >
-                Upgrade to Full
-              </Button>
-            ) : (
-              <Button asChild className="w-full">
-                <Link href="/auth/sign-up?returnTo=%2Fpricing">Get Full</Link>
-              </Button>
-            )
-          }
-        />
+        {PLAN_TIERS.map((tier) => {
+          const content = PRICING_PLAN_CONTENT[tier];
+          const isFree = tier === "free";
+          return (
+            <PricingPlanCard
+              key={tier}
+              eyebrow={PLANS[tier].name}
+              price={isFree ? "$0" : `$${planPrice(tier, interval)}`}
+              intervalLabel={
+                isFree
+                  ? ""
+                  : interval === "annual"
+                    ? `/yr (${formatMonthlyEquivalent(tier)}/mo)`
+                    : "/mo"
+              }
+              description={content.description}
+              items={content.items}
+              featured={content.featured}
+              cta={
+                isFree ? (
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/auth/sign-up">Create Free Account</Link>
+                  </Button>
+                ) : isLoggedIn ? (
+                  <Button
+                    variant={content.featured ? "default" : "outline"}
+                    className="w-full"
+                    onClick={() => void handleCheckout(tier, `${tier}_plan`)}
+                  >
+                    Upgrade to {PLANS[tier].name}
+                  </Button>
+                ) : (
+                  <Button
+                    asChild
+                    variant={content.featured ? "default" : "outline"}
+                    className="w-full"
+                  >
+                    <Link href="/auth/sign-up?returnTo=%2Fpricing">
+                      Get {PLANS[tier].name}
+                    </Link>
+                  </Button>
+                )
+              }
+            />
+          );
+        })}
       </div>
 
       {interval === "annual" && (
@@ -164,7 +163,7 @@ function PricingPlanCard({
   price: string;
   intervalLabel: string;
   description: string;
-  items: string[];
+  items: readonly string[];
   cta: React.ReactNode;
   featured?: boolean;
 }) {

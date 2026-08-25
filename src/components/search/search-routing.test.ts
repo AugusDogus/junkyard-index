@@ -48,4 +48,18 @@ describe("search routing", () => {
       },
     });
   });
+
+  test("removes restricted filters before building free-tier search state", () => {
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, false);
+    const routeState = routing.router.parseURL({
+      location: {
+        href: "https://example.com/search?q=civic&makes=Honda&minYear=2010",
+        search: "?q=civic&makes=Honda&minYear=2010",
+      },
+    });
+
+    expect(routing.stateMapping.routeToState(routeState)).toEqual({
+      [ALGOLIA_INDEX_NAME]: { query: "civic" },
+    });
+  });
 });

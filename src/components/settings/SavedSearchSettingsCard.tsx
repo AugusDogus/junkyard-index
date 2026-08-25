@@ -16,6 +16,7 @@ import { DiscordIcon } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { resolvePlanFeatureAccess } from "~/lib/plans";
 import { api } from "~/trpc/react";
 import { usePlanTier } from "~/components/plan-gates";
 
@@ -26,7 +27,11 @@ export function SavedSearchSettingsCard() {
   const { open: openSubscriptionDestination } = useSubscriptionDestination({
     source: "settings_saved_searches",
   });
-  const { canUseAlerts } = usePlanTier(true);
+  const planAccess = usePlanTier(true);
+  const canUseAlerts = resolvePlanFeatureAccess({
+    access: planAccess,
+    feature: "alerts",
+  });
   const canUseDiscord =
     notifications?.hasDiscordLinked && notifications.discordAppInstalled;
 

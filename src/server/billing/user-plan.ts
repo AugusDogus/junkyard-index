@@ -54,3 +54,8 @@ export async function getPlanTier(userId: string): Promise<PlanTier> {
 export async function getFreshPlanTier(userId: string): Promise<PlanTier> {
   return defaultService.getFreshPlanTier(userId);
 }
+
+/** Refreshes authoritative state and replaces the local UI cache entry. */
+export async function refreshPlanTier(userId: string): Promise<PlanTier> {
+  return defaultService.refreshPlanTier(userId);
+}

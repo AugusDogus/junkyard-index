@@ -12,23 +12,8 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { auth } from "~/lib/auth";
 import { db } from "~/lib/db";
-import type { SavedSearchGateFeature } from "~/lib/plans";
 import { requireRegisteredAccount } from "~/server/api/registered-account";
-
-/**
- * FORBIDDEN due to an unmet plan-feature gate. Carries the blocking feature
- * through the errorFormatter so clients can route to the right upgrade
- * without parsing error messages.
- */
-export class PlanGateError extends TRPCError {
-  constructor(
-    readonly feature: SavedSearchGateFeature,
-    message: string,
-  ) {
-    super({ code: "FORBIDDEN", message });
-    this.name = "PlanGateError";
-  }
-}
+import { PlanGateError } from "~/server/plan-gate-error";
 
 /**
  * 1. CONTEXT
@@ -169,15 +154,10 @@ export const protectedProcedure = t.procedure
 
 const enforceUserIsRegistered = t.middleware(async ({ ctx, next }) => {
   requireRegisteredAccount(ctx.user);
-  return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user,
-    },
-  });
+  return next();
 });
 
 /** Requires a non-anonymous account. Use for billing and account settings. */
-export const registeredProcedure = t.procedure
-  .use(timingMiddleware)
-  .use(enforceUserIsRegistered);
+export const registeredProcedure = protectedProcedure.use(
+  enforceUserIsRegistered,
+);

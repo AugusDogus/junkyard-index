@@ -167,12 +167,12 @@ describe("Polar billing gateway", () => {
       config,
     );
 
-    await expect(gateway.getAccountState("user-1")).resolves.toBe(
-      "needs_attention",
-    );
+    await expect(gateway.getAccountOverview("user-1")).resolves.toEqual({
+      kind: "needs_attention",
+    });
   });
 
-  test("ignores active subscriptions for other products", async () => {
+  test("reports active subscriptions for other products as unrecognized", async () => {
     const gateway = createPolarBillingGateway(
       operationsWith({
         getCustomerState: async () => ({
@@ -183,7 +183,9 @@ describe("Polar billing gateway", () => {
       config,
     );
 
-    await expect(gateway.getAccountState("user-1")).resolves.toBe("none");
+    await expect(gateway.getAccountOverview("user-1")).resolves.toEqual({
+      kind: "unrecognized",
+    });
   });
 
   test("recognizes every configured tier product and enumerates all customer subscriptions", async () => {
@@ -220,7 +222,10 @@ describe("Polar billing gateway", () => {
       },
     );
 
-    await expect(gateway.getAccountState("user-1")).resolves.toBe("active");
+    await expect(gateway.getAccountOverview("user-1")).resolves.toEqual({
+      kind: "active",
+      tier: "full",
+    });
     await expect(gateway.listSubscriptions("user-1")).resolves.toHaveLength(1);
     expect(subscriptionLists).toBe(1);
   });
@@ -241,7 +246,10 @@ describe("Polar billing gateway", () => {
       config,
     );
 
-    await expect(gateway.getAccountState("user-1")).resolves.toBe("active");
+    await expect(gateway.getAccountOverview("user-1")).resolves.toEqual({
+      kind: "active",
+      tier: "full",
+    });
     expect(subscriptionsListed).toBe(false);
   });
 });

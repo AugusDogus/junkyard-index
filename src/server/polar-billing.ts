@@ -6,9 +6,11 @@ import {
   type BillingSubscription as DomainBillingSubscription,
 } from "~/server/billing";
 import {
+  getBillingProductTier,
   getCheckoutBillingProducts,
   type BillingProduct,
 } from "~/server/billing/product-catalog";
+import { resolvePlanTierFromCustomerState } from "~/server/billing/plan-tier";
 
 type PolarPage<T> = {
   result: { items: readonly T[] };
@@ -111,7 +113,10 @@ export function createPolarBillingGateway(
   },
 ): AccountBillingGateway {
   const checkoutProducts = getCheckoutBillingProducts(config.catalog);
-  const recognizedProductIds = config.catalog.map(({ productId }) => productId);
+  const entitlementProducts = config.catalog.map((product) => ({
+    productId: product.productId,
+    tier: getBillingProductTier(product),
+  }));
   const listSubscriptions = async (
     userId: string,
   ): Promise<readonly DomainBillingSubscription[]> => {
@@ -153,22 +158,25 @@ export function createPolarBillingGateway(
         return normalized ? [normalized] : [];
       });
     },
-    getAccountState: async (userId) => {
+    getAccountOverview: async (userId) => {
       const customer = await operations.getCustomerState({
         externalId: userId,
       });
-      if (
-        customer.activeSubscriptions.some(({ productId }) =>
-          recognizedProductIds.includes(productId),
-        )
-      ) {
-        return "active";
+      const resolution = resolvePlanTierFromCustomerState(
+        customer,
+        entitlementProducts,
+      );
+      if (resolution.kind === "unrecognized") {
+        return { kind: "unrecognized" };
+      }
+      if (resolution.tier !== "free") {
+        return { kind: "active", tier: resolution.tier };
       }
 
       const subscriptions = await listSubscriptions(userId);
       return subscriptions.some(BillingSubscription.canProduceFutureCharge)
-        ? "needs_attention"
-        : "none";
+        ? { kind: "needs_attention" }
+        : { kind: "none" };
     },
     revokeSubscription: async (subscriptionId) => {
       await operations.revokeSubscription({ id: subscriptionId });

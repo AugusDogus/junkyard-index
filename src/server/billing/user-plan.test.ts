@@ -90,6 +90,17 @@ describe("getPlanTier caching", () => {
       "polar down",
     );
   });
+
+  test("checkout refresh replaces a cached free tier once Polar reports paid", async () => {
+    const polar = createFakePolar({ activeSubscriptions: [] });
+    const test = createTestService(polar);
+    expect(await test.getPlanTier("cache-user-6")).toBe("free");
+
+    polar.setState(LITE_STATE);
+    expect(await test.refreshPlanTier("cache-user-6")).toBe("lite");
+    expect(await test.getPlanTier("cache-user-6")).toBe("lite");
+    expect(polar.calls()).toBe(2);
+  });
 });
 
 describe("createTierCache", () => {

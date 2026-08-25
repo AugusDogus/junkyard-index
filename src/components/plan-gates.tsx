@@ -1,89 +1,59 @@
 "use client";
 
 import posthog from "posthog-js";
-import { useEffect } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
+import { useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
-  resolvePlanFeatureAccess,
-  shouldClearAdvancedFilters,
-  type PlanFeature,
-  type PlanTier,
+  type PlanAccessState,
 } from "~/lib/plans";
 import { api } from "~/trpc/react";
-
-interface InstantSearchUiState {
-  refinementList?: Record<string, string[]>;
-  range?: Record<string, string>;
-}
 
 export { useDailySearchQuota } from "~/hooks/use-daily-search-quota";
 
 /** Subscribes to the viewer's plan tier via tRPC. */
-export function usePlanTier(isLoggedIn: boolean): {
-  /** Resolved plan tier; null means "not known yet", never "free". */
-  planTier: PlanTier | null;
-  canUseAdvancedFilters: boolean;
-  canSaveSearches: boolean;
-  canUseAlerts: boolean;
-} {
-  const { data } = api.subscription.getTier.useQuery(undefined, {
-    enabled: isLoggedIn,
-  });
-  // Logged-out viewers are free by definition; logged-in users are unknown
-  // until the query resolves.
-  const planTier: PlanTier | null = isLoggedIn ? (data?.tier ?? null) : "free";
-
-  // Mutations remain optimistic while unknown because the server enforces
-  // them. Advanced filters are client-only, so they remain locked until the
-  // tier is authoritative.
-  const resolveGate = (feature: PlanFeature): boolean =>
-    resolvePlanFeatureAccess({ tier: planTier, feature });
-
-  return {
-    planTier,
-    canUseAdvancedFilters: resolveGate("advanced_filters"),
-    canSaveSearches: resolveGate("saved_searches"),
-    canUseAlerts: resolveGate("alerts"),
-  };
-}
-
-interface AdvancedFilterGateArgs {
-  planTier: PlanTier | null;
-  indexUiState: InstantSearchUiState;
-  setIndexUiState: (
-    updater: (prev: InstantSearchUiState) => InstantSearchUiState,
-  ) => void;
-}
-
-/**
- * Strips URL-carried advanced filters for free-tier users before they reach
- * Algolia. Unknown tiers remain locked because Algolia has no server gate.
- */
-export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
-  const { planTier, indexUiState, setIndexUiState } = args;
-
+export function usePlanTier(
+  isLoggedIn: boolean,
+  options: {
+    initialAccess?: PlanAccessState;
+    refreshUntilPaid?: boolean;
+  } = {},
+): PlanAccessState {
+  const utils = api.useUtils();
+  const recoverUnavailable = options.initialAccess?.kind === "unavailable";
+  const useFreshRead = options.refreshUntilPaid === true || recoverUnavailable;
+  const query = api.subscription.getTier.useQuery(
+    { fresh: useFreshRead },
+    {
+      enabled:
+        isLoggedIn && (options.initialAccess === undefined || useFreshRead),
+      placeholderData:
+        options.initialAccess?.kind === "resolved"
+          ? { tier: options.initialAccess.tier }
+          : undefined,
+      refetchInterval: (result) => {
+        if (!useFreshRead) return false;
+        const tier = result.state.data?.tier;
+        if (recoverUnavailable && tier) return false;
+        return tier === "lite" || tier === "full" ? false : 2_000;
+      },
+      retry: false,
+    },
+  );
   useEffect(() => {
-    if (!shouldClearAdvancedFilters(planTier)) return;
-    const hasAdvancedRefinements =
-      Object.keys(indexUiState.refinementList ?? {}).length > 0 ||
-      Object.keys(indexUiState.range ?? {}).length > 0;
-    if (!hasAdvancedRefinements) return;
-    setIndexUiState((prev) => ({
-      ...prev,
-      refinementList: {},
-      range: {},
-    }));
-    posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
-      reason: "plan_restricted",
-    });
-    toast.info("Filters are available on Lite and Full plans.");
-  }, [planTier, indexUiState, setIndexUiState]);
+    const tier = query.data?.tier;
+    if (useFreshRead && (tier === "lite" || tier === "full")) {
+      utils.subscription.getTier.setData({ fresh: false }, { tier });
+    }
+  }, [query.data?.tier, useFreshRead, utils]);
+  if (!isLoggedIn) return { kind: "resolved", tier: "free" };
+  if (query.isError) return { kind: "unavailable" };
+  if (query.data) return { kind: "resolved", tier: query.data.tier };
+  return options.initialAccess ?? { kind: "loading" };
 }
 
 export function FreeQuotaOverlay({

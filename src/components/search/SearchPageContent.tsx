@@ -72,7 +72,12 @@ import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { searchClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { SEARCH_CONFIG } from "~/lib/constants";
-import { PLANS } from "~/lib/plans";
+import {
+  PLANS,
+  resolvePlanFeatureAccess,
+  resolvedPlanTier,
+  type PlanAccessState,
+} from "~/lib/plans";
 import type { QuotaViewer } from "~/lib/quota-viewer";
 import {
   hasFiniteCoordinates,
@@ -88,7 +93,6 @@ import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import {
   FreeQuotaOverlay,
-  useAdvancedFilterGate,
   useDailySearchQuota,
   usePlanTier,
 } from "~/components/plan-gates";
@@ -107,10 +111,14 @@ function clampRouteYear(
 
 interface SearchPageContentProps {
   viewer: QuotaViewer;
+  initialPlanAccess: PlanAccessState;
   userLocation?: { lat: number; lng: number };
 }
 
-interface AlgoliaSearchInnerProps extends SearchPageContentProps {
+interface AlgoliaSearchInnerProps {
+  viewer: QuotaViewer;
+  planAccess: PlanAccessState;
+  userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
 }
 function hasValidCoordinates(
@@ -299,11 +307,17 @@ function DistancePreferenceDialog({
  */
 function AlgoliaSearchInner({
   viewer,
+  planAccess,
   userLocation: _userLocation,
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
   const isLoggedIn = viewer.kind === "authenticated";
   const isAnonymousUser = viewer.kind === "guest";
+  const planTier = resolvedPlanTier(planAccess);
+  const canUseAdvancedFilters = resolvePlanFeatureAccess({
+    access: planAccess,
+    feature: "advanced_filters",
+  });
   const currentYear = new Date().getFullYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -351,8 +365,6 @@ function AlgoliaSearchInner({
   // Prefetch saved searches
   api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
 
-  const { planTier, canUseAdvancedFilters } = usePlanTier(!!isLoggedIn);
-
   // Sidebar state
   const [showFilters, setShowFilters] = useState(false);
   const [searchValueParam, setSearchValueParam] = useQueryState(
@@ -389,7 +401,9 @@ function AlgoliaSearchInner({
   useEffect(() => {
     const isCheckoutSuccess =
       subscriptionParam === "success" || customerSessionToken;
-    if (isCheckoutSuccess) {
+    const hasPaidAccess =
+      planAccess.kind === "resolved" && planAccess.tier !== "free";
+    if (isCheckoutSuccess && hasPaidAccess) {
       posthog.capture(AnalyticsEvents.SUBSCRIPTION_ACTIVATED, {
         source: "checkout_redirect",
       });
@@ -404,6 +418,7 @@ function AlgoliaSearchInner({
     setSubscriptionParam,
     customerSessionToken,
     setCustomerSessionToken,
+    planAccess,
   ]);
 
   const handleAutoOpenHandled = useCallback(() => {
@@ -486,14 +501,6 @@ function AlgoliaSearchInner({
     [currentSortIndex],
   );
   const SortIcon = getSortIcon(sortBy);
-
-  // Free-tier users cannot apply advanced filters; strip any that arrive
-  // via URL routing before they reach Algolia.
-  useAdvancedFilterGate({
-    planTier,
-    indexUiState,
-    setIndexUiState,
-  });
 
   const locationPreferenceReady =
     hasLoadedLocalLocationPreference && !isAccountLocationPreferenceLoading;
@@ -1559,8 +1566,24 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
  */
 export function SearchPageContent({
   viewer,
+  initialPlanAccess,
   userLocation,
 }: SearchPageContentProps) {
+  const searchParams = useSearchParams();
+  const [refreshUntilPaid] = useState(
+    () =>
+      searchParams.get("subscription") === "success" ||
+      searchParams.has("customer_session_token"),
+  );
+  const isLoggedIn = viewer.kind === "authenticated";
+  const planAccess = usePlanTier(isLoggedIn, {
+    initialAccess: initialPlanAccess,
+    refreshUntilPaid,
+  });
+  const canUseAdvancedFilters = resolvePlanFeatureAccess({
+    access: planAccess,
+    feature: "advanced_filters",
+  });
   const { data: searchCapabilities } = api.status.searchCapabilities.useQuery(
     undefined,
     {
@@ -1578,13 +1601,18 @@ export function SearchPageContent({
   const vinPatternIndexReady =
     searchCapabilities?.vinPatternSearchReady ?? false;
   const routing = useMemo(
-    () => createSearchRouting(ALGOLIA_INDEX_NAME, vinPatternIndexReady),
-    [vinPatternIndexReady],
+    () =>
+      createSearchRouting(
+        ALGOLIA_INDEX_NAME,
+        vinPatternIndexReady,
+        canUseAdvancedFilters,
+      ),
+    [vinPatternIndexReady, canUseAdvancedFilters],
   );
 
   return (
     <InstantSearchNext
-      key={vinPatternIndexReady ? "vin-search-ready" : "vin-search-disabled"}
+      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
@@ -1593,6 +1621,7 @@ export function SearchPageContent({
       <ErrorBoundary>
         <AlgoliaSearchInner
           viewer={viewer}
+          planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
         />
