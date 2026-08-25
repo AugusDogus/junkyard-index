@@ -26,7 +26,7 @@ interface DailySearchQuotaArgs {
   hasError: boolean;
 }
 
-const ACCOUNT_QUOTA_DEDUPE_KEY = "ji:accountQuotaDedupe";
+const ACCOUNT_QUOTA_DEDUPE_KEY_PREFIX = "ji:accountQuotaDedupe:";
 const BROWSER_QUOTA_KEY = "ji:browserSearchQuota";
 
 export type DailySearchQuotaStatus = QuotaLifecycleStatus;
@@ -42,7 +42,9 @@ function readStoredAccountRecord(
 ): StoredAccountQuotaRecord | null {
   try {
     return parseStoredAccountQuotaRecord({
-      raw: window.sessionStorage.getItem(ACCOUNT_QUOTA_DEDUPE_KEY),
+      raw: window.sessionStorage.getItem(
+        `${ACCOUNT_QUOTA_DEDUPE_KEY_PREFIX}${userId}`,
+      ),
       today: currentUtcDay(),
       userId,
     });
@@ -54,7 +56,7 @@ function readStoredAccountRecord(
 function writeStoredAccountRecord(record: StoredAccountQuotaRecord): void {
   try {
     window.sessionStorage.setItem(
-      ACCOUNT_QUOTA_DEDUPE_KEY,
+      `${ACCOUNT_QUOTA_DEDUPE_KEY_PREFIX}${record.userId}`,
       JSON.stringify(record),
     );
   } catch {
@@ -113,10 +115,9 @@ export function useDailySearchQuota(
     dispatch({
       type: "viewer_resolved",
       userId: viewerUserId,
-      currentQuery: args.analyticsSearchValue,
       stored: viewerUserId ? readStoredAccountRecord(viewerUserId) : null,
     });
-  }, [viewerUserId, args.analyticsSearchValue]);
+  }, [viewerUserId]);
 
   useEffect(() => {
     dispatch({

@@ -26,7 +26,6 @@ describe("quota lifecycle", () => {
     const identified = transitionQuotaLifecycle(initialQuotaLifecycleState, {
       type: "viewer_resolved",
       userId: "user-1",
-      currentQuery: "Honda Civic",
       stored: null,
     });
     const recording = transitionQuotaLifecycle(identified, {
@@ -95,6 +94,59 @@ describe("quota lifecycle", () => {
         query: "Ford",
       }),
     ).toEqual(exempt);
+  });
+
+  test("does not carry an exceeded quota into another account", () => {
+    const exceeded = {
+      userId: "user-1",
+      lastQuery: "Toyota",
+      phase: { kind: "idle" as const, access: "limit_exceeded" as const },
+    };
+    const switched = transitionQuotaLifecycle(exceeded, {
+      type: "viewer_resolved",
+      userId: "user-2",
+      stored: null,
+    });
+
+    expect(switched).toEqual({
+      userId: "user-2",
+      lastQuery: "",
+      phase: { kind: "idle", access: "allowed" },
+    });
+    expect(
+      transitionQuotaLifecycle(switched, {
+        type: "search_ready",
+        query: "Toyota",
+      }).phase,
+    ).toEqual({
+      kind: "recording_account",
+      userId: "user-2",
+      query: "Toyota",
+    });
+  });
+
+  test("restores only the incoming account's stored quota", () => {
+    const previousAccount = {
+      userId: "user-1",
+      lastQuery: "Ford",
+      phase: { kind: "idle" as const, access: "allowed" as const },
+    };
+    const switched = transitionQuotaLifecycle(previousAccount, {
+      type: "viewer_resolved",
+      userId: "user-2",
+      stored: {
+        userId: "user-2",
+        query: "Honda",
+        exceeded: true,
+        day: "2026-08-25",
+      },
+    });
+
+    expect(switched).toEqual({
+      userId: "user-2",
+      lastQuery: "Honda",
+      phase: { kind: "idle", access: "limit_exceeded" },
+    });
   });
 });
 

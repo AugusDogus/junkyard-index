@@ -37,7 +37,6 @@ export type QuotaLifecycleEvent =
   | {
       type: "viewer_resolved";
       userId: string | null;
-      currentQuery: string;
       stored: StoredAccountQuotaRecord | null;
     }
   | { type: "search_ready"; query: string }
@@ -74,20 +73,12 @@ export function transitionQuotaLifecycle(
             };
       }
       if (event.userId === state.userId) return state;
-      const isIdentityChange = state.userId !== null;
       return {
         userId: event.userId,
-        lastQuery:
-          event.stored?.query ?? (isIdentityChange ? event.currentQuery : ""),
+        lastQuery: event.stored?.query ?? "",
         phase: {
           kind: "idle",
-          access: event.stored?.exceeded
-            ? "limit_exceeded"
-            : isIdentityChange &&
-                state.phase.kind === "idle" &&
-                state.phase.access === "limit_exceeded"
-              ? "limit_exceeded"
-              : "allowed",
+          access: event.stored?.exceeded ? "limit_exceeded" : "allowed",
         },
       };
     }
