@@ -1,84 +1,17 @@
 "use client";
 
-import posthog from "posthog-js";
 import Link from "next/link";
-import { useState } from "react";
+import posthog from "posthog-js";
 import { Button } from "~/components/ui/button";
-import { AnalyticsEvents } from "~/lib/analytics-events";
-
-import {
-  FREE_DAILY_SEARCH_LIMIT,
-  PLANS,
-  CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
-  checkoutTierConfirmationStatus,
-  planAccessRefetchInterval,
-  type PlanAccessState,
-  type PlanTier,
-} from "~/lib/plans";
-import type { BillingAccountOverview } from "~/server/billing";
-import { api } from "~/trpc/react";
 import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
+import { AnalyticsEvents } from "~/lib/analytics-events";
+import { FREE_DAILY_SEARCH_LIMIT, PLANS } from "~/lib/plans";
 
-export { useSearchQuotaGate } from "~/hooks/use-daily-search-quota";
-
-function overviewTier(
-  overview: BillingAccountOverview | undefined,
-): PlanTier | null {
-  if (!overview || overview.kind === "unrecognized") return null;
-  return overview.kind === "active" ? overview.tier : "free";
-}
-
-/** Subscribes to the viewer's plan tier via tRPC. */
-export function usePlanTier(
-  isLoggedIn: boolean,
-  options: {
-    initialAccess?: PlanAccessState;
-    refreshUntilPaid?: boolean;
-  } = {},
-): PlanAccessState {
-  const [confirmationDeadlineMs] = useState(
-    () => Date.now() + CHECKOUT_TIER_CONFIRMATION_TIMEOUT_MS,
-  );
-  const query = api.subscription.getAccountOverview.useQuery(undefined, {
-    enabled: isLoggedIn,
-    refetchInterval: (result) => {
-      return planAccessRefetchInterval({
-        refreshUntilPaid: options.refreshUntilPaid === true,
-        tier: overviewTier(result.state.data),
-        nowMs: Date.now(),
-        deadlineMs: confirmationDeadlineMs,
-      });
-    },
-    retry: false,
-  });
-  if (!isLoggedIn) return { kind: "resolved", tier: "free" };
-  if (
-    options.refreshUntilPaid &&
-    checkoutTierConfirmationStatus({
-      tier: overviewTier(query.data),
-      nowMs: Date.now(),
-      deadlineMs: confirmationDeadlineMs,
-    }) === "timed_out"
-  ) {
-    return { kind: "unavailable", reason: "confirmation_timeout" };
-  }
-  if (query.isError) {
-    return { kind: "unavailable", reason: "lookup_failed" };
-  }
-  if (query.data?.kind === "unrecognized") {
-    return { kind: "unavailable", reason: "lookup_failed" };
-  }
-  const tier = overviewTier(query.data);
-  if (tier) return { kind: "resolved", tier };
-  return options.initialAccess ?? { kind: "loading" };
-}
-
-export function FreeQuotaOverlay({
+function FreeQuotaOverlay({
   query,
   isGuest,
 }: {
   query: string;
-  /** Guests hit this block too; analytics should distinguish them. */
   isGuest: boolean;
 }) {
   return (
@@ -112,7 +45,7 @@ export function FreeQuotaOverlay({
   );
 }
 
-export function QuotaVerificationOverlay() {
+function QuotaVerificationUnavailableOverlay() {
   return (
     <div className="bg-card mx-auto w-full max-w-2xl rounded-lg border p-6 text-left shadow-lg">
       <p className="text-sm font-medium">Search temporarily unavailable</p>
@@ -155,6 +88,6 @@ export function SearchQuotaOverlay({
     case "limit_exceeded":
       return <FreeQuotaOverlay query={query} isGuest={isGuest} />;
     case "verification_unavailable":
-      return <QuotaVerificationOverlay />;
+      return <QuotaVerificationUnavailableOverlay />;
   }
 }

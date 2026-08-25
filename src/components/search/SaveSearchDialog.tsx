@@ -30,12 +30,12 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import {
   PLANS,
   resolvePlanFeatureAccess,
+  type PlanAccessState,
   type SavedSearchGateFeature,
 } from "~/lib/plans";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-import { usePlanTier } from "~/components/plan-gates";
 
 const PENDING_SAVE_KEY = "pendingSaveSearch";
 
@@ -68,6 +68,7 @@ export interface SaveSearchFilters {
 interface SaveSearchDialogProps {
   query: string;
   filters: SaveSearchFilters;
+  planAccess: PlanAccessState;
   disabled?: boolean;
   isLoggedIn?: boolean;
   autoOpen?: boolean;
@@ -103,6 +104,7 @@ export function clearPendingSaveSearch() {
 export function SaveSearchDialog({
   query,
   filters,
+  planAccess,
   disabled,
   isLoggedIn,
   autoOpen,
@@ -127,7 +129,6 @@ export function SaveSearchDialog({
 
   const utils = api.useUtils();
 
-  const planAccess = usePlanTier(!!isLoggedIn);
   const canSaveSearches = resolvePlanFeatureAccess({
     access: planAccess,
     feature: "saved_searches",
