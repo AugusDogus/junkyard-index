@@ -1,6 +1,10 @@
 import { env } from "~/env";
 import { polarClient } from "~/lib/polar";
 import { createPolarBillingGateway } from "~/server/polar-billing";
+import {
+  getBillingProductCatalog,
+  getCheckoutBillingProducts,
+} from "~/server/billing/product-catalog";
 
 const operations = {
   listSubscriptions: (
@@ -18,22 +22,10 @@ const operations = {
     polarClient.checkouts.create(input),
 };
 
-const productIds = [
-  env.POLAR_LITE_PRODUCT_ID,
-  env.POLAR_LITE_ANNUAL_PRODUCT_ID,
-  env.POLAR_FULL_PRODUCT_ID,
-  env.POLAR_FULL_ANNUAL_PRODUCT_ID,
-  ...(env.POLAR_PRODUCT_ID ? [env.POLAR_PRODUCT_ID] : []),
-];
-
-export function createPolarBillingGatewayForCheckout(productId: string) {
-  return createPolarBillingGateway(operations, {
-    productIds,
-    checkoutProductId: productId,
-    appUrl: env.NEXT_PUBLIC_APP_URL,
-  });
-}
-
-export const polarBillingGateway = createPolarBillingGatewayForCheckout(
-  env.POLAR_FULL_PRODUCT_ID,
-);
+export const polarBillingGateway = createPolarBillingGateway(operations, {
+  products: getCheckoutBillingProducts(),
+  recognizedProductIds: getBillingProductCatalog().map(
+    ({ productId }) => productId,
+  ),
+  appUrl: env.NEXT_PUBLIC_APP_URL,
+});

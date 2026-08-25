@@ -11,12 +11,14 @@ export const BillingSubscription = {
 export type BillingCheckout =
   | {
       id: string;
+      productKey: BillingProductKey;
       state: "reusable";
       url: string;
       expiresAt: Date;
     }
   | {
       id: string;
+      productKey: BillingProductKey;
       state: "confirmation_pending";
       expiresAt: Date;
     };
@@ -59,6 +61,7 @@ export type BillingSubscriptionRevoker = {
 export type BillingCheckoutCreator = {
   createCheckout(input: {
     userId: string;
+    productKey: BillingProductKey;
     termsVersion: string;
     termsAcceptedAt: Date;
   }): Promise<BillingCheckout>;
@@ -76,3 +79,4 @@ export type AccountBillingGateway = SubscriptionCheckoutBilling &
   AccountDeletionBilling &
   BillingEntitlementReader &
   BillingAccountReader;
+import type { BillingProductKey } from "~/server/billing/product-catalog";

@@ -14,7 +14,9 @@ export const usageRouter = createTRPCRouter({
    * still search today. Paid tiers are never counted or limited.
    */
   recordSearch: protectedProcedure.mutation(async ({ ctx }) => {
-    const planTier = await getPlanTier(ctx.user.id);
+    const planTier = ctx.user.isAnonymous
+      ? "free"
+      : await getPlanTier(ctx.user.id);
 
     if (hasPlanFeature(planTier, "unlimited_searches")) {
       return { allowed: true };

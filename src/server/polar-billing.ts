@@ -4,6 +4,10 @@ import {
   BillingSubscription,
   type BillingSubscription as DomainBillingSubscription,
 } from "~/server/billing";
+import type {
+  BillingProductKey,
+  CheckoutBillingProduct,
+} from "~/server/billing/product-catalog";
 
 type PolarPage<T> = {
   result: { items: readonly T[] };
@@ -20,7 +24,7 @@ type PolarCheckout = {
 export type PolarBillingOperations = {
   listSubscriptions(input: {
     externalCustomerId: string;
-    productId: string;
+    productId?: string;
     limit: number;
   }): Promise<AsyncIterable<PolarPage<PolarSubscription>>>;
   revokeSubscription(input: { id: string }): Promise<unknown>;
@@ -68,11 +72,13 @@ function normalizeSubscription(
 
 function normalizeOutstandingCheckout(
   checkout: PolarCheckout,
+  productKey: BillingProductKey,
 ): BillingCheckout | null {
   switch (checkout.status) {
     case "open":
       return {
         id: checkout.id,
+        productKey,
         state: "reusable",
         url: checkout.url,
         expiresAt: checkout.expiresAt,
@@ -80,6 +86,7 @@ function normalizeOutstandingCheckout(
     case "confirmed":
       return {
         id: checkout.id,
+        productKey,
         state: "confirmation_pending",
         expiresAt: checkout.expiresAt,
       };
@@ -97,8 +104,8 @@ function normalizeOutstandingCheckout(
 export function createPolarBillingGateway(
   operations: PolarBillingOperations,
   config: {
-    productIds: readonly string[];
-    checkoutProductId: string;
+    products: readonly CheckoutBillingProduct[];
+    recognizedProductIds?: readonly string[];
     appUrl: string;
   },
 ): AccountBillingGateway {
@@ -106,19 +113,19 @@ export function createPolarBillingGateway(
     userId: string,
   ): Promise<readonly DomainBillingSubscription[]> => {
     const subscriptions: DomainBillingSubscription[] = [];
-    for (const productId of config.productIds) {
-      const pages = await operations.listSubscriptions({
-        externalCustomerId: userId,
-        productId,
-        limit: 100,
-      });
-      for await (const page of pages) {
-        subscriptions.push(...page.result.items.map(normalizeSubscription));
-      }
+    const pages = await operations.listSubscriptions({
+      externalCustomerId: userId,
+      limit: 100,
+    });
+    for await (const page of pages) {
+      subscriptions.push(...page.result.items.map(normalizeSubscription));
     }
 
     return subscriptions;
   };
+  const recognizedProductIds =
+    config.recognizedProductIds ??
+    config.products.map(({ productId }) => productId);
 
   return {
     listSubscriptions,
@@ -126,21 +133,22 @@ export function createPolarBillingGateway(
       const customer = await operations.getCustomerState({
         externalId: userId,
       });
-      const checkouts: PolarCheckout[] = [];
-      for (const productId of config.productIds) {
-        const pages = await operations.listCheckouts({
-          customerId: customer.id,
-          productId,
-          status: ["open", "confirmed"],
-          limit: 100,
-        });
-        for await (const page of pages) {
-          checkouts.push(...page.result.items);
-        }
-      }
+      const groups = await Promise.all(
+        config.products.map(async ({ key, productId }) => {
+          const pages = await operations.listCheckouts({
+            customerId: customer.id,
+            productId,
+            status: ["open", "confirmed"],
+            limit: 100,
+          });
+          const checkouts: PolarCheckout[] = [];
+          for await (const page of pages) checkouts.push(...page.result.items);
+          return checkouts.map((checkout) => ({ checkout, key }));
+        }),
+      );
 
-      return checkouts.flatMap((checkout) => {
-        const normalized = normalizeOutstandingCheckout(checkout);
+      return groups.flat().flatMap(({ checkout, key }) => {
+        const normalized = normalizeOutstandingCheckout(checkout, key);
         return normalized ? [normalized] : [];
       });
     },
@@ -149,7 +157,7 @@ export function createPolarBillingGateway(
         externalId: userId,
       });
       return customer.activeSubscriptions.some(({ productId }) =>
-        config.productIds.includes(productId),
+        recognizedProductIds.includes(productId),
       );
     },
     getAccountState: async (userId) => {
@@ -158,7 +166,7 @@ export function createPolarBillingGateway(
       });
       if (
         customer.activeSubscriptions.some(({ productId }) =>
-          config.productIds.includes(productId),
+          recognizedProductIds.includes(productId),
         )
       ) {
         return "active";
@@ -172,19 +180,27 @@ export function createPolarBillingGateway(
     revokeSubscription: async (subscriptionId) => {
       await operations.revokeSubscription({ id: subscriptionId });
     },
-    createCheckout: async ({ userId, termsVersion, termsAcceptedAt }) => {
+    createCheckout: async ({
+      userId,
+      productKey,
+      termsVersion,
+      termsAcceptedAt,
+    }) => {
+      const product = config.products.find(({ key }) => key === productKey);
+      if (!product)
+        throw new Error(`Billing product ${productKey} is not configured.`);
       const checkout = await operations.createCheckout({
         externalCustomerId: userId,
-        products: [config.checkoutProductId],
+        products: [product.productId],
         successUrl: `${config.appUrl}/search?subscription=success`,
-        returnUrl: `${config.appUrl}/subscribe`,
+        returnUrl: `${config.appUrl}/subscribe?tier=${product.tier}&interval=${product.interval}`,
         metadata: {
           terms_version: termsVersion,
           terms_accepted_at: termsAcceptedAt.toISOString(),
         },
       });
 
-      const normalized = normalizeOutstandingCheckout(checkout);
+      const normalized = normalizeOutstandingCheckout(checkout, productKey);
       if (!normalized) {
         throw new Error(
           `Polar created checkout ${checkout.id} with unexpected status ${checkout.status}.`,

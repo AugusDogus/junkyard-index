@@ -20,11 +20,6 @@ export const SEARCH_CONFIG = {
   ANONYMOUS_VISIBLE_RESULTS_LIMIT: 6,
 } as const;
 
-// Growth / monetization configuration
-export const MONETIZATION_CONFIG = {
-  ANONYMOUS_VISIBLE_RESULTS_LIMIT: 6,
-} as const;
-
 // API endpoints
 export const API_ENDPOINTS = {
   PYP_BASE: "https://www.pyp.com",

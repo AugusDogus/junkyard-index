@@ -19,6 +19,7 @@ function billingGateway(
     listOutstandingCheckouts: async () => [],
     createCheckout: async () => ({
       id: "checkout-1",
+      productKey: "full_monthly",
       state: "reusable",
       url: "https://checkout.example/checkout-1",
       expiresAt: CHECKOUT_EXPIRATION,
@@ -43,6 +44,7 @@ function checkoutInput(database: LibSQLDatabase, claimToken: string) {
     termsAcceptedAt: ACCEPTED_AT,
     now: NOW,
     claimToken,
+    productKey: "full_monthly" as const,
   };
 }
 
@@ -59,6 +61,7 @@ describe("subscription checkout coordinator", () => {
         await releaseCheckout.promise;
         return {
           id: "checkout-1",
+          productKey: "full_monthly",
           state: "reusable",
           url: "https://checkout.example/checkout-1",
           expiresAt: CHECKOUT_EXPIRATION,
@@ -270,6 +273,7 @@ describe("subscription checkout coordinator", () => {
             listOutstandingCheckouts: async () => [
               {
                 id: "confirmed",
+                productKey: "full_monthly",
                 state: "confirmation_pending",
                 expiresAt: CHECKOUT_EXPIRATION,
               },
@@ -281,6 +285,48 @@ describe("subscription checkout coordinator", () => {
         reason: "checkout_pending",
         retryAt: CHECKOUT_EXPIRATION,
       });
+    } finally {
+      client.close();
+    }
+  });
+
+  test("blocks checkout while a different product checkout remains open", async () => {
+    const { client, database } = await testDatabase();
+    let checkoutCreated = false;
+
+    try {
+      const result = await createSubscriptionCheckout({
+        ...checkoutInput(database, "checkout"),
+        productKey: "full_monthly",
+        billing: billingGateway({
+          listOutstandingCheckouts: async () => [
+            {
+              id: "lite-checkout",
+              productKey: "lite_monthly",
+              state: "reusable",
+              url: "https://checkout.example/lite",
+              expiresAt: CHECKOUT_EXPIRATION,
+            },
+          ],
+          createCheckout: async ({ productKey }) => {
+            checkoutCreated = true;
+            return {
+              id: "full-checkout",
+              productKey,
+              state: "reusable",
+              url: "https://checkout.example/full",
+              expiresAt: CHECKOUT_EXPIRATION,
+            };
+          },
+        }),
+      });
+
+      expect(result).toEqual({
+        status: "blocked",
+        reason: "checkout_pending",
+        retryAt: CHECKOUT_EXPIRATION,
+      });
+      expect(checkoutCreated).toBe(false);
     } finally {
       client.close();
     }

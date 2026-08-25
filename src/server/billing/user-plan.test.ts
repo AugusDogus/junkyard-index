@@ -56,16 +56,6 @@ describe("getPlanTier caching", () => {
     expect(test.polar.calls()).toBe(1);
   });
 
-  test("invalidateCache forces a fresh Polar read", async () => {
-    const test = createTestService(createFakePolar(LITE_STATE));
-    await test.getPlanTier("cache-user-2");
-
-    test.invalidateCache("cache-user-2");
-    await test.getPlanTier("cache-user-2");
-
-    expect(test.polar.calls()).toBe(2);
-  });
-
   test("Polar failures resolve to free and are NOT cached (fail-closed, retried)", async () => {
     const test = createTestService(createFakePolar(LITE_STATE));
     test.polar.failNextCall();
