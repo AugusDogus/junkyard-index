@@ -269,6 +269,7 @@ export function SavedSearchesList({ locked }: { locked: boolean }) {
             </Button>
           </Link>
         </div>
+        {locked && <SavedSearchUpgradeNotice className="mb-4" />}
         <div className="space-y-2">
           {savedSearches.map((search) => {
             const filterSummary = getFilterSummary(search);
