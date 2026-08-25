@@ -1,65 +1,48 @@
-import { env } from "~/env";
 import type { BillingInterval, PlanTier } from "~/lib/plans";
+import type { BillingProductKey } from "~/server/billing";
 
 type PaidTier = Exclude<PlanTier, "free">;
-export type BillingProductKey = `${PaidTier}_${BillingInterval}`;
 
 export type CheckoutBillingProduct = {
   kind: "checkout";
   key: BillingProductKey;
   productId: string;
-  tier: PaidTier;
-  interval: BillingInterval;
 };
 
 export type BillingProduct =
   | CheckoutBillingProduct
-  | { kind: "legacy"; productId: string; tier: "full" };
+  | { kind: "legacy"; productId: string };
 
-export function getBillingProductCatalog(): readonly BillingProduct[] {
+export type BillingProductIds = Record<BillingProductKey, string>;
+
+const BILLING_PRODUCT_KEYS = [
+  "lite_monthly",
+  "lite_annual",
+  "full_monthly",
+  "full_annual",
+] as const satisfies readonly BillingProductKey[];
+
+export function createBillingProductCatalog(input: {
+  checkoutProductIds: BillingProductIds;
+  legacyProductId?: string;
+}): readonly BillingProduct[] {
+  const checkoutProducts = BILLING_PRODUCT_KEYS.map((key) => ({
+    kind: "checkout" as const,
+    key,
+    productId: input.checkoutProductIds[key],
+  }));
   return [
-    {
-      kind: "checkout",
-      key: "lite_monthly",
-      productId: env.POLAR_LITE_PRODUCT_ID,
-      tier: "lite",
-      interval: "monthly",
-    },
-    {
-      kind: "checkout",
-      key: "lite_annual",
-      productId: env.POLAR_LITE_ANNUAL_PRODUCT_ID,
-      tier: "lite",
-      interval: "annual",
-    },
-    {
-      kind: "checkout",
-      key: "full_monthly",
-      productId: env.POLAR_FULL_PRODUCT_ID,
-      tier: "full",
-      interval: "monthly",
-    },
-    {
-      kind: "checkout",
-      key: "full_annual",
-      productId: env.POLAR_FULL_ANNUAL_PRODUCT_ID,
-      tier: "full",
-      interval: "annual",
-    },
-    ...(env.POLAR_PRODUCT_ID
-      ? [
-          {
-            kind: "legacy" as const,
-            productId: env.POLAR_PRODUCT_ID,
-            tier: "full" as const,
-          },
-        ]
+    ...checkoutProducts,
+    ...(input.legacyProductId
+      ? [{ kind: "legacy" as const, productId: input.legacyProductId }]
       : []),
   ];
 }
 
-export function getCheckoutBillingProducts(): readonly CheckoutBillingProduct[] {
-  return getBillingProductCatalog().filter(
+export function getCheckoutBillingProducts(
+  catalog: readonly BillingProduct[],
+): readonly CheckoutBillingProduct[] {
+  return catalog.filter(
     (product): product is CheckoutBillingProduct => product.kind === "checkout",
   );
 }
@@ -69,4 +52,26 @@ export function getBillingProductKey(
   interval: BillingInterval,
 ): BillingProductKey {
   return `${tier}_${interval}`;
+}
+
+export function parseBillingProductKey(key: BillingProductKey): {
+  tier: PaidTier;
+  interval: BillingInterval;
+} {
+  switch (key) {
+    case "lite_monthly":
+      return { tier: "lite", interval: "monthly" };
+    case "lite_annual":
+      return { tier: "lite", interval: "annual" };
+    case "full_monthly":
+      return { tier: "full", interval: "monthly" };
+    case "full_annual":
+      return { tier: "full", interval: "annual" };
+  }
+}
+
+export function getBillingProductTier(product: BillingProduct): PaidTier {
+  return product.kind === "legacy"
+    ? "full"
+    : parseBillingProductKey(product.key).tier;
 }

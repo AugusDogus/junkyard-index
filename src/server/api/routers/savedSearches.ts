@@ -21,7 +21,7 @@ import {
   setSearchAlertChannel,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
-import { getPlanTier } from "~/server/billing/user-plan";
+import { getFreshPlanTier } from "~/server/billing/user-plan";
 
 function planGateError(feature: SavedSearchGateFeature): PlanGateError {
   const message =
@@ -66,7 +66,7 @@ export const savedSearchesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const planTier = await getPlanTier(ctx.user.id);
+      const planTier = await getFreshPlanTier(ctx.user.id);
       const wantsAlerts =
         (input.emailAlertsEnabled ?? false) ||
         (input.discordAlertsEnabled ?? false);
@@ -169,7 +169,7 @@ export const savedSearchesRouter = createTRPCRouter({
       }
 
       if (input.enabled) {
-        const planTier = await getPlanTier(ctx.user.id);
+        const planTier = await getFreshPlanTier(ctx.user.id);
         if (!hasPlanFeature(planTier, "alerts")) {
           throw planGateError("alerts");
         }
@@ -220,7 +220,7 @@ export const savedSearchesRouter = createTRPCRouter({
       }
 
       if (input.enabled) {
-        const planTier = await getPlanTier(ctx.user.id);
+        const planTier = await getFreshPlanTier(ctx.user.id);
         if (!hasPlanFeature(planTier, "alerts")) {
           throw planGateError("alerts");
         }

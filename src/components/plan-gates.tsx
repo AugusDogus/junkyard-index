@@ -10,7 +10,7 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import {
   FREE_DAILY_SEARCH_LIMIT,
   PLANS,
-  hasPlanFeature,
+  resolvePlanFeatureAccess,
   type PlanFeature,
   type PlanTier,
 } from "~/lib/plans";
@@ -40,12 +40,11 @@ export function usePlanTier(isLoggedIn: boolean): {
   // until the query resolves.
   const planTier: PlanTier | null = isLoggedIn ? (data?.tier ?? null) : "free";
 
-  // Gate semantics for an UNKNOWN tier: optimistically unlocked for signed-in
-  // users so paying users never see a flash of upsell UI on first paint, and
-  // locked for anonymous visitors who are free by definition. The server is
-  // always authoritative, so optimistic gating never grants entitlements.
+  // Mutations remain optimistic while unknown because the server enforces
+  // them. Advanced filters are client-only, so they remain locked until the
+  // tier is authoritative.
   const resolveGate = (feature: PlanFeature): boolean =>
-    planTier === null ? isLoggedIn : hasPlanFeature(planTier, feature);
+    resolvePlanFeatureAccess({ tier: planTier, isLoggedIn, feature });
 
   return {
     planTier,
@@ -59,8 +58,6 @@ export function usePlanTier(isLoggedIn: boolean): {
 
 interface AdvancedFilterGateArgs {
   canUseAdvancedFilters: boolean;
-  isLoggedIn: boolean;
-  isTierResolved: boolean;
   indexUiState: InstantSearchUiState;
   setIndexUiState: (
     updater: (prev: InstantSearchUiState) => InstantSearchUiState,
@@ -69,21 +66,13 @@ interface AdvancedFilterGateArgs {
 
 /**
  * Strips URL-carried advanced filters for free-tier users before they reach
- * Algolia. Waits for the plan tier to resolve so paying users don't lose
- * filters mid-load.
+ * Algolia. Unknown tiers remain locked because Algolia has no server gate.
  */
 export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
-  const {
-    canUseAdvancedFilters,
-    isLoggedIn,
-    isTierResolved,
-    indexUiState,
-    setIndexUiState,
-  } = args;
+  const { canUseAdvancedFilters, indexUiState, setIndexUiState } = args;
 
   useEffect(() => {
     if (canUseAdvancedFilters) return;
-    if (isLoggedIn && !isTierResolved) return;
     const hasAdvancedRefinements =
       Object.keys(indexUiState.refinementList ?? {}).length > 0 ||
       Object.keys(indexUiState.range ?? {}).length > 0;
@@ -97,13 +86,7 @@ export function useAdvancedFilterGate(args: AdvancedFilterGateArgs): void {
       reason: "plan_restricted",
     });
     toast.info("Filters are available on Lite and Full plans.");
-  }, [
-    canUseAdvancedFilters,
-    isLoggedIn,
-    isTierResolved,
-    indexUiState,
-    setIndexUiState,
-  ]);
+  }, [canUseAdvancedFilters, indexUiState, setIndexUiState]);
 }
 
 export function FreeQuotaOverlay({

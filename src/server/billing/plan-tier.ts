@@ -5,6 +5,10 @@ export interface EntitlementProduct {
   tier: Exclude<PlanTier, "free">;
 }
 
+interface ProductIdentity {
+  productId: string;
+}
+
 interface SubscriptionLike {
   productId?: unknown;
   product?: { id?: unknown } | null;
@@ -30,13 +34,13 @@ function subscriptionProductIds(state: CustomerStateLike): string[] {
 
 /**
  * True when any active subscription lacks a valid configured product ID. This
- * indicates a provider-shape or env/config problem
- * (e.g. legacy ID removed too early) rather than a genuine downgrade, so
+ * indicates a provider-shape or env/config problem (e.g. legacy ID removed
+ * too early) rather than a genuine downgrade, so
  * callers must not strip entitlements based on it.
  */
 export function hasUnrecognizedSubscriptions(
   state: CustomerStateLike,
-  products: readonly EntitlementProduct[],
+  products: readonly ProductIdentity[],
 ): boolean {
   const ids = subscriptionProductIds(state);
   const activeSubscriptionCount = state.activeSubscriptions?.length ?? 0;

@@ -164,7 +164,7 @@ describe("safe account deletion coordinator", () => {
             listOutstandingCheckouts: async () => [
               {
                 id: "checkout",
-                productKey: "full_monthly",
+                productKey: null,
                 url: "https://checkout.example",
                 expiresAt,
                 state: "reusable",

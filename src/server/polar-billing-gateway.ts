@@ -2,9 +2,9 @@ import { env } from "~/env";
 import { polarClient } from "~/lib/polar";
 import { createPolarBillingGateway } from "~/server/polar-billing";
 import {
-  getBillingProductCatalog,
-  getCheckoutBillingProducts,
-} from "~/server/billing/product-catalog";
+  billingProductCatalog,
+  checkoutBillingProducts,
+} from "~/server/billing/configured-product-catalog";
 
 const operations = {
   listSubscriptions: (
@@ -23,9 +23,7 @@ const operations = {
 };
 
 export const polarBillingGateway = createPolarBillingGateway(operations, {
-  products: getCheckoutBillingProducts(),
-  recognizedProductIds: getBillingProductCatalog().map(
-    ({ productId }) => productId,
-  ),
+  products: checkoutBillingProducts,
+  recognizedProductIds: billingProductCatalog.map(({ productId }) => productId),
   appUrl: env.NEXT_PUBLIC_APP_URL,
 });
