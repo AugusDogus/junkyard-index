@@ -90,7 +90,10 @@ export function RequestYardForm({
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           {formState.kind === "error" && (
-            <div className="border-destructive/50 bg-destructive/10 text-destructive flex items-center gap-2 rounded-lg border p-4 text-sm">
+            <div
+              role="alert"
+              className="border-destructive/50 bg-destructive/10 text-destructive flex items-center gap-2 rounded-lg border p-4 text-sm"
+            >
               <AlertCircle className="h-4 w-4 shrink-0" />
               {formState.message}
             </div>
