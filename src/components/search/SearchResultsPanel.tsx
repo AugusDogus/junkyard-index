@@ -39,7 +39,6 @@ export type SearchResultsHeaderModel = {
 
 interface SearchResultsListModel {
   isLoading: boolean;
-  sidebarOpen: boolean;
   showMore(): void;
   isLastPage: boolean;
   isFetchingNextPage: boolean;
@@ -69,7 +68,7 @@ export type SearchResultsPanelModel =
   | {
       kind: "loading";
       header: SearchResultsHeaderModel;
-      list: Pick<SearchResultsListModel, "sidebarOpen" | "showMore">;
+      list: Pick<SearchResultsListModel, "showMore">;
     }
   | { kind: "error" }
   | ({ kind: "empty" } & EmptySearchResultsModel)
@@ -94,7 +93,7 @@ export function resolveSearchResultsPanelModel(input: {
     visibleCount: number | null;
   };
   quota: { query: string; isGuest: boolean };
-  loading: Pick<SearchResultsListModel, "sidebarOpen" | "showMore">;
+  loading: Pick<SearchResultsListModel, "showMore">;
   empty: EmptySearchResultsModel;
   results: SearchResultsListModel;
 }): SearchResultsPanelModel {
@@ -196,7 +195,6 @@ export function SearchResultsPanel({
           <SearchResults
             searchResult={LOADING_RESULT}
             isLoading
-            sidebarOpen={model.list.sidebarOpen}
             showMore={model.list.showMore}
             isLastPage
             isFetchingNextPage={false}

@@ -49,7 +49,6 @@ export function SearchSummary({
 interface SearchResultsProps {
   searchResult: SearchResult;
   isLoading: boolean;
-  sidebarOpen?: boolean;
   showMore?: () => void;
   isLastPage?: boolean;
   isFetchingNextPage?: boolean;
@@ -62,7 +61,6 @@ interface SearchResultsProps {
 export function SearchResults({
   searchResult,
   isLoading,
-  sidebarOpen = false,
   showMore,
   isLastPage = true,
   isFetchingNextPage = false,
@@ -73,10 +71,9 @@ export function SearchResults({
 
   const getGridColumns = useCallback(() => {
     if (isMobile) return 1;
-    if (isMediumScreen) return sidebarOpen ? 1 : 2;
-    if (sidebarOpen) return 2;
+    if (isMediumScreen) return 2;
     return 3;
-  }, [isMobile, isMediumScreen, sidebarOpen]);
+  }, [isMobile, isMediumScreen]);
 
   const columns = getGridColumns();
 

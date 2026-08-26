@@ -31,7 +31,7 @@ function resolve(input: {
     },
     header: { actions: null, processingTimeMS: 10, visibleCount: null },
     quota: { query: "honda", isGuest: false },
-    loading: { sidebarOpen: false, showMore },
+    loading: { showMore },
     empty: {
       activeFilterCount: 0,
       clearAllFilters: () => undefined,
@@ -44,7 +44,6 @@ function resolve(input: {
     },
     results: {
       isLoading: false,
-      sidebarOpen: false,
       showMore,
       isLastPage: true,
       isFetchingNextPage: false,
