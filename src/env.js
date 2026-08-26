@@ -23,7 +23,6 @@ export const env = createEnv({
     TURSO_DATABASE_URL: z.string().url(),
     TURSO_AUTH_TOKEN: z.string(),
     BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.string().url(),
     OAUTH_PROXY_SECRET: z.string().min(32),
     POLAR_ACCESS_TOKEN: z.string(),
     // Legacy single-product ID ("Email-Notifications"). Existing subscribers
@@ -54,6 +53,7 @@ export const env = createEnv({
     BETTERSTACK_API_TOKEN: betterStackApiTokenSchema,
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
+    VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
     // Upstash Redis (rate limiting)
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string(),
@@ -84,7 +84,6 @@ export const env = createEnv({
     TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
     TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     OAUTH_PROXY_SECRET: process.env.OAUTH_PROXY_SECRET,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_DISCORD_CLIENT_ID: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
@@ -110,6 +109,7 @@ export const env = createEnv({
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
     BETTERSTACK_API_TOKEN: process.env.BETTERSTACK_API_TOKEN,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
+    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,

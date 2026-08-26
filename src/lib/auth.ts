@@ -20,7 +20,9 @@ import {
 
 const resend = new Resend(env.RESEND_API_KEY);
 
-const productionURL = env.BETTER_AUTH_URL;
+const productionURL = env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : env.NEXT_PUBLIC_APP_URL;
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
