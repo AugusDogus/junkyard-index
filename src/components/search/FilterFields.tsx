@@ -11,6 +11,7 @@ import {
 import { Slider } from "~/components/ui/slider";
 import { PLANS } from "~/lib/plans";
 import type { DataSource } from "~/lib/types";
+import { cn } from "~/lib/utils";
 
 const SOURCE_LABELS: Record<DataSource, string> = {
   pyp: "Pick Your Part (PYP)",
@@ -148,9 +149,19 @@ export function YearRangeFilter({
   );
 }
 
-export function AdvancedFiltersUpsell() {
+export function AdvancedFiltersUpsell({
+  layout = "stacked",
+}: {
+  layout?: "stacked" | "inline";
+}) {
   return (
-    <div className="flex flex-col items-start gap-4 py-2">
+    <div
+      className={cn(
+        "flex flex-col items-start gap-4 py-2",
+        layout === "inline" &&
+          "sm:flex-row sm:items-center sm:justify-between sm:gap-6",
+      )}
+    >
       <div className="flex max-w-sm flex-col gap-2">
         <h3 className="text-base font-semibold">Filter the full inventory</h3>
         <p className="text-muted-foreground text-sm leading-6">

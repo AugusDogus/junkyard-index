@@ -1319,42 +1319,44 @@ function AlgoliaSearchInner({
       </section>
 
       <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 lg:flex-row lg:items-start">
-          <ErrorBoundary>
-            <VehicleSearchInput
-              vinPattern={vinPattern}
-              vinPatternSearchReady={vinPatternIndexReady}
-              onSearchModeChange={handleSearchModeChange}
+        <div className="mx-auto flex max-w-7xl flex-col gap-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start">
+            <ErrorBoundary>
+              <VehicleSearchInput
+                vinPattern={vinPattern}
+                vinPatternSearchReady={vinPatternIndexReady}
+                onSearchModeChange={handleSearchModeChange}
+              />
+            </ErrorBoundary>
+            {workspaceActions}
+          </div>
+
+          {!isMobile && showFilters && (
+            <DesktopFiltersBar
+              onClose={() => setShowFilters(false)}
+              activeFilterCount={activeFilterCount}
+              clearAllFilters={clearAllFilters}
+              makes={selectedMakes}
+              colors={selectedColors}
+              states={selectedStates}
+              salvageYards={selectedLocations}
+              sources={selectedSources}
+              yearRange={yearRange}
+              filterOptions={filterOptions}
+              onMakesChange={handleMakesChange}
+              onColorsChange={handleColorsChange}
+              onStatesChange={handleStatesChange}
+              onSalvageYardsChange={handleLocationsChange}
+              onSourcesChange={handleSourcesChange}
+              onYearRangeChange={handleYearRangeChange}
+              yearRangeLimits={{ min: yearMin, max: yearMax }}
+              canUseAdvancedFilters={canUseAdvancedFilters}
             />
-          </ErrorBoundary>
-          {workspaceActions}
+          )}
         </div>
       </div>
 
-      <div className="flex w-full flex-col gap-6 py-6">
-        {!isMobile && showFilters && (
-          <DesktopFiltersBar
-            onClose={() => setShowFilters(false)}
-            activeFilterCount={activeFilterCount}
-            clearAllFilters={clearAllFilters}
-            makes={selectedMakes}
-            colors={selectedColors}
-            states={selectedStates}
-            salvageYards={selectedLocations}
-            sources={selectedSources}
-            yearRange={yearRange}
-            filterOptions={filterOptions}
-            onMakesChange={handleMakesChange}
-            onColorsChange={handleColorsChange}
-            onStatesChange={handleStatesChange}
-            onSalvageYardsChange={handleLocationsChange}
-            onSourcesChange={handleSourcesChange}
-            onYearRangeChange={handleYearRangeChange}
-            yearRangeLimits={{ min: yearMin, max: yearMax }}
-            canUseAdvancedFilters={canUseAdvancedFilters}
-          />
-        )}
-
+      <div className="w-full py-6">
         <div className="min-w-0">
           {/* Empty State */}
           {!hasActiveSearch && !isSearching && (

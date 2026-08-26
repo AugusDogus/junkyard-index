@@ -124,160 +124,168 @@ export function DesktopFiltersBar({
     yearRange[1] !== yearRangeLimits.max;
 
   return (
-    <section aria-labelledby="desktop-filters-heading" className="min-w-0">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 id="desktop-filters-heading" className="text-lg font-semibold">
-              Refine inventory
-            </h2>
-            <p className="text-muted-foreground mt-1 text-sm tabular-nums">
-              {activeFilterCount > 0
-                ? `${activeFilterCount} active`
-                : "Showing all inventory"}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            {activeFilterCount > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={clearAllFilters}
-              >
-                Clear
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              aria-label="Close filters"
-            >
-              <X />
-            </Button>
-          </div>
-        </div>
+    <section
+      aria-labelledby="desktop-filters-heading"
+      aria-describedby="desktop-filters-status"
+      className="min-w-0"
+    >
+      <h2 id="desktop-filters-heading" className="sr-only">
+        Refine inventory
+      </h2>
+      <p id="desktop-filters-status" className="sr-only">
+        {activeFilterCount > 0
+          ? `${activeFilterCount} active filters`
+          : "Showing all inventory"}
+      </p>
 
-        {canUseAdvancedFilters ? (
-          <div className="flex flex-wrap gap-2">
-            {filterOptions.makes.length > 1 && (
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          {canUseAdvancedFilters ? (
+            <div className="flex flex-wrap gap-2">
+              {filterOptions.makes.length > 1 && (
+                <FilterPopover
+                  title="Make"
+                  summary={selectionSummary(makes, "makes")}
+                  active={makes.length > 0}
+                  description="Choose one or more vehicle makes."
+                >
+                  <SearchableCheckboxList
+                    name="desktop-make"
+                    label="Make"
+                    options={filterOptions.makes}
+                    selected={makes}
+                    onChange={onMakesChange}
+                    searchPlaceholder="Search makes"
+                    searchThreshold={10}
+                    maxHeight={260}
+                  />
+                </FilterPopover>
+              )}
+
               <FilterPopover
-                title="Make"
-                summary={selectionSummary(makes, "makes")}
-                active={makes.length > 0}
-                description="Choose one or more vehicle makes."
+                title="Year"
+                summary={`${yearRange[0]} to ${yearRange[1]}`}
+                active={hasYearFilter}
+                description="Set the earliest and latest model years."
               >
-                <SearchableCheckboxList
-                  name="desktop-make"
-                  label="Make"
-                  options={filterOptions.makes}
-                  selected={makes}
-                  onChange={onMakesChange}
-                  searchPlaceholder="Search makes"
-                  searchThreshold={10}
-                  maxHeight={260}
+                <YearRangeFilter
+                  yearRange={yearRange}
+                  onYearRangeChange={onYearRangeChange}
+                  minimumYear={yearRangeLimits.min}
+                  maximumYear={yearRangeLimits.max}
                 />
               </FilterPopover>
-            )}
 
-            <FilterPopover
-              title="Year"
-              summary={`${yearRange[0]} to ${yearRange[1]}`}
-              active={hasYearFilter}
-              description="Set the earliest and latest model years."
-            >
-              <YearRangeFilter
-                yearRange={yearRange}
-                onYearRangeChange={onYearRangeChange}
-                minimumYear={yearRangeLimits.min}
-                maximumYear={yearRangeLimits.max}
-              />
-            </FilterPopover>
-
-            <FilterPopover
-              title="State"
-              summary={selectionSummary(states, "states")}
-              active={states.length > 0}
-              description="Limit inventory to specific states."
-            >
-              <SearchableCheckboxList
-                name="desktop-state"
-                label="State"
-                options={filterOptions.states}
-                selected={states}
-                onChange={onStatesChange}
-                searchPlaceholder="Search states"
-                searchThreshold={6}
-                maxHeight={280}
-              />
-            </FilterPopover>
-
-            <FilterPopover
-              title="Salvage yard"
-              summary={selectionSummary(salvageYards, "salvage yards")}
-              active={salvageYards.length > 0}
-              description="Search inventory at individual yards."
-            >
-              <div className="flex flex-col gap-2">
+              <FilterPopover
+                title="State"
+                summary={selectionSummary(states, "states")}
+                active={states.length > 0}
+                description="Limit inventory to specific states."
+              >
                 <SearchableCheckboxList
-                  name="desktop-yard"
-                  label="Salvage yard"
-                  options={filterOptions.salvageYards}
-                  selected={salvageYards}
-                  onChange={onSalvageYardsChange}
-                  searchPlaceholder="Search yards"
+                  name="desktop-state"
+                  label="State"
+                  options={filterOptions.states}
+                  selected={states}
+                  onChange={onStatesChange}
+                  searchPlaceholder="Search states"
                   searchThreshold={6}
                   maxHeight={280}
                 />
-                <Button asChild variant="link" size="sm" className="self-start">
-                  <Link
-                    href="/request-yard"
-                    onClick={() =>
-                      trackRequestYardClick({ location: "lot_filter" })
-                    }
+              </FilterPopover>
+
+              <FilterPopover
+                title="Salvage yard"
+                summary={selectionSummary(salvageYards, "salvage yards")}
+                active={salvageYards.length > 0}
+                description="Search inventory at individual yards."
+              >
+                <div className="flex flex-col gap-2">
+                  <SearchableCheckboxList
+                    name="desktop-yard"
+                    label="Salvage yard"
+                    options={filterOptions.salvageYards}
+                    selected={salvageYards}
+                    onChange={onSalvageYardsChange}
+                    searchPlaceholder="Search yards"
+                    searchThreshold={6}
+                    maxHeight={280}
+                  />
+                  <Button
+                    asChild
+                    variant="link"
+                    size="sm"
+                    className="self-start"
                   >
-                    Request a missing yard
-                  </Link>
-                </Button>
-              </div>
-            </FilterPopover>
+                    <Link
+                      href="/request-yard"
+                      onClick={() =>
+                        trackRequestYardClick({ location: "lot_filter" })
+                      }
+                    >
+                      Request a missing yard
+                    </Link>
+                  </Button>
+                </div>
+              </FilterPopover>
 
-            <FilterPopover
-              title="Color"
-              summary={selectionSummary(colors, "colors")}
-              active={colors.length > 0}
-              description="Choose one or more vehicle colors."
-            >
-              <SearchableCheckboxList
-                name="desktop-color"
-                label="Color"
-                options={filterOptions.colors}
-                selected={colors}
-                onChange={onColorsChange}
-                searchPlaceholder="Search colors"
-                searchThreshold={12}
-                maxHeight={260}
-              />
-            </FilterPopover>
+              <FilterPopover
+                title="Color"
+                summary={selectionSummary(colors, "colors")}
+                active={colors.length > 0}
+                description="Choose one or more vehicle colors."
+              >
+                <SearchableCheckboxList
+                  name="desktop-color"
+                  label="Color"
+                  options={filterOptions.colors}
+                  selected={colors}
+                  onChange={onColorsChange}
+                  searchPlaceholder="Search colors"
+                  searchThreshold={12}
+                  maxHeight={260}
+                />
+              </FilterPopover>
 
-            <FilterPopover
-              title="Inventory sources"
-              summary={`${sources.length} of ${AVAILABLE_SOURCES.length}`}
-              active={sources.length > 0}
-              description="Choose which inventory networks to include."
+              <FilterPopover
+                title="Inventory sources"
+                summary={`${sources.length} of ${AVAILABLE_SOURCES.length}`}
+                active={sources.length > 0}
+                description="Choose which inventory networks to include."
+              >
+                <InventorySourcesFilter
+                  idPrefix="desktop-source"
+                  sources={sources}
+                  onSourcesChange={onSourcesChange}
+                />
+              </FilterPopover>
+            </div>
+          ) : (
+            <AdvancedFiltersUpsell layout="inline" />
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          {activeFilterCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearAllFilters}
             >
-              <InventorySourcesFilter
-                idPrefix="desktop-source"
-                sources={sources}
-                onSourcesChange={onSourcesChange}
-              />
-            </FilterPopover>
-          </div>
-        ) : (
-          <AdvancedFiltersUpsell />
-        )}
+              Clear
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close filters"
+          >
+            <X />
+          </Button>
+        </div>
       </div>
     </section>
   );
