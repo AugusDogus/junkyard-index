@@ -1,11 +1,9 @@
 "use client";
 
 import { ArrowRight, Search } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
 const SAMPLE_QUERIES = ["Honda Civic", "Toyota Camry", "Ford F-150"];
@@ -73,27 +71,6 @@ export function HomeSearchHero() {
           ))}
         </div>
       </form>
-
-      <div className="mt-6 hidden gap-3 sm:flex sm:flex-row">
-        <Button asChild variant="outline" size="lg">
-          <Link href="/auth/sign-up">Create Free Account</Link>
-        </Button>
-        <Button asChild variant="ghost" size="lg">
-          <Link
-            href="/pricing"
-            onClick={() =>
-              posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
-                source_page: "home",
-                cta_location: "hero",
-                is_logged_in: false,
-              })
-            }
-          >
-            See Pricing
-            <ArrowRight className="size-4" />
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

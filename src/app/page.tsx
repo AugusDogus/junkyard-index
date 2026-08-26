@@ -1,11 +1,14 @@
 import { ArrowRight, Bell, Car, Search } from "lucide-react";
 import { type Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { Button } from "~/components/ui/button";
+import { auth } from "~/lib/auth";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import { FREE_DAILY_SEARCH_LIMIT, PLANS } from "~/lib/plans";
 import { api } from "~/trpc/server";
@@ -30,6 +33,11 @@ function formatYardCount(count: number): string {
 }
 
 export default async function Home() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (session?.user) {
+    redirect("/search");
+  }
+
   const liveStats = await api.stats.live();
 
   return (
