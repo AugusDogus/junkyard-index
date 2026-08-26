@@ -1,16 +1,18 @@
 "use client";
 
 import { Filter } from "lucide-react";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Drawer,
   DrawerClose,
   DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
 } from "~/components/ui/drawer";
+import { Separator } from "~/components/ui/separator";
 import type { DataSource } from "~/lib/types";
 import { SidebarContent } from "./SidebarContent";
 
@@ -71,7 +73,6 @@ export function MobileFiltersDrawer({
         <Button
           variant="outline"
           size={iconOnly ? "sm" : "default"}
-          className="bg-transparent"
           aria-label={
             iconOnly
               ? `Filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}`
@@ -81,34 +82,32 @@ export function MobileFiltersDrawer({
           <Filter data-icon="inline-start" />
           {!iconOnly && "Filters"}
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className="tabular-nums">
-              {activeFilterCount}
-            </Badge>
+            <span className="tabular-nums">({activeFilterCount})</span>
           )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[85dvh]">
+      <DrawerContent>
         <DrawerHeader className="text-left">
-          <div className="flex items-center justify-between">
-            <DrawerTitle className="text-lg font-semibold">Filters</DrawerTitle>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <DrawerTitle className="text-lg font-semibold">
+                Filters
+              </DrawerTitle>
+              <DrawerDescription className="mt-1 tabular-nums">
+                {activeFilterCount > 0
+                  ? `${activeFilterCount} active`
+                  : "Showing all inventory"}
+              </DrawerDescription>
+            </div>
             {activeFilterCount > 0 && (
-              <Badge variant="secondary" className="tabular-nums">
-                {activeFilterCount}
-              </Badge>
+              <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+                Clear
+              </Button>
             )}
           </div>
-          {activeFilterCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearAllFilters}
-              className="mt-2 w-full bg-transparent"
-            >
-              Clear filters
-            </Button>
-          )}
         </DrawerHeader>
-        <div className="max-h-[calc(85dvh-9rem)] overflow-y-auto px-4 pb-4">
+        <Separator />
+        <div className="min-h-0 flex-1 overflow-y-auto px-4">
           <SidebarContent
             makes={makes}
             colors={colors}
@@ -127,11 +126,12 @@ export function MobileFiltersDrawer({
             canUseAdvancedFilters={canUseAdvancedFilters}
           />
         </div>
-        <div className="bg-background border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <Separator />
+        <DrawerFooter className="pb-[max(1rem,env(safe-area-inset-bottom))]">
           <DrawerClose asChild>
             <Button className="h-11 w-full">Show results</Button>
           </DrawerClose>
-        </div>
+        </DrawerFooter>
       </DrawerContent>
     </Drawer>
   );

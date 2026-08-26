@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Separator } from "~/components/ui/separator";
 import type { DataSource } from "~/lib/types";
 import { SidebarContent } from "./SidebarContent";
 
@@ -13,7 +12,6 @@ interface FilterOptions {
 }
 
 interface SidebarProps {
-  showFilters: boolean;
   setShowFilters: (show: boolean) => void;
   activeFilterCount: number;
   clearAllFilters: () => void;
@@ -38,7 +36,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  showFilters,
   setShowFilters,
   activeFilterCount,
   clearAllFilters,
@@ -59,66 +56,52 @@ export function Sidebar({
   canUseAdvancedFilters,
 }: SidebarProps) {
   return (
-    <div>
-      {showFilters && (
-        <div className="w-full shrink-0">
-          <Card className="gap-0 py-0">
-            <CardHeader className="gap-0 border-b px-4 py-3">
-              <div className="relative -mx-2 flex items-center justify-center">
-                <CardTitle className="text-base font-semibold text-balance">
-                  Filters
-                </CardTitle>
-                <div className="absolute right-0 flex items-center gap-2">
-                  {activeFilterCount > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      {activeFilterCount}
-                    </Badge>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowFilters(false)}
-                    className="size-8"
-                    aria-label="Close filters"
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-2">
-              <SidebarContent
-                makes={makes}
-                colors={colors}
-                states={states}
-                salvageYards={salvageYards}
-                sources={sources}
-                yearRange={yearRange}
-                filterOptions={filterOptions}
-                onMakesChange={onMakesChange}
-                onColorsChange={onColorsChange}
-                onStatesChange={onStatesChange}
-                onSalvageYardsChange={onSalvageYardsChange}
-                onSourcesChange={onSourcesChange}
-                onYearRangeChange={onYearRangeChange}
-                yearRangeLimits={yearRangeLimits}
-                canUseAdvancedFilters={canUseAdvancedFilters}
-              />
-              {activeFilterCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="mt-2 w-full"
-                >
-                  Clear filters
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+    <aside aria-labelledby="filters-heading" className="min-w-0">
+      <div className="flex items-start justify-between gap-4 pb-4">
+        <div>
+          <h2 id="filters-heading" className="text-lg font-semibold">
+            Filters
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm tabular-nums">
+            {activeFilterCount > 0
+              ? `${activeFilterCount} active`
+              : "All inventory"}
+          </p>
         </div>
-      )}
-    </div>
+        <div className="flex items-center gap-1">
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+              Clear
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowFilters(false)}
+            aria-label="Close filters"
+          >
+            <X />
+          </Button>
+        </div>
+      </div>
+      <Separator />
+      <SidebarContent
+        makes={makes}
+        colors={colors}
+        states={states}
+        salvageYards={salvageYards}
+        sources={sources}
+        yearRange={yearRange}
+        filterOptions={filterOptions}
+        onMakesChange={onMakesChange}
+        onColorsChange={onColorsChange}
+        onStatesChange={onStatesChange}
+        onSalvageYardsChange={onSalvageYardsChange}
+        onSourcesChange={onSourcesChange}
+        onYearRangeChange={onYearRangeChange}
+        yearRangeLimits={yearRangeLimits}
+        canUseAdvancedFilters={canUseAdvancedFilters}
+      />
+    </aside>
   );
 }
