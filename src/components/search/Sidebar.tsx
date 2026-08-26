@@ -59,13 +59,13 @@ export function Sidebar({
   canUseAdvancedFilters,
 }: SidebarProps) {
   return (
-    <div className="h-full">
+    <div>
       {showFilters && (
-        <div className="h-full w-full shrink-0">
-          <Card className="h-full gap-0 overflow-hidden py-0">
-            <CardHeader className="shrink-0 gap-0 px-4 py-2">
+        <div className="w-full shrink-0">
+          <Card className="gap-0 py-0">
+            <CardHeader className="gap-0 border-b px-4 py-3">
               <div className="relative -mx-2 flex items-center justify-center">
-                <CardTitle className="text-balance text-lg font-bold">
+                <CardTitle className="text-base font-semibold text-balance">
                   Filters
                 </CardTitle>
                 <div className="absolute right-0 flex items-center gap-2">
@@ -78,26 +78,16 @@ export function Sidebar({
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowFilters(false)}
-                    className="size-8 p-0"
+                    className="size-8"
                     aria-label="Close filters"
                   >
                     <X className="size-4" />
                   </Button>
                 </div>
               </div>
-              {activeFilterCount > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="mt-2 w-full bg-transparent"
-                >
-                  Clear All Filters
-                </Button>
-              )}
             </CardHeader>
 
-            <CardContent className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto pr-1.5 pb-4 pl-4 [scrollbar-gutter:stable]">
+            <CardContent className="p-2">
               <SidebarContent
                 makes={makes}
                 colors={colors}
@@ -115,6 +105,16 @@ export function Sidebar({
                 yearRangeLimits={yearRangeLimits}
                 canUseAdvancedFilters={canUseAdvancedFilters}
               />
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="mt-2 w-full"
+                >
+                  Clear filters
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>

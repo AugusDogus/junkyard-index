@@ -55,7 +55,7 @@ interface SidebarContentProps {
 
 function AdvancedFiltersUpsell() {
   return (
-    <div className="space-y-4">
+    <div>
       <div className="bg-muted/50 rounded-lg border border-dashed p-4 text-center">
         <Lock className="text-muted-foreground mx-auto mb-2 h-6 w-6" />
         <p className="text-foreground text-sm font-medium">
@@ -105,21 +105,18 @@ export function SidebarContent({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4">
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
           <span className="font-medium">Salvage Yards</span>
           <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 space-y-2">
+        <CollapsibleContent className="mt-2 flex flex-col gap-2">
           {availableSources.map((source) => {
             const isChecked = sources.length === 0 || sources.includes(source);
 
             return (
-              <div
-                key={source}
-                className="flex items-center space-x-2 pr-3 pl-3"
-              >
+              <div key={source} className="flex items-center gap-2 px-3">
                 <Checkbox
                   id={`source-${source}`}
                   checked={isChecked}
@@ -186,7 +183,7 @@ export function SidebarContent({
           <span className="font-medium">Year Range</span>
           <ChevronDown className="-mr-2 size-4" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 space-y-4">
+        <CollapsibleContent className="mt-2 flex flex-col gap-4">
           <div className="px-2">
             <div className="text-muted-foreground mb-2 flex justify-between text-sm">
               <span>{yearRange?.[0]}</span>

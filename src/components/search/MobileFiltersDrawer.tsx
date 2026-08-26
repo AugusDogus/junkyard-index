@@ -71,24 +71,28 @@ export function MobileFiltersDrawer({
         <Button
           variant="outline"
           size={iconOnly ? "sm" : "default"}
-          className="flex items-center gap-2 bg-transparent"
-          aria-label={iconOnly ? `Filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}` : undefined}
+          className="bg-transparent"
+          aria-label={
+            iconOnly
+              ? `Filters${activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}`
+              : undefined
+          }
         >
-          <Filter className={iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          <Filter data-icon="inline-start" />
           {!iconOnly && "Filters"}
           {activeFilterCount > 0 && (
-            <Badge variant="secondary" className={iconOnly ? "text-[10px]" : "ml-1 text-xs"}>
+            <Badge variant="secondary" className="tabular-nums">
               {activeFilterCount}
             </Badge>
           )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[85vh]">
+      <DrawerContent className="max-h-[85dvh]">
         <DrawerHeader className="text-left">
           <div className="flex items-center justify-between">
-            <DrawerTitle className="text-lg font-bold">Filters</DrawerTitle>
+            <DrawerTitle className="text-lg font-semibold">Filters</DrawerTitle>
             {activeFilterCount > 0 && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="tabular-nums">
                 {activeFilterCount}
               </Badge>
             )}
@@ -100,11 +104,11 @@ export function MobileFiltersDrawer({
               onClick={clearAllFilters}
               className="mt-2 w-full bg-transparent"
             >
-              Clear All Filters
+              Clear filters
             </Button>
           )}
         </DrawerHeader>
-        <div className="max-h-[calc(85vh-120px)] overflow-y-auto px-4 pb-4">
+        <div className="max-h-[calc(85dvh-9rem)] overflow-y-auto px-4 pb-4">
           <SidebarContent
             makes={makes}
             colors={colors}
@@ -123,9 +127,9 @@ export function MobileFiltersDrawer({
             canUseAdvancedFilters={canUseAdvancedFilters}
           />
         </div>
-        <div className="bg-background border-t p-4">
+        <div className="bg-background border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <DrawerClose asChild>
-            <Button className="w-full">Apply Filters</Button>
+            <Button className="h-11 w-full">Show results</Button>
           </DrawerClose>
         </div>
       </DrawerContent>
