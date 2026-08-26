@@ -20,41 +20,7 @@ import {
 
 const resend = new Resend(env.RESEND_API_KEY);
 
-function parseCsv(value: string | undefined): string[] {
-  return (
-    value
-      ?.split(",")
-      .map((part) => part.trim())
-      .filter(Boolean) ?? []
-  );
-}
-
-function getHost(value: string | undefined): string | null {
-  if (!value) return null;
-
-  try {
-    return new URL(value).host;
-  } catch {
-    return null;
-  }
-}
-
 const productionURL = env.BETTER_AUTH_URL;
-
-const authAllowedHosts = Array.from(
-  new Set(
-    [
-      ...parseCsv(env.BETTER_AUTH_ALLOWED_HOSTS),
-      getHost(productionURL),
-      getHost(env.NEXT_PUBLIC_APP_URL),
-      "junkyard-index-*.vercel.app",
-      "localhost:*",
-      "127.0.0.1:*",
-      "*.localhost",
-      "*.localhost:*",
-    ].filter((host): host is string => Boolean(host)),
-  ),
-);
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -62,18 +28,16 @@ export const auth = betterAuth({
     schema,
   }),
   baseURL: {
-    allowedHosts: authAllowedHosts,
+    allowedHosts: [
+      new URL(productionURL).host,
+      "junkyard-index-*.vercel.app",
+      "localhost:*",
+      "127.0.0.1:*",
+      "*.localhost",
+      "*.localhost:*",
+    ],
     fallback: productionURL,
   },
-  trustedOrigins: [
-    env.NEXT_PUBLIC_APP_URL,
-    productionURL,
-    "https://junkyard-index-*.vercel.app",
-    "http://localhost:*",
-    "http://127.0.0.1:*",
-    "https://*.localhost",
-    "https://*.localhost:*",
-  ],
   advanced: {
     trustedProxyHeaders: true,
   },

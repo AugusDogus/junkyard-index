@@ -25,7 +25,6 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().url(),
     OAUTH_PROXY_SECRET: z.string().min(32),
-    BETTER_AUTH_ALLOWED_HOSTS: z.string().optional(),
     POLAR_ACCESS_TOKEN: z.string(),
     // Legacy single-product ID ("Email-Notifications"). Existing subscribers
     // are grandfathered as the Full tier so they keep the alerts they pay for.
@@ -87,7 +86,6 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     OAUTH_PROXY_SECRET: process.env.OAUTH_PROXY_SECRET,
-    BETTER_AUTH_ALLOWED_HOSTS: process.env.BETTER_AUTH_ALLOWED_HOSTS,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_DISCORD_CLIENT_ID: process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID,
     POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
