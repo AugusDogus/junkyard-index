@@ -1,15 +1,7 @@
 "use client";
 
-import { AlertCircle, CheckCircle, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { PLANS } from "~/lib/plans";
@@ -24,41 +16,50 @@ export function SubscriptionSettingsCard() {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CreditCard className="h-5 w-5" />
-          Subscription
-        </CardTitle>
-        <CardDescription>
+    <section aria-labelledby="current-plan-heading">
+      <div className="max-w-2xl">
+        <h2 id="current-plan-heading" className="text-xl font-semibold">
+          Current plan
+        </h2>
+        <p className="text-muted-foreground mt-2 text-sm leading-6">
           Lite includes filters and saved searches from $
-          {PLANS.lite.monthlyPrice}/mo. Full adds email and Discord alerts from
-          ${PLANS.full.monthlyPrice}/mo.{" "}
-          <Link href="/pricing" className="text-primary hover:underline">
+          {PLANS.lite.monthlyPrice}/month. Full adds email and Discord alerts
+          from ${PLANS.full.monthlyPrice}/month.{" "}
+          <Link
+            href="/pricing"
+            className="text-foreground underline underline-offset-4"
+          >
             Compare plans
           </Link>
           .
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
+      </div>
+
+      <div className="border-border mt-6 border-y py-5">
         {state.kind === "loading" ? (
           <Skeleton className="h-10 w-48" />
         ) : state.kind === "unavailable" ? (
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-destructive text-sm">
-              Subscription status could not be verified.
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Plan status unavailable</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Billing could not be verified. Your existing account data is
+                unchanged.
+              </p>
+            </div>
             <Button variant="outline" size="sm" onClick={() => void retry()}>
-              Try Again
+              Try again
             </Button>
           </div>
         ) : state.kind === "active" ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-              <CheckCircle className="h-5 w-5" />
-              <span className="font-medium">
-                Active {PLANS[state.tier].name} subscription
-              </span>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">
+                {PLANS[state.tier].name} plan
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Your subscription is active.
+              </p>
             </div>
             <Button
               variant="outline"
@@ -67,14 +68,16 @@ export function SubscriptionSettingsCard() {
                 void openSubscriptionDestination({ kind: "manage" })
               }
             >
-              Manage Subscription
+              Open billing portal
             </Button>
           </div>
         ) : state.kind === "needs_attention" ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-              <AlertCircle className="h-5 w-5" />
-              <span className="font-medium">Subscription needs attention</span>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Billing needs attention</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Open the billing portal to review your subscription.
+              </p>
             </div>
             <Button
               variant="outline"
@@ -83,21 +86,23 @@ export function SubscriptionSettingsCard() {
                 void openSubscriptionDestination({ kind: "manage" })
               }
             >
-              Manage Subscription
+              Open billing portal
             </Button>
           </div>
         ) : (
-          <div className="flex items-center justify-between">
-            <div className="text-muted-foreground flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              <span>No active subscription</span>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Free plan</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                No paid subscription is active.
+              </p>
             </div>
             <Button asChild size="sm">
-              <Link href="/pricing">Compare Plans</Link>
+              <Link href="/pricing">Compare plans</Link>
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

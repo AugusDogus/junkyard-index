@@ -5,6 +5,7 @@ import { Header } from "~/components/Header";
 const WIDTH_CLASSES = {
   narrow: "max-w-xl",
   wide: "max-w-3xl",
+  workspace: "max-w-6xl",
 } as const;
 
 export function PageShell({

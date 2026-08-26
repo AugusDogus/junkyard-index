@@ -118,7 +118,7 @@ export function SavedSearchesDropdown({
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link href="/settings">
+            <Link href="/settings/searches">
               <Settings />
               Manage saved searches
             </Link>

@@ -283,7 +283,7 @@ export function SavedSearchesList({
           </div>
           <CardAction>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/settings">
+              <Link href="/settings/searches">
                 <Settings data-icon="inline-start" />
                 <span className="hidden sm:inline">Manage</span>
                 <span className="sr-only sm:hidden">Manage saved searches</span>

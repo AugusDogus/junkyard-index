@@ -1,19 +1,19 @@
 "use client";
 
-import { MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { Skeleton } from "~/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { normalizeZipCode } from "~/lib/location-preferences";
 import { api } from "~/trpc/react";
 
@@ -77,51 +77,60 @@ export function LocationSettingsCard() {
     updatePreference.mutate({ mode: "zip", zipCode: normalizedZipCode });
   };
 
+  const selectMode = (value: string) => {
+    if (value === "auto" || value === "zip") {
+      setMode(value);
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MapPin className="h-5 w-5" />
-          Search Location
-        </CardTitle>
-        <CardDescription>
-          Choose how distance sorting finds your location. Automatic detection
-          uses Vercel IP first, then search IP detection, then browser
-          geolocation if needed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <section aria-labelledby="search-location-heading">
+      <div className="max-w-2xl">
+        <h2 id="search-location-heading" className="text-xl font-semibold">
+          Search location
+        </h2>
+        <p className="text-muted-foreground mt-2 text-sm leading-6">
+          Choose the location used when results are sorted by distance.
+          Automatic detection checks your network location first and asks the
+          browser only when needed.
+        </p>
+      </div>
+
+      <div className="mt-6 max-w-xl">
         {preference.isLoading ? (
-          <Skeleton className="h-28 w-full" />
+          <div className="space-y-4">
+            <Skeleton className="h-9 w-52" />
+            <Skeleton className="h-10 w-full" />
+          </div>
         ) : preference.isError ? (
           <p className="text-destructive text-sm">
             {preference.error.message ||
               "Could not load your saved search location right now."}
           </p>
         ) : (
-          <>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                variant={mode === "auto" ? "default" : "outline"}
-                className="justify-start"
-                onClick={() => setMode("auto")}
+          <FieldGroup>
+            <FieldSet>
+              <FieldLegend variant="label">Location source</FieldLegend>
+              <ToggleGroup
+                type="single"
+                value={mode}
+                onValueChange={selectMode}
+                variant="outline"
+                aria-label="Location source"
               >
-                Use Automatic Detection
-              </Button>
-              <Button
-                type="button"
-                variant={mode === "zip" ? "default" : "outline"}
-                className="justify-start"
-                onClick={() => setMode("zip")}
-              >
-                Use ZIP Code
-              </Button>
-            </div>
+                <ToggleGroupItem value="auto">Automatic</ToggleGroupItem>
+                <ToggleGroupItem value="zip">ZIP code</ToggleGroupItem>
+              </ToggleGroup>
+              <FieldDescription>
+                Your saved choice is used on future searches.
+              </FieldDescription>
+            </FieldSet>
 
             {mode === "zip" && (
-              <div className="grid gap-2">
-                <Label htmlFor="settings-location-zip">ZIP Code</Label>
+              <Field>
+                <FieldLabel htmlFor="settings-location-zip">
+                  ZIP code
+                </FieldLabel>
                 <Input
                   id="settings-location-zip"
                   inputMode="numeric"
@@ -131,25 +140,21 @@ export function LocationSettingsCard() {
                   value={zipCode}
                   onChange={(event) => setZipCode(event.target.value)}
                 />
-              </div>
+              </Field>
             )}
 
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-muted-foreground text-sm">
-                This preference is used when you sort search results by
-                distance.
-              </p>
+            <Field orientation="horizontal" className="justify-end">
               <Button
                 type="button"
                 onClick={save}
                 disabled={!isDirty || updatePreference.isPending}
               >
-                {updatePreference.isPending ? "Saving..." : "Save Location"}
+                {updatePreference.isPending ? "Saving..." : "Save location"}
               </Button>
-            </div>
-          </>
+            </Field>
+          </FieldGroup>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

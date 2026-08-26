@@ -545,7 +545,7 @@ export function SaveSearchDialog({
                   </div>
                   {!hasDiscordSetup && (
                     <Link
-                      href="/settings"
+                      href="/settings/notifications"
                       className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
                     >
                       Setup
@@ -558,10 +558,10 @@ export function SaveSearchDialog({
                   <p className="text-muted-foreground pl-6 text-xs">
                     Connect Discord in{" "}
                     <Link
-                      href="/settings"
+                      href="/settings/notifications"
                       className="hover:text-foreground underline"
                     >
-                      Settings
+                      notification settings
                     </Link>{" "}
                     to enable Discord notifications.
                   </p>
