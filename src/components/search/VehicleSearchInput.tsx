@@ -140,7 +140,7 @@ export function VehicleSearchInput({
   );
 
   return (
-    <form onSubmit={handleSubmit} className="min-w-0 flex-1">
+    <form role="search" onSubmit={handleSubmit} className="min-w-0 flex-1">
       <label className="sr-only" htmlFor="search">
         Search by year, make, model, or VIN
       </label>
@@ -151,7 +151,8 @@ export function VehicleSearchInput({
         />
         <Input
           id="search"
-          type="search"
+          type="text"
+          role="searchbox"
           inputMode="search"
           enterKeyHint="search"
           autoComplete="off"

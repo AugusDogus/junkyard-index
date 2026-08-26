@@ -23,10 +23,19 @@ import posthog from "posthog-js";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { buildSearchUrl } from "~/lib/search-utils";
+import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 import { SavedSearchUpgradeNotice } from "./SavedSearchUpgradeNotice";
 
-export function SavedSearchesList({ locked }: { locked: boolean }) {
+interface SavedSearchesListProps {
+  locked: boolean;
+  className?: string;
+}
+
+export function SavedSearchesList({
+  locked,
+  className,
+}: SavedSearchesListProps) {
   const utils = api.useUtils();
 
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
@@ -228,7 +237,7 @@ export function SavedSearchesList({ locked }: { locked: boolean }) {
 
   if (isLoading) {
     return (
-      <div className="mt-8 sm:mt-10">
+      <div className={cn("mt-8 sm:mt-10", className)}>
         <div className="mb-4 flex items-center gap-2">
           <Bookmark className="text-muted-foreground h-4 w-4" />
           <h3 className="text-foreground text-sm font-semibold">
@@ -249,17 +258,44 @@ export function SavedSearchesList({ locked }: { locked: boolean }) {
   }
 
   if (!savedSearches || savedSearches.length === 0) {
-    return null;
+    return (
+      <section
+        className={cn("mt-8 sm:mt-10", className)}
+        aria-labelledby="saved-searches-title"
+      >
+        <div className="mb-4 flex items-center gap-2">
+          <Bookmark className="text-muted-foreground size-4" />
+          <h3 id="saved-searches-title" className="text-sm font-semibold">
+            Saved searches
+          </h3>
+        </div>
+        <div className="bg-muted/30 rounded-lg px-4 py-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+          <div>
+            <p className="text-sm font-medium">No saved searches yet</p>
+            <p className="text-muted-foreground mt-1 max-w-xl text-sm text-pretty">
+              {locked
+                ? "Lite lets you save a search with its filters so you can reopen it later."
+                : "Run a search, add any filters you need, then choose Save search from the toolbar."}
+            </p>
+          </div>
+          {locked && (
+            <Button asChild size="sm" className="mt-4 sm:mt-0 sm:shrink-0">
+              <Link href="/pricing">View Lite</Link>
+            </Button>
+          )}
+        </div>
+      </section>
+    );
   }
 
   return (
     <TooltipProvider>
-      <div className="mt-8 sm:mt-10">
+      <div className={cn("mt-8 sm:mt-10", className)}>
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bookmark className="text-muted-foreground h-4 w-4" />
             <h3 className="text-foreground text-sm font-semibold">
-              Saved Searches
+              Saved searches
             </h3>
           </div>
           <Link href="/settings">
