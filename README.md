@@ -46,8 +46,7 @@ registered as its callback URL. Better Auth uses the existing
 localhost and Vercel preview deployments.
 
 Set `OAUTH_PROXY_SECRET` to the same random value of at least 32 characters in
-local, Preview, and Production environments. `BETTER_AUTH_ALLOWED_HOSTS` can
-add any extra comma-separated preview hosts.
+local, Preview, and Production environments.
 
 For a stable HTTPS local URL, run `portless` from the repository root and open
 `https://junkyard-index.localhost`. Linked worktrees receive their own
