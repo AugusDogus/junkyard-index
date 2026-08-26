@@ -1,22 +1,22 @@
 "use client";
 
-import { BookmarkCheck, FolderOpen, Lock, Trash2 } from "lucide-react";
+import { Bookmark, Lock, Search, Settings } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import posthog from "posthog-js";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { buildSearchUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
-import { SavedSearchUpgradeNotice } from "./SavedSearchUpgradeNotice";
 
 interface SavedSearchesDropdownProps {
   compact?: boolean;
@@ -30,40 +30,7 @@ export function SavedSearchesDropdown({
   locked = false,
 }: SavedSearchesDropdownProps = {}) {
   const router = useRouter();
-  const utils = api.useUtils();
-
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
-
-  const deleteMutation = api.savedSearches.delete.useMutation({
-    onMutate: async ({ id }) => {
-      // Cancel outgoing refetches
-      await utils.savedSearches.list.cancel();
-
-      // Snapshot current data
-      const previousSearches = utils.savedSearches.list.getData();
-
-      // Optimistically remove the item
-      utils.savedSearches.list.setData(undefined, (old) =>
-        old?.filter((search) => search.id !== id),
-      );
-
-      return { previousSearches };
-    },
-    onError: (error, _variables, context) => {
-      // Rollback on error
-      if (context?.previousSearches) {
-        utils.savedSearches.list.setData(undefined, context.previousSearches);
-      }
-      toast.error(error.message || "Failed to delete search");
-    },
-    onSuccess: () => {
-      toast.success("Search deleted");
-    },
-    onSettled: () => {
-      // Refetch to ensure consistency
-      void utils.savedSearches.list.invalidate();
-    },
-  });
 
   const handleLoadSearch = (search: NonNullable<typeof savedSearches>[0]) => {
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_LOADED, {
@@ -75,26 +42,14 @@ export function SavedSearchesDropdown({
     router.push(buildSearchUrl(search.query, search.filters));
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_DELETED, {
-      search_id: id,
-      source: "dropdown",
-    });
-    deleteMutation.mutate({ id });
-  };
-
   if (isLoading) {
     return (
       <Button
         variant="outline"
         size={compact || iconOnly ? "sm" : "default"}
-        className={compact || iconOnly ? "h-8 text-xs" : ""}
         disabled
       >
-        <FolderOpen
-          className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
-        />
+        <Bookmark data-icon="inline-start" />
         {!iconOnly && "Saved"}
       </Button>
     );
@@ -110,57 +65,65 @@ export function SavedSearchesDropdown({
         <Button
           variant="outline"
           size={compact || iconOnly ? "sm" : "default"}
-          className={compact || iconOnly ? "h-8 text-xs" : ""}
+          aria-label={
+            iconOnly ? `Open ${savedSearches.length} saved searches` : undefined
+          }
         >
-          <BookmarkCheck
-            className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"}
-          />
+          <Bookmark data-icon="inline-start" />
           {iconOnly ? savedSearches.length : `Saved (${savedSearches.length})`}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>Saved Searches</DropdownMenuLabel>
+      <DropdownMenuContent
+        align="end"
+        className="w-80 max-w-[calc(100vw-2rem)]"
+      >
+        <DropdownMenuLabel>Saved searches</DropdownMenuLabel>
         <DropdownMenuSeparator />
+
         {locked && (
-          <SavedSearchUpgradeNotice
-            compact
-            className="m-2 border-0 p-3 shadow-none"
-          />
+          <>
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href="/pricing">
+                  <Lock />
+                  Upgrade to Lite to reopen these searches
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
         )}
-        {savedSearches.map((search) => (
-          <DropdownMenuItem
-            key={search.id}
-            className={
-              locked
-                ? "flex cursor-default items-center justify-between"
-                : "flex cursor-pointer items-center justify-between"
-            }
-            onSelect={(event) => {
-              if (locked) {
-                event.preventDefault();
-                return;
-              }
-              handleLoadSearch(search);
-            }}
-          >
-            <div className="flex min-w-0 flex-col">
-              <span className="font-medium">{search.name}</span>
-              <span className="text-muted-foreground text-xs">
-                {search.query || search.filters.vinPattern || "All vehicles"}
-              </span>
-            </div>
-            {locked && <Lock className="text-muted-foreground ml-2 size-3" />}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="hover:bg-destructive hover:text-destructive-foreground h-6 w-6 p-0"
-              onClick={(e) => handleDelete(e, search.id)}
-              disabled={deleteMutation.isPending}
+
+        <DropdownMenuGroup>
+          {savedSearches.map((search) => (
+            <DropdownMenuItem
+              key={search.id}
+              disabled={locked}
+              className="items-start py-2.5"
+              onSelect={() => handleLoadSearch(search)}
             >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+              <div className="bg-secondary flex size-8 shrink-0 items-center justify-center rounded-md">
+                {locked ? <Lock /> : <Search />}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate font-medium">{search.name}</span>
+                <span className="text-muted-foreground truncate text-xs">
+                  {search.query || search.filters.vinPattern || "All vehicles"}
+                </span>
+              </div>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/settings">
+              <Settings />
+              Manage saved searches
+            </Link>
           </DropdownMenuItem>
-        ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -2,6 +2,13 @@
 
 import { ArrowRight, Search } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { SavedSearchesList } from "./SavedSearchesList";
 
 interface SearchStartPanelProps {
@@ -45,6 +52,61 @@ export function SearchStartPanel({
         },
   ];
 
+  if (isLoggedIn) {
+    return (
+      <section className="py-8 sm:py-12" aria-labelledby="search-start-title">
+        <div className="max-w-2xl">
+          <h2
+            id="search-start-title"
+            className="text-2xl font-semibold text-balance"
+          >
+            Pick up where you left off.
+          </h2>
+          <p className="text-muted-foreground mt-3 text-pretty">
+            Reopen a saved parts hunt with its filters intact, or start a new
+            search from the field above.
+          </p>
+        </div>
+
+        <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <SavedSearchesList locked={savedSearchesLocked} />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Start something new</CardTitle>
+              <CardDescription>
+                Use a common search shape, then make it yours.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-1">
+              {examples.map((example) => (
+                <Button
+                  key={example.query}
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onSearch(example.query)}
+                  className="group h-auto w-full justify-start px-3 py-3 text-left whitespace-normal"
+                >
+                  <Search data-icon="inline-start" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{example.query}</span>
+                    <span className="text-muted-foreground mt-0.5 block text-xs font-normal">
+                      {example.label}
+                    </span>
+                  </span>
+                  <ArrowRight
+                    data-icon="inline-end"
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-8 sm:py-12" aria-labelledby="search-start-title">
       <div className="max-w-2xl">
@@ -52,21 +114,18 @@ export function SearchStartPanel({
           id="search-start-title"
           className="text-2xl font-semibold text-balance"
         >
-          {isLoggedIn
-            ? "Start a new search or reopen a saved one."
-            : "Search from broad to exact."}
+          Search from broad to exact.
         </h2>
         <p className="text-muted-foreground mt-3 text-pretty">
-          {isLoggedIn
-            ? "Use the search field above for a fresh vehicle. Saved searches appear below when you have one to revisit."
-            : "Start with a make and model to explore inventory. Add a year when compatibility is narrow, or use a VIN when the donor has to match."}
+          Start with a make and model to explore inventory. Add a year when
+          compatibility is narrow, or use a VIN when the donor has to match.
         </p>
       </div>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.65fr)] lg:gap-16">
         <div>
           <h3 className="text-sm font-medium">Try a search</h3>
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 flex flex-col gap-1">
             {examples.map((example) => (
               <Button
                 key={example.query}
@@ -75,14 +134,17 @@ export function SearchStartPanel({
                 onClick={() => onSearch(example.query)}
                 className="group h-auto w-full justify-start gap-3 px-3 py-3 text-left whitespace-normal"
               >
-                <Search className="text-muted-foreground size-4" />
+                <Search data-icon="inline-start" />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{example.query}</span>
                   <span className="text-muted-foreground mt-0.5 block text-xs font-normal">
                     {example.label} · {example.detail}
                   </span>
                 </span>
-                <ArrowRight className="text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5" />
+                <ArrowRight
+                  data-icon="inline-end"
+                  className="transition-transform group-hover:translate-x-0.5"
+                />
               </Button>
             ))}
           </div>
@@ -92,7 +154,7 @@ export function SearchStartPanel({
           <h3 className="text-sm font-medium">
             Use the least detail that works
           </h3>
-          <dl className="mt-5 space-y-5 text-sm">
+          <dl className="mt-5 flex flex-col gap-5 text-sm">
             <div>
               <dt className="font-medium">Explore inventory</dt>
               <dd className="text-muted-foreground mt-1">
@@ -115,13 +177,6 @@ export function SearchStartPanel({
           </dl>
         </div>
       </div>
-
-      {isLoggedIn && (
-        <SavedSearchesList
-          locked={savedSearchesLocked}
-          className="mt-12 sm:mt-16"
-        />
-      )}
     </section>
   );
 }
