@@ -23,7 +23,12 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   return (
     <div className="flex items-center gap-2">
       {showPricing && (
-        <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="hidden sm:inline-flex"
+        >
           <Link
             href="/pricing"
             onClick={() =>
@@ -38,11 +43,19 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           </Link>
         </Button>
       )}
-      <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className="hidden sm:inline-flex"
+      >
         <Link href="/auth/sign-in">Sign In</Link>
       </Button>
       <Button asChild size="sm">
-        <Link href="/auth/sign-up">Create Free Account</Link>
+        <Link href="/auth/sign-up" aria-label="Create free account">
+          <span className="sm:hidden">Sign up</span>
+          <span className="hidden sm:inline">Create Free Account</span>
+        </Link>
       </Button>
     </div>
   );

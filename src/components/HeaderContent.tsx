@@ -16,12 +16,12 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
   return (
     <header className="bg-card sticky top-0 z-50 border-b shadow-sm">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center gap-4">
+        <div className="flex h-16 items-center gap-3 sm:gap-4">
           <div className="flex shrink-0 items-center">
             <Link
               href="/"
               data-brand-link
-              className="text-foreground text-2xl font-bold"
+              className="text-foreground text-xl font-bold sm:text-2xl"
             >
               Junkyard Index
             </Link>
@@ -31,7 +31,10 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
             {statusData && (
               <>
                 <HeaderStatusIndicator data={statusData} />
-                <div className="bg-border h-5 w-px" aria-hidden="true" />
+                <div
+                  className="bg-border hidden h-5 w-px sm:block"
+                  aria-hidden="true"
+                />
               </>
             )}
             <HeaderAuthButtons user={user} />
