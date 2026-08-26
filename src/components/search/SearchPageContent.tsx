@@ -6,7 +6,6 @@ import {
   Filter,
   LocateFixed,
   MapPin,
-  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -31,8 +30,8 @@ import {
   SaveSearchDialog,
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
-import { SavedSearchesList } from "~/components/search/SavedSearchesList";
 import { SearchAccessShell } from "~/components/search/SearchAccessShell";
+import { SearchStartPanel } from "~/components/search/SearchStartPanel";
 import { VehicleSearchInput } from "~/components/search/VehicleSearchInput";
 import {
   resolveSearchResultsPanelModel,
@@ -1326,7 +1325,7 @@ function AlgoliaSearchInner({
         </p>
       </section>
 
-      <div className="bg-background sticky top-16 z-40 -mx-4 border-y px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 lg:flex-row lg:items-start">
           <ErrorBoundary>
             <VehicleSearchInput
@@ -1371,52 +1370,17 @@ function AlgoliaSearchInner({
         <div className="min-w-0 flex-1">
           {/* Empty State */}
           {!hasActiveSearch && !isSearching && (
-            <div className="grid gap-10 py-8 sm:py-12 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)] md:gap-16">
-              <div>
-                <h2 className="text-2xl font-semibold text-balance">
-                  Start with what you know.
-                </h2>
-                <p className="text-muted-foreground mt-3 max-w-xl text-pretty">
-                  A broad model search is usually fastest. Add a year to narrow
-                  the result, or paste a full or partial VIN when you need an
-                  exact donor.
-                </p>
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term) => (
-                    <Button
-                      key={term}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setIndexUiState((previous) => ({
-                          ...previous,
-                          query: term,
-                        }))
-                      }
-                    >
-                      <Search data-icon="inline-start" />
-                      {term}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <dl className="grid grid-cols-[auto_1fr] content-start gap-x-5 gap-y-4 border-l pl-5 text-sm sm:pl-8">
-                <dt className="text-muted-foreground">Vehicle</dt>
-                <dd>Year, make & model</dd>
-                <dt className="text-muted-foreground">VIN</dt>
-                <dd className="font-mono">Full or partial pattern</dd>
-                <dt className="text-muted-foreground">Shortcut</dt>
-                <dd className="font-mono">⌘ K / Ctrl K</dd>
-              </dl>
-
-              {isLoggedIn && (
-                <div className="md:col-span-2">
-                  <SavedSearchesList locked={savedSearchesLocked} />
-                </div>
-              )}
-            </div>
+            <SearchStartPanel
+              isLoggedIn={isLoggedIn}
+              savedSearchesLocked={savedSearchesLocked}
+              vinPatternSearchReady={vinPatternIndexReady}
+              onSearch={(searchQuery) =>
+                setIndexUiState((previous) => ({
+                  ...previous,
+                  query: searchQuery,
+                }))
+              }
+            />
           )}
 
           <SearchResultsPanel model={searchResultsPanelModel} />
