@@ -53,6 +53,7 @@ export const env = createEnv({
     BETTERSTACK_API_TOKEN: betterStackApiTokenSchema,
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
+    PORTLESS_URL: z.string().url().optional(),
     VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
     // Upstash Redis (rate limiting)
     UPSTASH_REDIS_REST_URL: z.string().url(),
@@ -109,6 +110,7 @@ export const env = createEnv({
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
     BETTERSTACK_API_TOKEN: process.env.BETTERSTACK_API_TOKEN,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
+    PORTLESS_URL: process.env.PORTLESS_URL,
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
