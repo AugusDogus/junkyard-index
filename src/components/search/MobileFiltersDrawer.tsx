@@ -14,7 +14,7 @@ import {
 } from "~/components/ui/drawer";
 import { Separator } from "~/components/ui/separator";
 import type { DataSource } from "~/lib/types";
-import { SidebarContent } from "./SidebarContent";
+import { MobileFilterContent } from "./MobileFilterContent";
 
 interface FilterOptions {
   makes: string[];
@@ -108,7 +108,7 @@ export function MobileFiltersDrawer({
         </DrawerHeader>
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-4">
-          <SidebarContent
+          <MobileFilterContent
             makes={makes}
             colors={colors}
             states={states}

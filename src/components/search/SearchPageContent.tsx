@@ -24,6 +24,7 @@ import {
 } from "react-instantsearch";
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
+import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
   clearPendingSaveSearch,
@@ -37,7 +38,6 @@ import {
   resolveSearchResultsPanelModel,
   SearchResultsPanel,
 } from "~/components/search/SearchResultsPanel";
-import { Sidebar } from "~/components/search/Sidebar";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -357,7 +357,7 @@ function AlgoliaSearchInner({
   // Prefetch saved searches
   api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
 
-  // Sidebar state
+  // Desktop filter workspace state
   const [showFilters, setShowFilters] = useState(false);
   const [searchValueParam, setSearchValueParam] = useQueryState(
     "q",
@@ -1244,7 +1244,6 @@ function AlgoliaSearchInner({
       isGuest: !isLoggedIn,
     },
     loading: {
-      sidebarOpen: !isMobile && showFilters,
       showMore,
     },
     empty: {
@@ -1259,7 +1258,6 @@ function AlgoliaSearchInner({
     },
     results: {
       isLoading: isSearching && hits.length === 0,
-      sidebarOpen: !isMobile && showFilters,
       showMore,
       isLastPage: isAnonymousCapped || isLastPage,
       isFetchingNextPage:
@@ -1333,35 +1331,31 @@ function AlgoliaSearchInner({
         </div>
       </div>
 
-      <div className="relative flex w-full gap-5 py-6 lg:gap-8">
-        {/* Desktop Sidebar */}
+      <div className="flex w-full flex-col gap-6 py-6">
         {!isMobile && showFilters && (
-          <div className="scrollbar-thin-themed w-64 shrink-0 self-start pr-2 lg:sticky lg:top-36 lg:max-h-[calc(100dvh-10.5rem)] lg:w-72 lg:overflow-y-auto lg:overscroll-contain lg:pr-4">
-            <Sidebar
-              setShowFilters={setShowFilters}
-              activeFilterCount={activeFilterCount}
-              clearAllFilters={clearAllFilters}
-              makes={selectedMakes}
-              colors={selectedColors}
-              states={selectedStates}
-              salvageYards={selectedLocations}
-              sources={selectedSources}
-              yearRange={yearRange}
-              filterOptions={filterOptions}
-              onMakesChange={handleMakesChange}
-              onColorsChange={handleColorsChange}
-              onStatesChange={handleStatesChange}
-              onSalvageYardsChange={handleLocationsChange}
-              onSourcesChange={handleSourcesChange}
-              onYearRangeChange={handleYearRangeChange}
-              yearRangeLimits={{ min: yearMin, max: yearMax }}
-              canUseAdvancedFilters={canUseAdvancedFilters}
-            />
-          </div>
+          <DesktopFiltersBar
+            onClose={() => setShowFilters(false)}
+            activeFilterCount={activeFilterCount}
+            clearAllFilters={clearAllFilters}
+            makes={selectedMakes}
+            colors={selectedColors}
+            states={selectedStates}
+            salvageYards={selectedLocations}
+            sources={selectedSources}
+            yearRange={yearRange}
+            filterOptions={filterOptions}
+            onMakesChange={handleMakesChange}
+            onColorsChange={handleColorsChange}
+            onStatesChange={handleStatesChange}
+            onSalvageYardsChange={handleLocationsChange}
+            onSourcesChange={handleSourcesChange}
+            onYearRangeChange={handleYearRangeChange}
+            yearRangeLimits={{ min: yearMin, max: yearMax }}
+            canUseAdvancedFilters={canUseAdvancedFilters}
+          />
         )}
 
-        {/* Main Content */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           {/* Empty State */}
           {!hasActiveSearch && !isSearching && (
             <SearchStartPanel
