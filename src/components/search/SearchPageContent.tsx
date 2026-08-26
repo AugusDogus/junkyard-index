@@ -38,7 +38,6 @@ import {
   SearchResultsPanel,
 } from "~/components/search/SearchResultsPanel";
 import { Sidebar } from "~/components/search/Sidebar";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -694,11 +693,11 @@ function AlgoliaSearchInner({
   const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
   const activeFilterCount =
-    selectedMakes.length +
-    selectedColors.length +
-    selectedStates.length +
-    selectedLocations.length +
-    selectedSources.length +
+    (selectedMakes.length > 0 ? 1 : 0) +
+    (selectedColors.length > 0 ? 1 : 0) +
+    (selectedStates.length > 0 ? 1 : 0) +
+    (selectedLocations.length > 0 ? 1 : 0) +
+    (selectedSources.length > 0 ? 1 : 0) +
     (isYearFiltered ? 1 : 0);
 
   const currentSaveSearchFilters = useMemo(
@@ -974,9 +973,7 @@ function AlgoliaSearchInner({
       previous_filter_count: activeFilterCount,
     });
     clearRefinements();
-    refineSortBy(ALGOLIA_INDEX_NAME);
-    setShowFilters(false);
-  }, [activeFilterCount, clearRefinements, refineSortBy]);
+  }, [activeFilterCount, clearRefinements]);
 
   const handleSearchModeChange = useCallback(
     async (value: { query: string | null; vinPattern: string | null }) => {
@@ -1159,7 +1156,7 @@ function AlgoliaSearchInner({
   );
 
   const workspaceActions = isMobile ? (
-    <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 [&_button]:h-11">
+    <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 [&_button]:h-11 [&_button]:min-w-11">
       {mobileFiltersDrawer}
       <Select value={sortBy} onValueChange={handleSortChange}>
         <SelectTrigger className="ml-auto" aria-label="Sort vehicles">
@@ -1217,16 +1214,14 @@ function AlgoliaSearchInner({
         </SelectContent>
       </Select>
       <Button
-        variant="outline"
+        variant={showFilters ? "secondary" : "outline"}
         onClick={handleToggleFilters}
         aria-pressed={showFilters}
       >
         <Filter data-icon="inline-start" />
         Filters
         {activeFilterCount > 0 && (
-          <Badge variant="secondary" className="tabular-nums">
-            {activeFilterCount}
-          </Badge>
+          <span className="tabular-nums">({activeFilterCount})</span>
         )}
       </Button>
     </div>
@@ -1341,9 +1336,8 @@ function AlgoliaSearchInner({
       <div className="relative flex w-full gap-5 py-6 lg:gap-8">
         {/* Desktop Sidebar */}
         {!isMobile && showFilters && (
-          <div className="w-64 shrink-0 self-start lg:w-72">
+          <div className="scrollbar-thin-themed w-64 shrink-0 self-start pr-2 lg:sticky lg:top-36 lg:max-h-[calc(100dvh-10.5rem)] lg:w-72 lg:overflow-y-auto lg:overscroll-contain lg:pr-4">
             <Sidebar
-              showFilters={showFilters}
               setShowFilters={setShowFilters}
               activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}

@@ -1,6 +1,6 @@
-import { ChevronDown, Lock } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "~/components/ui/badge";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -8,7 +8,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
-import { Label } from "~/components/ui/label";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "~/components/ui/field";
 import { Slider } from "~/components/ui/slider";
 import { PLANS } from "~/lib/plans";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
@@ -32,6 +38,16 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   autorecycler: "AutoRecycler.io",
 };
 
+const AVAILABLE_SOURCES: DataSource[] = [
+  "pyp",
+  "pullapart",
+  "upullitne",
+  "upullitdavie",
+  "gopullit",
+  "row52",
+  "autorecycler",
+];
+
 interface SidebarContentProps {
   makes: string[];
   colors: string[];
@@ -53,22 +69,51 @@ interface SidebarContentProps {
   canUseAdvancedFilters: boolean;
 }
 
+function FilterSection({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Collapsible defaultOpen={defaultOpen}>
+      <CollapsibleTrigger className="group focus-visible:ring-ring/50 flex w-full items-center justify-between gap-4 py-4 text-left outline-none focus-visible:ring-2">
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">{title}</span>
+          {summary && (
+            <span className="text-muted-foreground mt-0.5 block truncate text-xs tabular-nums">
+              {summary}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className="text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pb-5">{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function AdvancedFiltersUpsell() {
   return (
-    <div>
-      <div className="bg-muted/50 rounded-lg border border-dashed p-4 text-center">
-        <Lock className="text-muted-foreground mx-auto mb-2 h-6 w-6" />
-        <p className="text-foreground text-sm font-medium">
-          Filters are a Lite feature
+    <div className="flex flex-col items-start gap-4 py-2">
+      <div className="flex max-w-sm flex-col gap-2">
+        <h3 className="text-base font-semibold">Filter the full inventory</h3>
+        <p className="text-muted-foreground text-sm leading-6">
+          Lite adds filters for source, make, year, color, state, and individual
+          salvage yards from ${PLANS.lite.monthlyPrice}/month.
         </p>
-        <p className="text-muted-foreground mt-1 text-xs text-pretty">
-          Upgrade to Lite (${PLANS.lite.monthlyPrice}/mo) to filter by yard,
-          make, year, color, state, and lot.
-        </p>
-        <Button asChild size="sm" className="mt-3 w-full">
-          <Link href="/pricing">Compare Plans</Link>
-        </Button>
       </div>
+      <Button asChild size="sm">
+        <Link href="/pricing">Compare plans</Link>
+      </Button>
     </div>
   );
 }
@@ -94,199 +139,199 @@ export function SidebarContent({
     return <AdvancedFiltersUpsell />;
   }
 
-  const availableSources: DataSource[] = [
-    "pyp",
-    "pullapart",
-    "upullitne",
-    "upullitdavie",
-    "gopullit",
-    "row52",
-    "autorecycler",
-  ];
+  const minimumYear = yearRangeLimits?.min ?? 1900;
+  const maximumYear = yearRangeLimits?.max ?? new Date().getFullYear();
+  const hasYearFilter =
+    yearRange[0] !== minimumYear || yearRange[1] !== maximumYear;
 
   return (
-    <div className="flex flex-col gap-4">
-      <Collapsible defaultOpen>
-        <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <span className="font-medium">Salvage Yards</span>
-          <ChevronDown className="-mr-2 size-4" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 flex flex-col gap-2">
-          {availableSources.map((source) => {
-            const isChecked = sources.length === 0 || sources.includes(source);
+    <div className="divide-border flex flex-col divide-y">
+      <FilterSection
+        title="Inventory sources"
+        summary={
+          sources.length === 0
+            ? "All sources"
+            : `${sources.length} of ${AVAILABLE_SOURCES.length} selected`
+        }
+      >
+        <FieldSet className="gap-3">
+          <FieldLegend className="sr-only">Inventory sources</FieldLegend>
+          <FieldGroup className="gap-1">
+            {AVAILABLE_SOURCES.map((source) => {
+              const isChecked =
+                sources.length === 0 || sources.includes(source);
+              return (
+                <Field
+                  key={source}
+                  orientation="horizontal"
+                  className="hover:bg-muted/60 min-h-9 gap-3 rounded-md px-2 py-2"
+                >
+                  <Checkbox
+                    id={`source-${source}`}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        if (sources.length === 0) return;
+                        const newSources = [...sources, source];
+                        onSourcesChange(
+                          newSources.length === AVAILABLE_SOURCES.length
+                            ? []
+                            : newSources,
+                        );
+                        return;
+                      }
 
-            return (
-              <div key={source} className="flex items-center gap-2 px-3">
-                <Checkbox
-                  id={`source-${source}`}
-                  checked={isChecked}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      if (sources.length === 0) return;
-                      const newSources = [...sources, source];
-                      onSourcesChange(
-                        newSources.length === availableSources.length
-                          ? []
-                          : newSources,
-                      );
-                    } else {
                       if (sources.length === 0) {
                         onSourcesChange(
-                          availableSources.filter((s) => s !== source),
+                          AVAILABLE_SOURCES.filter(
+                            (availableSource) => availableSource !== source,
+                          ),
                         );
-                      } else {
-                        const newSources = sources.filter((s) => s !== source);
-                        if (newSources.length === 0) return;
+                        return;
+                      }
+
+                      const newSources = sources.filter(
+                        (selectedSource) => selectedSource !== source,
+                      );
+                      if (newSources.length > 0) {
                         onSourcesChange(newSources);
                       }
-                    }
-                  }}
-                />
-                <Label htmlFor={`source-${source}`} className="text-sm">
-                  {SOURCE_LABELS[source]}
-                </Label>
-              </div>
-            );
-          })}
-        </CollapsibleContent>
-      </Collapsible>
+                    }}
+                  />
+                  <FieldLabel
+                    htmlFor={`source-${source}`}
+                    className="min-w-0 cursor-pointer"
+                  >
+                    <span className="truncate">{SOURCE_LABELS[source]}</span>
+                  </FieldLabel>
+                </Field>
+              );
+            })}
+          </FieldGroup>
+        </FieldSet>
+      </FilterSection>
 
       {filterOptions.makes.length > 1 && (
-        <Collapsible defaultOpen>
-          <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Make</span>
-              {makes.length > 0 && (
-                <Badge variant="secondary" className="text-[10px] tabular-nums">
-                  {makes.length}
-                </Badge>
-              )}
-            </div>
-            <ChevronDown className="-mr-2 size-4" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-2">
-            <SearchableCheckboxList
-              name="make"
-              options={filterOptions.makes}
-              selected={makes}
-              onChange={onMakesChange}
-              searchPlaceholder="Search makes…"
-              searchThreshold={10}
-              maxHeight={220}
-            />
-          </CollapsibleContent>
-        </Collapsible>
+        <FilterSection
+          title="Make"
+          summary={makes.length > 0 ? `${makes.length} selected` : undefined}
+          defaultOpen
+        >
+          <SearchableCheckboxList
+            name="make"
+            label="Make"
+            options={filterOptions.makes}
+            selected={makes}
+            onChange={onMakesChange}
+            searchPlaceholder="Search makes"
+            searchThreshold={10}
+            maxHeight={220}
+          />
+        </FilterSection>
       )}
 
-      <Collapsible defaultOpen>
-        <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <span className="font-medium">Year Range</span>
-          <ChevronDown className="-mr-2 size-4" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2 flex flex-col gap-4">
-          <div className="px-2">
-            <div className="text-muted-foreground mb-2 flex justify-between text-sm">
-              <span>{yearRange?.[0]}</span>
-              <span>{yearRange?.[1]}</span>
+      <FilterSection
+        title="Year"
+        summary={
+          hasYearFilter ? `${yearRange[0]} to ${yearRange[1]}` : "All years"
+        }
+        defaultOpen
+      >
+        <div className="flex flex-col gap-5 px-2">
+          <div className="grid grid-cols-2 gap-4 text-sm tabular-nums">
+            <div>
+              <span className="text-muted-foreground block text-xs">
+                Earliest
+              </span>
+              <output className="mt-1 block font-medium">{yearRange[0]}</output>
             </div>
-            <Slider
-              value={yearRange}
-              onValueChange={(value) => {
-                const [min, max] = value as [number, number];
+            <div className="text-right">
+              <span className="text-muted-foreground block text-xs">
+                Latest
+              </span>
+              <output className="mt-1 block font-medium">{yearRange[1]}</output>
+            </div>
+          </div>
+          <Slider
+            value={yearRange}
+            onValueChange={(value) => {
+              const min = value[0];
+              const max = value[1];
+              if (typeof min === "number" && typeof max === "number") {
                 onYearRangeChange([min, max]);
-              }}
-              min={yearRangeLimits?.min ?? 1900}
-              max={yearRangeLimits?.max ?? new Date().getFullYear()}
-              step={1}
-              className="w-full"
-              onPointerDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-            />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Collapsible>
-        <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Color</span>
-            {colors.length > 0 && (
-              <Badge variant="secondary" className="text-[10px] tabular-nums">
-                {colors.length}
-              </Badge>
-            )}
-          </div>
-          <ChevronDown className="-mr-2 size-4" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2">
-          <SearchableCheckboxList
-            name="color"
-            options={filterOptions.colors}
-            selected={colors}
-            onChange={onColorsChange}
-            searchPlaceholder="Search colors…"
-            searchThreshold={12}
-            maxHeight={200}
+              }
+            }}
+            min={minimumYear}
+            max={maximumYear}
+            step={1}
+            aria-label="Vehicle year range"
+            onPointerDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
           />
-        </CollapsibleContent>
-      </Collapsible>
+        </div>
+      </FilterSection>
 
-      <Collapsible>
-        <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">State</span>
-            {states.length > 0 && (
-              <Badge variant="secondary" className="text-[10px] tabular-nums">
-                {states.length}
-              </Badge>
-            )}
-          </div>
-          <ChevronDown className="-mr-2 size-4" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2">
-          <SearchableCheckboxList
-            name="state"
-            options={filterOptions.states}
-            selected={states}
-            onChange={onStatesChange}
-            searchPlaceholder="Search states…"
-            searchThreshold={6}
-            maxHeight={240}
-          />
-        </CollapsibleContent>
-      </Collapsible>
+      <FilterSection
+        title="Color"
+        summary={colors.length > 0 ? `${colors.length} selected` : undefined}
+      >
+        <SearchableCheckboxList
+          name="color"
+          label="Color"
+          options={filterOptions.colors}
+          selected={colors}
+          onChange={onColorsChange}
+          searchPlaceholder="Search colors"
+          searchThreshold={12}
+          maxHeight={200}
+        />
+      </FilterSection>
 
-      <Collapsible>
-        <CollapsibleTrigger className="hover:bg-accent flex w-full items-center justify-between rounded p-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Lot</span>
-            {salvageYards.length > 0 && (
-              <Badge variant="secondary" className="text-[10px] tabular-nums">
-                {salvageYards.length}
-              </Badge>
-            )}
-          </div>
-          <ChevronDown className="-mr-2 size-4" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-2">
+      <FilterSection
+        title="State"
+        summary={states.length > 0 ? `${states.length} selected` : undefined}
+      >
+        <SearchableCheckboxList
+          name="state"
+          label="State"
+          options={filterOptions.states}
+          selected={states}
+          onChange={onStatesChange}
+          searchPlaceholder="Search states"
+          searchThreshold={6}
+          maxHeight={240}
+        />
+      </FilterSection>
+
+      <FilterSection
+        title="Salvage yard"
+        summary={
+          salvageYards.length > 0
+            ? `${salvageYards.length} selected`
+            : undefined
+        }
+      >
+        <div className="flex flex-col gap-2">
           <SearchableCheckboxList
             name="yard"
+            label="Salvage yard"
             options={filterOptions.salvageYards}
             selected={salvageYards}
             onChange={onSalvageYardsChange}
-            searchPlaceholder="Search lots…"
+            searchPlaceholder="Search yards"
             searchThreshold={6}
             maxHeight={240}
           />
-          <Link
-            href="/request-yard"
-            className="text-muted-foreground hover:text-foreground px-3 text-xs underline-offset-2 hover:underline"
-            onClick={() => trackRequestYardClick({ location: "lot_filter" })}
-          >
-            + Request a missing yard
-          </Link>
-        </CollapsibleContent>
-      </Collapsible>
+          <Button asChild variant="link" size="sm" className="self-start">
+            <Link
+              href="/request-yard"
+              onClick={() => trackRequestYardClick({ location: "lot_filter" })}
+            >
+              Request a missing yard
+            </Link>
+          </Button>
+        </div>
+      </FilterSection>
     </div>
   );
 }
