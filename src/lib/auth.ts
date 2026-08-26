@@ -3,7 +3,7 @@ import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
 import { APIError, getOAuthState } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { oAuthProxy } from "better-auth/plugins";
+import { oAuthProxy } from "better-auth/plugins/oauth-proxy";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { PasswordReset } from "~/emails/PasswordReset";
@@ -20,21 +20,63 @@ import {
 
 const resend = new Resend(env.RESEND_API_KEY);
 
-const productionURL = env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : env.NEXT_PUBLIC_APP_URL;
+function parseCsv(value: string | undefined): string[] {
+  return (
+    value
+      ?.split(",")
+      .map((part) => part.trim())
+      .filter(Boolean) ?? []
+  );
+}
+
+function getHost(value: string | undefined): string | null {
+  if (!value) return null;
+
+  try {
+    return new URL(value).host;
+  } catch {
+    return null;
+  }
+}
+
+const productionURL = env.BETTER_AUTH_URL;
+
+const authAllowedHosts = Array.from(
+  new Set(
+    [
+      ...parseCsv(env.BETTER_AUTH_ALLOWED_HOSTS),
+      getHost(productionURL),
+      getHost(env.NEXT_PUBLIC_APP_URL),
+      "junkyard-index-*.vercel.app",
+      "localhost:*",
+      "127.0.0.1:*",
+      "*.localhost",
+      "*.localhost:*",
+    ].filter((host): host is string => Boolean(host)),
+  ),
+);
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "sqlite",
     schema,
   }),
-  baseURL: env.NEXT_PUBLIC_APP_URL,
+  baseURL: {
+    allowedHosts: authAllowedHosts,
+    fallback: productionURL,
+  },
   trustedOrigins: [
     env.NEXT_PUBLIC_APP_URL,
     productionURL,
-    "https://*.vercel.app",
+    "https://junkyard-index-*.vercel.app",
+    "http://localhost:*",
+    "http://127.0.0.1:*",
+    "https://*.localhost",
+    "https://*.localhost:*",
   ],
+  advanced: {
+    trustedProxyHeaders: true,
+  },
   user: {
     additionalFields: {
       termsAcceptedAt: {
@@ -128,7 +170,7 @@ export const auth = betterAuth({
   },
   secret: env.BETTER_AUTH_SECRET,
   plugins: [
-    oAuthProxy({ productionURL }),
+    oAuthProxy({ productionURL, secret: env.OAUTH_PROXY_SECRET }),
     polar({
       client: polarClient,
       createCustomerOnSignUp: true,
