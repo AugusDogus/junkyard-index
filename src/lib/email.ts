@@ -159,7 +159,7 @@ export async function sendEmailDigest(
         alertCount: digest.alertCount,
         vehicleCount: digest.vehicleCount,
       },
-      manageSearchesUrl: `${env.NEXT_PUBLIC_APP_URL}/settings`,
+      manageSearchesUrl: `${env.NEXT_PUBLIC_APP_URL}/settings/searches`,
     });
 
     const [emailHtml, emailText] = await Promise.all([

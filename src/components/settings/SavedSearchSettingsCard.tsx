@@ -1,20 +1,11 @@
 "use client";
 
-import { Bell, Mail, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { MoreHorizontal, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { toast } from "sonner";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,11 +18,8 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { DiscordIcon } from "~/components/ui/icons";
-import { Separator } from "~/components/ui/separator";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Switch } from "~/components/ui/switch";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
@@ -109,7 +97,7 @@ export function SavedSearchSettingsCard() {
       return;
     }
     if (enabled && !canUseDiscord) {
-      toast.error("Complete Discord setup above first");
+      toast.error("Complete Discord setup in notification settings first");
       return;
     }
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_DISCORD_TOGGLED, {
@@ -131,47 +119,38 @@ export function SavedSearchSettingsCard() {
   const searchCount = searches?.length ?? 0;
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <CardHeader className="border-b py-5">
-        <div className="flex items-center gap-3">
-          <div className="bg-secondary flex size-9 items-center justify-center rounded-lg">
-            <Bell aria-hidden="true" />
-          </div>
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <CardTitle>Saved searches</CardTitle>
-              {!isLoading && <Badge variant="secondary">{searchCount}</Badge>}
-            </div>
-            <CardDescription>
-              Reopen searches and choose where match alerts arrive.
-            </CardDescription>
-          </div>
+    <section aria-labelledby="saved-searches-heading">
+      <div className="flex items-start justify-between gap-6">
+        <div className="max-w-2xl">
+          <h2 id="saved-searches-heading" className="text-xl font-semibold">
+            Saved searches
+          </h2>
+          <p className="text-muted-foreground mt-2 text-sm leading-6">
+            Reopen a vehicle search with its filters intact and choose where
+            new-match alerts arrive.
+          </p>
         </div>
-        <CardAction>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/search">
-              <Search data-icon="inline-start" />
-              <span className="hidden sm:inline">New search</span>
-              <span className="sr-only sm:hidden">Start a new search</span>
-            </Link>
-          </Button>
-        </CardAction>
-      </CardHeader>
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <Link href="/search">
+            <Search data-icon="inline-start" />
+            New search
+          </Link>
+        </Button>
+      </div>
 
-      <CardContent className="p-0">
+      <div className="mt-6">
         {isLoading && (
-          <div aria-label="Loading saved searches">
+          <div
+            aria-label="Loading saved searches"
+            className="border-border divide-y border-y"
+          >
             {[0, 1].map((index) => (
-              <div key={index}>
-                {index > 0 && <Separator />}
-                <div className="flex items-center gap-3 px-6 py-5">
-                  <Skeleton className="size-10 shrink-0 rounded-lg" />
-                  <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-3 w-52 max-w-full" />
-                  </div>
-                  <Skeleton className="h-8 w-24" />
+              <div key={index} className="flex items-center gap-4 py-5">
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-52 max-w-full" />
                 </div>
+                <Skeleton className="h-8 w-24" />
               </div>
             ))}
           </div>
@@ -180,9 +159,6 @@ export function SavedSearchSettingsCard() {
         {!isLoading && searchCount === 0 && (
           <Empty>
             <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Search />
-              </EmptyMedia>
               <EmptyTitle>No saved searches yet</EmptyTitle>
               <EmptyDescription>
                 Save a search when you want to revisit the same vehicle and
@@ -200,106 +176,100 @@ export function SavedSearchSettingsCard() {
         {!isLoading && searches && searches.length > 0 && (
           <div>
             {savedSearchesLocked && (
-              <SavedSearchUpgradeNotice className="m-4 sm:m-5" />
+              <SavedSearchUpgradeNotice className="mb-5" />
             )}
-            {searches.map((search, index) => (
-              <div key={search.id}>
-                {index > 0 && <Separator />}
-                <div className="grid gap-4 px-4 py-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="bg-secondary flex size-10 shrink-0 items-center justify-center rounded-lg">
-                      <Search aria-hidden="true" />
-                    </div>
+            <div className="border-border divide-y border-y">
+              {searches.map((search) => (
+                <div key={search.id}>
+                  <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                     <div className="flex min-w-0 flex-col gap-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">
-                          {search.name}
-                        </span>
-                        {savedSearchesLocked && (
-                          <Badge variant="outline">Locked</Badge>
-                        )}
-                      </div>
+                      <span className="truncate text-sm font-medium">
+                        {search.name}
+                      </span>
                       <span className="text-muted-foreground truncate text-sm">
                         {search.query ||
                           search.filters.vinPattern ||
                           "All vehicles"}
                       </span>
+                      {savedSearchesLocked && (
+                        <span className="text-muted-foreground text-xs">
+                          Alerts are unavailable on your current plan.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-5 md:justify-end">
+                      {!savedSearchesLocked && (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <label
+                              htmlFor={`email-alerts-${search.id}`}
+                              className="text-sm"
+                            >
+                              Email
+                            </label>
+                            <Switch
+                              id={`email-alerts-${search.id}`}
+                              checked={search.emailAlertsEnabled}
+                              onCheckedChange={(enabled) =>
+                                setEmailAlerts(search.id, enabled)
+                              }
+                              disabled={isMutating}
+                              aria-label={`Email alerts for ${search.name}`}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <label
+                              htmlFor={`discord-alerts-${search.id}`}
+                              className="text-sm"
+                            >
+                              Discord
+                            </label>
+                            <Switch
+                              id={`discord-alerts-${search.id}`}
+                              checked={search.discordAlertsEnabled}
+                              onCheckedChange={(enabled) =>
+                                setDiscordAlerts(search.id, enabled)
+                              }
+                              disabled={isMutating}
+                              aria-label={`Discord alerts for ${search.name}`}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Actions for saved search ${search.name}`}
+                          >
+                            <MoreHorizontal />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={deleteSearch.isPending}
+                              onSelect={() => remove(search.id)}
+                            >
+                              <Trash2 />
+                              Delete saved search
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-4 pl-13 md:pl-0">
-                    {!savedSearchesLocked && (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <Mail aria-hidden="true" className="size-4" />
-                          <label
-                            htmlFor={`email-alerts-${search.id}`}
-                            className="text-sm"
-                          >
-                            Email
-                          </label>
-                          <Switch
-                            id={`email-alerts-${search.id}`}
-                            checked={search.emailAlertsEnabled}
-                            onCheckedChange={(enabled) =>
-                              setEmailAlerts(search.id, enabled)
-                            }
-                            disabled={isMutating}
-                            aria-label={`Email alerts for ${search.name}`}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <DiscordIcon aria-hidden="true" className="size-4" />
-                          <label
-                            htmlFor={`discord-alerts-${search.id}`}
-                            className="text-sm"
-                          >
-                            Discord
-                          </label>
-                          <Switch
-                            id={`discord-alerts-${search.id}`}
-                            checked={search.discordAlertsEnabled}
-                            onCheckedChange={(enabled) =>
-                              setDiscordAlerts(search.id, enabled)
-                            }
-                            disabled={isMutating}
-                            aria-label={`Discord alerts for ${search.name}`}
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Actions for saved search ${search.name}`}
-                        >
-                          <MoreHorizontal />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuGroup>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={deleteSearch.isPending}
-                            onSelect={() => remove(search.id)}
-                          >
-                            <Trash2 />
-                            Delete saved search
-                          </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

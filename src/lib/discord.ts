@@ -83,7 +83,7 @@ export async function sendTestDM(
 
   // Build settings URL from environment
   const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://junkyardindex.com";
-  const settingsUrl = `${baseUrl}/settings`;
+  const settingsUrl = `${baseUrl}/settings/notifications`;
 
   const message: DiscordMessage = {
     embeds: [

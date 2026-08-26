@@ -6,13 +6,6 @@ import posthog from "posthog-js";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import { DiscordIcon } from "~/components/ui/icons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { env } from "~/env";
@@ -60,11 +53,11 @@ export function DiscordSettingsCard() {
       toast.success(
         "Discord app installed successfully! You can now receive Discord notifications.",
       );
-      router.replace("/settings", { scroll: false });
+      router.replace("/settings/notifications", { scroll: false });
       void settings.refetch();
     } else if (discordError) {
       toast.error(discordError);
-      router.replace("/settings", { scroll: false });
+      router.replace("/settings/notifications", { scroll: false });
     }
   }, [router, searchParams, settings.refetch]);
 
@@ -74,7 +67,10 @@ export function DiscordSettingsCard() {
     });
     setIsSigningIn(true);
     try {
-      await signIn.social({ provider: "discord", callbackURL: "/settings" });
+      await signIn.social({
+        provider: "discord",
+        callbackURL: "/settings/notifications",
+      });
     } catch (error) {
       console.error("Discord sign in error:", error);
       setIsSigningIn(false);
@@ -89,80 +85,82 @@ export function DiscordSettingsCard() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <DiscordIcon className="h-5 w-5" />
-          Discord Notifications
-        </CardTitle>
-        <CardDescription>
-          Set up Discord to receive direct message alerts when new vehicles
-          match your searches.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {settings.isLoading ? (
-          <Skeleton className="h-20 w-full" />
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p
-                className={`text-sm ${settings.data?.hasDiscordLinked ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
-              >
-                Step 1:{" "}
-                {settings.data?.hasDiscordLinked
-                  ? "Discord account linked"
-                  : "Sign in with Discord to link your account"}
-              </p>
-              {!settings.data?.hasDiscordLinked && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void connect()}
-                  disabled={isSigningIn}
-                >
-                  <DiscordIcon className="mr-2 h-4 w-4" />
-                  {isSigningIn ? "Connecting..." : "Sign in with Discord"}
-                </Button>
-              )}
-            </div>
+    <section aria-labelledby="discord-notifications-heading">
+      <div className="max-w-2xl">
+        <h2
+          id="discord-notifications-heading"
+          className="text-xl font-semibold"
+        >
+          Discord
+        </h2>
+        <p className="text-muted-foreground mt-2 text-sm leading-6">
+          Receive a direct message when a new vehicle matches a saved search.
+          Setup has two steps so Junkyard Index can identify your account and
+          deliver messages to it.
+        </p>
+      </div>
 
-            <div className="flex items-center justify-between">
-              <p
-                className={`text-sm ${settings.data?.discordAppInstalled ? "text-green-600 dark:text-green-400" : settings.data?.hasDiscordLinked ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-              >
-                Step 2:{" "}
-                {settings.data?.discordAppInstalled
-                  ? "Discord app installed"
-                  : "Authorize Junkyard Index to send you DMs"}
-              </p>
-              {settings.data?.hasDiscordLinked &&
-                !settings.data.discordAppInstalled && (
-                  <div className="flex items-center gap-2">
-                    {!hasClickedInstall ? (
-                      <a
-                        href={DISCORD_INSTALL_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setHasClickedInstall(true)}
-                      >
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Authorize
-                        </Button>
-                      </a>
-                    ) : (
-                      <>
+      <div className="mt-6">
+        {settings.isLoading ? (
+          <div className="border-border space-y-4 border-y py-5">
+            <Skeleton className="h-5 w-64 max-w-full" />
+            <Skeleton className="h-9 w-40" />
+          </div>
+        ) : (
+          <>
+            <ol className="border-border divide-y border-y">
+              <li className="grid gap-4 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">1. Link your account</p>
+                  <p className="text-muted-foreground mt-1 text-sm leading-6">
+                    {settings.data?.hasDiscordLinked
+                      ? "Your Discord identity is linked."
+                      : "Sign in with Discord so alerts reach the correct account."}
+                  </p>
+                </div>
+                {!settings.data?.hasDiscordLinked && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void connect()}
+                    disabled={isSigningIn}
+                  >
+                    <DiscordIcon data-icon="inline-start" />
+                    {isSigningIn ? "Connecting..." : "Sign in with Discord"}
+                  </Button>
+                )}
+              </li>
+
+              <li className="grid gap-4 py-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    2. Authorize direct messages
+                  </p>
+                  <p className="text-muted-foreground mt-1 text-sm leading-6">
+                    {settings.data?.discordAppInstalled
+                      ? "Junkyard Index is authorized to send you alerts."
+                      : settings.data?.hasDiscordLinked
+                        ? "Authorize the app, then return here to verify the connection."
+                        : "Complete the first step before authorizing the app."}
+                  </p>
+                </div>
+                {settings.data?.hasDiscordLinked &&
+                  !settings.data.discordAppInstalled && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild variant="outline" size="sm">
                         <a
                           href={DISCORD_INSTALL_URL}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => setHasClickedInstall(true)}
                         >
-                          <Button variant="ghost" size="sm">
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            Authorize
-                          </Button>
+                          <ExternalLink data-icon="inline-start" />
+                          {hasClickedInstall
+                            ? "Open authorization"
+                            : "Authorize"}
                         </a>
+                      </Button>
+                      {hasClickedInstall && (
                         <Button
                           size="sm"
                           onClick={() => verifyInstall.mutate()}
@@ -170,34 +168,33 @@ export function DiscordSettingsCard() {
                         >
                           {verifyInstall.isPending
                             ? "Verifying..."
-                            : "Verify Install"}
+                            : "Verify connection"}
                         </Button>
-                      </>
-                    )}
-                  </div>
-                )}
-            </div>
+                      )}
+                    </div>
+                  )}
+              </li>
+            </ol>
 
             {settings.data?.discordAppInstalled && (
-              <div className="flex items-center justify-between border-t pt-2">
-                <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                  Ready to receive Discord DMs
-                </span>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-medium">
+                  Discord alerts are ready to use.
+                </p>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive"
                   onClick={disconnectApp}
                   disabled={disconnect.isPending}
                 >
-                  <Link2Off className="mr-1 h-3 w-3" />
+                  <Link2Off data-icon="inline-start" />
                   Disconnect
                 </Button>
               </div>
             )}
-          </div>
+          </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

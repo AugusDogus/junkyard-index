@@ -1,17 +1,10 @@
 "use client";
 
-import { Trash2, UserX } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -39,31 +32,33 @@ export function DeleteAccountCard() {
 
   return (
     <>
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserX className="h-5 w-5" />
-            Delete Account
-          </CardTitle>
-          <CardDescription>
+      <section
+        aria-labelledby="delete-account-heading"
+        className="border-border border-t pt-10"
+      >
+        <div className="max-w-2xl">
+          <h2 id="delete-account-heading" className="text-xl font-semibold">
+            Delete account
+          </h2>
+          <p className="text-muted-foreground mt-2 text-sm leading-6">
             Permanently delete your account and all associated data, including
             saved searches and alerts. Any subscription that could still charge
             will be revoked first. Unfinished checkouts must expire or complete
             before deletion. This action cannot be undone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
+        </div>
+        <div className="mt-6">
           <Button variant="destructive" onClick={() => setShowDialog(true)}>
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Account
+            <Trash2 data-icon="inline-start" />
+            Delete account
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Account</DialogTitle>
+            <DialogTitle>Delete account</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete your account? This action cannot
               be undone. Your access will end immediately, your saved searches
@@ -85,7 +80,7 @@ export function DeleteAccountCard() {
               onClick={() => deleteAccount.mutate()}
               disabled={deleteAccount.isPending}
             >
-              {deleteAccount.isPending ? "Deleting..." : "Delete Account"}
+              {deleteAccount.isPending ? "Deleting..." : "Delete account"}
             </Button>
           </DialogFooter>
         </DialogContent>
