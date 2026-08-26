@@ -13,16 +13,11 @@ interface HeaderAuthButtonsProps {
 
 export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   const pathname = usePathname();
-
-  if (user) {
-    return <UserMenu user={user} />;
-  }
-
   const showPricing = pathname === "/";
 
   return (
     <div className="flex items-center gap-2">
-      {showPricing && (
+      {!user && showPricing && (
         <Button
           asChild
           variant="ghost"
@@ -43,20 +38,25 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           </Link>
         </Button>
       )}
-      <Button
-        asChild
-        variant="outline"
-        size="sm"
-        className="hidden sm:inline-flex"
-      >
-        <Link href="/auth/sign-in">Sign In</Link>
-      </Button>
+      {!user && (
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="hidden sm:inline-flex"
+        >
+          <Link href="/auth/sign-in">Sign In</Link>
+        </Button>
+      )}
       <Button asChild size="sm">
-        <Link href="/auth/sign-up" aria-label="Create free account">
-          <span className="sm:hidden">Sign up</span>
-          <span className="hidden sm:inline">Create Free Account</span>
+        <Link
+          href="/search"
+          aria-current={pathname === "/search" ? "page" : undefined}
+        >
+          Search
         </Link>
       </Button>
+      {user && <UserMenu user={user} />}
     </div>
   );
 }
