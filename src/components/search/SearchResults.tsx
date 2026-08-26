@@ -89,7 +89,7 @@ export function SearchResults({
     return result;
   }, [searchResult.vehicles, columns]);
 
-  const gapHeight = 24;
+  const gapHeight = 16;
   const estimatedCardHeight = 480;
   const estimatedRowHeight = estimatedCardHeight + gapHeight;
 
@@ -133,7 +133,7 @@ export function SearchResults({
     (row: SearchVehicle[], keyPrefix: string, className?: string) => (
       <div
         key={keyPrefix}
-        className={className ?? "grid w-full gap-6 pb-6"}
+        className={className ?? "grid w-full gap-4 pb-4"}
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
@@ -157,23 +157,20 @@ export function SearchResults({
   if (isLoading) {
     return (
       <div
-        className="grid w-full gap-6"
+        className="grid w-full gap-4"
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         }}
       >
         {Array.from({ length: amountOfSkeletons }).map((_, index) => (
-          <Card
-            key={index}
-            className="gap-0 overflow-hidden py-0"
-          >
+          <Card key={index} className="gap-0 overflow-hidden py-0">
             <CardHeader className="p-0">
               <Skeleton className="aspect-video rounded-t-md rounded-b-none" />
             </CardHeader>
-            <CardContent className="h-full space-y-3 p-4">
+            <CardContent className="flex h-full flex-col gap-3 p-4">
               <Skeleton className="h-7 w-3/4" />
               <Skeleton className="h-4 w-1/4" />
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <div className="flex flex-row justify-between gap-2">
                   <Skeleton className="h-4 w-1/6" />
                   <Skeleton className="h-4 w-1/3" />
@@ -187,7 +184,7 @@ export function SearchResults({
                   <Skeleton className="h-4 w-1/4" />
                 </div>
               </div>
-              <div className="flex items-center space-x-2 pt-2">
+              <div className="flex items-center gap-2 pt-2">
                 <Skeleton className="h-4 w-4 rounded-full" />
                 <Skeleton className="h-4 w-32" />
               </div>
@@ -210,17 +207,14 @@ export function SearchResults({
     const lockedRows = rows.slice(visibleRows);
 
     return (
-      <div className="space-y-0">
+      <div>
         {clearRows.map((row, rowIndex) =>
           renderGridRow(row, `preview-clear-${rowIndex}`),
         )}
 
         {lockedRows.length > 0 && (
           <div className="relative">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none select-none space-y-0"
-            >
+            <div aria-hidden="true" className="pointer-events-none select-none">
               {lockedRows.map((row, rowIndex) => (
                 <div
                   key={`preview-locked-wrapper-${rowIndex}`}
@@ -229,7 +223,7 @@ export function SearchResults({
                   {renderGridRow(
                     row,
                     `preview-locked-${rowIndex}`,
-                    "grid w-full gap-6 pb-6 opacity-45 blur-sm",
+                    "grid w-full gap-4 pb-4 opacity-45 blur-sm",
                   )}
                   <div className="bg-background/55 absolute inset-0" />
                 </div>

@@ -26,8 +26,6 @@ import {
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
-import { MorphingFilterBar } from "~/components/search/MorphingFilterBar";
-import { MorphingSearchBar } from "~/components/search/MorphingSearchBar";
 import {
   clearPendingSaveSearch,
   SaveSearchDialog,
@@ -35,11 +33,13 @@ import {
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SavedSearchesList } from "~/components/search/SavedSearchesList";
 import { SearchAccessShell } from "~/components/search/SearchAccessShell";
+import { VehicleSearchInput } from "~/components/search/VehicleSearchInput";
 import {
   resolveSearchResultsPanelModel,
   SearchResultsPanel,
 } from "~/components/search/SearchResultsPanel";
 import { Sidebar } from "~/components/search/Sidebar";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -53,8 +53,10 @@ import { Input } from "~/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "~/components/ui/select";
 import {
   getSearchableVinPattern,
@@ -1157,23 +1159,26 @@ function AlgoliaSearchInner({
     />
   );
 
-  const searchResultActions = isMobile ? (
-    <div className="flex items-center gap-1.5">
+  const workspaceActions = isMobile ? (
+    <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 [&_button]:h-11">
+      {mobileFiltersDrawer}
+      <Select value={sortBy} onValueChange={handleSortChange}>
+        <SelectTrigger className="ml-auto" aria-label="Sort vehicles">
+          <SortIcon className="text-muted-foreground" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
+              <SelectItem key={key} value={key}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
       {isLoggedIn && (
         <SavedSearchesDropdown iconOnly locked={savedSearchesLocked} />
       )}
-      <Select value={sortBy} onValueChange={handleSortChange}>
-        <SelectTrigger size="sm" className="w-fit">
-          <SortIcon className="text-muted-foreground h-3.5 w-3.5" />
-        </SelectTrigger>
-        <SelectContent>
-          {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
-            <SelectItem key={key} value={key}>
-              {label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
       <SaveSearchDialog
         query={query}
         filters={currentSaveSearchFilters}
@@ -1184,24 +1189,48 @@ function AlgoliaSearchInner({
         onAutoOpenHandled={handleAutoOpenHandled}
         iconOnly
       />
-      {mobileFiltersDrawer}
     </div>
   ) : (
-    <MorphingFilterBar
-      query={query}
-      planAccess={planAccess}
-      sortBy={sortBy}
-      onSortChange={handleSortChange}
-      activeFilterCount={activeFilterCount}
-      showFilters={showFilters}
-      onToggleFilters={handleToggleFilters}
-      isLoggedIn={isLoggedIn}
-      filters={currentSaveSearchFilters}
-      autoOpenSaveDialog={autoOpenSaveDialog}
-      onAutoOpenHandled={handleAutoOpenHandled}
-      disabled={!hasActiveSearch}
-      loading={isSearching}
-    />
+    <div className="flex shrink-0 items-center gap-2 [&_button]:h-9">
+      {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
+      <SaveSearchDialog
+        query={query}
+        filters={currentSaveSearchFilters}
+        planAccess={planAccess}
+        disabled={!hasActiveSearch}
+        isLoggedIn={isLoggedIn}
+        autoOpen={autoOpenSaveDialog}
+        onAutoOpenHandled={handleAutoOpenHandled}
+      />
+      <Select value={sortBy} onValueChange={handleSortChange}>
+        <SelectTrigger className="min-w-44" aria-label="Sort vehicles">
+          <SortIcon className="text-muted-foreground" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
+              <SelectItem key={key} value={key}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      <Button
+        variant="outline"
+        onClick={handleToggleFilters}
+        aria-pressed={showFilters}
+      >
+        <Filter data-icon="inline-start" />
+        Filters
+        {activeFilterCount > 0 && (
+          <Badge variant="secondary" className="tabular-nums">
+            {activeFilterCount}
+          </Badge>
+        )}
+      </Button>
+    </div>
   );
   const searchResultsPanelModel = resolveSearchResultsPanelModel({
     lifecycle: {
@@ -1212,7 +1241,7 @@ function AlgoliaSearchInner({
       searchResult,
     },
     header: {
-      actions: searchResultActions,
+      actions: null,
       processingTimeMS,
       visibleCount: isAnonymousCapped ? anonymousVisibleLimit : null,
     },
@@ -1252,7 +1281,7 @@ function AlgoliaSearchInner({
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
       <Configure
         // Intentionally 1000 (Algolia max). Small page sizes break sorting:
         // virtual replicas with relevancyStrictness:0 + useInfiniteHits
@@ -1285,31 +1314,35 @@ function AlgoliaSearchInner({
           void handleDistancePreferenceConfirm();
         }}
       />
-      <ErrorBoundary>
-        <MorphingSearchBar
-          vinPattern={vinPattern}
-          vinPatternSearchReady={vinPatternIndexReady}
-          onSearchModeChange={handleSearchModeChange}
-        />
-      </ErrorBoundary>
+      <section className="py-8 sm:py-10" aria-labelledby="search-page-title">
+        <h1
+          id="search-page-title"
+          className="max-w-2xl text-3xl font-semibold text-balance sm:text-4xl"
+        >
+          Find the vehicle. Pull the part.
+        </h1>
+        <p className="text-muted-foreground mt-3 max-w-2xl text-pretty">
+          Search connected salvage yard inventory by year, make, model, or VIN.
+        </p>
+      </section>
 
-      {!hasActiveSearch && !isSearching && (
-        <div className="mb-4 flex justify-end">
-          {isMobile ? (
-            mobileFiltersDrawer
-          ) : !showFilters ? (
-            <Button variant="outline" onClick={() => setShowFilters(true)}>
-              <Filter data-icon="inline-start" />
-              Filters
-            </Button>
-          ) : null}
+      <div className="bg-background sticky top-16 z-40 -mx-4 border-y px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 lg:flex-row lg:items-start">
+          <ErrorBoundary>
+            <VehicleSearchInput
+              vinPattern={vinPattern}
+              vinPatternSearchReady={vinPatternIndexReady}
+              onSearchModeChange={handleSearchModeChange}
+            />
+          </ErrorBoundary>
+          {workspaceActions}
         </div>
-      )}
+      </div>
 
-      <div className="relative flex w-full gap-4 md:gap-6">
+      <div className="relative flex w-full gap-5 py-6 lg:gap-8">
         {/* Desktop Sidebar */}
         {!isMobile && showFilters && (
-          <div className="sticky top-24 h-[calc(100vh-112px)] w-64 shrink-0 lg:w-80">
+          <div className="w-64 shrink-0 self-start lg:w-72">
             <Sidebar
               showFilters={showFilters}
               setShowFilters={setShowFilters}
@@ -1338,58 +1371,58 @@ function AlgoliaSearchInner({
         <div className="min-w-0 flex-1">
           {/* Empty State */}
           {!hasActiveSearch && !isSearching && (
-            <div className="py-8 sm:py-12">
-              <div className="sm:hidden">
-                <h1 className="text-foreground mb-2 text-3xl font-bold tracking-tight">
-                  Find Your Parts
-                </h1>
-                <p className="text-muted-foreground mb-6 text-base">
-                  Search across all available salvage yard locations
+            <div className="grid gap-10 py-8 sm:py-12 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)] md:gap-16">
+              <div>
+                <h2 className="text-2xl font-semibold text-balance">
+                  Start with what you know.
+                </h2>
+                <p className="text-muted-foreground mt-3 max-w-xl text-pretty">
+                  A broad model search is usually fastest. Add a year to narrow
+                  the result, or paste a full or partial VIN when you need an
+                  exact donor.
                 </p>
-                <div className="mb-8 flex flex-wrap gap-3">
+                <div className="mt-6 flex flex-wrap gap-2">
                   {["Honda Civic", "2020 Toyota", "Ford F-150"].map((term) => (
-                    <button
+                    <Button
                       key={term}
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() =>
-                        setIndexUiState((prev) => ({
-                          ...prev,
+                        setIndexUiState((previous) => ({
+                          ...previous,
                           query: term,
                         }))
                       }
-                      className="bg-muted hover:bg-muted/80 text-foreground inline-flex cursor-pointer items-center rounded-full px-4 py-2 text-sm font-medium transition-colors"
                     >
+                      <Search data-icon="inline-start" />
                       {term}
-                    </button>
+                    </Button>
                   ))}
                 </div>
-                {isLoggedIn && (
-                  <SavedSearchesList locked={savedSearchesLocked} />
-                )}
               </div>
 
-              <div className="hidden text-center sm:block">
-                <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-                  <Search className="text-muted-foreground h-12 w-12" />
-                </div>
-                <h2 className="text-foreground mb-2 text-lg font-medium">
-                  Search for vehicles
-                </h2>
-                <p className="text-muted-foreground mx-auto max-w-md">
-                  Enter a year, make, model, or any combination to search across
-                  all available salvage yard locations.
-                </p>
-                {isLoggedIn && (
+              <dl className="grid grid-cols-[auto_1fr] content-start gap-x-5 gap-y-4 border-l pl-5 text-sm sm:pl-8">
+                <dt className="text-muted-foreground">Vehicle</dt>
+                <dd>Year, make & model</dd>
+                <dt className="text-muted-foreground">VIN</dt>
+                <dd className="font-mono">Full or partial pattern</dd>
+                <dt className="text-muted-foreground">Shortcut</dt>
+                <dd className="font-mono">⌘ K / Ctrl K</dd>
+              </dl>
+
+              {isLoggedIn && (
+                <div className="md:col-span-2">
                   <SavedSearchesList locked={savedSearchesLocked} />
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
           <SearchResultsPanel model={searchResultsPanelModel} />
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 

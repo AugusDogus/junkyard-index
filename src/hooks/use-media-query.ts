@@ -28,8 +28,8 @@ export function useIsMobile(): boolean {
   return useMediaQuery("(max-width: 767px)");
 }
 
-// Returns true for screens in the md breakpoint range (768px - 1023px)
-// Used for making morphing bars more compact
+// Returns true for screens in the md breakpoint range (768px - 1023px).
+// Used to keep the virtualized results grid aligned with its CSS layout.
 export function useIsMediumScreen(): boolean {
   return useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
 }

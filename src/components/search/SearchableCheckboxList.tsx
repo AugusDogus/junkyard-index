@@ -61,7 +61,7 @@ export function SearchableCheckboxList({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       {showSearch && (
         <div className="relative px-1">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2" />
@@ -96,7 +96,11 @@ export function SearchableCheckboxList({
       >
         {sorted.length === 0 ? (
           query ? (
-            <p className="text-muted-foreground px-3 py-2 text-sm" role="status" aria-live="polite">
+            <p
+              className="text-muted-foreground px-3 py-2 text-sm"
+              role="status"
+              aria-live="polite"
+            >
               No matches
             </p>
           ) : null
@@ -104,7 +108,7 @@ export function SearchableCheckboxList({
           sorted.map((option) => (
             <div
               key={option}
-              className="flex items-center space-x-2 rounded px-3 py-1"
+              className="flex min-h-8 items-center gap-2 rounded px-3 py-1"
             >
               <Checkbox
                 id={`${name}-${option}`}

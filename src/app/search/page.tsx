@@ -8,7 +8,6 @@ import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
-import { SearchVisibilityProvider } from "~/context/SearchVisibilityContext";
 import { auth } from "~/lib/auth";
 import { quotaViewerFromSessionUser } from "~/lib/quota-viewer";
 import { api, HydrateClient } from "~/trpc/server";
@@ -61,21 +60,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   ]);
 
   return (
-    <SearchVisibilityProvider>
-      <div className="bg-background flex min-h-svh flex-col">
-        <Header />
-        <div className="flex-1">
-          <ErrorBoundary>
-            <Suspense>
-              <HydrateClient>
-                <SearchPageContent viewer={viewer} userLocation={geo} />
-              </HydrateClient>
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-        <Footer />
-        <ScrollToTop />
+    <div className="bg-background flex min-h-svh flex-col">
+      <Header />
+      <div className="flex-1">
+        <ErrorBoundary>
+          <Suspense>
+            <HydrateClient>
+              <SearchPageContent viewer={viewer} userLocation={geo} />
+            </HydrateClient>
+          </Suspense>
+        </ErrorBoundary>
       </div>
-    </SearchVisibilityProvider>
+      <Footer />
+      <ScrollToTop />
+    </div>
   );
 }

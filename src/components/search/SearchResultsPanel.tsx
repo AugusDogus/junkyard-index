@@ -14,7 +14,9 @@ import {
   SearchSummary,
 } from "~/components/search/SearchResults";
 import { SearchQuotaOverlay } from "~/components/search/SearchQuotaOverlay";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Skeleton } from "~/components/ui/skeleton";
 import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -146,37 +148,27 @@ const LOADING_RESULT: SearchResult = {
 
 function SearchResultsHeader({ model }: { model: SearchResultsHeaderModel }) {
   return (
-    <div className="mb-6">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-5 flex min-h-12 items-end justify-between gap-4 border-b pb-4">
+      <div className="min-w-0">
         {model.status.kind === "loading" ? (
-          <div>
-            <div className="bg-muted mb-2 h-8 w-48 animate-pulse rounded-md" />
-            <div className="bg-muted h-4 w-32 animate-pulse rounded-md" />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-28" />
           </div>
         ) : (
           <div>
-            <h2 className="text-foreground text-2xl font-black">
-              Search Results
+            <h2 className="truncate text-xl font-semibold text-balance">
+              {model.status.totalCount.toLocaleString()} vehicles
             </h2>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mt-1 text-sm tabular-nums">
               {model.status.visibleCount === null
-                ? `${model.status.totalCount.toLocaleString()} vehicles found`
-                : `Showing ${model.status.visibleCount} of ${model.status.totalCount.toLocaleString()} vehicles`}
+                ? `Results in ${model.status.processingTimeMS} ms`
+                : `Showing ${model.status.visibleCount.toLocaleString()} · ${model.status.processingTimeMS} ms`}
             </p>
           </div>
         )}
-        {model.actions}
       </div>
-
-      {model.status.kind === "loading" ? (
-        <div className="mb-6 flex items-center justify-between text-sm">
-          <div className="bg-muted h-4 w-48 animate-pulse rounded-md" />
-        </div>
-      ) : (
-        <div className="text-muted-foreground mb-6 flex items-center justify-between text-sm">
-          <span>Results in {model.status.processingTimeMS}ms</span>
-        </div>
-      )}
+      {model.actions}
     </div>
   );
 }
@@ -213,32 +205,24 @@ export function SearchResultsPanel({
       );
     case "error":
       return (
-        <div className="py-12 text-center">
-          <div className="bg-destructive/10 mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
-            <AlertCircle className="text-destructive h-12 w-12" />
-          </div>
-          <h2 className="text-foreground mb-2 text-lg font-medium">
-            Search unavailable
-          </h2>
-          <p className="text-muted-foreground mx-auto max-w-md">
-            We&apos;re having trouble connecting to search. Please try again in
-            a moment.
-          </p>
-        </div>
+        <Alert variant="destructive" className="my-8">
+          <AlertCircle />
+          <AlertTitle>Search is temporarily unavailable</AlertTitle>
+          <AlertDescription>
+            Your filters are preserved. Try the search again in a moment.
+          </AlertDescription>
+        </Alert>
       );
     case "empty":
       return (
-        <div className="py-12 text-center">
-          <div className="bg-muted mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
-            <AlertCircle className="text-muted-foreground h-8 w-8" />
-          </div>
-          <h2 className="text-foreground mb-2 text-lg font-medium">
+        <div className="flex flex-col items-start border-b py-12 sm:py-16">
+          <h2 className="text-xl font-semibold text-balance">
             No vehicles found
           </h2>
-          <p className="text-muted-foreground mx-auto max-w-sm text-sm">
+          <p className="text-muted-foreground mt-2 max-w-md text-sm text-pretty">
             {model.activeFilterCount > 0
-              ? "No vehicles match your current filters. Try broadening your search."
-              : "No vehicles match your search. Try different terms."}
+              ? "No vehicles match this query and filter set. Clear the filters to broaden the search."
+              : "No vehicles match this query. Check the spelling or try fewer details."}
           </p>
 
           {model.activeFilterCount > 0 && (
@@ -248,11 +232,11 @@ export function SearchResultsPanel({
               size="sm"
               className="mt-5"
             >
-              Clear Filters
+              Clear filters
             </Button>
           )}
 
-          <p className="text-muted-foreground mt-6 text-xs">
+          <p className="text-muted-foreground mt-8 text-xs">
             {model.isLoggedIn ? (
               <SaveSearchDialog
                 query={model.query}
@@ -278,7 +262,7 @@ export function SearchResultsPanel({
                 Save this search
               </Link>
             )}{" "}
-            ·{" "}
+            <span aria-hidden="true"> · </span>
             <Link
               href="/pricing"
               className="hover:text-foreground underline underline-offset-2"
@@ -297,7 +281,7 @@ export function SearchResultsPanel({
             </Link>
           </p>
 
-          <p className="text-muted-foreground mt-2 text-xs">
+          <p className="text-muted-foreground mt-2 text-xs text-pretty">
             Missing a salvage yard?{" "}
             <Link
               href="/request-yard"

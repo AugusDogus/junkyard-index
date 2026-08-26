@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, MapPin } from "lucide-react";
+import { ArrowUpRight, MapPin } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { memo, useCallback } from "react";
@@ -54,7 +54,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
     : "Marked missing";
 
   return (
-    <Card className="group gap-0 overflow-hidden py-0 transition-shadow hover:shadow-lg">
+    <Card className="hover:border-foreground/20 h-full gap-0 overflow-hidden py-0 hover:shadow-md">
       <CardHeader className="p-0">
         {/* Vehicle Image */}
         <div className="bg-muted relative aspect-video overflow-hidden">
@@ -72,20 +72,19 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
             </div>
           )}
           {/* Stock Number Badge */}
-          <Badge className="absolute top-3 right-3">
+          <Badge className="absolute top-3 right-3 tabular-nums">
             Stock #{vehicle.stockNumber}
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="flex-1 p-4">
-        <div className="mb-3">
-          <h3 className="text-foreground truncate text-lg font-semibold">
-            {vehicle.year} {vehicle.make} {vehicle.model}
+        <div className="mb-4">
+          <h3 className="truncate text-lg font-semibold text-balance">
+            <span className="tabular-nums">{vehicle.year}</span> {vehicle.make}{" "}
+            {vehicle.model}
           </h3>
-          <p className="text-muted-foreground text-sm">
-            Color: {vehicle.color}
-          </p>
+          <p className="text-muted-foreground mt-1 text-sm">{vehicle.color}</p>
           {vehicle.isMissing && (
             <Badge variant="destructive" className="mt-2">
               {missingLabel}
@@ -93,27 +92,25 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           )}
         </div>
 
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between gap-2">
-            <span className="text-muted-foreground shrink-0">Location:</span>
-            <span className="truncate text-right text-xs">
-              {vehicle.locationName || "N/A"}
-            </span>
-          </div>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+          <dt className="text-muted-foreground">Yard</dt>
+          <dd className="truncate text-right">
+            {vehicle.locationName || "N/A"}
+          </dd>
 
-          <div className="flex justify-between gap-2">
-            <span className="text-muted-foreground shrink-0">VIN:</span>
-            <span className="truncate font-mono text-xs">{vehicle.vin || "N/A"}</span>
-          </div>
+          <dt className="text-muted-foreground">VIN</dt>
+          <dd className="truncate text-right font-mono">
+            {vehicle.vin || "N/A"}
+          </dd>
 
-          <div className="flex justify-between gap-2">
-            <span className="text-muted-foreground shrink-0">Available:</span>
-            <span className="text-xs">{formatDate(vehicle.availableDate)}</span>
-          </div>
-        </div>
+          <dt className="text-muted-foreground">Available</dt>
+          <dd className="text-right tabular-nums">
+            {formatDate(vehicle.availableDate)}
+          </dd>
+        </dl>
 
-        <div className="text-muted-foreground mt-3 flex items-center text-sm">
-          <MapPin className="mr-1.5 h-4 w-4 shrink-0" />
+        <div className="text-muted-foreground mt-4 flex items-center gap-1.5 text-sm">
+          <MapPin aria-hidden="true" className="size-4 shrink-0" />
           <span className="truncate">{geoLabel}</span>
         </div>
       </CardContent>
@@ -126,8 +123,8 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
             rel="noopener noreferrer"
             onClick={handleDetailsClick}
           >
-            <Eye className="mr-1.5 h-4 w-4" />
-            View Details
+            View inventory
+            <ArrowUpRight data-icon="inline-end" />
           </Link>
         </Button>
       </CardFooter>
