@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { UserMenu } from "~/components/auth/UserMenu";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { cn } from "~/lib/utils";
 
 interface HeaderAuthButtonsProps {
   user: { name: string; email: string; image?: string | null } | null;
@@ -14,6 +15,7 @@ interface HeaderAuthButtonsProps {
 export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   const pathname = usePathname();
   const showPricing = pathname === "/" || pathname === "/home";
+  const isSearchPage = pathname === "/search";
 
   return (
     <div className="flex items-center gap-2">
@@ -43,19 +45,16 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           asChild
           variant="outline"
           size="sm"
-          className="hidden sm:inline-flex"
+          className={cn(!isSearchPage && "hidden sm:inline-flex")}
         >
           <Link href="/auth/sign-in">Sign In</Link>
         </Button>
       )}
-      <Button asChild size="sm">
-        <Link
-          href="/search"
-          aria-current={pathname === "/search" ? "page" : undefined}
-        >
-          Search
-        </Link>
-      </Button>
+      {!isSearchPage && (
+        <Button asChild size="sm">
+          <Link href="/search">Search</Link>
+        </Button>
+      )}
       {user && <UserMenu user={user} />}
     </div>
   );
