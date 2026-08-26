@@ -13,7 +13,7 @@ interface HeaderAuthButtonsProps {
 
 export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   const pathname = usePathname();
-  const showPricing = pathname === "/";
+  const showPricing = pathname === "/" || pathname === "/home";
 
   return (
     <div className="flex items-center gap-2">
