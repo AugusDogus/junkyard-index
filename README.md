@@ -42,8 +42,9 @@ Currently indexes salvage yards from:
 
 Discord only needs `https://junkyardindex.com/api/auth/callback/discord`
 registered as its callback URL. Better Auth uses the existing
-`BETTER_AUTH_URL` as that production origin and proxies the callback back to
-localhost and Vercel preview deployments.
+Vercel production URL as that origin and proxies the callback back to localhost
+and Vercel preview deployments. Local development falls back to
+`NEXT_PUBLIC_APP_URL` for the production origin.
 
 Set `OAUTH_PROXY_SECRET` to the same random value of at least 32 characters in
 local, Preview, and Production environments.
