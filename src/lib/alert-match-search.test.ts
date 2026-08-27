@@ -84,8 +84,8 @@ describe("alert match search", () => {
     expect(requests[0]).toMatchObject({
       requests: [
         {
-          query: 'pickup Ford Ram "crew cab" -diesel',
-          optionalWords: ["Ford", "Ram"],
+          query: 'pickup "crew cab" -diesel',
+          filters: '(searchTokens:"ford" OR searchTokens:"ram")',
           advancedSyntax: true,
           advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
         },

@@ -1,4 +1,6 @@
 export const VIN_PATTERN_SEARCH_SCHEMA_VERSION = 3;
+export const ADVANCED_SEARCH_SCHEMA_VERSION = 4;
+export const CURRENT_SEARCH_SCHEMA_VERSION = ADVANCED_SEARCH_SCHEMA_VERSION;
 const SEARCH_SCHEMA_VERSION_KEY = "searchSchemaVersion";
 
 export type SearchSchemaUserDataResult =
@@ -22,6 +24,10 @@ export function getSearchSchemaVersion(userData: unknown): number {
 
 export function isVinPatternSearchReady(userData: unknown): boolean {
   return getSearchSchemaVersion(userData) >= VIN_PATTERN_SEARCH_SCHEMA_VERSION;
+}
+
+export function isAdvancedSearchReady(userData: unknown): boolean {
+  return getSearchSchemaVersion(userData) >= ADVANCED_SEARCH_SCHEMA_VERSION;
 }
 
 export function withSearchSchemaVersion(

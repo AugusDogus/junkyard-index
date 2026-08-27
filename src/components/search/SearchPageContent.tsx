@@ -115,6 +115,7 @@ interface AlgoliaSearchInnerProps {
   planAccess: PlanAccessState;
   userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
+  booleanOrSearchReady: boolean;
 }
 function hasValidCoordinates(
   value: SearchPageContentProps["userLocation"],
@@ -305,6 +306,7 @@ function AlgoliaSearchInner({
   planAccess,
   userLocation: _userLocation,
   vinPatternIndexReady,
+  booleanOrSearchReady,
 }: AlgoliaSearchInnerProps) {
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
@@ -1178,6 +1180,7 @@ function AlgoliaSearchInner({
         filterOptions={filterOptions}
         yearRangeLimits={{ min: yearMin, max: yearMax }}
         canUseAdvancedFilters={canUseAdvancedFilters}
+        booleanOrSearchReady={booleanOrSearchReady}
         onSearch={handleAdvancedSearch}
         iconOnly
       />
@@ -1224,6 +1227,7 @@ function AlgoliaSearchInner({
         filterOptions={filterOptions}
         yearRangeLimits={{ min: yearMin, max: yearMax }}
         canUseAdvancedFilters={canUseAdvancedFilters}
+        booleanOrSearchReady={booleanOrSearchReady}
         onSearch={handleAdvancedSearch}
       />
       {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
@@ -1359,6 +1363,7 @@ function AlgoliaSearchInner({
               <VehicleSearchInput
                 vinPattern={vinPattern}
                 vinPatternSearchReady={vinPatternIndexReady}
+                booleanOrSearchReady={booleanOrSearchReady}
                 onSearchModeChange={handleSearchModeChange}
               />
             </ErrorBoundary>
@@ -1419,12 +1424,13 @@ export function SearchPageContent({
 }: SearchPageContentProps) {
   return (
     <SearchAccessShell isLoggedIn={isLoggedIn}>
-      {({ planAccess, vinPatternIndexReady }) => (
+      {({ planAccess, vinPatternIndexReady, booleanOrSearchReady }) => (
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
+          booleanOrSearchReady={booleanOrSearchReady}
         />
       )}
     </SearchAccessShell>

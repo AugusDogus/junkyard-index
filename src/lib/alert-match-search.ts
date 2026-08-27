@@ -7,7 +7,10 @@ import {
   type AlertMatchStats,
   type FetchAlertSearchPage,
 } from "~/lib/algolia-alert-search";
-import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
+import {
+  buildAdvancedSearchFilters,
+  parseAdvancedSearchQuery,
+} from "~/lib/advanced-search-query";
 import { ALGOLIA_INDEX_NAME, ALGOLIA_PAGINATION_LIMIT } from "~/lib/constants";
 import {
   ALGOLIA_VEHICLE_HIT_ATTRIBUTES,
@@ -19,7 +22,6 @@ export interface AlertSearchClient {
     requests: Array<{
       indexName: string;
       query: string;
-      optionalWords: string[] | undefined;
       advancedSyntax: true;
       advancedSyntaxFeatures: ["exactPhrase", "excludeWords"];
       filters: string | undefined;
@@ -53,13 +55,12 @@ export async function getAlertMatchStatsWithClient(
         {
           indexName: ALGOLIA_INDEX_NAME,
           query: parsedQuery.data.algoliaQuery,
-          optionalWords:
-            parsedQuery.data.optionalWords.length > 0
-              ? parsedQuery.data.optionalWords
-              : undefined,
           advancedSyntax: true,
           advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
-          filters: compilation.value,
+          filters: buildAdvancedSearchFilters(
+            parsedQuery.data.anyWordGroups,
+            compilation.value,
+          ),
           hitsPerPage,
           page,
           attributesToRetrieve: [...ALGOLIA_VEHICLE_HIT_ATTRIBUTES],

@@ -15,7 +15,7 @@ import {
   vehicleChange,
 } from "~/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { getVinPatternSearchReadiness } from "~/server/ingestion/search-index-readiness";
+import { getSearchIndexCapabilities } from "~/server/ingestion/search-index-readiness";
 import {
   mapRunStatus,
   parseErrors,
@@ -105,9 +105,7 @@ const getProviderStatus = unstable_cache(
 );
 
 export const statusRouter = createTRPCRouter({
-  searchCapabilities: publicProcedure.query(async () => ({
-    vinPatternSearchReady: await getVinPatternSearchReadiness(),
-  })),
+  searchCapabilities: publicProcedure.query(getSearchIndexCapabilities),
   providers: publicProcedure.query(async () => {
     return getProviderStatus();
   }),
