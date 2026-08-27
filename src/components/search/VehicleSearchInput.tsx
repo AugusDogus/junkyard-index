@@ -17,6 +17,7 @@ const DEBOUNCE_MS = 300;
 interface VehicleSearchInputProps {
   vinPattern: string;
   vinPatternSearchReady: boolean;
+  booleanOrSearchReady: boolean;
   onSearchModeChange: (value: {
     query: string | null;
     vinPattern: string | null;
@@ -26,6 +27,7 @@ interface VehicleSearchInputProps {
 export function VehicleSearchInput({
   vinPattern,
   vinPatternSearchReady,
+  booleanOrSearchReady,
   onSearchModeChange,
 }: VehicleSearchInputProps) {
   const { query, refine } = useSearchBox();
@@ -110,7 +112,12 @@ export function VehicleSearchInput({
   const advancedSearchError =
     !isVinCandidate && !advancedSearchParseResult.success
       ? advancedSearchParseResult.error
-      : undefined;
+      : !isVinCandidate &&
+          advancedSearchParseResult.success &&
+          advancedSearchParseResult.data.anyWordGroups.length > 0 &&
+          !booleanOrSearchReady
+        ? "Boolean OR search is temporarily unavailable while the search index updates."
+        : undefined;
   const searchError = vinPatternError ?? advancedSearchError;
   const searchFeedback =
     vinPatternFeedback ??
@@ -121,7 +128,13 @@ export function VehicleSearchInput({
 
   const commitSearchValue = useCallback(
     async (value: string) => {
-      if (!parseAdvancedSearchQuery(value).success) return;
+      const parsedQuery = parseAdvancedSearchQuery(value);
+      if (
+        !parsedQuery.success ||
+        (parsedQuery.data.anyWordGroups.length > 0 && !booleanOrSearchReady)
+      ) {
+        return;
+      }
       await executeSearchCommit({
         value,
         vinPatternSearchReady,
@@ -135,7 +148,12 @@ export function VehicleSearchInput({
         },
       });
     },
-    [onSearchModeChange, vinPattern, vinPatternSearchReady],
+    [
+      booleanOrSearchReady,
+      onSearchModeChange,
+      vinPattern,
+      vinPatternSearchReady,
+    ],
   );
 
   const clearSearch = useCallback(() => {

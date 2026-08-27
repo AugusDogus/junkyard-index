@@ -9,5 +9,8 @@ describe("search index migration validation", () => {
       ...ALGOLIA_SEARCH_INDEX_NAMES,
     ]);
     expect(requests.every((request) => request.filters.length > 0)).toBe(true);
+    expect(
+      requests.every((request) => request.filters.includes("searchTokens:")),
+    ).toBe(true);
   });
 });

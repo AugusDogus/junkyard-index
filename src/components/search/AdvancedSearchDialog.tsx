@@ -64,6 +64,7 @@ interface AdvancedSearchDialogProps extends AdvancedSearchFilters {
   filterOptions: FilterOptions;
   yearRangeLimits: { min: number; max: number };
   canUseAdvancedFilters: boolean;
+  booleanOrSearchReady: boolean;
   iconOnly?: boolean;
   onSearch: (submission: AdvancedSearchSubmission) => void;
 }
@@ -143,6 +144,7 @@ export function AdvancedSearchDialog({
   filterOptions,
   yearRangeLimits,
   canUseAdvancedFilters,
+  booleanOrSearchReady,
   iconOnly = false,
   onSearch,
 }: AdvancedSearchDialogProps) {
@@ -208,6 +210,12 @@ export function AdvancedSearchDialog({
     const parsed = parseAdvancedSearchQuery(normalizedQuery);
     if (!parsed.success) {
       setQueryError(parsed.error);
+      return;
+    }
+    if (parsed.data.anyWordGroups.length > 0 && !booleanOrSearchReady) {
+      setQueryError(
+        "Boolean OR search is temporarily unavailable while the search index updates.",
+      );
       return;
     }
 

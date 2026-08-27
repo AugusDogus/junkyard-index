@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
+  ADVANCED_SEARCH_SCHEMA_VERSION,
   getSearchSchemaVersion,
+  isAdvancedSearchReady,
   isVinPatternSearchReady,
   VIN_PATTERN_SEARCH_SCHEMA_VERSION,
   withSearchSchemaVersion,
@@ -18,6 +20,19 @@ describe("search index schema", () => {
     expect(
       isVinPatternSearchReady({
         searchSchemaVersion: VIN_PATTERN_SEARCH_SCHEMA_VERSION,
+      }),
+    ).toBe(true);
+  });
+
+  it("reports Boolean OR search ready only at schema version four", () => {
+    expect(
+      isAdvancedSearchReady({
+        searchSchemaVersion: VIN_PATTERN_SEARCH_SCHEMA_VERSION,
+      }),
+    ).toBe(false);
+    expect(
+      isAdvancedSearchReady({
+        searchSchemaVersion: ADVANCED_SEARCH_SCHEMA_VERSION,
       }),
     ).toBe(true);
   });
