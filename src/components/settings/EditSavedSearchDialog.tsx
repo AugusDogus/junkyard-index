@@ -6,6 +6,10 @@ import posthog from "posthog-js";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MobileFilterContent } from "~/components/search/MobileFilterContent";
+import {
+  loadSearchFilterOptions,
+  type SearchFilterOptions,
+} from "~/components/search/search-filter-options";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -38,16 +42,14 @@ import {
 } from "~/components/ui/select";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import {
   filtersSchema,
+  SEARCHABLE_VEHICLE_YEAR_RANGE,
   type SavedSearchFilters,
 } from "~/lib/saved-search-filters";
+import { resolveSearchCommit } from "~/lib/search-commit";
 import { api } from "~/trpc/react";
-
-const MIN_VEHICLE_YEAR = 1900;
-const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 
 interface SavedSearchEditorValue {
   id: string;
@@ -60,17 +62,9 @@ interface EditSavedSearchDialogProps {
   search: SavedSearchEditorValue;
 }
 
-interface SavedSearchFilterOptions {
-  makes: string[];
-  colors: string[];
-  states: string[];
-  salvageYards: string[];
-}
-
 interface EditSavedSearchForm {
   name: string;
-  query: string;
-  vinPattern: string;
+  searchText: string;
   yearRange: [number, number];
   makes: string[];
   colors: string[];
@@ -82,12 +76,21 @@ interface EditSavedSearchForm {
 
 function clampYear(year: number | undefined, fallback: number): number {
   if (year === undefined) return fallback;
-  return Math.min(MAX_VEHICLE_YEAR, Math.max(MIN_VEHICLE_YEAR, year));
+  return Math.min(
+    SEARCHABLE_VEHICLE_YEAR_RANGE.max,
+    Math.max(SEARCHABLE_VEHICLE_YEAR_RANGE.min, year),
+  );
 }
 
 function getYearRange(filters: SavedSearchFilters): [number, number] {
-  const minimumYear = clampYear(filters.minYear, MIN_VEHICLE_YEAR);
-  const maximumYear = clampYear(filters.maxYear, MAX_VEHICLE_YEAR);
+  const minimumYear = clampYear(
+    filters.minYear,
+    SEARCHABLE_VEHICLE_YEAR_RANGE.min,
+  );
+  const maximumYear = clampYear(
+    filters.maxYear,
+    SEARCHABLE_VEHICLE_YEAR_RANGE.max,
+  );
   return minimumYear <= maximumYear
     ? [minimumYear, maximumYear]
     : [maximumYear, minimumYear];
@@ -103,8 +106,7 @@ function getSortKey(sortBy: string | undefined): string {
 function createForm(search: SavedSearchEditorValue): EditSavedSearchForm {
   return {
     name: search.name,
-    query: search.query,
-    vinPattern: search.filters.vinPattern ?? "",
+    searchText: search.filters.vinPattern ?? search.query,
     yearRange: getYearRange(search.filters),
     makes: search.filters.makes ?? [],
     colors: search.filters.colors ?? [],
@@ -115,49 +117,17 @@ function createForm(search: SavedSearchEditorValue): EditSavedSearchForm {
   };
 }
 
-function valuesFromFacet(
-  facets: Record<string, Record<string, number>> | undefined,
-  name: string,
-): string[] {
-  return Object.keys(facets?.[name] ?? {}).sort((left, right) =>
-    left.localeCompare(right),
-  );
-}
-
-async function loadSavedSearchFilterOptions(): Promise<SavedSearchFilterOptions> {
-  const response = await searchClient.searchForHits({
-    requests: [
-      {
-        indexName: ALGOLIA_INDEX_NAME,
-        query: "",
-        facets: ["make", "color", "state", "locationName"],
-        maxValuesPerFacet: 500,
-        hitsPerPage: 0,
-      },
-    ],
-  });
-  const facets = response.results[0]?.facets;
-  return {
-    makes: valuesFromFacet(facets, "make"),
-    colors: valuesFromFacet(facets, "color"),
-    states: valuesFromFacet(facets, "state"),
-    salvageYards: valuesFromFacet(facets, "locationName"),
-  };
-}
-
 function mergeOptions(options: string[] | undefined, selected: string[]) {
   return [...new Set([...(options ?? []), ...selected])].sort((left, right) =>
     left.localeCompare(right),
   );
 }
 
-function buildFilters(form: EditSavedSearchForm) {
+function buildFilters(form: EditSavedSearchForm, vinPattern?: string) {
   return filtersSchema.safeParse({
-    vinPattern: form.vinPattern.trim() || undefined,
-    minYear:
-      form.yearRange[0] === MIN_VEHICLE_YEAR ? undefined : form.yearRange[0],
-    maxYear:
-      form.yearRange[1] === MAX_VEHICLE_YEAR ? undefined : form.yearRange[1],
+    vinPattern,
+    minYear: form.yearRange[0],
+    maxYear: form.yearRange[1],
     makes: form.makes.length > 0 ? form.makes : undefined,
     colors: form.colors.length > 0 ? form.colors : undefined,
     states: form.states.length > 0 ? form.states : undefined,
@@ -174,11 +144,11 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
   const [formError, setFormError] = useState<string>();
   const filterOptionsQuery = useQuery({
     queryKey: ["saved-search-filter-options"],
-    queryFn: loadSavedSearchFilterOptions,
+    queryFn: loadSearchFilterOptions,
     enabled: open,
     staleTime: Infinity,
   });
-  const filterOptions = useMemo(
+  const filterOptions = useMemo<SearchFilterOptions>(
     () => ({
       makes: mergeOptions(filterOptionsQuery.data?.makes, form.makes),
       colors: mergeOptions(filterOptionsQuery.data?.colors, form.colors),
@@ -243,7 +213,18 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
       return;
     }
 
-    const filtersResult = buildFilters(form);
+    const searchCommit = resolveSearchCommit(form.searchText, true);
+    if (searchCommit.kind === "invalid-vin") {
+      setFormError(
+        "Enter a complete 17-position VIN pattern or use ordinary search text.",
+      );
+      return;
+    }
+
+    const filtersResult = buildFilters(
+      form,
+      searchCommit.kind === "vin" ? searchCommit.value : undefined,
+    );
     if (!filtersResult.success) {
       setFormError(
         filtersResult.error.issues[0]?.message ??
@@ -255,7 +236,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
     updateSearch.mutate({
       id: search.id,
       name,
-      query: form.query.trim(),
+      query: searchCommit.kind === "query" ? searchCommit.value : "",
       filters: filtersResult.data,
     });
   };
@@ -277,7 +258,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
             <DialogTitle>Edit saved search</DialogTitle>
             <DialogDescription>
               Change the search criteria without leaving Settings. Alert
-              delivery stays the same.
+              channels stay enabled.
             </DialogDescription>
           </DialogHeader>
 
@@ -296,34 +277,20 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                 />
               </Field>
 
-              <div className="grid gap-6 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor={`saved-search-query-${search.id}`}>
-                    Search text
-                  </FieldLabel>
-                  <Input
-                    id={`saved-search-query-${search.id}`}
-                    value={form.query}
-                    placeholder="Honda Civic"
-                    onChange={(event) => setField("query", event.target.value)}
-                    disabled={updateSearch.isPending}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`saved-search-vin-${search.id}`}>
-                    VIN pattern
-                  </FieldLabel>
-                  <Input
-                    id={`saved-search-vin-${search.id}`}
-                    value={form.vinPattern}
-                    placeholder="YV4C*85**********"
-                    onChange={(event) =>
-                      setField("vinPattern", event.target.value)
-                    }
-                    disabled={updateSearch.isPending}
-                  />
-                </Field>
-              </div>
+              <Field>
+                <FieldLabel htmlFor={`saved-search-query-${search.id}`}>
+                  Search text or VIN pattern
+                </FieldLabel>
+                <Input
+                  id={`saved-search-query-${search.id}`}
+                  value={form.searchText}
+                  placeholder="Honda Civic or YV4C*85**********"
+                  onChange={(event) =>
+                    setField("searchText", event.target.value)
+                  }
+                  disabled={updateSearch.isPending}
+                />
+              </Field>
 
               <Field>
                 <FieldLabel htmlFor={`saved-search-sort-${search.id}`}>
@@ -408,8 +375,8 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                           setField("yearRange", yearRange)
                         }
                         yearRangeLimits={{
-                          min: MIN_VEHICLE_YEAR,
-                          max: MAX_VEHICLE_YEAR,
+                          min: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
+                          max: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
                         }}
                         canUseAdvancedFilters
                       />

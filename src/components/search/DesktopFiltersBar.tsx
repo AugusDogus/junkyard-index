@@ -20,14 +20,8 @@ import {
   InventorySourcesFilter,
   YearRangeFilter,
 } from "./FilterFields";
+import type { SearchFilterOptions } from "./search-filter-options";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
-
-interface FilterOptions {
-  makes: string[];
-  colors: string[];
-  states: string[];
-  salvageYards: string[];
-}
 
 interface DesktopFiltersBarProps {
   advancedSearchControl: ReactNode;
@@ -39,7 +33,7 @@ interface DesktopFiltersBarProps {
   salvageYards: string[];
   sources: DataSource[];
   yearRange: [number, number];
-  filterOptions: FilterOptions;
+  filterOptions: SearchFilterOptions;
   onMakesChange: (makes: string[]) => void;
   onColorsChange: (colors: string[]) => void;
   onStatesChange: (states: string[]) => void;

@@ -1,5 +1,9 @@
 import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import {
+  parseSavedSearchFilters,
+  savedSearchMatchCriteriaKey,
+} from "~/lib/saved-search-filters";
 import { ingestionRun, savedSearch, searchNotificationIntent } from "~/schema";
 
 export type AlertChannel = "email" | "discord";
@@ -15,7 +19,7 @@ export async function currentSearchPublicationSequence(
   return row?.sequence ?? 0;
 }
 
-export async function updateSavedSearchCriteria(params: {
+export async function updateSavedSearch(params: {
   database: LibSQLDatabase;
   searchId: string;
   userId: string;
@@ -23,57 +27,113 @@ export async function updateSavedSearchCriteria(params: {
   query: string;
   filters: string;
 }): Promise<boolean> {
-  const publicationSequence = await currentSearchPublicationSequence(
-    params.database,
-  );
-  const matchingSearchIds = params.database
-    .select({ id: savedSearch.id })
-    .from(savedSearch)
-    .where(
-      and(
-        eq(savedSearch.id, params.searchId),
-        eq(savedSearch.userId, params.userId),
-      ),
+  const nextFilters = parseSavedSearchFilters(params.filters);
+  if (!nextFilters.success) {
+    throw new Error(
+      `Cannot update saved search ${params.searchId}: the new filters failed validation.`,
     );
-  const now = new Date();
-  const [updated] = await params.database.batch([
-    params.database
-      .update(savedSearch)
-      .set({
-        name: params.name,
-        query: params.query,
-        filters: params.filters,
-        searchMatchVersion: sql`${savedSearch.searchMatchVersion} + 1`,
-        emailStartSequence: publicationSequence,
-        discordStartSequence: publicationSequence,
-        lastMatchedPublicationSequence: publicationSequence,
-        lastCheckedAt: now,
-        alertQuarantinedAt: null,
-        alertQuarantineReason: null,
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const [existing] = await params.database
+      .select({
+        query: savedSearch.query,
+        filters: savedSearch.filters,
+        searchMatchVersion: savedSearch.searchMatchVersion,
       })
+      .from(savedSearch)
       .where(
         and(
           eq(savedSearch.id, params.searchId),
           eq(savedSearch.userId, params.userId),
         ),
       )
-      .returning({ id: savedSearch.id }),
-    params.database
-      .update(searchNotificationIntent)
-      .set({
-        status: "cancelled",
-        cancelledAt: now,
-        claimToken: null,
-      })
+      .limit(1);
+    if (!existing) return false;
+
+    const existingFilters = parseSavedSearchFilters(existing.filters);
+    const matchCriteriaChanged =
+      !existingFilters.success ||
+      savedSearchMatchCriteriaKey(existing.query, existingFilters.data) !==
+        savedSearchMatchCriteriaKey(params.query, nextFilters.data);
+    const updateWhere = and(
+      eq(savedSearch.id, params.searchId),
+      eq(savedSearch.userId, params.userId),
+      eq(savedSearch.query, existing.query),
+      eq(savedSearch.filters, existing.filters),
+      eq(savedSearch.searchMatchVersion, existing.searchMatchVersion),
+    );
+
+    if (!matchCriteriaChanged) {
+      const [updated] = await params.database.batch([
+        params.database
+          .update(savedSearch)
+          .set({
+            name: params.name,
+            query: params.query,
+            filters: params.filters,
+          })
+          .where(updateWhere)
+          .returning({ id: savedSearch.id }),
+      ]);
+      if (updated.length === 1) return true;
+      continue;
+    }
+
+    const now = new Date();
+    const nextMatchVersion = existing.searchMatchVersion + 1;
+    const publicationSequence = sql<number>`(
+      select coalesce(max(${ingestionRun.publicationSequence}), 0)
+      from ${ingestionRun}
+    )`;
+    const updatedSearchIds = params.database
+      .select({ id: savedSearch.id })
+      .from(savedSearch)
       .where(
         and(
-          inArray(searchNotificationIntent.savedSearchId, matchingSearchIds),
-          sql`${searchNotificationIntent.deliveredAt} is null`,
-          sql`${searchNotificationIntent.cancelledAt} is null`,
+          eq(savedSearch.id, params.searchId),
+          eq(savedSearch.userId, params.userId),
+          eq(savedSearch.searchMatchVersion, nextMatchVersion),
         ),
-      ),
-  ]);
-  return updated.length === 1;
+      );
+    const [updated] = await params.database.batch([
+      params.database
+        .update(savedSearch)
+        .set({
+          name: params.name,
+          query: params.query,
+          filters: params.filters,
+          searchMatchVersion: nextMatchVersion,
+          emailStartSequence: publicationSequence,
+          discordStartSequence: publicationSequence,
+          lastMatchedPublicationSequence: publicationSequence,
+          lastCheckedAt: now,
+          alertQuarantinedAt: null,
+          alertQuarantineReason: null,
+        })
+        .where(updateWhere)
+        .returning({ id: savedSearch.id }),
+      params.database
+        .update(searchNotificationIntent)
+        .set({
+          status: "cancelled",
+          cancelledAt: now,
+          claimToken: null,
+        })
+        .where(
+          and(
+            inArray(searchNotificationIntent.savedSearchId, updatedSearchIds),
+            sql`${searchNotificationIntent.deliveredAt} is null`,
+            sql`${searchNotificationIntent.cancelledAt} is null`,
+          ),
+        ),
+    ]);
+    if (updated.length === 1) return true;
+  }
+
+  throw new Error(
+    `Saved search ${params.searchId} changed repeatedly during update. Retry the operation.`,
+  );
 }
 
 async function setAlertChannel(params: {

@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DesktopFiltersBar } from "./DesktopFiltersBar";
 import { MobileFilterContent } from "./MobileFilterContent";
-import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 const emptyFilterOptions = {
   makes: [],
@@ -102,7 +101,6 @@ describe("search filter visibility", () => {
     const markup = renderToStaticMarkup(
       <MobileFilterContent
         defaultOpenSections="none"
-        containListScroll={false}
         makes={[]}
         colors={[]}
         states={[]}
@@ -127,22 +125,5 @@ describe("search filter visibility", () => {
     expect(markup).toContain(">Make<");
     expect(markup).not.toContain("Search makes");
     expect(markup).not.toContain("Vehicle year range");
-  });
-
-  test("caps settings lists without trapping modal scrolling", () => {
-    const markup = renderToStaticMarkup(
-      <SearchableCheckboxList
-        name="settings-make"
-        label="Make"
-        options={["Honda", "Toyota"]}
-        selected={[]}
-        onChange={noOp}
-        containScroll={false}
-      />,
-    );
-
-    expect(markup).toContain("overflow-y-auto");
-    expect(markup).toContain("max-height:200px");
-    expect(markup).not.toContain("overscroll-contain");
   });
 });

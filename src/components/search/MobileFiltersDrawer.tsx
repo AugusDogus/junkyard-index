@@ -15,13 +15,7 @@ import {
 import { Separator } from "~/components/ui/separator";
 import type { DataSource } from "~/lib/types";
 import { MobileFilterContent } from "./MobileFilterContent";
-
-interface FilterOptions {
-  makes: string[];
-  colors: string[];
-  states: string[];
-  salvageYards: string[];
-}
+import type { SearchFilterOptions } from "./search-filter-options";
 
 interface MobileFiltersDrawerProps {
   onAdvancedSearch: () => void;
@@ -33,7 +27,7 @@ interface MobileFiltersDrawerProps {
   salvageYards: string[];
   sources: DataSource[];
   yearRange: [number, number];
-  filterOptions: FilterOptions;
+  filterOptions: SearchFilterOptions;
   onMakesChange: (makes: string[]) => void;
   onColorsChange: (colors: string[]) => void;
   onStatesChange: (states: string[]) => void;

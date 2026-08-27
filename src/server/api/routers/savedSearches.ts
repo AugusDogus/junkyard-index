@@ -16,7 +16,7 @@ import { PlanGateError } from "~/server/plan-gate-error";
 import {
   currentSearchPublicationSequence,
   setSearchAlertChannel,
-  updateSavedSearchCriteria,
+  updateSavedSearch,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
 import { getAuthoritativePlanTier as resolveAuthoritativePlanTier } from "~/server/billing/user-plan";
@@ -147,7 +147,7 @@ export const savedSearchesRouter = createTRPCRouter({
         throw planGateError("saved_searches");
       }
 
-      const updated = await updateSavedSearchCriteria({
+      const updated = await updateSavedSearch({
         database: ctx.db,
         searchId: input.id,
         userId: ctx.user.id,

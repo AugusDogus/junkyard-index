@@ -5,6 +5,11 @@ import { VinPattern } from "~/lib/vin-pattern";
 const MIN_VEHICLE_YEAR = 1886;
 const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 
+export const SEARCHABLE_VEHICLE_YEAR_RANGE = {
+  min: 1900,
+  max: MAX_VEHICLE_YEAR,
+} as const;
+
 export const filtersSchema = z.object({
   vinPattern: z
     .string()
@@ -44,6 +49,47 @@ export const filtersSchema = z.object({
 });
 
 export type SavedSearchFilters = z.infer<typeof filtersSchema>;
+
+function canonicalFacetValues(values: string[] | undefined): string[] {
+  return [
+    ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
+  ].sort((left, right) => left.localeCompare(right));
+}
+
+/** Canonicalizes only fields that affect alert matching. */
+export function savedSearchMatchCriteriaKey(
+  query: string,
+  filters: SavedSearchFilters,
+): string {
+  const parsedVinPattern = filters.vinPattern
+    ? VinPattern.parse(filters.vinPattern)
+    : null;
+  const vinPattern =
+    parsedVinPattern?.success === true
+      ? parsedVinPattern.data.normalized
+      : filters.vinPattern?.trim();
+  const hasDefaultFullYearRange =
+    filters.minYear === SEARCHABLE_VEHICLE_YEAR_RANGE.min &&
+    filters.maxYear === SEARCHABLE_VEHICLE_YEAR_RANGE.max;
+  const minimumYear = hasDefaultFullYearRange ? undefined : filters.minYear;
+  const maximumYear = hasDefaultFullYearRange ? undefined : filters.maxYear;
+  const yearsAreInverted =
+    minimumYear !== undefined &&
+    maximumYear !== undefined &&
+    minimumYear > maximumYear;
+
+  return JSON.stringify({
+    query: query.trim(),
+    vinPattern,
+    makes: canonicalFacetValues(filters.makes),
+    colors: canonicalFacetValues(filters.colors),
+    states: canonicalFacetValues(filters.states),
+    salvageYards: canonicalFacetValues(filters.salvageYards),
+    sources: canonicalFacetValues(filters.sources),
+    minYear: yearsAreInverted ? maximumYear : minimumYear,
+    maxYear: yearsAreInverted ? minimumYear : maximumYear,
+  });
+}
 
 export type SavedSearchFiltersParseResult =
   | {
