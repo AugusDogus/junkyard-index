@@ -268,9 +268,12 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
           Edit filters
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[calc(100vh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <form onSubmit={handleSubmit} className="contents">
-          <DialogHeader className="px-6 pt-6 pb-5">
+      <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-col overflow-hidden"
+        >
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-5">
             <DialogTitle>Edit saved search</DialogTitle>
             <DialogDescription>
               Change the search criteria without leaving Settings. Alert
@@ -278,7 +281,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="scrollbar-thin-themed min-h-0 overflow-y-auto overscroll-contain border-y px-6 py-5">
+          <div className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto overscroll-contain border-y px-6 py-5">
             <FieldGroup className="gap-6">
               <Field>
                 <FieldLabel htmlFor={`saved-search-name-${search.id}`}>
@@ -419,7 +422,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
             </FieldGroup>
           </div>
 
-          <DialogFooter className="px-6 py-4">
+          <DialogFooter className="shrink-0 px-6 py-4">
             <DialogClose asChild>
               <Button
                 type="button"
