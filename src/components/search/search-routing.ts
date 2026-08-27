@@ -267,8 +267,6 @@ export function createSearchRouting(
         const baseUrl = location.href.split("?")[0] ?? location.href;
         const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
-        const editingSearchId = locationParams.get("editSearch");
-        if (editingSearchId) params.set("editSearch", editingSearchId);
         const vinPattern = vinPatternIndexReady
           ? getSearchableVinPattern(locationParams.get("q"))
           : null;
