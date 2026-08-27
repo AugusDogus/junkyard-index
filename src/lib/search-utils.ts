@@ -49,3 +49,13 @@ export function buildSearchUrl(
   const queryString = params.toString();
   return queryString ? `/search?${queryString}` : "/search";
 }
+
+export function buildSavedSearchEditUrl(
+  id: string,
+  query: string | null,
+  filters: SearchFilters,
+): string {
+  const url = new URL(buildSearchUrl(query, filters), "https://example.com");
+  url.searchParams.set("editSearch", id);
+  return `${url.pathname}${url.search}`;
+}

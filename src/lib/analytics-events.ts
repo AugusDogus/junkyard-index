@@ -37,6 +37,7 @@ export const AnalyticsEvents = {
   SAVE_SEARCH_DIALOG_OPENED: "save_search_dialog_opened",
   SAVE_SEARCH_DIALOG_CANCELLED: "save_search_dialog_cancelled",
   SAVED_SEARCH_CREATED: "saved_search_created",
+  SAVED_SEARCH_UPDATED: "saved_search_updated",
   SAVED_SEARCH_DELETED: "saved_search_deleted",
   SAVED_SEARCH_LOADED: "saved_search_loaded",
   SAVED_SEARCH_EMAIL_TOGGLED: "saved_search_email_alerts_toggled",

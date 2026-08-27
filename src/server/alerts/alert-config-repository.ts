@@ -15,6 +15,67 @@ export async function currentSearchPublicationSequence(
   return row?.sequence ?? 0;
 }
 
+export async function updateSavedSearchCriteria(params: {
+  database: LibSQLDatabase;
+  searchId: string;
+  userId: string;
+  name: string;
+  query: string;
+  filters: string;
+}): Promise<boolean> {
+  const publicationSequence = await currentSearchPublicationSequence(
+    params.database,
+  );
+  const matchingSearchIds = params.database
+    .select({ id: savedSearch.id })
+    .from(savedSearch)
+    .where(
+      and(
+        eq(savedSearch.id, params.searchId),
+        eq(savedSearch.userId, params.userId),
+      ),
+    );
+  const now = new Date();
+  const [updated] = await params.database.batch([
+    params.database
+      .update(savedSearch)
+      .set({
+        name: params.name,
+        query: params.query,
+        filters: params.filters,
+        searchMatchVersion: sql`${savedSearch.searchMatchVersion} + 1`,
+        emailStartSequence: publicationSequence,
+        discordStartSequence: publicationSequence,
+        lastMatchedPublicationSequence: publicationSequence,
+        lastCheckedAt: now,
+        alertQuarantinedAt: null,
+        alertQuarantineReason: null,
+      })
+      .where(
+        and(
+          eq(savedSearch.id, params.searchId),
+          eq(savedSearch.userId, params.userId),
+        ),
+      )
+      .returning({ id: savedSearch.id }),
+    params.database
+      .update(searchNotificationIntent)
+      .set({
+        status: "cancelled",
+        cancelledAt: now,
+        claimToken: null,
+      })
+      .where(
+        and(
+          inArray(searchNotificationIntent.savedSearchId, matchingSearchIds),
+          sql`${searchNotificationIntent.deliveredAt} is null`,
+          sql`${searchNotificationIntent.cancelledAt} is null`,
+        ),
+      ),
+  ]);
+  return updated.length === 1;
+}
+
 async function setAlertChannel(params: {
   database: LibSQLDatabase;
   where: SQL;
