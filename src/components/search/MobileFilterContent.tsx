@@ -27,7 +27,7 @@ interface FilterOptions {
 interface MobileFilterContentProps {
   idPrefix?: string;
   defaultOpenSections?: "primary" | "all" | "none";
-  listScrollMode?: "contained" | "parent";
+  containListScroll?: boolean;
   makes: string[];
   colors: string[];
   states: string[];
@@ -86,7 +86,7 @@ function FilterSection({
 export function MobileFilterContent({
   idPrefix = "mobile",
   defaultOpenSections = "primary",
-  listScrollMode = "contained",
+  containListScroll = true,
   makes,
   colors,
   states,
@@ -146,7 +146,7 @@ export function MobileFilterContent({
           searchPlaceholder="Search makes"
           searchThreshold={10}
           maxHeight={220}
-          scrollMode={listScrollMode}
+          containScroll={containListScroll}
         />
       </FilterSection>
 
@@ -179,7 +179,7 @@ export function MobileFilterContent({
           searchPlaceholder="Search colors"
           searchThreshold={12}
           maxHeight={200}
-          scrollMode={listScrollMode}
+          containScroll={containListScroll}
         />
       </FilterSection>
 
@@ -197,7 +197,7 @@ export function MobileFilterContent({
           searchPlaceholder="Search states"
           searchThreshold={6}
           maxHeight={240}
-          scrollMode={listScrollMode}
+          containScroll={containListScroll}
         />
       </FilterSection>
 
@@ -220,7 +220,7 @@ export function MobileFilterContent({
             searchPlaceholder="Search yards"
             searchThreshold={6}
             maxHeight={240}
-            scrollMode={listScrollMode}
+            containScroll={containListScroll}
           />
           <Button asChild variant="link" size="sm" className="self-start">
             <Link

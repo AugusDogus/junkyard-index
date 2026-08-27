@@ -31,7 +31,7 @@ interface SearchableCheckboxListProps {
   searchThreshold?: number;
   /** Max visible height (px) before the list scrolls internally. */
   maxHeight?: number;
-  scrollMode?: "contained" | "parent";
+  containScroll?: boolean;
 }
 
 export function SearchableCheckboxList({
@@ -43,7 +43,7 @@ export function SearchableCheckboxList({
   searchPlaceholder = "Search…",
   searchThreshold = 8,
   maxHeight = 200,
-  scrollMode = "contained",
+  containScroll = true,
 }: SearchableCheckboxListProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -114,10 +114,10 @@ export function SearchableCheckboxList({
 
       <div
         className={cn(
-          scrollMode === "contained" &&
-            "scrollbar-thin-themed overflow-y-auto overscroll-contain",
+          "scrollbar-thin-themed overflow-y-auto",
+          containScroll && "overscroll-contain",
         )}
-        style={scrollMode === "contained" ? { maxHeight } : undefined}
+        style={{ maxHeight }}
       >
         {sorted.length === 0 ? (
           query ? (
