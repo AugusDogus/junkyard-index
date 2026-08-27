@@ -39,7 +39,7 @@ describe("Algolia settings plan", () => {
     );
     expect(COMMON_ALGOLIA_INDEX_SETTINGS).toMatchObject({
       advancedSyntax: true,
-      advancedSyntaxFeatures: ["exactPhrase"],
+      advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
     });
   });
 
