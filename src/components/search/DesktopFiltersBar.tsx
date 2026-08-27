@@ -140,25 +140,23 @@ export function DesktopFiltersBar({
         <div className="min-w-0 flex-1">
           {canUseAdvancedFilters ? (
             <div className="flex flex-wrap gap-2">
-              {filterOptions.makes.length > 1 && (
-                <FilterPopover
-                  title="Make"
-                  summary={selectionSummary(makes, "makes")}
-                  active={makes.length > 0}
-                  description="Choose one or more vehicle makes."
-                >
-                  <SearchableCheckboxList
-                    name="desktop-make"
-                    label="Make"
-                    options={filterOptions.makes}
-                    selected={makes}
-                    onChange={onMakesChange}
-                    searchPlaceholder="Search makes"
-                    searchThreshold={10}
-                    maxHeight={260}
-                  />
-                </FilterPopover>
-              )}
+              <FilterPopover
+                title="Make"
+                summary={selectionSummary(makes, "makes")}
+                active={makes.length > 0}
+                description="Choose one or more vehicle makes."
+              >
+                <SearchableCheckboxList
+                  name="desktop-make"
+                  label="Make"
+                  options={filterOptions.makes}
+                  selected={makes}
+                  onChange={onMakesChange}
+                  searchPlaceholder="Search makes"
+                  searchThreshold={10}
+                  maxHeight={260}
+                />
+              </FilterPopover>
 
               <FilterPopover
                 title="Year"
