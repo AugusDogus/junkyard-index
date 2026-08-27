@@ -7,6 +7,7 @@ import {
   type AlertMatchStats,
   type FetchAlertSearchPage,
 } from "~/lib/algolia-alert-search";
+import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
 import { ALGOLIA_INDEX_NAME, ALGOLIA_PAGINATION_LIMIT } from "~/lib/constants";
 import {
   ALGOLIA_VEHICLE_HIT_ATTRIBUTES,
@@ -18,6 +19,9 @@ export interface AlertSearchClient {
     requests: Array<{
       indexName: string;
       query: string;
+      optionalWords: string[] | undefined;
+      advancedSyntax: true;
+      advancedSyntaxFeatures: ["exactPhrase", "excludeWords"];
       filters: string | undefined;
       hitsPerPage: number;
       page: number;
@@ -35,7 +39,8 @@ export async function getAlertMatchStatsWithClient(
   lastCheckedAt: Date | null,
 ): Promise<AlertMatchStats> {
   const compilation = compileAlertFilters(filters, lastCheckedAt);
-  if (compilation.kind === "no_match") {
+  const parsedQuery = parseAdvancedSearchQuery(query.trim());
+  if (compilation.kind === "no_match" || !parsedQuery.success) {
     return {
       matchedCount: 0,
       completion: { status: "complete" },
@@ -47,7 +52,13 @@ export async function getAlertMatchStatsWithClient(
       requests: [
         {
           indexName: ALGOLIA_INDEX_NAME,
-          query: query.trim(),
+          query: parsedQuery.data.algoliaQuery,
+          optionalWords:
+            parsedQuery.data.optionalWords.length > 0
+              ? parsedQuery.data.optionalWords
+              : undefined,
+          advancedSyntax: true,
+          advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
           filters: compilation.value,
           hitsPerPage,
           page,
