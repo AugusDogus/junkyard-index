@@ -322,7 +322,6 @@ function AlgoliaSearchInner({
   const maximumSearchableVehicleYear = getMaximumSearchableVehicleYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const editingSearchId = searchParams.get("editSearch");
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
@@ -366,19 +365,11 @@ function AlgoliaSearchInner({
     setHasLoadedLocalLocationPreference(true);
   }, []);
 
-  const { data: savedSearches, isLoading: isSavedSearchesLoading } =
-    api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
-  const editingSavedSearch = editingSearchId
-    ? savedSearches?.find((search) => search.id === editingSearchId)
-    : undefined;
-  const editingSearchUnavailable = Boolean(
-    editingSearchId && !isSavedSearchesLoading && !editingSavedSearch,
-  );
+  // Prefetch saved searches
+  api.savedSearches.list.useQuery(undefined, { enabled: !!isLoggedIn });
 
   // Desktop filter workspace state
-  const [showFilters, setShowFilters] = useState(() =>
-    Boolean(editingSearchId),
-  );
+  const [showFilters, setShowFilters] = useState(false);
   const [searchValueParam, setSearchValueParam] = useQueryState(
     "q",
     parseAsString,
@@ -1256,14 +1247,10 @@ function AlgoliaSearchInner({
         <SavedSearchesDropdown iconOnly locked={savedSearchesLocked} />
       )}
       <SaveSearchDialog
-        key={editingSavedSearch?.id ?? "create-mobile"}
         query={query}
         filters={currentSaveSearchFilters}
         planAccess={planAccess}
-        editingSearch={editingSavedSearch}
-        disabled={
-          editingSearchUnavailable || (!hasActiveSearch && !editingSavedSearch)
-        }
+        disabled={!hasActiveSearch}
         isLoggedIn={isLoggedIn}
         autoOpen={autoOpenSaveDialog}
         onAutoOpenHandled={handleAutoOpenHandled}
@@ -1274,14 +1261,10 @@ function AlgoliaSearchInner({
     <div className="flex shrink-0 items-center gap-2 [&_button]:h-9">
       {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
       <SaveSearchDialog
-        key={editingSavedSearch?.id ?? "create-desktop"}
         query={query}
         filters={currentSaveSearchFilters}
         planAccess={planAccess}
-        editingSearch={editingSavedSearch}
-        disabled={
-          editingSearchUnavailable || (!hasActiveSearch && !editingSavedSearch)
-        }
+        disabled={!hasActiveSearch}
         isLoggedIn={isLoggedIn}
         autoOpen={autoOpenSaveDialog}
         onAutoOpenHandled={handleAutoOpenHandled}
@@ -1399,28 +1382,6 @@ function AlgoliaSearchInner({
 
       <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-3">
-          {editingSavedSearch && (
-            <div className="border-border bg-muted/40 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2">
-              <p className="min-w-0 text-sm text-pretty">
-                Editing{" "}
-                <span className="font-medium">{editingSavedSearch.name}</span>.
-                Change the query or filters, then use Update Search.
-              </p>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/settings/searches">Cancel editing</Link>
-              </Button>
-            </div>
-          )}
-          {editingSearchUnavailable && (
-            <div className="border-destructive/40 bg-destructive/5 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2">
-              <p className="text-destructive text-sm text-pretty">
-                This saved search could not be loaded. It may have been deleted.
-              </p>
-              <Button asChild variant="outline" size="sm">
-                <Link href="/settings/searches">Back to saved searches</Link>
-              </Button>
-            </div>
-          )}
           <div className="flex flex-col gap-3">
             <ErrorBoundary>
               <VehicleSearchInput
