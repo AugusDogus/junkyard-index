@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildAdvancedSearchFilters,
   buildAdvancedSearchQuery,
+  buildAdvancedSearchTokens,
   hasAdvancedSearchSyntax,
   parseAdvancedSearchQuery,
 } from "./advanced-search-query";
@@ -27,10 +29,53 @@ describe("advanced search query", () => {
     ).toEqual({
       success: true,
       data: {
-        algoliaQuery: 'pickup Ford Chevrolet Ram "crew cab" -diesel',
-        optionalWords: ["Ford", "Chevrolet", "Ram"],
+        algoliaQuery: 'pickup "crew cab" -diesel',
+        anyWordGroups: [["ford", "chevrolet", "ram"]],
       },
     });
+
+    expect(parseAdvancedSearchQuery("Honda OR Toyota !damaged")).toEqual({
+      success: true,
+      data: {
+        algoliaQuery: "-damaged",
+        anyWordGroups: [["honda", "toyota"]],
+      },
+    });
+  });
+
+  test("compiles OR groups into required Algolia token filters", () => {
+    expect(
+      buildAdvancedSearchFilters(
+        [
+          ["ford", "ram"],
+          ["crew cab", 'say "hello"'],
+        ],
+        'state:"Texas"',
+      ),
+    ).toBe(
+      '(state:"Texas") AND (searchTokens:"ford" OR searchTokens:"ram") AND (searchTokens:"crew cab" OR searchTokens:"say \\"hello\\"")',
+    );
+  });
+
+  test("builds normalized filter tokens from searchable vehicle fields", () => {
+    expect(
+      buildAdvancedSearchTokens([
+        "Mercedes-Benz",
+        "Land Rover",
+        2020,
+        null,
+        "1ABC",
+      ]),
+    ).toEqual([
+      "mercedes-benz",
+      "mercedes",
+      "benz",
+      "land rover",
+      "land",
+      "rover",
+      "2020",
+      "1abc",
+    ]);
   });
 
   test("keeps ordinary search text unchanged", () => {
@@ -38,7 +83,7 @@ describe("advanced search query", () => {
       success: true,
       data: {
         algoliaQuery: "2020 Toyota Tacoma",
-        optionalWords: [],
+        anyWordGroups: [],
       },
     });
     expect(hasAdvancedSearchSyntax("2020 Toyota Tacoma")).toBe(false);

@@ -26,7 +26,7 @@ export type AdvancedSearchQueryParseResult =
       success: true;
       data: {
         algoliaQuery: string;
-        optionalWords: string[];
+        anyWordGroups: string[][];
       };
     }
   | {
@@ -51,6 +51,54 @@ function splitAlternatives(value: string): string[] {
 
   const parts = normalized.split(/[,\s]+/);
   return parts.map(removeWrappingQuotes).filter(Boolean);
+}
+
+function normalizeSearchToken(value: string): string {
+  return normalizeWords(value).toLocaleLowerCase("en-US");
+}
+
+export function buildAdvancedSearchTokens(
+  values: readonly (string | number | null | undefined)[],
+): string[] {
+  const tokens = new Set<string>();
+
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const normalized = normalizeSearchToken(String(value));
+    if (!normalized) continue;
+
+    tokens.add(normalized);
+    for (const word of normalized.split(/[^\p{L}\p{N}]+/u)) {
+      if (word) tokens.add(word);
+    }
+  }
+
+  return [...tokens];
+}
+
+function escapeAlgoliaFilterValue(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+export function buildAdvancedSearchFilters(
+  anyWordGroups: readonly (readonly string[])[],
+  existingFilters?: string,
+): string | undefined {
+  const groupFilters = anyWordGroups
+    .filter((group) => group.length > 0)
+    .map(
+      (group) =>
+        `(${group
+          .map(
+            (word) =>
+              `searchTokens:"${escapeAlgoliaFilterValue(normalizeSearchToken(word))}"`,
+          )
+          .join(" OR ")})`,
+    );
+
+  if (groupFilters.length === 0) return existingFilters;
+  if (existingFilters) groupFilters.unshift(`(${existingFilters})`);
+  return groupFilters.join(" AND ");
 }
 
 export function buildAdvancedSearchQuery(
@@ -191,7 +239,7 @@ function tokenize(
   return tokens;
 }
 
-function adjacentTerm(
+function adjacentOrTerm(
   tokens: SearchToken[],
   start: number,
   direction: -1 | 1,
@@ -201,7 +249,7 @@ function adjacentTerm(
     const token = tokens[index];
     if (!token) return null;
     if (token.kind === "term") return index;
-    if (token.kind === "or") return null;
+    if (token.kind !== "open" && token.kind !== "close") return null;
     index += direction;
   }
   return null;
@@ -220,11 +268,11 @@ export function parseAdvancedSearchQuery(
   const tokenized = tokenize(query);
   if (!Array.isArray(tokenized)) return tokenized;
 
-  const optionalTermIndices = new Set<number>();
+  const orConnections = new Map<number, Set<number>>();
   for (let index = 0; index < tokenized.length; index += 1) {
     if (tokenized[index]?.kind !== "or") continue;
-    const left = adjacentTerm(tokenized, index, -1);
-    const right = adjacentTerm(tokenized, index, 1);
+    const left = adjacentOrTerm(tokenized, index, -1);
+    const right = adjacentOrTerm(tokenized, index, 1);
     if (left === null || right === null) {
       return {
         success: false,
@@ -243,27 +291,54 @@ export function parseAdvancedSearchQuery(
         error: "OR can only connect included search terms.",
       };
     }
-    optionalTermIndices.add(left);
-    optionalTermIndices.add(right);
+    const leftConnections = orConnections.get(left) ?? new Set<number>();
+    leftConnections.add(right);
+    orConnections.set(left, leftConnections);
+    const rightConnections = orConnections.get(right) ?? new Set<number>();
+    rightConnections.add(left);
+    orConnections.set(right, rightConnections);
   }
 
-  const terms = tokenized.filter(
-    (token): token is SearchTerm => token.kind === "term",
-  );
-  const algoliaQuery = terms
+  const orTermIndices = new Set(orConnections.keys());
+  const algoliaQuery = tokenized
+    .flatMap((token, index) =>
+      token.kind === "term" && !orTermIndices.has(index) ? [token] : [],
+    )
     .map((term) => {
       const value = term.quoted ? `"${term.value}"` : term.value;
       return term.excluded ? `-${value}` : value;
     })
     .join(" ");
-  const optionalWords = tokenized.flatMap((token, index) =>
-    token.kind === "term" && optionalTermIndices.has(index)
-      ? [token.value]
-      : [],
-  );
+
+  const visited = new Set<number>();
+  const anyWordGroups: string[][] = [];
+  for (const start of orConnections.keys()) {
+    if (visited.has(start)) continue;
+    const pending = [start];
+    const indices: number[] = [];
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (current === undefined || visited.has(current)) continue;
+      visited.add(current);
+      indices.push(current);
+      for (const connected of orConnections.get(current) ?? []) {
+        pending.push(connected);
+      }
+    }
+
+    const group = indices
+      .sort((left, right) => left - right)
+      .flatMap((index) => {
+        const token = tokenized[index];
+        return token?.kind === "term"
+          ? [normalizeSearchToken(token.value)]
+          : [];
+      });
+    if (group.length > 0) anyWordGroups.push([...new Set(group)]);
+  }
 
   return {
     success: true,
-    data: { algoliaQuery, optionalWords },
+    data: { algoliaQuery, anyWordGroups },
   };
 }

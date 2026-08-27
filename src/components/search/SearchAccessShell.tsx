@@ -6,7 +6,7 @@ import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
-import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
+import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { api } from "~/trpc/react";
@@ -18,6 +18,7 @@ interface SearchAccessShellProps {
   children(input: {
     planAccess: PlanAccessState;
     vinPatternIndexReady: boolean;
+    booleanOrSearchReady: boolean;
   }): ReactNode;
 }
 
@@ -37,6 +38,9 @@ export function SearchAccessShell({
     });
   const vinPatternIndexReady =
     searchCapabilities?.vinPatternSearchReady ?? false;
+  const booleanOrSearchReady =
+    searchCapabilities?.booleanOrSearchReady ?? false;
+  const searchClient = getSearchClient(booleanOrSearchReady);
   const routing = useMemo(
     () =>
       createSearchRouting(
@@ -65,14 +69,18 @@ export function SearchAccessShell({
 
   return (
     <InstantSearchNext
-      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
+      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
       future={INSTANT_SEARCH_FUTURE}
     >
       <ErrorBoundary>
-        {children({ planAccess, vinPatternIndexReady })}
+        {children({
+          planAccess,
+          vinPatternIndexReady,
+          booleanOrSearchReady,
+        })}
       </ErrorBoundary>
     </InstantSearchNext>
   );

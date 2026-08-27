@@ -6,7 +6,10 @@ import type {
   SearchParamsObject,
 } from "algoliasearch";
 import { env } from "~/env";
-import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
+import {
+  buildAdvancedSearchFilters,
+  parseAdvancedSearchQuery,
+} from "~/lib/advanced-search-query";
 export { ALGOLIA_INDEX_NAME } from "~/lib/constants";
 
 // Deliberate latency tradeoff: searches go directly from the browser to
@@ -20,19 +23,23 @@ const baseSearchClient = algoliasearch(
 
 function addAdvancedSyntax(
   params: SearchParamsObject | undefined,
+  booleanOrSearchReady: boolean,
 ): SearchParamsObject | undefined {
   if (!params || typeof params.query !== "string") return params;
 
   const parsed = parseAdvancedSearchQuery(params.query);
   if (!parsed.success) return params;
+  if (parsed.data.anyWordGroups.length > 0 && !booleanOrSearchReady) {
+    return params;
+  }
 
   return {
     ...params,
     query: parsed.data.algoliaQuery,
-    optionalWords:
-      parsed.data.optionalWords.length > 0
-        ? parsed.data.optionalWords
-        : undefined,
+    filters: buildAdvancedSearchFilters(
+      parsed.data.anyWordGroups,
+      params.filters,
+    ),
     advancedSyntax: true,
     advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
   };
@@ -40,15 +47,17 @@ function addAdvancedSyntax(
 
 function transformLegacyRequests(
   requests: LegacySearchMethodProps,
+  booleanOrSearchReady: boolean,
 ): LegacySearchMethodProps {
   return requests.map((request) => ({
     ...request,
-    params: addAdvancedSyntax(request.params),
+    params: addAdvancedSyntax(request.params, booleanOrSearchReady),
   }));
 }
 
 function transformSearchMethodParams(
   searchMethodParams: SearchMethodParams,
+  booleanOrSearchReady: boolean,
 ): SearchMethodParams {
   return {
     ...searchMethodParams,
@@ -59,14 +68,17 @@ function transformSearchMethodParams(
 
       const parsed = parseAdvancedSearchQuery(request.query);
       if (!parsed.success) return request;
+      if (parsed.data.anyWordGroups.length > 0 && !booleanOrSearchReady) {
+        return request;
+      }
 
       return {
         ...request,
         query: parsed.data.algoliaQuery,
-        optionalWords:
-          parsed.data.optionalWords.length > 0
-            ? parsed.data.optionalWords
-            : undefined,
+        filters: buildAdvancedSearchFilters(
+          parsed.data.anyWordGroups,
+          request.filters,
+        ),
         advancedSyntax: true,
         advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
       };
@@ -74,22 +86,34 @@ function transformSearchMethodParams(
   };
 }
 
-const advancedSyntaxSearchClient = {
-  ...baseSearchClient,
-  search<T>(
-    searchMethodParams: SearchMethodParams | LegacySearchMethodProps,
-    requestOptions?: Parameters<typeof baseSearchClient.search>[1],
-  ) {
-    return Array.isArray(searchMethodParams)
-      ? baseSearchClient.search<T>(
-          transformLegacyRequests(searchMethodParams),
-          requestOptions,
-        )
-      : baseSearchClient.search<T>(
-          transformSearchMethodParams(searchMethodParams),
-          requestOptions,
-        );
-  },
-} satisfies Pick<SearchClient, "search">;
+function createSearchClient(booleanOrSearchReady: boolean) {
+  return {
+    ...baseSearchClient,
+    search<T>(
+      searchMethodParams: SearchMethodParams | LegacySearchMethodProps,
+      requestOptions?: Parameters<typeof baseSearchClient.search>[1],
+    ) {
+      return Array.isArray(searchMethodParams)
+        ? baseSearchClient.search<T>(
+            transformLegacyRequests(searchMethodParams, booleanOrSearchReady),
+            requestOptions,
+          )
+        : baseSearchClient.search<T>(
+            transformSearchMethodParams(
+              searchMethodParams,
+              booleanOrSearchReady,
+            ),
+            requestOptions,
+          );
+    },
+  } satisfies Pick<SearchClient, "search">;
+}
 
-export const searchClient = advancedSyntaxSearchClient;
+const pendingMigrationSearchClient = createSearchClient(false);
+const readySearchClient = createSearchClient(true);
+
+export function getSearchClient(booleanOrSearchReady: boolean) {
+  return booleanOrSearchReady
+    ? readySearchClient
+    : pendingMigrationSearchClient;
+}

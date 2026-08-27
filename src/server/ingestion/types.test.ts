@@ -36,6 +36,13 @@ describe("toAlgoliaRecord", () => {
     const record = toAlgoliaRecord(vehicle, firstSeenAt, null, 0);
 
     expect(record.objectID).toBe("1FADP3F29FL123456");
+    expect(record.searchTokens).toEqual([
+      "ford",
+      "focus",
+      "2015",
+      "red",
+      "1fadp3f29fl123456",
+    ]);
     expect(record.vinPositionTokens).toEqual([
       "0:1",
       "1:F",
