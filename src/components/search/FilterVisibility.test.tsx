@@ -68,7 +68,7 @@ describe("search filter visibility", () => {
     const markup = renderToStaticMarkup(
       <MobileFilterContent
         defaultOpenSections="none"
-        listScrollMode="parent"
+        containListScroll={false}
         makes={[]}
         colors={[]}
         states={[]}
@@ -95,7 +95,7 @@ describe("search filter visibility", () => {
     expect(markup).not.toContain("Vehicle year range");
   });
 
-  test("lets the parent own scrolling in settings", () => {
+  test("caps settings lists without trapping modal scrolling", () => {
     const markup = renderToStaticMarkup(
       <SearchableCheckboxList
         name="settings-make"
@@ -103,11 +103,12 @@ describe("search filter visibility", () => {
         options={["Honda", "Toyota"]}
         selected={[]}
         onChange={noOp}
-        scrollMode="parent"
+        containScroll={false}
       />,
     );
 
-    expect(markup).not.toContain("overflow-y-auto");
-    expect(markup).not.toContain("max-height");
+    expect(markup).toContain("overflow-y-auto");
+    expect(markup).toContain("max-height:200px");
+    expect(markup).not.toContain("overscroll-contain");
   });
 });
