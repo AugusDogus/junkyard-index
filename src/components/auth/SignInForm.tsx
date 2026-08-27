@@ -150,7 +150,7 @@ export function SignInForm() {
         disabled={isLoading || isDiscordLoading}
         tabIndex={3}
       >
-        {isLoading ? "Signing in..." : "Continue Tracking"}
+        {isLoading ? "Signing in..." : "Sign in"}
       </Button>
 
       <div className="relative">
