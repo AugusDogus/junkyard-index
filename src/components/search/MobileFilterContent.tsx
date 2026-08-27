@@ -25,6 +25,7 @@ interface FilterOptions {
 }
 
 interface MobileFilterContentProps {
+  idPrefix?: string;
   makes: string[];
   colors: string[];
   states: string[];
@@ -58,7 +59,10 @@ function FilterSection({
 }) {
   return (
     <Collapsible defaultOpen={defaultOpen}>
-      <CollapsibleTrigger className="group focus-visible:ring-ring/50 flex w-full items-center justify-between gap-4 py-4 text-left outline-none focus-visible:ring-2">
+      <CollapsibleTrigger
+        type="button"
+        className="group focus-visible:ring-ring/50 flex w-full items-center justify-between gap-4 py-4 text-left outline-none focus-visible:ring-2"
+      >
         <span className="min-w-0">
           <span className="block text-sm font-medium">{title}</span>
           {summary && (
@@ -78,6 +82,7 @@ function FilterSection({
 }
 
 export function MobileFilterContent({
+  idPrefix = "mobile",
   makes,
   colors,
   states,
@@ -114,7 +119,7 @@ export function MobileFilterContent({
         }
       >
         <InventorySourcesFilter
-          idPrefix="mobile-source"
+          idPrefix={`${idPrefix}-source`}
           sources={sources}
           onSourcesChange={onSourcesChange}
         />
@@ -126,7 +131,7 @@ export function MobileFilterContent({
         defaultOpen
       >
         <SearchableCheckboxList
-          name="make"
+          name={`${idPrefix}-make`}
           label="Make"
           options={filterOptions.makes}
           selected={makes}
@@ -157,7 +162,7 @@ export function MobileFilterContent({
         summary={colors.length > 0 ? `${colors.length} selected` : undefined}
       >
         <SearchableCheckboxList
-          name="color"
+          name={`${idPrefix}-color`}
           label="Color"
           options={filterOptions.colors}
           selected={colors}
@@ -173,7 +178,7 @@ export function MobileFilterContent({
         summary={states.length > 0 ? `${states.length} selected` : undefined}
       >
         <SearchableCheckboxList
-          name="state"
+          name={`${idPrefix}-state`}
           label="State"
           options={filterOptions.states}
           selected={states}
@@ -194,7 +199,7 @@ export function MobileFilterContent({
       >
         <div className="flex flex-col gap-2">
           <SearchableCheckboxList
-            name="yard"
+            name={`${idPrefix}-yard`}
             label="Salvage yard"
             options={filterOptions.salvageYards}
             selected={salvageYards}
