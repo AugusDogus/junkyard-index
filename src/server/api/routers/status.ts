@@ -1,12 +1,14 @@
 import { desc, eq, isNotNull, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { env } from "~/env";
+import { ALGOLIA_INDEX_NAME, algoliaAdminClient } from "~/lib/algolia";
 import { db } from "~/lib/db";
 import {
   INGESTION_SOURCE_DISPLAY_NAMES,
   INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
+import { mapSearchFacetOptions } from "~/lib/search-facet-options";
 import {
   ingestionRun,
   ingestionSourceRun,
@@ -104,8 +106,27 @@ const getProviderStatus = unstable_cache(
   { revalidate: 10 },
 );
 
+const getSearchFacetOptions = unstable_cache(
+  async () => {
+    const result = await algoliaAdminClient.searchSingleIndex({
+      indexName: ALGOLIA_INDEX_NAME,
+      searchParams: {
+        query: "",
+        hitsPerPage: 0,
+        facets: ["make", "color", "state", "locationName"],
+        maxValuesPerFacet: 500,
+      },
+    });
+
+    return mapSearchFacetOptions(result.facets);
+  },
+  ["search-facet-options"],
+  { revalidate: 3600 },
+);
+
 export const statusRouter = createTRPCRouter({
   searchCapabilities: publicProcedure.query(getSearchIndexCapabilities),
+  searchFacetOptions: publicProcedure.query(getSearchFacetOptions),
   providers: publicProcedure.query(async () => {
     return getProviderStatus();
   }),
