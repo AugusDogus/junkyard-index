@@ -4,10 +4,11 @@ import { drizzle } from "drizzle-orm/libsql";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
 import {
   disableUserAlertChannels,
   setSearchAlertChannel,
-  updateSavedSearchCriteria,
+  updateSavedSearch,
 } from "./alert-config-repository";
 
 const TEST_SCHEMA = `
@@ -43,13 +44,13 @@ const TEST_SCHEMA = `
 `;
 
 describe("alert configuration versions", () => {
-  test("updating criteria resets alert matching and cancels queued intents", async () => {
+  test("resets alert matching only when match criteria change", async () => {
     const directory = mkdtempSync(join(tmpdir(), "alert-config-test-"));
     const client = createClient({ url: `file:${join(directory, "test.db")}` });
     try {
       await client.executeMultiple(TEST_SCHEMA);
       await client.executeMultiple(`
-        insert into user (id) values ('user-1'), ('user-2');
+        insert into user (id) values ('user-1');
         insert into ingestion_run (id, publication_sequence) values ('run-1', 4);
         insert into saved_search (
           id, user_id, name, query, filters, email_alerts_enabled,
@@ -72,17 +73,43 @@ describe("alert configuration versions", () => {
       const database = drizzle(client);
 
       expect(
-        await updateSavedSearchCriteria({
+        await updateSavedSearch({
           database,
           searchId: "search-1",
-          userId: "user-2",
-          name: "Not allowed",
-          query: "honda",
-          filters: '{"minYear":2008}',
+          userId: "user-1",
+          name: "Renamed",
+          query: "ford",
+          filters: JSON.stringify({
+            minYear: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
+            maxYear: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
+            sortBy: "oldest",
+          }),
         }),
-      ).toBe(false);
+      ).toBe(true);
+      const metadataOnlySearch = await client.execute(
+        `select name, search_match_version, email_start_sequence,
+                discord_start_sequence, last_matched_publication_sequence,
+                last_checked_at
+         from saved_search where id = 'search-1'`,
+      );
+      expect(metadataOnlySearch.rows[0]).toMatchObject({
+        name: "Renamed",
+        search_match_version: 3,
+        email_start_sequence: 2,
+        discord_start_sequence: 2,
+        last_matched_publication_sequence: 2,
+        last_checked_at: 1000,
+      });
+      const preservedIntent = await client.execute(
+        "select status, cancelled_at from search_notification_intent where id = 'email-1'",
+      );
+      expect(preservedIntent.rows[0]).toMatchObject({
+        status: "pending",
+        cancelled_at: null,
+      });
+
       expect(
-        await updateSavedSearchCriteria({
+        await updateSavedSearch({
           database,
           searchId: "search-1",
           userId: "user-1",
