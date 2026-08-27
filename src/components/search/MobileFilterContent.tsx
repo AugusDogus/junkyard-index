@@ -120,24 +120,22 @@ export function MobileFilterContent({
         />
       </FilterSection>
 
-      {filterOptions.makes.length > 1 && (
-        <FilterSection
-          title="Make"
-          summary={makes.length > 0 ? `${makes.length} selected` : undefined}
-          defaultOpen
-        >
-          <SearchableCheckboxList
-            name="make"
-            label="Make"
-            options={filterOptions.makes}
-            selected={makes}
-            onChange={onMakesChange}
-            searchPlaceholder="Search makes"
-            searchThreshold={10}
-            maxHeight={220}
-          />
-        </FilterSection>
-      )}
+      <FilterSection
+        title="Make"
+        summary={makes.length > 0 ? `${makes.length} selected` : undefined}
+        defaultOpen
+      >
+        <SearchableCheckboxList
+          name="make"
+          label="Make"
+          options={filterOptions.makes}
+          selected={makes}
+          onChange={onMakesChange}
+          searchPlaceholder="Search makes"
+          searchThreshold={10}
+          maxHeight={220}
+        />
+      </FilterSection>
 
       <FilterSection
         title="Year"
