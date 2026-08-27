@@ -2,6 +2,7 @@
   "name": "junkyard-index",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "bench:row52": "bun scripts/row52-benchmark.ts",
