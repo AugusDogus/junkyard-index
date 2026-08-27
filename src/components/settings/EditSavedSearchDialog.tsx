@@ -278,7 +278,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="overflow-y-auto border-y px-6 py-5">
+          <div className="scrollbar-thin-themed min-h-0 overflow-y-auto overscroll-contain border-y px-6 py-5">
             <FieldGroup className="gap-6">
               <Field>
                 <FieldLabel htmlFor={`saved-search-name-${search.id}`}>
@@ -322,8 +322,35 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                 </Field>
               </div>
 
+              <Field>
+                <FieldLabel htmlFor={`saved-search-sort-${search.id}`}>
+                  Sort results
+                </FieldLabel>
+                <Select
+                  value={form.sortBy}
+                  onValueChange={(value) => setField("sortBy", value)}
+                  disabled={updateSearch.isPending}
+                >
+                  <SelectTrigger
+                    id={`saved-search-sort-${search.id}`}
+                    className="w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {SEARCH_SORT_OPTIONS.map((option) => (
+                        <SelectItem key={option.key} value={option.key}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+
               <FieldSet>
-                <FieldLegend>Filters</FieldLegend>
+                <FieldLegend variant="label">Filters</FieldLegend>
                 {filterOptionsQuery.isPending ? (
                   <div className="flex flex-col gap-3" aria-busy="true">
                     <span className="sr-only">Loading filter options</span>
@@ -353,63 +380,40 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                         </AlertDescription>
                       </Alert>
                     )}
-                    <MobileFilterContent
-                      idPrefix={`saved-search-${search.id}`}
-                      makes={form.makes}
-                      colors={form.colors}
-                      states={form.states}
-                      salvageYards={form.salvageYards}
-                      sources={form.sources}
-                      yearRange={form.yearRange}
-                      filterOptions={filterOptions}
-                      onMakesChange={(makes) => setField("makes", makes)}
-                      onColorsChange={(colors) => setField("colors", colors)}
-                      onStatesChange={(states) => setField("states", states)}
-                      onSalvageYardsChange={(salvageYards) =>
-                        setField("salvageYards", salvageYards)
-                      }
-                      onSourcesChange={(sources) =>
-                        setField("sources", sources)
-                      }
-                      onYearRangeChange={(yearRange) =>
-                        setField("yearRange", yearRange)
-                      }
-                      yearRangeLimits={{
-                        min: MIN_VEHICLE_YEAR,
-                        max: MAX_VEHICLE_YEAR,
-                      }}
-                      canUseAdvancedFilters
-                    />
+                    <div className="border-border border-y">
+                      <MobileFilterContent
+                        idPrefix={`saved-search-${search.id}`}
+                        defaultOpenSections="none"
+                        listScrollMode="parent"
+                        makes={form.makes}
+                        colors={form.colors}
+                        states={form.states}
+                        salvageYards={form.salvageYards}
+                        sources={form.sources}
+                        yearRange={form.yearRange}
+                        filterOptions={filterOptions}
+                        onMakesChange={(makes) => setField("makes", makes)}
+                        onColorsChange={(colors) => setField("colors", colors)}
+                        onStatesChange={(states) => setField("states", states)}
+                        onSalvageYardsChange={(salvageYards) =>
+                          setField("salvageYards", salvageYards)
+                        }
+                        onSourcesChange={(sources) =>
+                          setField("sources", sources)
+                        }
+                        onYearRangeChange={(yearRange) =>
+                          setField("yearRange", yearRange)
+                        }
+                        yearRangeLimits={{
+                          min: MIN_VEHICLE_YEAR,
+                          max: MAX_VEHICLE_YEAR,
+                        }}
+                        canUseAdvancedFilters
+                      />
+                    </div>
                   </>
                 )}
               </FieldSet>
-
-              <Field>
-                <FieldLabel htmlFor={`saved-search-sort-${search.id}`}>
-                  Sort results
-                </FieldLabel>
-                <Select
-                  value={form.sortBy}
-                  onValueChange={(value) => setField("sortBy", value)}
-                  disabled={updateSearch.isPending}
-                >
-                  <SelectTrigger
-                    id={`saved-search-sort-${search.id}`}
-                    className="w-full"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {SEARCH_SORT_OPTIONS.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
 
               <FieldError>{formError}</FieldError>
             </FieldGroup>
