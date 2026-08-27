@@ -1,9 +1,10 @@
 "use client";
 
-import { MoreHorizontal, Pencil, Search, Trash2 } from "lucide-react";
+import { MoreHorizontal, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { toast } from "sonner";
+import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { Button } from "~/components/ui/button";
@@ -29,7 +30,6 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
 import type { SavedSearchFilters } from "~/lib/saved-search-filters";
-import { buildSavedSearchEditUrl } from "~/lib/search-utils";
 import { api } from "~/trpc/react";
 
 interface SavedSearchCriterion {
@@ -280,18 +280,7 @@ export function SavedSearchSettingsCard() {
                       <div className="flex flex-wrap items-center gap-5 md:justify-end">
                         {!savedSearchesLocked && (
                           <>
-                            <Button asChild variant="outline" size="sm">
-                              <Link
-                                href={buildSavedSearchEditUrl(
-                                  search.id,
-                                  search.query,
-                                  search.filters,
-                                )}
-                              >
-                                <Pencil />
-                                Edit filters
-                              </Link>
-                            </Button>
+                            <EditSavedSearchDialog search={search} />
                             <div className="flex items-center gap-3">
                               <label
                                 htmlFor={`email-alerts-${search.id}`}

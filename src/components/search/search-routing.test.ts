@@ -89,22 +89,4 @@ describe("search routing", () => {
       }),
     ).toBe("https://example.com/search?q=civic");
   });
-
-  test("preserves the saved-search editing context while filters change", () => {
-    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
-
-    expect(
-      routing.router.createURL({
-        routeState: {
-          [ALGOLIA_INDEX_NAME]: { query: "civic", minYear: 2008 },
-        },
-        location: {
-          href: "https://example.com/search?q=civic&editSearch=search-1",
-          search: "?q=civic&editSearch=search-1",
-        },
-      }),
-    ).toBe(
-      "https://example.com/search?editSearch=search-1&q=civic&minYear=2008",
-    );
-  });
 });
