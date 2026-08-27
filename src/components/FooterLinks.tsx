@@ -9,6 +9,11 @@ const FOOTER_LINKS = [
   { kind: "static", href: "/privacy", label: "Privacy Policy" },
   { kind: "static", href: "/terms", label: "Terms of Service" },
   { kind: "static", href: "/contact", label: "Contact" },
+  {
+    kind: "static",
+    href: "https://github.com/AugusDogus/junkyard-index",
+    label: "Source",
+  },
 ] as const;
 
 export function FooterLinks() {
