@@ -90,6 +90,8 @@ import { VinPattern } from "~/lib/vin-pattern";
 import { useSearchQuotaGate } from "~/hooks/use-daily-search-quota";
 import { api } from "~/trpc/react";
 
+const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
+
 function clampRouteYear(
   value: number | null,
   min: number,
@@ -311,7 +313,7 @@ function AlgoliaSearchInner({
     access: planAccess,
     feature: "saved_searches",
   });
-  const currentYear = new Date().getFullYear();
+  const maximumSearchableVehicleYear = new Date().getUTCFullYear() + 1;
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
@@ -445,12 +447,10 @@ function AlgoliaSearchInner({
   });
 
   // Year range
-  const {
-    range: yearBounds,
-    start: yearStart,
-    refine: refineYear,
-  } = useRange({
+  const { start: yearStart, refine: refineYear } = useRange({
     attribute: "year",
+    min: MINIMUM_SEARCHABLE_VEHICLE_YEAR,
+    max: maximumSearchableVehicleYear,
   });
 
   // Server-side sorting via Algolia replicas.
@@ -654,18 +654,8 @@ function AlgoliaSearchInner({
   const rawRouteMinYear = parsedRouteYears[0] ?? null;
   const rawRouteMaxYear = parsedRouteYears[1] ?? null;
 
-  const yearMin: number =
-    typeof yearBounds.min === "number" &&
-    Number.isFinite(yearBounds.min) &&
-    yearBounds.min > 0
-      ? yearBounds.min
-      : 1900;
-  const yearMax: number =
-    typeof yearBounds.max === "number" &&
-    Number.isFinite(yearBounds.max) &&
-    yearBounds.max > 0
-      ? yearBounds.max
-      : currentYear;
+  const yearMin = MINIMUM_SEARCHABLE_VEHICLE_YEAR;
+  const yearMax = maximumSearchableVehicleYear;
   let routeMinYear = clampRouteYear(rawRouteMinYear, yearMin, yearMax);
   let routeMaxYear = clampRouteYear(rawRouteMaxYear, yearMin, yearMax);
   if (
