@@ -171,8 +171,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
     onSuccess: async (_data, variables) => {
       posthog.capture(AnalyticsEvents.SAVED_SEARCH_UPDATED, {
         search_id: variables.id,
-        query: variables.query,
-        search_name: variables.name,
+        has_query: variables.query.trim().length > 0,
         has_sources_filter: (variables.filters.sources?.length ?? 0) > 0,
         source: "settings",
       });

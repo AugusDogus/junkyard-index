@@ -14,7 +14,7 @@ All required environment variables are injected as secrets (see `src/env.js` for
 
 ### Running the dev server
 
-```
+```sh
 portless # preferred: branch-scoped HTTPS URL such as https://my-branch.junkyard-index.localhost
 ```
 
