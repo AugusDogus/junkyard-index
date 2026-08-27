@@ -7,7 +7,7 @@ import { HomeSearchHero } from "~/components/home/HomeSearchHero";
 import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
 import { Button } from "~/components/ui/button";
 import { SEARCH_CONFIG } from "~/lib/constants";
-import { FREE_DAILY_SEARCH_LIMIT, PLANS } from "~/lib/plans";
+import { PLANS } from "~/lib/plans";
 import { api } from "~/trpc/server";
 
 export const HOME_METADATA: Metadata = {
@@ -177,7 +177,7 @@ export async function HomeLandingPage() {
                 items={[
                   "Search salvage yard inventory for free",
                   `${SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT}-result preview before signing up, full results after`,
-                  `${FREE_DAILY_SEARCH_LIMIT} searches per day`,
+                  "Unlimited searches",
                   "No credit card required",
                 ]}
                 ctaHref="/auth/sign-up"
@@ -187,7 +187,7 @@ export async function HomeLandingPage() {
                 eyebrow="Lite & Full plans"
                 title={`From $${PLANS.lite.monthlyPrice}/mo for filters and tracking`}
                 items={[
-                  `Lite ($${PLANS.lite.monthlyPrice}/mo): unlimited searches, advanced filters, saved searches`,
+                  `Lite ($${PLANS.lite.monthlyPrice}/mo): advanced filters and saved searches`,
                   `Full ($${PLANS.full.monthlyPrice}/mo): everything in Lite plus email and Discord alerts`,
                   "Annual billing available for both plans",
                   "Best fit for repeat searches and fast-moving inventory",

@@ -70,9 +70,8 @@ import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
-import { resolvedPlanTier, type PlanAccessState } from "~/lib/plan-access";
+import type { PlanAccessState } from "~/lib/plan-access";
 import { PLANS } from "~/lib/plans";
-import type { QuotaViewer } from "~/lib/quota-viewer";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -87,7 +86,6 @@ import {
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
-import { useSearchQuotaGate } from "~/hooks/use-daily-search-quota";
 import { api } from "~/trpc/react";
 
 const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
@@ -104,12 +102,12 @@ function clampRouteYear(
 }
 
 interface SearchPageContentProps {
-  viewer: QuotaViewer;
+  isLoggedIn: boolean;
   userLocation?: { lat: number; lng: number };
 }
 
 interface AlgoliaSearchInnerProps {
-  viewer: QuotaViewer;
+  isLoggedIn: boolean;
   planAccess: PlanAccessState;
   userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
@@ -299,12 +297,11 @@ function DistancePreferenceDialog({
  * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
  */
 function AlgoliaSearchInner({
-  viewer,
+  isLoggedIn,
   planAccess,
   userLocation: _userLocation,
   vinPatternIndexReady,
 }: AlgoliaSearchInnerProps) {
-  const isLoggedIn = viewer.kind === "authenticated";
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
@@ -724,15 +721,6 @@ function AlgoliaSearchInner({
   // Loading = Algolia is actively fetching (not stale "0 results")
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
-
-  const quotaGate = useSearchQuotaGate({
-    initialViewer: viewer,
-    planTier: resolvedPlanTier(planAccess),
-    analyticsSearchValue,
-    hasActiveSearch,
-    isSearching,
-    hasError: Boolean(error),
-  });
 
   const anonymousVisibleLimit = isMobile
     ? 4
@@ -1216,7 +1204,6 @@ function AlgoliaSearchInner({
   const searchResultsPanelModel = resolveSearchResultsPanelModel({
     lifecycle: {
       hasActiveSearch,
-      quotaGate,
       isSearching,
       hasError: Boolean(error),
       searchResult,
@@ -1225,10 +1212,6 @@ function AlgoliaSearchInner({
       actions: null,
       processingTimeMS,
       visibleCount: isAnonymousCapped ? anonymousVisibleLimit : null,
-    },
-    quota: {
-      query: analyticsSearchValue,
-      isGuest: !isLoggedIn,
     },
     loading: {
       showMore,
@@ -1367,14 +1350,14 @@ function AlgoliaSearchInner({
 }
 
 export function SearchPageContent({
-  viewer,
+  isLoggedIn,
   userLocation,
 }: SearchPageContentProps) {
   return (
-    <SearchAccessShell viewer={viewer}>
+    <SearchAccessShell isLoggedIn={isLoggedIn}>
       {({ planAccess, vinPatternIndexReady }) => (
         <AlgoliaSearchInner
-          viewer={viewer}
+          isLoggedIn={isLoggedIn}
           planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}

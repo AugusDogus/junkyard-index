@@ -6,7 +6,6 @@ import { Button } from "~/components/ui/button";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { useSession } from "~/lib/auth-client";
 import {
-  FREE_DAILY_SEARCH_LIMIT,
   PLAN_TIERS,
   PLANS,
   type BillingInterval,
@@ -27,9 +26,9 @@ const PRICING_PLAN_CONTENT: Record<
   { description: string; items: readonly string[]; featured: boolean }
 > = {
   free: {
-    description: "Best for one-off searches and casual inventory checks.",
+    description: "Search yard inventory as often as you need.",
     items: [
-      `${FREE_DAILY_SEARCH_LIMIT} searches per day`,
+      "Unlimited searches",
       "Keyword and VIN search",
       "Full results after creating a free account",
       "No credit card required",
@@ -40,9 +39,9 @@ const PRICING_PLAN_CONTENT: Record<
     description: "For serious searchers who need filters and saved searches.",
     items: [
       "Everything in Free",
-      "Unlimited searches",
       "Advanced filters: yard, make, year, color, state, lot",
       "Unlimited saved searches",
+      "Reopen saved searches with every filter intact",
     ],
     featured: false,
   },

@@ -211,22 +211,6 @@ export const savedSearchRelations = relations(savedSearch, ({ one }) => ({
   }),
 }));
 
-export const searchUsage = sqliteTable(
-  "search_usage",
-  {
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    day: text("day").notNull(),
-    count: integer("count").notNull().default(0),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => [primaryKey({ columns: [table.userId, table.day] })],
-);
-
 // Yard requests submitted by visitors asking us to add a salvage yard
 export const yardRequest = sqliteTable(
   "yard_request",
@@ -256,15 +240,7 @@ export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   savedSearches: many(savedSearch),
-  searchUsage: many(searchUsage),
   yardRequests: many(yardRequest),
-}));
-
-export const searchUsageRelations = relations(searchUsage, ({ one }) => ({
-  user: one(user, {
-    fields: [searchUsage.userId],
-    references: [user.id],
-  }),
 }));
 
 // ── Ingestion Pipeline Tables ───────────────────────────────────────────────

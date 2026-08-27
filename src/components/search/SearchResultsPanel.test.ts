@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
 import type { SearchResult } from "~/lib/types";
 import { resolveSearchResultsPanelModel } from "./SearchResultsPanel";
 
@@ -14,7 +13,6 @@ const emptyResult: SearchResult = {
 };
 
 function resolve(input: {
-  quotaGate?: SearchQuotaGateState;
   isSearching?: boolean;
   hasError?: boolean;
   searchResult?: SearchResult | null;
@@ -23,14 +21,12 @@ function resolve(input: {
   return resolveSearchResultsPanelModel({
     lifecycle: {
       hasActiveSearch: true,
-      quotaGate: input.quotaGate ?? { kind: "open" },
       isSearching: input.isSearching ?? false,
       hasError: input.hasError ?? false,
       searchResult:
         "searchResult" in input ? (input.searchResult ?? null) : emptyResult,
     },
     header: { actions: null, processingTimeMS: 10, visibleCount: null },
-    quota: { query: "honda", isGuest: false },
     loading: { showMore },
     empty: {
       activeFilterCount: 0,
@@ -52,20 +48,6 @@ function resolve(input: {
 }
 
 describe("search results state", () => {
-  test("quota denial supersedes empty and error states", () => {
-    expect(
-      resolve({
-        quotaGate: { kind: "limit_exceeded" },
-        hasError: true,
-      }),
-    ).toEqual({
-      kind: "quota",
-      gate: { kind: "limit_exceeded" },
-      query: "honda",
-      isGuest: false,
-    });
-  });
-
   test("distinguishes loading, error, empty, and result states", () => {
     expect(resolve({ searchResult: null, isSearching: true }).kind).toBe(
       "loading",

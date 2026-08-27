@@ -36,6 +36,13 @@
       "when": 1787688606992,
       "tag": "0004_add_yard_request",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787801691766,
+      "tag": "0005_remove_search_usage",
+      "breakpoints": true
     }
   ]
 }

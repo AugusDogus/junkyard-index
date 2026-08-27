@@ -18,8 +18,6 @@ export function isBillingInterval(value: unknown): value is BillingInterval {
   return BILLING_INTERVALS.some((interval) => interval === value);
 }
 
-export const FREE_DAILY_SEARCH_LIMIT = 10;
-
 const TIER_RANK: Record<PlanTier, number> = {
   free: 0,
   lite: 1,
@@ -30,16 +28,11 @@ export function tierSatisfies(tier: PlanTier, required: PlanTier): boolean {
   return TIER_RANK[tier] >= TIER_RANK[required];
 }
 
-export type PlanFeature =
-  | "advanced_filters"
-  | "saved_searches"
-  | "unlimited_searches"
-  | "alerts";
+export type PlanFeature = "advanced_filters" | "saved_searches" | "alerts";
 
 const PLAN_FEATURE_MINIMUM_TIER: Record<PlanFeature, PaidPlanTier> = {
   advanced_filters: "lite",
   saved_searches: "lite",
-  unlimited_searches: "lite",
   alerts: "full",
 };
 
