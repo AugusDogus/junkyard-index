@@ -1,7 +1,7 @@
 <div align="center">
   <br />
   <a href="https://junkyardindex.com">
-    <img src="public/favicon.svg" alt="Junkyard Index" width="88" height="88" />
+    <img src="media/junkyard-index-icon.png" alt="Junkyard Index" width="112" height="112" />
   </a>
   <h1>Junkyard Index</h1>
   <p>Search salvage yard inventory nationwide before the right donor vehicle is gone.</p>
@@ -11,8 +11,6 @@
     <a href="https://junkyardindex.com/pricing">Compare plans</a>
   </p>
 </div>
-
-![Junkyard Index landing page](media/junkyard-index-home.png)
 
 Junkyard Index combines inventory from major self-service salvage yard networks into one fast, searchable index. Search for free, narrow results by vehicle and location, save searches, and receive alerts when new matches arrive.
 
