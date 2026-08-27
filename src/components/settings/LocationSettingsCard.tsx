@@ -96,20 +96,20 @@ export function LocationSettingsCard() {
         </p>
       </div>
 
-      <div className="mt-6 max-w-xl">
+      <div className="mt-6">
         {preference.isLoading ? (
-          <div className="space-y-4">
+          <div className="max-w-xl space-y-4">
             <Skeleton className="h-9 w-52" />
             <Skeleton className="h-10 w-full" />
           </div>
         ) : preference.isError ? (
-          <p className="text-destructive text-sm">
+          <p className="text-destructive max-w-xl text-sm">
             {preference.error.message ||
               "Could not load your saved search location right now."}
           </p>
         ) : (
           <FieldGroup>
-            <FieldSet>
+            <FieldSet className="max-w-xl">
               <FieldLegend variant="label">Location source</FieldLegend>
               <ToggleGroup
                 type="single"
@@ -127,7 +127,7 @@ export function LocationSettingsCard() {
             </FieldSet>
 
             {mode === "zip" && (
-              <Field>
+              <Field className="max-w-xl">
                 <FieldLabel htmlFor="settings-location-zip">
                   ZIP code
                 </FieldLabel>
