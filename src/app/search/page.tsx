@@ -9,7 +9,6 @@ import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { auth } from "~/lib/auth";
-import { quotaViewerFromSessionUser } from "~/lib/quota-viewer";
 import { api, HydrateClient } from "~/trpc/server";
 
 export const metadata: Metadata = {
@@ -51,10 +50,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       return undefined;
     }),
   ]);
-  const viewer = quotaViewerFromSessionUser(session?.user);
+  const isLoggedIn = Boolean(session?.user);
   await Promise.all([
     api.status.searchCapabilities.prefetch(),
-    viewer.kind === "authenticated"
+    isLoggedIn
       ? api.subscription.getAccountOverview.prefetch()
       : Promise.resolve(),
   ]);
@@ -66,7 +65,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <ErrorBoundary>
           <Suspense>
             <HydrateClient>
-              <SearchPageContent viewer={viewer} userLocation={geo} />
+              <SearchPageContent isLoggedIn={isLoggedIn} userLocation={geo} />
             </HydrateClient>
           </Suspense>
         </ErrorBoundary>

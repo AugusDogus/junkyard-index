@@ -25,8 +25,8 @@ import type { SubscriptionSelection } from "~/lib/subscription-selection";
 import { api } from "~/trpc/react";
 
 const PLAN_SUMMARIES: Record<PaidPlanTier, string> = {
-  lite: "Unlimited search, advanced filters, and saved searches.",
-  full: "Unlimited search, advanced filters, saved searches, and alerts.",
+  lite: "Advanced filters and saved searches.",
+  full: "Advanced filters, saved searches, and alerts.",
 };
 
 export function SubscriptionCheckoutForm({

@@ -13,17 +13,13 @@ import {
   SearchResults,
   SearchSummary,
 } from "~/components/search/SearchResults";
-import { SearchQuotaOverlay } from "~/components/search/SearchQuotaOverlay";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import type { SearchQuotaGateState } from "~/hooks/use-daily-search-quota";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 import type { SearchResult } from "~/lib/types";
-
-type ClosedQuotaGate = Exclude<SearchQuotaGateState, { kind: "open" }>;
 
 export type SearchResultsHeaderModel = {
   status:
@@ -60,12 +56,6 @@ interface EmptySearchResultsModel {
 export type SearchResultsPanelModel =
   | { kind: "inactive" }
   | {
-      kind: "quota";
-      gate: ClosedQuotaGate;
-      query: string;
-      isGuest: boolean;
-    }
-  | {
       kind: "loading";
       header: SearchResultsHeaderModel;
       list: Pick<SearchResultsListModel, "showMore">;
@@ -82,7 +72,6 @@ export type SearchResultsPanelModel =
 export function resolveSearchResultsPanelModel(input: {
   lifecycle: {
     hasActiveSearch: boolean;
-    quotaGate: SearchQuotaGateState;
     isSearching: boolean;
     hasError: boolean;
     searchResult: SearchResult | null;
@@ -92,20 +81,12 @@ export function resolveSearchResultsPanelModel(input: {
     processingTimeMS: number;
     visibleCount: number | null;
   };
-  quota: { query: string; isGuest: boolean };
   loading: Pick<SearchResultsListModel, "showMore">;
   empty: EmptySearchResultsModel;
   results: SearchResultsListModel;
 }): SearchResultsPanelModel {
   const { lifecycle } = input;
   if (!lifecycle.hasActiveSearch) return { kind: "inactive" };
-  if (lifecycle.quotaGate.kind !== "open") {
-    return {
-      kind: "quota",
-      gate: lifecycle.quotaGate,
-      ...input.quota,
-    };
-  }
   if (lifecycle.hasError && !lifecycle.isSearching) return { kind: "error" };
   if (!lifecycle.searchResult) {
     return {
@@ -180,14 +161,6 @@ export function SearchResultsPanel({
   switch (model.kind) {
     case "inactive":
       return null;
-    case "quota":
-      return (
-        <SearchQuotaOverlay
-          gate={model.gate}
-          query={model.query}
-          isGuest={model.isGuest}
-        />
-      );
     case "loading":
       return (
         <>

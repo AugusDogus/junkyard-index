@@ -9,13 +9,12 @@ import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
 import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
-import type { QuotaViewer } from "~/lib/quota-viewer";
 import { api } from "~/trpc/react";
 
 const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 
 interface SearchAccessShellProps {
-  viewer: QuotaViewer;
+  isLoggedIn: boolean;
   children(input: {
     planAccess: PlanAccessState;
     vinPatternIndexReady: boolean;
@@ -23,10 +22,10 @@ interface SearchAccessShellProps {
 }
 
 export function SearchAccessShell({
-  viewer,
+  isLoggedIn,
   children,
 }: SearchAccessShellProps) {
-  const planAccess = useCheckoutPlanAccess(viewer.kind === "authenticated");
+  const planAccess = useCheckoutPlanAccess(isLoggedIn);
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",

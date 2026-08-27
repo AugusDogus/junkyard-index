@@ -84,6 +84,11 @@ describe("migration chain", () => {
       );
       expect(operations.rows[0]?.count).toBe(0);
 
+      const retiredSearchUsage = await client.execute(
+        "select name from sqlite_master where type = 'table' and name = 'search_usage'",
+      );
+      expect(retiredSearchUsage.rows).toHaveLength(0);
+
       await expect(
         client.execute(
           `insert into billing_operation (user_id, state, expires_at)

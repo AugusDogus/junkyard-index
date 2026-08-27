@@ -41,9 +41,7 @@ export default async function PricingPage() {
           </div>
 
           <div className="mt-10">
-            <PricingPlansSection
-              initialIsRegistered={initialIsRegistered}
-            />
+            <PricingPlansSection initialIsRegistered={initialIsRegistered} />
           </div>
 
           <div className="mt-12 rounded-lg border p-6 text-center">
@@ -51,9 +49,9 @@ export default async function PricingPage() {
               What changes when you upgrade?
             </h2>
             <p className="text-muted-foreground mx-auto mt-3 max-w-2xl text-pretty">
-              Search stays simple. The paid value is continuity: unlimited
-              searches, advanced filters, saved searches, and alerts when
-              inventory changes after you leave.
+              Search stays free and unlimited. The paid value is continuity:
+              advanced filters, saved searches, and alerts when inventory
+              changes after you leave.
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <TrackedPricingButton

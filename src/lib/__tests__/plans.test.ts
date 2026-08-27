@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  FREE_DAILY_SEARCH_LIMIT,
   PLANS,
   evaluateSavedSearchGate,
   formatMonthlyEquivalent,
@@ -51,10 +50,6 @@ describe("plan tiers", () => {
   test("annual monthly-equivalent formatting", () => {
     expect(formatMonthlyEquivalent("lite")).toBe("$2.50");
     expect(formatMonthlyEquivalent("full")).toBe("$5");
-  });
-
-  test("free daily search limit", () => {
-    expect(FREE_DAILY_SEARCH_LIMIT).toBeGreaterThan(0);
   });
 });
 
