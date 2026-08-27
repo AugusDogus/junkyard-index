@@ -387,7 +387,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                       <MobileFilterContent
                         idPrefix={`saved-search-${search.id}`}
                         defaultOpenSections="none"
-                        listScrollMode="parent"
+                        containListScroll={false}
                         makes={form.makes}
                         colors={form.colors}
                         states={form.states}
