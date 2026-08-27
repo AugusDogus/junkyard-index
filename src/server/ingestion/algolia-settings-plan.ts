@@ -36,7 +36,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   minWordSizefor1Typo: 3,
   minWordSizefor2Typos: 7,
   advancedSyntax: true,
-  advancedSyntaxFeatures: ["exactPhrase"],
+  advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
   hitsPerPage: 1000,
   paginationLimitedTo: ALGOLIA_PAGINATION_LIMIT,
   unretrievableAttributes: ["firstSeenAt", "vinPositionTokens"],
