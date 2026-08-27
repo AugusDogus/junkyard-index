@@ -56,6 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { Toggle } from "~/components/ui/toggle";
 import {
   getSearchableVinPattern,
   getSearchSortIndex,
@@ -961,11 +962,6 @@ function AlgoliaSearchInner({
     ],
   );
 
-  const handleToggleFilters = useCallback(
-    () => setShowFilters((prev) => !prev),
-    [],
-  );
-
   const { refine: clearRefinements } = useClearRefinements();
 
   const clearAllFilters = useCallback(() => {
@@ -1213,17 +1209,18 @@ function AlgoliaSearchInner({
           </SelectGroup>
         </SelectContent>
       </Select>
-      <Button
-        variant={showFilters ? "secondary" : "outline"}
-        onClick={handleToggleFilters}
-        aria-pressed={showFilters}
+      <Toggle
+        variant="outline"
+        pressed={showFilters}
+        onPressedChange={setShowFilters}
+        className="shrink-0 px-3"
       >
         <Filter data-icon="inline-start" />
         Filters
         {activeFilterCount > 0 && (
           <span className="tabular-nums">({activeFilterCount})</span>
         )}
-      </Button>
+      </Toggle>
     </div>
   );
   const searchResultsPanelModel = resolveSearchResultsPanelModel({
