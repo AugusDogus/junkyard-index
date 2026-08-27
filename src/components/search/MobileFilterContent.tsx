@@ -26,6 +26,8 @@ interface FilterOptions {
 
 interface MobileFilterContentProps {
   idPrefix?: string;
+  defaultOpenSections?: "primary" | "all" | "none";
+  listScrollMode?: "contained" | "parent";
   makes: string[];
   colors: string[];
   states: string[];
@@ -83,6 +85,8 @@ function FilterSection({
 
 export function MobileFilterContent({
   idPrefix = "mobile",
+  defaultOpenSections = "primary",
+  listScrollMode = "contained",
   makes,
   colors,
   states,
@@ -107,6 +111,8 @@ export function MobileFilterContent({
   const maximumYear = yearRangeLimits?.max ?? new Date().getFullYear();
   const hasYearFilter =
     yearRange[0] !== minimumYear || yearRange[1] !== maximumYear;
+  const allSectionsOpen = defaultOpenSections === "all";
+  const primarySectionsOpen = defaultOpenSections === "primary";
 
   return (
     <div className="divide-border flex flex-col divide-y">
@@ -117,6 +123,7 @@ export function MobileFilterContent({
             ? "All sources"
             : `${sources.length} of ${AVAILABLE_SOURCES.length} selected`
         }
+        defaultOpen={allSectionsOpen}
       >
         <InventorySourcesFilter
           idPrefix={`${idPrefix}-source`}
@@ -128,7 +135,7 @@ export function MobileFilterContent({
       <FilterSection
         title="Make"
         summary={makes.length > 0 ? `${makes.length} selected` : undefined}
-        defaultOpen
+        defaultOpen={allSectionsOpen || primarySectionsOpen}
       >
         <SearchableCheckboxList
           name={`${idPrefix}-make`}
@@ -139,6 +146,7 @@ export function MobileFilterContent({
           searchPlaceholder="Search makes"
           searchThreshold={10}
           maxHeight={220}
+          scrollMode={listScrollMode}
         />
       </FilterSection>
 
@@ -147,7 +155,7 @@ export function MobileFilterContent({
         summary={
           hasYearFilter ? `${yearRange[0]} to ${yearRange[1]}` : "All years"
         }
-        defaultOpen
+        defaultOpen={allSectionsOpen || primarySectionsOpen}
       >
         <YearRangeFilter
           yearRange={yearRange}
@@ -160,6 +168,7 @@ export function MobileFilterContent({
       <FilterSection
         title="Color"
         summary={colors.length > 0 ? `${colors.length} selected` : undefined}
+        defaultOpen={allSectionsOpen}
       >
         <SearchableCheckboxList
           name={`${idPrefix}-color`}
@@ -170,12 +179,14 @@ export function MobileFilterContent({
           searchPlaceholder="Search colors"
           searchThreshold={12}
           maxHeight={200}
+          scrollMode={listScrollMode}
         />
       </FilterSection>
 
       <FilterSection
         title="State"
         summary={states.length > 0 ? `${states.length} selected` : undefined}
+        defaultOpen={allSectionsOpen}
       >
         <SearchableCheckboxList
           name={`${idPrefix}-state`}
@@ -186,6 +197,7 @@ export function MobileFilterContent({
           searchPlaceholder="Search states"
           searchThreshold={6}
           maxHeight={240}
+          scrollMode={listScrollMode}
         />
       </FilterSection>
 
@@ -196,6 +208,7 @@ export function MobileFilterContent({
             ? `${salvageYards.length} selected`
             : undefined
         }
+        defaultOpen={allSectionsOpen}
       >
         <div className="flex flex-col gap-2">
           <SearchableCheckboxList
@@ -207,6 +220,7 @@ export function MobileFilterContent({
             searchPlaceholder="Search yards"
             searchThreshold={6}
             maxHeight={240}
+            scrollMode={listScrollMode}
           />
           <Button asChild variant="link" size="sm" className="self-start">
             <Link
