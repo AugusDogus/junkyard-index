@@ -16,6 +16,7 @@ import { PlanGateError } from "~/server/plan-gate-error";
 import {
   currentSearchPublicationSequence,
   setSearchAlertChannel,
+  updateSavedSearchCriteria,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
 import { getAuthoritativePlanTier as resolveAuthoritativePlanTier } from "~/server/billing/user-plan";
@@ -129,6 +130,54 @@ export const savedSearchesRouter = createTRPCRouter({
       });
 
       return { id };
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(100),
+        query: z.string(),
+        filters: filtersSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const planTier = await getAuthoritativePlanTier(ctx.user.id);
+      if (!hasPlanFeature(planTier, "saved_searches")) {
+        throw planGateError("saved_searches");
+      }
+
+      const updated = await updateSavedSearchCriteria({
+        database: ctx.db,
+        searchId: input.id,
+        userId: ctx.user.id,
+        name: input.name,
+        query: input.query,
+        filters: JSON.stringify(input.filters),
+      });
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "Saved search could not be updated because it no longer exists. No changes were made.",
+        });
+      }
+
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "saved_search_updated",
+        properties: {
+          search_id: input.id,
+          has_query: input.query.trim().length > 0,
+          has_makes_filter: (input.filters.makes?.length ?? 0) > 0,
+          has_colors_filter: (input.filters.colors?.length ?? 0) > 0,
+          has_states_filter: (input.filters.states?.length ?? 0) > 0,
+          has_yards_filter: (input.filters.salvageYards?.length ?? 0) > 0,
+          has_sources_filter: (input.filters.sources?.length ?? 0) > 0,
+        },
+      });
+
+      return { success: true };
     }),
 
   delete: protectedProcedure

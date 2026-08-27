@@ -7,6 +7,7 @@ import { join } from "node:path";
 import {
   disableUserAlertChannels,
   setSearchAlertChannel,
+  updateSavedSearchCriteria,
 } from "./alert-config-repository";
 
 const TEST_SCHEMA = `
@@ -26,7 +27,8 @@ const TEST_SCHEMA = `
     email_start_sequence integer not null default 0,
     discord_start_sequence integer not null default 0,
     last_matched_publication_sequence integer not null default 0,
-    last_checked_at integer, processing_lock integer,
+    last_checked_at integer, alert_quarantined_at integer,
+    alert_quarantine_reason text, processing_lock integer,
     created_at integer not null, updated_at integer not null
   );
   create table search_notification_intent (
@@ -41,6 +43,85 @@ const TEST_SCHEMA = `
 `;
 
 describe("alert configuration versions", () => {
+  test("updating criteria resets alert matching and cancels queued intents", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "alert-config-test-"));
+    const client = createClient({ url: `file:${join(directory, "test.db")}` });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      await client.executeMultiple(`
+        insert into user (id) values ('user-1'), ('user-2');
+        insert into ingestion_run (id, publication_sequence) values ('run-1', 4);
+        insert into saved_search (
+          id, user_id, name, query, filters, email_alerts_enabled,
+          search_match_version, email_start_sequence, discord_start_sequence,
+          last_matched_publication_sequence, last_checked_at,
+          alert_quarantined_at, alert_quarantine_reason, created_at, updated_at
+        ) values (
+          'search-1', 'user-1', 'Old', 'ford', '{}', 1, 3, 2, 2, 2,
+          1000, 1000, 'Too broad', 1, 1
+        );
+        insert into search_notification_intent (
+          id, run_id, publication_sequence, saved_search_id, user_id, channel,
+          search_match_version, channel_config_version, payload, status,
+          attempts, created_at
+        ) values (
+          'email-1', 'run-1', 4, 'search-1', 'user-1', 'email', 3, 1,
+          '{}', 'pending', 0, 1
+        );
+      `);
+      const database = drizzle(client);
+
+      expect(
+        await updateSavedSearchCriteria({
+          database,
+          searchId: "search-1",
+          userId: "user-2",
+          name: "Not allowed",
+          query: "honda",
+          filters: '{"minYear":2008}',
+        }),
+      ).toBe(false);
+      expect(
+        await updateSavedSearchCriteria({
+          database,
+          searchId: "search-1",
+          userId: "user-1",
+          name: "New",
+          query: "honda",
+          filters: '{"minYear":2008}',
+        }),
+      ).toBe(true);
+
+      const search = await client.execute(
+        `select name, query, filters, search_match_version,
+                email_start_sequence, discord_start_sequence,
+                last_matched_publication_sequence, last_checked_at,
+                alert_quarantined_at, alert_quarantine_reason
+         from saved_search where id = 'search-1'`,
+      );
+      expect(search.rows[0]).toMatchObject({
+        name: "New",
+        query: "honda",
+        filters: '{"minYear":2008}',
+        search_match_version: 4,
+        email_start_sequence: 4,
+        discord_start_sequence: 4,
+        last_matched_publication_sequence: 4,
+        alert_quarantined_at: null,
+        alert_quarantine_reason: null,
+      });
+      expect(Number(search.rows[0]?.last_checked_at)).toBeGreaterThan(1000);
+      const intent = await client.execute(
+        "select status, cancelled_at from search_notification_intent where id = 'email-1'",
+      );
+      expect(intent.rows[0]?.status).toBe("cancelled");
+      expect(Number(intent.rows[0]?.cancelled_at)).toBeGreaterThan(1000);
+    } finally {
+      client.close();
+      rmSync(directory, { recursive: true });
+    }
+  });
+
   test("disabling email cancels only email intents and bumps only email state", async () => {
     const directory = mkdtempSync(join(tmpdir(), "alert-config-test-"));
     const client = createClient({ url: `file:${join(directory, "test.db")}` });
