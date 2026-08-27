@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
@@ -30,7 +30,6 @@ interface FilterOptions {
 }
 
 interface DesktopFiltersBarProps {
-  onClose: () => void;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -100,7 +99,6 @@ function FilterPopover({
 }
 
 export function DesktopFiltersBar({
-  onClose,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -265,27 +263,17 @@ export function DesktopFiltersBar({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
-          {activeFilterCount > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-            >
-              Clear
-            </Button>
-          )}
+        {activeFilterCount > 0 && (
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close filters"
+            size="sm"
+            className="shrink-0"
+            onClick={clearAllFilters}
           >
-            <X />
+            Clear
           </Button>
-        </div>
+        )}
       </div>
     </section>
   );
