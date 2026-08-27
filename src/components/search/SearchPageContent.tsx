@@ -1330,7 +1330,6 @@ function AlgoliaSearchInner({
 
           {!isMobile && showFilters && (
             <DesktopFiltersBar
-              onClose={() => setShowFilters(false)}
               activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
               makes={selectedMakes}
