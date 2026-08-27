@@ -24,10 +24,7 @@ import {
 } from "react-instantsearch";
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
-import {
-  AdvancedSearchDialog,
-  type AdvancedSearchSubmission,
-} from "~/components/search/AdvancedSearchDialog";
+import { AdvancedSearchLink } from "~/components/search/AdvancedSearchLink";
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
@@ -1013,37 +1010,6 @@ function AlgoliaSearchInner({
     [refineYear],
   );
 
-  const handleAdvancedSearch = useCallback(
-    (submission: AdvancedSearchSubmission) => {
-      const hasYearRange =
-        submission.yearRange[0] !== yearMin ||
-        submission.yearRange[1] !== yearMax;
-
-      setIndexUiState((previous) => ({
-        ...previous,
-        query: submission.query,
-        sortBy: getSearchSortIndex(submission.sortBy),
-        ...(canUseAdvancedFilters
-          ? {
-              refinementList: {
-                make: submission.makes,
-                color: submission.colors,
-                state: submission.states,
-                locationName: submission.salvageYards,
-                source: submission.sources,
-              },
-              range: hasYearRange
-                ? {
-                    year: `${submission.yearRange[0]}:${submission.yearRange[1]}`,
-                  }
-                : {},
-            }
-          : {}),
-      }));
-    },
-    [canUseAdvancedFilters, setIndexUiState, yearMax, yearMin],
-  );
-
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
   useEffect(() => {
     if (!analyticsSearchValue || isSearching || error) return;
@@ -1168,22 +1134,7 @@ function AlgoliaSearchInner({
 
   const workspaceActions = isMobile ? (
     <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 [&_button]:h-11 [&_button]:min-w-11">
-      <AdvancedSearchDialog
-        query={query}
-        makes={selectedMakes}
-        colors={selectedColors}
-        states={selectedStates}
-        salvageYards={selectedLocations}
-        sources={selectedSources}
-        yearRange={yearRange}
-        sortBy={sortBy}
-        filterOptions={filterOptions}
-        yearRangeLimits={{ min: yearMin, max: yearMax }}
-        canUseAdvancedFilters={canUseAdvancedFilters}
-        booleanOrSearchReady={booleanOrSearchReady}
-        onSearch={handleAdvancedSearch}
-        iconOnly
-      />
+      <AdvancedSearchLink iconOnly />
       {mobileFiltersDrawer}
       <Select value={sortBy} onValueChange={handleSortChange}>
         <SelectTrigger className="ml-auto" aria-label="Sort vehicles">
@@ -1215,21 +1166,7 @@ function AlgoliaSearchInner({
     </div>
   ) : (
     <div className="flex shrink-0 items-center gap-2 [&_button]:h-9">
-      <AdvancedSearchDialog
-        query={query}
-        makes={selectedMakes}
-        colors={selectedColors}
-        states={selectedStates}
-        salvageYards={selectedLocations}
-        sources={selectedSources}
-        yearRange={yearRange}
-        sortBy={sortBy}
-        filterOptions={filterOptions}
-        yearRangeLimits={{ min: yearMin, max: yearMax }}
-        canUseAdvancedFilters={canUseAdvancedFilters}
-        booleanOrSearchReady={booleanOrSearchReady}
-        onSearch={handleAdvancedSearch}
-      />
+      <AdvancedSearchLink />
       {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
       <SaveSearchDialog
         query={query}
