@@ -12,7 +12,7 @@ const FOOTER_LINKS = [
   {
     kind: "static",
     href: "https://github.com/AugusDogus/junkyard-index",
-    label: "Source",
+    label: "GitHub",
   },
 ] as const;
 
