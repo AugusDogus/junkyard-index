@@ -155,9 +155,7 @@ export function DiscordSettingsCard() {
                           onClick={() => setHasClickedInstall(true)}
                         >
                           <ExternalLink data-icon="inline-start" />
-                          {hasClickedInstall
-                            ? "Open authorization"
-                            : "Authorize"}
+                          Authorize in Discord
                         </a>
                       </Button>
                       {hasClickedInstall && (

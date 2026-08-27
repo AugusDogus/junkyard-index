@@ -285,7 +285,7 @@ function DistancePreferenceDialog({
 
         <DialogFooter>
           <Button onClick={onConfirm} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Continue"}
+            {isSubmitting ? "Saving..." : "Save location"}
           </Button>
         </DialogFooter>
       </DialogContent>

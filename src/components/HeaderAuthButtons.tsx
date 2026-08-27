@@ -47,7 +47,7 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           size="sm"
           className={cn(!isSearchPage && "hidden sm:inline-flex")}
         >
-          <Link href="/auth/sign-in">Sign In</Link>
+          <Link href="/auth/sign-in">Sign in</Link>
         </Button>
       )}
       {!isSearchPage && (
