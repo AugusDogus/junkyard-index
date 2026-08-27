@@ -1,12 +1,14 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import posthog from "posthog-js";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { MobileFilterContent } from "~/components/search/MobileFilterContent";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -19,7 +21,6 @@ import {
 } from "~/components/ui/dialog";
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -35,20 +36,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Textarea } from "~/components/ui/textarea";
+import { Skeleton } from "~/components/ui/skeleton";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import {
-  INGESTION_SOURCES,
-  INGESTION_SOURCE_DISPLAY_NAMES,
-  type IngestionSource,
-} from "~/lib/ingestion-source";
+import { ALGOLIA_INDEX_NAME, searchClient } from "~/lib/algolia-search";
+import type { IngestionSource } from "~/lib/ingestion-source";
 import {
   filtersSchema,
   type SavedSearchFilters,
 } from "~/lib/saved-search-filters";
 import { api } from "~/trpc/react";
 
-const MIN_VEHICLE_YEAR = 1886;
+const MIN_VEHICLE_YEAR = 1900;
 const MAX_VEHICLE_YEAR = new Date().getUTCFullYear() + 1;
 
 interface SavedSearchEditorValue {
@@ -62,18 +60,37 @@ interface EditSavedSearchDialogProps {
   search: SavedSearchEditorValue;
 }
 
+interface SavedSearchFilterOptions {
+  makes: string[];
+  colors: string[];
+  states: string[];
+  salvageYards: string[];
+}
+
 interface EditSavedSearchForm {
   name: string;
   query: string;
   vinPattern: string;
-  minYear: string;
-  maxYear: string;
-  makes: string;
-  colors: string;
-  states: string;
-  salvageYards: string;
+  yearRange: [number, number];
+  makes: string[];
+  colors: string[];
+  states: string[];
+  salvageYards: string[];
   sources: IngestionSource[];
   sortBy: string;
+}
+
+function clampYear(year: number | undefined, fallback: number): number {
+  if (year === undefined) return fallback;
+  return Math.min(MAX_VEHICLE_YEAR, Math.max(MIN_VEHICLE_YEAR, year));
+}
+
+function getYearRange(filters: SavedSearchFilters): [number, number] {
+  const minimumYear = clampYear(filters.minYear, MIN_VEHICLE_YEAR);
+  const maximumYear = clampYear(filters.maxYear, MAX_VEHICLE_YEAR);
+  return minimumYear <= maximumYear
+    ? [minimumYear, maximumYear]
+    : [maximumYear, minimumYear];
 }
 
 function getSortKey(sortBy: string | undefined): string {
@@ -88,68 +105,66 @@ function createForm(search: SavedSearchEditorValue): EditSavedSearchForm {
     name: search.name,
     query: search.query,
     vinPattern: search.filters.vinPattern ?? "",
-    minYear: search.filters.minYear?.toString() ?? "",
-    maxYear: search.filters.maxYear?.toString() ?? "",
-    makes: search.filters.makes?.join("\n") ?? "",
-    colors: search.filters.colors?.join("\n") ?? "",
-    states: search.filters.states?.join("\n") ?? "",
-    salvageYards: search.filters.salvageYards?.join("\n") ?? "",
+    yearRange: getYearRange(search.filters),
+    makes: search.filters.makes ?? [],
+    colors: search.filters.colors ?? [],
+    states: search.filters.states ?? [],
+    salvageYards: search.filters.salvageYards ?? [],
     sources: search.filters.sources ?? [],
     sortBy: getSortKey(search.filters.sortBy),
   };
 }
 
-function parseList(value: string): string[] | undefined {
-  const values = [
-    ...new Set(
-      value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-  ];
-  return values.length > 0 ? values : undefined;
+function valuesFromFacet(
+  facets: Record<string, Record<string, number>> | undefined,
+  name: string,
+): string[] {
+  return Object.keys(facets?.[name] ?? {}).sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
-function parseYear(value: string): number | undefined {
-  if (!value.trim()) return undefined;
-  const year = Number(value);
-  return Number.isInteger(year) ? year : Number.NaN;
+async function loadSavedSearchFilterOptions(): Promise<SavedSearchFilterOptions> {
+  const response = await searchClient.searchForHits({
+    requests: [
+      {
+        indexName: ALGOLIA_INDEX_NAME,
+        query: "",
+        facets: ["make", "color", "state", "locationName"],
+        maxValuesPerFacet: 500,
+        hitsPerPage: 0,
+      },
+    ],
+  });
+  const facets = response.results[0]?.facets;
+  return {
+    makes: valuesFromFacet(facets, "make"),
+    colors: valuesFromFacet(facets, "color"),
+    states: valuesFromFacet(facets, "state"),
+    salvageYards: valuesFromFacet(facets, "locationName"),
+  };
+}
+
+function mergeOptions(options: string[] | undefined, selected: string[]) {
+  return [...new Set([...(options ?? []), ...selected])].sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
 function buildFilters(form: EditSavedSearchForm) {
   return filtersSchema.safeParse({
     vinPattern: form.vinPattern.trim() || undefined,
-    minYear: parseYear(form.minYear),
-    maxYear: parseYear(form.maxYear),
-    makes: parseList(form.makes),
-    colors: parseList(form.colors),
-    states: parseList(form.states),
-    salvageYards: parseList(form.salvageYards),
+    minYear:
+      form.yearRange[0] === MIN_VEHICLE_YEAR ? undefined : form.yearRange[0],
+    maxYear:
+      form.yearRange[1] === MAX_VEHICLE_YEAR ? undefined : form.yearRange[1],
+    makes: form.makes.length > 0 ? form.makes : undefined,
+    colors: form.colors.length > 0 ? form.colors : undefined,
+    states: form.states.length > 0 ? form.states : undefined,
+    salvageYards: form.salvageYards.length > 0 ? form.salvageYards : undefined,
     sources: form.sources.length > 0 ? form.sources : undefined,
     sortBy: form.sortBy,
   });
-}
-
-function toggleSource(
-  selectedSources: IngestionSource[],
-  source: IngestionSource,
-  checked: boolean,
-): IngestionSource[] {
-  const explicitSources =
-    selectedSources.length > 0 ? selectedSources : [...INGESTION_SOURCES];
-  if (
-    !checked &&
-    selectedSources.length === 1 &&
-    selectedSources.includes(source)
-  ) {
-    return selectedSources;
-  }
-  const nextSources = checked
-    ? [...new Set([...explicitSources, source])]
-    : explicitSources.filter((candidate) => candidate !== source);
-
-  return nextSources.length === INGESTION_SOURCES.length ? [] : nextSources;
 }
 
 export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
@@ -157,6 +172,30 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => createForm(search));
   const [formError, setFormError] = useState<string>();
+  const filterOptionsQuery = useQuery({
+    queryKey: ["saved-search-filter-options"],
+    queryFn: loadSavedSearchFilterOptions,
+    enabled: open,
+    staleTime: Infinity,
+  });
+  const filterOptions = useMemo(
+    () => ({
+      makes: mergeOptions(filterOptionsQuery.data?.makes, form.makes),
+      colors: mergeOptions(filterOptionsQuery.data?.colors, form.colors),
+      states: mergeOptions(filterOptionsQuery.data?.states, form.states),
+      salvageYards: mergeOptions(
+        filterOptionsQuery.data?.salvageYards,
+        form.salvageYards,
+      ),
+    }),
+    [
+      filterOptionsQuery.data,
+      form.makes,
+      form.colors,
+      form.states,
+      form.salvageYards,
+    ],
+  );
 
   const updateSearch = api.savedSearches.update.useMutation({
     onSuccess: async (_data, variables) => {
@@ -212,14 +251,6 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
       );
       return;
     }
-    if (
-      filtersResult.data.minYear !== undefined &&
-      filtersResult.data.maxYear !== undefined &&
-      filtersResult.data.minYear > filtersResult.data.maxYear
-    ) {
-      setFormError("The earliest year must be before the latest year.");
-      return;
-    }
 
     updateSearch.mutate({
       id: search.id,
@@ -228,9 +259,6 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
       filters: filtersResult.data,
     });
   };
-
-  const sourceIsChecked = (source: IngestionSource) =>
-    form.sources.length === 0 || form.sources.includes(source);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -295,159 +323,65 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
               </div>
 
               <FieldSet>
-                <FieldLegend variant="label">Vehicle year</FieldLegend>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor={`saved-search-min-year-${search.id}`}>
-                      Earliest
-                    </FieldLabel>
-                    <Input
-                      id={`saved-search-min-year-${search.id}`}
-                      type="number"
-                      inputMode="numeric"
-                      min={MIN_VEHICLE_YEAR}
-                      max={MAX_VEHICLE_YEAR}
-                      value={form.minYear}
-                      placeholder={String(MIN_VEHICLE_YEAR)}
-                      onChange={(event) =>
-                        setField("minYear", event.target.value)
+                <FieldLegend>Filters</FieldLegend>
+                {filterOptionsQuery.isPending ? (
+                  <div className="flex flex-col gap-3" aria-busy="true">
+                    <span className="sr-only">Loading filter options</span>
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                ) : (
+                  <>
+                    {filterOptionsQuery.isError && (
+                      <Alert variant="destructive">
+                        <AlertTitle>Filter options could not load</AlertTitle>
+                        <AlertDescription>
+                          <p>
+                            Your existing selections are preserved. Retry to
+                            load the current inventory options before editing
+                            them.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void filterOptionsQuery.refetch()}
+                          >
+                            Retry
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <MobileFilterContent
+                      idPrefix={`saved-search-${search.id}`}
+                      makes={form.makes}
+                      colors={form.colors}
+                      states={form.states}
+                      salvageYards={form.salvageYards}
+                      sources={form.sources}
+                      yearRange={form.yearRange}
+                      filterOptions={filterOptions}
+                      onMakesChange={(makes) => setField("makes", makes)}
+                      onColorsChange={(colors) => setField("colors", colors)}
+                      onStatesChange={(states) => setField("states", states)}
+                      onSalvageYardsChange={(salvageYards) =>
+                        setField("salvageYards", salvageYards)
                       }
-                      disabled={updateSearch.isPending}
+                      onSourcesChange={(sources) =>
+                        setField("sources", sources)
+                      }
+                      onYearRangeChange={(yearRange) =>
+                        setField("yearRange", yearRange)
+                      }
+                      yearRangeLimits={{
+                        min: MIN_VEHICLE_YEAR,
+                        max: MAX_VEHICLE_YEAR,
+                      }}
+                      canUseAdvancedFilters
                     />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor={`saved-search-max-year-${search.id}`}>
-                      Latest
-                    </FieldLabel>
-                    <Input
-                      id={`saved-search-max-year-${search.id}`}
-                      type="number"
-                      inputMode="numeric"
-                      min={MIN_VEHICLE_YEAR}
-                      max={MAX_VEHICLE_YEAR}
-                      value={form.maxYear}
-                      placeholder={String(MAX_VEHICLE_YEAR)}
-                      onChange={(event) =>
-                        setField("maxYear", event.target.value)
-                      }
-                      disabled={updateSearch.isPending}
-                    />
-                  </Field>
-                </div>
-              </FieldSet>
-
-              <FieldSet>
-                <FieldLegend variant="label">Vehicle details</FieldLegend>
-                <FieldDescription>
-                  Enter one value per line. Clear a field to remove that filter.
-                </FieldDescription>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor={`saved-search-makes-${search.id}`}>
-                      Makes
-                    </FieldLabel>
-                    <Textarea
-                      id={`saved-search-makes-${search.id}`}
-                      className="min-h-20 resize-y"
-                      value={form.makes}
-                      placeholder={"Honda\nToyota"}
-                      onChange={(event) =>
-                        setField("makes", event.target.value)
-                      }
-                      disabled={updateSearch.isPending}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor={`saved-search-colors-${search.id}`}>
-                      Colors
-                    </FieldLabel>
-                    <Textarea
-                      id={`saved-search-colors-${search.id}`}
-                      className="min-h-20 resize-y"
-                      value={form.colors}
-                      placeholder={"Black\nSilver"}
-                      onChange={(event) =>
-                        setField("colors", event.target.value)
-                      }
-                      disabled={updateSearch.isPending}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor={`saved-search-states-${search.id}`}>
-                      States
-                    </FieldLabel>
-                    <Textarea
-                      id={`saved-search-states-${search.id}`}
-                      className="min-h-20 resize-y"
-                      value={form.states}
-                      placeholder={"California\nNevada"}
-                      onChange={(event) =>
-                        setField("states", event.target.value)
-                      }
-                      disabled={updateSearch.isPending}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor={`saved-search-yards-${search.id}`}>
-                      Salvage yards
-                    </FieldLabel>
-                    <Textarea
-                      id={`saved-search-yards-${search.id}`}
-                      className="min-h-20 resize-y"
-                      value={form.salvageYards}
-                      placeholder={
-                        "Pick Your Part - Sun Valley\nPick-n-Pull, Sacramento"
-                      }
-                      onChange={(event) =>
-                        setField("salvageYards", event.target.value)
-                      }
-                      disabled={updateSearch.isPending}
-                    />
-                  </Field>
-                </div>
-              </FieldSet>
-
-              <FieldSet>
-                <FieldLegend variant="label">Inventory sources</FieldLegend>
-                <FieldDescription>
-                  Include vehicles from the selected inventory providers.
-                </FieldDescription>
-                <FieldGroup className="grid gap-2 sm:grid-cols-2">
-                  {INGESTION_SOURCES.map((source) => {
-                    const checkboxId = `saved-search-source-${search.id}-${source}`;
-                    return (
-                      <Field
-                        key={source}
-                        orientation="horizontal"
-                        className="hover:bg-muted/60 min-h-9 rounded-md px-2 py-2"
-                      >
-                        <Checkbox
-                          id={checkboxId}
-                          checked={sourceIsChecked(source)}
-                          onCheckedChange={(checked) =>
-                            setField(
-                              "sources",
-                              toggleSource(
-                                form.sources,
-                                source,
-                                checked === true,
-                              ),
-                            )
-                          }
-                          disabled={updateSearch.isPending}
-                        />
-                        <FieldLabel
-                          htmlFor={checkboxId}
-                          className="min-w-0 cursor-pointer"
-                        >
-                          <span className="truncate">
-                            {INGESTION_SOURCE_DISPLAY_NAMES[source]}
-                          </span>
-                        </FieldLabel>
-                      </Field>
-                    );
-                  })}
-                </FieldGroup>
+                  </>
+                )}
               </FieldSet>
 
               <Field>
