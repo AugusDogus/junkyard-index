@@ -16,7 +16,7 @@ describe("search filter visibility", () => {
   test("keeps the desktop make filter visible when the current search has no facet values", () => {
     const markup = renderToStaticMarkup(
       <DesktopFiltersBar
-        advancedSearchHref="/search/advanced"
+        advancedSearchControl={<button type="button">Advanced search</button>}
         activeFilterCount={1}
         clearAllFilters={noOp}
         makes={[]}
@@ -38,13 +38,15 @@ describe("search filter visibility", () => {
     );
 
     expect(markup).toContain(">Make<");
-    expect(markup).toContain('href="/search/advanced"');
+    expect(markup).toContain(">Advanced search</button>");
   });
 
   test("shows advanced search as disabled without paid filter access", () => {
     const markup = renderToStaticMarkup(
       <DesktopFiltersBar
-        advancedSearchHref="/search/advanced"
+        advancedSearchControl={
+          <span aria-disabled="true">Advanced search</span>
+        }
         activeFilterCount={0}
         clearAllFilters={noOp}
         makes={[]}
@@ -67,8 +69,6 @@ describe("search filter visibility", () => {
 
     expect(markup).toContain('aria-disabled="true"');
     expect(markup).toContain("Advanced search");
-    expect(markup).not.toContain("Lite");
-    expect(markup).not.toContain('href="/search/advanced"');
   });
 
   test("keeps the mobile make filter visible when the current search has no facet values", () => {

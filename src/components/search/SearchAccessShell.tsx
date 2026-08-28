@@ -15,7 +15,6 @@ const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 
 interface SearchAccessShellProps {
   isLoggedIn: boolean;
-  routingMode?: "url" | "none";
   children(input: {
     planAccess: PlanAccessState;
     vinPatternIndexReady: boolean;
@@ -25,7 +24,6 @@ interface SearchAccessShellProps {
 
 export function SearchAccessShell({
   isLoggedIn,
-  routingMode = "url",
   children,
 }: SearchAccessShellProps) {
   const planAccess = useCheckoutPlanAccess(isLoggedIn);
@@ -74,7 +72,7 @@ export function SearchAccessShell({
       key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
-      routing={routingMode === "url" ? routing : false}
+      routing={routing}
       future={INSTANT_SEARCH_FUTURE}
     >
       <ErrorBoundary>
