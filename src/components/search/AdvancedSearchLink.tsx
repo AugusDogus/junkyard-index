@@ -21,11 +21,10 @@ export function AdvancedSearchLink({
         aria-disabled="true"
         className={cn(
           linkClassName,
-          "text-muted-foreground cursor-not-allowed gap-1.5",
+          "text-muted-foreground cursor-not-allowed",
         )}
       >
         Advanced search
-        <span className="text-xs font-normal">Lite</span>
       </span>
     );
   }
