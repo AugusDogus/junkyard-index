@@ -3,8 +3,8 @@ import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { ALGOLIA_SEARCH_INDEX_NAMES } from "~/lib/constants";
 import { db } from "~/lib/db";
 import {
+  CURRENT_SEARCH_SCHEMA_VERSION,
   getSearchSchemaVersion,
-  VIN_PATTERN_SEARCH_SCHEMA_VERSION,
   withSearchSchemaVersion,
 } from "~/lib/search-index-schema";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -60,7 +60,7 @@ async function readVehicleBatch(cursor: string | null, batchSize: number) {
     .limit(batchSize);
 }
 
-async function validateVinFilters(vins: string[]): Promise<void> {
+async function validateSearchFilters(vins: string[]): Promise<void> {
   for (const vin of vins) {
     const response = await algoliaAdminClient.searchForHits<{
       objectID?: string;
@@ -71,7 +71,7 @@ async function validateVinFilters(vins: string[]): Promise<void> {
       const matchingHit = response.results[index]?.hits[0];
       if (matchingHit?.objectID !== vin) {
         throw new SearchIndexMigrationValidationError(
-          `VIN filter validation failed for ${vin} on ${indexName}. The schema marker was not advanced and VIN search remains inactive.`,
+          `Search filter validation failed for ${vin} on ${indexName}. The schema marker was not advanced, so VIN patterns and Boolean OR queries remain unavailable. Re-run the search-index migration after confirming every replica contains the expected filter tokens.`,
         );
       }
     }
@@ -81,7 +81,7 @@ async function validateVinFilters(vins: string[]): Promise<void> {
 async function markSchemaReady(userData: unknown): Promise<void> {
   const updatedUserData = withSearchSchemaVersion(
     userData,
-    VIN_PATTERN_SEARCH_SCHEMA_VERSION,
+    CURRENT_SEARCH_SCHEMA_VERSION,
   );
   if (!updatedUserData.success) {
     throw new SearchIndexMigrationValidationError(
@@ -104,7 +104,7 @@ export async function initializeSearchIndexMigration(): Promise<InitializeSearch
     indexName: ALGOLIA_INDEX_NAME,
   });
   const currentVersion = getSearchSchemaVersion(settings.userData);
-  if (currentVersion >= VIN_PATTERN_SEARCH_SCHEMA_VERSION) {
+  if (currentVersion >= CURRENT_SEARCH_SCHEMA_VERSION) {
     return {
       status: "ready",
       result: {
@@ -175,7 +175,7 @@ export async function finalizeSearchIndexMigration(
     );
   }
 
-  await validateVinFilters(state.validationVins);
+  await validateSearchFilters(state.validationVins);
   const latestSettings = await algoliaAdminClient.getSettings({
     indexName: ALGOLIA_INDEX_NAME,
   });
@@ -185,7 +185,7 @@ export async function finalizeSearchIndexMigration(
     alreadyReady: false,
     batchesProcessed: state.batchesProcessed,
     recordsProcessed: state.recordsProcessed,
-    schemaVersion: VIN_PATTERN_SEARCH_SCHEMA_VERSION,
+    schemaVersion: CURRENT_SEARCH_SCHEMA_VERSION,
     validatedVins: state.validationVins,
   };
 }

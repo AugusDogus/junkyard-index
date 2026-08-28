@@ -1,4 +1,5 @@
 import { VinPattern } from "~/lib/vin-pattern";
+import { buildAdvancedSearchTokens } from "~/lib/advanced-search-query";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
 /**
@@ -43,6 +44,7 @@ export interface CanonicalVehicle {
 export interface AlgoliaVehicleRecord {
   objectID: string;
   vinPositionTokens: string[];
+  searchTokens: string[];
   source: IngestionSource;
   year: number;
   make: string;
@@ -103,6 +105,13 @@ export function toAlgoliaRecord(
   return {
     objectID: vehicle.vin,
     vinPositionTokens: VinPattern.toIndexTokens(vehicle.vin),
+    searchTokens: buildAdvancedSearchTokens([
+      vehicle.make,
+      vehicle.model,
+      vehicle.year,
+      vehicle.color,
+      vehicle.vin,
+    ]),
     source: vehicle.source,
     year: vehicle.year,
     make: vehicle.make,

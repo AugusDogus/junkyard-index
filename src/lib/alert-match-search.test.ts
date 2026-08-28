@@ -71,4 +71,25 @@ describe("alert match search", () => {
     });
     expect(searchCalls).toBe(0);
   });
+
+  test("translates advanced syntax for saved-search alerts", async () => {
+    const requests: unknown[] = [];
+    await getAlertMatchStatsWithClient(
+      emptySearchClient((input) => requests.push(input)),
+      'pickup (Ford OR Ram) "crew cab" !diesel',
+      {},
+      null,
+    );
+
+    expect(requests[0]).toMatchObject({
+      requests: [
+        {
+          query: 'pickup "crew cab" -diesel',
+          filters: '(searchTokens:"ford" OR searchTokens:"ram")',
+          advancedSyntax: true,
+          advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
+        },
+      ],
+    });
+  });
 });

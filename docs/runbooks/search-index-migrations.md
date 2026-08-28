@@ -1,7 +1,8 @@
 # Search index migrations
 
-VIN pattern search uses an additive Algolia schema migration. The application
-and its durable workflows ship together in the Vercel deployment.
+VIN pattern search and strict Boolean OR search use additive Algolia schema
+migrations. The application and its durable workflows ship together in the
+Vercel deployment.
 
 ## One-time setup
 
@@ -32,13 +33,14 @@ to Algolia or deliver alerts after losing the lock.
 1. Merge the PR to `main`.
 2. Vercel deploys the application and Workflow SDK entry points together.
 3. Vercel Cron starts `searchIndexMigrationWorkflow` at 06:00 UTC each day. The
-   migration exits immediately after schema version `3` is ready.
+   migration exits immediately after schema version `4` is ready.
 4. The migration configures Algolia, backfills one durable vehicle batch per
-   Workflow step, validates exact VIN filters, then writes search schema version
-   `3` to the index settings. A retried batch safely rewrites the same object IDs
-   before advancing its VIN cursor.
-5. The production UI polls readiness. VIN search stays inactive until version
-   `3` is confirmed, then enables automatically.
+   Workflow step, validates exact VIN and Boolean token filters, then writes
+   search schema version `4` to the index settings. A retried batch safely
+   rewrites the same object IDs before advancing its VIN cursor.
+5. The production UI polls readiness. VIN patterns stay inactive until version
+   `3`; Boolean OR queries stay inactive until version `4`. Each capability
+   enables automatically after its required version is confirmed.
 
 The daily ingestion workflow starts at 07:00 UTC. Workflow hook tokens prevent
 duplicate active runs and serialize the migration with the ingestion projector,
@@ -66,14 +68,18 @@ days.
    set containing its original character, then with a range containing its
    original character. Confirm both patterns return the vehicle.
 6. Confirm ordinary text search and each sort still return results.
+7. Search `Honda OR Toyota`, confirm every result matches at least one
+   alternative, and confirm the displayed result count is smaller than the full
+   inventory count.
 
 For local inspection, use `bun run workflow:inspect` or
 `bun run workflow:web` while the development server is running.
 
 ## Failure and retry
 
-If deployment or migration fails, production search continues without the VIN
-filter. VIN search remains inactive.
+If deployment or migration fails, ordinary production search continues. VIN
+patterns and Boolean OR search remain inactive until their schema versions can
+be confirmed.
 
 Workflow steps retry transient failures twice with exponential backoff, for
 three total attempts. Validation failures are fatal because retrying cannot fix
@@ -87,7 +93,7 @@ curl --fail \
 ```
 
 Starting the route more than once is safe. A second active run deduplicates to
-the first, and a completed migration exits after reading schema version `3`.
+the first, and a completed migration exits after reading schema version `4`.
 
 Do not run `scripts/sync-algolia.ts` as the deployment path. It remains a manual
 recovery tool.
