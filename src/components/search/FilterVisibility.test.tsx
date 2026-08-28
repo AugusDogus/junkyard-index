@@ -67,6 +67,7 @@ describe("search filter visibility", () => {
 
     expect(markup).toContain('aria-disabled="true"');
     expect(markup).toContain("Advanced search");
+    expect(markup).not.toContain("Lite");
     expect(markup).not.toContain('href="/search/advanced"');
   });
 
