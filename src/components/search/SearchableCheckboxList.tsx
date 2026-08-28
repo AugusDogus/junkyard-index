@@ -17,6 +17,7 @@ import {
   InputGroupInput,
 } from "~/components/ui/input-group";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 interface SearchableCheckboxListProps {
   /** Unique name used to namespace checkbox ids and avoid DOM collisions. */
@@ -30,6 +31,7 @@ interface SearchableCheckboxListProps {
   searchThreshold?: number;
   /** Max visible height (px) before the list scrolls internally. */
   maxHeight?: number;
+  containScroll?: boolean;
 }
 
 export function SearchableCheckboxList({
@@ -41,6 +43,7 @@ export function SearchableCheckboxList({
   searchPlaceholder = "Search…",
   searchThreshold = 8,
   maxHeight = 200,
+  containScroll = true,
 }: SearchableCheckboxListProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -110,7 +113,10 @@ export function SearchableCheckboxList({
       )}
 
       <div
-        className="scrollbar-thin-themed overflow-y-auto overscroll-contain"
+        className={cn(
+          "scrollbar-thin-themed overflow-y-auto",
+          containScroll && "overscroll-contain",
+        )}
         style={{ maxHeight }}
       >
         {sorted.length === 0 ? (

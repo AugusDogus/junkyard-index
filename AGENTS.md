@@ -2,19 +2,27 @@
 
 Salvage yard vehicle search aggregator built with Next.js 16, TypeScript, Turso (libSQL), Algolia, tRPC, and Drizzle ORM.
 
-## Cursor Cloud specific instructions
+## Development environment instructions
 
 ### Required secrets
 
 All required environment variables are injected as secrets (see `src/env.js` for the full schema). The app uses `@t3-oss/env-nextjs` with Zod validation — if any required var is missing the dev server will crash on startup. Set `SKIP_ENV_VALIDATION=1` to bypass validation (useful for running lint/typecheck only), but the app will error at runtime for any page that touches the DB or external services.
 
+### T3 Code worktree setup
+
+- Import `Setup Worktree` from `t3.json` once in T3 Code's project Actions and enable automatic worktree setup. It installs dependencies and links the primary checkout's ignored environment files into new worktrees.
+
 ### Running the dev server
 
-```
-bun run dev          # next dev --turbo on port 3000
+```sh
+portless # preferred: branch-scoped HTTPS URL such as https://my-branch.junkyard-index.localhost
 ```
 
-The homepage queries the Turso database for live stats; it will 500 if the DB is unreachable or the schema is not pushed.
+- Always use Portless for local browser QA and authentication unless the user explicitly asks for a raw port. It sets `PORTLESS_URL`, avoids collisions, and gives Better Auth and OAuth a stable origin.
+- `t3.json` exposes the same command as the `Dev Server` action.
+- Use the exact URL printed by Portless for browser navigation. Do not substitute `localhost:<port>`.
+- `bun run dev` is only the raw fallback and runs `next dev --turbo` directly.
+- The homepage queries the Turso database for live stats; it will 500 if the DB is unreachable or the schema is not pushed.
 
 ### Lint / Format / Typecheck / Test
 

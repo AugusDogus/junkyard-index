@@ -62,4 +62,34 @@ describe("search filter visibility", () => {
 
     expect(markup).toContain(">Make<");
   });
+
+  test("starts every settings filter section closed", () => {
+    const markup = renderToStaticMarkup(
+      <MobileFilterContent
+        defaultOpenSections="none"
+        makes={[]}
+        colors={[]}
+        states={[]}
+        salvageYards={[]}
+        sources={[]}
+        yearRange={[1900, 2027]}
+        filterOptions={{
+          ...emptyFilterOptions,
+          makes: Array.from({ length: 11 }, (_, index) => `Make ${index}`),
+        }}
+        onMakesChange={noOp}
+        onColorsChange={noOp}
+        onStatesChange={noOp}
+        onSalvageYardsChange={noOp}
+        onSourcesChange={noOp}
+        onYearRangeChange={noOp}
+        yearRangeLimits={{ min: 1900, max: 2027 }}
+        canUseAdvancedFilters
+      />,
+    );
+
+    expect(markup).toContain(">Make<");
+    expect(markup).not.toContain("Search makes");
+    expect(markup).not.toContain("Vehicle year range");
+  });
 });

@@ -64,7 +64,8 @@ export function LocationSettingsCard() {
         normalizeZipCode(zipCode) !== normalizeZipCode(savedZipCode))
     : false;
 
-  const save = () => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (mode === "auto") {
       updatePreference.mutate({ mode: "auto" });
       return;
@@ -96,19 +97,19 @@ export function LocationSettingsCard() {
         </p>
       </div>
 
-      <div className="mt-6 max-w-xl">
-        {preference.isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-9 w-52" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : preference.isError ? (
-          <p className="text-destructive text-sm">
-            {preference.error.message ||
-              "Could not load your saved search location right now."}
-          </p>
-        ) : (
-          <FieldGroup>
+      {preference.isLoading ? (
+        <div className="mt-6 flex max-w-xl flex-col gap-4">
+          <Skeleton className="h-9 w-52" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : preference.isError ? (
+        <p className="text-destructive mt-6 max-w-xl text-sm">
+          {preference.error.message ||
+            "Could not load your saved search location right now."}
+        </p>
+      ) : (
+        <form className="mt-6" onSubmit={handleSubmit}>
+          <FieldGroup className="md:grid md:grid-cols-[minmax(0,36rem)_1fr_auto] md:items-end">
             <FieldSet>
               <FieldLegend variant="label">Location source</FieldLegend>
               <ToggleGroup
@@ -124,37 +125,39 @@ export function LocationSettingsCard() {
               <FieldDescription>
                 Your saved choice is used on future searches.
               </FieldDescription>
+
+              {mode === "zip" && (
+                <Field>
+                  <FieldLabel htmlFor="settings-location-zip">
+                    ZIP code
+                  </FieldLabel>
+                  <Input
+                    id="settings-location-zip"
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    maxLength={5}
+                    placeholder="90210"
+                    value={zipCode}
+                    onChange={(event) => setZipCode(event.target.value)}
+                  />
+                </Field>
+              )}
             </FieldSet>
 
-            {mode === "zip" && (
-              <Field>
-                <FieldLabel htmlFor="settings-location-zip">
-                  ZIP code
-                </FieldLabel>
-                <Input
-                  id="settings-location-zip"
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  maxLength={5}
-                  placeholder="90210"
-                  value={zipCode}
-                  onChange={(event) => setZipCode(event.target.value)}
-                />
-              </Field>
-            )}
-
-            <Field orientation="horizontal" className="justify-end">
+            <Field
+              orientation="horizontal"
+              className="justify-end md:col-start-3 md:w-auto md:justify-self-end"
+            >
               <Button
-                type="button"
-                onClick={save}
+                type="submit"
                 disabled={!isDirty || updatePreference.isPending}
               >
                 {updatePreference.isPending ? "Saving..." : "Save location"}
               </Button>
             </Field>
           </FieldGroup>
-        )}
-      </div>
+        </form>
+      )}
     </section>
   );
 }

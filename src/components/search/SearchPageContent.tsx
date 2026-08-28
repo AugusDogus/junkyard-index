@@ -32,6 +32,7 @@ import {
 } from "~/components/search/SaveSearchDialog";
 import { SavedSearchesDropdown } from "~/components/search/SavedSearchesDropdown";
 import { SearchAccessShell } from "~/components/search/SearchAccessShell";
+import { SEARCH_FILTER_FACETS } from "~/components/search/search-filter-options";
 import { SearchStartPanel } from "~/components/search/SearchStartPanel";
 import { VehicleSearchInput } from "~/components/search/VehicleSearchInput";
 import {
@@ -72,6 +73,7 @@ import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access
 import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { PLANS } from "~/lib/plans";
+import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
 import {
   hasFiniteCoordinates,
   LOCATION_PREFERENCE_STORAGE_KEY,
@@ -87,8 +89,6 @@ import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
-
-const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
 
 function clampRouteYear(
   value: number | null,
@@ -310,7 +310,6 @@ function AlgoliaSearchInner({
     access: planAccess,
     feature: "saved_searches",
   });
-  const maximumSearchableVehicleYear = new Date().getUTCFullYear() + 1;
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
@@ -419,35 +418,30 @@ function AlgoliaSearchInner({
 
   // Facets
   const { items: makeItems, refine: refineMake } = useRefinementList({
-    attribute: "make",
-    limit: 100,
+    ...SEARCH_FILTER_FACETS.makes,
     sortBy: ["name:asc"],
   });
   const { items: colorItems, refine: refineColor } = useRefinementList({
-    attribute: "color",
-    limit: 50,
+    ...SEARCH_FILTER_FACETS.colors,
     sortBy: ["name:asc"],
   });
   const { items: stateItems, refine: refineState } = useRefinementList({
-    attribute: "state",
-    limit: 60,
+    ...SEARCH_FILTER_FACETS.states,
     sortBy: ["name:asc"],
   });
   const { items: locationItems, refine: refineLocation } = useRefinementList({
-    attribute: "locationName",
-    limit: 500,
+    ...SEARCH_FILTER_FACETS.salvageYards,
     sortBy: ["name:asc"],
   });
   const { refine: refineSource } = useRefinementList({
-    attribute: "source",
-    limit: 10,
+    ...SEARCH_FILTER_FACETS.sources,
   });
 
   // Year range
   const { start: yearStart, refine: refineYear } = useRange({
     attribute: "year",
-    min: MINIMUM_SEARCHABLE_VEHICLE_YEAR,
-    max: maximumSearchableVehicleYear,
+    min: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
+    max: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
   });
 
   // Server-side sorting via Algolia replicas.
@@ -651,8 +645,8 @@ function AlgoliaSearchInner({
   const rawRouteMinYear = parsedRouteYears[0] ?? null;
   const rawRouteMaxYear = parsedRouteYears[1] ?? null;
 
-  const yearMin = MINIMUM_SEARCHABLE_VEHICLE_YEAR;
-  const yearMax = maximumSearchableVehicleYear;
+  const yearMin = SEARCHABLE_VEHICLE_YEAR_RANGE.min;
+  const yearMax = SEARCHABLE_VEHICLE_YEAR_RANGE.max;
   let routeMinYear = clampRouteYear(rawRouteMinYear, yearMin, yearMax);
   let routeMaxYear = clampRouteYear(rawRouteMaxYear, yearMin, yearMax);
   if (

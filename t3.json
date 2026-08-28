@@ -1,0 +1,16 @@
+{
+  "$schema": "https://t3.codes/schema/t3.json",
+  "scripts": [
+    {
+      "name": "Setup Worktree",
+      "command": "set -eu; bun install --frozen-lockfile; for entry in .env .env.local .vercel; do source=\"$T3CODE_PROJECT_ROOT/$entry\"; if [ -e \"$source\" ] && [ ! -e \"$entry\" ] && [ ! -L \"$entry\" ]; then ln -s \"$source\" \"$entry\"; fi; done",
+      "icon": "configure",
+      "runOnWorktreeCreate": true
+    },
+    {
+      "name": "Dev Server",
+      "command": "portless",
+      "icon": "play"
+    }
+  ]
+}

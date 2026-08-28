@@ -4,7 +4,9 @@ import { MoreHorizontal, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { toast } from "sonner";
+import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
+import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -26,7 +28,69 @@ import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-acces
 import { usePlanAccess } from "~/hooks/use-plan-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
+import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
+import type { SavedSearchFilters } from "~/lib/saved-search-filters";
 import { api } from "~/trpc/react";
+
+interface SavedSearchCriterion {
+  label: string;
+  value: string;
+}
+
+function getSavedSearchCriteria(
+  query: string,
+  filters: SavedSearchFilters,
+): SavedSearchCriterion[] {
+  const criteria: SavedSearchCriterion[] = [];
+  if (query.trim()) criteria.push({ label: "Query", value: query });
+  if (filters.vinPattern) {
+    criteria.push({ label: "VIN pattern", value: filters.vinPattern });
+  }
+  if (filters.minYear || filters.maxYear) {
+    criteria.push({
+      label: "Year",
+      value:
+        filters.minYear && filters.maxYear
+          ? `${filters.minYear} to ${filters.maxYear}`
+          : filters.minYear
+            ? `${filters.minYear} or newer`
+            : `${filters.maxYear} or older`,
+    });
+  }
+  if (filters.makes?.length) {
+    criteria.push({ label: "Makes", value: filters.makes.join(", ") });
+  }
+  if (filters.colors?.length) {
+    criteria.push({ label: "Colors", value: filters.colors.join(", ") });
+  }
+  if (filters.states?.length) {
+    criteria.push({ label: "States", value: filters.states.join(", ") });
+  }
+  if (filters.salvageYards?.length) {
+    criteria.push({
+      label: "Yards",
+      value: filters.salvageYards.join(", "),
+    });
+  }
+  if (filters.sources?.length) {
+    criteria.push({
+      label: "Sources",
+      value: filters.sources
+        .map((source) => INGESTION_SOURCE_DISPLAY_NAMES[source])
+        .join(", "),
+    });
+  }
+  if (filters.sortBy) {
+    const sort = SEARCH_SORT_OPTIONS.find(
+      (option) =>
+        option.key === filters.sortBy || option.indexName === filters.sortBy,
+    );
+    criteria.push({ label: "Sort", value: sort?.label ?? filters.sortBy });
+  }
+  return criteria.length > 0
+    ? criteria
+    : [{ label: "Search", value: "All vehicles" }];
+}
 
 export function SavedSearchSettingsCard() {
   const utils = api.useUtils();
@@ -179,93 +243,110 @@ export function SavedSearchSettingsCard() {
               <SavedSearchUpgradeNotice className="mb-5" />
             )}
             <div className="border-border divide-y border-y">
-              {searches.map((search) => (
-                <div key={search.id}>
-                  <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="truncate text-sm font-medium">
-                        {search.name}
-                      </span>
-                      <span className="text-muted-foreground truncate text-sm">
-                        {search.query ||
-                          search.filters.vinPattern ||
-                          "All vehicles"}
-                      </span>
-                      {savedSearchesLocked && (
-                        <span className="text-muted-foreground text-xs">
-                          Alerts are unavailable on your current plan.
+              {searches.map((search) => {
+                const criteria = getSavedSearchCriteria(
+                  search.query,
+                  search.filters,
+                );
+                return (
+                  <div key={search.id}>
+                    <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <span className="text-sm font-medium break-words">
+                          {search.name}
                         </span>
-                      )}
-                    </div>
+                        <dl className="grid gap-1">
+                          {criteria.map((criterion) => (
+                            <div
+                              key={criterion.label}
+                              className="flex min-w-0 gap-1.5 text-sm"
+                            >
+                              <dt className="text-muted-foreground shrink-0">
+                                {criterion.label}:
+                              </dt>
+                              <dd className="min-w-0 break-words">
+                                {criterion.value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                        {savedSearchesLocked && (
+                          <span className="text-muted-foreground text-xs">
+                            Alerts are unavailable on your current plan.
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="flex flex-wrap items-center gap-5 md:justify-end">
-                      {!savedSearchesLocked && (
-                        <>
-                          <div className="flex items-center gap-3">
-                            <label
-                              htmlFor={`email-alerts-${search.id}`}
-                              className="text-sm"
-                            >
-                              Email
-                            </label>
-                            <Switch
-                              id={`email-alerts-${search.id}`}
-                              checked={search.emailAlertsEnabled}
-                              onCheckedChange={(enabled) =>
-                                setEmailAlerts(search.id, enabled)
-                              }
-                              disabled={isMutating}
-                              aria-label={`Email alerts for ${search.name}`}
-                            />
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <label
-                              htmlFor={`discord-alerts-${search.id}`}
-                              className="text-sm"
-                            >
-                              Discord
-                            </label>
-                            <Switch
-                              id={`discord-alerts-${search.id}`}
-                              checked={search.discordAlertsEnabled}
-                              onCheckedChange={(enabled) =>
-                                setDiscordAlerts(search.id, enabled)
-                              }
-                              disabled={isMutating}
-                              aria-label={`Discord alerts for ${search.name}`}
-                            />
-                          </div>
-                        </>
-                      )}
+                      <div className="flex flex-wrap items-center gap-5 md:justify-end">
+                        {!savedSearchesLocked && (
+                          <>
+                            <EditSavedSearchDialog search={search} />
+                            <div className="flex items-center gap-3">
+                              <label
+                                htmlFor={`email-alerts-${search.id}`}
+                                className="text-sm"
+                              >
+                                Email
+                              </label>
+                              <Switch
+                                id={`email-alerts-${search.id}`}
+                                checked={search.emailAlertsEnabled}
+                                onCheckedChange={(enabled) =>
+                                  setEmailAlerts(search.id, enabled)
+                                }
+                                disabled={isMutating}
+                                aria-label={`Email alerts for ${search.name}`}
+                              />
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <label
+                                htmlFor={`discord-alerts-${search.id}`}
+                                className="text-sm"
+                              >
+                                Discord
+                              </label>
+                              <Switch
+                                id={`discord-alerts-${search.id}`}
+                                checked={search.discordAlertsEnabled}
+                                onCheckedChange={(enabled) =>
+                                  setDiscordAlerts(search.id, enabled)
+                                }
+                                disabled={isMutating}
+                                aria-label={`Discord alerts for ${search.name}`}
+                              />
+                            </div>
+                          </>
+                        )}
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Actions for saved search ${search.name}`}
-                          >
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem
-                              variant="destructive"
-                              disabled={deleteSearch.isPending}
-                              onSelect={() => remove(search.id)}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Actions for saved search ${search.name}`}
                             >
-                              <Trash2 />
-                              Delete saved search
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={deleteSearch.isPending}
+                                onSelect={() => remove(search.id)}
+                              >
+                                <Trash2 />
+                                Delete saved search
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
