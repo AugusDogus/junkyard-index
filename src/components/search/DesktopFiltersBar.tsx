@@ -20,7 +20,6 @@ import {
   InventorySourcesFilter,
   YearRangeFilter,
 } from "./FilterFields";
-import { AdvancedSearchLink } from "./AdvancedSearchLink";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 interface FilterOptions {
@@ -31,7 +30,7 @@ interface FilterOptions {
 }
 
 interface DesktopFiltersBarProps {
-  advancedSearchHref: string;
+  advancedSearchControl: ReactNode;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -101,7 +100,7 @@ function FilterPopover({
 }
 
 export function DesktopFiltersBar({
-  advancedSearchHref,
+  advancedSearchControl,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -265,11 +264,7 @@ export function DesktopFiltersBar({
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <AdvancedSearchLink
-            enabled={canUseAdvancedFilters}
-            href={advancedSearchHref}
-            className="md:min-h-9"
-          />
+          {advancedSearchControl}
           {activeFilterCount > 0 && (
             <Button
               type="button"

@@ -24,6 +24,10 @@ import {
 } from "react-instantsearch";
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
+import {
+  AdvancedSearchDialog,
+  type AdvancedSearchSubmission,
+} from "~/components/search/AdvancedSearchDialog";
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
@@ -315,10 +319,6 @@ function AlgoliaSearchInner({
   const maximumSearchableVehicleYear = new Date().getUTCFullYear() + 1;
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const advancedSearchQuery = searchParams.toString();
-  const advancedSearchHref = advancedSearchQuery
-    ? `/search/advanced?${advancedSearchQuery}`
-    : "/search/advanced";
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
@@ -1013,6 +1013,33 @@ function AlgoliaSearchInner({
     [refineYear],
   );
 
+  const handleAdvancedSearch = useCallback(
+    (submission: AdvancedSearchSubmission) => {
+      const hasYearRange =
+        submission.yearRange[0] !== yearMin ||
+        submission.yearRange[1] !== yearMax;
+
+      setIndexUiState((previous) => ({
+        ...previous,
+        query: submission.query,
+        sortBy: getSearchSortIndex(submission.sortBy),
+        refinementList: {
+          make: submission.makes,
+          color: submission.colors,
+          state: submission.states,
+          locationName: submission.salvageYards,
+          source: submission.sources,
+        },
+        range: hasYearRange
+          ? {
+              year: `${submission.yearRange[0]}:${submission.yearRange[1]}`,
+            }
+          : undefined,
+      }));
+    },
+    [setIndexUiState, yearMax, yearMin],
+  );
+
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
   useEffect(() => {
     if (!analyticsSearchValue || isSearching || error) return;
@@ -1112,9 +1139,28 @@ function AlgoliaSearchInner({
     effectiveLocationPreference?.mode === "auto" &&
     !resolvedUserLocation;
 
+  const renderAdvancedSearchDialog = (triggerClassName?: string) => (
+    <AdvancedSearchDialog
+      query={query}
+      makes={selectedMakes}
+      colors={selectedColors}
+      states={selectedStates}
+      salvageYards={selectedLocations}
+      sources={selectedSources}
+      yearRange={yearRange}
+      sortBy={sortBy}
+      filterOptions={filterOptions}
+      yearRangeLimits={{ min: yearMin, max: yearMax }}
+      canUseAdvancedFilters={canUseAdvancedFilters}
+      booleanOrSearchReady={booleanOrSearchReady}
+      triggerClassName={triggerClassName}
+      onSearch={handleAdvancedSearch}
+    />
+  );
+
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
-      advancedSearchHref={advancedSearchHref}
+      advancedSearchControl={renderAdvancedSearchDialog("mt-1")}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
@@ -1301,7 +1347,7 @@ function AlgoliaSearchInner({
 
           {!isMobile && showFilters && (
             <DesktopFiltersBar
-              advancedSearchHref={advancedSearchHref}
+              advancedSearchControl={renderAdvancedSearchDialog("md:min-h-9")}
               activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
               makes={selectedMakes}
