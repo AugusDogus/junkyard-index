@@ -2,7 +2,7 @@
 
 import { LockKeyhole, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   InventorySourcesFilter,
   YearRangeFilter,
@@ -32,6 +32,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -74,6 +75,9 @@ interface AdvancedSearchDialogProps extends AdvancedSearchFilters {
   canUseAdvancedFilters: boolean;
   booleanOrSearchReady: boolean;
   triggerClassName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
   onSearch: (submission: AdvancedSearchSubmission) => void;
 }
 
@@ -154,9 +158,14 @@ export function AdvancedSearchDialog({
   canUseAdvancedFilters,
   booleanOrSearchReady,
   triggerClassName,
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
   onSearch,
 }: AdvancedSearchDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const wasOpen = useRef(false);
   const [queryFields, setQueryFields] =
     useState<AdvancedSearchQueryFields>(EMPTY_QUERY_FIELDS);
   const [editableQuery, setEditableQuery] = useState("");
@@ -171,7 +180,7 @@ export function AdvancedSearchDialog({
   });
   const [queryError, setQueryError] = useState<string | null>(null);
 
-  const initializeDraft = () => {
+  const initializeDraft = useCallback(() => {
     const initialFields = { ...EMPTY_QUERY_FIELDS, allWords: query };
     setQueryFields(initialFields);
     setEditableQuery(query);
@@ -185,6 +194,16 @@ export function AdvancedSearchDialog({
       sortBy,
     });
     setQueryError(null);
+  }, [colors, makes, query, salvageYards, sortBy, sources, states, yearRange]);
+
+  useEffect(() => {
+    if (open && !wasOpen.current) initializeDraft();
+    wasOpen.current = open;
+  }, [initializeDraft, open]);
+
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
   };
 
   const updateQueryFields = (nextFields: AdvancedSearchQueryFields) => {
@@ -234,6 +253,27 @@ export function AdvancedSearchDialog({
   const triggerClassNames = cn("justify-start", triggerClassName);
 
   if (!canUseAdvancedFilters) {
+    if (!showTrigger) {
+      return (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Upgrade to use advanced search</DialogTitle>
+              <DialogDescription className="text-pretty">
+                Build Boolean queries and combine inventory filters on a paid
+                plan.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button asChild>
+                <Link href="/pricing">Compare plans</Link>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -265,23 +305,19 @@ export function AdvancedSearchDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (nextOpen) initializeDraft();
-        setOpen(nextOpen);
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className={triggerClassNames}
-        >
-          Advanced search
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className={triggerClassNames}
+          >
+            Advanced search
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
         <form
           onSubmit={(event) => {
@@ -414,11 +450,13 @@ export function AdvancedSearchDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {SEARCH_SORT_OPTIONS.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        {SEARCH_SORT_OPTIONS.map((option) => (
+                          <SelectItem key={option.key} value={option.key}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
