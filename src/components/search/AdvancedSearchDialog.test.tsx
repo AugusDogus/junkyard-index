@@ -32,13 +32,14 @@ describe("advanced search access", () => {
     expect(markup).not.toContain("href=");
   });
 
-  test("renders only disabled text for free users", () => {
+  test("renders an upgrade explanation trigger for free users", () => {
     const markup = renderToStaticMarkup(
       <AdvancedSearchDialog {...baseProps} canUseAdvancedFilters={false} />,
     );
 
-    expect(markup).toContain('aria-disabled="true"');
-    expect(markup).toContain(">Advanced search</span>");
+    expect(markup).toContain('aria-label="Advanced search, upgrade required"');
+    expect(markup).toContain(">Advanced search</button>");
+    expect(markup).toContain("lucide-lock-keyhole");
     expect(markup).not.toContain("Lite");
   });
 });

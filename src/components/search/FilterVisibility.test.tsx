@@ -41,11 +41,13 @@ describe("search filter visibility", () => {
     expect(markup).toContain(">Advanced search</button>");
   });
 
-  test("shows advanced search as disabled without paid filter access", () => {
+  test("shows an advanced search upgrade action without paid filter access", () => {
     const markup = renderToStaticMarkup(
       <DesktopFiltersBar
         advancedSearchControl={
-          <span aria-disabled="true">Advanced search</span>
+          <button aria-label="Advanced search, upgrade required" type="button">
+            Advanced search
+          </button>
         }
         activeFilterCount={0}
         clearAllFilters={noOp}
@@ -67,7 +69,7 @@ describe("search filter visibility", () => {
       />,
     );
 
-    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).toContain("upgrade required");
     expect(markup).toContain("Advanced search");
   });
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { LockKeyhole, Search } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import {
   InventorySourcesFilter,
@@ -20,6 +21,14 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "~/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -222,19 +231,36 @@ export function AdvancedSearchDialog({
     setOpen(false);
   };
 
-  const triggerClassNames = cn(
-    "text-muted-foreground hover:text-foreground focus-visible:text-foreground inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 hover:underline md:min-h-6",
-    triggerClassName,
-  );
+  const triggerClassNames = cn("justify-start", triggerClassName);
 
   if (!canUseAdvancedFilters) {
     return (
-      <span
-        aria-disabled="true"
-        className={cn(triggerClassNames, "cursor-not-allowed")}
-      >
-        Advanced search
-      </span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className={triggerClassNames}
+            aria-label="Advanced search, upgrade required"
+          >
+            <LockKeyhole data-icon="inline-start" aria-hidden="true" />
+            Advanced search
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" sideOffset={8}>
+          <PopoverHeader>
+            <PopoverTitle>Upgrade to use advanced search</PopoverTitle>
+            <PopoverDescription className="text-pretty">
+              Build Boolean queries and combine inventory filters on a paid
+              plan.
+            </PopoverDescription>
+          </PopoverHeader>
+          <Button asChild size="sm" className="mt-4">
+            <Link href="/pricing">Compare plans</Link>
+          </Button>
+        </PopoverContent>
+      </Popover>
     );
   }
 
@@ -247,9 +273,14 @@ export function AdvancedSearchDialog({
       }}
     >
       <DialogTrigger asChild>
-        <button type="button" className={triggerClassNames}>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className={triggerClassNames}
+        >
           Advanced search
-        </button>
+        </Button>
       </DialogTrigger>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
         <form
