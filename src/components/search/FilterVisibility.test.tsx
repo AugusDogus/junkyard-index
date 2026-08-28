@@ -16,6 +16,7 @@ describe("search filter visibility", () => {
   test("keeps the desktop make filter visible when the current search has no facet values", () => {
     const markup = renderToStaticMarkup(
       <DesktopFiltersBar
+        advancedSearchHref="/search/advanced"
         activeFilterCount={1}
         clearAllFilters={noOp}
         makes={[]}
@@ -37,6 +38,36 @@ describe("search filter visibility", () => {
     );
 
     expect(markup).toContain(">Make<");
+    expect(markup).toContain('href="/search/advanced"');
+  });
+
+  test("shows advanced search as disabled without paid filter access", () => {
+    const markup = renderToStaticMarkup(
+      <DesktopFiltersBar
+        advancedSearchHref="/search/advanced"
+        activeFilterCount={0}
+        clearAllFilters={noOp}
+        makes={[]}
+        colors={[]}
+        states={[]}
+        salvageYards={[]}
+        sources={[]}
+        yearRange={[1900, 2027]}
+        filterOptions={emptyFilterOptions}
+        onMakesChange={noOp}
+        onColorsChange={noOp}
+        onStatesChange={noOp}
+        onSalvageYardsChange={noOp}
+        onSourcesChange={noOp}
+        onYearRangeChange={noOp}
+        yearRangeLimits={{ min: 1900, max: 2027 }}
+        canUseAdvancedFilters={false}
+      />,
+    );
+
+    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).toContain("Advanced search");
+    expect(markup).not.toContain('href="/search/advanced"');
   });
 
   test("keeps the mobile make filter visible when the current search has no facet values", () => {

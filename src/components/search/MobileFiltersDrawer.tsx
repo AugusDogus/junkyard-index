@@ -14,6 +14,7 @@ import {
 } from "~/components/ui/drawer";
 import { Separator } from "~/components/ui/separator";
 import type { DataSource } from "~/lib/types";
+import { AdvancedSearchLink } from "./AdvancedSearchLink";
 import { MobileFilterContent } from "./MobileFilterContent";
 
 interface FilterOptions {
@@ -24,6 +25,7 @@ interface FilterOptions {
 }
 
 interface MobileFiltersDrawerProps {
+  advancedSearchHref: string;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -48,6 +50,7 @@ interface MobileFiltersDrawerProps {
 }
 
 export function MobileFiltersDrawer({
+  advancedSearchHref,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -98,6 +101,11 @@ export function MobileFiltersDrawer({
                   ? `${activeFilterCount} active`
                   : "Showing all inventory"}
               </DrawerDescription>
+              <AdvancedSearchLink
+                enabled={canUseAdvancedFilters}
+                href={advancedSearchHref}
+                className="mt-1"
+              />
             </div>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters}>

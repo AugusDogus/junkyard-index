@@ -1,35 +1,44 @@
-"use client";
-
-import { ListFilterPlus } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 export function AdvancedSearchLink({
-  iconOnly = false,
+  enabled,
+  href,
+  className,
 }: {
-  iconOnly?: boolean;
+  enabled: boolean;
+  href: string;
+  className?: string;
 }) {
-  const searchParams = useSearchParams();
-  const queryString = searchParams.toString();
-  const href = queryString
-    ? `/search/advanced?${queryString}`
-    : "/search/advanced";
+  const linkClassName = cn(
+    "inline-flex min-h-11 items-center text-sm font-medium underline-offset-4 md:min-h-6",
+    className,
+  );
+
+  if (!enabled) {
+    return (
+      <span
+        aria-disabled="true"
+        className={cn(
+          linkClassName,
+          "text-muted-foreground cursor-not-allowed gap-1.5",
+        )}
+      >
+        Advanced search
+        <span className="text-xs font-normal">Lite</span>
+      </span>
+    );
+  }
 
   return (
-    <Button
-      asChild
-      type="button"
-      variant="outline"
-      size={iconOnly ? "icon" : "default"}
+    <Link
+      href={href}
+      className={cn(
+        linkClassName,
+        "text-muted-foreground hover:text-foreground focus-visible:text-foreground hover:underline",
+      )}
     >
-      <Link
-        href={href}
-        aria-label={iconOnly ? "Open advanced search" : undefined}
-      >
-        <ListFilterPlus data-icon="inline-start" />
-        {!iconOnly && "Advanced"}
-      </Link>
-    </Button>
+      Advanced search
+    </Link>
   );
 }
