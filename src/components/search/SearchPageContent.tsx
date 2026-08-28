@@ -24,7 +24,6 @@ import {
 } from "react-instantsearch";
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
-import { AdvancedSearchLink } from "~/components/search/AdvancedSearchLink";
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
@@ -316,6 +315,10 @@ function AlgoliaSearchInner({
   const maximumSearchableVehicleYear = new Date().getUTCFullYear() + 1;
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const advancedSearchQuery = searchParams.toString();
+  const advancedSearchHref = advancedSearchQuery
+    ? `/search/advanced?${advancedSearchQuery}`
+    : "/search/advanced";
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
@@ -1111,6 +1114,7 @@ function AlgoliaSearchInner({
 
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
+      advancedSearchHref={advancedSearchHref}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
@@ -1134,7 +1138,6 @@ function AlgoliaSearchInner({
 
   const workspaceActions = isMobile ? (
     <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 [&_button]:h-11 [&_button]:min-w-11">
-      <AdvancedSearchLink iconOnly />
       {mobileFiltersDrawer}
       <Select value={sortBy} onValueChange={handleSortChange}>
         <SelectTrigger className="ml-auto" aria-label="Sort vehicles">
@@ -1166,7 +1169,6 @@ function AlgoliaSearchInner({
     </div>
   ) : (
     <div className="flex shrink-0 items-center gap-2 [&_button]:h-9">
-      <AdvancedSearchLink />
       {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
       <SaveSearchDialog
         query={query}
@@ -1309,6 +1311,7 @@ function AlgoliaSearchInner({
 
           {!isMobile && showFilters && (
             <DesktopFiltersBar
+              advancedSearchHref={advancedSearchHref}
               activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
               makes={selectedMakes}
