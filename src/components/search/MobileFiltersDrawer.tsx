@@ -90,18 +90,17 @@ export function MobileFiltersDrawer({
         </Button>
       </DrawerTrigger>
       <DrawerContent>
-        <DrawerHeader className="text-left">
+        <DrawerHeader className="group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="flex min-w-0 flex-col gap-1">
               <DrawerTitle className="text-lg font-semibold">
                 Filters
               </DrawerTitle>
-              <DrawerDescription className="mt-1 tabular-nums">
+              <DrawerDescription className="tabular-nums">
                 {activeFilterCount > 0
                   ? `${activeFilterCount} active`
                   : "Showing all inventory"}
               </DrawerDescription>
-              {advancedSearchControl}
             </div>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearAllFilters}>
@@ -109,6 +108,7 @@ export function MobileFiltersDrawer({
               </Button>
             )}
           </div>
+          {advancedSearchControl}
         </DrawerHeader>
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-4">

@@ -1160,7 +1160,7 @@ function AlgoliaSearchInner({
 
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
-      advancedSearchControl={renderAdvancedSearchDialog("mt-1")}
+      advancedSearchControl={renderAdvancedSearchDialog("-ml-3 self-start")}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
