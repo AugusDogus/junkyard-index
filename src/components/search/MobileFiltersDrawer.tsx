@@ -1,7 +1,6 @@
 "use client";
 
-import { Filter } from "lucide-react";
-import type { ReactNode } from "react";
+import { Filter, LockKeyhole } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Drawer,
@@ -25,7 +24,7 @@ interface FilterOptions {
 }
 
 interface MobileFiltersDrawerProps {
-  advancedSearchControl: ReactNode;
+  onAdvancedSearch: () => void;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -50,7 +49,7 @@ interface MobileFiltersDrawerProps {
 }
 
 export function MobileFiltersDrawer({
-  advancedSearchControl,
+  onAdvancedSearch,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -108,7 +107,25 @@ export function MobileFiltersDrawer({
               </Button>
             )}
           </div>
-          {advancedSearchControl}
+          <DrawerClose asChild>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="-ml-3 self-start"
+              aria-label={
+                canUseAdvancedFilters
+                  ? undefined
+                  : "Advanced search, upgrade required"
+              }
+              onClick={onAdvancedSearch}
+            >
+              {!canUseAdvancedFilters && (
+                <LockKeyhole data-icon="inline-start" aria-hidden="true" />
+              )}
+              Advanced search
+            </Button>
+          </DrawerClose>
         </DrawerHeader>
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-4">

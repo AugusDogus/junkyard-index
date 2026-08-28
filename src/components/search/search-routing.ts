@@ -38,6 +38,12 @@ export const SEARCH_SORT_ITEMS = SEARCH_SORT_OPTIONS.map(
   ({ indexName, label }) => ({ value: indexName, label }),
 );
 
+export const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
+
+export function getMaximumSearchableVehicleYear(): number {
+  return new Date().getUTCFullYear() + 1;
+}
+
 const INDEX_TO_KEY = Object.fromEntries(
   SEARCH_SORT_OPTIONS.map((option) => [option.indexName, option.key]),
 );
@@ -185,8 +191,15 @@ function advancedRouteFromUiState(
     const [min, max] = range.year.split(":");
     const minYear = min ? Number.parseInt(min, 10) : Number.NaN;
     const maxYear = max ? Number.parseInt(max, 10) : Number.NaN;
-    if (!Number.isNaN(minYear)) route.minYear = minYear;
-    if (!Number.isNaN(maxYear)) route.maxYear = maxYear;
+    if (!Number.isNaN(minYear) && minYear !== MINIMUM_SEARCHABLE_VEHICLE_YEAR) {
+      route.minYear = minYear;
+    }
+    if (
+      !Number.isNaN(maxYear) &&
+      maxYear !== getMaximumSearchableVehicleYear()
+    ) {
+      route.maxYear = maxYear;
+    }
   }
   return route;
 }
