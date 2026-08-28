@@ -263,18 +263,47 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
 
           <div className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto overscroll-contain border-y px-6 py-5">
             <FieldGroup className="gap-6">
-              <Field>
-                <FieldLabel htmlFor={`saved-search-name-${search.id}`}>
-                  Name
-                </FieldLabel>
-                <Input
-                  id={`saved-search-name-${search.id}`}
-                  value={form.name}
-                  maxLength={100}
-                  onChange={(event) => setField("name", event.target.value)}
-                  disabled={updateSearch.isPending}
-                />
-              </Field>
+              <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor={`saved-search-name-${search.id}`}>
+                    Name
+                  </FieldLabel>
+                  <Input
+                    id={`saved-search-name-${search.id}`}
+                    value={form.name}
+                    maxLength={100}
+                    onChange={(event) => setField("name", event.target.value)}
+                    disabled={updateSearch.isPending}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor={`saved-search-sort-${search.id}`}>
+                    Sort results
+                  </FieldLabel>
+                  <Select
+                    value={form.sortBy}
+                    onValueChange={(value) => setField("sortBy", value)}
+                    disabled={updateSearch.isPending}
+                  >
+                    <SelectTrigger
+                      id={`saved-search-sort-${search.id}`}
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {SEARCH_SORT_OPTIONS.map((option) => (
+                          <SelectItem key={option.key} value={option.key}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </FieldGroup>
 
               <Field>
                 <FieldLabel htmlFor={`saved-search-query-${search.id}`}>
@@ -291,35 +320,10 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                 />
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor={`saved-search-sort-${search.id}`}>
-                  Sort results
-                </FieldLabel>
-                <Select
-                  value={form.sortBy}
-                  onValueChange={(value) => setField("sortBy", value)}
-                  disabled={updateSearch.isPending}
-                >
-                  <SelectTrigger
-                    id={`saved-search-sort-${search.id}`}
-                    className="w-full"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {SEARCH_SORT_OPTIONS.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <FieldSet>
-                <FieldLegend variant="label">Filters</FieldLegend>
+              <FieldSet className="gap-4">
+                <FieldLegend variant="label" className="mb-0">
+                  Filters
+                </FieldLegend>
                 {filterOptionsQuery.isPending ? (
                   <div className="flex flex-col gap-3" aria-busy="true">
                     <span className="sr-only">Loading filter options</span>
@@ -349,37 +353,35 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                         </AlertDescription>
                       </Alert>
                     )}
-                    <div className="border-border border-y">
-                      <MobileFilterContent
-                        idPrefix={`saved-search-${search.id}`}
-                        defaultOpenSections="none"
-                        containListScroll={false}
-                        makes={form.makes}
-                        colors={form.colors}
-                        states={form.states}
-                        salvageYards={form.salvageYards}
-                        sources={form.sources}
-                        yearRange={form.yearRange}
-                        filterOptions={filterOptions}
-                        onMakesChange={(makes) => setField("makes", makes)}
-                        onColorsChange={(colors) => setField("colors", colors)}
-                        onStatesChange={(states) => setField("states", states)}
-                        onSalvageYardsChange={(salvageYards) =>
-                          setField("salvageYards", salvageYards)
-                        }
-                        onSourcesChange={(sources) =>
-                          setField("sources", sources)
-                        }
-                        onYearRangeChange={(yearRange) =>
-                          setField("yearRange", yearRange)
-                        }
-                        yearRangeLimits={{
-                          min: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
-                          max: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
-                        }}
-                        canUseAdvancedFilters
-                      />
-                    </div>
+                    <MobileFilterContent
+                      idPrefix={`saved-search-${search.id}`}
+                      defaultOpenSections="none"
+                      containListScroll={false}
+                      makes={form.makes}
+                      colors={form.colors}
+                      states={form.states}
+                      salvageYards={form.salvageYards}
+                      sources={form.sources}
+                      yearRange={form.yearRange}
+                      filterOptions={filterOptions}
+                      onMakesChange={(makes) => setField("makes", makes)}
+                      onColorsChange={(colors) => setField("colors", colors)}
+                      onStatesChange={(states) => setField("states", states)}
+                      onSalvageYardsChange={(salvageYards) =>
+                        setField("salvageYards", salvageYards)
+                      }
+                      onSourcesChange={(sources) =>
+                        setField("sources", sources)
+                      }
+                      onYearRangeChange={(yearRange) =>
+                        setField("yearRange", yearRange)
+                      }
+                      yearRangeLimits={{
+                        min: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
+                        max: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
+                      }}
+                      canUseAdvancedFilters
+                    />
                   </>
                 )}
               </FieldSet>
