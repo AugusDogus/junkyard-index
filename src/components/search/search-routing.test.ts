@@ -53,6 +53,50 @@ describe("search routing", () => {
     });
   });
 
+  test("omits untouched year bounds from the URL", () => {
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
+    const maximumYear = new Date().getUTCFullYear() + 1;
+    const routeState = routing.stateMapping.stateToRoute({
+      [ALGOLIA_INDEX_NAME]: {
+        range: { year: `1900:${maximumYear}` },
+      },
+    });
+
+    expect(
+      routing.router.createURL({
+        routeState,
+        location: {
+          href: "https://example.com/search",
+          search: "",
+        },
+      }),
+    ).toBe("https://example.com/search");
+  });
+
+  test("keeps only changed year bounds in the URL", () => {
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
+    const maximumYear = new Date().getUTCFullYear() + 1;
+
+    expect(
+      routing.stateMapping.stateToRoute({
+        [ALGOLIA_INDEX_NAME]: {
+          range: { year: `2000:${maximumYear}` },
+        },
+      }),
+    ).toEqual({
+      [ALGOLIA_INDEX_NAME]: { minYear: 2000 },
+    });
+    expect(
+      routing.stateMapping.stateToRoute({
+        [ALGOLIA_INDEX_NAME]: {
+          range: { year: "1900:2020" },
+        },
+      }),
+    ).toEqual({
+      [ALGOLIA_INDEX_NAME]: { maxYear: 2020 },
+    });
+  });
+
   test("removes restricted filters before building free-tier search state", () => {
     const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, false);
     const routeState = routing.router.parseURL({

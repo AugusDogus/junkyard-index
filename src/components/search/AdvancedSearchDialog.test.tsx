@@ -32,6 +32,20 @@ describe("advanced search access", () => {
     expect(markup).not.toContain("href=");
   });
 
+  test("can render a controlled modal without nesting its trigger", () => {
+    const markup = renderToStaticMarkup(
+      <AdvancedSearchDialog
+        {...baseProps}
+        canUseAdvancedFilters
+        open={false}
+        onOpenChange={noOp}
+        showTrigger={false}
+      />,
+    );
+
+    expect(markup).not.toContain(">Advanced search</button>");
+  });
+
   test("renders an upgrade explanation trigger for free users", () => {
     const markup = renderToStaticMarkup(
       <AdvancedSearchDialog {...baseProps} canUseAdvancedFilters={false} />,
@@ -43,3 +57,5 @@ describe("advanced search access", () => {
     expect(markup).not.toContain("Lite");
   });
 });
+
+function noOp() {}

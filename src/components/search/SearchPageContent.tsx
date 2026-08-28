@@ -63,8 +63,10 @@ import {
 import { Toggle } from "~/components/ui/toggle";
 import {
   getSearchableVinPattern,
+  getMaximumSearchableVehicleYear,
   getSearchSortIndex,
   getSearchSortKey,
+  MINIMUM_SEARCHABLE_VEHICLE_YEAR,
   sanitizeSearchSources,
   SEARCH_SORT_ITEMS,
   SEARCH_SORT_OPTIONS,
@@ -91,8 +93,6 @@ import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
-
-const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
 
 function clampRouteYear(
   value: number | null,
@@ -316,7 +316,7 @@ function AlgoliaSearchInner({
     access: planAccess,
     feature: "saved_searches",
   });
-  const maximumSearchableVehicleYear = new Date().getUTCFullYear() + 1;
+  const maximumSearchableVehicleYear = getMaximumSearchableVehicleYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
@@ -333,6 +333,8 @@ function AlgoliaSearchInner({
   const [browserGeolocationPermission, setBrowserGeolocationPermission] =
     useState<"granted" | "denied" | "prompt" | "unsupported">("unsupported");
   const [showDistancePreferenceDialog, setShowDistancePreferenceDialog] =
+    useState(false);
+  const [mobileAdvancedSearchOpen, setMobileAdvancedSearchOpen] =
     useState(false);
   const [pendingDistanceSort, setPendingDistanceSort] = useState(false);
   const [selectedDistanceMode, setSelectedDistanceMode] = useState<
@@ -1139,7 +1141,13 @@ function AlgoliaSearchInner({
     effectiveLocationPreference?.mode === "auto" &&
     !resolvedUserLocation;
 
-  const renderAdvancedSearchDialog = (triggerClassName?: string) => (
+  const renderAdvancedSearchDialog = (
+    triggerClassName?: string,
+    controlledState?: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    },
+  ) => (
     <AdvancedSearchDialog
       query={query}
       makes={selectedMakes}
@@ -1154,13 +1162,16 @@ function AlgoliaSearchInner({
       canUseAdvancedFilters={canUseAdvancedFilters}
       booleanOrSearchReady={booleanOrSearchReady}
       triggerClassName={triggerClassName}
+      {...(controlledState
+        ? { ...controlledState, showTrigger: false }
+        : undefined)}
       onSearch={handleAdvancedSearch}
     />
   );
 
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
-      advancedSearchControl={renderAdvancedSearchDialog("-ml-3 self-start")}
+      onAdvancedSearch={() => setMobileAdvancedSearchOpen(true)}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
@@ -1329,6 +1340,11 @@ function AlgoliaSearchInner({
           void handleDistancePreferenceConfirm();
         }}
       />
+      {isMobile &&
+        renderAdvancedSearchDialog(undefined, {
+          open: mobileAdvancedSearchOpen,
+          onOpenChange: setMobileAdvancedSearchOpen,
+        })}
       <section className="py-8 sm:py-10" aria-labelledby="search-page-title">
         <h1
           id="search-page-title"
