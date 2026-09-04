@@ -6,7 +6,7 @@ Salvage yard vehicle search aggregator built with Next.js 16, TypeScript, Turso 
 
 ### Required secrets
 
-All required environment variables are injected as secrets (see `src/env.js` for the full schema). The app uses `@t3-oss/env-nextjs` with Zod validation — if any required var is missing the dev server will crash on startup. Set `SKIP_ENV_VALIDATION=1` to bypass validation (useful for running lint/typecheck only), but the app will error at runtime for any page that touches the DB or external services.
+All required environment variables are injected as secrets (see `src/env.js` for the full schema). The app uses `@t3-oss/env-nextjs` with Zod validation — if any required var is missing the dev server will crash on startup. Set `SKIP_ENV_VALIDATION=1` to bypass validation, but the app will error at runtime for any page that touches the DB or external services.
 
 ### Running the dev server
 
@@ -21,7 +21,7 @@ The homepage queries the Turso database for live stats; it will 500 if the DB is
 ```
 bun run lint         # oxlint .
 bun run format:check # oxfmt --check .
-bun run typecheck    # tsc --noEmit (prefix with SKIP_ENV_VALIDATION=1 if secrets aren't available)
+bun run typecheck    # tsc --noEmit
 bun test src         # bun test runner — all unit/integration tests
 ```
 
