@@ -1,0 +1,3 @@
+interface:
+  display_name: "Repair Repository Friction"
+  short_description: "Take a Junkyard Index defect through a green PR"
