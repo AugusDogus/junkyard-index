@@ -20,7 +20,6 @@ import {
   getAlertMatchStatsWithClient,
   type AlertSearchClient,
 } from "~/lib/alert-match-search";
-import { db } from "~/lib/db";
 import {
   filtersSchema,
   type SavedSearchFilters,
@@ -75,6 +74,7 @@ function formatCompletion(completion: AlertScanCompletion): string {
 export async function main() {
   await import("dotenv/config");
   const { env } = await import("~/env");
+  const { db } = await import("~/lib/db");
 
   const searchClient = algoliasearch(
     env.NEXT_PUBLIC_ALGOLIA_APP_ID,
