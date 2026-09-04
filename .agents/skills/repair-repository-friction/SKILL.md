@@ -76,5 +76,5 @@ Only that retest closes the repository-friction branch of the parent task.
 
 ## Repository specifics
 
-- Worktrees have no `.env`. `bun run lint`, `SKIP_ENV_VALIDATION=1 bun run typecheck`, and `bun test src` must pass without one.
+- Worktrees have no `.env`. `bun run lint`, `bun run typecheck`, and `bun test src` must pass without one.
 - CodeRabbit does not review this repository automatically. Comment `@coderabbitai review` on the pull request after every push, then wait for the new review before reading thread state.
