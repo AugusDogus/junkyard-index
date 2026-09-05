@@ -111,6 +111,7 @@ export function RecentVehicles({ vehicles }: { vehicles: RecentVehicle[] }) {
                   <Link
                     key={index}
                     href={`/search?q=${encodeURIComponent(title)}`}
+                    prefetch={false}
                     draggable={false}
                     className="bg-card hover:border-foreground/30 focus-visible:ring-ring/50 mr-4 flex min-w-0 flex-[0_0_18rem] items-center gap-3 rounded-lg border p-2.5 outline-none focus-visible:ring-2 focus-visible:ring-inset"
                   >

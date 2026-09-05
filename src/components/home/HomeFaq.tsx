@@ -1,10 +1,5 @@
 import { Minus, Plus } from "lucide-react";
 import Link from "next/link";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "~/components/ui/collapsible";
 
 const FAQ_ITEMS = [
   {
@@ -97,27 +92,22 @@ export function HomeFaq() {
         </h2>
         <div className="border-t">
           {FAQ_ITEMS.map(({ question, answer }) => (
-            <Collapsible key={question} className="border-b">
-              <h3>
-                <CollapsibleTrigger className="group focus-visible:ring-ring/50 flex w-full items-center justify-between gap-6 rounded-sm py-5 text-left text-base font-medium outline-none focus-visible:ring-2 sm:py-6">
-                  {question}
-                  <Plus
-                    className="text-muted-foreground size-4 shrink-0 group-data-[state=open]:hidden"
-                    aria-hidden="true"
-                  />
-                  <Minus
-                    className="text-muted-foreground hidden size-4 shrink-0 group-data-[state=open]:block"
-                    aria-hidden="true"
-                  />
-                </CollapsibleTrigger>
-              </h3>
-              <CollapsibleContent
-                forceMount
-                className="text-muted-foreground pr-8 pb-6 text-sm leading-relaxed text-pretty data-[state=closed]:hidden"
-              >
+            <details key={question} className="group border-b">
+              <summary className="focus-visible:ring-ring/50 flex w-full list-none items-center justify-between gap-6 rounded-sm py-5 text-left text-base font-medium outline-none focus-visible:ring-2 sm:py-6 [&::-webkit-details-marker]:hidden">
+                <h3>{question}</h3>
+                <Plus
+                  className="text-muted-foreground size-4 shrink-0 group-open:hidden"
+                  aria-hidden="true"
+                />
+                <Minus
+                  className="text-muted-foreground hidden size-4 shrink-0 group-open:block"
+                  aria-hidden="true"
+                />
+              </summary>
+              <div className="text-muted-foreground pr-8 pb-6 text-sm leading-relaxed text-pretty">
                 {answer}
-              </CollapsibleContent>
-            </Collapsible>
+              </div>
+            </details>
           ))}
         </div>
       </div>

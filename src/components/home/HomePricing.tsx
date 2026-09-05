@@ -1,5 +1,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
 
 export async function HomePricing() {
@@ -26,10 +27,12 @@ export async function HomePricing() {
             need them.
           </p>
         </div>
-        <PricingPlansSection
-          initialIsRegistered={initialIsRegistered}
-          sourcePage="home"
-        />
+        <Suspense>
+          <PricingPlansSection
+            initialIsRegistered={initialIsRegistered}
+            sourcePage="home"
+          />
+        </Suspense>
       </div>
     </section>
   );
