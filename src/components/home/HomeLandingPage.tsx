@@ -1,6 +1,7 @@
 import { type Metadata } from "next";
 import { geolocation } from "@vercel/functions";
 import { headers } from "next/headers";
+import { userAgent } from "next/server";
 import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
@@ -21,7 +22,10 @@ export const HOME_METADATA: Metadata = {
 };
 
 export async function HomeLandingPage() {
-  const geo = geolocation({ headers: await headers() });
+  const requestHeaders = await headers();
+  const geo = geolocation({ headers: requestHeaders });
+  const compactMap =
+    userAgent({ headers: requestHeaders }).device.type === "mobile";
   const coordinates = {
     lat: geo.latitude ? Number(geo.latitude) : null,
     lng: geo.longitude ? Number(geo.longitude) : null,
@@ -47,6 +51,7 @@ export async function HomeLandingPage() {
           <HomeSearchHero />
           <Suspense>
             <YardMap
+              compactMap={compactMap}
               yards={inventory.yards}
               vehicleCount={vehicleCount}
               approximateLocation={approximateLocation}
