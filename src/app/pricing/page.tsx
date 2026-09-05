@@ -1,6 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type Metadata } from "next";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { PricingPlansSection } from "~/components/marketing/PricingPlansSection";
@@ -39,7 +40,9 @@ export default async function PricingPage() {
           </div>
 
           <div className="mt-10 sm:mt-12">
-            <PricingPlansSection initialIsRegistered={initialIsRegistered} />
+            <Suspense>
+              <PricingPlansSection initialIsRegistered={initialIsRegistered} />
+            </Suspense>
           </div>
 
           <div className="bg-muted/40 mt-16 rounded-2xl border p-8 text-center">

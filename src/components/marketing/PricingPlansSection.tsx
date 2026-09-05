@@ -85,6 +85,7 @@ export function PricingPlansSection({
               tier={tier}
               interval={interval}
               featured={featured}
+              heading={sourcePage === "home" ? "h3" : "h2"}
               cta={
                 <PricingPlanCtaButton
                   cta={cta}
