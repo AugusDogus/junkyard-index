@@ -18,6 +18,7 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
     return (
       <img
         src={tile.url}
+        fetchPriority={tile.active ? "high" : "auto"}
         width={tile.width}
         height={tile.height}
         alt=""
@@ -60,6 +61,7 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
               />
               <img
                 src={tile.url}
+                fetchPriority={tile.active ? "high" : "auto"}
                 width={256}
                 height={256}
                 alt=""
