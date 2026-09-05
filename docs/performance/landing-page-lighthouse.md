@@ -1,5 +1,7 @@
 # Landing page Lighthouse audit
 
+The measurements below describe the previous static-overview implementation at `6c3d417`. The current map uses Pigeon Maps with server-rendered tiles and pins, replacing both Leaflet and the static overview. A fresh comparison follows the migration.
+
 Measured September 5, 2026 for PR #71. This is a lab comparison, not a guarantee of identical scores on every run or a field Core Web Vitals assessment.
 
 ## Method

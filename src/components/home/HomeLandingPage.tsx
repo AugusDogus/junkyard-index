@@ -12,7 +12,6 @@ import { HomeFaq } from "~/components/home/HomeFaq";
 import { HomeClosingCta } from "~/components/home/HomeClosingCta";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { hasFiniteCoordinates } from "~/lib/location-preferences";
-import { NORTH_AMERICA_LAND } from "~/lib/north-america-land";
 
 export const HOME_METADATA: Metadata = {
   title: "Search Salvage Yard Inventory Nationwide",
@@ -51,7 +50,6 @@ export async function HomeLandingPage() {
               yards={inventory.yards}
               vehicleCount={vehicleCount}
               approximateLocation={approximateLocation}
-              overviewLand={<path d={NORTH_AMERICA_LAND} fill="#eeeeee" />}
             />
           </Suspense>
         </section>
