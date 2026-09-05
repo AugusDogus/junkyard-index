@@ -285,12 +285,6 @@
   filter: grayscale(1) invert(1) brightness(0.8);
 }
 
-.yard-map .pigeon-attribution {
-  background: var(--background) !important;
-  color: var(--muted-foreground) !important;
-  font-size: 10px !important;
-}
-
 /* Reserve space for the header, search, map controls, and recent vehicles. */
 .homepage-map-canvas {
   height: clamp(10rem, calc(100svh - 29rem), 24rem);
