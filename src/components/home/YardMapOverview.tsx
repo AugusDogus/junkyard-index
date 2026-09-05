@@ -1,4 +1,5 @@
 import { Expand } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import type { HomepageYard } from "~/lib/homepage-inventory";
 import {
@@ -9,11 +10,13 @@ import {
 
 export function YardMapOverview({
   yards,
+  land,
   loading,
   onSelect,
   onExplore,
 }: {
   yards: HomepageYard[];
+  land: ReactNode;
   loading: boolean;
   onSelect: (yard: HomepageYard) => void;
   onExplore: () => void;
@@ -39,7 +42,7 @@ export function YardMapOverview({
           className="yard-map-land size-full overflow-visible"
           aria-hidden="true"
         >
-          <image href="/maps/north-america.svg" width="1024" height="1024" />
+          {land}
         </svg>
         {yards.filter(hasMapCoordinates).map((yard) => {
           const point = projectYardLocation(yard);
