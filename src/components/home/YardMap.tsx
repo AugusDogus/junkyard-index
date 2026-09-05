@@ -209,7 +209,7 @@ export function YardMap({
             </div>
           )}
           {selected && (
-            <div className="bg-card absolute top-4 right-4 left-4 z-10 rounded-lg border p-4 shadow-sm sm:right-auto sm:max-w-80">
+            <div className="bg-card absolute top-4 right-16 left-4 z-10 rounded-lg border p-4 shadow-sm sm:right-auto sm:max-w-80">
               <p className="font-semibold">{selected.name}</p>
               <p className="text-muted-foreground mt-1 text-sm">
                 {selected.city}, {selected.state} ·{" "}
