@@ -165,21 +165,14 @@
 }
 
 .yard-map {
+  cursor: grab;
   z-index: 0;
   background: var(--muted);
   font-family: var(--font-sans);
 }
 
-.yard-map-overview {
-  background: #ccc;
-}
-
-.dark .yard-map-overview {
-  background: #292929;
-}
-
-.dark .yard-map-land {
-  filter: invert(1) brightness(0.8);
+.yard-map:active {
+  cursor: grabbing;
 }
 
 .pricing-plan-border-beam {
@@ -209,28 +202,64 @@
   }
 }
 
-.yard-map-pin::before {
-  content: "";
-  position: absolute;
-  inset: 5px;
+.yard-map-marker:hover,
+.yard-map-marker:focus-within,
+.yard-map-marker:has([aria-pressed="true"]) {
+  z-index: 1;
+}
+
+.yard-map-pin {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  outline: none;
+}
+
+.yard-map-pin > span {
+  width: 11px;
+  height: 11px;
   border: 2px solid var(--background);
   border-radius: 50%;
   background: var(--foreground);
-  box-shadow: 0 1px 4px #0003;
+  box-shadow: 0 1px 3px #0004;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.yard-map-pin:hover,
-.yard-map-pin:focus-visible {
-  outline: 3px solid var(--foreground);
-  outline-offset: 3px;
+@media (hover: hover) {
+  .yard-map-pin:hover > span {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--foreground) 15%, transparent);
+  }
 }
 
-.yard-map .leaflet-tile-pane {
+.yard-map-pin:focus-visible,
+.yard-map-pin[aria-pressed="true"] {
+  outline: 2px solid var(--foreground);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yard-map-pin > span {
+    transition: none;
+  }
+}
+
+.yard-map-tiles {
   filter: grayscale(1);
 }
 
-.dark .yard-map .leaflet-tile-pane {
+.dark .yard-map-tiles {
   filter: grayscale(1) invert(1) brightness(0.8);
+}
+
+.yard-map .pigeon-attribution {
+  background: var(--background) !important;
+  color: var(--muted-foreground) !important;
+  font-size: 10px !important;
 }
 
 /* Reserve space for the header, search, map controls, and recent vehicles. */

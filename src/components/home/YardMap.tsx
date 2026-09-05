@@ -1,10 +1,9 @@
 "use client";
 
-import { ArrowUpRight, ChevronDown, MapPin, Search } from "lucide-react";
-import dynamic from "next/dynamic";
+import { ArrowUpRight, ChevronDown, MapPin, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { YardMapOverview } from "~/components/home/YardMapOverview";
+import { useState } from "react";
+import YardMapCanvas from "~/components/home/YardMapCanvas";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type { HomepageYard } from "~/lib/homepage-inventory";
@@ -12,32 +11,18 @@ import { useYardLocation } from "~/hooks/use-yard-location";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
 import { cn } from "~/lib/utils";
 
-const YardMapCanvas = dynamic(() => import("./YardMapCanvas"), {
-  ssr: false,
-  loading: () => null,
-});
-
 export function YardMap({
   yards,
   vehicleCount,
   approximateLocation,
-  overviewLand,
 }: {
   yards: HomepageYard[];
   vehicleCount: number;
   approximateLocation: YardLocation | null;
-  overviewLand: ReactNode;
 }) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [selected, setSelected] = useState<HomepageYard | null>(null);
-  const [mapState, setMapState] = useState<"overview" | "loading" | "ready">(
-    "overview",
-  );
-  const selectYard = (yard: HomepageYard) => {
-    setSelected(yard);
-    setMapState((state) => (state === "overview" ? "loading" : state));
-  };
   const { location, requestLocation, locating, locationError } =
     useYardLocation(approximateLocation);
   const filtered = sortYardsByDistance(yards, location).filter((yard) =>
@@ -132,7 +117,7 @@ export function YardMap({
                   <button
                     key={`${yard.source}:${yard.code}`}
                     type="button"
-                    onClick={() => selectYard(yard)}
+                    onClick={() => setSelected(yard)}
                     aria-pressed={selected === yard}
                     className={cn(
                       "hover:bg-muted flex w-full items-center gap-3 border-b px-4 py-3 text-left last:border-b-0",
@@ -182,46 +167,28 @@ export function YardMap({
           </div>
         </div>
         <div className="homepage-map-canvas relative isolate">
-          {mapState !== "ready" && (
-            <YardMapOverview
-              yards={yards}
-              land={overviewLand}
-              loading={mapState === "loading"}
-              onSelect={selectYard}
-              onExplore={() => {
-                if (mapState === "overview") setMapState("loading");
-              }}
-            />
-          )}
-          {mapState !== "overview" && (
-            <div
-              className={cn(
-                "absolute inset-0",
-                mapState === "loading" && "invisible",
-              )}
-            >
-              <YardMapCanvas
-                yards={yards}
-                selected={selected}
-                onSelect={selectYard}
-                onReady={() => setMapState("ready")}
-              />
-            </div>
-          )}
+          <YardMapCanvas
+            yards={yards}
+            selected={selected}
+            onSelect={setSelected}
+          />
           {selected && (
-            <div className="bg-card absolute top-4 right-16 left-4 z-10 rounded-lg border p-4 shadow-sm sm:right-auto sm:max-w-80">
-              <p className="font-semibold">{selected.name}</p>
-              <p className="text-muted-foreground mt-1 text-sm">
+            <div className="bg-card absolute top-3 right-16 left-3 z-10 rounded-lg border p-3 pr-10 shadow-sm sm:right-auto sm:max-w-80">
+              <p className="truncate text-sm font-medium" title={selected.name}>
+                {selected.name}
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs">
                 {selected.city}, {selected.state} ·{" "}
                 {selected.vehicleCount.toLocaleString("en-US")} vehicles
               </p>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
+                aria-label="Close yard details"
                 onClick={() => setSelected(null)}
-                className="mt-3"
+                className="absolute top-2 right-2 size-6 border-0 shadow-none"
               >
-                Show all yards
+                <X aria-hidden="true" />
               </Button>
             </div>
           )}
