@@ -2,6 +2,7 @@ import { type Metadata } from "next";
 import { geolocation } from "@vercel/functions";
 import { headers } from "next/headers";
 import { userAgent } from "next/server";
+import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
@@ -48,14 +49,44 @@ export async function HomeLandingPage() {
           aria-label="Search junkyard inventory"
         >
           <HomeSearchHero />
-          <YardMap
-            compactMap={compactMap}
-            yards={inventory.yards}
-            vehicleCount={vehicleCount}
-            approximateLocation={approximateLocation}
-          />
+          <div className="pb-3">
+            <Suspense
+              fallback={
+                <div aria-hidden="true">
+                  <div className="bg-card h-[45px] rounded-t-lg border border-b-0" />
+                  <div className="homepage-map-layout bg-muted overflow-hidden rounded-b-lg border">
+                    <div className="homepage-map-canvas" />
+                    <div className="bg-card h-[57px] border-t lg:hidden" />
+                  </div>
+                </div>
+              }
+            >
+              <YardMap
+                compactMap={compactMap}
+                yards={inventory.yards}
+                vehicleCount={vehicleCount}
+                approximateLocation={approximateLocation}
+              />
+            </Suspense>
+            <p className="text-muted-foreground mt-2 text-xs text-pretty">
+              Confirm vehicle availability with the yard before visiting.
+            </p>
+          </div>
         </section>
-        <RecentVehicles vehicles={inventory.recentVehicles} />
+        <Suspense
+          fallback={
+            <div
+              aria-hidden="true"
+              className={
+                inventory.recentVehicles.length
+                  ? "h-[156px] border-y"
+                  : "h-[90px] border-y"
+              }
+            />
+          }
+        >
+          <RecentVehicles vehicles={inventory.recentVehicles} />
+        </Suspense>
         <HomeFaq />
         <HomePricing />
         <HomeClosingCta />
