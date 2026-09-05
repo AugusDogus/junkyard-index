@@ -209,6 +209,7 @@
 }
 
 .yard-map-pin {
+  scale: calc(1 / var(--yard-map-scale, 1));
   display: grid;
   place-items: center;
   width: 24px;

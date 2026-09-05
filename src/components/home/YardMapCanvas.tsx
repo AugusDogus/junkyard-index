@@ -3,11 +3,18 @@
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
 import { YardMapTile, yardTileProvider } from "./YardMapTile";
-import { useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "~/components/ui/button";
 import type { HomepageYard } from "~/lib/homepage-inventory";
 import {
   getYardMapView,
+  getYardMapBounds,
   hasMapCoordinates,
   type YardMapView,
 } from "~/lib/yard-map-projection";
@@ -32,10 +39,22 @@ export default function YardMapCanvas({
   const [tileError, setTileError] = useState(false);
   const overview = getYardMapView(yards, size.width, size.height);
   const current = view ?? overview;
+  const bounds = getYardMapBounds(yards);
+  // Match getYardMapView's geographic fit before the actual size is known.
+  // Scaling the estimated viewport instead changes the framing on hydration.
+  const fitScale = `calc(clamp(0.5, min(calc((100cqw - 32px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32) / ${2 ** (overview.zoom - 2)})`;
+  const mapStyle = {
+    width: size.width,
+    height: size.height,
+    translate: "-50% -50%",
+    scale: "var(--yard-map-scale)",
+    "--yard-map-scale": view ? "1" : fitScale,
+  } satisfies CSSProperties & { "--yard-map-scale": string };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    setSize({ width: container.clientWidth, height: container.clientHeight });
     const observer = new ResizeObserver(([entry]) => {
       if (
         entry &&
@@ -107,15 +126,7 @@ export default function YardMapCanvas({
         }
       }}
     >
-      <div
-        className="absolute top-1/2 left-1/2"
-        style={{
-          width: size.width,
-          height: size.height,
-          translate: "-50% -50%",
-          scale: `min(calc(100cqw / ${size.width}px), calc(100cqh / ${size.height}px))`,
-        }}
-      >
+      <div className="absolute top-1/2 left-1/2" style={mapStyle}>
         <Map
           ref={mapRef}
           width={size.width}
