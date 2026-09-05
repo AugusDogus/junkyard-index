@@ -4,35 +4,30 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
 import type { HomepageYard } from "~/lib/homepage-inventory";
-
-function hasMapCoordinates(yard: HomepageYard) {
-  return (
-    Number.isFinite(yard.lat) &&
-    Number.isFinite(yard.lng) &&
-    Math.abs(yard.lat) <= 90 &&
-    Math.abs(yard.lng) <= 180 &&
-    (yard.lat !== 0 || yard.lng !== 0)
-  );
-}
+import { hasMapCoordinates } from "~/lib/yard-map-projection";
 
 export default function YardMapCanvas({
   yards,
   selected,
   onSelect,
+  onReady,
 }: {
   yards: HomepageYard[];
   selected: HomepageYard | null;
   onSelect: (yard: HomepageYard) => void;
+  onReady: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onReadyRef = useRef(onReady);
   const selectedRef = useRef(selected);
   const [tileError, setTileError] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
-  }, [onSelect]);
+    onReadyRef.current = onReady;
+  }, [onSelect, onReady]);
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -59,18 +54,32 @@ export default function YardMapCanvas({
         map.fitBounds(bounds, { padding: [35, 35], maxZoom: 7 });
       else map.setView([39, -98], 4);
     };
+    const ready = () => {
+      const focusMap = document.activeElement?.id === "explore-yard-map";
+      onReadyRef.current();
+      if (focusMap) {
+        requestAnimationFrame(() =>
+          map.getContainer().focus({ preventScroll: true }),
+        );
+      }
+    };
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
+      detectRetina: true,
     })
-      .on("tileerror", () => setTileError(true))
+      .on("load", ready)
+      .on("tileerror", () => {
+        setTileError(true);
+        ready();
+      })
       .addTo(map);
     L.control.zoom({ position: "bottomright" }).addTo(map);
     const icon = L.divIcon({
       className: "yard-map-pin",
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
     });
     for (const yard of points) {
       const label = document.createElement("span");
