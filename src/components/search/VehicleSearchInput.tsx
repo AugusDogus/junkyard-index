@@ -1,11 +1,9 @@
 "use client";
 
-import { Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
+import { SearchField } from "~/components/search/SearchField";
 import { cn } from "~/lib/utils";
 import {
   executeSearchCommit,
@@ -140,62 +138,44 @@ export function VehicleSearchInput({
   );
 
   return (
-    <form role="search" onSubmit={handleSubmit} className="min-w-0 flex-1">
+    <form role="search" onSubmit={handleSubmit} className="w-full min-w-0">
       <label className="sr-only" htmlFor="search">
         Search by year, make, model, or VIN
       </label>
-      <div className="group relative">
-        <Search
-          aria-hidden="true"
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-        />
-        <Input
-          id="search"
-          type="text"
-          role="searchbox"
-          inputMode="search"
-          enterKeyHint="search"
-          autoComplete="off"
-          value={inputValue}
-          onChange={(event) => {
-            const value = event.target.value;
-            setInputValue(value);
-            if (debounceRef.current) clearTimeout(debounceRef.current);
-            debounceRef.current = setTimeout(
-              () => void commitSearchValue(value),
-              DEBOUNCE_MS,
-            );
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
-            event.preventDefault();
-            if (debounceRef.current) clearTimeout(debounceRef.current);
-            void commitSearchValue(inputValueRef.current);
-          }}
-          placeholder="Search year, make, model, or VIN"
-          aria-describedby={
-            vinPatternFeedback ? "search-vin-feedback" : "search-hint"
-          }
-          aria-invalid={vinPatternError ? true : undefined}
-          className={cn(
-            "h-11 pr-11 pl-10 text-base md:h-9 md:text-sm",
-            vinPatternError &&
-              "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
-          )}
-        />
-        {inputValue && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Clear search"
-            onClick={clearSearch}
-            className="absolute top-1/2 right-0 size-11 -translate-y-1/2 md:right-1 md:size-7"
-          >
-            <X />
-          </Button>
+      <SearchField
+        id="search"
+        type="text"
+        role="searchbox"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
+        value={inputValue}
+        onChange={(event) => {
+          const value = event.target.value;
+          setInputValue(value);
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          debounceRef.current = setTimeout(
+            () => void commitSearchValue(value),
+            DEBOUNCE_MS,
+          );
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          if (debounceRef.current) clearTimeout(debounceRef.current);
+          void commitSearchValue(inputValueRef.current);
+        }}
+        placeholder="Search year, make, model, or VIN"
+        aria-describedby={
+          vinPatternFeedback ? "search-vin-feedback" : "search-hint"
+        }
+        aria-invalid={vinPatternError ? true : undefined}
+        onClear={clearSearch}
+        className={cn(
+          vinPatternError &&
+            "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
         )}
-      </div>
+      />
       <p id="search-hint" className="sr-only">
         Results update as you type. Press Command K or Control K to focus this
         field.

@@ -123,9 +123,112 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  :is(
+    button,
+    a[href],
+    select,
+    summary,
+    label[for],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"],
+    input[type="file"],
+    input[type="color"],
+    [role="button"],
+    [role="link"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="slider"],
+    [role="combobox"]:not(input)
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+  }
+
+  input[type="file"]:not(:disabled)::file-selector-button {
+    cursor: pointer;
+  }
 }
 
 @utility scrollbar-thin-themed {
   scrollbar-width: thin;
   scrollbar-color: var(--color-muted-foreground) transparent;
+}
+
+.yard-map {
+  z-index: 0;
+  background: var(--muted);
+  font-family: var(--font-sans);
+}
+
+.pricing-plan-border-beam {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 270deg,
+    var(--muted-foreground) 310deg,
+    var(--foreground) 340deg,
+    transparent 360deg
+  );
+  animation: pricing-plan-border 10s linear infinite paused;
+}
+
+.featured-pricing-plan[data-animated="true"] .pricing-plan-border-beam {
+  animation-play-state: running;
+}
+
+@keyframes pricing-plan-border {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-plan-border-beam {
+    animation: none;
+  }
+}
+
+.yard-map-pin {
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--foreground);
+  box-shadow: 0 1px 4px #0003;
+}
+
+.yard-map-pin:hover,
+.yard-map-pin:focus-visible {
+  outline: 3px solid var(--foreground);
+  outline-offset: 3px;
+}
+
+.yard-map .leaflet-tile-pane {
+  filter: grayscale(1);
+}
+
+.dark .yard-map .leaflet-tile-pane {
+  filter: grayscale(1) invert(1) brightness(0.8);
+}
+
+/* Reserve space for the header, search, map controls, and recent vehicles. */
+.homepage-map-canvas {
+  height: clamp(10rem, calc(100svh - 29rem), 24rem);
+}
+
+@media (min-width: 64rem) {
+  .homepage-map-layout {
+    height: clamp(12rem, calc(100svh - 25rem), 32rem);
+  }
+
+  .homepage-map-canvas {
+    height: 100%;
+  }
 }
