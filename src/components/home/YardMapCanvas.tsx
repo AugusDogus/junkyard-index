@@ -1,7 +1,8 @@
 "use client";
 
 import { Minus, Plus, Scan } from "lucide-react";
-import { Map, Overlay, type TileComponentProps } from "pigeon-maps";
+import { Map, Overlay } from "pigeon-maps";
+import { YardMapTile, yardTileProvider } from "./YardMapTile";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import type { HomepageYard } from "~/lib/homepage-inventory";
@@ -11,39 +12,22 @@ import {
   type YardMapView,
 } from "~/lib/yard-map-projection";
 
-function tileProvider(x: number, y: number, zoom: number) {
-  return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
-}
-
-// These tiles are above the fold. Let the browser discover them in server HTML.
-function MapTile({ tile, tileLoaded }: TileComponentProps) {
-  return (
-    <img
-      src={tile.url}
-      width={tile.width}
-      height={tile.height}
-      alt=""
-      draggable={false}
-      decoding="async"
-      onLoad={tileLoaded}
-      onError={tileLoaded}
-      style={{ position: "absolute", left: tile.left, top: tile.top }}
-    />
-  );
-}
-
 export default function YardMapCanvas({
   yards,
+  compact,
   selected,
   onSelect,
 }: {
   yards: HomepageYard[];
+  compact: boolean;
   selected: HomepageYard | null;
   onSelect: (yard: HomepageYard | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map>(null);
-  const [size, setSize] = useState({ width: 900, height: 400 });
+  const [size, setSize] = useState(
+    compact ? { width: 360, height: 240 } : { width: 900, height: 400 },
+  );
   const [view, setView] = useState<YardMapView | null>(null);
   const [tileError, setTileError] = useState(false);
   const overview = getYardMapView(yards, size.width, size.height);
@@ -87,6 +71,7 @@ export default function YardMapCanvas({
     <div
       ref={containerRef}
       className="yard-map focus-visible:ring-foreground relative h-full overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset"
+      style={{ containerType: "size" }}
       role="region"
       tabIndex={0}
       aria-label="Map of indexed junkyard locations"
@@ -122,61 +107,71 @@ export default function YardMapCanvas({
         }
       }}
     >
-      <Map
-        ref={mapRef}
-        defaultWidth={900}
-        defaultHeight={400}
-        center={current.center}
-        zoom={current.zoom}
-        provider={tileProvider}
-        tileComponent={MapTile}
-        boxClassname="yard-map-tiles"
-        animate={false}
-        zoomSnap={false}
-        metaWheelZoom
-        metaWheelZoomWarning="Hold Ctrl or ⌘ while scrolling to zoom"
-        twoFingerDrag
-        onBoundsChanged={({ center, zoom, initial }) => {
-          if (
-            !initial &&
-            (Math.abs(zoom - current.zoom) > 0.000001 ||
-              Math.abs(center[0] - current.center[0]) > 0.000001 ||
-              Math.abs(center[1] - current.center[1]) > 0.000001)
-          ) {
-            setView({ center, zoom });
-          }
+      <div
+        className="absolute top-1/2 left-1/2"
+        style={{
+          width: size.width,
+          height: size.height,
+          translate: "-50% -50%",
+          scale: `min(calc(100cqw / ${size.width}px), calc(100cqh / ${size.height}px))`,
         }}
-        attributionPrefix={false}
-        attribution={
-          <a
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noreferrer"
-          >
-            © OpenStreetMap contributors
-          </a>
-        }
       >
-        {yards.filter(hasMapCoordinates).map((yard) => (
-          <Overlay
-            key={`${yard.source}:${yard.code}`}
-            anchor={[yard.lat, yard.lng]}
-            offset={[12, 12]}
-            className="yard-map-marker"
-          >
-            <button
-              type="button"
-              className="yard-map-pin"
-              aria-label={`${yard.name}, ${yard.city}, ${yard.state}`}
-              aria-pressed={selected === yard}
-              title={`${yard.name} · ${yard.vehicleCount.toLocaleString("en-US")} vehicles`}
-              onClick={() => onSelect(yard)}
+        <Map
+          ref={mapRef}
+          width={size.width}
+          height={size.height}
+          center={current.center}
+          zoom={current.zoom}
+          provider={yardTileProvider}
+          tileComponent={YardMapTile}
+          boxClassname="yard-map-tiles"
+          animate={false}
+          zoomSnap={false}
+          metaWheelZoom
+          metaWheelZoomWarning="Hold Ctrl or ⌘ while scrolling to zoom"
+          twoFingerDrag
+          onBoundsChanged={({ center, zoom, initial }) => {
+            if (
+              !initial &&
+              (Math.abs(zoom - current.zoom) > 0.000001 ||
+                Math.abs(center[0] - current.center[0]) > 0.000001 ||
+                Math.abs(center[1] - current.center[1]) > 0.000001)
+            ) {
+              setView({ center, zoom });
+            }
+          }}
+          attributionPrefix={false}
+          attribution={
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
             >
-              <span aria-hidden="true" />
-            </button>
-          </Overlay>
-        ))}
-      </Map>
+              © OpenStreetMap contributors
+            </a>
+          }
+        >
+          {yards.filter(hasMapCoordinates).map((yard) => (
+            <Overlay
+              key={`${yard.source}:${yard.code}`}
+              anchor={[yard.lat, yard.lng]}
+              offset={[12, 12]}
+              className="yard-map-marker"
+            >
+              <button
+                type="button"
+                className="yard-map-pin"
+                aria-label={`${yard.name}, ${yard.city}, ${yard.state}`}
+                aria-pressed={selected === yard}
+                title={`${yard.name} · ${yard.vehicleCount.toLocaleString("en-US")} vehicles`}
+                onClick={() => onSelect(yard)}
+              >
+                <span aria-hidden="true" />
+              </button>
+            </Overlay>
+          ))}
+        </Map>
+      </div>
       <div className="absolute right-3 bottom-7 flex flex-col gap-2">
         <Button
           type="button"

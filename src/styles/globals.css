@@ -248,6 +248,35 @@
   }
 }
 
+/* Fixed origins avoid layout shifts while the map adopts its measured size. */
+.yard-map .pigeon-overlays {
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.yard-map-tile-part {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  overflow: hidden;
+}
+
+.yard-map-tile-part img {
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  max-width: none;
+}
+
+@media (min-resolution: 1.5dppx) {
+  .yard-map-tile-part img {
+    width: 100%;
+    height: 100%;
+    translate: none !important;
+  }
+}
+
 .yard-map-tiles {
   filter: grayscale(1);
 }

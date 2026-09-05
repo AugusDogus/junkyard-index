@@ -15,10 +15,12 @@ export function YardMap({
   yards,
   vehicleCount,
   approximateLocation,
+  compactMap,
 }: {
   yards: HomepageYard[];
   vehicleCount: number;
   approximateLocation: YardLocation | null;
+  compactMap: boolean;
 }) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
@@ -168,6 +170,7 @@ export function YardMap({
         </div>
         <div className="homepage-map-canvas relative isolate">
           <YardMapCanvas
+            compact={compactMap}
             yards={yards}
             selected={selected}
             onSelect={setSelected}
