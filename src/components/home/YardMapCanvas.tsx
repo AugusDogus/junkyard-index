@@ -140,16 +140,7 @@ export default function YardMapCanvas({
               setView({ center, zoom });
             }
           }}
-          attributionPrefix={false}
-          attribution={
-            <a
-              href="https://www.openstreetmap.org/copyright"
-              target="_blank"
-              rel="noreferrer"
-            >
-              © OpenStreetMap contributors
-            </a>
-          }
+          attribution={false}
         >
           {yards.filter(hasMapCoordinates).map((yard) => (
             <Overlay
@@ -172,6 +163,14 @@ export default function YardMapCanvas({
           ))}
         </Map>
       </div>
+      <a
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noreferrer"
+        className="bg-background text-muted-foreground absolute right-0 bottom-0 px-1.5 py-0.5 text-[10px]"
+      >
+        © OpenStreetMap contributors
+      </a>
       <div className="absolute right-3 bottom-7 flex flex-col gap-2">
         <Button
           type="button"
