@@ -170,6 +170,18 @@
   font-family: var(--font-sans);
 }
 
+.yard-map-overview {
+  background: #ccc;
+}
+
+.dark .yard-map-overview {
+  background: #292929;
+}
+
+.dark .yard-map-land {
+  filter: invert(1) brightness(0.8);
+}
+
 .pricing-plan-border-beam {
   background: conic-gradient(
     from 0deg,
@@ -197,7 +209,10 @@
   }
 }
 
-.yard-map-pin {
+.yard-map-pin::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
   border: 2px solid var(--background);
   border-radius: 50%;
   background: var(--foreground);

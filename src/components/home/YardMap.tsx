@@ -4,9 +4,9 @@ import { ArrowUpRight, ChevronDown, MapPin, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
+import { YardMapOverview } from "~/components/home/YardMapOverview";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Skeleton } from "~/components/ui/skeleton";
 import type { HomepageYard } from "~/lib/homepage-inventory";
 import { useYardLocation } from "~/hooks/use-yard-location";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
@@ -14,7 +14,7 @@ import { cn } from "~/lib/utils";
 
 const YardMapCanvas = dynamic(() => import("./YardMapCanvas"), {
   ssr: false,
-  loading: () => <Skeleton className="h-full min-h-0 w-full rounded-none" />,
+  loading: () => null,
 });
 
 export function YardMap({
@@ -29,6 +29,13 @@ export function YardMap({
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [selected, setSelected] = useState<HomepageYard | null>(null);
+  const [mapState, setMapState] = useState<"overview" | "loading" | "ready">(
+    "overview",
+  );
+  const selectYard = (yard: HomepageYard) => {
+    setSelected(yard);
+    setMapState((state) => (state === "overview" ? "loading" : state));
+  };
   const { location, requestLocation, locating, locationError } =
     useYardLocation(approximateLocation);
   const filtered = sortYardsByDistance(yards, location).filter((yard) =>
@@ -123,7 +130,7 @@ export function YardMap({
                   <button
                     key={`${yard.source}:${yard.code}`}
                     type="button"
-                    onClick={() => setSelected(yard)}
+                    onClick={() => selectYard(yard)}
                     aria-pressed={selected === yard}
                     className={cn(
                       "hover:bg-muted flex w-full items-center gap-3 border-b px-4 py-3 text-left last:border-b-0",
@@ -173,11 +180,31 @@ export function YardMap({
           </div>
         </div>
         <div className="homepage-map-canvas relative isolate">
-          <YardMapCanvas
-            yards={yards}
-            selected={selected}
-            onSelect={setSelected}
-          />
+          {mapState !== "ready" && (
+            <YardMapOverview
+              yards={yards}
+              loading={mapState === "loading"}
+              onSelect={selectYard}
+              onExplore={() => {
+                if (mapState === "overview") setMapState("loading");
+              }}
+            />
+          )}
+          {mapState !== "overview" && (
+            <div
+              className={cn(
+                "absolute inset-0",
+                mapState === "loading" && "invisible",
+              )}
+            >
+              <YardMapCanvas
+                yards={yards}
+                selected={selected}
+                onSelect={selectYard}
+                onReady={() => setMapState("ready")}
+              />
+            </div>
+          )}
           {selected && (
             <div className="bg-card absolute top-4 right-4 left-4 z-10 rounded-lg border p-4 shadow-sm sm:right-auto sm:max-w-80">
               <p className="font-semibold">{selected.name}</p>
