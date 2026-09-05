@@ -3,7 +3,7 @@
 import { ArrowUpRight, ChevronDown, MapPin, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { YardMapOverview } from "~/components/home/YardMapOverview";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -21,10 +21,12 @@ export function YardMap({
   yards,
   vehicleCount,
   approximateLocation,
+  overviewLand,
 }: {
   yards: HomepageYard[];
   vehicleCount: number;
   approximateLocation: YardLocation | null;
+  overviewLand: ReactNode;
 }) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
@@ -183,6 +185,7 @@ export function YardMap({
           {mapState !== "ready" && (
             <YardMapOverview
               yards={yards}
+              land={overviewLand}
               loading={mapState === "loading"}
               onSelect={selectYard}
               onExplore={() => {
