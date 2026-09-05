@@ -55,7 +55,7 @@ export default function YardMapCanvas({
       else map.setView([39, -98], 4);
     };
     const ready = () => {
-      const focusMap = document.activeElement?.id === "explore-yard-map";
+      const focusMap = document.activeElement?.closest(".yard-map-overview");
       onReadyRef.current();
       if (focusMap) {
         requestAnimationFrame(() =>

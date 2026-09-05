@@ -66,7 +66,7 @@ export function YardMapOverview({
         id="explore-yard-map"
         type="button"
         variant="outline"
-        className="bg-background absolute right-3 bottom-3 shadow-sm"
+        className="bg-background absolute top-3 right-3 shadow-sm"
         onClick={onExplore}
         aria-disabled={loading}
       >
