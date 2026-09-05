@@ -3,6 +3,7 @@
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
 import { YardMapTile, yardTileProvider } from "./YardMapTile";
+import { YardMapPin } from "./YardMapPin";
 import {
   type CSSProperties,
   useEffect,
@@ -160,16 +161,11 @@ export default function YardMapCanvas({
               offset={[12, 12]}
               className="yard-map-marker"
             >
-              <button
-                type="button"
-                className="yard-map-pin"
-                aria-label={`${yard.name}, ${yard.city}, ${yard.state}`}
-                aria-pressed={selected === yard}
-                title={`${yard.name} · ${yard.vehicleCount.toLocaleString("en-US")} vehicles`}
-                onClick={() => onSelect(yard)}
-              >
-                <span aria-hidden="true" />
-              </button>
+              <YardMapPin
+                yard={yard}
+                selected={selected === yard}
+                onSelect={() => onSelect(yard)}
+              />
             </Overlay>
           ))}
         </Map>
