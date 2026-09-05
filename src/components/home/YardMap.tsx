@@ -37,7 +37,7 @@ export function YardMap({
     <section
       id="yards"
       aria-labelledby="yard-map-title"
-      className="scroll-mt-20 pb-3"
+      className="scroll-mt-20"
     >
       <div className="bg-card flex items-center justify-between gap-4 rounded-t-lg border border-b-0 px-4 py-3">
         <div>
@@ -197,9 +197,6 @@ export function YardMap({
           )}
         </div>
       </div>
-      <p className="text-muted-foreground mt-2 text-xs text-pretty">
-        Confirm vehicle availability with the yard before visiting.
-      </p>
     </section>
   );
 }
