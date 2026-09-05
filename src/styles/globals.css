@@ -123,9 +123,180 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  :is(
+    button,
+    a[href],
+    select,
+    summary,
+    label[for],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"],
+    input[type="file"],
+    input[type="color"],
+    [role="button"],
+    [role="link"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="slider"],
+    [role="combobox"]:not(input)
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+  }
+
+  input[type="file"]:not(:disabled)::file-selector-button {
+    cursor: pointer;
+  }
 }
 
 @utility scrollbar-thin-themed {
   scrollbar-width: thin;
   scrollbar-color: var(--color-muted-foreground) transparent;
+}
+
+.yard-map {
+  cursor: grab;
+  z-index: 0;
+  background: var(--muted);
+  font-family: var(--font-sans);
+}
+
+.yard-map:active {
+  cursor: grabbing;
+}
+
+.pricing-plan-border-beam {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 270deg,
+    var(--muted-foreground) 310deg,
+    var(--foreground) 340deg,
+    transparent 360deg
+  );
+  animation: pricing-plan-border 10s linear infinite paused;
+}
+
+.featured-pricing-plan[data-animated="true"] .pricing-plan-border-beam {
+  animation-play-state: running;
+}
+
+@keyframes pricing-plan-border {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-plan-border-beam {
+    animation: none;
+  }
+}
+
+.yard-map-marker:hover,
+.yard-map-marker:focus-within,
+.yard-map-marker:has([aria-pressed="true"]) {
+  z-index: 1;
+}
+
+.yard-map-pin {
+  scale: calc(1 / var(--yard-map-scale, 1));
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  outline: none;
+}
+
+.yard-map-pin > span {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--foreground);
+  box-shadow: 0 1px 3px #0004;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+@media (hover: hover) {
+  .yard-map-pin:hover > span {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--foreground) 15%, transparent);
+  }
+}
+
+.yard-map-pin:focus-visible,
+.yard-map-pin[aria-pressed="true"] {
+  outline: 2px solid var(--foreground);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yard-map-pin > span {
+    transition: none;
+  }
+}
+
+/* Fixed origins avoid layout shifts while the map adopts its measured size. */
+.yard-map .pigeon-overlays {
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.yard-map-tile-part {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  overflow: hidden;
+}
+
+.yard-map-tile-part img {
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  max-width: none;
+}
+
+@media (min-resolution: 1.5dppx) {
+  .yard-map-tile-part img {
+    width: 100%;
+    height: 100%;
+    translate: none !important;
+  }
+}
+
+.yard-map-tiles {
+  filter: grayscale(1);
+}
+
+.dark .yard-map-tiles {
+  filter: grayscale(1) invert(1) brightness(0.8);
+}
+
+/* Reserve space for the header, search, map controls, and recent vehicles. */
+.homepage-map-canvas {
+  height: clamp(10rem, calc(100svh - 29rem), 24rem);
+}
+
+@media (min-width: 64rem) {
+  .homepage-map-layout {
+    height: clamp(12rem, calc(100svh - 25rem), 32rem);
+  }
+
+  .homepage-map-canvas {
+    height: 100%;
+  }
 }
