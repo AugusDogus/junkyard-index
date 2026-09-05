@@ -14,7 +14,7 @@ interface HeaderContentProps {
 
 export function HeaderContent({ user, statusData }: HeaderContentProps) {
   return (
-    <header className="bg-card sticky top-0 z-50 border-b shadow-sm">
+    <header className="bg-background sticky top-0 z-50 border-b shadow-sm">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center gap-3 sm:gap-4">
           <div className="flex shrink-0 items-center">
