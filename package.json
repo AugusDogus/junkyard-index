@@ -59,7 +59,10 @@
     "drizzle-kit": "^0.31.8",
     "drizzle-orm": "^0.45.2",
     "effect": "^3.19.19",
+    "embla-carousel-auto-scroll": "8.6.0",
+    "embla-carousel-react": "8.6.0",
     "exponential-backoff": "^3.1.2",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "motion": "^12.26.2",
     "next": "^16.1.3",
@@ -91,6 +94,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.15",
     "@types/bun": "^1.3.9",
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20.14.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

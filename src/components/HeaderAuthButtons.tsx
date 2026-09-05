@@ -14,12 +14,12 @@ interface HeaderAuthButtonsProps {
 
 export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
   const pathname = usePathname();
-  const showPricing = pathname === "/" || pathname === "/home";
-  const isSearchPage = pathname === "/search";
+  const isLandingPage = pathname === "/" || pathname === "/home";
+  const hasPageSearch = isLandingPage || pathname === "/search";
 
   return (
     <div className="flex items-center gap-2">
-      {!user && showPricing && (
+      {!user && isLandingPage && (
         <Button
           asChild
           variant="ghost"
@@ -45,12 +45,12 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           asChild
           variant="outline"
           size="sm"
-          className={cn(!isSearchPage && "hidden sm:inline-flex")}
+          className={cn(!hasPageSearch && "hidden sm:inline-flex")}
         >
           <Link href="/auth/sign-in">Sign in</Link>
         </Button>
       )}
-      {!isSearchPage && (
+      {!hasPageSearch && (
         <Button asChild size="sm">
           <Link href="/search">Search</Link>
         </Button>

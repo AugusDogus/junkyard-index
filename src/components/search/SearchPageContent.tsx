@@ -1276,21 +1276,11 @@ function AlgoliaSearchInner({
           void handleDistancePreferenceConfirm();
         }}
       />
-      <section className="py-8 sm:py-10" aria-labelledby="search-page-title">
-        <h1
-          id="search-page-title"
-          className="max-w-2xl text-3xl font-semibold text-balance sm:text-4xl"
-        >
-          Find the vehicle. Pull the part.
-        </h1>
-        <p className="text-muted-foreground mt-3 max-w-2xl text-pretty">
-          Search connected salvage yard inventory by year, make, model, or VIN.
-        </p>
-      </section>
+      <h1 className="sr-only">Search inventory</h1>
 
       <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-3">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start">
+          <div className="flex flex-col gap-3">
             <ErrorBoundary>
               <VehicleSearchInput
                 vinPattern={vinPattern}

@@ -26,32 +26,29 @@ export default async function PricingPage() {
     <div className="bg-background flex min-h-dvh flex-col">
       <Header />
 
-      <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-muted-foreground text-sm font-medium">Pricing</p>
-            <h1 className="mt-3 text-4xl font-bold tracking-tight text-balance sm:text-5xl">
-              Search free. Upgrade when you want inventory tracked for you.
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+        <div>
+          <div className="mx-auto max-w-xl text-center">
+            <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Pricing
             </h1>
-            <p className="text-muted-foreground mt-4 text-lg text-pretty">
-              Free covers everyday searching. Lite unlocks filters and saved
-              searches. Full adds email and Discord alerts when new matching
-              vehicles arrive.
+            <p className="text-muted-foreground mt-4 text-base text-pretty">
+              Search for free. Add filters, saved searches, or alerts when you
+              need them.
             </p>
           </div>
 
-          <div className="mt-10">
+          <div className="mt-10 sm:mt-12">
             <PricingPlansSection initialIsRegistered={initialIsRegistered} />
           </div>
 
-          <div className="mt-12 rounded-lg border p-6 text-center">
+          <div className="bg-muted/40 mt-16 rounded-2xl border p-8 text-center">
             <h2 className="text-2xl font-semibold tracking-tight">
-              What changes when you upgrade?
+              Keep searching for free.
             </h2>
             <p className="text-muted-foreground mx-auto mt-3 max-w-2xl text-pretty">
-              Search stays free and unlimited. The paid value is continuity:
-              advanced filters, saved searches, and alerts when inventory
-              changes after you leave.
+              Every plan includes unlimited searches. Create a free account to
+              see full results.
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <TrackedPricingButton

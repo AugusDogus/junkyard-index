@@ -49,9 +49,15 @@ export function SearchAccessShell({
 
   if (isPending) {
     return (
-      <div className="container mx-auto space-y-6 px-4 py-8" aria-busy="true">
+      <div
+        className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
+        aria-busy="true"
+      >
         <span className="sr-only">Loading search</span>
-        <Skeleton className="h-12 w-full" />
+        <h1 className="sr-only">Search inventory</h1>
+        <div className="py-3">
+          <Skeleton className="h-11 w-full rounded-md sm:h-10" />
+        </div>
         <Skeleton className="h-64 w-full" />
       </div>
     );
