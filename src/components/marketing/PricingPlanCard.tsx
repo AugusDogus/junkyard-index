@@ -50,11 +50,13 @@ export function PricingPlanCard({
   interval,
   featured,
   cta,
+  heading: Heading,
 }: {
   tier: PlanTier;
   interval: BillingInterval;
   featured: boolean;
   cta: ReactNode;
+  heading: "h2" | "h3";
 }) {
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref);
@@ -80,7 +82,7 @@ export function PricingPlanCard({
         </div>
       )}
       <div className="bg-card relative flex h-full flex-col rounded-[15px] p-6 lg:p-8">
-        <h3 className="text-xl font-semibold">{plan.name}</h3>
+        <Heading className="text-xl font-semibold">{plan.name}</Heading>
         <p className="text-muted-foreground mt-2 min-h-10 text-sm text-pretty">
           {details.description}
         </p>
