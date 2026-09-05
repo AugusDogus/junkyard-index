@@ -1,6 +1,7 @@
 import { type Metadata } from "next";
 import { geolocation } from "@vercel/functions";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { HomeSearchHero } from "~/components/home/HomeSearchHero";
@@ -45,14 +46,18 @@ export async function HomeLandingPage() {
           aria-label="Search junkyard inventory"
         >
           <HomeSearchHero />
-          <YardMap
-            yards={inventory.yards}
-            vehicleCount={vehicleCount}
-            approximateLocation={approximateLocation}
-            overviewLand={<path d={NORTH_AMERICA_LAND} fill="#eeeeee" />}
-          />
+          <Suspense>
+            <YardMap
+              yards={inventory.yards}
+              vehicleCount={vehicleCount}
+              approximateLocation={approximateLocation}
+              overviewLand={<path d={NORTH_AMERICA_LAND} fill="#eeeeee" />}
+            />
+          </Suspense>
         </section>
-        <RecentVehicles vehicles={inventory.recentVehicles} />
+        <Suspense>
+          <RecentVehicles vehicles={inventory.recentVehicles} />
+        </Suspense>
         <HomeFaq />
         <HomePricing />
         <HomeClosingCta />
