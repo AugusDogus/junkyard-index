@@ -6,7 +6,6 @@ import { useRef, type ReactNode } from "react";
 import {
   PLANS,
   formatMonthlyEquivalent,
-  planPrice,
   type BillingInterval,
   type PlanTier,
 } from "~/lib/plans";
@@ -62,7 +61,10 @@ export function PricingPlanCard({
   const inView = useInView(ref);
   const plan = PLANS[tier];
   const details = PLAN_DETAILS[tier];
-  const price = tier === "free" ? 0 : planPrice(tier, interval);
+  const price =
+    tier !== "free" && interval === "annual"
+      ? formatMonthlyEquivalent(tier)
+      : `$${plan.monthlyPrice}`;
 
   return (
     <article
@@ -87,19 +89,15 @@ export function PricingPlanCard({
           {details.description}
         </p>
         <p className="mt-7 flex items-baseline gap-1.5 tabular-nums">
-          <span className="text-4xl font-semibold tracking-tight">
-            ${price}
-          </span>
-          <span className="text-muted-foreground text-sm">
-            / {tier !== "free" && interval === "annual" ? "year" : "month"}
-          </span>
+          <span className="text-4xl font-semibold tracking-tight">{price}</span>
+          <span className="text-muted-foreground text-sm">/ month</span>
         </p>
         <p className="text-muted-foreground mt-2 text-sm tabular-nums">
           {tier === "free"
             ? "Free to use"
             : interval === "annual"
-              ? `${formatMonthlyEquivalent(tier)} / month, billed annually`
-              : `Or $${plan.annualPrice} / year`}
+              ? `$${plan.annualPrice} billed annually`
+              : `$${plan.monthlyPrice * 12} / year, billed monthly`}
         </p>
         <div className="mt-7">{cta}</div>
         <ul className="mt-7 space-y-3 border-t pt-6 text-sm">
