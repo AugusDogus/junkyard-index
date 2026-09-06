@@ -1,6 +1,5 @@
 "use client";
 
-import { Pencil } from "lucide-react";
 import posthog from "posthog-js";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -185,9 +184,9 @@ export function EditSavedSearchDialog({
           type="button"
           variant="ghost"
           size="sm"
+          className="min-h-11"
           aria-label={`Edit saved search ${search.name}`}
         >
-          <Pencil data-icon="inline-start" />
           Edit
         </Button>
       </DialogTrigger>

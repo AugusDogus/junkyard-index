@@ -1,20 +1,11 @@
 "use client";
 
-import { MoreHorizontal, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { toast } from "sonner";
-import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
+import { SavedSearchCard } from "~/components/search/SavedSearchCard";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
-import { SavedSearchCriteria } from "~/components/search/SavedSearchCriteria";
 import { Button } from "~/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyContent,
@@ -23,11 +14,9 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import { Skeleton } from "~/components/ui/skeleton";
-import { SavedSearchAlerts } from "~/components/search/SavedSearchAlerts";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { usePlanAccess } from "~/hooks/use-plan-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
-import { buildSearchUrl } from "~/lib/search-utils";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { api } from "~/trpc/react";
 
@@ -116,29 +105,26 @@ export function SavedSearchSettingsCard() {
       search_id: id,
       source: "settings",
     });
-    deleteSearch.mutate({ id });
+    return deleteSearch.mutateAsync({ id });
   };
 
   const searchCount = searches?.length ?? 0;
 
   return (
     <section aria-labelledby="saved-searches-heading">
-      <div className="flex items-start justify-between gap-6">
-        <div className="max-w-2xl">
-          <h2 id="saved-searches-heading" className="text-xl font-semibold">
-            Saved searches
-          </h2>
-          <p className="text-muted-foreground mt-2 text-sm leading-6">
-            Reopen a vehicle search with its filters intact and choose where
-            new-match alerts arrive.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link href="/search?advanced=1">
-            <Search data-icon="inline-start" />
-            New search
-          </Link>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2">
+        <h2
+          id="saved-searches-heading"
+          className="text-xl font-semibold text-balance"
+        >
+          Saved searches
+        </h2>
+        <Button asChild variant="outline" size="sm" className="min-h-11">
+          <Link href="/search?advanced=1">New search</Link>
         </Button>
+        <p className="text-muted-foreground col-span-2 text-sm leading-6 text-pretty">
+          Open a search, refine its criteria, or choose alerts for new matches.
+        </p>
       </div>
 
       <div className="mt-6">
@@ -181,82 +167,24 @@ export function SavedSearchSettingsCard() {
             {savedSearchesLocked && (
               <SavedSearchUpgradeNotice className="mb-5" />
             )}
-            <div className="border-border divide-y border-y">
-              {searches.map((search) => {
-                return (
-                  <div key={search.id}>
-                    <div className="grid gap-4 py-6">
-                      <div className="flex min-w-0 items-start justify-between gap-3">
-                        {savedSearchesLocked ? (
-                          <span className="text-base font-semibold break-words">
-                            {search.name}
-                          </span>
-                        ) : (
-                          <Link
-                            href={buildSearchUrl(search.query, search.filters)}
-                            aria-label={`Open saved search ${search.name}`}
-                            className="focus-visible:ring-ring self-start rounded-sm text-base font-semibold break-words underline-offset-4 outline-none hover:underline focus-visible:ring-2"
-                          >
-                            {search.name}
-                          </Link>
-                        )}
-                        <div className="flex shrink-0 items-center gap-1">
-                          {!savedSearchesLocked && (
-                            <EditSavedSearchDialog search={search} />
-                          )}
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                aria-label={`Actions for saved search ${search.name}`}
-                              >
-                                <MoreHorizontal />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuGroup>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  disabled={deleteSearch.isPending}
-                                  onSelect={() => remove(search.id)}
-                                >
-                                  <Trash2 />
-                                  Delete saved search
-                                </DropdownMenuItem>
-                              </DropdownMenuGroup>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      <SavedSearchCriteria
-                        query={search.query}
-                        filters={search.filters}
-                      />
-                      {savedSearchesLocked ? (
-                        <span className="text-muted-foreground text-xs">
-                          Alerts are unavailable on your current plan.
-                        </span>
-                      ) : (
-                        <SavedSearchAlerts
-                          searchName={search.name}
-                          emailEnabled={search.emailAlertsEnabled}
-                          discordEnabled={search.discordAlertsEnabled}
-                          disabled={isMutating}
-                          onEmailChange={(enabled) =>
-                            setEmailAlerts(search.id, enabled)
-                          }
-                          onDiscordChange={(enabled) =>
-                            setDiscordAlerts(search.id, enabled)
-                          }
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="grid gap-4">
+              {searches.map((search) => (
+                <SavedSearchCard
+                  key={search.id}
+                  search={search}
+                  locked={savedSearchesLocked}
+                  source="settings"
+                  deleting={deleteSearch.isPending}
+                  togglingAlerts={isMutating}
+                  onDelete={() => remove(search.id)}
+                  onEmailChange={(enabled) =>
+                    setEmailAlerts(search.id, enabled)
+                  }
+                  onDiscordChange={(enabled) =>
+                    setDiscordAlerts(search.id, enabled)
+                  }
+                />
+              ))}
             </div>
           </div>
         )}
