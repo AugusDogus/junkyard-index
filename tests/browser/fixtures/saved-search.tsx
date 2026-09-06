@@ -43,6 +43,7 @@ const search: RouterOutputs["savedSearches"]["list"][number] = {
 function Fixture() {
   const [submission, setSubmission] = useState<unknown>(null);
   const failNext = useRef(parameters.has("fail"));
+  const currentSearch = useRef(search);
   const [queryClient] = useState(() => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -70,15 +71,36 @@ function Fixture() {
                   );
                   return;
                 }
-                setSubmission(op.input);
+                const input = op.input;
+                if (
+                  typeof input === "object" &&
+                  input !== null &&
+                  "enabled" in input &&
+                  typeof input.enabled === "boolean"
+                ) {
+                  if (op.path === "savedSearches.toggleEmailAlerts")
+                    currentSearch.current = {
+                      ...currentSearch.current,
+                      emailAlertsEnabled: input.enabled,
+                    };
+                  if (op.path === "savedSearches.toggleDiscordAlerts")
+                    currentSearch.current = {
+                      ...currentSearch.current,
+                      discordAlertsEnabled: input.enabled,
+                    };
+                }
+                setSubmission({ path: op.path, input: op.input });
               }
               const data =
                 op.path === "savedSearches.list"
-                  ? [search]
+                  ? [currentSearch.current]
                   : op.path === "subscription.getAccountOverview"
                     ? { kind: "active", tier: "full" }
                     : op.path === "user.getNotificationSettings"
-                      ? { hasDiscordLinked: false, discordAppInstalled: false }
+                      ? {
+                          hasDiscordLinked: parameters.has("discord"),
+                          discordAppInstalled: parameters.has("discord"),
+                        }
                       : { id: search.id };
               observer.next({ result: { data } });
               observer.complete();

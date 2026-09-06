@@ -196,6 +196,95 @@ describe("saved search browser flow", () => {
     }, 20_000);
   }
 
+  for (const settings of [false, true]) {
+    for (const width of [390, 1440]) {
+      test(`shows and toggles alert states independently in ${settings ? "Settings" : "saved searches"} at ${width}px`, async () => {
+        const page = await browser.newPage({
+          viewport: { width, height: 900 },
+        });
+        try {
+          await openFixture(page, `?discord=1${settings ? "&settings=1" : ""}`);
+          const alerts = page.getByRole("group", {
+            name: "Alerts for Future donor",
+            exact: true,
+          });
+          const email = alerts.getByRole("switch", {
+            name: "Email alerts for Future donor",
+          });
+          const discord = alerts.getByRole("switch", {
+            name: "Discord alerts for Future donor",
+          });
+          expect(await email.isChecked()).toBe(true);
+          expect(await discord.isChecked()).toBe(false);
+          expect(await alerts.getByText("On", { exact: true }).count()).toBe(1);
+          expect(await alerts.getByText("Off", { exact: true }).count()).toBe(
+            1,
+          );
+          expect(
+            await alerts
+              .getByRole("button", { name: "Edit saved search Future donor" })
+              .count(),
+          ).toBe(0);
+          const editBounds = await page
+            .getByRole("button", { name: "Edit saved search Future donor" })
+            .boundingBox();
+          if (!editBounds)
+            throw new Error("Saved-search edit action is missing");
+          expect(editBounds.x + editBounds.width).toBeLessThanOrEqual(width);
+          await email.click();
+          await alerts
+            .getByRole("switch", {
+              name: "Email alerts for Future donor",
+              checked: false,
+            })
+            .waitFor();
+          expect(await email.isChecked()).toBe(false);
+          expect(await page.locator("#submission").textContent()).toBe(
+            JSON.stringify({
+              path: "savedSearches.toggleEmailAlerts",
+              input: { id: "saved-volvo", enabled: false },
+            }),
+          );
+          await discord.click();
+          await alerts
+            .getByRole("switch", {
+              name: "Discord alerts for Future donor",
+              checked: true,
+            })
+            .waitFor();
+          expect(await discord.isChecked()).toBe(true);
+          expect(await page.locator("#submission").textContent()).toBe(
+            JSON.stringify({
+              path: "savedSearches.toggleDiscordAlerts",
+              input: { id: "saved-volvo", enabled: true },
+            }),
+          );
+          expect(await page.getByRole("dialog").count()).toBe(0);
+          await page
+            .getByRole("button", { name: "Edit saved search Future donor" })
+            .click();
+          expect(
+            await page
+              .getByLabel("All of these words", { exact: true })
+              .inputValue(),
+          ).toBe("wagon");
+          await page
+            .getByRole("button", { name: "Cancel", exact: true })
+            .click();
+          expect(await email.isChecked()).toBe(false);
+          expect(await discord.isChecked()).toBe(true);
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= window.innerWidth,
+            ),
+          ).toBe(true);
+        } finally {
+          await page.close();
+        }
+      }, 20_000);
+    }
+  }
+
   test("preserves complex syntax, validates errors, and discards cancelled changes", async () => {
     const page = await browser.newPage();
     try {

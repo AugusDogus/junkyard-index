@@ -3,7 +3,6 @@
 import {
   Bookmark,
   Lock,
-  Mail,
   MoreHorizontal,
   Search,
   Settings,
@@ -12,6 +11,7 @@ import {
 import Link from "next/link";
 import posthog from "posthog-js";
 import { toast } from "sonner";
+import { SavedSearchAlerts } from "~/components/search/SavedSearchAlerts";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
 import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
 import { Badge } from "~/components/ui/badge";
@@ -39,15 +39,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { DiscordIcon } from "~/components/ui/icons";
 import { Separator } from "~/components/ui/separator";
 import { Skeleton } from "~/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { SavedSearchFilters } from "~/lib/saved-search-filters";
@@ -220,268 +213,189 @@ export function SavedSearchesList({
     deleteMutation.mutate({ id });
   };
 
-  const handleToggleEmailAlerts = (searchId: string, currentState: boolean) => {
-    if (!currentState && !canAttemptAlertInteraction) {
+  const handleToggleEmailAlerts = (searchId: string, enabled: boolean) => {
+    if (enabled && !canAttemptAlertInteraction) {
       void openAlertUpgrade();
       return;
     }
 
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED, {
       search_id: searchId,
-      enabled: !currentState,
+      enabled,
     });
     toggleEmailAlertsMutation.mutate({
       id: searchId,
-      enabled: !currentState,
+      enabled,
     });
   };
 
-  const handleToggleDiscordAlerts = (
-    searchId: string,
-    currentState: boolean,
-  ) => {
-    if (!currentState && !canAttemptAlertInteraction) {
+  const handleToggleDiscordAlerts = (searchId: string, enabled: boolean) => {
+    if (enabled && !canAttemptAlertInteraction) {
       void openAlertUpgrade();
       return;
     }
 
-    if (!currentState && !canUseDiscord) {
+    if (enabled && !canUseDiscord) {
       toast.error("Set up Discord notifications in Settings first");
       return;
     }
 
     posthog.capture(AnalyticsEvents.SAVED_SEARCH_DISCORD_TOGGLED, {
       search_id: searchId,
-      enabled: !currentState,
+      enabled,
     });
     toggleDiscordAlertsMutation.mutate({
       id: searchId,
-      enabled: !currentState,
+      enabled,
     });
   };
 
   const searchCount = savedSearches?.length ?? 0;
 
   return (
-    <TooltipProvider>
-      <Card className={cn("gap-0 overflow-hidden py-0", className)}>
-        <CardHeader className="border-b py-5">
-          <div className="flex items-center gap-3">
-            <div className="bg-secondary flex size-9 items-center justify-center rounded-lg">
-              <Bookmark aria-hidden="true" />
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <CardTitle>Saved searches</CardTitle>
-                {!isLoading && <Badge variant="secondary">{searchCount}</Badge>}
-              </div>
-              <CardDescription>
-                {searchCount === 0
-                  ? "Keep repeat parts hunts within reach."
-                  : "Reopen a search with every filter intact."}
-              </CardDescription>
-            </div>
+    <Card className={cn("gap-0 overflow-hidden py-0", className)}>
+      <CardHeader className="border-b py-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-secondary flex size-9 items-center justify-center rounded-lg">
+            <Bookmark aria-hidden="true" />
           </div>
-          <CardAction>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/settings/searches">
-                <Settings data-icon="inline-start" />
-                <span className="hidden sm:inline">Manage</span>
-                <span className="sr-only sm:hidden">Manage saved searches</span>
-              </Link>
-            </Button>
-          </CardAction>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          {locked && searchCount > 0 && (
-            <SavedSearchUpgradeNotice className="m-4 sm:m-5" />
-          )}
-
-          {isLoading && (
-            <div aria-label="Loading saved searches">
-              {[0, 1, 2].map((index) => (
-                <div key={index}>
-                  {index > 0 && <Separator />}
-                  <div className="flex items-center gap-3 px-4 py-5 sm:px-6">
-                    <Skeleton className="size-10 shrink-0 rounded-lg" />
-                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                      <Skeleton className="h-4 w-36" />
-                      <Skeleton className="h-3 w-52 max-w-full" />
-                    </div>
-                    <Skeleton className="h-8 w-20" />
-                  </div>
-                </div>
-              ))}
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <CardTitle>Saved searches</CardTitle>
+              {!isLoading && <Badge variant="secondary">{searchCount}</Badge>}
             </div>
-          )}
+            <CardDescription>
+              {searchCount === 0
+                ? "Keep repeat parts hunts within reach."
+                : "Reopen a search with every filter intact."}
+            </CardDescription>
+          </div>
+        </div>
+        <CardAction>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/settings/searches">
+              <Settings data-icon="inline-start" />
+              <span className="hidden sm:inline">Manage</span>
+              <span className="sr-only sm:hidden">Manage saved searches</span>
+            </Link>
+          </Button>
+        </CardAction>
+      </CardHeader>
 
-          {!isLoading && searchCount === 0 && (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  {locked ? <Lock /> : <Bookmark />}
-                </EmptyMedia>
-                <EmptyTitle>No saved searches yet</EmptyTitle>
-                <EmptyDescription>
-                  {locked
-                    ? "Lite saves the exact query and filters so you can return to a parts hunt in one click."
-                    : "Run a search, add the filters you need, then choose Save search from the results toolbar."}
-                </EmptyDescription>
-              </EmptyHeader>
-              {locked && (
-                <EmptyContent>
-                  <Button asChild size="sm">
-                    <Link href="/pricing">View Lite</Link>
-                  </Button>
-                </EmptyContent>
-              )}
-            </Empty>
-          )}
+      <CardContent className="p-0">
+        {locked && searchCount > 0 && (
+          <SavedSearchUpgradeNotice className="m-4 sm:m-5" />
+        )}
 
-          {!isLoading && savedSearches && savedSearches.length > 0 && (
-            <div>
-              {savedSearches.map((search, index) => {
-                const filterLabels = getFilterLabels(search.filters);
-                const hasEmail = search.emailAlertsEnabled;
-                const hasDiscord = search.discordAlertsEnabled;
-                const isMutating =
-                  toggleEmailAlertsMutation.isPending ||
-                  toggleDiscordAlertsMutation.isPending;
-                const searchLabel =
-                  search.query || search.filters.vinPattern || "All vehicles";
-                const searchContent = (
-                  <>
-                    <div className="bg-secondary flex size-10 shrink-0 items-center justify-center rounded-lg">
-                      {locked ? (
-                        <Lock aria-hidden="true" />
-                      ) : (
-                        <Search aria-hidden="true" />
-                      )}
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">
-                          {search.name}
-                        </span>
-                        {locked && <Badge variant="outline">Locked</Badge>}
-                      </div>
-                      <span className="text-muted-foreground truncate text-sm">
-                        {searchLabel}
+        {isLoading && (
+          <div aria-label="Loading saved searches">
+            {[0, 1, 2].map((index) => (
+              <div key={index}>
+                {index > 0 && <Separator />}
+                <div className="flex items-center gap-3 px-4 py-5 sm:px-6">
+                  <Skeleton className="size-10 shrink-0 rounded-lg" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-3 w-52 max-w-full" />
+                  </div>
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && searchCount === 0 && (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                {locked ? <Lock /> : <Bookmark />}
+              </EmptyMedia>
+              <EmptyTitle>No saved searches yet</EmptyTitle>
+              <EmptyDescription>
+                {locked
+                  ? "Lite saves the exact query and filters so you can return to a parts hunt in one click."
+                  : "Run a search, add the filters you need, then choose Save search from the results toolbar."}
+              </EmptyDescription>
+            </EmptyHeader>
+            {locked && (
+              <EmptyContent>
+                <Button asChild size="sm">
+                  <Link href="/pricing">View Lite</Link>
+                </Button>
+              </EmptyContent>
+            )}
+          </Empty>
+        )}
+
+        {!isLoading && savedSearches && savedSearches.length > 0 && (
+          <div>
+            {savedSearches.map((search, index) => {
+              const filterLabels = getFilterLabels(search.filters);
+              const hasEmail = search.emailAlertsEnabled;
+              const hasDiscord = search.discordAlertsEnabled;
+              const isMutating =
+                toggleEmailAlertsMutation.isPending ||
+                toggleDiscordAlertsMutation.isPending;
+              const searchLabel =
+                search.query || search.filters.vinPattern || "All vehicles";
+              const searchContent = (
+                <>
+                  <div className="bg-secondary flex size-10 shrink-0 items-center justify-center rounded-lg">
+                    {locked ? (
+                      <Lock aria-hidden="true" />
+                    ) : (
+                      <Search aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-medium">
+                        {search.name}
                       </span>
-                      {filterLabels.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {filterLabels.map((label) => (
-                            <Badge key={label} variant="outline">
-                              {label}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                      {locked && <Badge variant="outline">Locked</Badge>}
                     </div>
-                  </>
-                );
+                    <span className="text-muted-foreground truncate text-sm">
+                      {searchLabel}
+                    </span>
+                    {filterLabels.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {filterLabels.map((label) => (
+                          <Badge key={label} variant="outline">
+                            {label}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
 
-                return (
-                  <div key={search.id}>
-                    {index > 0 && <Separator />}
-                    <div className="hover:bg-muted/40 grid gap-3 px-4 py-4 transition-colors sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
+              return (
+                <div key={search.id}>
+                  {index > 0 && <Separator />}
+                  <div className="grid gap-4 px-4 py-4 sm:px-6">
+                    <div className="flex min-w-0 items-start gap-3">
                       {locked ? (
-                        <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
                           {searchContent}
                         </div>
                       ) : (
                         <Link
                           href={buildSearchUrl(search.query, search.filters)}
-                          className="focus-visible:ring-ring flex min-w-0 items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
+                          className="focus-visible:ring-ring flex min-w-0 flex-1 items-start gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-4"
                           aria-label={`Open saved search ${search.name}`}
                         >
                           {searchContent}
                         </Link>
                       )}
 
-                      <div className="flex items-center justify-end gap-1 pl-13 sm:pl-0">
+                      <div className="flex shrink-0 items-center gap-1">
                         {!locked && (
-                          <>
-                            <EditSavedSearchDialog
-                              search={search}
-                              source="saved_searches_list"
-                            />
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant={hasEmail ? "secondary" : "ghost"}
-                                  size="sm"
-                                  onClick={() =>
-                                    handleToggleEmailAlerts(search.id, hasEmail)
-                                  }
-                                  disabled={isMutating}
-                                  aria-pressed={hasEmail}
-                                  aria-label={
-                                    hasEmail
-                                      ? "Disable email alerts for this search"
-                                      : canAttemptAlertInteraction
-                                        ? "Enable email alerts for this search"
-                                        : "Subscribe to enable email alerts"
-                                  }
-                                >
-                                  <Mail />
-                                  <span className="hidden lg:inline">
-                                    Email
-                                  </span>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {hasEmail
-                                  ? "Email alerts are on"
-                                  : canAttemptAlertInteraction
-                                    ? "Turn on email alerts"
-                                    : "Subscribe to enable email alerts"}
-                              </TooltipContent>
-                            </Tooltip>
-
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant={hasDiscord ? "secondary" : "ghost"}
-                                  size="sm"
-                                  onClick={() =>
-                                    handleToggleDiscordAlerts(
-                                      search.id,
-                                      hasDiscord,
-                                    )
-                                  }
-                                  disabled={isMutating}
-                                  aria-pressed={hasDiscord}
-                                  aria-label={
-                                    hasDiscord
-                                      ? "Disable Discord alerts for this search"
-                                      : !canAttemptAlertInteraction
-                                        ? "Subscribe to enable Discord alerts"
-                                        : !canUseDiscord
-                                          ? "Set up Discord to enable alerts"
-                                          : "Enable Discord alerts for this search"
-                                  }
-                                >
-                                  <DiscordIcon />
-                                  <span className="hidden lg:inline">
-                                    Discord
-                                  </span>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {hasDiscord
-                                  ? "Discord alerts are on"
-                                  : !canAttemptAlertInteraction
-                                    ? "Subscribe to enable Discord alerts"
-                                    : !canUseDiscord
-                                      ? "Set up Discord in Settings first"
-                                      : "Turn on Discord alerts"}
-                              </TooltipContent>
-                            </Tooltip>
-                          </>
+                          <EditSavedSearchDialog
+                            search={search}
+                            source="saved_searches_list"
+                          />
                         )}
 
                         <DropdownMenu>
@@ -510,13 +424,27 @@ export function SavedSearchesList({
                         </DropdownMenu>
                       </div>
                     </div>
+                    {!locked && (
+                      <SavedSearchAlerts
+                        searchName={search.name}
+                        emailEnabled={hasEmail}
+                        discordEnabled={hasDiscord}
+                        disabled={isMutating}
+                        onEmailChange={(enabled) =>
+                          handleToggleEmailAlerts(search.id, enabled)
+                        }
+                        onDiscordChange={(enabled) =>
+                          handleToggleDiscordAlerts(search.id, enabled)
+                        }
+                      />
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </TooltipProvider>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
