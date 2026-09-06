@@ -26,7 +26,6 @@ function Fixture() {
           states: ["IA", "NE"],
           salvageYards: ["Lincoln", "Omaha"],
         }}
-        yearRangeLimits={{ min: 1900, max: 2027 }}
         canUseAdvancedFilters
         booleanOrSearchReady
         onSearch={setSubmission}

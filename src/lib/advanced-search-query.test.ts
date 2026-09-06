@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  getAdvancedSearchQueryFields,
   buildAdvancedSearchFilters,
   buildAdvancedSearchQuery,
   buildAdvancedSearchTokens,
@@ -8,6 +9,38 @@ import {
 } from "./advanced-search-query";
 
 describe("advanced search query", () => {
+  test("restores guided fields when reopening a saved Boolean query", () => {
+    const fields = {
+      allWords: "pickup truck",
+      exactPhrase: "crew cab",
+      anyWords: "Ford, Chevrolet, Ram",
+      excludedWords: "diesel, damaged",
+    };
+    expect(
+      getAdvancedSearchQueryFields(buildAdvancedSearchQuery(fields)),
+    ).toEqual(fields);
+  });
+
+  test("keeps queries the guided fields cannot express in syntax mode", () => {
+    for (const query of [
+      "(Ford OR Ram) (diesel OR gasoline)",
+      '"crew cab" "long bed"',
+      '!"crew cab"',
+      '(chev"rolet OR Ford)',
+      '("Land Rover" OR Volvo)',
+      '"unfinished',
+    ]) {
+      expect(getAdvancedSearchQueryFields(query)).toBeNull();
+    }
+  });
+
+  test("restores ordinary and empty searches without adding syntax", () => {
+    expect(getAdvancedSearchQueryFields("volvo wagon")?.allWords).toBe(
+      "volvo wagon",
+    );
+    expect(getAdvancedSearchQueryFields("")?.allWords).toBe("");
+  });
+
   test("builds the readable power-user syntax from form fields", () => {
     expect(
       buildAdvancedSearchQuery({

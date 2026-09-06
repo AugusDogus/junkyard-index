@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpDown,
   Calendar,
@@ -30,6 +29,9 @@ import {
   type AdvancedSearchSubmission,
 } from "~/components/search/AdvancedSearchDialog";
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
+import { InventoryFilterFeedback } from "~/components/search/InventoryFilterFeedback";
+import { useInventoryFilterOptions } from "~/hooks/use-inventory-filter-options";
+import { resolveSearchCommit } from "~/lib/search-commit";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
   clearPendingSaveSearch,
@@ -45,7 +47,6 @@ import {
   SearchResultsPanel,
 } from "~/components/search/SearchResultsPanel";
 import { Button } from "~/components/ui/button";
-import { Alert, AlertDescription } from "~/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -74,8 +75,7 @@ import {
 } from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
-import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
+import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -336,8 +336,14 @@ function AlgoliaSearchInner({
     useState<"granted" | "denied" | "prompt" | "unsupported">("unsupported");
   const [showDistancePreferenceDialog, setShowDistancePreferenceDialog] =
     useState(false);
-  const [mobileAdvancedSearchOpen, setMobileAdvancedSearchOpen] =
-    useState(false);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [advancedSearchParam, setAdvancedSearchParam] =
+    useQueryState("advanced");
+  useEffect(() => {
+    if (advancedSearchParam !== "1") return;
+    setAdvancedSearchOpen(true);
+    void setAdvancedSearchParam(null);
+  }, [advancedSearchParam, setAdvancedSearchParam]);
   const [pendingDistanceSort, setPendingDistanceSort] = useState(false);
   const [selectedDistanceMode, setSelectedDistanceMode] = useState<
     "auto" | "zip"
@@ -624,12 +630,9 @@ function AlgoliaSearchInner({
     }),
     [makeItems, colorItems, stateItems, locationItems],
   );
-  const inventoryFilterOptions = useQuery({
-    queryKey: ["inventory-filter-options"],
-    queryFn: () => InventoryFilterOptions.load(getSearchClient(false)),
-    enabled: canUseAdvancedFilters,
-    staleTime: 5 * 60 * 1000,
-  });
+  const inventoryFilterOptions = useInventoryFilterOptions(
+    canUseAdvancedFilters,
+  );
 
   // Selected filters
   const selectedMakes = useMemo(
@@ -1019,14 +1022,25 @@ function AlgoliaSearchInner({
   );
 
   const handleAdvancedSearch = useCallback(
-    (submission: AdvancedSearchSubmission) => {
+    async (submission: AdvancedSearchSubmission) => {
+      const commit = resolveSearchCommit(
+        submission.query,
+        vinPatternIndexReady,
+      );
+      if (commit.kind === "invalid-vin") return;
+      if (vinPattern || commit.kind === "vin") {
+        await handleSearchModeChange({
+          query: commit.kind === "query" ? commit.value || null : null,
+          vinPattern: commit.kind === "vin" ? commit.value : null,
+        });
+      }
       const hasYearRange =
         submission.yearRange[0] !== yearMin ||
         submission.yearRange[1] !== yearMax;
 
       setIndexUiState((previous) => ({
         ...previous,
-        query: submission.query,
+        query: commit.kind === "query" ? commit.value : "",
         sortBy: getSearchSortIndex(submission.sortBy),
         refinementList: {
           make: submission.makes,
@@ -1042,7 +1056,14 @@ function AlgoliaSearchInner({
           : undefined,
       }));
     },
-    [setIndexUiState, yearMax, yearMin],
+    [
+      setIndexUiState,
+      yearMax,
+      yearMin,
+      vinPattern,
+      vinPatternIndexReady,
+      handleSearchModeChange,
+    ],
   );
 
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
@@ -1152,7 +1173,7 @@ function AlgoliaSearchInner({
     },
   ) => (
     <AdvancedSearchDialog
-      query={query}
+      query={vinPattern || query}
       makes={selectedMakes}
       colors={selectedColors}
       states={selectedStates}
@@ -1162,32 +1183,15 @@ function AlgoliaSearchInner({
       sortBy={sortBy}
       filterOptions={inventoryFilterOptions.data}
       filterOptionsFeedback={
-        inventoryFilterOptions.isPending ? (
-          <p className="text-muted-foreground mt-3 text-sm" role="status">
-            Loading inventory filter options…
-          </p>
-        ) : inventoryFilterOptions.isError ? (
-          <Alert className="mt-3" variant="destructive">
-            <AlertDescription>
-              <p>
-                Could not load inventory filter options. Your selections are
-                preserved.
-              </p>
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                onClick={() => void inventoryFilterOptions.refetch()}
-              >
-                Retry loading filters
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : undefined
+        <InventoryFilterFeedback
+          isPending={inventoryFilterOptions.isPending}
+          isError={inventoryFilterOptions.isError}
+          retry={() => void inventoryFilterOptions.refetch()}
+        />
       }
-      yearRangeLimits={{ min: yearMin, max: yearMax }}
       canUseAdvancedFilters={canUseAdvancedFilters}
       booleanOrSearchReady={booleanOrSearchReady}
+      vinPatternSearchReady={vinPatternIndexReady}
       triggerClassName={triggerClassName}
       {...(controlledState
         ? { ...controlledState, showTrigger: false }
@@ -1198,7 +1202,7 @@ function AlgoliaSearchInner({
 
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
-      onAdvancedSearch={() => setMobileAdvancedSearchOpen(true)}
+      onAdvancedSearch={() => setAdvancedSearchOpen(true)}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
@@ -1367,11 +1371,10 @@ function AlgoliaSearchInner({
           void handleDistancePreferenceConfirm();
         }}
       />
-      {isMobile &&
-        renderAdvancedSearchDialog(undefined, {
-          open: mobileAdvancedSearchOpen,
-          onOpenChange: setMobileAdvancedSearchOpen,
-        })}
+      {renderAdvancedSearchDialog(undefined, {
+        open: advancedSearchOpen,
+        onOpenChange: setAdvancedSearchOpen,
+      })}
       <h1 className="sr-only">Search inventory</h1>
 
       <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -1388,9 +1391,18 @@ function AlgoliaSearchInner({
             {workspaceActions}
           </div>
 
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="self-start px-0"
+            onClick={() => setAdvancedSearchOpen(true)}
+          >
+            Advanced search
+          </Button>
+
           {!isMobile && showFilters && (
             <DesktopFiltersBar
-              advancedSearchControl={renderAdvancedSearchDialog("md:min-h-9")}
               activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
               makes={selectedMakes}

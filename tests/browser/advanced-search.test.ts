@@ -68,11 +68,19 @@ describe("advanced search browser interactions", () => {
             .getByRole("combobox", { name: "Order results by" })
             .textContent(),
         ).toBe("Oldest First");
+        await page
+          .getByRole("button", { name: "Make 1 selected", exact: true })
+          .click();
         expect(
           await page
             .getByRole("checkbox", { name: "Saab", exact: true })
             .isChecked(),
         ).toBe(true);
+        for (const section of ["Color", "State", "Salvage yard"]) {
+          await page
+            .getByRole("button", { name: section, exact: true })
+            .click();
+        }
         for (const name of ["Ford", "Honda", "Red", "NE", "Omaha"]) {
           await page.getByRole("checkbox", { name, exact: true }).check();
         }
@@ -83,6 +91,7 @@ describe("advanced search browser interactions", () => {
         expect(submission).toBe(
           JSON.stringify({
             query: "no-matching-vehicle",
+            queryMode: "keywords",
             makes: ["Saab", "Ford", "Honda"],
             colors: ["Red"],
             states: ["NE"],

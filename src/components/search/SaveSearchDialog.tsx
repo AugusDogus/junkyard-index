@@ -4,6 +4,13 @@ import { Bookmark, ChevronDown, ExternalLink, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { InventoryFilterFeedback } from "~/components/search/InventoryFilterFeedback";
+import { SearchCriteriaFields } from "~/components/search/SearchCriteriaFields";
+import { SearchEditorContent } from "~/components/search/SearchEditorContent";
+import { SavedSearchCriteria } from "~/components/search/SavedSearchCriteria";
+import { useInventoryFilterOptions } from "~/hooks/use-inventory-filter-options";
+import { SearchCriteria } from "~/lib/search-criteria";
+import { FieldError } from "~/components/ui/field";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -118,6 +125,17 @@ export function SaveSearchDialog({
     return false;
   });
   const [name, setName] = useState("");
+  const [criteria, setCriteria] = useState(() =>
+    SearchCriteria.fromSavedSearch(query, {
+      ...filters,
+      sources: filters.sources?.filter(isIngestionSource),
+    }),
+  );
+  const [editingCriteria, setEditingCriteria] = useState(false);
+  const [formError, setFormError] = useState<string>();
+  const [content, setContent] = useState<HTMLDivElement | null>(null);
+  const suggestions = useInventoryFilterOptions(open && editingCriteria);
+  const parsedCriteria = SearchCriteria.toSavedSearch(criteria);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [discordEnabled, setDiscordEnabled] = useState(false);
@@ -180,9 +198,6 @@ export function SaveSearchDialog({
           old ? [...old, optimisticSearch] : [optimisticSearch],
         );
 
-        setOpen(false);
-        resetForm();
-
         return { previousSearches };
       }
       return {};
@@ -215,21 +230,25 @@ export function SaveSearchDialog({
         });
         return;
       }
-      toast.error(error.message || "Failed to save search");
+      setFormError(
+        error.message ||
+          "Your search could not be saved. Your edits are preserved. Please try again.",
+      );
       if (canCreateWithSelectedFeatures) {
         setOpen(true);
       }
     },
     onSuccess: async (_data, variables) => {
       posthog.capture(AnalyticsEvents.SAVED_SEARCH_CREATED, {
-        query,
-        search_name: variables.name,
+        has_query: variables.query.trim().length > 0,
         email_alerts_enabled: variables.emailAlertsEnabled ?? false,
         discord_alerts_enabled: variables.discordAlertsEnabled ?? false,
-        has_sources_filter: (filters.sources?.length ?? 0) > 0,
+        has_sources_filter: (variables.filters.sources?.length ?? 0) > 0,
       });
 
-      toast.success("Search saved!");
+      toast.success("Search saved");
+      setOpen(false);
+      resetForm();
     },
     onSettled: () => {
       void utils.savedSearches.list.invalidate();
@@ -250,27 +269,15 @@ export function SaveSearchDialog({
     const enableEmail = notificationsEnabled && emailEnabled;
     const enableDiscord =
       notificationsEnabled && discordEnabled && !!hasDiscordSetup;
-    const normalizedSources = (filters.sources ?? []).filter(isIngestionSource);
-    const restFilters = {
-      vinPattern: filters.vinPattern,
-      makes: filters.makes,
-      colors: filters.colors,
-      states: filters.states,
-      salvageYards: filters.salvageYards,
-      minYear: filters.minYear,
-      maxYear: filters.maxYear,
-      sortBy: filters.sortBy,
-    };
+    const parsed = SearchCriteria.toSavedSearch(criteria);
+    if (!parsed.success) {
+      setFormError(parsed.error);
+      return;
+    }
 
     createMutation.mutate({
       name: name.trim(),
-      query,
-      filters: {
-        ...restFilters,
-        ...(filters.sources && {
-          sources: normalizedSources.length > 0 ? normalizedSources : undefined,
-        }),
-      },
+      ...parsed.data,
       emailAlertsEnabled: enableEmail,
       discordAlertsEnabled: enableDiscord,
     });
@@ -313,9 +320,7 @@ export function SaveSearchDialog({
       size={compact || iconOnly ? "sm" : "default"}
       className={compact || iconOnly ? "h-8 text-xs" : ""}
       aria-label={iconOnly ? "Save search" : undefined}
-      disabled={
-        disabled || (!query && !filters.vinPattern) || isNavigatingToAuth
-      }
+      disabled={disabled || isNavigatingToAuth}
       onClick={(e) => {
         if (!isLoggedIn) {
           e.preventDefault();
@@ -332,7 +337,7 @@ export function SaveSearchDialog({
     return (
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Unlock Saved Searches</DialogTitle>
             <DialogDescription>
@@ -374,208 +379,253 @@ export function SaveSearchDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={(newOpen) => !isSaving && setOpen(newOpen)}
+      onOpenChange={(newOpen) => {
+        if (isSaving) return;
+        if (newOpen) {
+          setCriteria(
+            SearchCriteria.fromSavedSearch(query, {
+              ...filters,
+              sources: filters.sources?.filter(isIngestionSource),
+            }),
+          );
+          setEditingCriteria(false);
+          setFormError(undefined);
+        }
+        setOpen(newOpen);
+      }}
     >
       <DialogTrigger asChild>{dialogTrigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Save Search</DialogTitle>
+      <SearchEditorContent
+        ref={setContent}
+        className={editingCriteria ? undefined : "sm:max-w-lg"}
+      >
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 text-left sm:px-6">
+          <DialogTitle>Save search</DialogTitle>
           <DialogDescription>
             Save this search to revisit it later.
             {!canAttemptAlertInteraction &&
               ` Alerts are included in the Full plan ($${PLANS.full.monthlyPrice}/mo).`}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          {/* Search Name */}
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              placeholder="e.g., Honda Civic 2018+"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave();
-              }}
-            />
-          </div>
-
-          {/* Search Details */}
-          <div className="text-muted-foreground text-sm">
-            <p>
-              <strong>Query:</strong> {query || "(empty)"}
-            </p>
-            {filters.vinPattern && (
-              <p>
-                <strong>VIN pattern:</strong> {filters.vinPattern}
-              </p>
-            )}
-            {filters.makes && filters.makes.length > 0 && (
-              <p>
-                <strong>Makes:</strong> {filters.makes.join(", ")}
-              </p>
-            )}
-            {filters.colors && filters.colors.length > 0 && (
-              <p>
-                <strong>Colors:</strong> {filters.colors.join(", ")}
-              </p>
-            )}
-            {filters.states && filters.states.length > 0 && (
-              <p>
-                <strong>States:</strong> {filters.states.join(", ")}
-              </p>
-            )}
-            {filters.sources && filters.sources.length > 0 && (
-              <p>
-                <strong>Sources:</strong> {filters.sources.join(", ")}
-              </p>
-            )}
-          </div>
-
-          {/* Notifications Section */}
-          <Collapsible
-            open={notificationsExpanded}
-            onOpenChange={setNotificationsExpanded}
-            className="rounded-lg border"
-          >
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="notifications"
-                  checked={notificationsEnabled}
-                  onCheckedChange={handleNotificationsToggle}
-                />
-                <div>
-                  <Label
-                    htmlFor="notifications"
-                    className="cursor-pointer font-medium"
-                  >
-                    Enable notifications
-                    {!canAttemptAlertInteraction && (
-                      <span className="text-muted-foreground ml-1.5 text-sm font-normal">
-                        (${PLANS.full.monthlyPrice}/mo)
-                      </span>
-                    )}
-                  </Label>
-                  <p className="text-muted-foreground text-xs">
-                    Get alerts when new vehicles match
-                  </p>
-                </div>
-              </div>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  disabled={!notificationsEnabled}
-                >
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 transition-transform",
-                      notificationsExpanded && "rotate-180",
-                    )}
-                  />
-                  <span className="sr-only">Toggle notification options</span>
-                </Button>
-              </CollapsibleTrigger>
+        <div className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
+          <fieldset disabled={isSaving} className="flex min-w-0 flex-col gap-6">
+            {/* Search Name */}
+            <div className="grid gap-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g., Honda Civic 2018+"
+                value={name}
+                maxLength={100}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSave();
+                }}
+              />
             </div>
 
-            <CollapsibleContent>
-              <div className="space-y-3 border-t px-4 pt-3 pb-4">
-                {/* Email Option */}
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="email-alerts"
-                    checked={emailEnabled}
-                    onCheckedChange={(checked) =>
-                      setEmailEnabled(checked === true)
-                    }
-                    disabled={!notificationsEnabled}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Mail
-                      className={cn(
-                        "h-4 w-4",
-                        !notificationsEnabled && "text-muted-foreground",
-                      )}
+            <Collapsible
+              open={editingCriteria}
+              onOpenChange={setEditingCriteria}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="font-medium">Search criteria</h3>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    {editingCriteria
+                      ? "Done editing criteria"
+                      : "Edit criteria"}
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              {!editingCriteria && (
+                <div className="mt-4">
+                  {parsedCriteria.success ? (
+                    <SavedSearchCriteria {...parsedCriteria.data} />
+                  ) : (
+                    <FieldError>{parsedCriteria.error}</FieldError>
+                  )}
+                </div>
+              )}
+              <CollapsibleContent className="pt-6">
+                <SearchCriteriaFields
+                  value={criteria}
+                  onChange={(next) => {
+                    setCriteria(next);
+                    setFormError(undefined);
+                  }}
+                  filterOptions={suggestions.data}
+                  portalContainer={content}
+                  filterOptionsFeedback={
+                    <InventoryFilterFeedback
+                      isPending={suggestions.isPending}
+                      isError={suggestions.isError}
+                      retry={() => void suggestions.refetch()}
                     />
+                  }
+                />
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Notifications Section */}
+            <Collapsible
+              open={notificationsExpanded}
+              onOpenChange={setNotificationsExpanded}
+              className="rounded-lg border"
+            >
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="notifications"
+                    checked={notificationsEnabled}
+                    onCheckedChange={handleNotificationsToggle}
+                  />
+                  <div>
                     <Label
-                      htmlFor="email-alerts"
-                      className={cn(
-                        "cursor-pointer text-sm",
-                        !notificationsEnabled && "text-muted-foreground",
-                      )}
+                      htmlFor="notifications"
+                      className="cursor-pointer font-medium"
                     >
-                      Email
+                      Enable notifications
+                      {!canAttemptAlertInteraction && (
+                        <span className="text-muted-foreground ml-1.5 text-sm font-normal">
+                          (${PLANS.full.monthlyPrice}/mo)
+                        </span>
+                      )}
                     </Label>
+                    <p className="text-muted-foreground text-xs">
+                      Get alerts when new vehicles match
+                    </p>
                   </div>
                 </div>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    disabled={!notificationsEnabled}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        notificationsExpanded && "rotate-180",
+                      )}
+                    />
+                    <span className="sr-only">Toggle notification options</span>
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
 
-                {/* Discord Option */}
-                <div className="flex items-center justify-between">
+              <CollapsibleContent>
+                <div className="space-y-3 border-t px-4 pt-3 pb-4">
+                  {/* Email Option */}
                   <div className="flex items-center gap-3">
                     <Checkbox
-                      id="discord-alerts"
-                      checked={discordEnabled}
+                      id="email-alerts"
+                      checked={emailEnabled}
                       onCheckedChange={(checked) =>
-                        setDiscordEnabled(checked === true)
+                        setEmailEnabled(checked === true)
                       }
-                      disabled={!notificationsEnabled || !hasDiscordSetup}
+                      disabled={!notificationsEnabled}
                     />
                     <div className="flex items-center gap-2">
-                      <DiscordIcon
+                      <Mail
                         className={cn(
                           "h-4 w-4",
-                          (!notificationsEnabled || !hasDiscordSetup) &&
-                            "text-muted-foreground",
+                          !notificationsEnabled && "text-muted-foreground",
                         )}
                       />
                       <Label
-                        htmlFor="discord-alerts"
+                        htmlFor="email-alerts"
                         className={cn(
                           "cursor-pointer text-sm",
-                          (!notificationsEnabled || !hasDiscordSetup) &&
-                            "text-muted-foreground",
+                          !notificationsEnabled && "text-muted-foreground",
                         )}
                       >
-                        Discord
+                        Email
                       </Label>
                     </div>
                   </div>
+
+                  {/* Discord Option */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="discord-alerts"
+                        checked={discordEnabled}
+                        onCheckedChange={(checked) =>
+                          setDiscordEnabled(checked === true)
+                        }
+                        disabled={!notificationsEnabled || !hasDiscordSetup}
+                      />
+                      <div className="flex items-center gap-2">
+                        <DiscordIcon
+                          className={cn(
+                            "h-4 w-4",
+                            (!notificationsEnabled || !hasDiscordSetup) &&
+                              "text-muted-foreground",
+                          )}
+                        />
+                        <Label
+                          htmlFor="discord-alerts"
+                          className={cn(
+                            "cursor-pointer text-sm",
+                            (!notificationsEnabled || !hasDiscordSetup) &&
+                              "text-muted-foreground",
+                          )}
+                        >
+                          Discord
+                        </Label>
+                      </div>
+                    </div>
+                    {!hasDiscordSetup && (
+                      <Link
+                        href="/settings/notifications"
+                        className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
+                      >
+                        Setup
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
+
                   {!hasDiscordSetup && (
-                    <Link
-                      href="/settings/notifications"
-                      className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
-                    >
-                      Setup
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
+                    <p className="text-muted-foreground pl-6 text-xs">
+                      Connect Discord in{" "}
+                      <Link
+                        href="/settings/notifications"
+                        className="hover:text-foreground underline"
+                      >
+                        notification settings
+                      </Link>{" "}
+                      to enable Discord notifications.
+                    </p>
                   )}
                 </div>
-
-                {!hasDiscordSetup && (
-                  <p className="text-muted-foreground pl-6 text-xs">
-                    Connect Discord in{" "}
-                    <Link
-                      href="/settings/notifications"
-                      className="hover:text-foreground underline"
-                    >
-                      notification settings
-                    </Link>{" "}
-                    to enable Discord notifications.
-                  </p>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+              </CollapsibleContent>
+            </Collapsible>
+          </fieldset>
         </div>
-        <DialogFooter>
-          <Button onClick={handleSave} disabled={!name.trim() || isSaving}>
-            {createMutation.isPending ? "Saving..." : "Save Search"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+        <div className="shrink-0 border-t px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          {formError && (
+            <FieldError role="alert" className="mb-3">
+              {formError}
+            </FieldError>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={!name.trim() || isSaving}>
+              {isSaving ? "Saving…" : "Save search"}
+            </Button>
+          </DialogFooter>
+        </div>
+      </SearchEditorContent>
     </Dialog>
   );
 }

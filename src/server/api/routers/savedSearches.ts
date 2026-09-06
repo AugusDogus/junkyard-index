@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
 import {
   filtersSchema,
   parseSavedSearchFilters,
@@ -28,6 +29,12 @@ function planGateError(feature: SavedSearchGateFeature): PlanGateError {
       : "Email and Discord alerts are included in the Full plan. Upgrade at /pricing to enable alerts.";
   return new PlanGateError(feature, message);
 }
+
+const savedQuerySchema = z.string().superRefine((query, context) => {
+  const parsed = parseAdvancedSearchQuery(query);
+  if (!parsed.success)
+    context.addIssue({ code: z.ZodIssueCode.custom, message: parsed.error });
+});
 
 async function getAuthoritativePlanTier(userId: string) {
   try {
@@ -70,7 +77,7 @@ export const savedSearchesRouter = createTRPCRouter({
     .input(
       z.object({
         name: z.string().min(1).max(100),
-        query: z.string(),
+        query: savedQuerySchema,
         filters: filtersSchema,
         emailAlertsEnabled: z.boolean().optional(),
         discordAlertsEnabled: z.boolean().optional(),
@@ -137,7 +144,7 @@ export const savedSearchesRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         name: z.string().min(1).max(100),
-        query: z.string(),
+        query: savedQuerySchema,
         filters: filtersSchema,
       }),
     )
