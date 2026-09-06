@@ -4,7 +4,10 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { SearchField } from "~/components/search/SearchField";
-import { hasAdvancedSearchSyntax, parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
+import {
+  hasAdvancedSearchSyntax,
+  parseAdvancedSearchQuery,
+} from "~/lib/advanced-search-query";
 import { cn } from "~/lib/utils";
 import {
   executeSearchCommit,

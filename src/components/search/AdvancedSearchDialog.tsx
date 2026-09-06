@@ -45,14 +45,8 @@ import {
   type AdvancedSearchQueryFields,
 } from "~/lib/advanced-search-query";
 import { cn } from "~/lib/utils";
+import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 import type { DataSource } from "~/lib/types";
-
-interface FilterOptions {
-  makes: string[];
-  colors: string[];
-  states: string[];
-  salvageYards: string[];
-}
 
 interface AdvancedSearchFilters {
   makes: string[];
@@ -70,7 +64,8 @@ export interface AdvancedSearchSubmission extends AdvancedSearchFilters {
 
 interface AdvancedSearchDialogProps extends AdvancedSearchFilters {
   query: string;
-  filterOptions: FilterOptions;
+  filterOptions: InventoryFilterOptions | undefined;
+  filterOptionsFeedback?: React.ReactNode;
   yearRangeLimits: { min: number; max: number };
   canUseAdvancedFilters: boolean;
   booleanOrSearchReady: boolean;
@@ -154,6 +149,7 @@ export function AdvancedSearchDialog({
   yearRange,
   sortBy,
   filterOptions,
+  filterOptionsFeedback,
   yearRangeLimits,
   canUseAdvancedFilters,
   booleanOrSearchReady,
@@ -164,6 +160,9 @@ export function AdvancedSearchDialog({
   onSearch,
 }: AdvancedSearchDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
+  const [dialogContent, setDialogContent] = useState<HTMLDivElement | null>(
+    null,
+  );
   const open = controlledOpen ?? internalOpen;
   const wasOpen = useRef(false);
   const [queryFields, setQueryFields] =
@@ -179,6 +178,10 @@ export function AdvancedSearchDialog({
     sortBy,
   });
   const [queryError, setQueryError] = useState<string | null>(null);
+  const availableFilters = InventoryFilterOptions.withSelected(
+    filterOptions,
+    draftFilters,
+  );
 
   const initializeDraft = useCallback(() => {
     const initialFields = { ...EMPTY_QUERY_FIELDS, allWords: query };
@@ -318,7 +321,10 @@ export function AdvancedSearchDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent
+        ref={setDialogContent}
+        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
+      >
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -449,7 +455,7 @@ export function AdvancedSearchDialog({
                     <SelectTrigger id="advanced-sort" className="mt-2 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent container={dialogContent}>
                       <SelectGroup>
                         {SEARCH_SORT_OPTIONS.map((option) => (
                           <SelectItem key={option.key} value={option.key}>
@@ -471,16 +477,17 @@ export function AdvancedSearchDialog({
                 Inventory filters
               </h3>
               <p className="text-muted-foreground mt-1 text-sm text-pretty">
-                Narrow the search to vehicles that fit the pull you are
-                planning.
+                Choose from all indexed inventory, even when your current search
+                has no matches. Saved searches can match future arrivals.
               </p>
+              {filterOptionsFeedback}
 
               <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <FilterPanel title="Make">
                   <SearchableCheckboxList
                     name="advanced-make"
                     label="Make"
-                    options={filterOptions.makes}
+                    options={availableFilters.makes}
                     selected={draftFilters.makes}
                     onChange={(nextMakes) =>
                       setDraftFilters((current) => ({
@@ -509,7 +516,7 @@ export function AdvancedSearchDialog({
                   <SearchableCheckboxList
                     name="advanced-state"
                     label="State"
-                    options={filterOptions.states}
+                    options={availableFilters.states}
                     selected={draftFilters.states}
                     onChange={(nextStates) =>
                       setDraftFilters((current) => ({
@@ -525,7 +532,7 @@ export function AdvancedSearchDialog({
                   <SearchableCheckboxList
                     name="advanced-yard"
                     label="Salvage yard"
-                    options={filterOptions.salvageYards}
+                    options={availableFilters.salvageYards}
                     selected={draftFilters.salvageYards}
                     onChange={(nextYards) =>
                       setDraftFilters((current) => ({
@@ -541,7 +548,7 @@ export function AdvancedSearchDialog({
                   <SearchableCheckboxList
                     name="advanced-color"
                     label="Color"
-                    options={filterOptions.colors}
+                    options={availableFilters.colors}
                     selected={draftFilters.colors}
                     onChange={(nextColors) =>
                       setDraftFilters((current) => ({

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpDown,
   Calendar,
@@ -43,6 +44,7 @@ import {
   SearchResultsPanel,
 } from "~/components/search/SearchResultsPanel";
 import { Button } from "~/components/ui/button";
+import { Alert, AlertDescription } from "~/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -73,7 +75,8 @@ import {
 } from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
+import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -627,6 +630,12 @@ function AlgoliaSearchInner({
     }),
     [makeItems, colorItems, stateItems, locationItems],
   );
+  const inventoryFilterOptions = useQuery({
+    queryKey: ["inventory-filter-options"],
+    queryFn: () => InventoryFilterOptions.load(getSearchClient(false)),
+    enabled: canUseAdvancedFilters,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Selected filters
   const selectedMakes = useMemo(
@@ -1157,7 +1166,31 @@ function AlgoliaSearchInner({
       sources={selectedSources}
       yearRange={yearRange}
       sortBy={sortBy}
-      filterOptions={filterOptions}
+      filterOptions={inventoryFilterOptions.data}
+      filterOptionsFeedback={
+        inventoryFilterOptions.isPending ? (
+          <p className="text-muted-foreground mt-3 text-sm" role="status">
+            Loading inventory filter options…
+          </p>
+        ) : inventoryFilterOptions.isError ? (
+          <Alert className="mt-3" variant="destructive">
+            <AlertDescription>
+              <p>
+                Could not load inventory filter options. Your selections are
+                preserved.
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => void inventoryFilterOptions.refetch()}
+              >
+                Retry loading filters
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : undefined
+      }
       yearRangeLimits={{ min: yearMin, max: yearMax }}
       canUseAdvancedFilters={canUseAdvancedFilters}
       booleanOrSearchReady={booleanOrSearchReady}
