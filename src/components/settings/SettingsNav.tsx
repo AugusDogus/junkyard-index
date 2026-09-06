@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
 const SETTINGS_SECTIONS = [
@@ -35,8 +37,16 @@ export function SettingsNav() {
       aria-label="Settings"
       className="min-w-0 lg:sticky lg:top-24 lg:self-start"
     >
-      <p className="mb-3 hidden text-sm font-medium lg:block">Settings</p>
-      <div className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:flex-col lg:overflow-visible lg:p-0">
+      <div className="mb-4 flex items-center justify-between gap-4 lg:flex-col lg:items-start">
+        <p className="font-semibold">Settings</p>
+        <Button asChild variant="link" size="sm" className="px-0">
+          <Link href="/search">
+            <ArrowLeft data-icon="inline-start" />
+            Back to search
+          </Link>
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-1 rounded-lg border p-1 lg:grid-cols-1 lg:border-0 lg:p-0">
         {SETTINGS_SECTIONS.map((section) => {
           const active = pathname === section.href;
           return (
@@ -45,7 +55,7 @@ export function SettingsNav() {
               href={section.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "focus-visible:ring-ring shrink-0 rounded-md px-3 py-2 text-sm outline-none transition-colors focus-visible:ring-2 lg:w-full",
+                "focus-visible:ring-ring rounded-md px-3 py-3 text-sm outline-none transition-colors focus-visible:ring-2 lg:w-full",
                 active
                   ? "bg-muted text-foreground font-medium"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",

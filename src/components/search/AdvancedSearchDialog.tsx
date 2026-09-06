@@ -2,13 +2,9 @@
 
 import { LockKeyhole, Search } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  InventorySourcesFilter,
-  YearRangeFilter,
-} from "~/components/search/FilterFields";
-import { SearchableCheckboxList } from "~/components/search/SearchableCheckboxList";
-import { Badge } from "~/components/ui/badge";
+import { useState, type ReactNode } from "react";
+import { SearchCriteriaFields } from "~/components/search/SearchCriteriaFields";
+import { SearchEditorContent } from "~/components/search/SearchEditorContent";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -19,8 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/components/ui/dialog";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
+import { FieldError } from "~/components/ui/field";
 import {
   Popover,
   PopoverContent,
@@ -29,46 +24,19 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "~/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { Textarea } from "~/components/ui/textarea";
-import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
-import {
-  buildAdvancedSearchQuery,
-  parseAdvancedSearchQuery,
-  type AdvancedSearchQueryFields,
-} from "~/lib/advanced-search-query";
-import { cn } from "~/lib/utils";
+import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
 import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
-import type { DataSource } from "~/lib/types";
+import { SearchCriteria } from "~/lib/search-criteria";
+import { cn } from "~/lib/utils";
 
-interface AdvancedSearchFilters {
-  makes: string[];
-  colors: string[];
-  states: string[];
-  salvageYards: string[];
-  sources: DataSource[];
-  yearRange: [number, number];
-  sortBy: string;
-}
+export type AdvancedSearchSubmission = SearchCriteria;
 
-export interface AdvancedSearchSubmission extends AdvancedSearchFilters {
-  query: string;
-}
-
-interface AdvancedSearchDialogProps extends AdvancedSearchFilters {
-  query: string;
+interface AdvancedSearchDialogProps extends Omit<SearchCriteria, "queryMode"> {
   filterOptions: InventoryFilterOptions | undefined;
-  filterOptionsFeedback?: React.ReactNode;
-  yearRangeLimits: { min: number; max: number };
+  filterOptionsFeedback?: ReactNode;
   canUseAdvancedFilters: boolean;
   booleanOrSearchReady: boolean;
+  vinPatternSearchReady?: boolean;
   triggerClassName?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -76,183 +44,118 @@ interface AdvancedSearchDialogProps extends AdvancedSearchFilters {
   onSearch: (submission: AdvancedSearchSubmission) => void;
 }
 
-const EMPTY_QUERY_FIELDS: AdvancedSearchQueryFields = {
-  allWords: "",
-  exactPhrase: "",
-  anyWords: "",
-  excludedWords: "",
-};
-
-function QueryField({
-  id,
-  operator,
-  label,
-  description,
-  placeholder,
-  value,
-  onChange,
-}: {
-  id: string;
-  operator: string;
-  label: string;
-  description: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function AdvancedSearchForm({
+  onClose,
+  ...props
+}: AdvancedSearchDialogProps & { onClose: () => void }) {
+  const [value, setValue] = useState<SearchCriteria>(() => ({
+    query: props.query,
+    queryMode: SearchCriteria.fromSavedSearch(props.query, {}).queryMode,
+    makes: props.makes,
+    colors: props.colors,
+    states: props.states,
+    salvageYards: props.salvageYards,
+    sources: props.sources,
+    yearRange: props.yearRange,
+    sortBy: props.sortBy,
+  }));
+  const [error, setError] = useState<string>();
+  const [content, setContent] = useState<HTMLDivElement | null>(null);
   return (
-    <div className="grid gap-2 sm:grid-cols-[5rem_minmax(0,1fr)] sm:items-start">
-      <Badge variant="outline" className="mt-7 font-mono">
-        {operator}
-      </Badge>
-      <div className="grid gap-2">
-        <div>
-          <Label htmlFor={id}>{label}</Label>
-          <p className="text-muted-foreground mt-1 text-xs text-pretty">
-            {description}
-          </p>
+    <SearchEditorContent ref={setContent}>
+      <form
+        className="flex min-h-0 flex-1 flex-col"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const parsed = SearchCriteria.toSavedSearch(value);
+          if (!parsed.success) {
+            setError(parsed.error);
+            return;
+          }
+          const query = parseAdvancedSearchQuery(parsed.data.query);
+          if (
+            query.success &&
+            query.data.anyWordGroups.length > 0 &&
+            !props.booleanOrSearchReady
+          ) {
+            setError(
+              "Boolean OR search is temporarily unavailable while the search index updates.",
+            );
+            return;
+          }
+          if (
+            parsed.data.filters.vinPattern &&
+            props.vinPatternSearchReady === false
+          ) {
+            setError(
+              "VIN pattern search is temporarily unavailable. Please try again later.",
+            );
+            return;
+          }
+          props.onSearch({
+            ...value,
+            query: parsed.data.filters.vinPattern ?? parsed.data.query,
+          });
+          onClose();
+        }}
+      >
+        <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 text-left sm:px-6">
+          <DialogTitle>Advanced search</DialogTitle>
+          <DialogDescription>
+            Describe the vehicle you want to find. You can save the search for
+            future arrivals.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
+          <SearchCriteriaFields
+            value={value}
+            onChange={(next) => {
+              setValue(next);
+              setError(undefined);
+            }}
+            filterOptions={InventoryFilterOptions.withSelected(
+              props.filterOptions,
+              props,
+            )}
+            filterOptionsFeedback={props.filterOptionsFeedback}
+            portalContainer={content}
+          />
         </div>
-        <Input
-          id={id}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-          autoComplete="off"
-        />
-      </div>
-    </div>
+        <div className="shrink-0 border-t px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          {error && (
+            <FieldError className="mb-3" role="alert">
+              {error}
+            </FieldError>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit">
+              <Search data-icon="inline-start" />
+              Search inventory
+            </Button>
+          </DialogFooter>
+        </div>
+      </form>
+    </SearchEditorContent>
   );
 }
 
-function FilterPanel({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border p-4">
-      <h4 className="mb-3 text-sm font-medium">{title}</h4>
-      {children}
-    </section>
-  );
-}
-
-export function AdvancedSearchDialog({
-  query,
-  makes,
-  colors,
-  states,
-  salvageYards,
-  sources,
-  yearRange,
-  sortBy,
-  filterOptions,
-  filterOptionsFeedback,
-  yearRangeLimits,
-  canUseAdvancedFilters,
-  booleanOrSearchReady,
-  triggerClassName,
-  open: controlledOpen,
-  onOpenChange,
-  showTrigger = true,
-  onSearch,
-}: AdvancedSearchDialogProps) {
+export function AdvancedSearchDialog(props: AdvancedSearchDialogProps) {
+  const {
+    canUseAdvancedFilters,
+    triggerClassName,
+    open: controlledOpen,
+    onOpenChange,
+    showTrigger = true,
+  } = props;
   const [internalOpen, setInternalOpen] = useState(false);
-  const [dialogContent, setDialogContent] = useState<HTMLDivElement | null>(
-    null,
-  );
   const open = controlledOpen ?? internalOpen;
-  const wasOpen = useRef(false);
-  const [queryFields, setQueryFields] =
-    useState<AdvancedSearchQueryFields>(EMPTY_QUERY_FIELDS);
-  const [editableQuery, setEditableQuery] = useState("");
-  const [draftFilters, setDraftFilters] = useState<AdvancedSearchFilters>({
-    makes,
-    colors,
-    states,
-    salvageYards,
-    sources,
-    yearRange,
-    sortBy,
-  });
-  const [queryError, setQueryError] = useState<string | null>(null);
-  const availableFilters = InventoryFilterOptions.withSelected(
-    filterOptions,
-    draftFilters,
-  );
-
-  const initializeDraft = useCallback(() => {
-    const initialFields = { ...EMPTY_QUERY_FIELDS, allWords: query };
-    setQueryFields(initialFields);
-    setEditableQuery(query);
-    setDraftFilters({
-      makes,
-      colors,
-      states,
-      salvageYards,
-      sources,
-      yearRange,
-      sortBy,
-    });
-    setQueryError(null);
-  }, [colors, makes, query, salvageYards, sortBy, sources, states, yearRange]);
-
-  useEffect(() => {
-    if (open && !wasOpen.current) initializeDraft();
-    wasOpen.current = open;
-  }, [initializeDraft, open]);
-
-  const setOpen = (nextOpen: boolean) => {
-    if (controlledOpen === undefined) setInternalOpen(nextOpen);
-    onOpenChange?.(nextOpen);
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
   };
-
-  const updateQueryFields = (nextFields: AdvancedSearchQueryFields) => {
-    setQueryFields(nextFields);
-    setEditableQuery(buildAdvancedSearchQuery(nextFields));
-    setQueryError(null);
-  };
-
-  const resetDraft = () => {
-    setQueryFields(EMPTY_QUERY_FIELDS);
-    setEditableQuery("");
-    setDraftFilters({
-      makes: [],
-      colors: [],
-      states: [],
-      salvageYards: [],
-      sources: [],
-      yearRange: [yearRangeLimits.min, yearRangeLimits.max],
-      sortBy: "newest",
-    });
-    setQueryError(null);
-  };
-
-  const submit = () => {
-    const normalizedQuery = editableQuery.trim();
-    if (!normalizedQuery) {
-      setQueryError("Add at least one word, phrase, or exclusion.");
-      return;
-    }
-
-    const parsed = parseAdvancedSearchQuery(normalizedQuery);
-    if (!parsed.success) {
-      setQueryError(parsed.error);
-      return;
-    }
-    if (parsed.data.anyWordGroups.length > 0 && !booleanOrSearchReady) {
-      setQueryError(
-        "Boolean OR search is temporarily unavailable while the search index updates.",
-      );
-      return;
-    }
-
-    onSearch({ query: normalizedQuery, ...draftFilters });
-    setOpen(false);
-  };
-
   const triggerClassNames = cn("justify-start", triggerClassName);
 
   if (!canUseAdvancedFilters) {
@@ -321,272 +224,7 @@ export function AdvancedSearchDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent
-        ref={setDialogContent}
-        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          <DialogHeader className="border-b px-6 py-5 pr-12">
-            <DialogTitle className="text-xl text-balance">
-              Build an advanced search
-            </DialogTitle>
-            <DialogDescription className="max-w-2xl text-pretty">
-              Combine exact phrases, alternatives, and exclusions. The result
-              stays readable, editable, and shareable in the search URL.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
-              <section aria-labelledby="keyword-builder-title">
-                <h3 id="keyword-builder-title" className="font-semibold">
-                  Keywords
-                </h3>
-                <p className="text-muted-foreground mt-1 text-sm text-pretty">
-                  Fill in only the rows you need. Commas separate alternatives.
-                </p>
-
-                <div className="mt-5 grid gap-5">
-                  <QueryField
-                    id="advanced-all-words"
-                    operator="AND"
-                    label="All of these words"
-                    description="Every word must appear in a matching vehicle."
-                    placeholder="pickup truck"
-                    value={queryFields.allWords}
-                    onChange={(allWords) =>
-                      updateQueryFields({ ...queryFields, allWords })
-                    }
-                  />
-                  <QueryField
-                    id="advanced-exact-phrase"
-                    operator={'" "'}
-                    label="This exact phrase"
-                    description="Words must appear together, in this order."
-                    placeholder="crew cab"
-                    value={queryFields.exactPhrase}
-                    onChange={(exactPhrase) =>
-                      updateQueryFields({ ...queryFields, exactPhrase })
-                    }
-                  />
-                  <QueryField
-                    id="advanced-any-words"
-                    operator="OR"
-                    label="Any of these words"
-                    description="Broaden the search with interchangeable alternatives."
-                    placeholder="Ford, Chevrolet, Ram"
-                    value={queryFields.anyWords}
-                    onChange={(anyWords) =>
-                      updateQueryFields({ ...queryFields, anyWords })
-                    }
-                  />
-                  <QueryField
-                    id="advanced-excluded-words"
-                    operator="NOT"
-                    label="None of these words"
-                    description="Prefix exclusions with ! in the final query."
-                    placeholder="diesel, damaged"
-                    value={queryFields.excludedWords}
-                    onChange={(excludedWords) =>
-                      updateQueryFields({ ...queryFields, excludedWords })
-                    }
-                  />
-                </div>
-              </section>
-
-              <section aria-labelledby="query-preview-title">
-                <div className="bg-muted/40 rounded-lg border p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 id="query-preview-title" className="font-semibold">
-                      Power query
-                    </h3>
-                    <Badge variant="secondary">Editable</Badge>
-                  </div>
-                  <p className="text-muted-foreground mt-1 text-xs text-pretty">
-                    You can also type this syntax directly in the regular search
-                    field.
-                  </p>
-                  <Label htmlFor="advanced-query-preview" className="sr-only">
-                    Generated advanced query
-                  </Label>
-                  <Textarea
-                    id="advanced-query-preview"
-                    value={editableQuery}
-                    onChange={(event) => {
-                      setEditableQuery(event.target.value);
-                      setQueryError(null);
-                    }}
-                    placeholder={'pickup (Ford OR Ram) "crew cab" !diesel'}
-                    aria-invalid={queryError ? true : undefined}
-                    aria-describedby="advanced-query-help"
-                    className="mt-4 min-h-32 font-mono text-sm"
-                  />
-                  <p
-                    id="advanced-query-help"
-                    className="text-muted-foreground mt-3 text-xs leading-5 text-pretty"
-                  >
-                    Use uppercase OR between alternatives, quotes for an exact
-                    phrase, and ! before anything to exclude.
-                  </p>
-                  {queryError && (
-                    <p className="text-destructive mt-2 text-sm" role="alert">
-                      {queryError}
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-5">
-                  <Label htmlFor="advanced-sort">Order results by</Label>
-                  <Select
-                    value={draftFilters.sortBy}
-                    onValueChange={(nextSort) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        sortBy: nextSort,
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="advanced-sort" className="mt-2 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent container={dialogContent}>
-                      <SelectGroup>
-                        {SEARCH_SORT_OPTIONS.map((option) => (
-                          <SelectItem key={option.key} value={option.key}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </section>
-            </div>
-
-            <section
-              className="mt-10 border-t pt-8"
-              aria-labelledby="advanced-refinements-title"
-            >
-              <h3 id="advanced-refinements-title" className="font-semibold">
-                Inventory filters
-              </h3>
-              <p className="text-muted-foreground mt-1 text-sm text-pretty">
-                Choose from all indexed inventory, even when your current search
-                has no matches. Saved searches can match future arrivals.
-              </p>
-              {filterOptionsFeedback}
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <FilterPanel title="Make">
-                  <SearchableCheckboxList
-                    name="advanced-make"
-                    label="Make"
-                    options={availableFilters.makes}
-                    selected={draftFilters.makes}
-                    onChange={(nextMakes) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        makes: nextMakes,
-                      }))
-                    }
-                    searchPlaceholder="Search makes"
-                    maxHeight={150}
-                  />
-                </FilterPanel>
-                <FilterPanel title="Model year">
-                  <YearRangeFilter
-                    yearRange={draftFilters.yearRange}
-                    onYearRangeChange={(nextYearRange) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        yearRange: nextYearRange,
-                      }))
-                    }
-                    minimumYear={yearRangeLimits.min}
-                    maximumYear={yearRangeLimits.max}
-                  />
-                </FilterPanel>
-                <FilterPanel title="State">
-                  <SearchableCheckboxList
-                    name="advanced-state"
-                    label="State"
-                    options={availableFilters.states}
-                    selected={draftFilters.states}
-                    onChange={(nextStates) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        states: nextStates,
-                      }))
-                    }
-                    searchPlaceholder="Search states"
-                    maxHeight={150}
-                  />
-                </FilterPanel>
-                <FilterPanel title="Salvage yard">
-                  <SearchableCheckboxList
-                    name="advanced-yard"
-                    label="Salvage yard"
-                    options={availableFilters.salvageYards}
-                    selected={draftFilters.salvageYards}
-                    onChange={(nextYards) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        salvageYards: nextYards,
-                      }))
-                    }
-                    searchPlaceholder="Search yards"
-                    maxHeight={150}
-                  />
-                </FilterPanel>
-                <FilterPanel title="Color">
-                  <SearchableCheckboxList
-                    name="advanced-color"
-                    label="Color"
-                    options={availableFilters.colors}
-                    selected={draftFilters.colors}
-                    onChange={(nextColors) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        colors: nextColors,
-                      }))
-                    }
-                    searchPlaceholder="Search colors"
-                    maxHeight={150}
-                  />
-                </FilterPanel>
-                <FilterPanel title="Inventory sources">
-                  <InventorySourcesFilter
-                    idPrefix="advanced-source"
-                    sources={draftFilters.sources}
-                    onSourcesChange={(nextSources) =>
-                      setDraftFilters((current) => ({
-                        ...current,
-                        sources: nextSources,
-                      }))
-                    }
-                  />
-                </FilterPanel>
-              </div>
-            </section>
-          </div>
-
-          <DialogFooter className="border-t px-6 py-4 sm:items-center sm:justify-between">
-            <Button type="button" variant="ghost" onClick={resetDraft}>
-              Reset form
-            </Button>
-            <Button type="submit">
-              <Search />
-              Search inventory
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+      {open && <AdvancedSearchForm {...props} onClose={() => setOpen(false)} />}
     </Dialog>
   );
 }

@@ -6,7 +6,7 @@ import posthog from "posthog-js";
 import { toast } from "sonner";
 import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
-import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
+import { SavedSearchCriteria } from "~/components/search/SavedSearchCriteria";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -27,70 +27,9 @@ import { Switch } from "~/components/ui/switch";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { usePlanAccess } from "~/hooks/use-plan-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
+import { buildSearchUrl } from "~/lib/search-utils";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
-import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
-import type { SavedSearchFilters } from "~/lib/saved-search-filters";
 import { api } from "~/trpc/react";
-
-interface SavedSearchCriterion {
-  label: string;
-  value: string;
-}
-
-function getSavedSearchCriteria(
-  query: string,
-  filters: SavedSearchFilters,
-): SavedSearchCriterion[] {
-  const criteria: SavedSearchCriterion[] = [];
-  if (query.trim()) criteria.push({ label: "Query", value: query });
-  if (filters.vinPattern) {
-    criteria.push({ label: "VIN pattern", value: filters.vinPattern });
-  }
-  if (filters.minYear || filters.maxYear) {
-    criteria.push({
-      label: "Year",
-      value:
-        filters.minYear && filters.maxYear
-          ? `${filters.minYear} to ${filters.maxYear}`
-          : filters.minYear
-            ? `${filters.minYear} or newer`
-            : `${filters.maxYear} or older`,
-    });
-  }
-  if (filters.makes?.length) {
-    criteria.push({ label: "Makes", value: filters.makes.join(", ") });
-  }
-  if (filters.colors?.length) {
-    criteria.push({ label: "Colors", value: filters.colors.join(", ") });
-  }
-  if (filters.states?.length) {
-    criteria.push({ label: "States", value: filters.states.join(", ") });
-  }
-  if (filters.salvageYards?.length) {
-    criteria.push({
-      label: "Yards",
-      value: filters.salvageYards.join(", "),
-    });
-  }
-  if (filters.sources?.length) {
-    criteria.push({
-      label: "Sources",
-      value: filters.sources
-        .map((source) => INGESTION_SOURCE_DISPLAY_NAMES[source])
-        .join(", "),
-    });
-  }
-  if (filters.sortBy) {
-    const sort = SEARCH_SORT_OPTIONS.find(
-      (option) =>
-        option.key === filters.sortBy || option.indexName === filters.sortBy,
-    );
-    criteria.push({ label: "Sort", value: sort?.label ?? filters.sortBy });
-  }
-  return criteria.length > 0
-    ? criteria
-    : [{ label: "Search", value: "All vehicles" }];
-}
 
 export function SavedSearchSettingsCard() {
   const utils = api.useUtils();
@@ -195,7 +134,7 @@ export function SavedSearchSettingsCard() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link href="/search">
+          <Link href="/search?advanced=1">
             <Search data-icon="inline-start" />
             New search
           </Link>
@@ -231,7 +170,7 @@ export function SavedSearchSettingsCard() {
             </EmptyHeader>
             <EmptyContent>
               <Button asChild variant="outline" size="sm">
-                <Link href="/search">Search inventory</Link>
+                <Link href="/search?advanced=1">Create a search</Link>
               </Button>
             </EmptyContent>
           </Empty>
@@ -244,32 +183,27 @@ export function SavedSearchSettingsCard() {
             )}
             <div className="border-border divide-y border-y">
               {searches.map((search) => {
-                const criteria = getSavedSearchCriteria(
-                  search.query,
-                  search.filters,
-                );
                 return (
                   <div key={search.id}>
-                    <div className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                    <div className="grid gap-5 py-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
                       <div className="flex min-w-0 flex-col gap-2">
-                        <span className="text-sm font-medium break-words">
-                          {search.name}
-                        </span>
-                        <dl className="grid gap-1">
-                          {criteria.map((criterion) => (
-                            <div
-                              key={criterion.label}
-                              className="flex min-w-0 gap-1.5 text-sm"
-                            >
-                              <dt className="text-muted-foreground shrink-0">
-                                {criterion.label}:
-                              </dt>
-                              <dd className="min-w-0 break-words">
-                                {criterion.value}
-                              </dd>
-                            </div>
-                          ))}
-                        </dl>
+                        {savedSearchesLocked ? (
+                          <span className="text-base font-semibold break-words">
+                            {search.name}
+                          </span>
+                        ) : (
+                          <Link
+                            href={buildSearchUrl(search.query, search.filters)}
+                            aria-label={`Open saved search ${search.name}`}
+                            className="focus-visible:ring-ring self-start rounded-sm text-base font-semibold break-words underline-offset-4 outline-none hover:underline focus-visible:ring-2"
+                          >
+                            {search.name}
+                          </Link>
+                        )}
+                        <SavedSearchCriteria
+                          query={search.query}
+                          filters={search.filters}
+                        />
                         {savedSearchesLocked && (
                           <span className="text-muted-foreground text-xs">
                             Alerts are unavailable on your current plan.
@@ -277,7 +211,7 @@ export function SavedSearchSettingsCard() {
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-5 md:justify-end">
+                      <div className="flex flex-wrap items-center gap-4 xl:justify-end">
                         {!savedSearchesLocked && (
                           <>
                             <EditSavedSearchDialog search={search} />

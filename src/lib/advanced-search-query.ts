@@ -124,6 +124,51 @@ export function hasAdvancedSearchSyntax(query: string): boolean {
   return /\b(?:AND|OR)\b|(^|\s)!\S|["()]/.test(query);
 }
 
+/** Returns null when switching to guided fields would lose query structure. */
+export function getAdvancedSearchQueryFields(
+  query: string,
+): AdvancedSearchQueryFields | null {
+  const parsed = parseAdvancedSearchQuery(query);
+  const tokens = tokenize(query);
+  if (
+    !parsed.success ||
+    !Array.isArray(tokens) ||
+    parsed.data.anyWordGroups.length > 1
+  ) {
+    return null;
+  }
+  const alternativeIndices = new Set<number>();
+  for (const [index, token] of tokens.entries()) {
+    if (token.kind !== "or") continue;
+    const left = adjacentOrTerm(tokens, index, -1);
+    const right = adjacentOrTerm(tokens, index, 1);
+    if (left !== null) alternativeIndices.add(left);
+    if (right !== null) alternativeIndices.add(right);
+  }
+  const allWords: string[] = [];
+  const anyWords: string[] = [];
+  const excludedWords: string[] = [];
+  let exactPhrase = "";
+  for (const [index, token] of tokens.entries()) {
+    if (token.kind !== "term") continue;
+    if (alternativeIndices.has(index) || token.excluded) {
+      if (token.quoted || /[,"]/.test(token.value)) return null;
+      (token.excluded ? excludedWords : anyWords).push(token.value);
+    } else if (token.quoted) {
+      if (exactPhrase || token.value.includes('"')) return null;
+      exactPhrase = token.value;
+    } else {
+      allWords.push(token.value);
+    }
+  }
+  return {
+    allWords: allWords.join(" "),
+    exactPhrase,
+    anyWords: anyWords.join(", "),
+    excludedWords: excludedWords.join(", "),
+  };
+}
+
 function readQuotedTerm(
   query: string,
   start: number,

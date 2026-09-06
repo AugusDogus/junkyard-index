@@ -24,7 +24,7 @@ import type { SearchFilterOptions } from "./search-filter-options";
 import { SearchableCheckboxList } from "./SearchableCheckboxList";
 
 interface DesktopFiltersBarProps {
-  advancedSearchControl: ReactNode;
+  advancedSearchControl?: ReactNode;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
