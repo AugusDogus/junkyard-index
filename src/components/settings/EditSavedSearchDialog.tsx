@@ -178,8 +178,8 @@ function EditSavedSearchForm({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <DialogHeader className="grid shrink-0 items-center gap-4 border-b px-5 py-5 text-left sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6 sm:pr-14">
-            <div className="flex min-w-0 flex-col gap-2 pr-8 sm:pr-0">
+          <DialogHeader className="shrink-0 gap-3 border-b px-5 pt-5 text-left sm:px-6">
+            <div className="flex min-w-0 flex-col gap-2 pr-8">
               <DialogTitle>Edit saved search</DialogTitle>
               <DialogDescription className="break-words">
                 {search.name}
@@ -187,17 +187,17 @@ function EditSavedSearchForm({
             </div>
             <Tabs.List
               aria-label="Saved search settings"
-              className="bg-muted grid shrink-0 grid-cols-2 gap-1 rounded-lg p-1 sm:w-80"
+              className="-mb-px flex gap-6"
             >
               <Tabs.Trigger
                 value="criteria"
-                className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
+                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring data-[state=active]:border-foreground data-[state=active]:text-foreground min-h-11 min-w-11 border-b-2 border-transparent text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
               >
                 Search criteria
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="alerts"
-                className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
+                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring data-[state=active]:border-foreground data-[state=active]:text-foreground min-h-11 min-w-11 border-b-2 border-transparent text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
               >
                 Alerts
               </Tabs.Trigger>
