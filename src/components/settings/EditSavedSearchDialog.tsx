@@ -60,6 +60,7 @@ interface SavedSearchEditorValue {
 
 interface EditSavedSearchDialogProps {
   search: SavedSearchEditorValue;
+  source?: "settings" | "saved_searches_list";
 }
 
 interface EditSavedSearchForm {
@@ -117,9 +118,9 @@ function createForm(search: SavedSearchEditorValue): EditSavedSearchForm {
   };
 }
 
-function mergeOptions(options: string[] | undefined, selected: string[]) {
-  return [...new Set([...(options ?? []), ...selected])].sort((left, right) =>
-    left.localeCompare(right),
+function mergeOptions(...options: (string[] | undefined)[]) {
+  return [...new Set(options.flatMap((values) => values ?? []))].sort(
+    (left, right) => left.localeCompare(right),
   );
 }
 
@@ -137,7 +138,10 @@ function buildFilters(form: EditSavedSearchForm, vinPattern?: string) {
   });
 }
 
-export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
+export function EditSavedSearchDialog({
+  search,
+  source = "settings",
+}: EditSavedSearchDialogProps) {
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => createForm(search));
@@ -150,16 +154,30 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
   });
   const filterOptions = useMemo<SearchFilterOptions>(
     () => ({
-      makes: mergeOptions(filterOptionsQuery.data?.makes, form.makes),
-      colors: mergeOptions(filterOptionsQuery.data?.colors, form.colors),
-      states: mergeOptions(filterOptionsQuery.data?.states, form.states),
+      makes: mergeOptions(
+        filterOptionsQuery.data?.makes,
+        search.filters.makes,
+        form.makes,
+      ),
+      colors: mergeOptions(
+        filterOptionsQuery.data?.colors,
+        search.filters.colors,
+        form.colors,
+      ),
+      states: mergeOptions(
+        filterOptionsQuery.data?.states,
+        search.filters.states,
+        form.states,
+      ),
       salvageYards: mergeOptions(
         filterOptionsQuery.data?.salvageYards,
+        search.filters.salvageYards,
         form.salvageYards,
       ),
     }),
     [
       filterOptionsQuery.data,
+      search.filters,
       form.makes,
       form.colors,
       form.states,
@@ -173,7 +191,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
         search_id: variables.id,
         has_query: variables.query.trim().length > 0,
         has_sources_filter: (variables.filters.sources?.length ?? 0) > 0,
-        source: "settings",
+        source,
       });
       toast.success("Saved search updated");
       setOpen(false);
@@ -243,9 +261,14 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={`Edit saved search ${search.name}`}
+        >
           <Pencil data-icon="inline-start" />
-          Edit filters
+          Edit
         </Button>
       </DialogTrigger>
       <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
@@ -256,8 +279,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
           <DialogHeader className="shrink-0 px-6 pt-6 pb-5">
             <DialogTitle>Edit saved search</DialogTitle>
             <DialogDescription>
-              Change the search criteria without leaving Settings. Alert
-              channels stay enabled.
+              Update the name and filters for this saved search.
             </DialogDescription>
           </DialogHeader>
 
@@ -324,6 +346,10 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                 <FieldLegend variant="label" className="mb-0">
                   Filters
                 </FieldLegend>
+                <p className="text-muted-foreground text-sm">
+                  Choose a value or type one to add it, even if no vehicles
+                  match yet.
+                </p>
                 {filterOptionsQuery.isPending ? (
                   <div className="flex flex-col gap-3" aria-busy="true">
                     <span className="sr-only">Loading filter options</span>
@@ -338,9 +364,9 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                         <AlertTitle>Filter options could not load</AlertTitle>
                         <AlertDescription>
                           <p>
-                            Your existing selections are preserved. Retry to
-                            load the current inventory options before editing
-                            them.
+                            Suggestions are unavailable. Your saved filters are
+                            preserved, and you can still type values to add
+                            them. Retry to load suggestions.
                           </p>
                           <Button
                             type="button"
@@ -357,6 +383,7 @@ export function EditSavedSearchDialog({ search }: EditSavedSearchDialogProps) {
                       idPrefix={`saved-search-${search.id}`}
                       defaultOpenSections="none"
                       containListScroll={false}
+                      allowCustomValues
                       makes={form.makes}
                       colors={form.colors}
                       states={form.states}

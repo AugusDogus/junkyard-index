@@ -22,6 +22,7 @@ interface MobileFilterContentProps {
   idPrefix?: string;
   defaultOpenSections?: "primary" | "all" | "none";
   containListScroll?: boolean;
+  allowCustomValues?: boolean;
   makes: string[];
   colors: string[];
   states: string[];
@@ -81,6 +82,7 @@ export function MobileFilterContent({
   idPrefix = "mobile",
   defaultOpenSections = "primary",
   containListScroll = true,
+  allowCustomValues = false,
   makes,
   colors,
   states,
@@ -141,6 +143,7 @@ export function MobileFilterContent({
           searchThreshold={10}
           maxHeight={220}
           containScroll={containListScroll}
+          allowCustomValues={allowCustomValues}
         />
       </FilterSection>
 
@@ -174,6 +177,7 @@ export function MobileFilterContent({
           searchThreshold={12}
           maxHeight={200}
           containScroll={containListScroll}
+          allowCustomValues={allowCustomValues}
         />
       </FilterSection>
 
@@ -192,6 +196,7 @@ export function MobileFilterContent({
           searchThreshold={6}
           maxHeight={240}
           containScroll={containListScroll}
+          allowCustomValues={allowCustomValues}
         />
       </FilterSection>
 
@@ -215,6 +220,7 @@ export function MobileFilterContent({
             searchThreshold={6}
             maxHeight={240}
             containScroll={containListScroll}
+            allowCustomValues={allowCustomValues}
           />
           <Button asChild variant="link" size="sm" className="self-start">
             <Link

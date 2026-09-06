@@ -27,9 +27,9 @@ function valuesFromFacet(
   key: (typeof selectableFacetKeys)[number],
 ): string[] {
   const facet = SEARCH_FILTER_FACETS[key];
-  return Object.keys(facets?.[facet.attribute] ?? {})
-    .sort((left, right) => left.localeCompare(right))
-    .slice(0, facet.limit);
+  return Object.keys(facets?.[facet.attribute] ?? {}).sort((left, right) =>
+    left.localeCompare(right),
+  );
 }
 
 export async function loadSearchFilterOptions(): Promise<SearchFilterOptions> {
