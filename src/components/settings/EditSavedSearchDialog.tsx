@@ -235,6 +235,7 @@ function EditSavedSearchForm({
                     />
                   </Field>
                   <SearchCriteriaFields
+                    progressiveDisclosure
                     value={value}
                     onChange={(next) => {
                       setValue(next);

@@ -1,6 +1,12 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible";
 import {
   Field,
   FieldDescription,
@@ -50,10 +56,12 @@ export function SearchQueryFields({
   value,
   queryMode,
   onChange,
+  progressiveDisclosure = false,
 }: {
   value: string;
   queryMode: SearchCriteria["queryMode"];
   onChange: (query: string, mode: SearchCriteria["queryMode"]) => void;
+  progressiveDisclosure?: boolean;
 }) {
   const id = useId();
   const [fields, setFields] = useState<AdvancedSearchQueryFields>(
@@ -72,6 +80,9 @@ export function SearchQueryFields({
         ? "fields"
         : "syntax",
   );
+  const [advancedOpen, setAdvancedOpen] = useState(() =>
+    Boolean(fields.exactPhrase || fields.anyWords || fields.excludedWords),
+  );
   const keywordDraft = useRef(mode === "vin" ? "" : value);
   const vinDraft = useRef(mode === "vin" ? value : "");
   const canUseFields =
@@ -84,12 +95,45 @@ export function SearchQueryFields({
     const nextQuery = next === "vin" ? vinDraft.current : keywordDraft.current;
     const nextFields = getAdvancedSearchQueryFields(nextQuery);
     setMode(next === "fields" && !nextFields ? "syntax" : next);
-    if (nextFields) setFields(nextFields);
+    if (nextFields) {
+      setFields(nextFields);
+      if (
+        nextFields.exactPhrase ||
+        nextFields.anyWords ||
+        nextFields.excludedWords
+      )
+        setAdvancedOpen(true);
+    }
     onChange(nextQuery, next === "vin" ? "vin" : "keywords");
   };
 
+  const renderField = ({
+    key,
+    label,
+    hint,
+    placeholder,
+  }: (typeof QUERY_FIELDS)[number]) => (
+    <Field key={key}>
+      <FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
+      <Input
+        id={`${id}-${key}`}
+        value={fields[key]}
+        placeholder={placeholder}
+        autoComplete="off"
+        onChange={(event) => {
+          const nextFields = { ...fields, [key]: event.target.value };
+          setFields(nextFields);
+          onChange(buildAdvancedSearchQuery(nextFields), "keywords");
+        }}
+      />
+      {(!progressiveDisclosure || key !== "allWords") && (
+        <FieldDescription>{hint}</FieldDescription>
+      )}
+    </Field>
+  );
+
   return (
-    <FieldGroup className="gap-5">
+    <FieldGroup className={progressiveDisclosure ? "gap-3" : "gap-5"}>
       <ToggleGroup
         type="single"
         variant="outline"
@@ -112,24 +156,32 @@ export function SearchQueryFields({
           VIN pattern
         </ToggleGroupItem>
       </ToggleGroup>
-      {mode === "fields" &&
-        QUERY_FIELDS.map(({ key, label, hint, placeholder }) => (
-          <Field key={key}>
-            <FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
-            <Input
-              id={`${id}-${key}`}
-              value={fields[key]}
-              placeholder={placeholder}
-              autoComplete="off"
-              onChange={(event) => {
-                const nextFields = { ...fields, [key]: event.target.value };
-                setFields(nextFields);
-                onChange(buildAdvancedSearchQuery(nextFields), "keywords");
-              }}
-            />
-            <FieldDescription>{hint}</FieldDescription>
-          </Field>
-        ))}
+      {mode === "fields" && (
+        <>
+          {renderField(QUERY_FIELDS[0])}
+          {progressiveDisclosure ? (
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger
+                type="button"
+                className="group text-muted-foreground hover:text-foreground focus-visible:ring-ring flex min-h-11 items-center gap-2 text-sm font-medium outline-none focus-visible:ring-2"
+              >
+                <ChevronDown
+                  aria-hidden="true"
+                  className="size-4 -rotate-90 group-data-[state=open]:rotate-0"
+                />
+                Advanced options
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <FieldGroup className="gap-5 pt-3">
+                  {QUERY_FIELDS.slice(1).map(renderField)}
+                </FieldGroup>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : (
+            QUERY_FIELDS.slice(1).map(renderField)
+          )}
+        </>
+      )}
       {mode === "syntax" && (
         <Field>
           <FieldLabel htmlFor={`${id}-syntax`}>Search query</FieldLabel>

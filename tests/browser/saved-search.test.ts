@@ -103,7 +103,7 @@ describe("saved search browser flow", () => {
           .getByLabel("None of these words", { exact: true })
           .fill("diesel, damaged");
         await page
-          .getByRole("button", { name: "Make 1 selected", exact: true })
+          .getByRole("button", { name: "Make Saab", exact: true })
           .click();
         await page
           .getByRole("checkbox", { name: "Saab", exact: true })
@@ -190,6 +190,96 @@ describe("saved search browser flow", () => {
         expect(await page.locator("#submission").textContent()).toContain(
           '"colors":["Purple"]',
         );
+      } finally {
+        await page.close();
+      }
+    }, 20_000);
+  }
+
+  for (const width of [390, 1440]) {
+    test(`starts simple and reveals advanced criteria and new filters at ${width}px`, async () => {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      try {
+        await openFixture(page, "?query=volvo&no-suggestions=1");
+        await page
+          .getByRole("button", { name: "Edit saved search Future donor" })
+          .click();
+        expect(
+          await page
+            .getByLabel("All of these words", { exact: true })
+            .inputValue(),
+        ).toBe("volvo");
+        expect(
+          await page
+            .getByLabel("This exact phrase", { exact: true })
+            .isVisible(),
+        ).toBe(false);
+        expect(
+          await page
+            .getByRole("button", { name: "Advanced options", exact: true })
+            .getAttribute("aria-expanded"),
+        ).toBe("false");
+        await page
+          .getByRole("button", { name: "Make Saab", exact: true })
+          .waitFor();
+        await page
+          .getByRole("button", { name: "Year 1980 to 2000", exact: true })
+          .waitFor();
+        expect(
+          await page
+            .getByRole("button", { name: "Color", exact: true })
+            .count(),
+        ).toBe(0);
+        await page
+          .getByRole("button", { name: "Advanced options", exact: true })
+          .click();
+        await page
+          .getByLabel("None of these words", { exact: true })
+          .fill("diesel");
+        await page
+          .getByRole("button", { name: "Advanced options", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Add filter", exact: true })
+          .click();
+        await page
+          .getByRole("menuitem", { name: "Color", exact: true })
+          .click();
+        await page
+          .getByRole("textbox", { name: "Search colors", exact: true })
+          .fill("Purple");
+        await page
+          .getByRole("button", { name: "Add “Purple”", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Save changes", exact: true })
+          .click();
+        await page.getByRole("dialog").waitFor({ state: "hidden" });
+        expect(await page.locator("#submission").textContent()).toContain(
+          '"query":"volvo !diesel"',
+        );
+        expect(await page.locator("#submission").textContent()).toContain(
+          '"colors":["Purple"]',
+        );
+        expect(await page.locator("#submission").textContent()).toContain(
+          '"makes":["Saab"]',
+        );
+        await page
+          .getByRole("button", { name: "Edit saved search Future donor" })
+          .click();
+        expect(
+          await page
+            .getByLabel("None of these words", { exact: true })
+            .inputValue(),
+        ).toBe("diesel");
+        expect(
+          await page
+            .getByRole("button", { name: "Advanced options", exact: true })
+            .getAttribute("aria-expanded"),
+        ).toBe("true");
+        await page
+          .getByRole("button", { name: "Color Purple", exact: true })
+          .waitFor();
       } finally {
         await page.close();
       }

@@ -23,6 +23,7 @@ import {
 import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
 import type { SearchCriteria } from "~/lib/search-criteria";
+import { cn } from "~/lib/utils";
 
 export function SearchCriteriaFields({
   value,
@@ -30,12 +31,14 @@ export function SearchCriteriaFields({
   filterOptions,
   filterOptionsFeedback,
   portalContainer,
+  progressiveDisclosure = false,
 }: {
   value: SearchCriteria;
   onChange: (criteria: SearchCriteria) => void;
   filterOptions?: InventoryFilterOptions;
   filterOptionsFeedback?: ReactNode;
   portalContainer: HTMLElement | null;
+  progressiveDisclosure?: boolean;
 }) {
   const id = useId();
   const available = InventoryFilterOptions.withSelected(filterOptions, value);
@@ -44,10 +47,18 @@ export function SearchCriteriaFields({
     next: SearchCriteria[Key],
   ) => onChange({ ...value, [key]: next });
   return (
-    <FieldGroup className="grid items-start gap-8 lg:grid-cols-2">
-      <FieldSet className="min-w-0 gap-5">
+    <FieldGroup
+      className={cn(
+        "grid items-start gap-8 lg:grid-cols-2",
+        progressiveDisclosure && "gap-6",
+      )}
+    >
+      <FieldSet
+        className={cn("min-w-0 gap-5", progressiveDisclosure && "gap-3")}
+      >
         <FieldLegend>Find vehicles</FieldLegend>
         <SearchQueryFields
+          progressiveDisclosure={progressiveDisclosure}
           value={value.query}
           queryMode={value.queryMode}
           onChange={(query, queryMode) =>
@@ -58,8 +69,9 @@ export function SearchCriteriaFields({
       <FieldSet className="min-w-0 gap-4">
         <FieldLegend>Filters and sorting</FieldLegend>
         <FieldDescription>
-          Keywords are optional. Choose filters or type a value to add it, even
-          when no vehicles match yet.
+          {progressiveDisclosure
+            ? "Filters can match future inventory, too."
+            : "Keywords are optional. Choose filters or type a value to add it, even when no vehicles match yet."}
         </FieldDescription>
         <Field>
           <FieldLabel htmlFor={`${id}-sort`}>Order results by</FieldLabel>
@@ -83,6 +95,7 @@ export function SearchCriteriaFields({
         </Field>
         {filterOptionsFeedback}
         <MobileFilterContent
+          progressiveDisclosure={progressiveDisclosure}
           idPrefix={id}
           defaultOpenSections="none"
           containListScroll={false}
