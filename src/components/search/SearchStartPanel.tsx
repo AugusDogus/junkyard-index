@@ -2,6 +2,13 @@
 
 import { ArrowRight, Search } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
 import { SavedSearchesList } from "./SavedSearchesList";
 
 interface SearchStartPanelProps {
@@ -48,7 +55,41 @@ export function SearchStartPanel({
   if (isLoggedIn) {
     return (
       <section className="py-8 sm:py-12" aria-label="Your searches">
-        <SavedSearchesList locked={savedSearchesLocked} className="max-w-4xl" />
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <SavedSearchesList locked={savedSearchesLocked} />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Start something new</CardTitle>
+              <CardDescription>
+                Use a common search shape, then make it yours.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-1">
+              {examples.map((example) => (
+                <Button
+                  key={example.query}
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onSearch(example.query)}
+                  className="group h-auto w-full justify-start px-3 py-3 text-left whitespace-normal"
+                >
+                  <Search data-icon="inline-start" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{example.query}</span>
+                    <span className="text-muted-foreground mt-0.5 block text-xs font-normal">
+                      {example.label}
+                    </span>
+                  </span>
+                  <ArrowRight
+                    data-icon="inline-end"
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </section>
     );
   }

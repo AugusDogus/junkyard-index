@@ -1,5 +1,11 @@
 "use client";
 
+import { Bell, BellOff, Pencil } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import posthog from "posthog-js";
 import Link from "next/link";
 import { Tabs } from "radix-ui";
@@ -44,6 +50,7 @@ interface EditSavedSearchDialogProps {
   };
   source?: "settings" | "saved_searches_list";
   locked?: boolean;
+  trigger?: "edit" | "alerts";
 }
 
 function EditSavedSearchForm({
@@ -52,6 +59,7 @@ function EditSavedSearchForm({
   onClose,
   onPendingChange,
   locked,
+  trigger,
 }: EditSavedSearchDialogProps & {
   onClose: () => void;
   onPendingChange: (pending: boolean) => void;
@@ -61,7 +69,9 @@ function EditSavedSearchForm({
   const [value, setValue] = useState(() =>
     SearchCriteria.fromSavedSearch(search.query, search.filters),
   );
-  const [tab, setTab] = useState<"criteria" | "alerts">("criteria");
+  const [tab, setTab] = useState<"criteria" | "alerts">(
+    trigger === "alerts" ? "alerts" : "criteria",
+  );
   const [error, setError] = useState<string>();
   const [emailEnabled, setEmailEnabled] = useState(search.emailAlertsEnabled);
   const [discordEnabled, setDiscordEnabled] = useState(
@@ -174,17 +184,17 @@ function EditSavedSearchForm({
           </DialogHeader>
           <Tabs.List
             aria-label="Saved search settings"
-            className="flex shrink-0 gap-6 border-b px-5 sm:px-6"
+            className="bg-muted mx-5 mt-4 grid shrink-0 grid-cols-2 gap-1 rounded-lg p-1 sm:mx-6 sm:w-80"
           >
             <Tabs.Trigger
               value="criteria"
-              className="text-muted-foreground focus-visible:ring-ring data-[state=active]:border-foreground data-[state=active]:text-foreground min-h-11 border-b-2 border-transparent text-sm font-medium outline-none focus-visible:ring-2"
+              className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
             >
               Search criteria
             </Tabs.Trigger>
             <Tabs.Trigger
               value="alerts"
-              className="text-muted-foreground focus-visible:ring-ring data-[state=active]:border-foreground data-[state=active]:text-foreground min-h-11 border-b-2 border-transparent text-sm font-medium outline-none focus-visible:ring-2"
+              className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
             >
               Alerts
             </Tabs.Trigger>
@@ -206,7 +216,7 @@ function EditSavedSearchForm({
                 className="min-w-0"
               >
                 <FieldGroup>
-                  <Field className="max-w-md">
+                  <Field>
                     <FieldLabel htmlFor={`search-name-${search.id}`}>
                       Search name
                     </FieldLabel>
@@ -244,7 +254,7 @@ function EditSavedSearchForm({
               forceMount
               className="data-[state=inactive]:hidden"
             >
-              <div className="max-w-md">
+              <div>
                 <h3 className="font-medium text-balance">
                   Notify me about new matches
                 </h3>
@@ -344,9 +354,20 @@ export function EditSavedSearchDialog({
   search,
   source = "settings",
   locked = false,
+  trigger = "edit",
 }: EditSavedSearchDialogProps) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const channels = [
+    search.emailAlertsEnabled ? "Email" : null,
+    search.discordAlertsEnabled ? "Discord" : null,
+  ].filter(Boolean);
+  const alertLabel = channels.length
+    ? `Alerts for ${search.name}: ${channels.join(" and ")}`
+    : `Alerts off for ${search.name}`;
+  const label =
+    trigger === "alerts" ? alertLabel : `Edit saved search ${search.name}`;
+  const Icon = trigger === "edit" ? Pencil : channels.length ? Bell : BellOff;
   return (
     <Dialog
       open={open}
@@ -354,22 +375,30 @@ export function EditSavedSearchDialog({
         if (!pending) setOpen(next);
       }}
     >
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="min-h-11"
-          aria-label={`Edit saved search ${search.name}`}
-        >
-          Edit
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground size-11 shrink-0 sm:size-8"
+              aria-label={label}
+            >
+              <Icon aria-hidden="true" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>
+          {trigger === "alerts" ? alertLabel : "Edit search"}
+        </TooltipContent>
+      </Tooltip>
       {open && (
         <EditSavedSearchForm
           search={search}
           source={source}
           locked={locked}
+          trigger={trigger}
           onClose={() => setOpen(false)}
           onPendingChange={setPending}
         />
