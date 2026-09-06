@@ -217,10 +217,20 @@ describe("saved search browser flow", () => {
           });
           await first.waitFor();
           expect(
-            await first.getByText("Alerts: Email", { exact: true }).count(),
+            await first
+              .getByRole("button", {
+                name: "Alerts for Future donor: Email",
+                exact: true,
+              })
+              .count(),
           ).toBe(1);
           expect(
-            await second.getByText("Alerts: Discord", { exact: true }).count(),
+            await second
+              .getByRole("button", {
+                name: "Alerts for Tacoma donor with a particularly long saved search name: Discord",
+                exact: true,
+              })
+              .count(),
           ).toBe(1);
           expect(await page.getByRole("switch").count()).toBe(0);
           expect(
@@ -247,7 +257,12 @@ describe("saved search browser flow", () => {
             .getByRole("button", { name: "Cancel", exact: true })
             .click();
           expect(
-            await first.getByText("Alerts: Email", { exact: true }).count(),
+            await first
+              .getByRole("button", {
+                name: "Alerts for Future donor: Email",
+                exact: true,
+              })
+              .count(),
           ).toBe(1);
           await first
             .getByRole("button", { name: "Edit saved search Future donor" })
@@ -267,9 +282,19 @@ describe("saved search browser flow", () => {
             name: "Updated donor",
             exact: true,
           });
-          await updated.getByText("Alerts: Discord", { exact: true }).waitFor();
+          await updated
+            .getByRole("button", {
+              name: "Alerts for Updated donor: Discord",
+              exact: true,
+            })
+            .waitFor();
           expect(
-            await second.getByText("Alerts: Discord", { exact: true }).count(),
+            await second
+              .getByRole("button", {
+                name: "Alerts for Tacoma donor with a particularly long saved search name: Discord",
+                exact: true,
+              })
+              .count(),
           ).toBe(1);
           expect(await page.locator("#submission").textContent()).toContain(
             '"path":"savedSearches.update"',
@@ -342,6 +367,59 @@ describe("saved search browser flow", () => {
     }, 20_000);
   }
 
+  test("opens scoped alerts from the inline bell and uses the editor width", async () => {
+    const page = await browser.newPage({
+      viewport: { width: 1440, height: 900 },
+    });
+    try {
+      await openFixture(page, "?scene=1&multiple=1&discord=1");
+      await page
+        .getByRole("button", {
+          name: "Alerts for Future donor: Email",
+          exact: true,
+        })
+        .click();
+      expect(
+        await page.getByRole("tab", { name: "Alerts", selected: true }).count(),
+      ).toBe(1);
+      expect(
+        await page
+          .getByRole("switch", { name: "Email alerts for Future donor" })
+          .isChecked(),
+      ).toBe(true);
+      const panel = page.getByRole("tabpanel", { name: "Alerts", exact: true });
+      const panelBounds = await panel.boundingBox();
+      const controlsBounds = await panel
+        .getByRole("group", { name: "Alerts for Future donor", exact: true })
+        .boundingBox();
+      if (!panelBounds || !controlsBounds)
+        throw new Error("Alert editor is missing");
+      expect(controlsBounds.width).toBeGreaterThanOrEqual(
+        panelBounds.width * 0.95,
+      );
+      await page
+        .getByRole("tab", { name: "Search criteria", exact: true })
+        .click();
+      const nameBounds = await page
+        .getByLabel("Search name", { exact: true })
+        .boundingBox();
+      if (!nameBounds) throw new Error("Search name is missing");
+      expect(nameBounds.width).toBeGreaterThanOrEqual(panelBounds.width * 0.95);
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Honda Civic Make + model" })
+        .waitFor();
+      expect(
+        await page
+          .getByRole("button", { name: "Edit saved search Future donor" })
+          .locator("svg")
+          .count(),
+      ).toBe(1);
+    } finally {
+      await page.close();
+    }
+  }, 20_000);
+
   test("preserves both drafts through notification setup and a failed combined save", async () => {
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
@@ -394,7 +472,10 @@ describe("saved search browser flow", () => {
       await page.getByRole("dialog").waitFor({ state: "hidden" });
       await page
         .getByRole("article", { name: "My new donor", exact: true })
-        .getByText("Alerts: Email + Discord", { exact: true })
+        .getByRole("button", {
+          name: "Alerts for My new donor: Email and Discord",
+          exact: true,
+        })
         .waitFor();
     } finally {
       await page.close();

@@ -27,12 +27,12 @@ export function SavedSearchAlerts({
   return (
     <fieldset className="min-w-0">
       <legend className="sr-only">Alerts for {searchName}</legend>
-      <div className="mt-3 grid gap-1">
+      <div className="mt-3 grid divide-y border-y">
         {channels.map((channel) => (
           <label
             key={channel.name}
             htmlFor={`${id}-${channel.name}`}
-            className="flex min-h-11 items-center gap-3 text-sm"
+            className="flex min-h-14 items-center gap-3 text-sm"
           >
             <span className="flex-1">{channel.name}</span>
             <span className="text-muted-foreground text-xs">

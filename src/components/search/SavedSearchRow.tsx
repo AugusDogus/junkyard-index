@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
@@ -42,54 +41,46 @@ export function SavedSearchRow({
   locked: boolean;
   source: "settings" | "saved_searches_list";
 }) {
-  const channels = [
-    search.emailAlertsEnabled ? "Email" : null,
-    search.discordAlertsEnabled ? "Discord" : null,
-  ].filter(Boolean);
   const preview = criteriaPreview(search);
-  const summary = (
-    <>
-      <h3 className="flex items-center gap-2 text-base font-semibold text-balance break-words">
-        <span className="min-w-0">{search.name}</span>
-        {!locked && (
-          <ChevronRight
-            aria-hidden="true"
-            className="text-muted-foreground size-4 shrink-0"
-          />
-        )}
-      </h3>
-      <p
-        className="text-muted-foreground mt-1 line-clamp-2 text-sm break-words"
-        title={preview}
-      >
-        {preview}
-      </p>
-    </>
-  );
   return (
     <article
       aria-label={search.name}
-      className="flex min-w-0 items-start gap-4 py-5"
+      className="flex min-w-0 items-start gap-3 py-4"
     >
       <div className="min-w-0 flex-1">
-        {locked ? (
-          <div>{summary}</div>
-        ) : (
-          <Link
-            href={buildSearchUrl(search.query, search.filters)}
-            aria-label={`Open saved search ${search.name}`}
-            className="focus-visible:ring-ring block min-h-11 rounded-sm py-1 underline-offset-4 outline-none focus-visible:ring-2 hover:[&_h3]:underline"
-          >
-            {summary}
-          </Link>
-        )}
-        <p className="text-muted-foreground mt-2 text-xs">
-          {locked
-            ? "Upgrade to reopen this search"
-            : channels.length
-              ? `Alerts: ${channels.join(" + ")}`
-              : "Alerts off"}
+        <div className="flex min-w-0 items-start gap-1">
+          <h3 className="min-w-0 text-base font-semibold text-balance break-words">
+            {locked ? (
+              search.name
+            ) : (
+              <Link
+                href={buildSearchUrl(search.query, search.filters)}
+                aria-label={`Open saved search ${search.name}`}
+                className="focus-visible:ring-ring flex min-h-11 items-center rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 sm:min-h-8"
+              >
+                {search.name}
+              </Link>
+            )}
+          </h3>
+          {!locked && (
+            <EditSavedSearchDialog
+              search={search}
+              source={source}
+              trigger="alerts"
+            />
+          )}
+        </div>
+        <p
+          className="text-muted-foreground mt-1 line-clamp-2 text-sm break-words"
+          title={preview}
+        >
+          {preview}
         </p>
+        {locked && (
+          <p className="text-muted-foreground mt-2 text-xs">
+            Upgrade to reopen this search
+          </p>
+        )}
       </div>
       <EditSavedSearchDialog search={search} source={source} locked={locked} />
     </article>
