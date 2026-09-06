@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   parseSavedSearchFilters,
@@ -26,6 +26,8 @@ export async function updateSavedSearch(params: {
   name: string;
   query: string;
   filters: string;
+  emailAlertsEnabled?: boolean;
+  discordAlertsEnabled?: boolean;
 }): Promise<boolean> {
   const nextFilters = parseSavedSearchFilters(params.filters);
   if (!nextFilters.success) {
@@ -40,6 +42,10 @@ export async function updateSavedSearch(params: {
         query: savedSearch.query,
         filters: savedSearch.filters,
         searchMatchVersion: savedSearch.searchMatchVersion,
+        emailAlertsEnabled: savedSearch.emailAlertsEnabled,
+        discordAlertsEnabled: savedSearch.discordAlertsEnabled,
+        emailConfigVersion: savedSearch.emailConfigVersion,
+        discordConfigVersion: savedSearch.discordConfigVersion,
       })
       .from(savedSearch)
       .where(
@@ -56,32 +62,29 @@ export async function updateSavedSearch(params: {
       !existingFilters.success ||
       savedSearchMatchCriteriaKey(existing.query, existingFilters.data) !==
         savedSearchMatchCriteriaKey(params.query, nextFilters.data);
+    const emailChanged =
+      params.emailAlertsEnabled !== undefined &&
+      params.emailAlertsEnabled !== existing.emailAlertsEnabled;
+    const discordChanged =
+      params.discordAlertsEnabled !== undefined &&
+      params.discordAlertsEnabled !== existing.discordAlertsEnabled;
     const updateWhere = and(
       eq(savedSearch.id, params.searchId),
       eq(savedSearch.userId, params.userId),
       eq(savedSearch.query, existing.query),
       eq(savedSearch.filters, existing.filters),
       eq(savedSearch.searchMatchVersion, existing.searchMatchVersion),
+      eq(savedSearch.emailConfigVersion, existing.emailConfigVersion),
+      eq(savedSearch.discordConfigVersion, existing.discordConfigVersion),
     );
 
-    if (!matchCriteriaChanged) {
-      const [updated] = await params.database.batch([
-        params.database
-          .update(savedSearch)
-          .set({
-            name: params.name,
-            query: params.query,
-            filters: params.filters,
-          })
-          .where(updateWhere)
-          .returning({ id: savedSearch.id }),
-      ]);
-      if (updated.length === 1) return true;
-      continue;
-    }
-
     const now = new Date();
-    const nextMatchVersion = existing.searchMatchVersion + 1;
+    const nextMatchVersion =
+      existing.searchMatchVersion + (matchCriteriaChanged ? 1 : 0);
+    const nextEmailVersion =
+      existing.emailConfigVersion + (emailChanged ? 1 : 0);
+    const nextDiscordVersion =
+      existing.discordConfigVersion + (discordChanged ? 1 : 0);
     const publicationSequence = sql<number>`(
       select coalesce(max(${ingestionRun.publicationSequence}), 0)
       from ${ingestionRun}
@@ -94,6 +97,10 @@ export async function updateSavedSearch(params: {
           eq(savedSearch.id, params.searchId),
           eq(savedSearch.userId, params.userId),
           eq(savedSearch.searchMatchVersion, nextMatchVersion),
+          eq(savedSearch.emailConfigVersion, nextEmailVersion),
+          eq(savedSearch.discordConfigVersion, nextDiscordVersion),
+          eq(savedSearch.query, params.query),
+          eq(savedSearch.filters, params.filters),
         ),
       );
     const [updated] = await params.database.batch([
@@ -103,13 +110,40 @@ export async function updateSavedSearch(params: {
           name: params.name,
           query: params.query,
           filters: params.filters,
-          searchMatchVersion: nextMatchVersion,
-          emailStartSequence: publicationSequence,
-          discordStartSequence: publicationSequence,
-          lastMatchedPublicationSequence: publicationSequence,
-          lastCheckedAt: now,
-          alertQuarantinedAt: null,
-          alertQuarantineReason: null,
+          ...(matchCriteriaChanged
+            ? {
+                searchMatchVersion: nextMatchVersion,
+                emailStartSequence: publicationSequence,
+                discordStartSequence: publicationSequence,
+                lastMatchedPublicationSequence: publicationSequence,
+                lastCheckedAt: now,
+                alertQuarantinedAt: null,
+                alertQuarantineReason: null,
+              }
+            : {}),
+          ...(emailChanged
+            ? {
+                emailAlertsEnabled: params.emailAlertsEnabled,
+                emailConfigVersion: nextEmailVersion,
+                ...(params.emailAlertsEnabled
+                  ? { emailStartSequence: publicationSequence }
+                  : {}),
+              }
+            : {}),
+          ...(discordChanged
+            ? {
+                discordAlertsEnabled: params.discordAlertsEnabled,
+                discordConfigVersion: nextDiscordVersion,
+                ...(params.discordAlertsEnabled
+                  ? { discordStartSequence: publicationSequence }
+                  : {}),
+              }
+            : {}),
+          ...(!existing.emailAlertsEnabled &&
+          !existing.discordAlertsEnabled &&
+          (params.emailAlertsEnabled || params.discordAlertsEnabled)
+            ? { lastCheckedAt: now }
+            : {}),
         })
         .where(updateWhere)
         .returning({ id: savedSearch.id }),
@@ -123,6 +157,34 @@ export async function updateSavedSearch(params: {
         .where(
           and(
             inArray(searchNotificationIntent.savedSearchId, updatedSearchIds),
+            // A competing update may already have reached these versions.
+            // Preserve intents created for the resulting configuration.
+            or(
+              matchCriteriaChanged
+                ? ne(
+                    searchNotificationIntent.searchMatchVersion,
+                    nextMatchVersion,
+                  )
+                : undefined,
+              emailChanged
+                ? and(
+                    eq(searchNotificationIntent.channel, "email"),
+                    ne(
+                      searchNotificationIntent.channelConfigVersion,
+                      nextEmailVersion,
+                    ),
+                  )
+                : undefined,
+              discordChanged
+                ? and(
+                    eq(searchNotificationIntent.channel, "discord"),
+                    ne(
+                      searchNotificationIntent.channelConfigVersion,
+                      nextDiscordVersion,
+                    ),
+                  )
+                : undefined,
+            ) ?? sql`false`,
             sql`${searchNotificationIntent.deliveredAt} is null`,
             sql`${searchNotificationIntent.cancelledAt} is null`,
           ),

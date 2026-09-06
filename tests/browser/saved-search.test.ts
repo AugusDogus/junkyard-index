@@ -198,81 +198,85 @@ describe("saved search browser flow", () => {
 
   for (const settings of [false, true]) {
     for (const width of [390, 1440]) {
-      test(`shows and toggles alert states independently in ${settings ? "Settings" : "saved searches"} at ${width}px`, async () => {
+      test(`edits alerts with criteria and discards cancelled changes in ${settings ? "Settings" : "search"} at ${width}px`, async () => {
         const page = await browser.newPage({
           viewport: { width, height: 900 },
         });
         try {
-          await openFixture(page, `?discord=1${settings ? "&settings=1" : ""}`);
-          const alerts = page.getByRole("group", {
-            name: "Alerts for Future donor",
+          await openFixture(
+            page,
+            `?discord=1&multiple=1${settings ? "&settings=1" : "&scene=1"}`,
+          );
+          const first = page.getByRole("article", {
+            name: "Future donor",
             exact: true,
           });
-          const email = alerts.getByRole("switch", {
+          const second = page.getByRole("article", {
+            name: "Tacoma donor with a particularly long saved search name",
+            exact: true,
+          });
+          await first.waitFor();
+          expect(
+            await first.getByText("Alerts: Email", { exact: true }).count(),
+          ).toBe(1);
+          expect(
+            await second.getByText("Alerts: Discord", { exact: true }).count(),
+          ).toBe(1);
+          expect(await page.getByRole("switch").count()).toBe(0);
+          expect(
+            await page
+              .getByRole("button", { name: /Delete saved search/ })
+              .count(),
+          ).toBe(0);
+          await first
+            .getByRole("button", { name: "Edit saved search Future donor" })
+            .click();
+          await page.getByRole("tab", { name: "Alerts", exact: true }).click();
+          const email = page.getByRole("switch", {
             name: "Email alerts for Future donor",
           });
-          const discord = alerts.getByRole("switch", {
+          const discord = page.getByRole("switch", {
             name: "Discord alerts for Future donor",
           });
           expect(await email.isChecked()).toBe(true);
           expect(await discord.isChecked()).toBe(false);
-          expect(await alerts.getByText("On", { exact: true }).count()).toBe(1);
-          expect(await alerts.getByText("Off", { exact: true }).count()).toBe(
-            1,
-          );
-          expect(
-            await alerts
-              .getByRole("button", { name: "Edit saved search Future donor" })
-              .count(),
-          ).toBe(0);
-          const editBounds = await page
-            .getByRole("button", { name: "Edit saved search Future donor" })
-            .boundingBox();
-          if (!editBounds)
-            throw new Error("Saved-search edit action is missing");
-          expect(editBounds.x + editBounds.width).toBeLessThanOrEqual(width);
           await email.click();
-          await alerts
-            .getByRole("switch", {
-              name: "Email alerts for Future donor",
-              checked: false,
-            })
-            .waitFor();
-          expect(await email.isChecked()).toBe(false);
-          expect(await page.locator("#submission").textContent()).toBe(
-            JSON.stringify({
-              path: "savedSearches.toggleEmailAlerts",
-              input: { id: "saved-volvo", enabled: false },
-            }),
-          );
           await discord.click();
-          await alerts
-            .getByRole("switch", {
-              name: "Discord alerts for Future donor",
-              checked: true,
-            })
-            .waitFor();
-          expect(await discord.isChecked()).toBe(true);
-          expect(await page.locator("#submission").textContent()).toBe(
-            JSON.stringify({
-              path: "savedSearches.toggleDiscordAlerts",
-              input: { id: "saved-volvo", enabled: true },
-            }),
-          );
-          expect(await page.getByRole("dialog").count()).toBe(0);
-          await page
-            .getByRole("button", { name: "Edit saved search Future donor" })
-            .click();
-          expect(
-            await page
-              .getByLabel("All of these words", { exact: true })
-              .inputValue(),
-          ).toBe("wagon");
+          expect(await page.locator("#submission").textContent()).toBe("null");
           await page
             .getByRole("button", { name: "Cancel", exact: true })
             .click();
-          expect(await email.isChecked()).toBe(false);
-          expect(await discord.isChecked()).toBe(true);
+          expect(
+            await first.getByText("Alerts: Email", { exact: true }).count(),
+          ).toBe(1);
+          await first
+            .getByRole("button", { name: "Edit saved search Future donor" })
+            .click();
+          await page
+            .getByLabel("Search name", { exact: true })
+            .fill("Updated donor");
+          await page.getByRole("tab", { name: "Alerts", exact: true }).click();
+          expect(await email.isChecked()).toBe(true);
+          await email.click();
+          await discord.click();
+          await page
+            .getByRole("button", { name: "Save changes", exact: true })
+            .click();
+          await page.getByRole("dialog").waitFor({ state: "hidden" });
+          const updated = page.getByRole("article", {
+            name: "Updated donor",
+            exact: true,
+          });
+          await updated.getByText("Alerts: Discord", { exact: true }).waitFor();
+          expect(
+            await second.getByText("Alerts: Discord", { exact: true }).count(),
+          ).toBe(1);
+          expect(await page.locator("#submission").textContent()).toContain(
+            '"path":"savedSearches.update"',
+          );
+          expect(await page.locator("#submission").textContent()).toContain(
+            '"emailAlertsEnabled":false,"discordAlertsEnabled":true',
+          );
           expect(
             await page.evaluate(
               () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -283,75 +287,20 @@ describe("saved search browser flow", () => {
         }
       }, 20_000);
     }
-  }
 
-  for (const settings of [false, true]) {
-    test(`scopes alerts to each search and confirms deletion in ${settings ? "Settings" : "search"}`, async () => {
+    test(`confirms deletion within the editor in ${settings ? "Settings" : "search"}`, async () => {
       const page = await browser.newPage({
         viewport: { width: 390, height: 844 },
       });
       try {
         await openFixture(
           page,
-          `?multiple=1&discord=1${settings ? "&settings=1" : "&scene=1"}`,
+          `?multiple=1${settings ? "&settings=1" : "&scene=1"}`,
         );
-        const first = page.getByRole("article", {
-          name: "Future donor",
-          exact: true,
-        });
-        const second = page.getByRole("article", {
-          name: "Tacoma donor with a particularly long saved search name",
-          exact: true,
-        });
-        await first
-          .getByRole("switch", { name: "Email alerts for Future donor" })
+        await page
+          .getByRole("button", { name: "Edit saved search Future donor" })
           .click();
-        await first
-          .getByRole("switch", {
-            name: "Email alerts for Future donor",
-            checked: false,
-          })
-          .waitFor();
-        expect(
-          await second
-            .getByRole("switch", { name: /Email alerts/ })
-            .isChecked(),
-        ).toBe(false);
-        expect(
-          await second
-            .getByRole("switch", { name: /Discord alerts/ })
-            .isChecked(),
-        ).toBe(true);
-        expect(
-          await first
-            .getByText("New matches for this search", { exact: true })
-            .count(),
-        ).toBe(1);
-        expect(
-          await second
-            .getByText("New matches for this search", { exact: true })
-            .count(),
-        ).toBe(1);
-        expect(
-          await page
-            .getByRole("button", { name: /Actions for saved search/ })
-            .count(),
-        ).toBe(0);
-        await first
-          .getByRole("switch", { name: "Email alerts for Future donor" })
-          .click();
-        await first
-          .getByRole("switch", {
-            name: "Email alerts for Future donor",
-            checked: true,
-          })
-          .waitFor();
-        expect(
-          await second
-            .getByRole("switch", { name: /Email alerts/ })
-            .isChecked(),
-        ).toBe(false);
-        const deleteButton = first.getByRole("button", {
+        const deleteButton = page.getByRole("button", {
           name: "Delete saved search Future donor",
         });
         await deleteButton.click();
@@ -372,39 +321,93 @@ describe("saved search browser flow", () => {
             document.activeElement?.getAttribute("aria-label") ===
             "Delete saved search Future donor",
         );
-        expect(await first.count()).toBe(1);
-        expect(
-          await deleteButton.evaluate(
-            (element) => document.activeElement === element,
-          ),
-        ).toBe(true);
         await deleteButton.click();
         await confirmation
           .getByRole("button", { name: "Delete search", exact: true })
           .click();
-        await first.waitFor({ state: "hidden" });
-        expect(await second.count()).toBe(1);
+        await page.getByRole("dialog").waitFor({ state: "hidden" });
+        await page
+          .getByRole("article", { name: "Future donor", exact: true })
+          .waitFor({ state: "hidden" });
+        expect(await page.getByRole("article").count()).toBe(1);
         expect(await page.locator("#submission").textContent()).toBe(
           JSON.stringify({
             path: "savedSearches.delete",
             input: { id: "saved-volvo" },
           }),
         );
-        expect(
-          await page.evaluate(
-            () => document.documentElement.scrollWidth <= window.innerWidth,
-          ),
-        ).toBe(true);
       } finally {
         await page.close();
       }
     }, 20_000);
   }
 
+  test("preserves both drafts through notification setup and a failed combined save", async () => {
+    const page = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      await openFixture(page, "?discord=1&fail=1");
+      const open = page.getByRole("link", {
+        name: "Open saved search Future donor",
+      });
+      const bounds = await open.boundingBox();
+      expect(bounds?.height).toBeGreaterThanOrEqual(44);
+      await page
+        .getByRole("button", { name: "Edit saved search Future donor" })
+        .click();
+      await page
+        .getByLabel("Search name", { exact: true })
+        .fill("My new donor");
+      await page.getByRole("tab", { name: "Alerts", exact: true }).click();
+      await page
+        .getByRole("switch", { name: "Discord alerts for Future donor" })
+        .click();
+      const popupPromise = page.waitForEvent("popup");
+      await page
+        .getByRole("link", { name: "Notification setup (opens a new tab)" })
+        .click();
+      const popup = await popupPromise;
+      await popup.close();
+      expect(await page.getByRole("dialog").count()).toBe(1);
+      expect(
+        await page
+          .getByRole("switch", { name: "Discord alerts for Future donor" })
+          .isChecked(),
+      ).toBe(true);
+      await page
+        .getByRole("button", { name: "Save changes", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "The save failed" })
+        .waitFor();
+      await page
+        .getByRole("tab", { name: "Search criteria", exact: true })
+        .click();
+      expect(
+        await page.getByLabel("Search name", { exact: true }).inputValue(),
+      ).toBe("My new donor");
+      await page
+        .getByRole("button", { name: "Save changes", exact: true })
+        .click();
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      await page
+        .getByRole("article", { name: "My new donor", exact: true })
+        .getByText("Alerts: Email + Discord", { exact: true })
+        .waitFor();
+    } finally {
+      await page.close();
+    }
+  }, 20_000);
+
   test("keeps a failed deletion open with recovery and preserves the search", async () => {
     const page = await browser.newPage();
     try {
       await openFixture(page, "?fail=1");
+      await page
+        .getByRole("button", { name: "Edit saved search Future donor" })
+        .click();
       await page
         .getByRole("button", { name: "Delete saved search Future donor" })
         .click();

@@ -146,12 +146,38 @@ export const savedSearchesRouter = createTRPCRouter({
         name: z.string().min(1).max(100),
         query: savedQuerySchema,
         filters: filtersSchema,
+        emailAlertsEnabled: z.boolean().optional(),
+        discordAlertsEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const planTier = await getAuthoritativePlanTier(ctx.user.id);
       if (!hasPlanFeature(planTier, "saved_searches")) {
         throw planGateError("saved_searches");
+      }
+
+      if (
+        (input.emailAlertsEnabled || input.discordAlertsEnabled) &&
+        !hasPlanFeature(planTier, "alerts")
+      ) {
+        throw planGateError("alerts");
+      }
+      if (input.discordAlertsEnabled) {
+        const [account] = await ctx.db
+          .select({
+            discordId: user.discordId,
+            discordAppInstalled: user.discordAppInstalled,
+          })
+          .from(user)
+          .where(eq(user.id, ctx.user.id))
+          .limit(1);
+        if (!account?.discordId || !account.discordAppInstalled) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Set up Discord in notification settings before enabling Discord alerts. No changes were saved.",
+          });
+        }
       }
 
       const updated = await updateSavedSearch({
@@ -161,6 +187,8 @@ export const savedSearchesRouter = createTRPCRouter({
         name: input.name,
         query: input.query,
         filters: JSON.stringify(input.filters),
+        emailAlertsEnabled: input.emailAlertsEnabled,
+        discordAlertsEnabled: input.discordAlertsEnabled,
       });
       if (!updated) {
         throw new TRPCError({

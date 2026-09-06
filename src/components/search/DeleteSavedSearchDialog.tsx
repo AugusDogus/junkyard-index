@@ -28,6 +28,7 @@ export function DeleteSavedSearchDialog({
     >
       <AlertDialog.Trigger asChild>
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           className="min-h-11"
@@ -59,6 +60,7 @@ export function DeleteSavedSearchDialog({
               </Button>
             </AlertDialog.Cancel>
             <Button
+              type="button"
               variant="destructive"
               disabled={pending}
               onClick={async () => {

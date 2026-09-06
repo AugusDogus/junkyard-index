@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { filtersSchema } from "~/lib/saved-search-filters";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
@@ -13,6 +15,14 @@ import { SettingsNav } from "~/components/settings/SettingsNav";
 import { SettingsPageHeader } from "~/components/settings/SettingsPageHeader";
 import { api, type RouterOutputs } from "~/trpc/react";
 
+const updateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  query: z.string(),
+  filters: filtersSchema,
+  emailAlertsEnabled: z.boolean().optional(),
+  discordAlertsEnabled: z.boolean().optional(),
+});
 const parameters = new URLSearchParams(window.location.search);
 const search: RouterOutputs["savedSearches"]["list"][number] = {
   id: "saved-volvo",
@@ -56,6 +66,32 @@ function Fixture() {
             filters: { minYear: 2016, colors: ["White"] },
             emailAlertsEnabled: false,
             discordAlertsEnabled: true,
+          },
+        ]
+      : []),
+    ...(parameters.has("collection")
+      ? [
+          {
+            ...search,
+            id: "saved-v8",
+            name: "Volvo V8 donor",
+            query: "",
+            filters: {
+              vinPattern: "YV4C*85**********",
+              minYear: 2005,
+              maxYear: 2009,
+            },
+            emailAlertsEnabled: true,
+            discordAlertsEnabled: true,
+          },
+          {
+            ...search,
+            id: "saved-civic",
+            name: "Civic hatchback",
+            query: "Honda Civic",
+            filters: { minYear: 1996, maxYear: 2000 },
+            emailAlertsEnabled: false,
+            discordAlertsEnabled: false,
           },
         ]
       : []),
@@ -114,6 +150,30 @@ function Fixture() {
                       },
                     );
                   }
+                }
+                if (op.path === "savedSearches.update") {
+                  const parsed = updateSchema.safeParse(input);
+                  if (!parsed.success) {
+                    observer.error(
+                      new TRPCClientError("Invalid update in browser fixture"),
+                    );
+                    return;
+                  }
+                  currentSearches.current = currentSearches.current.map(
+                    (item) =>
+                      item.id === parsed.data.id
+                        ? {
+                            ...item,
+                            ...parsed.data,
+                            emailAlertsEnabled:
+                              parsed.data.emailAlertsEnabled ??
+                              item.emailAlertsEnabled,
+                            discordAlertsEnabled:
+                              parsed.data.discordAlertsEnabled ??
+                              item.discordAlertsEnabled,
+                          }
+                        : item,
+                  );
                 }
                 setSubmission({ path: op.path, input: op.input });
               }
