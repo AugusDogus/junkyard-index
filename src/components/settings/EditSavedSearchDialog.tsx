@@ -183,7 +183,7 @@ export function EditSavedSearchDialog({
       <DialogTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
           aria-label={`Edit saved search ${search.name}`}
         >

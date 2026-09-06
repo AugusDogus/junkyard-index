@@ -23,7 +23,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Switch } from "~/components/ui/switch";
+import { SavedSearchAlerts } from "~/components/search/SavedSearchAlerts";
 import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { usePlanAccess } from "~/hooks/use-plan-access";
 import { AnalyticsEvents } from "~/lib/analytics-events";
@@ -185,8 +185,8 @@ export function SavedSearchSettingsCard() {
               {searches.map((search) => {
                 return (
                   <div key={search.id}>
-                    <div className="grid gap-5 py-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-                      <div className="flex min-w-0 flex-col gap-2">
+                    <div className="grid gap-4 py-6">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
                         {savedSearchesLocked ? (
                           <span className="text-base font-semibold break-words">
                             {search.name}
@@ -200,83 +200,59 @@ export function SavedSearchSettingsCard() {
                             {search.name}
                           </Link>
                         )}
-                        <SavedSearchCriteria
-                          query={search.query}
-                          filters={search.filters}
-                        />
-                        {savedSearchesLocked && (
-                          <span className="text-muted-foreground text-xs">
-                            Alerts are unavailable on your current plan.
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-4 xl:justify-end">
-                        {!savedSearchesLocked && (
-                          <>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {!savedSearchesLocked && (
                             <EditSavedSearchDialog search={search} />
-                            <div className="flex items-center gap-3">
-                              <label
-                                htmlFor={`email-alerts-${search.id}`}
-                                className="text-sm"
-                              >
-                                Email
-                              </label>
-                              <Switch
-                                id={`email-alerts-${search.id}`}
-                                checked={search.emailAlertsEnabled}
-                                onCheckedChange={(enabled) =>
-                                  setEmailAlerts(search.id, enabled)
-                                }
-                                disabled={isMutating}
-                                aria-label={`Email alerts for ${search.name}`}
-                              />
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <label
-                                htmlFor={`discord-alerts-${search.id}`}
-                                className="text-sm"
-                              >
-                                Discord
-                              </label>
-                              <Switch
-                                id={`discord-alerts-${search.id}`}
-                                checked={search.discordAlertsEnabled}
-                                onCheckedChange={(enabled) =>
-                                  setDiscordAlerts(search.id, enabled)
-                                }
-                                disabled={isMutating}
-                                aria-label={`Discord alerts for ${search.name}`}
-                              />
-                            </div>
-                          </>
-                        )}
+                          )}
 
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              aria-label={`Actions for saved search ${search.name}`}
-                            >
-                              <MoreHorizontal />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuGroup>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                disabled={deleteSearch.isPending}
-                                onSelect={() => remove(search.id)}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Actions for saved search ${search.name}`}
                               >
-                                <Trash2 />
-                                Delete saved search
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                <MoreHorizontal />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuGroup>
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  disabled={deleteSearch.isPending}
+                                  onSelect={() => remove(search.id)}
+                                >
+                                  <Trash2 />
+                                  Delete saved search
+                                </DropdownMenuItem>
+                              </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
+                      <SavedSearchCriteria
+                        query={search.query}
+                        filters={search.filters}
+                      />
+                      {savedSearchesLocked ? (
+                        <span className="text-muted-foreground text-xs">
+                          Alerts are unavailable on your current plan.
+                        </span>
+                      ) : (
+                        <SavedSearchAlerts
+                          searchName={search.name}
+                          emailEnabled={search.emailAlertsEnabled}
+                          discordEnabled={search.discordAlertsEnabled}
+                          disabled={isMutating}
+                          onEmailChange={(enabled) =>
+                            setEmailAlerts(search.id, enabled)
+                          }
+                          onDiscordChange={(enabled) =>
+                            setDiscordAlerts(search.id, enabled)
+                          }
+                        />
+                      )}
                     </div>
                   </div>
                 );
