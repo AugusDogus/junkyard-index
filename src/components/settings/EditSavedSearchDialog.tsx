@@ -178,27 +178,31 @@ function EditSavedSearchForm({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 text-left sm:px-6">
-            <DialogTitle>Edit saved search</DialogTitle>
-            <DialogDescription>{search.name}</DialogDescription>
+          <DialogHeader className="grid shrink-0 items-center gap-4 border-b px-5 py-5 text-left sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6 sm:pr-14">
+            <div className="flex min-w-0 flex-col gap-2 pr-8 sm:pr-0">
+              <DialogTitle>Edit saved search</DialogTitle>
+              <DialogDescription className="break-words">
+                {search.name}
+              </DialogDescription>
+            </div>
+            <Tabs.List
+              aria-label="Saved search settings"
+              className="bg-muted grid shrink-0 grid-cols-2 gap-1 rounded-lg p-1 sm:w-80"
+            >
+              <Tabs.Trigger
+                value="criteria"
+                className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
+              >
+                Search criteria
+              </Tabs.Trigger>
+              <Tabs.Trigger
+                value="alerts"
+                className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
+              >
+                Alerts
+              </Tabs.Trigger>
+            </Tabs.List>
           </DialogHeader>
-          <Tabs.List
-            aria-label="Saved search settings"
-            className="bg-muted mx-5 mt-4 grid shrink-0 grid-cols-2 gap-1 rounded-lg p-1 sm:mx-6 sm:w-80"
-          >
-            <Tabs.Trigger
-              value="criteria"
-              className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
-            >
-              Search criteria
-            </Tabs.Trigger>
-            <Tabs.Trigger
-              value="alerts"
-              className="text-muted-foreground focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground min-h-11 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 data-[state=active]:shadow-xs sm:min-h-9"
-            >
-              Alerts
-            </Tabs.Trigger>
-          </Tabs.List>
           <div className="scrollbar-thin-themed min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
             {locked && (
               <p className="text-muted-foreground mb-4 text-sm">
