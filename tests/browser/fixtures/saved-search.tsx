@@ -6,6 +6,7 @@ import { PathnameContext } from "next/dist/shared/lib/hooks-client-context.share
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SaveSearchDialog } from "~/components/search/SaveSearchDialog";
+import { SearchStartPanel } from "~/components/search/SearchStartPanel";
 import { SavedSearchesList } from "~/components/search/SavedSearchesList";
 import { SavedSearchSettingsCard } from "~/components/settings/SavedSearchSettingsCard";
 import { SettingsNav } from "~/components/settings/SettingsNav";
@@ -43,7 +44,22 @@ const search: RouterOutputs["savedSearches"]["list"][number] = {
 function Fixture() {
   const [submission, setSubmission] = useState<unknown>(null);
   const failNext = useRef(parameters.has("fail"));
-  const currentSearch = useRef(search);
+  const currentSearches = useRef([
+    search,
+    ...(parameters.has("multiple")
+      ? [
+          {
+            ...search,
+            id: "saved-truck",
+            name: "Tacoma donor with a particularly long saved search name",
+            query: "Toyota Tacoma",
+            filters: { minYear: 2016, colors: ["White"] },
+            emailAlertsEnabled: false,
+            discordAlertsEnabled: true,
+          },
+        ]
+      : []),
+  ]);
   const [queryClient] = useState(() => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -75,25 +91,35 @@ function Fixture() {
                 if (
                   typeof input === "object" &&
                   input !== null &&
-                  "enabled" in input &&
-                  typeof input.enabled === "boolean"
+                  "id" in input
                 ) {
-                  if (op.path === "savedSearches.toggleEmailAlerts")
-                    currentSearch.current = {
-                      ...currentSearch.current,
-                      emailAlertsEnabled: input.enabled,
-                    };
-                  if (op.path === "savedSearches.toggleDiscordAlerts")
-                    currentSearch.current = {
-                      ...currentSearch.current,
-                      discordAlertsEnabled: input.enabled,
-                    };
+                  if (op.path === "savedSearches.delete") {
+                    currentSearches.current = currentSearches.current.filter(
+                      (item) => item.id !== input.id,
+                    );
+                  }
+                  if (
+                    "enabled" in input &&
+                    typeof input.enabled === "boolean"
+                  ) {
+                    const enabled = input.enabled;
+                    currentSearches.current = currentSearches.current.map(
+                      (item) => {
+                        if (item.id !== input.id) return item;
+                        if (op.path === "savedSearches.toggleEmailAlerts")
+                          return { ...item, emailAlertsEnabled: enabled };
+                        if (op.path === "savedSearches.toggleDiscordAlerts")
+                          return { ...item, discordAlertsEnabled: enabled };
+                        return item;
+                      },
+                    );
+                  }
                 }
                 setSubmission({ path: op.path, input: op.input });
               }
               const data =
                 op.path === "savedSearches.list"
-                  ? [currentSearch.current]
+                  ? currentSearches.current
                   : op.path === "subscription.getAccountOverview"
                     ? { kind: "active", tier: "full" }
                     : op.path === "user.getNotificationSettings"
@@ -135,6 +161,13 @@ function Fixture() {
                     <SavedSearchSettingsCard />
                   </div>
                 </div>
+              ) : parameters.has("scene") ? (
+                <SearchStartPanel
+                  isLoggedIn
+                  savedSearchesLocked={false}
+                  vinPatternSearchReady
+                  onSearch={noOp}
+                />
               ) : (
                 <SavedSearchesList locked={false} />
               )}

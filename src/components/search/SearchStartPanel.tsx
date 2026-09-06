@@ -54,21 +54,8 @@ export function SearchStartPanel({
 
   if (isLoggedIn) {
     return (
-      <section className="py-8 sm:py-12" aria-labelledby="search-start-title">
-        <div className="max-w-2xl">
-          <h2
-            id="search-start-title"
-            className="text-2xl font-semibold text-balance"
-          >
-            Pick up where you left off.
-          </h2>
-          <p className="text-muted-foreground mt-3 text-pretty">
-            Reopen a saved parts hunt with its filters intact, or start a new
-            search from the field above.
-          </p>
-        </div>
-
-        <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <section className="py-8 sm:py-12" aria-label="Your searches">
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
           <SavedSearchesList locked={savedSearchesLocked} />
 
           <Card>

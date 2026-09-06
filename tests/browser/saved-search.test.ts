@@ -285,6 +285,153 @@ describe("saved search browser flow", () => {
     }
   }
 
+  for (const settings of [false, true]) {
+    test(`scopes alerts to each search and confirms deletion in ${settings ? "Settings" : "search"}`, async () => {
+      const page = await browser.newPage({
+        viewport: { width: 390, height: 844 },
+      });
+      try {
+        await openFixture(
+          page,
+          `?multiple=1&discord=1${settings ? "&settings=1" : "&scene=1"}`,
+        );
+        const first = page.getByRole("article", {
+          name: "Future donor",
+          exact: true,
+        });
+        const second = page.getByRole("article", {
+          name: "Tacoma donor with a particularly long saved search name",
+          exact: true,
+        });
+        await first
+          .getByRole("switch", { name: "Email alerts for Future donor" })
+          .click();
+        await first
+          .getByRole("switch", {
+            name: "Email alerts for Future donor",
+            checked: false,
+          })
+          .waitFor();
+        expect(
+          await second
+            .getByRole("switch", { name: /Email alerts/ })
+            .isChecked(),
+        ).toBe(false);
+        expect(
+          await second
+            .getByRole("switch", { name: /Discord alerts/ })
+            .isChecked(),
+        ).toBe(true);
+        expect(
+          await first
+            .getByText("New matches for this search", { exact: true })
+            .count(),
+        ).toBe(1);
+        expect(
+          await second
+            .getByText("New matches for this search", { exact: true })
+            .count(),
+        ).toBe(1);
+        expect(
+          await page
+            .getByRole("button", { name: /Actions for saved search/ })
+            .count(),
+        ).toBe(0);
+        await first
+          .getByRole("switch", { name: "Email alerts for Future donor" })
+          .click();
+        await first
+          .getByRole("switch", {
+            name: "Email alerts for Future donor",
+            checked: true,
+          })
+          .waitFor();
+        expect(
+          await second
+            .getByRole("switch", { name: /Email alerts/ })
+            .isChecked(),
+        ).toBe(false);
+        const deleteButton = first.getByRole("button", {
+          name: "Delete saved search Future donor",
+        });
+        await deleteButton.click();
+        const confirmation = page.getByRole("alertdialog");
+        const cancel = confirmation.getByRole("button", {
+          name: "Cancel",
+          exact: true,
+        });
+        expect(
+          await cancel.evaluate(
+            (element) => document.activeElement === element,
+          ),
+        ).toBe(true);
+        await cancel.click();
+        await confirmation.waitFor({ state: "hidden" });
+        await page.waitForFunction(
+          () =>
+            document.activeElement?.getAttribute("aria-label") ===
+            "Delete saved search Future donor",
+        );
+        expect(await first.count()).toBe(1);
+        expect(
+          await deleteButton.evaluate(
+            (element) => document.activeElement === element,
+          ),
+        ).toBe(true);
+        await deleteButton.click();
+        await confirmation
+          .getByRole("button", { name: "Delete search", exact: true })
+          .click();
+        await first.waitFor({ state: "hidden" });
+        expect(await second.count()).toBe(1);
+        expect(await page.locator("#submission").textContent()).toBe(
+          JSON.stringify({
+            path: "savedSearches.delete",
+            input: { id: "saved-volvo" },
+          }),
+        );
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        ).toBe(true);
+      } finally {
+        await page.close();
+      }
+    }, 20_000);
+  }
+
+  test("keeps a failed deletion open with recovery and preserves the search", async () => {
+    const page = await browser.newPage();
+    try {
+      await openFixture(page, "?fail=1");
+      await page
+        .getByRole("button", { name: "Delete saved search Future donor" })
+        .click();
+      const confirmation = page.getByRole("alertdialog");
+      await confirmation
+        .getByRole("button", { name: "Delete search", exact: true })
+        .click();
+      await confirmation.getByRole("alert").waitFor();
+      expect(
+        await page
+          .getByRole("article", {
+            name: "Future donor",
+            exact: true,
+            includeHidden: true,
+          })
+          .count(),
+      ).toBe(1);
+      await confirmation
+        .getByRole("button", { name: "Delete search", exact: true })
+        .click();
+      await confirmation.waitFor({ state: "hidden" });
+      await page.getByText("No saved searches yet", { exact: true }).waitFor();
+    } finally {
+      await page.close();
+    }
+  }, 20_000);
+
   test("preserves complex syntax, validates errors, and discards cancelled changes", async () => {
     const page = await browser.newPage();
     try {
