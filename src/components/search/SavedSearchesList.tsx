@@ -13,6 +13,7 @@ import Link from "next/link";
 import posthog from "posthog-js";
 import { toast } from "sonner";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
+import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -402,6 +403,10 @@ export function SavedSearchesList({
                       <div className="flex items-center justify-end gap-1 pl-13 sm:pl-0">
                         {!locked && (
                           <>
+                            <EditSavedSearchDialog
+                              search={search}
+                              source="saved_searches_list"
+                            />
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button

@@ -13,6 +13,38 @@ const emptyFilterOptions = {
 const noOp = () => undefined;
 
 describe("search filter visibility", () => {
+  test("allows entering saved-search filters when inventory has no suggestions", () => {
+    const markup = renderToStaticMarkup(
+      <MobileFilterContent
+        defaultOpenSections="all"
+        allowCustomValues
+        makes={[]}
+        colors={[]}
+        states={[]}
+        salvageYards={[]}
+        sources={[]}
+        yearRange={[1900, 2027]}
+        filterOptions={emptyFilterOptions}
+        onMakesChange={noOp}
+        onColorsChange={noOp}
+        onStatesChange={noOp}
+        onSalvageYardsChange={noOp}
+        onSourcesChange={noOp}
+        onYearRangeChange={noOp}
+        canUseAdvancedFilters
+      />,
+    );
+
+    for (const label of [
+      "Search makes",
+      "Search colors",
+      "Search states",
+      "Search yards",
+    ]) {
+      expect(markup).toContain(`aria-label="${label}"`);
+    }
+  });
+
   test("keeps the desktop make filter visible when the current search has no facet values", () => {
     const markup = renderToStaticMarkup(
       <DesktopFiltersBar
