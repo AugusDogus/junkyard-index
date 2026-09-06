@@ -149,6 +149,98 @@ describe("alert configuration versions", () => {
     }
   });
 
+  for (const mode of [
+    "channels",
+    "criteria_and_channels",
+    "rollback",
+  ] as const) {
+    test(`saves search and channel edits atomically: ${mode}`, async () => {
+      const directory = mkdtempSync(join(tmpdir(), "saved-search-edit-test-"));
+      const client = createClient({
+        url: `file:${join(directory, "test.db")}`,
+      });
+      try {
+        await client.executeMultiple(TEST_SCHEMA);
+        await client.executeMultiple(`
+          insert into user (id) values ('user-1');
+          insert into ingestion_run (id, publication_sequence) values ('run-1', 4);
+          insert into saved_search (
+            id, user_id, name, query, filters, email_alerts_enabled, discord_alerts_enabled,
+            search_match_version, email_start_sequence, discord_start_sequence,
+            last_matched_publication_sequence, created_at, updated_at
+          ) values ('search-1', 'user-1', 'Old', 'ford', '{}', 1, 0, 3, 2, 2, 2, 1, 1),
+                   ('search-2', 'user-1', 'Other', 'ford', '{}', 1, 0, 3, 2, 2, 2, 1, 1);
+          insert into search_notification_intent (
+            id, run_id, publication_sequence, saved_search_id, user_id, channel,
+            search_match_version, channel_config_version, payload, status, attempts, created_at
+          ) values ('email-1', 'run-1', 4, 'search-1', 'user-1', 'email', 3, 1, '{}', 'pending', 0, 1),
+                   ('email-2', 'run-1', 4, 'search-2', 'user-1', 'email', 3, 1, '{}', 'pending', 0, 1);
+        `);
+        if (mode === "rollback")
+          await client.executeMultiple(`
+          create trigger fail_cancellation before update on search_notification_intent
+          begin select raise(abort, 'Cancellation failed'); end;
+        `);
+        const update = updateSavedSearch({
+          database: drizzle(client),
+          searchId: "search-1",
+          userId: "user-1",
+          name: "Updated",
+          query: mode === "channels" ? "ford" : "honda",
+          filters: "{}",
+          emailAlertsEnabled: false,
+          discordAlertsEnabled: true,
+        });
+        if (mode === "rollback") await expect(update).rejects.toThrow();
+        else expect(await update).toBe(true);
+        const searches = await client.execute(
+          "select * from saved_search order by id",
+        );
+        expect(searches.rows[0]).toMatchObject(
+          mode === "rollback"
+            ? {
+                name: "Old",
+                query: "ford",
+                email_alerts_enabled: 1,
+                discord_alerts_enabled: 0,
+                email_config_version: 1,
+                discord_config_version: 1,
+                search_match_version: 3,
+              }
+            : {
+                name: "Updated",
+                query: mode === "channels" ? "ford" : "honda",
+                email_alerts_enabled: 0,
+                discord_alerts_enabled: 1,
+                email_config_version: 2,
+                discord_config_version: 2,
+                search_match_version: mode === "channels" ? 3 : 4,
+                email_start_sequence: mode === "channels" ? 2 : 4,
+                discord_start_sequence: 4,
+                last_matched_publication_sequence: mode === "channels" ? 2 : 4,
+              },
+        );
+        expect(searches.rows[1]).toMatchObject({
+          name: "Other",
+          email_alerts_enabled: 1,
+          discord_alerts_enabled: 0,
+          email_config_version: 1,
+          discord_config_version: 1,
+        });
+        const intents = await client.execute(
+          "select id, status from search_notification_intent order by id",
+        );
+        expect(intents.rows[0]?.status).toBe(
+          mode === "rollback" ? "pending" : "cancelled",
+        );
+        expect(intents.rows[1]?.status).toBe("pending");
+      } finally {
+        client.close();
+        rmSync(directory, { recursive: true });
+      }
+    });
+  }
+
   test("disabling email cancels only email intents and bumps only email state", async () => {
     const directory = mkdtempSync(join(tmpdir(), "alert-config-test-"));
     const client = createClient({ url: `file:${join(directory, "test.db")}` });

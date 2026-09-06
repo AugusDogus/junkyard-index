@@ -25,11 +25,8 @@ export function SavedSearchAlerts({
   ];
 
   return (
-    <fieldset className="bg-muted/30 min-w-0 border-t p-5 sm:p-6 @xl:border-t-0 @xl:border-l">
+    <fieldset className="min-w-0">
       <legend className="sr-only">Alerts for {searchName}</legend>
-      <p className="text-sm font-medium text-pretty">
-        New matches for this search
-      </p>
       <div className="mt-3 grid gap-1">
         {channels.map((channel) => (
           <label

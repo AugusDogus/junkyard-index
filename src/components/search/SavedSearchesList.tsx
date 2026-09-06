@@ -2,9 +2,7 @@
 
 import { Bookmark, Lock } from "lucide-react";
 import Link from "next/link";
-import posthog from "posthog-js";
-import { toast } from "sonner";
-import { SavedSearchCard } from "~/components/search/SavedSearchCard";
+import { SavedSearchRow } from "~/components/search/SavedSearchRow";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -18,8 +16,6 @@ import {
 } from "~/components/ui/empty";
 import { Separator } from "~/components/ui/separator";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
-import { AnalyticsEvents } from "~/lib/analytics-events";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
@@ -32,134 +28,7 @@ export function SavedSearchesList({
   locked,
   className,
 }: SavedSearchesListProps) {
-  const utils = api.useUtils();
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
-  const { data: notificationSettings } =
-    api.user.getNotificationSettings.useQuery();
-  const { canAttemptAlertInteraction, openAlertUpgrade } =
-    useAlertSubscriptionAccess("saved_searches_list");
-  const canUseDiscord =
-    notificationSettings?.hasDiscordLinked &&
-    notificationSettings?.discordAppInstalled;
-
-  const deleteMutation = api.savedSearches.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Search deleted");
-    },
-    onSettled: () => {
-      void utils.savedSearches.list.invalidate();
-    },
-  });
-
-  const toggleEmailAlertsMutation =
-    api.savedSearches.toggleEmailAlerts.useMutation({
-      onMutate: async ({ id, enabled }) => {
-        await utils.savedSearches.list.cancel();
-        const previousSearches = utils.savedSearches.list.getData();
-        utils.savedSearches.list.setData(undefined, (old) =>
-          old?.map((search) =>
-            search.id === id
-              ? { ...search, emailAlertsEnabled: enabled }
-              : search,
-          ),
-        );
-        return { previousSearches };
-      },
-      onError: (error, _variables, context) => {
-        if (context?.previousSearches) {
-          utils.savedSearches.list.setData(undefined, context.previousSearches);
-        }
-        toast.error(error.message || "Failed to toggle email alerts");
-      },
-      onSuccess: (_, variables) => {
-        toast.success(
-          variables.enabled
-            ? "Email alerts enabled for this search"
-            : "Email alerts disabled for this search",
-        );
-      },
-      onSettled: () => {
-        void utils.savedSearches.list.invalidate();
-      },
-    });
-
-  const toggleDiscordAlertsMutation =
-    api.savedSearches.toggleDiscordAlerts.useMutation({
-      onMutate: async ({ id, enabled }) => {
-        await utils.savedSearches.list.cancel();
-        const previousSearches = utils.savedSearches.list.getData();
-        utils.savedSearches.list.setData(undefined, (old) =>
-          old?.map((search) =>
-            search.id === id
-              ? { ...search, discordAlertsEnabled: enabled }
-              : search,
-          ),
-        );
-        return { previousSearches };
-      },
-      onError: (error, _variables, context) => {
-        if (context?.previousSearches) {
-          utils.savedSearches.list.setData(undefined, context.previousSearches);
-        }
-        toast.error(error.message || "Failed to toggle Discord alerts");
-      },
-      onSuccess: (_, variables) => {
-        toast.success(
-          variables.enabled
-            ? "Discord alerts enabled for this search"
-            : "Discord alerts disabled for this search",
-        );
-      },
-      onSettled: () => {
-        void utils.savedSearches.list.invalidate();
-      },
-    });
-
-  const handleDelete = (id: string) => {
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_DELETED, {
-      search_id: id,
-      source: "saved_searches_list",
-    });
-    return deleteMutation.mutateAsync({ id });
-  };
-
-  const handleToggleEmailAlerts = (searchId: string, enabled: boolean) => {
-    if (enabled && !canAttemptAlertInteraction) {
-      void openAlertUpgrade();
-      return;
-    }
-
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED, {
-      search_id: searchId,
-      enabled,
-    });
-    toggleEmailAlertsMutation.mutate({
-      id: searchId,
-      enabled,
-    });
-  };
-
-  const handleToggleDiscordAlerts = (searchId: string, enabled: boolean) => {
-    if (enabled && !canAttemptAlertInteraction) {
-      void openAlertUpgrade();
-      return;
-    }
-
-    if (enabled && !canUseDiscord) {
-      toast.error("Set up Discord notifications in Settings first");
-      return;
-    }
-
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_DISCORD_TOGGLED, {
-      search_id: searchId,
-      enabled,
-    });
-    toggleDiscordAlertsMutation.mutate({
-      id: searchId,
-      enabled,
-    });
-  };
-
   const searchCount = savedSearches?.length ?? 0;
 
   return (
@@ -219,25 +88,13 @@ export function SavedSearchesList({
       )}
 
       {!isLoading && savedSearches && savedSearches.length > 0 && (
-        <div className="grid gap-4">
+        <div className="divide-y border-y">
           {savedSearches.map((search) => (
-            <SavedSearchCard
+            <SavedSearchRow
               key={search.id}
               search={search}
               locked={locked}
               source="saved_searches_list"
-              deleting={deleteMutation.isPending}
-              togglingAlerts={
-                toggleEmailAlertsMutation.isPending ||
-                toggleDiscordAlertsMutation.isPending
-              }
-              onDelete={() => handleDelete(search.id)}
-              onEmailChange={(enabled) =>
-                handleToggleEmailAlerts(search.id, enabled)
-              }
-              onDiscordChange={(enabled) =>
-                handleToggleDiscordAlerts(search.id, enabled)
-              }
             />
           ))}
         </div>

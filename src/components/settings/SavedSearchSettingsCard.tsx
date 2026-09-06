@@ -1,9 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import posthog from "posthog-js";
-import { toast } from "sonner";
-import { SavedSearchCard } from "~/components/search/SavedSearchCard";
+import { SavedSearchRow } from "~/components/search/SavedSearchRow";
 import { SavedSearchUpgradeNotice } from "~/components/search/SavedSearchUpgradeNotice";
 import { Button } from "~/components/ui/button";
 import {
@@ -14,100 +12,17 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useAlertSubscriptionAccess } from "~/hooks/use-alert-subscription-access";
 import { usePlanAccess } from "~/hooks/use-plan-access";
-import { AnalyticsEvents } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { api } from "~/trpc/react";
 
 export function SavedSearchSettingsCard() {
-  const utils = api.useUtils();
   const { data: searches, isLoading } = api.savedSearches.list.useQuery();
-  const { data: notifications } = api.user.getNotificationSettings.useQuery();
-  const { canAttemptAlertInteraction, openAlertUpgrade } =
-    useAlertSubscriptionAccess("settings_saved_searches");
   const planAccess = usePlanAccess(true);
   const savedSearchesLocked = !resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "saved_searches",
   });
-  const canUseDiscord =
-    notifications?.hasDiscordLinked && notifications.discordAppInstalled;
-
-  const deleteSearch = api.savedSearches.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Search deleted");
-      void utils.savedSearches.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to delete search");
-    },
-  });
-  const toggleEmail = api.savedSearches.toggleEmailAlerts.useMutation({
-    onSuccess: (_, variables) => {
-      toast.success(
-        variables.enabled ? "Email alerts enabled" : "Email alerts disabled",
-      );
-      void utils.savedSearches.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to toggle email alerts");
-    },
-  });
-  const toggleDiscord = api.savedSearches.toggleDiscordAlerts.useMutation({
-    onSuccess: (_, variables) => {
-      toast.success(
-        variables.enabled
-          ? "Discord alerts enabled"
-          : "Discord alerts disabled",
-      );
-      void utils.savedSearches.list.invalidate();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to toggle Discord alerts");
-    },
-  });
-  const isMutating =
-    deleteSearch.isPending || toggleEmail.isPending || toggleDiscord.isPending;
-
-  const setEmailAlerts = (id: string, enabled: boolean) => {
-    if (enabled && !canAttemptAlertInteraction) {
-      void openAlertUpgrade();
-      return;
-    }
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED, {
-      search_id: id,
-      enabled,
-      source: "settings",
-    });
-    toggleEmail.mutate({ id, enabled });
-  };
-
-  const setDiscordAlerts = (id: string, enabled: boolean) => {
-    if (enabled && !canAttemptAlertInteraction) {
-      void openAlertUpgrade();
-      return;
-    }
-    if (enabled && !canUseDiscord) {
-      toast.error("Complete Discord setup in notification settings first");
-      return;
-    }
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_DISCORD_TOGGLED, {
-      search_id: id,
-      enabled,
-      source: "settings",
-    });
-    toggleDiscord.mutate({ id, enabled });
-  };
-
-  const remove = (id: string) => {
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_DELETED, {
-      search_id: id,
-      source: "settings",
-    });
-    return deleteSearch.mutateAsync({ id });
-  };
-
   const searchCount = searches?.length ?? 0;
 
   return (
@@ -122,9 +37,6 @@ export function SavedSearchSettingsCard() {
         <Button asChild variant="outline" size="sm" className="min-h-11">
           <Link href="/search?advanced=1">New search</Link>
         </Button>
-        <p className="text-muted-foreground col-span-2 text-sm leading-6 text-pretty">
-          Open a search, refine its criteria, or choose alerts for new matches.
-        </p>
       </div>
 
       <div className="mt-6">
@@ -167,22 +79,13 @@ export function SavedSearchSettingsCard() {
             {savedSearchesLocked && (
               <SavedSearchUpgradeNotice className="mb-5" />
             )}
-            <div className="grid gap-4">
+            <div className="divide-y border-y">
               {searches.map((search) => (
-                <SavedSearchCard
+                <SavedSearchRow
                   key={search.id}
                   search={search}
                   locked={savedSearchesLocked}
                   source="settings"
-                  deleting={deleteSearch.isPending}
-                  togglingAlerts={isMutating}
-                  onDelete={() => remove(search.id)}
-                  onEmailChange={(enabled) =>
-                    setEmailAlerts(search.id, enabled)
-                  }
-                  onDiscordChange={(enabled) =>
-                    setDiscordAlerts(search.id, enabled)
-                  }
                 />
               ))}
             </div>
