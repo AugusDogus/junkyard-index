@@ -30,6 +30,7 @@ interface FilterOptions {
 }
 
 interface DesktopFiltersBarProps {
+  advancedSearchControl: ReactNode;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -99,6 +100,7 @@ function FilterPopover({
 }
 
 export function DesktopFiltersBar({
+  advancedSearchControl,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -136,7 +138,7 @@ export function DesktopFiltersBar({
           : "Showing all inventory"}
       </p>
 
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           {canUseAdvancedFilters ? (
             <div className="flex flex-wrap gap-2">
@@ -261,17 +263,19 @@ export function DesktopFiltersBar({
           )}
         </div>
 
-        {activeFilterCount > 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="shrink-0"
-            onClick={clearAllFilters}
-          >
-            Clear
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center gap-3">
+          {advancedSearchControl}
+          {activeFilterCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearAllFilters}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
     </section>
   );

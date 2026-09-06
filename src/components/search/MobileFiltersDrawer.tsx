@@ -1,6 +1,6 @@
 "use client";
 
-import { Filter } from "lucide-react";
+import { Filter, LockKeyhole } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Drawer,
@@ -24,6 +24,7 @@ interface FilterOptions {
 }
 
 interface MobileFiltersDrawerProps {
+  onAdvancedSearch: () => void;
   activeFilterCount: number;
   clearAllFilters: () => void;
   makes: string[];
@@ -48,6 +49,7 @@ interface MobileFiltersDrawerProps {
 }
 
 export function MobileFiltersDrawer({
+  onAdvancedSearch,
   activeFilterCount,
   clearAllFilters,
   makes,
@@ -87,13 +89,13 @@ export function MobileFiltersDrawer({
         </Button>
       </DrawerTrigger>
       <DrawerContent>
-        <DrawerHeader className="text-left">
+        <DrawerHeader className="group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="flex min-w-0 flex-col gap-1">
               <DrawerTitle className="text-lg font-semibold">
                 Filters
               </DrawerTitle>
-              <DrawerDescription className="mt-1 tabular-nums">
+              <DrawerDescription className="tabular-nums">
                 {activeFilterCount > 0
                   ? `${activeFilterCount} active`
                   : "Showing all inventory"}
@@ -105,6 +107,25 @@ export function MobileFiltersDrawer({
               </Button>
             )}
           </div>
+          <DrawerClose asChild>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="-ml-3 self-start"
+              aria-label={
+                canUseAdvancedFilters
+                  ? undefined
+                  : "Advanced search, upgrade required"
+              }
+              onClick={onAdvancedSearch}
+            >
+              {!canUseAdvancedFilters && (
+                <LockKeyhole data-icon="inline-start" aria-hidden="true" />
+              )}
+              Advanced search
+            </Button>
+          </DrawerClose>
         </DrawerHeader>
         <Separator />
         <div className="min-h-0 flex-1 overflow-y-auto px-4">

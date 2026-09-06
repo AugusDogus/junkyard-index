@@ -29,6 +29,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
     "filterOnly(stateAbbr)",
     "searchable(locationName)",
     "filterOnly(vinPositionTokens)",
+    "filterOnly(searchTokens)",
     "year",
   ],
   numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
@@ -36,10 +37,10 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   minWordSizefor1Typo: 3,
   minWordSizefor2Typos: 7,
   advancedSyntax: true,
-  advancedSyntaxFeatures: ["exactPhrase"],
+  advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
   hitsPerPage: 1000,
   paginationLimitedTo: ALGOLIA_PAGINATION_LIMIT,
-  unretrievableAttributes: ["firstSeenAt", "vinPositionTokens"],
+  unretrievableAttributes: ["firstSeenAt", "vinPositionTokens", "searchTokens"],
 } satisfies IndexSettings;
 
 export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] {

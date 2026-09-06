@@ -4,6 +4,10 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { SearchField } from "~/components/search/SearchField";
+import {
+  hasAdvancedSearchSyntax,
+  parseAdvancedSearchQuery,
+} from "~/lib/advanced-search-query";
 import { cn } from "~/lib/utils";
 import {
   executeSearchCommit,
@@ -16,6 +20,7 @@ const DEBOUNCE_MS = 300;
 interface VehicleSearchInputProps {
   vinPattern: string;
   vinPatternSearchReady: boolean;
+  booleanOrSearchReady: boolean;
   onSearchModeChange: (value: {
     query: string | null;
     vinPattern: string | null;
@@ -25,6 +30,7 @@ interface VehicleSearchInputProps {
 export function VehicleSearchInput({
   vinPattern,
   vinPatternSearchReady,
+  booleanOrSearchReady,
   onSearchModeChange,
 }: VehicleSearchInputProps) {
   const { query, refine } = useSearchBox();
@@ -102,9 +108,36 @@ export function VehicleSearchInput({
       ? "VIN pattern ready."
       : "Exact VIN detected.";
   })();
+  const advancedSearchParseResult = useMemo(
+    () => parseAdvancedSearchQuery(inputValue),
+    [inputValue],
+  );
+  const advancedSearchError =
+    !isVinCandidate && !advancedSearchParseResult.success
+      ? advancedSearchParseResult.error
+      : !isVinCandidate &&
+          advancedSearchParseResult.success &&
+          advancedSearchParseResult.data.anyWordGroups.length > 0 &&
+          !booleanOrSearchReady
+        ? "Boolean OR search is temporarily unavailable while the search index updates."
+        : undefined;
+  const searchError = vinPatternError ?? advancedSearchError;
+  const searchFeedback =
+    vinPatternFeedback ??
+    (hasAdvancedSearchSyntax(inputValue) && advancedSearchParseResult.success
+      ? "Advanced query ready."
+      : null);
+  const displayedFeedback = searchError ?? searchFeedback;
 
   const commitSearchValue = useCallback(
     async (value: string) => {
+      const parsedQuery = parseAdvancedSearchQuery(value);
+      if (
+        !parsedQuery.success ||
+        (parsedQuery.data.anyWordGroups.length > 0 && !booleanOrSearchReady)
+      ) {
+        return;
+      }
       await executeSearchCommit({
         value,
         vinPatternSearchReady,
@@ -118,7 +151,12 @@ export function VehicleSearchInput({
         },
       });
     },
-    [onSearchModeChange, vinPattern, vinPatternSearchReady],
+    [
+      booleanOrSearchReady,
+      onSearchModeChange,
+      vinPattern,
+      vinPatternSearchReady,
+    ],
   );
 
   const clearSearch = useCallback(() => {
@@ -167,12 +205,12 @@ export function VehicleSearchInput({
         }}
         placeholder="Search year, make, model, or VIN"
         aria-describedby={
-          vinPatternFeedback ? "search-vin-feedback" : "search-hint"
+          displayedFeedback ? "search-query-feedback" : "search-hint"
         }
-        aria-invalid={vinPatternError ? true : undefined}
+        aria-invalid={searchError ? true : undefined}
         onClear={clearSearch}
         className={cn(
-          vinPatternError &&
+          searchError &&
             "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
         )}
       />
@@ -180,17 +218,17 @@ export function VehicleSearchInput({
         Results update as you type. Press Command K or Control K to focus this
         field.
       </p>
-      {vinPatternFeedback && (
+      {displayedFeedback && (
         <p
-          id="search-vin-feedback"
-          role={vinPatternError ? "alert" : "status"}
+          id="search-query-feedback"
+          role={searchError ? "alert" : "status"}
           aria-live="polite"
           className={cn(
             "mt-2 px-1 text-xs text-pretty",
-            vinPatternError ? "text-destructive" : "text-muted-foreground",
+            searchError ? "text-destructive" : "text-muted-foreground",
           )}
         >
-          {vinPatternFeedback}
+          {displayedFeedback}
         </p>
       )}
     </form>

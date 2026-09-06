@@ -34,12 +34,18 @@ describe("Algolia settings plan", () => {
     expect(COMMON_ALGOLIA_INDEX_SETTINGS.attributesForFaceting).toContain(
       "filterOnly(vinPositionTokens)",
     );
+    expect(COMMON_ALGOLIA_INDEX_SETTINGS.attributesForFaceting).toContain(
+      "filterOnly(searchTokens)",
+    );
     expect(COMMON_ALGOLIA_INDEX_SETTINGS.unretrievableAttributes).toContain(
       "vinPositionTokens",
     );
+    expect(COMMON_ALGOLIA_INDEX_SETTINGS.unretrievableAttributes).toContain(
+      "searchTokens",
+    );
     expect(COMMON_ALGOLIA_INDEX_SETTINGS).toMatchObject({
       advancedSyntax: true,
-      advancedSyntaxFeatures: ["exactPhrase"],
+      advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
     });
   });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpDown,
   Calendar,
@@ -24,6 +25,10 @@ import {
 } from "react-instantsearch";
 import { parseAsString, useQueryState } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
+import {
+  AdvancedSearchDialog,
+  type AdvancedSearchSubmission,
+} from "~/components/search/AdvancedSearchDialog";
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
@@ -39,6 +44,7 @@ import {
   SearchResultsPanel,
 } from "~/components/search/SearchResultsPanel";
 import { Button } from "~/components/ui/button";
+import { Alert, AlertDescription } from "~/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -59,15 +65,18 @@ import {
 import { Toggle } from "~/components/ui/toggle";
 import {
   getSearchableVinPattern,
+  getMaximumSearchableVehicleYear,
   getSearchSortIndex,
   getSearchSortKey,
+  MINIMUM_SEARCHABLE_VEHICLE_YEAR,
   sanitizeSearchSources,
   SEARCH_SORT_ITEMS,
   SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
+import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
+import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -87,8 +96,6 @@ import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
 import { api } from "~/trpc/react";
-
-const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
 
 function clampRouteYear(
   value: number | null,
@@ -111,6 +118,7 @@ interface AlgoliaSearchInnerProps {
   planAccess: PlanAccessState;
   userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
+  booleanOrSearchReady: boolean;
 }
 function hasValidCoordinates(
   value: SearchPageContentProps["userLocation"],
@@ -301,6 +309,7 @@ function AlgoliaSearchInner({
   planAccess,
   userLocation: _userLocation,
   vinPatternIndexReady,
+  booleanOrSearchReady,
 }: AlgoliaSearchInnerProps) {
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
@@ -310,7 +319,7 @@ function AlgoliaSearchInner({
     access: planAccess,
     feature: "saved_searches",
   });
-  const maximumSearchableVehicleYear = new Date().getUTCFullYear() + 1;
+  const maximumSearchableVehicleYear = getMaximumSearchableVehicleYear();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
@@ -327,6 +336,8 @@ function AlgoliaSearchInner({
   const [browserGeolocationPermission, setBrowserGeolocationPermission] =
     useState<"granted" | "denied" | "prompt" | "unsupported">("unsupported");
   const [showDistancePreferenceDialog, setShowDistancePreferenceDialog] =
+    useState(false);
+  const [mobileAdvancedSearchOpen, setMobileAdvancedSearchOpen] =
     useState(false);
   const [pendingDistanceSort, setPendingDistanceSort] = useState(false);
   const [selectedDistanceMode, setSelectedDistanceMode] = useState<
@@ -619,6 +630,12 @@ function AlgoliaSearchInner({
     }),
     [makeItems, colorItems, stateItems, locationItems],
   );
+  const inventoryFilterOptions = useQuery({
+    queryKey: ["inventory-filter-options"],
+    queryFn: () => InventoryFilterOptions.load(getSearchClient(false)),
+    enabled: canUseAdvancedFilters,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Selected filters
   const selectedMakes = useMemo(
@@ -1007,6 +1024,33 @@ function AlgoliaSearchInner({
     [refineYear],
   );
 
+  const handleAdvancedSearch = useCallback(
+    (submission: AdvancedSearchSubmission) => {
+      const hasYearRange =
+        submission.yearRange[0] !== yearMin ||
+        submission.yearRange[1] !== yearMax;
+
+      setIndexUiState((previous) => ({
+        ...previous,
+        query: submission.query,
+        sortBy: getSearchSortIndex(submission.sortBy),
+        refinementList: {
+          make: submission.makes,
+          color: submission.colors,
+          state: submission.states,
+          locationName: submission.salvageYards,
+          source: submission.sources,
+        },
+        range: hasYearRange
+          ? {
+              year: `${submission.yearRange[0]}:${submission.yearRange[1]}`,
+            }
+          : undefined,
+      }));
+    },
+    [setIndexUiState, yearMax, yearMin],
+  );
+
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
   useEffect(() => {
     if (!analyticsSearchValue || isSearching || error) return;
@@ -1106,8 +1150,61 @@ function AlgoliaSearchInner({
     effectiveLocationPreference?.mode === "auto" &&
     !resolvedUserLocation;
 
+  const renderAdvancedSearchDialog = (
+    triggerClassName?: string,
+    controlledState?: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    },
+  ) => (
+    <AdvancedSearchDialog
+      query={query}
+      makes={selectedMakes}
+      colors={selectedColors}
+      states={selectedStates}
+      salvageYards={selectedLocations}
+      sources={selectedSources}
+      yearRange={yearRange}
+      sortBy={sortBy}
+      filterOptions={inventoryFilterOptions.data}
+      filterOptionsFeedback={
+        inventoryFilterOptions.isPending ? (
+          <p className="text-muted-foreground mt-3 text-sm" role="status">
+            Loading inventory filter options…
+          </p>
+        ) : inventoryFilterOptions.isError ? (
+          <Alert className="mt-3" variant="destructive">
+            <AlertDescription>
+              <p>
+                Could not load inventory filter options. Your selections are
+                preserved.
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => void inventoryFilterOptions.refetch()}
+              >
+                Retry loading filters
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : undefined
+      }
+      yearRangeLimits={{ min: yearMin, max: yearMax }}
+      canUseAdvancedFilters={canUseAdvancedFilters}
+      booleanOrSearchReady={booleanOrSearchReady}
+      triggerClassName={triggerClassName}
+      {...(controlledState
+        ? { ...controlledState, showTrigger: false }
+        : undefined)}
+      onSearch={handleAdvancedSearch}
+    />
+  );
+
   const mobileFiltersDrawer = (
     <MobileFiltersDrawer
+      onAdvancedSearch={() => setMobileAdvancedSearchOpen(true)}
       activeFilterCount={activeFilterCount}
       clearAllFilters={clearAllFilters}
       makes={selectedMakes}
@@ -1276,6 +1373,11 @@ function AlgoliaSearchInner({
           void handleDistancePreferenceConfirm();
         }}
       />
+      {isMobile &&
+        renderAdvancedSearchDialog(undefined, {
+          open: mobileAdvancedSearchOpen,
+          onOpenChange: setMobileAdvancedSearchOpen,
+        })}
       <h1 className="sr-only">Search inventory</h1>
 
       <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -1285,6 +1387,7 @@ function AlgoliaSearchInner({
               <VehicleSearchInput
                 vinPattern={vinPattern}
                 vinPatternSearchReady={vinPatternIndexReady}
+                booleanOrSearchReady={booleanOrSearchReady}
                 onSearchModeChange={handleSearchModeChange}
               />
             </ErrorBoundary>
@@ -1293,6 +1396,7 @@ function AlgoliaSearchInner({
 
           {!isMobile && showFilters && (
             <DesktopFiltersBar
+              advancedSearchControl={renderAdvancedSearchDialog("md:min-h-9")}
               activeFilterCount={activeFilterCount}
               clearAllFilters={clearAllFilters}
               makes={selectedMakes}
@@ -1345,12 +1449,13 @@ export function SearchPageContent({
 }: SearchPageContentProps) {
   return (
     <SearchAccessShell isLoggedIn={isLoggedIn}>
-      {({ planAccess, vinPatternIndexReady }) => (
+      {({ planAccess, vinPatternIndexReady, booleanOrSearchReady }) => (
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
+          booleanOrSearchReady={booleanOrSearchReady}
         />
       )}
     </SearchAccessShell>
