@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight, Search } from "lucide-react";
+import "./saved-search-row.css";
 import { EditSavedSearchLink } from "~/components/search/EditSavedSearchLink";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
 import { buildSearchUrl } from "~/lib/search-utils";
@@ -42,36 +44,15 @@ export function SavedSearchRow({
   source: "settings" | "saved_searches_list";
 }) {
   const preview = criteriaPreview(search);
-  return (
-    <article
-      aria-label={search.name}
-      className="flex min-w-0 items-start gap-3 py-4"
-    >
+  const content = (
+    <>
+      <span className="saved-search-row-icon">
+        <Search size={19} aria-hidden="true" />
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-start gap-1">
-          <h3 className="min-w-0 text-base font-semibold text-balance break-words">
-            {locked ? (
-              search.name
-            ) : (
-              <Link
-                href={buildSearchUrl(search.query, search.filters)}
-                aria-label={`Open saved search ${search.name}`}
-                className="focus-visible:ring-ring flex min-h-11 items-center rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 sm:min-h-8"
-              >
-                {search.name}
-              </Link>
-            )}
-          </h3>
-          {!locked && (
-            <EditSavedSearchLink
-              search={search}
-              source={source}
-              trigger="alerts"
-            />
-          )}
-        </div>
+        <h3 className="text-base font-semibold break-words">{search.name}</h3>
         <p
-          className="text-muted-foreground mt-1 line-clamp-2 text-sm break-words"
+          className="text-muted-foreground mt-2 line-clamp-3 text-sm leading-relaxed break-words"
           title={preview}
         >
           {preview}
@@ -82,7 +63,38 @@ export function SavedSearchRow({
           </p>
         )}
       </div>
-      <EditSavedSearchLink search={search} source={source} />
+      {!locked && (
+        <ArrowRight
+          className="saved-search-row-arrow"
+          size={16}
+          aria-hidden="true"
+        />
+      )}
+    </>
+  );
+  return (
+    <article aria-label={search.name} className="saved-search-row">
+      {locked ? (
+        <div className="saved-search-row-main">{content}</div>
+      ) : (
+        <Link
+          href={buildSearchUrl(search.query, search.filters)}
+          aria-label={`Open saved search ${search.name}`}
+          className="saved-search-row-main"
+        >
+          {content}
+        </Link>
+      )}
+      <div className="saved-search-row-actions">
+        {!locked && (
+          <EditSavedSearchLink
+            search={search}
+            source={source}
+            trigger="alerts"
+          />
+        )}
+        <EditSavedSearchLink search={search} source={source} />
+      </div>
     </article>
   );
 }

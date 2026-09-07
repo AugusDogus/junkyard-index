@@ -41,12 +41,12 @@ export function SavedSearchSettingsCard() {
 
       <div className="mt-6">
         {isLoading && (
-          <div
-            aria-label="Loading saved searches"
-            className="border-border divide-y border-y"
-          >
+          <div aria-label="Loading saved searches" className="grid gap-2.5">
             {[0, 1].map((index) => (
-              <div key={index} className="flex items-center gap-4 py-5">
+              <div
+                key={index}
+                className="bg-muted/50 flex items-center gap-4 rounded-xl p-5"
+              >
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <Skeleton className="h-4 w-36" />
                   <Skeleton className="h-3 w-52 max-w-full" />
@@ -79,7 +79,7 @@ export function SavedSearchSettingsCard() {
             {savedSearchesLocked && (
               <SavedSearchUpgradeNotice className="mb-5" />
             )}
-            <div className="divide-y border-y">
+            <div className="grid gap-2.5">
               {searches.map((search) => (
                 <SavedSearchRow
                   key={search.id}

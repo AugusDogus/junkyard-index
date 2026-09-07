@@ -43,13 +43,19 @@ export function EditSavedSearchLink({
           asChild
           variant="ghost"
           size="icon"
-          className="text-muted-foreground size-11 shrink-0 sm:size-8"
+          className="text-muted-foreground relative size-11 shrink-0"
         >
           <Link
             href={`/saved-searches/${encodeURIComponent(search.id)}/edit?from=${source === "settings" ? "settings" : "search"}${trigger === "alerts" ? "&focus=alerts" : ""}`}
             aria-label={label}
           >
             <Icon aria-hidden="true" />
+            {trigger === "alerts" && channels.length > 0 && (
+              <span
+                aria-hidden="true"
+                className="bg-foreground absolute top-2 right-2 size-1 rounded-full"
+              />
+            )}
           </Link>
         </Button>
       </TooltipTrigger>
