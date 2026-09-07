@@ -275,7 +275,8 @@
 }
 .se-alert-section {
   border-top: 1px solid var(--border);
-  padding-top: 18px;
+  margin-top: 24px;
+  padding-top: 24px;
 }
 .se-alert-section > h2,
 .se-alert-section > h3 {
