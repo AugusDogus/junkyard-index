@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
 import {
   filtersSchema,
   parseSavedSearchFilters,
@@ -16,6 +17,7 @@ import { PlanGateError } from "~/server/plan-gate-error";
 import {
   currentSearchPublicationSequence,
   setSearchAlertChannel,
+  updateSavedSearch,
 } from "~/server/alerts/alert-config-repository";
 import { savedSearch, user } from "~/schema";
 import { getAuthoritativePlanTier as resolveAuthoritativePlanTier } from "~/server/billing/user-plan";
@@ -27,6 +29,12 @@ function planGateError(feature: SavedSearchGateFeature): PlanGateError {
       : "Email and Discord alerts are included in the Full plan. Upgrade at /pricing to enable alerts.";
   return new PlanGateError(feature, message);
 }
+
+const savedQuerySchema = z.string().superRefine((query, context) => {
+  const parsed = parseAdvancedSearchQuery(query);
+  if (!parsed.success)
+    context.addIssue({ code: z.ZodIssueCode.custom, message: parsed.error });
+});
 
 async function getAuthoritativePlanTier(userId: string) {
   try {
@@ -67,13 +75,22 @@ export const savedSearchesRouter = createTRPCRouter({
 
   create: protectedProcedure
     .input(
-      z.object({
-        name: z.string().min(1).max(100),
-        query: z.string(),
-        filters: filtersSchema,
-        emailAlertsEnabled: z.boolean().optional(),
-        discordAlertsEnabled: z.boolean().optional(),
-      }),
+      z
+        .object({
+          name: z.string().min(1).max(100),
+          query: savedQuerySchema,
+          filters: filtersSchema,
+          emailAlertsEnabled: z.boolean().optional(),
+          discordAlertsEnabled: z.boolean().optional(),
+        })
+        .superRefine((input, context) => {
+          if (input.filters.expression !== undefined && input.query.trim())
+            context.addIssue({
+              code: "custom",
+              path: ["query"],
+              message: "Put all search text in the advanced expression.",
+            });
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const planTier = await getAuthoritativePlanTier(ctx.user.id);
@@ -129,6 +146,91 @@ export const savedSearchesRouter = createTRPCRouter({
       });
 
       return { id };
+    }),
+
+  update: protectedProcedure
+    .input(
+      z
+        .object({
+          id: z.string(),
+          name: z.string().min(1).max(100),
+          query: savedQuerySchema,
+          filters: filtersSchema,
+          emailAlertsEnabled: z.boolean().optional(),
+          discordAlertsEnabled: z.boolean().optional(),
+        })
+        .superRefine((input, context) => {
+          if (input.filters.expression !== undefined && input.query.trim())
+            context.addIssue({
+              code: "custom",
+              path: ["query"],
+              message: "Put all search text in the advanced expression.",
+            });
+        }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const planTier = await getAuthoritativePlanTier(ctx.user.id);
+      if (!hasPlanFeature(planTier, "saved_searches")) {
+        throw planGateError("saved_searches");
+      }
+
+      if (
+        (input.emailAlertsEnabled || input.discordAlertsEnabled) &&
+        !hasPlanFeature(planTier, "alerts")
+      ) {
+        throw planGateError("alerts");
+      }
+      if (input.discordAlertsEnabled) {
+        const [account] = await ctx.db
+          .select({
+            discordId: user.discordId,
+            discordAppInstalled: user.discordAppInstalled,
+          })
+          .from(user)
+          .where(eq(user.id, ctx.user.id))
+          .limit(1);
+        if (!account?.discordId || !account.discordAppInstalled) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Set up Discord in notification settings before enabling Discord alerts. No changes were saved.",
+          });
+        }
+      }
+
+      const updated = await updateSavedSearch({
+        database: ctx.db,
+        searchId: input.id,
+        userId: ctx.user.id,
+        name: input.name,
+        query: input.query,
+        filters: JSON.stringify(input.filters),
+        emailAlertsEnabled: input.emailAlertsEnabled,
+        discordAlertsEnabled: input.discordAlertsEnabled,
+      });
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "Saved search could not be updated because it no longer exists. No changes were made.",
+        });
+      }
+
+      posthog.capture({
+        distinctId: ctx.user.id,
+        event: "saved_search_updated",
+        properties: {
+          search_id: input.id,
+          has_query: input.query.trim().length > 0,
+          has_makes_filter: (input.filters.makes?.length ?? 0) > 0,
+          has_colors_filter: (input.filters.colors?.length ?? 0) > 0,
+          has_states_filter: (input.filters.states?.length ?? 0) > 0,
+          has_yards_filter: (input.filters.salvageYards?.length ?? 0) > 0,
+          has_sources_filter: (input.filters.sources?.length ?? 0) > 0,
+        },
+      });
+
+      return { success: true };
     }),
 
   delete: protectedProcedure

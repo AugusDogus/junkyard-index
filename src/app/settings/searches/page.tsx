@@ -7,10 +7,10 @@ export const metadata: Metadata = { title: "Search settings" };
 
 export default function SearchSettingsPage() {
   return (
-    <div className="space-y-14">
+    <div className="flex flex-col gap-10 sm:gap-14">
       <SettingsPageHeader
         title="Searches"
-        description="Manage the searches you return to and the location used for distance sorting."
+        description="Keep track of the vehicles you’re looking for, including those that haven’t arrived yet."
       />
       <SavedSearchSettingsCard />
       <LocationSettingsCard />

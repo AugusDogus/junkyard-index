@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useId, useMemo, useRef, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -17,6 +17,7 @@ import {
   InputGroupInput,
 } from "~/components/ui/input-group";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 interface SearchableCheckboxListProps {
   /** Unique name used to namespace checkbox ids and avoid DOM collisions. */
@@ -30,6 +31,9 @@ interface SearchableCheckboxListProps {
   searchThreshold?: number;
   /** Max visible height (px) before the list scrolls internally. */
   maxHeight?: number;
+  containScroll?: boolean;
+  /** Allow saved-search criteria that are absent from current inventory. */
+  allowCustomValues?: boolean;
 }
 
 export function SearchableCheckboxList({
@@ -41,12 +45,27 @@ export function SearchableCheckboxList({
   searchPlaceholder = "Search…",
   searchThreshold = 8,
   maxHeight = 200,
+  containScroll = true,
+  allowCustomValues = false,
 }: SearchableCheckboxListProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const idPrefix = useId();
 
-  const showSearch = options.length > searchThreshold;
+  const showSearch = allowCustomValues || options.length > searchThreshold;
+  const customValue = query.trim();
+  const canAddCustomValue =
+    allowCustomValues &&
+    customValue.length > 0 &&
+    ![...options, ...selected].some(
+      (option) => option.toLowerCase() === customValue.toLowerCase(),
+    );
+  const addCustomValue = () => {
+    if (!canAddCustomValue) return;
+    onChange([...selected, customValue]);
+    setQuery("");
+    inputRef.current?.focus();
+  };
 
   const filtered = useMemo(() => {
     if (!query) return options;
@@ -91,6 +110,12 @@ export function SearchableCheckboxList({
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
+            onKeyDown={(event) => {
+              if (allowCustomValues && event.key === "Enter") {
+                event.preventDefault();
+                if (!event.nativeEvent.isComposing) addCustomValue();
+              }
+            }}
           />
           {query && (
             <InputGroupAddon align="inline-end">
@@ -109,8 +134,24 @@ export function SearchableCheckboxList({
         </InputGroup>
       )}
 
+      {canAddCustomValue && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="max-w-full self-start"
+          onClick={addCustomValue}
+        >
+          <Plus data-icon="inline-start" />
+          <span className="truncate">Add &ldquo;{customValue}&rdquo;</span>
+        </Button>
+      )}
+
       <div
-        className="scrollbar-thin-themed overflow-y-auto overscroll-contain"
+        className={cn(
+          "scrollbar-thin-themed overflow-y-auto",
+          containScroll && "overscroll-contain",
+        )}
         style={{ maxHeight }}
       >
         {sorted.length === 0 ? (

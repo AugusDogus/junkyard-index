@@ -267,9 +267,10 @@ export function createSearchRouting(
         const baseUrl = location.href.split("?")[0] ?? location.href;
         const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
-        const vinPattern = vinPatternIndexReady
-          ? getSearchableVinPattern(locationParams.get("q"))
-          : null;
+        const vinPattern =
+          vinPatternIndexReady && locationParams.get("syntax") !== "expression"
+            ? getSearchableVinPattern(locationParams.get("q"))
+            : null;
         if (vinPattern) params.set("q", vinPattern.normalized);
 
         const state = routeState[indexName] ?? {};
@@ -277,6 +278,8 @@ export function createSearchRouting(
         if (state.query && !vinPattern) {
           params.set("q", String(state.query));
         }
+        if (params.has("q") && locationParams.get("syntax") === "expression")
+          params.set("syntax", "expression");
         writeAdvancedUrlFilters(
           params,
           state,
@@ -292,9 +295,10 @@ export function createSearchRouting(
         const state: Record<string, unknown> = {};
 
         const query = params.get("q");
-        const vinPattern = vinPatternIndexReady
-          ? getSearchableVinPattern(query)
-          : null;
+        const vinPattern =
+          vinPatternIndexReady && params.get("syntax") !== "expression"
+            ? getSearchableVinPattern(query)
+            : null;
         if (query && !vinPattern) state.query = query;
 
         Object.assign(state, parseAdvancedUrlFilters(params));

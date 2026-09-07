@@ -17,7 +17,6 @@ const baseProps = {
     states: [],
     salvageYards: [],
   },
-  yearRangeLimits: { min: 1900, max: 2027 },
   booleanOrSearchReady: true,
   onSearch: () => undefined,
 };

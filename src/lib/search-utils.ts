@@ -1,4 +1,5 @@
 interface SearchFilters {
+  expression?: string;
   vinPattern?: string;
   makes?: string[];
   colors?: string[];
@@ -16,7 +17,8 @@ export function buildSearchUrl(
 ): string {
   const params = new URLSearchParams();
 
-  const searchValue = filters.vinPattern ?? query;
+  if (filters.expression !== undefined) params.set("syntax", "expression");
+  const searchValue = filters.expression ?? filters.vinPattern ?? query;
   if (searchValue) {
     params.set("q", searchValue);
   }
