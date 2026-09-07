@@ -1,5 +1,5 @@
 "use client";
-import { Bell, BellOff, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import {
@@ -7,35 +7,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
-import type { SavedSearchFilters } from "~/lib/saved-search-filters";
 interface EditSavedSearchLinkProps {
   search: {
     id: string;
     name: string;
-    query: string;
-    filters: SavedSearchFilters;
-    emailAlertsEnabled: boolean;
-    discordAlertsEnabled: boolean;
   };
   source?: "settings" | "saved_searches_list";
-  trigger?: "edit" | "alerts";
 }
 
 export function EditSavedSearchLink({
   search,
   source = "settings",
-  trigger = "edit",
 }: EditSavedSearchLinkProps) {
-  const channels = [
-    search.emailAlertsEnabled ? "Email" : null,
-    search.discordAlertsEnabled ? "Discord" : null,
-  ].filter(Boolean);
-  const alertLabel = channels.length
-    ? `Alerts for ${search.name}: ${channels.join(" and ")}`
-    : `Alerts off for ${search.name}`;
-  const label =
-    trigger === "alerts" ? alertLabel : `Edit saved search ${search.name}`;
-  const Icon = trigger === "edit" ? Pencil : channels.length ? Bell : BellOff;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -46,22 +29,14 @@ export function EditSavedSearchLink({
           className="text-muted-foreground relative size-11 shrink-0"
         >
           <Link
-            href={`/saved-searches/${encodeURIComponent(search.id)}/edit?from=${source === "settings" ? "settings" : "search"}${trigger === "alerts" ? "&focus=alerts" : ""}`}
-            aria-label={label}
+            href={`/saved-searches/${encodeURIComponent(search.id)}/edit?from=${source === "settings" ? "settings" : "search"}`}
+            aria-label={`Edit saved search ${search.name}`}
           >
-            <Icon aria-hidden="true" />
-            {trigger === "alerts" && channels.length > 0 && (
-              <span
-                aria-hidden="true"
-                className="bg-foreground absolute top-2 right-2 size-1 rounded-full"
-              />
-            )}
+            <Pencil aria-hidden="true" />
           </Link>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
-        {trigger === "alerts" ? alertLabel : "Edit search"}
-      </TooltipContent>
+      <TooltipContent>Edit search</TooltipContent>
     </Tooltip>
   );
 }

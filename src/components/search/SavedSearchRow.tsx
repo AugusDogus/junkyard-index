@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 import "./saved-search-row.css";
+import { SavedSearchQuickAlerts } from "~/components/search/SavedSearchQuickAlerts";
 import { EditSavedSearchLink } from "~/components/search/EditSavedSearchLink";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
 import { buildSearchUrl } from "~/lib/search-utils";
@@ -86,13 +87,7 @@ export function SavedSearchRow({
         </Link>
       )}
       <div className="saved-search-row-actions">
-        {!locked && (
-          <EditSavedSearchLink
-            search={search}
-            source={source}
-            trigger="alerts"
-          />
-        )}
+        {!locked && <SavedSearchQuickAlerts search={search} source={source} />}
         <EditSavedSearchLink search={search} source={source} />
       </div>
     </article>

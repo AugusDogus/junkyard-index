@@ -14,7 +14,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SavedSearchRowSkeleton } from "~/components/search/SavedSearchRowSkeleton";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
@@ -46,18 +46,13 @@ export function SavedSearchesList({
       )}
 
       {isLoading && (
-        <div aria-label="Loading saved searches" className="grid gap-2.5">
+        <div
+          aria-label="Loading saved searches"
+          role="status"
+          className="grid gap-2.5"
+        >
           {[0, 1, 2].map((index) => (
-            <div key={index} className="bg-muted/50 rounded-xl">
-              <div className="flex items-center gap-3 px-4 py-5 sm:px-6">
-                <Skeleton className="size-10 shrink-0 rounded-lg" />
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <Skeleton className="h-4 w-36" />
-                  <Skeleton className="h-3 w-52 max-w-full" />
-                </div>
-                <Skeleton className="h-8 w-20" />
-              </div>
-            </div>
+            <SavedSearchRowSkeleton key={index} />
           ))}
         </div>
       )}
