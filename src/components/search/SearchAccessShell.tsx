@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useMemo, type ReactNode } from "react";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
@@ -40,7 +41,12 @@ export function SearchAccessShell({
     searchCapabilities?.vinPatternSearchReady ?? false;
   const booleanOrSearchReady =
     searchCapabilities?.booleanOrSearchReady ?? false;
-  const searchClient = getSearchClient(booleanOrSearchReady);
+  const expressionMode = useSearchParams().get("syntax") === "expression";
+  const searchClient = getSearchClient(
+    booleanOrSearchReady,
+    expressionMode,
+    canUseAdvancedFilters,
+  );
   const routing = useMemo(
     () =>
       createSearchRouting(

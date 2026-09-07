@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { EditSavedSearchDialog } from "~/components/settings/EditSavedSearchDialog";
+import { EditSavedSearchLink } from "~/components/search/EditSavedSearchLink";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
 import { buildSearchUrl } from "~/lib/search-utils";
 import type { RouterOutputs } from "~/trpc/react";
@@ -10,7 +10,7 @@ type SavedSearch = RouterOutputs["savedSearches"]["list"][number];
 
 function criteriaPreview(search: SavedSearch): string {
   const { filters } = search;
-  const details = [search.query.trim(), filters.vinPattern];
+  const details = [filters.expression, search.query.trim(), filters.vinPattern];
   if (filters.minYear && filters.maxYear)
     details.push(`${filters.minYear}–${filters.maxYear}`);
   else if (filters.minYear) details.push(`${filters.minYear} or newer`);
@@ -63,7 +63,7 @@ export function SavedSearchRow({
             )}
           </h3>
           {!locked && (
-            <EditSavedSearchDialog
+            <EditSavedSearchLink
               search={search}
               source={source}
               trigger="alerts"
@@ -82,7 +82,7 @@ export function SavedSearchRow({
           </p>
         )}
       </div>
-      <EditSavedSearchDialog search={search} source={source} locked={locked} />
+      <EditSavedSearchLink search={search} source={source} />
     </article>
   );
 }

@@ -387,3 +387,23 @@ export function parseAdvancedSearchQuery(
     data: { algoliaQuery, anyWordGroups },
   };
 }
+
+/** Structured required terms for migrating a legacy query without re-tokenizing rendered text. */
+export function getLegacyRequiredSearchTerms(
+  query: string,
+): SearchTerm[] | null {
+  const tokens = tokenize(query);
+  if (!Array.isArray(tokens) || !parseAdvancedSearchQuery(query).success)
+    return null;
+  const alternatives = new Set<number>();
+  for (const [index, token] of tokens.entries()) {
+    if (token.kind !== "or") continue;
+    const left = adjacentOrTerm(tokens, index, -1);
+    const right = adjacentOrTerm(tokens, index, 1);
+    if (left !== null) alternatives.add(left);
+    if (right !== null) alternatives.add(right);
+  }
+  return tokens.flatMap((token, index) =>
+    token.kind === "term" && !alternatives.has(index) ? [token] : [],
+  );
+}

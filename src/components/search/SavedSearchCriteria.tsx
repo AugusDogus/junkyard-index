@@ -13,6 +13,11 @@ function getSavedSearchCriteria(
   filters: SavedSearchFilters,
 ): SavedSearchCriterion[] {
   const criteria: SavedSearchCriterion[] = [];
+  if (filters.expression !== undefined)
+    criteria.push({
+      label: "Expression",
+      value: filters.expression || "All vehicles",
+    });
   if (query.trim()) {
     const fields = getAdvancedSearchQueryFields(query);
     if (fields) {

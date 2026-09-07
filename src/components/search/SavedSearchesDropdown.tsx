@@ -108,7 +108,10 @@ export function SavedSearchesDropdown({
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="truncate font-medium">{search.name}</span>
                 <span className="text-muted-foreground truncate text-xs">
-                  {search.query || search.filters.vinPattern || "All vehicles"}
+                  {search.filters.expression ||
+                    search.query ||
+                    search.filters.vinPattern ||
+                    "All vehicles"}
                 </span>
               </div>
             </DropdownMenuItem>

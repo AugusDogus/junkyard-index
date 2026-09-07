@@ -9,6 +9,7 @@ import { MAX_SEARCH_ALERT_PREVIEW_VEHICLES } from "~/lib/search-alert-data";
 import { VinPattern } from "~/lib/vin-pattern";
 
 export interface AlertFilters {
+  expression?: string;
   vinPattern?: string;
   makes?: string[];
   colors?: string[];

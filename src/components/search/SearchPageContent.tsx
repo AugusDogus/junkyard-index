@@ -8,7 +8,7 @@ import {
   MapPin,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -31,7 +31,7 @@ import {
 import { DesktopFiltersBar } from "~/components/search/DesktopFiltersBar";
 import { InventoryFilterFeedback } from "~/components/search/InventoryFilterFeedback";
 import { useInventoryFilterOptions } from "~/hooks/use-inventory-filter-options";
-import { resolveSearchCommit } from "~/lib/search-commit";
+import { buildSearchUrl } from "~/lib/search-utils";
 import { MobileFiltersDrawer } from "~/components/search/MobileFiltersDrawer";
 import {
   clearPendingSaveSearch,
@@ -321,6 +321,8 @@ function AlgoliaSearchInner({
   });
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const expressionMode = searchParams.get("syntax") === "expression";
   const isMobile = useIsMobile();
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
@@ -381,8 +383,10 @@ function AlgoliaSearchInner({
   );
   const searchableVinPattern = useMemo(
     () =>
-      vinPatternIndexReady ? getSearchableVinPattern(searchValueParam) : null,
-    [searchValueParam, vinPatternIndexReady],
+      vinPatternIndexReady && !expressionMode
+        ? getSearchableVinPattern(searchValueParam)
+        : null,
+    [searchValueParam, vinPatternIndexReady, expressionMode],
   );
   const vinPattern = searchableVinPattern?.normalized ?? "";
   const effectiveVinPatternFilter = searchableVinPattern?.filter;
@@ -704,6 +708,7 @@ function AlgoliaSearchInner({
 
   const currentSaveSearchFilters = useMemo(
     () => ({
+      expression: expressionMode ? query : undefined,
       vinPattern: effectiveVinPatternFilter ? vinPattern : undefined,
       makes: selectedMakes,
       colors: selectedColors,
@@ -715,6 +720,8 @@ function AlgoliaSearchInner({
       sortBy,
     }),
     [
+      expressionMode,
+      query,
       selectedMakes,
       selectedColors,
       selectedStates,
@@ -729,7 +736,9 @@ function AlgoliaSearchInner({
 
   // VIN searches can run alone from the primary search bar.
   const hasActiveSearch =
-    query.length > 0 || Boolean(effectiveVinPatternFilter);
+    query.length > 0 ||
+    Boolean(effectiveVinPatternFilter) ||
+    activeFilterCount > 0;
   const analyticsSearchValue = effectiveVinPatternFilter ? vinPattern : query;
 
   // Loading = Algolia is actively fetching (not stale "0 results")
@@ -1022,48 +1031,10 @@ function AlgoliaSearchInner({
   );
 
   const handleAdvancedSearch = useCallback(
-    async (submission: AdvancedSearchSubmission) => {
-      const commit = resolveSearchCommit(
-        submission.query,
-        vinPatternIndexReady,
-      );
-      if (commit.kind === "invalid-vin") return;
-      if (vinPattern || commit.kind === "vin") {
-        await handleSearchModeChange({
-          query: commit.kind === "query" ? commit.value || null : null,
-          vinPattern: commit.kind === "vin" ? commit.value : null,
-        });
-      }
-      const hasYearRange =
-        submission.yearRange[0] !== yearMin ||
-        submission.yearRange[1] !== yearMax;
-
-      setIndexUiState((previous) => ({
-        ...previous,
-        query: commit.kind === "query" ? commit.value : "",
-        sortBy: getSearchSortIndex(submission.sortBy),
-        refinementList: {
-          make: submission.makes,
-          color: submission.colors,
-          state: submission.states,
-          locationName: submission.salvageYards,
-          source: submission.sources,
-        },
-        range: hasYearRange
-          ? {
-              year: `${submission.yearRange[0]}:${submission.yearRange[1]}`,
-            }
-          : undefined,
-      }));
+    (submission: AdvancedSearchSubmission) => {
+      router.push(buildSearchUrl(submission.query, submission.filters));
     },
-    [
-      setIndexUiState,
-      yearMax,
-      yearMin,
-      vinPattern,
-      vinPatternIndexReady,
-      handleSearchModeChange,
-    ],
+    [router],
   );
 
   // Track search outcomes (skip errors so failed queries can be re-tracked on success)
@@ -1173,6 +1144,7 @@ function AlgoliaSearchInner({
     },
   ) => (
     <AdvancedSearchDialog
+      expression={expressionMode ? query : undefined}
       query={vinPattern || query}
       makes={selectedMakes}
       colors={selectedColors}
@@ -1245,7 +1217,7 @@ function AlgoliaSearchInner({
         <SavedSearchesDropdown iconOnly locked={savedSearchesLocked} />
       )}
       <SaveSearchDialog
-        query={query}
+        query={expressionMode ? "" : query}
         filters={currentSaveSearchFilters}
         planAccess={planAccess}
         disabled={!hasActiveSearch}
@@ -1259,7 +1231,7 @@ function AlgoliaSearchInner({
     <div className="flex shrink-0 items-center gap-2 [&_button]:h-9">
       {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
       <SaveSearchDialog
-        query={query}
+        query={expressionMode ? "" : query}
         filters={currentSaveSearchFilters}
         planAccess={planAccess}
         disabled={!hasActiveSearch}

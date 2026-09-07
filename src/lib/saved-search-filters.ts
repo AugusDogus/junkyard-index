@@ -1,3 +1,4 @@
+import { compileSearchExpression } from "~/lib/compile-search-expression";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -10,43 +11,61 @@ export const SEARCHABLE_VEHICLE_YEAR_RANGE = {
   max: MAX_VEHICLE_YEAR,
 } as const;
 
-export const filtersSchema = z.object({
-  vinPattern: z
-    .string()
-    .max(VinPattern.maxInputLength)
-    .refine(
-      (value) => {
-        const parsedPattern = VinPattern.parse(value);
-        return (
-          parsedPattern.success &&
-          VinPattern.toAlgoliaFilter(parsedPattern.data) !== undefined
-        );
-      },
-      {
-        message:
-          "VIN pattern must describe 17 valid positions and include a known character",
-      },
-    )
-    .optional(),
-  makes: z.array(z.string()).optional(),
-  colors: z.array(z.string()).optional(),
-  states: z.array(z.string()).optional(),
-  salvageYards: z.array(z.string()).optional(),
-  sources: z.array(z.enum(INGESTION_SOURCES)).optional(),
-  minYear: z
-    .number()
-    .int()
-    .min(MIN_VEHICLE_YEAR)
-    .max(MAX_VEHICLE_YEAR)
-    .optional(),
-  maxYear: z
-    .number()
-    .int()
-    .min(MIN_VEHICLE_YEAR)
-    .max(MAX_VEHICLE_YEAR)
-    .optional(),
-  sortBy: z.string().optional(),
-});
+export const filtersSchema = z
+  .object({
+    expression: z
+      .string()
+      .max(4096)
+      .superRefine((value, ctx) => {
+        const parsed = compileSearchExpression(value);
+        if (!parsed.success)
+          ctx.addIssue({ code: "custom", message: parsed.error });
+      })
+      .optional(),
+    vinPattern: z
+      .string()
+      .max(VinPattern.maxInputLength)
+      .refine(
+        (value) => {
+          const parsedPattern = VinPattern.parse(value);
+          return (
+            parsedPattern.success &&
+            VinPattern.toAlgoliaFilter(parsedPattern.data) !== undefined
+          );
+        },
+        {
+          message:
+            "VIN pattern must describe 17 valid positions and include a known character",
+        },
+      )
+      .optional(),
+    makes: z.array(z.string()).optional(),
+    colors: z.array(z.string()).optional(),
+    states: z.array(z.string()).optional(),
+    salvageYards: z.array(z.string()).optional(),
+    sources: z.array(z.enum(INGESTION_SOURCES)).optional(),
+    minYear: z
+      .number()
+      .int()
+      .min(MIN_VEHICLE_YEAR)
+      .max(MAX_VEHICLE_YEAR)
+      .optional(),
+    maxYear: z
+      .number()
+      .int()
+      .min(MIN_VEHICLE_YEAR)
+      .max(MAX_VEHICLE_YEAR)
+      .optional(),
+    sortBy: z.string().optional(),
+  })
+  .superRefine((filters, ctx) => {
+    if (filters.expression !== undefined && filters.vinPattern !== undefined)
+      ctx.addIssue({
+        code: "custom",
+        message: "Use a VIN pattern or an advanced expression, not both.",
+        path: ["expression"],
+      });
+  });
 
 export type SavedSearchFilters = z.infer<typeof filtersSchema>;
 
@@ -78,8 +97,15 @@ export function savedSearchMatchCriteriaKey(
     maximumYear !== undefined &&
     minimumYear > maximumYear;
 
+  const expression =
+    filters.expression === undefined
+      ? null
+      : compileSearchExpression(filters.expression);
   return JSON.stringify({
     query: query.trim(),
+    expression: expression?.success
+      ? expression.data
+      : filters.expression?.trim(),
     vinPattern,
     makes: canonicalFacetValues(filters.makes),
     colors: canonicalFacetValues(filters.colors),

@@ -1,5 +1,6 @@
 "use client";
 
+import { compileSearchExpression } from "~/lib/compile-search-expression";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
@@ -62,6 +63,28 @@ export function VehicleSearchInput({
   }, [committedValue]);
 
   const searchParams = useSearchParams();
+  const expressionMode = searchParams.get("syntax") === "expression";
+  const validateQuery = useCallback(
+    (text: string) => {
+      if (expressionMode) {
+        const result = compileSearchExpression(text);
+        return result.success
+          ? {
+              success: true as const,
+              requiresTokens: result.data.requiresTokens,
+            }
+          : result;
+      }
+      const result = parseAdvancedSearchQuery(text);
+      return result.success
+        ? {
+            success: true as const,
+            requiresTokens: result.data.anyWordGroups.length > 0,
+          }
+        : result;
+    },
+    [expressionMode],
+  );
   const urlQuery = searchParams.get("q") ?? "";
   useEffect(() => {
     if (committingValueRef.current !== null) return;
@@ -80,7 +103,9 @@ export function VehicleSearchInput({
   );
 
   const isVinCandidate =
-    vinPatternSearchReady && VinPattern.isSearchCandidate(inputValue);
+    !expressionMode &&
+    vinPatternSearchReady &&
+    VinPattern.isSearchCandidate(inputValue);
   const parsedVinPattern = useMemo(
     () => (isVinCandidate ? VinPattern.parse(inputValue) : null),
     [inputValue, isVinCandidate],
@@ -109,15 +134,15 @@ export function VehicleSearchInput({
       : "Exact VIN detected.";
   })();
   const advancedSearchParseResult = useMemo(
-    () => parseAdvancedSearchQuery(inputValue),
-    [inputValue],
+    () => validateQuery(inputValue),
+    [inputValue, validateQuery],
   );
   const advancedSearchError =
     !isVinCandidate && !advancedSearchParseResult.success
       ? advancedSearchParseResult.error
       : !isVinCandidate &&
           advancedSearchParseResult.success &&
-          advancedSearchParseResult.data.anyWordGroups.length > 0 &&
+          advancedSearchParseResult.requiresTokens &&
           !booleanOrSearchReady
         ? "Boolean OR search is temporarily unavailable while the search index updates."
         : undefined;
@@ -131,16 +156,16 @@ export function VehicleSearchInput({
 
   const commitSearchValue = useCallback(
     async (value: string) => {
-      const parsedQuery = parseAdvancedSearchQuery(value);
+      const parsedQuery = validateQuery(value);
       if (
         !parsedQuery.success ||
-        (parsedQuery.data.anyWordGroups.length > 0 && !booleanOrSearchReady)
+        (parsedQuery.requiresTokens && !booleanOrSearchReady)
       ) {
         return;
       }
       await executeSearchCommit({
         value,
-        vinPatternSearchReady,
+        vinPatternSearchReady: vinPatternSearchReady && !expressionMode,
         currentVinPattern: vinPattern,
         operations: {
           setPendingValue: (pendingValue) => {
@@ -153,6 +178,8 @@ export function VehicleSearchInput({
     },
     [
       booleanOrSearchReady,
+      validateQuery,
+      expressionMode,
       onSearchModeChange,
       vinPattern,
       vinPatternSearchReady,

@@ -5,11 +5,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { InventoryFilterFeedback } from "~/components/search/InventoryFilterFeedback";
-import { SearchCriteriaFields } from "~/components/search/SearchCriteriaFields";
+import { SearchTerms } from "~/components/search/editor/QueryView";
+import { SortField } from "~/components/search/editor/controls";
+import { EditorPortal } from "~/components/search/editor/EditorPortal";
+import { BuilderEdits } from "~/components/search/editor/BuilderEdits";
+import { FilterSuggestions } from "~/components/search/editor/FilterSuggestions";
+import { InventoryFilterOptions } from "~/lib/inventory-filter-options";
+import "~/components/search/editor/editor.css";
 import { SearchEditorContent } from "~/components/search/SearchEditorContent";
 import { SavedSearchCriteria } from "~/components/search/SavedSearchCriteria";
 import { useInventoryFilterOptions } from "~/hooks/use-inventory-filter-options";
-import { SearchCriteria } from "~/lib/search-criteria";
+import {
+  savedSearchDraft,
+  serializeSavedSearchDraft,
+} from "~/lib/saved-search-draft";
 import { FieldError } from "~/components/ui/field";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -58,6 +67,7 @@ function isPlanGateData(
 }
 
 export interface SaveSearchFilters {
+  expression?: string;
   vinPattern?: string;
   makes?: string[];
   colors?: string[];
@@ -125,17 +135,25 @@ export function SaveSearchDialog({
     return false;
   });
   const [name, setName] = useState("");
-  const [criteria, setCriteria] = useState(() =>
-    SearchCriteria.fromSavedSearch(query, {
-      ...filters,
-      sources: filters.sources?.filter(isIngestionSource),
-    }),
-  );
+  const initialDraft = () =>
+    savedSearchDraft({
+      id: "new",
+      name: "",
+      query,
+      filters: {
+        ...filters,
+        sources: filters.sources?.filter(isIngestionSource),
+      },
+      emailAlertsEnabled: false,
+      discordAlertsEnabled: false,
+    });
+  const [draft, setDraft] = useState(initialDraft);
+  const [pendingEdits, setPendingEdits] = useState(0);
   const [editingCriteria, setEditingCriteria] = useState(false);
-  const [formError, setFormError] = useState<string>();
   const [content, setContent] = useState<HTMLDivElement | null>(null);
+  const [formError, setFormError] = useState<string>();
   const suggestions = useInventoryFilterOptions(open && editingCriteria);
-  const parsedCriteria = SearchCriteria.toSavedSearch(criteria);
+  const parsedCriteria = serializeSavedSearchDraft(draft);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [discordEnabled, setDiscordEnabled] = useState(false);
@@ -265,11 +283,17 @@ export function SaveSearchDialog({
 
   const handleSave = () => {
     if (!name.trim()) return;
+    if (pendingEdits) {
+      setFormError(
+        "Apply or cancel the condition you are editing before saving.",
+      );
+      return;
+    }
 
     const enableEmail = notificationsEnabled && emailEnabled;
     const enableDiscord =
       notificationsEnabled && discordEnabled && !!hasDiscordSetup;
-    const parsed = SearchCriteria.toSavedSearch(criteria);
+    const parsed = serializeSavedSearchDraft(draft);
     if (!parsed.success) {
       setFormError(parsed.error);
       return;
@@ -382,12 +406,7 @@ export function SaveSearchDialog({
       onOpenChange={(newOpen) => {
         if (isSaving) return;
         if (newOpen) {
-          setCriteria(
-            SearchCriteria.fromSavedSearch(query, {
-              ...filters,
-              sources: filters.sources?.filter(isIngestionSource),
-            }),
-          );
+          setDraft(initialDraft());
           setEditingCriteria(false);
           setFormError(undefined);
         }
@@ -426,12 +445,19 @@ export function SaveSearchDialog({
 
             <Collapsible
               open={editingCriteria}
-              onOpenChange={setEditingCriteria}
+              onOpenChange={(next) => {
+                if (!pendingEdits) setEditingCriteria(next);
+              }}
             >
               <div className="flex items-center justify-between gap-4">
                 <h3 className="font-medium">Search criteria</h3>
                 <CollapsibleTrigger asChild>
-                  <Button type="button" variant="outline" size="sm">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={pendingEdits > 0}
+                  >
                     {editingCriteria
                       ? "Done editing criteria"
                       : "Edit criteria"}
@@ -448,22 +474,42 @@ export function SaveSearchDialog({
                 </div>
               )}
               <CollapsibleContent className="pt-6">
-                <SearchCriteriaFields
-                  value={criteria}
-                  onChange={(next) => {
-                    setCriteria(next);
-                    setFormError(undefined);
-                  }}
-                  filterOptions={suggestions.data}
-                  portalContainer={content}
-                  filterOptionsFeedback={
-                    <InventoryFilterFeedback
-                      isPending={suggestions.isPending}
-                      isError={suggestions.isError}
-                      retry={() => void suggestions.refetch()}
-                    />
-                  }
-                />
+                <EditorPortal value={content}>
+                  <BuilderEdits
+                    value={{
+                      pending: pendingEdits,
+                      setPending: setPendingEdits,
+                    }}
+                  >
+                    <FilterSuggestions
+                      value={InventoryFilterOptions.withSelected(
+                        suggestions.data,
+                        draft.criteria,
+                      )}
+                    >
+                      <div className="se-workspace se-stack">
+                        <SearchTerms
+                          draft={draft}
+                          onChange={(next) => {
+                            setDraft(next);
+                            setFormError(undefined);
+                          }}
+                        />
+                        <SortField
+                          value={draft.criteria}
+                          onChange={(criteria) =>
+                            setDraft({ ...draft, criteria })
+                          }
+                        />
+                        <InventoryFilterFeedback
+                          isPending={suggestions.isPending}
+                          isError={suggestions.isError}
+                          retry={() => void suggestions.refetch()}
+                        />
+                      </div>
+                    </FilterSuggestions>
+                  </BuilderEdits>
+                </EditorPortal>
               </CollapsibleContent>
             </Collapsible>
 

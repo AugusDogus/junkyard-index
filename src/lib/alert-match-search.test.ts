@@ -93,3 +93,37 @@ describe("alert match search", () => {
     });
   });
 });
+
+test("expression alerts retain the time window outside Boolean alternatives", async () => {
+  const requests: unknown[] = [];
+  await getAlertMatchStatsWithClient(
+    emptySearchClient((input) => requests.push(input)),
+    "",
+    { expression: "(make:Volvo OR make:Saab) year:<2000" },
+    new Date("2026-08-25T00:00:00Z"),
+  );
+  expect(requests[0]).toMatchObject({
+    requests: [
+      {
+        query: "",
+        filters:
+          '(make:"Volvo" OR make:"Saab") AND year < 2000 AND firstSeenAt > 1787616000',
+      },
+    ],
+  });
+});
+
+test("invalid expression fails matching instead of completing an empty alert window", async () => {
+  let called = false;
+  await expect(
+    getAlertMatchStatsWithClient(
+      emptySearchClient(() => {
+        called = true;
+      }),
+      "",
+      { expression: "make:Volvo OR year:<2000" },
+      null,
+    ),
+  ).rejects.toThrow("Cannot match saved search expression");
+  expect(called).toBe(false);
+});
