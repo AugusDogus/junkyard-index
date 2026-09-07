@@ -11,7 +11,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SavedSearchRowSkeleton } from "~/components/search/SavedSearchRowSkeleton";
 import { usePlanAccess } from "~/hooks/use-plan-access";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { api } from "~/trpc/react";
@@ -41,18 +41,13 @@ export function SavedSearchSettingsCard() {
 
       <div className="mt-6">
         {isLoading && (
-          <div aria-label="Loading saved searches" className="grid gap-2.5">
+          <div
+            aria-label="Loading saved searches"
+            role="status"
+            className="grid gap-2.5"
+          >
             {[0, 1].map((index) => (
-              <div
-                key={index}
-                className="bg-muted/50 flex items-center gap-4 rounded-xl p-5"
-              >
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <Skeleton className="h-4 w-36" />
-                  <Skeleton className="h-3 w-52 max-w-full" />
-                </div>
-                <Skeleton className="h-8 w-24" />
-              </div>
+              <SavedSearchRowSkeleton key={index} />
             ))}
           </div>
         )}
