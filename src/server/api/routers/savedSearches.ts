@@ -75,13 +75,22 @@ export const savedSearchesRouter = createTRPCRouter({
 
   create: protectedProcedure
     .input(
-      z.object({
-        name: z.string().min(1).max(100),
-        query: savedQuerySchema,
-        filters: filtersSchema,
-        emailAlertsEnabled: z.boolean().optional(),
-        discordAlertsEnabled: z.boolean().optional(),
-      }),
+      z
+        .object({
+          name: z.string().min(1).max(100),
+          query: savedQuerySchema,
+          filters: filtersSchema,
+          emailAlertsEnabled: z.boolean().optional(),
+          discordAlertsEnabled: z.boolean().optional(),
+        })
+        .superRefine((input, context) => {
+          if (input.filters.expression !== undefined && input.query.trim())
+            context.addIssue({
+              code: "custom",
+              path: ["query"],
+              message: "Put all search text in the advanced expression.",
+            });
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const planTier = await getAuthoritativePlanTier(ctx.user.id);
@@ -141,14 +150,23 @@ export const savedSearchesRouter = createTRPCRouter({
 
   update: protectedProcedure
     .input(
-      z.object({
-        id: z.string(),
-        name: z.string().min(1).max(100),
-        query: savedQuerySchema,
-        filters: filtersSchema,
-        emailAlertsEnabled: z.boolean().optional(),
-        discordAlertsEnabled: z.boolean().optional(),
-      }),
+      z
+        .object({
+          id: z.string(),
+          name: z.string().min(1).max(100),
+          query: savedQuerySchema,
+          filters: filtersSchema,
+          emailAlertsEnabled: z.boolean().optional(),
+          discordAlertsEnabled: z.boolean().optional(),
+        })
+        .superRefine((input, context) => {
+          if (input.filters.expression !== undefined && input.query.trim())
+            context.addIssue({
+              code: "custom",
+              path: ["query"],
+              message: "Put all search text in the advanced expression.",
+            });
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       const planTier = await getAuthoritativePlanTier(ctx.user.id);

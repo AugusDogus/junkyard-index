@@ -134,3 +134,27 @@ describe("search routing", () => {
     ).toBe("https://example.com/search?q=civic");
   });
 });
+
+test("retains expression syntax while editing and sorting results, clears it with the query", () => {
+  const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
+  const location = {
+    href: "https://example.com/search?q=make%3AVolvo&syntax=expression",
+    search: "?q=make%3AVolvo&syntax=expression",
+  };
+  const state = routing.router.parseURL({ location });
+  expect(state[ALGOLIA_INDEX_NAME]?.query).toBe("make:Volvo");
+  const url = routing.router.createURL({
+    location,
+    routeState: {
+      [ALGOLIA_INDEX_NAME]: { query: "make:Saab", sort: "oldest" },
+    },
+  });
+  expect(new URL(url).searchParams.get("syntax")).toBe("expression");
+  expect(new URL(url).searchParams.get("q")).toBe("make:Saab");
+  expect(
+    routing.router.createURL({
+      location,
+      routeState: { [ALGOLIA_INDEX_NAME]: {} },
+    }),
+  ).toBe("https://example.com/search");
+});

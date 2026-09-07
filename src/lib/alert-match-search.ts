@@ -1,3 +1,7 @@
+import {
+  compileSearchExpression,
+  combineSearchFilters,
+} from "~/lib/compile-search-expression";
 import type { SearchResponse } from "algoliasearch/lite";
 import {
   compileAlertFilters,
@@ -40,6 +44,14 @@ export async function getAlertMatchStatsWithClient(
   filters: AlertFilters,
   lastCheckedAt: Date | null,
 ): Promise<AlertMatchStats> {
+  const expression =
+    filters.expression === undefined
+      ? null
+      : compileSearchExpression(filters.expression);
+  if (expression && !expression.success)
+    throw new Error(
+      `Cannot match saved search expression: ${expression.error}`,
+    );
   const compilation = compileAlertFilters(filters, lastCheckedAt);
   const parsedQuery = parseAdvancedSearchQuery(query.trim());
   if (compilation.kind === "no_match" || !parsedQuery.success) {
@@ -54,13 +66,17 @@ export async function getAlertMatchStatsWithClient(
       requests: [
         {
           indexName: ALGOLIA_INDEX_NAME,
-          query: parsedQuery.data.algoliaQuery,
+          query: expression?.success
+            ? expression.data.query
+            : parsedQuery.data.algoliaQuery,
           advancedSyntax: true,
           advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
-          filters: buildAdvancedSearchFilters(
-            parsedQuery.data.anyWordGroups,
-            compilation.value,
-          ),
+          filters: expression?.success
+            ? combineSearchFilters(expression.data.filters, compilation.value)
+            : buildAdvancedSearchFilters(
+                parsedQuery.data.anyWordGroups,
+                compilation.value,
+              ),
           hitsPerPage,
           page,
           attributesToRetrieve: [...ALGOLIA_VEHICLE_HIT_ATTRIBUTES],
