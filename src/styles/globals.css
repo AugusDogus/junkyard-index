@@ -175,6 +175,11 @@
   cursor: grabbing;
 }
 
+/* Override Pigeon's inline light background while map tiles are loading. */
+.yard-map div:has(> .yard-map-tiles) {
+  background: var(--muted) !important;
+}
+
 .pricing-plan-border-beam {
   background: conic-gradient(
     from 0deg,
