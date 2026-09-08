@@ -1,9 +1,6 @@
 import type { TileComponentProps } from "pigeon-maps";
 import { useRef } from "react";
-
-export function yardTileProvider(x: number, y: number, zoom: number) {
-  return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
-}
+import { yardTileProvider } from "~/lib/yard-map-tiles";
 
 export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
   const loadedParts = useRef(new Set<number>());

@@ -2,7 +2,9 @@
 
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
-import { YardMapTile, yardTileProvider } from "./YardMapTile";
+import { YardMapTile } from "./YardMapTile";
+import { yardTileProvider } from "~/lib/yard-map-tiles";
+import { useYardMapView } from "~/hooks/use-yard-map-view";
 import { YardMapPin } from "./YardMapPin";
 import {
   type CSSProperties,
@@ -17,7 +19,6 @@ import {
   getYardMapView,
   getYardMapBounds,
   hasMapCoordinates,
-  type YardMapView,
 } from "~/lib/yard-map-projection";
 
 export default function YardMapCanvas({
@@ -36,9 +37,13 @@ export default function YardMapCanvas({
   const [size, setSize] = useState(
     compact ? { width: 360, height: 240 } : { width: 900, height: 400 },
   );
-  const [view, setView] = useState<YardMapView | null>(null);
   const [tileError, setTileError] = useState(false);
   const overview = getYardMapView(yards, size.width, size.height);
+  const { view, requestView, syncView, loading, loadError } = useYardMapView(
+    overview,
+    size.width,
+    size.height,
+  );
   const current = view ?? overview;
   const bounds = getYardMapBounds(yards);
   // Match getYardMapView's geographic fit before the actual size is known.
@@ -73,17 +78,20 @@ export default function YardMapCanvas({
   }, []);
 
   useEffect(() => {
-    setView(
+    requestView(
       selected && hasMapCoordinates(selected)
         ? { center: [selected.lat, selected.lng], zoom: 9 }
         : null,
     );
-  }, [selected]);
+  }, [selected, requestView]);
 
   const zoomBy = (amount: number) => {
-    setView({
-      ...current,
-      zoom: Math.max(1, Math.min(18, current.zoom + amount)),
+    requestView((pending) => {
+      const target = pending ?? overview;
+      return {
+        ...target,
+        zoom: Math.max(1, Math.min(18, target.zoom + amount)),
+      };
     });
   };
 
@@ -112,7 +120,7 @@ export default function YardMapCanvas({
             size.width / 2 + offset[0],
             size.height / 2 + offset[1],
           ]);
-          if (center) setView({ ...current, center });
+          if (center) requestView({ ...current, center });
         } else if (
           event.key === "+" ||
           event.key === "=" ||
@@ -123,11 +131,15 @@ export default function YardMapCanvas({
         } else if (event.key === "Home") {
           event.preventDefault();
           onSelect(null);
-          setView(null);
+          requestView(null);
         }
       }}
     >
-      <div className="absolute top-1/2 left-1/2" style={mapStyle}>
+      <div
+        className="absolute top-1/2 left-1/2"
+        style={mapStyle}
+        aria-busy={loading}
+      >
         <Map
           ref={mapRef}
           width={size.width}
@@ -149,7 +161,7 @@ export default function YardMapCanvas({
                 Math.abs(center[0] - current.center[0]) > 0.000001 ||
                 Math.abs(center[1] - current.center[1]) > 0.000001)
             ) {
-              setView({ center, zoom });
+              syncView({ center, zoom });
             }
           }}
           attribution={false}
@@ -188,7 +200,7 @@ export default function YardMapCanvas({
           title="Show all yards"
           onClick={() => {
             onSelect(null);
-            setView(null);
+            requestView(null);
           }}
         >
           <Scan aria-hidden="true" />
@@ -218,13 +230,16 @@ export default function YardMapCanvas({
           </Button>
         </div>
       </div>
-      {tileError && (
+      {(loading || tileError || loadError) && (
         <p
           role="status"
-          className="bg-card absolute top-3 left-3 max-w-60 rounded-md border p-3 text-xs"
+          className="bg-card absolute bottom-3 left-3 max-w-60 rounded-md border p-3 text-xs"
         >
-          Map tiles could not load. You can still browse every yard in the
-          location list.
+          {loading
+            ? "Loading map…"
+            : loadError
+              ? "This map area could not load. Your previous view is preserved. Try zooming again or choose another yard."
+              : "Map tiles could not load. You can still browse every yard in the location list."}
         </p>
       )}
     </div>
