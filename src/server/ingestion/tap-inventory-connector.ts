@@ -1,3 +1,4 @@
+import { tapYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import {
   fetchTapBootstrap,
@@ -14,6 +15,7 @@ export type TapStreamResult = ConnectorChunkResult<"upullitne", number>;
 
 export function streamTapInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   startStoreIndex?: number;
   maxPages?: number;
 }): Effect.Effect<TapStreamResult, TapInventoryProviderError | E, R> {
@@ -78,6 +80,7 @@ export function streamTapInventory<E, R>(options: {
         break;
       }
 
+      if (options.onYards) yield* options.onYards([tapYard(storeConfig)]);
       nextStoreIndex = storeIndex;
 
       const result = yield* searchTapInventory({

@@ -1,3 +1,4 @@
+import { autorecyclerYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import {
   buildGlobalMsearchBody,
@@ -129,6 +130,7 @@ export type AutorecyclerStreamResult = ConnectorChunkResult<
 
 interface AutorecyclerStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   startFrom?: number;
   maxPages?: number;
 }
@@ -201,6 +203,10 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         yield* geo.resolveBatchEffect(seeds);
 
         const pageCanonical: CanonicalVehicle[] = [];
+        const pageYards = new Map<
+          string,
+          ReturnType<typeof autorecyclerYard>
+        >();
         for (const h of hits) {
           const src = hitSource(h);
           if (!src) continue;
@@ -210,10 +216,12 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
           if (!orgKey) continue;
           const g = geo.getCached(orgKey);
           if (!g) continue;
+          pageYards.set(orgKey, autorecyclerYard(g));
           const c = transformAutorecyclerMsearchHit(src, g);
           if (c) pageCanonical.push(c);
         }
 
+        if (options.onYards) yield* options.onYards([...pageYards.values()]);
         if (pageCanonical.length > 0) {
           yield* options.onBatch(pageCanonical);
         }

@@ -253,6 +253,27 @@ export const row52YardExclusion = sqliteTable("row52_yard_exclusion", {
     .notNull(),
 });
 
+export const yard = sqliteTable(
+  "yard",
+  {
+    source: text("source").notNull(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    operator: text("operator"),
+    address: text("address"),
+    city: text("city").notNull(),
+    state: text("state").notNull(),
+    postalCode: text("postal_code"),
+    lat: real("lat"),
+    lng: real("lng"),
+    websiteUrl: text("website_url"),
+    phone: text("phone"),
+    email: text("email"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.code] })],
+);
+
 export const vehicle = sqliteTable(
   "vehicle",
   {

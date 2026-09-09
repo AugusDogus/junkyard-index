@@ -4,6 +4,7 @@ import type {
   DurableCursorFor,
   DurableIngestionSource,
 } from "./durable-source";
+import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 
 export type InitializeDurableIngestionResult =
@@ -39,6 +40,7 @@ export interface FetchedDurableSourceChunk<
   rejectedVehicles: number;
   errors: string[];
   vehicles: CanonicalVehicle[];
+  yards: Yard[];
 }
 
 export type DurableReconciliationBatchResult =

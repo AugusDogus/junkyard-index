@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
+import { row52Yards } from "./yard-metadata";
 import type { Row52Location, Row52Vehicle } from "~/lib/types";
 import {
   buildLocationIdFilter,
@@ -337,4 +338,24 @@ describe("Row52 durable cursor transitions", () => {
     });
     expect(resumed.status).toBe("paused");
   });
+});
+
+test("Row52 metadata preserves a yard website but omits shared chain links", () => {
+  const yards = row52Yards([
+    {
+      ...makeLocation(1),
+      webUrl: "https://independent-yard.example/",
+      phone: "918-555-0100",
+    },
+    { ...makeLocation(2), webUrl: "https://chain.example/" },
+    { ...makeLocation(3), webUrl: "https://chain.example/" },
+    { ...makeLocation(4), webUrl: "https://www.picknpull.com/" },
+  ]);
+  expect(yards[0]).toMatchObject({
+    code: "1",
+    name: "Authoritative Yard",
+    phone: "918-555-0100",
+    websiteUrl: "https://independent-yard.example/",
+  });
+  expect(yards.slice(1).every((yard) => yard.websiteUrl === null)).toBe(true);
 });

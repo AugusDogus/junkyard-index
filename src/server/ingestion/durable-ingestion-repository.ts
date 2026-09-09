@@ -2,6 +2,8 @@ import type { Client, InStatement, InValue } from "@libsql/client";
 import { and, eq, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { isIngestionSource } from "~/lib/ingestion-source";
+import { Yard } from "~/lib/yard";
+import { yardUpsertStatement } from "./yard-checkpoint";
 import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
 import type {
   DurableSourceChunkResult,
@@ -423,6 +425,16 @@ export function createDurableIngestionRepository(
           `Cannot checkpoint ${mismatchedVehicle.source} vehicle ${mismatchedVehicle.vin} for ${source} source run`,
         );
       }
+      // Older durable workflow payloads do not contain yard metadata.
+      const yards = (params.fetched.yards ?? []).map((input) => {
+        const parsed = Yard.parse(input);
+        if (!parsed.success || parsed.data.source !== source) {
+          throw new Error(
+            `Cannot checkpoint yard ${input.source}:${input.code} for ${source} source run: ${parsed.success ? "source does not match" : parsed.error.message}. No checkpoint data was written.`,
+          );
+        }
+        return parsed.data;
+      });
       const id = sourceRunId(params.runId, source);
       const [current] = await database
         .select()
@@ -466,6 +478,21 @@ export function createDurableIngestionRepository(
       );
       const nextCursor = serializeDurableSourceCursor(params.fetched.cursor);
       const statements: InStatement[] = [];
+
+      for (
+        let start = 0;
+        start < yards.length;
+        start += SNAPSHOT_WRITE_BATCH_SIZE
+      ) {
+        statements.push(
+          yardUpsertStatement({
+            runId: params.runId,
+            source,
+            expectedCursor,
+            yards: yards.slice(start, start + SNAPSHOT_WRITE_BATCH_SIZE),
+          }),
+        );
+      }
 
       for (
         let start = 0;
