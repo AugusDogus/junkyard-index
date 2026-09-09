@@ -4,6 +4,7 @@ import { ArrowUpRight, ChevronDown, MapPin, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import YardMapCanvas from "~/components/home/YardMapCanvas";
+import { YardLinks } from "~/components/home/YardLinks";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type { HomepageYard } from "~/lib/homepage-inventory";
@@ -116,33 +117,40 @@ export function YardMap({
                 </p>
               ) : (
                 filtered.map((yard) => (
-                  <button
+                  <div
                     key={`${yard.source}:${yard.code}`}
-                    type="button"
-                    onClick={() => setSelected(yard)}
-                    aria-pressed={selected === yard}
                     className={cn(
-                      "hover:bg-muted flex w-full items-center gap-3 border-b px-4 py-3 text-left last:border-b-0",
+                      "border-b last:border-b-0",
                       selected === yard && "bg-muted",
                     )}
                   >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
-                        {yard.name}
+                    <button
+                      type="button"
+                      onClick={() => setSelected(yard)}
+                      aria-pressed={selected === yard}
+                      className="hover:bg-muted flex w-full items-center gap-3 px-4 pt-3 pb-1 text-left"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-pretty">
+                          {yard.name}
+                        </span>
+                        <span className="text-muted-foreground mt-1 block text-xs">
+                          {yard.city}, {yard.state}
+                        </span>
                       </span>
-                      <span className="text-muted-foreground mt-1 block text-xs">
-                        {yard.city}, {yard.state}
+                      <span className="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
+                        <span className="block">
+                          {yard.vehicleCount.toLocaleString("en-US")}{" "}
+                        </span>
+                        <span className="mt-1 block">
+                          {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
-                      <span className="block">
-                        {yard.vehicleCount.toLocaleString("en-US")}{" "}
-                      </span>
-                      <span className="mt-1 block">
-                        {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
-                      </span>
-                    </span>
-                  </button>
+                    </button>
+                    <div className="px-4 pb-2">
+                      <YardLinks yard={yard} />
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -177,13 +185,14 @@ export function YardMap({
           />
           {selected && (
             <div className="bg-card absolute top-3 right-16 left-3 z-10 rounded-lg border p-3 pr-10 shadow-sm sm:right-auto sm:max-w-80">
-              <p className="truncate text-sm font-medium" title={selected.name}>
-                {selected.name}
-              </p>
+              <p className="text-sm font-medium text-pretty">{selected.name}</p>
               <p className="text-muted-foreground mt-1 text-xs">
                 {selected.city}, {selected.state} ·{" "}
                 {selected.vehicleCount.toLocaleString("en-US")} vehicles
               </p>
+              <div className="mt-2">
+                <YardLinks yard={selected} />
+              </div>
               <Button
                 variant="outline"
                 size="icon"
