@@ -1,3 +1,5 @@
+import type { Yard } from "~/lib/yard";
+import type { OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import { streamAutorecyclerInventory } from "./autorecycler-connector";
 import { streamGopullitInventory } from "./gopullit-connector";
@@ -24,6 +26,8 @@ type OnVehicleBatch = (
 interface FetchContext {
   maxPages: number;
   onBatch: OnVehicleBatch;
+  onYards: OnYards;
+  yardsByCode: Map<string, Yard>;
   vehiclesByVin: Map<string, CanonicalVehicle>;
 }
 
@@ -46,6 +50,7 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
   },
   toCursor: (cursor: Cursor) => DurableCursorFor<Source>,
   vehiclesByVin: Map<string, CanonicalVehicle>,
+  yardsByCode: Map<string, Yard>,
 ): FetchedDurableSourceChunk<Source> {
   const uniqueVehicles = vehiclesByVin.size;
   const rejectedVehicles = result.errors.length;
@@ -62,6 +67,7 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
     rejectedVehicles,
     errors: result.errors,
     vehicles: [...vehiclesByVin.values()],
+    yards: [...yardsByCode.values()],
   };
 }
 
@@ -71,12 +77,14 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamPypInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startPage: cursor.page,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),
       ),
       (page) => ({ source: "pyp", page }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   row52: async (cursor, context) =>
     toFetchedChunk(
@@ -85,6 +93,7 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           Effect.flatMap((excludedLocationIds) =>
             streamRow52Inventory({
               onBatch: context.onBatch,
+              onYards: context.onYards,
               cursor,
               excludedLocationIds,
               maxPages: context.maxPages,
@@ -95,24 +104,28 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       ),
       (nextCursor) => nextCursor,
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   autorecycler: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
         streamAutorecyclerInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startFrom: cursor.from,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),
       ),
       (from) => ({ source: "autorecycler", from }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   pullapart: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
         streamPullapartInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           loadCachedEnrichments: loadPullapartCachedEnrichments,
           startAfter: cursor,
           maxPages: context.maxPages,
@@ -120,42 +133,49 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       ),
       (nextCursor) => nextCursor,
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   upullitne: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
         streamTapInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startStoreIndex: cursor.storeIndex,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),
       ),
       (storeIndex) => ({ source: "upullitne", storeIndex }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   upullitdavie: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
         streamUpullitDavieInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startCursor: cursor,
           maxPages: context.maxPages,
         }),
       ),
       (nextCursor) => ({ source: "upullitdavie", ...nextCursor }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   gopullit: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
         streamGopullitInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startCursor: cursor,
           maxPages: context.maxPages,
         }),
       ),
       (nextCursor) => ({ source: "gopullit", ...nextCursor }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
 };
 
@@ -171,6 +191,11 @@ export async function fetchDurableSourceChunk<
   cursor: DurableCursorFor<Source>,
 ): Promise<FetchedDurableSourceChunk<Source>> {
   const vehiclesByVin = new Map<string, CanonicalVehicle>();
+  const yardsByCode = new Map<string, Yard>();
+  const onYards: OnYards = (yards) =>
+    Effect.sync(() => {
+      for (const yard of yards) yardsByCode.set(yard.code, yard);
+    });
   const onBatch = (vehicles: CanonicalVehicle[]) =>
     Effect.sync(() => {
       for (const vehicle of vehicles) {
@@ -182,6 +207,8 @@ export async function fetchDurableSourceChunk<
   return getDurableSourceFetcher(cursor.source)(cursor, {
     maxPages,
     onBatch,
+    onYards,
+    yardsByCode,
     vehiclesByVin,
   });
 }

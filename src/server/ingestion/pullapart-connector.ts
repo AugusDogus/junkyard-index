@@ -1,3 +1,4 @@
+import { pullapartYard, type OnYards } from "./yard-metadata";
 import { Effect, RateLimiter } from "effect";
 import {
   fetchPullapartVehicleExtendedInfo,
@@ -33,6 +34,7 @@ export interface PullapartCachedEnrichment {
 
 export interface PullapartStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   loadCachedEnrichments?: (
     vehicles: ReadonlyArray<PullapartVehicle>,
   ) => Effect.Effect<ReadonlyMap<string, PullapartCachedEnrichment>, E, R>;
@@ -66,6 +68,8 @@ export function streamPullapartInventoryWithRequestGate<E, R>(
         ),
       )),
     ].sort((left, right) => left.locationID - right.locationID);
+
+    if (options.onYards) yield* options.onYards(locations.map(pullapartYard));
 
     yield* Effect.logInfo(
       `[Pull-A-Part] Streaming inventory from ${locations.length} locations`,

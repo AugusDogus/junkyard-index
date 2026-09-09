@@ -1,100 +1,105 @@
 import { describe, expect, test } from "bun:test";
 import { getYardDetails } from "./yard-details";
+import { Yard } from "./yard";
 
-const montgomery = {
+const inventory = {
   source: "pullapart",
   name: "Montgomery",
   city: "Montgomery",
   state: "AL",
-  detailsUrl: "https://www.pullapart.com/inventory/search/?LocationID=10",
+  lat: 32.3,
+  lng: -86.3,
+};
+const metadata: Yard = {
+  source: "pullapart",
+  code: "10",
+  name: "Pull-A-Part - Montgomery",
+  operator: "Pull-A-Part",
+  city: "Montgomery",
+  state: "AL",
+  address: "4526 Norman Bridge Rd",
+  postalCode: "36105",
+  lat: null,
+  lng: null,
+  websiteUrl: "https://www.pullapart.com/locations/alabama/montgomery/",
+  phone: "334-834-5880",
+  email: null,
 };
 
-describe("yard details", () => {
-  test("identifies the operator for city-only names and builds a business map search", () => {
-    const details = getYardDetails(montgomery);
-    expect(details.name).toBe("Pull-A-Part - Montgomery");
-    expect(details.websiteUrl).toBe("https://www.pullapart.com/");
+describe("yard directory metadata", () => {
+  test("uses the stored business name and contact details, with an address-based map search", () => {
+    const details = getYardDetails(inventory, metadata);
+    expect(details.name).toBe(metadata.name);
+    expect(details.websiteUrl).toBe(metadata.websiteUrl);
+    expect(details.phone).toBe(metadata.phone);
     expect(new URL(details.mapsUrl).searchParams.get("query")).toBe(
-      "Pull-A-Part - Montgomery, Montgomery, AL",
+      "Pull-A-Part - Montgomery, 4526 Norman Bridge Rd, Montgomery, AL, 36105",
     );
+    expect(details.lat).toBe(inventory.lat);
   });
 
-  test("distinguishes U-Pull-&-Pay yards on the shared ingestion source", () => {
-    expect(
-      getYardDetails({
-        ...montgomery,
-        name: "Denver",
-        detailsUrl: "https://www.upullandpay.com/inventory/search/",
-      }).name,
-    ).toBe("U-Pull-&-Pay - Denver");
+  test("prefers yard coordinates over inventory ZIP centroids", () => {
+    const details = getYardDetails(inventory, {
+      ...metadata,
+      lat: 32.32,
+      lng: -86.31,
+    });
+    expect([details.lat, details.lng]).toEqual([32.32, -86.31]);
   });
 
-  test("does not duplicate existing operator names", () => {
+  test("keeps legacy inventory usable without fabricating contact details", () => {
+    const details = getYardDetails(inventory, null);
+    expect(details.name).toBe("Pull-A-Part / U-Pull-&-Pay - Montgomery");
+    expect(details.websiteUrl).toBeNull();
+    expect(details.phone).toBeNull();
+    expect(details.email).toBeNull();
     expect(
-      getYardDetails({ ...montgomery, name: "Pull-A-Part Montgomery" }).name,
-    ).toBe("Pull-A-Part Montgomery");
+      getYardDetails(
+        { ...inventory, source: "row52", name: "Kiker's U Pull It" },
+        null,
+      ).name,
+    ).toBe("Kiker's U Pull It");
     expect(
-      getYardDetails({
-        ...montgomery,
-        source: "pyp",
-        name: "Pick Your Part - Sun Valley",
-        detailsUrl: "https://www.pyp.com/inventory/sun-valley-1229/car/",
-      }).name,
+      getYardDetails(
+        { ...inventory, source: "pyp", name: "Pick Your Part - Sun Valley" },
+        null,
+      ).name,
     ).toBe("Pick Your Part - Sun Valley");
   });
 
-  test("identifies city-only Pick Your Part yards", () => {
-    expect(
-      getYardDetails({
-        ...montgomery,
-        source: "pyp",
-        name: "Sun Valley",
-        detailsUrl: null,
-      }).name,
-    ).toBe("LKQ Pick Your Part - Sun Valley");
-  });
-
-  test("preserves independent yard names without presenting an aggregator as the yard website", () => {
-    for (const source of ["row52", "autorecycler", "unknown", "constructor"]) {
-      const details = getYardDetails({
-        ...montgomery,
-        source,
-        name: "Kiker's U Pull It",
-        detailsUrl: "https://row52.com/Vehicle/123",
-      });
-      expect(details.name).toBe("Kiker's U Pull It");
-      expect(details.websiteUrl).toBeNull();
-    }
-  });
-
-  test("rejects malformed, unsafe, and unrelated website URLs", () => {
-    for (const detailsUrl of [
-      null,
-      "invalid",
+  test("does not publish shared homepages, aggregator pages, or unsafe URLs", () => {
+    for (const websiteUrl of [
+      "https://www.pullapart.com/",
+      "https://www.pyp.com/",
+      "https://gopullit.com/",
+      "https://upullitne.com/",
+      "https://row52.com/Vehicle/123",
+      "https://autorecycler.io/details/123",
       "javascript:alert(1)",
-      "https://www.pullapart.com.evil.test/",
-      "https://user:password@www.pullapart.com/",
+      "https://user:password@yard.example/",
     ]) {
       expect(
-        getYardDetails({ ...montgomery, detailsUrl }).websiteUrl,
+        getYardDetails(inventory, { ...metadata, websiteUrl }).websiteUrl,
       ).toBeNull();
     }
   });
 
-  test("links direct operators to their website without vehicle-specific paths", () => {
-    for (const [source, host] of [
-      ["pyp", "www.pyp.com"],
-      ["gopullit", "gopullit.com"],
-      ["upullitne", "upullitne.com"],
-      ["upullitdavie", "upullitdavie.com"],
-    ] as const) {
-      expect(
-        getYardDetails({
-          ...montgomery,
-          source,
-          detailsUrl: `https://${host}/inventory/car?vin=123`,
-        }).websiteUrl,
-      ).toBe(`https://${host}/`);
+  test("supports a website dedicated to a single yard", () => {
+    expect(Yard.website("https://upullitdavie.com/")).toBe(
+      "https://upullitdavie.com/",
+    );
+  });
+
+  test("validates identity, coordinates, and email at the ingestion boundary", () => {
+    expect(Yard.parse(metadata).success).toBe(true);
+    for (const invalid of [
+      { code: "" },
+      { source: "unknown" },
+      { lat: 95, lng: 10 },
+      { lat: 30, lng: null },
+      { email: "bad\r\nBcc: somebody" },
+    ]) {
+      expect(Yard.parse({ ...metadata, ...invalid }).success).toBe(false);
     }
   });
 });

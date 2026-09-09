@@ -1,4 +1,4 @@
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import type { HomepageYard } from "~/lib/homepage-inventory";
 
 export function YardLinks({ yard }: { yard: HomepageYard }) {
@@ -24,6 +24,24 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
       >
         <MapPin className="size-3" aria-hidden="true" /> Google Maps
       </a>
+      {yard.phone && (
+        <a
+          href={`tel:${yard.phone.replace(/[^+\d]/g, "")}`}
+          aria-label={`Call ${yard.name}: ${yard.phone}`}
+          className="hover:text-foreground inline-flex min-h-8 items-center gap-1 underline underline-offset-4"
+        >
+          <Phone className="size-3" aria-hidden="true" /> {yard.phone}
+        </a>
+      )}
+      {yard.email && (
+        <a
+          href={`mailto:${encodeURIComponent(yard.email)}`}
+          aria-label={`Email ${yard.name}`}
+          className="hover:text-foreground inline-flex min-h-8 items-center gap-1 underline underline-offset-4"
+        >
+          <Mail className="size-3" aria-hidden="true" /> Email
+        </a>
+      )}
     </div>
   );
 }

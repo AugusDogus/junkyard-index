@@ -186,6 +186,11 @@ export function YardMap({
           {selected && (
             <div className="bg-card absolute top-3 right-16 left-3 z-10 rounded-lg border p-3 pr-10 shadow-sm sm:right-auto sm:max-w-80">
               <p className="text-sm font-medium text-pretty">{selected.name}</p>
+              {selected.address && (
+                <p className="text-muted-foreground mt-1 text-xs text-pretty">
+                  {selected.address}
+                </p>
+              )}
               <p className="text-muted-foreground mt-1 text-xs">
                 {selected.city}, {selected.state} ·{" "}
                 {selected.vehicleCount.toLocaleString("en-US")} vehicles

@@ -1,12 +1,13 @@
 import { createClient } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
 import type { DurableSourceCursor } from "./durable-source";
+import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
@@ -42,6 +43,7 @@ function mismatchedFetchFromBoundary(
 }
 
 const TEST_SCHEMA = `
+${readFileSync(new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url), "utf8")}
   create table ingestion_run (
     id text primary key, source text not null, status text not null,
     schedule_key text, workflow_run_id text, stage text not null default 'sources',
@@ -211,6 +213,7 @@ describe("durable ingestion repository", () => {
         rejectedVehicles: 0,
         errors: [],
         vehicles: [makeVehicle()],
+        yards: [],
       };
       const first = await repository.checkpointChunk({
         runId: "run-1",
@@ -275,6 +278,7 @@ describe("durable ingestion repository", () => {
             rejectedVehicles: 0,
             errors: [],
             vehicles: [makeVehicle(vin)],
+            yards: [{ ...testYard, name: vin }],
           },
         });
 
@@ -297,6 +301,8 @@ describe("durable ingestion repository", () => {
         throw new Error("Expected one snapshot VIN after checkpoint race");
       }
       expect(["VIN-RACE-A", "VIN-RACE-B"]).toContain(snapshotVin);
+      const yards = await client.execute("select name from yard");
+      expect(yards.rows.map((yard) => yard.name)).toEqual([snapshotVin]);
     } finally {
       testDatabase.cleanup();
     }
@@ -524,4 +530,146 @@ describe("durable ingestion repository", () => {
       testDatabase.cleanup();
     }
   });
+});
+
+const testYard: Yard = {
+  source: "pyp",
+  code: "1229",
+  name: "Pick Your Part - Sun Valley",
+  operator: "LKQ Pick Your Part",
+  address: "11201 Pendleton St.",
+  city: "Sun Valley",
+  state: "CA",
+  postalCode: "91352",
+  lat: 34.2284,
+  lng: -118.3929,
+  websiteUrl: "https://www.pyp.com/inventory/sun-valley-1229/",
+  phone: "800-962-2277",
+  email: null,
+};
+
+function yardChunk(yards: Yard[]): FetchedDurableSourceChunk<"pyp"> {
+  return {
+    cursor: { source: "pyp", page: 2 },
+    status: "paused",
+    pagesProcessed: 1,
+    vehiclesProcessed: 0,
+    uniqueVehicles: 0,
+    duplicateVehicles: 0,
+    rejectedVehicles: 0,
+    errors: [],
+    vehicles: [],
+    yards,
+  };
+}
+
+test("yard checkpoints upsert metadata without vehicles and ignore stale replay", async () => {
+  const database = createTestClient();
+  try {
+    await database.client.executeMultiple(TEST_SCHEMA);
+    const repository = createDurableIngestionRepository(
+      drizzle(database.client),
+      database.client,
+    );
+    await repository.initialize("yard-run");
+    const request = {
+      runId: "yard-run",
+      requestedCursor: { source: "pyp", page: 1 } as const,
+      fetched: yardChunk([testYard]),
+    };
+    await repository.checkpointChunk(request);
+    const stored = await database.client.execute("select * from yard");
+    expect(stored.rows[0]).toMatchObject({
+      source: "pyp",
+      code: "1229",
+      phone: testYard.phone,
+      website_url: testYard.websiteUrl,
+    });
+    await repository.checkpointChunk({
+      ...request,
+      requestedCursor: { source: "pyp", page: 2 },
+      fetched: {
+        ...yardChunk([
+          { ...testYard, phone: "800-555-1234", websiteUrl: null },
+        ]),
+        cursor: { source: "pyp", page: 3 },
+      },
+    });
+    await repository.checkpointChunk(request);
+    const updated = await database.client.execute(
+      "select phone, website_url from yard",
+    );
+    expect(updated.rows).toHaveLength(1);
+    expect(updated.rows[0]).toMatchObject({
+      phone: "800-555-1234",
+      website_url: null,
+    });
+    await repository.checkpointChunk({
+      runId: "yard-run",
+      requestedCursor: {
+        source: "row52",
+        afterLocationId: 0,
+        locationIds: [],
+        skip: 0,
+      },
+      fetched: {
+        ...yardChunk([
+          { ...testYard, source: "row52", name: "Independent yard" },
+        ]),
+        cursor: {
+          source: "row52",
+          afterLocationId: 1229,
+          locationIds: [],
+          skip: 0,
+        },
+      },
+    });
+    expect(
+      (await database.client.execute("select count(*) as count from yard"))
+        .rows[0]?.count,
+    ).toBe(2);
+  } finally {
+    database.cleanup();
+  }
+});
+
+test("yard checkpoints reject mismatched sources and roll back when vehicle writes fail", async () => {
+  const database = createTestClient();
+  try {
+    await database.client.executeMultiple(TEST_SCHEMA);
+    const repository = createDurableIngestionRepository(
+      drizzle(database.client),
+      database.client,
+    );
+    await repository.initialize("yard-failure");
+    const request = {
+      runId: "yard-failure",
+      requestedCursor: { source: "pyp", page: 1 } as const,
+      fetched: yardChunk([{ ...testYard, source: "row52" }]),
+    };
+    await expect(repository.checkpointChunk(request)).rejects.toThrow(
+      "source does not match",
+    );
+    await database.client.executeMultiple(
+      "create trigger reject_snapshot before insert on vehicle_snapshot begin select raise(abort, 'snapshot rejected'); end;",
+    );
+    await expect(
+      repository.checkpointChunk({
+        ...request,
+        fetched: { ...yardChunk([testYard]), vehicles: [makeVehicle()] },
+      }),
+    ).rejects.toThrow("snapshot rejected");
+    expect(
+      (await database.client.execute("select count(*) as count from yard"))
+        .rows[0]?.count,
+    ).toBe(0);
+    expect(
+      await repository.getCheckpoint({
+        runId: request.runId,
+        requestedCursor: request.requestedCursor,
+      }),
+    ).toBeNull();
+  } finally {
+    database.cleanup();
+  }
 });

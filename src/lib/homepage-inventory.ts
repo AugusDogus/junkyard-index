@@ -1,29 +1,14 @@
 import "server-only";
 
-import { asc, count, desc, isNull, min } from "drizzle-orm";
+import { asc, desc, isNull } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
-import { getYardDetails } from "~/lib/yard-details";
+import { getHomepageYards } from "~/server/homepage-yards";
 import { vehicle } from "~/schema";
 
 async function getHomepageInventoryInternal() {
   const [yards, recentVehicles] = await Promise.all([
-    db
-      .select({
-        source: vehicle.source,
-        code: vehicle.locationCode,
-        name: vehicle.locationName,
-        city: vehicle.locationCity,
-        state: vehicle.stateAbbr,
-        lat: vehicle.lat,
-        lng: vehicle.lng,
-        vehicleCount: count(),
-        detailsUrl: min(vehicle.detailsUrl),
-      })
-      .from(vehicle)
-      .where(isNull(vehicle.missingSinceAt))
-      .groupBy(vehicle.source, vehicle.locationCode)
-      .orderBy(asc(vehicle.stateAbbr), asc(vehicle.locationName)),
+    getHomepageYards(db),
     db
       .select({
         year: vehicle.year,
@@ -41,10 +26,7 @@ async function getHomepageInventoryInternal() {
   ]);
 
   return {
-    yards: yards.map(({ detailsUrl, ...yard }) => ({
-      ...yard,
-      ...getYardDetails({ ...yard, detailsUrl }),
-    })),
+    yards,
     recentVehicles: recentVehicles.map((entry) => ({
       ...entry,
       indexedAt: entry.indexedAt.toISOString(),
@@ -61,6 +43,6 @@ export type RecentVehicle = Awaited<
 
 export const getHomepageInventory = unstable_cache(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "yard-details-v1"],
+  ["homepage-inventory", "yard-metadata-v1"],
   { revalidate: 3600, tags: ["homepage-live-stats"] },
 );

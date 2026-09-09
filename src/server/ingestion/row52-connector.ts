@@ -1,3 +1,4 @@
+import { row52Yards, type OnYards } from "./yard-metadata";
 import buildQuery from "odata-query";
 import { Effect, Duration, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
@@ -358,6 +359,7 @@ export function transformRow52Vehicle(
  */
 export function streamRow52Inventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   cursor?: Row52DurableCursor;
   excludedLocationIds?: ReadonlySet<number>;
   maxPages?: number;
@@ -384,6 +386,8 @@ export function streamRow52Inventory<E, R>(options: {
     yield* Effect.logInfo(
       `[Row52] Found ${locationMap.size} participating locations`,
     );
+    if (options.onYards)
+      yield* options.onYards(row52Yards([...locationMap.values()]));
     const allLocationIds = Array.from(locationMap.keys()).sort(
       (left, right) => left - right,
     );

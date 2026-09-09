@@ -4,6 +4,7 @@ import {
   streamPullapartInventory,
   streamPullapartInventoryWithRequestGate,
 } from "./pullapart-connector";
+import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 
 const originalFetch = globalThis.fetch;
@@ -346,5 +347,39 @@ describe("streamPullapartInventory enrichment handling", () => {
     expect(result.errors[0]).toContain("ticket=1191613");
     expect(result.errors[0]).toContain("line=12");
     expect(result.errors[0]).toContain("API error: 500");
+  });
+});
+
+test("records yard contact metadata even when its inventory is empty", async () => {
+  installPullapartFetchMock({ makesResponse: [] });
+  const yards: Yard[] = [];
+  const result = await Effect.runPromise(
+    streamPullapartInventoryWithRequestGate(
+      {
+        onBatch: () => Effect.void,
+        onYards: (batch) =>
+          Effect.sync(() => {
+            yards.push(...batch);
+          }),
+      },
+      (effect) => effect,
+    ),
+  );
+  expect(result.count).toBe(0);
+  expect(yards).toHaveLength(1);
+  expect(yards[0]).toMatchObject({
+    source: "pullapart",
+    code: "3",
+    name: "Pull-A-Part - Atlanta South",
+    operator: "Pull-A-Part",
+    address: "1540 Henrico Road",
+    city: "Conley",
+    state: "GA",
+    postalCode: "30288",
+    phone: "770-242-8844",
+    lat: null,
+    lng: null,
+    websiteUrl: null,
+    email: null,
   });
 });

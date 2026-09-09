@@ -1,3 +1,4 @@
+import { upullitDavieYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { UpullitDavieCursorState } from "./durable-cursor";
@@ -28,6 +29,7 @@ export interface UpullitDaviePageSource<PageError = never> {
 
 export function streamUpullitDavieInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   startCursor?: UpullitDavieStreamCursor;
   maxPages?: number;
 }): Effect.Effect<UpullitDavieStreamResult, Error | E, Config | R> {
@@ -47,12 +49,14 @@ export function streamUpullitDavieInventory<E, R>(options: {
 export function streamUpullitDavieInventoryFromSource<E, R, PageError>(
   options: {
     onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+    onYards?: OnYards;
     startCursor?: UpullitDavieStreamCursor;
     maxPages?: number;
   },
   source: UpullitDaviePageSource<PageError>,
 ): Effect.Effect<UpullitDavieStreamResult, Error | E | PageError, R> {
   return Effect.gen(function* () {
+    if (options.onYards) yield* options.onYards([upullitDavieYard]);
     const startCursor = options.startCursor ?? UpullitDavieCursorState.initial;
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
     const seen = new Map<string, CanonicalVehicle>();

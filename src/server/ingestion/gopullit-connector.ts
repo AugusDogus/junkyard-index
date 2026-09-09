@@ -1,8 +1,10 @@
+import { gopullitYard, type OnYards } from "./yard-metadata";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { GopullitCursorState } from "./durable-cursor";
 import { fetchGopullitPage, GopullitSession } from "./gopullit-client";
 import {
+  GOPULLIT_LOCATIONS,
   hasGopullitVehicleMetadata,
   resolveGopullitLocation,
   transformGopullitVehicle,
@@ -34,6 +36,7 @@ function pageChunk(startPage: number, length: number): number[] {
 
 interface GopullitStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   startCursor?: GopullitStreamCursor;
   maxPages?: number;
 }
@@ -53,6 +56,8 @@ export function streamGopullitInventoryWithRequestGate<E, R>(
     let nextPage = startPage;
     let complete = false;
     const session = GopullitSession.make();
+    if (options.onYards)
+      yield* options.onYards(GOPULLIT_LOCATIONS.map(gopullitYard));
 
     while (!complete && pagesProcessed < maxPages) {
       const remainingCatalogPages = GOPULLIT_MAX_CATALOG_PAGES - nextPage + 1;

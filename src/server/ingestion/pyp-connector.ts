@@ -1,3 +1,4 @@
+import { pypYard, type OnYards } from "./yard-metadata";
 import { Effect, Scope } from "effect";
 import type { Location } from "~/lib/types";
 import {
@@ -78,6 +79,7 @@ function assertMinLocations(locations: Location[]) {
  */
 export function streamPypInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
   startPage?: number;
   maxPages?: number;
 }): Effect.Effect<
@@ -99,6 +101,7 @@ export function streamPypInventory<E, R>(options: {
         }),
     });
     let { locationMap, storeCodes } = buildLocationContext(session.locations);
+    if (options.onYards) yield* options.onYards(session.locations.map(pypYard));
 
     let nextPage = Math.max(1, options.startPage ?? 1);
     let totalCount = 0;
@@ -120,6 +123,8 @@ export function streamPypInventory<E, R>(options: {
         );
         yield* session.reopen();
         ({ locationMap, storeCodes } = buildLocationContext(session.locations));
+        if (options.onYards)
+          yield* options.onYards(session.locations.map(pypYard));
         sessionCount++;
         yield* Effect.logInfo(
           `[PYP] New session #${sessionCount} ready, resuming from page ${nextPage}`,

@@ -1,3 +1,4 @@
+import { pypYard } from "./yard-metadata";
 import { describe, expect, test } from "bun:test";
 import type { Location } from "~/lib/types";
 import { transformPypVehicle, type PypVehicleJson } from "./pyp-transform";
@@ -200,4 +201,24 @@ describe("transformPypVehicle", () => {
     expect(result?.make).toBe("BMW");
     expect(result?.color).toBe("Black");
   });
+});
+
+test("PYP yard metadata stores the matching location page and contact info", () => {
+  expect(pypYard(mockLocation)).toMatchObject({
+    source: "pyp",
+    code: "1229",
+    name: "Pick Your Part - Sun Valley",
+    operator: "LKQ Pick Your Part",
+    address: "11201 Pendleton St.",
+    phone: "(800) 962-2277",
+    postalCode: "91352",
+    websiteUrl: "https://www.pyp.com/inventory/sun-valley-1229/",
+  });
+  for (const locationPageURL of [
+    "https://www.pyp.com/",
+    "https://www.pyp.com/inventory/other-yard-9999/",
+    "javascript:alert(1)",
+  ]) {
+    expect(pypYard({ ...mockLocation, locationPageURL }).websiteUrl).toBeNull();
+  }
 });
