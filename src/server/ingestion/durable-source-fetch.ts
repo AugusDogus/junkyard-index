@@ -11,6 +11,7 @@ import { streamPullapartInventory } from "./pullapart-connector";
 import { loadPullapartCachedEnrichments } from "./pullapart-enrichment-cache";
 import { streamPypInventory } from "./pyp-connector";
 import { streamRow52Inventory } from "./row52-connector";
+import { loadConfiguredRow52YardExclusionIds } from "./row52-yard-exclusion";
 import { runIngestionEffect } from "./runtime";
 import { streamTapInventory } from "./tap-inventory-connector";
 import { streamUpullitDavieInventory } from "./upullit-davie-connector";
@@ -80,11 +81,17 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
   row52: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
-        streamRow52Inventory({
-          onBatch: context.onBatch,
-          cursor,
-          maxPages: context.maxPages,
-        }).pipe(Effect.scoped),
+        loadConfiguredRow52YardExclusionIds().pipe(
+          Effect.flatMap((excludedLocationIds) =>
+            streamRow52Inventory({
+              onBatch: context.onBatch,
+              cursor,
+              excludedLocationIds,
+              maxPages: context.maxPages,
+            }),
+          ),
+          Effect.scoped,
+        ),
       ),
       (nextCursor) => nextCursor,
       context.vehiclesByVin,

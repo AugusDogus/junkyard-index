@@ -89,6 +89,15 @@ describe("migration chain", () => {
       );
       expect(retiredSearchUsage.rows).toHaveLength(0);
 
+      const row52Exclusions = await client.execute(
+        "select location_id, reason from row52_yard_exclusion order by location_id",
+      );
+      expect(row52Exclusions.rows).toHaveLength(1);
+      expect(row52Exclusions.rows[0]?.location_id).toBe(83);
+      expect(row52Exclusions.rows[0]?.reason).toBe(
+        "Former PICK-n-PULL Tallahassee yard acquired by GO Pull-It",
+      );
+
       await expect(
         client.execute(
           `insert into billing_operation (user_id, state, expires_at)

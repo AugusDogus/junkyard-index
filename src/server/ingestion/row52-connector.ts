@@ -132,10 +132,9 @@ export const Row52VehicleSchema = Schema.Struct({
   images: Schema.optional(Schema.Array(Row52ImageSchema)),
 });
 
-function fetchRow52LocationsEffect(): Effect.Effect<
-  Map<number, Row52Location>,
-  Error
-> {
+function fetchRow52LocationsEffect(
+  excludedLocationIds: ReadonlySet<number>,
+): Effect.Effect<Map<number, Row52Location>, Error> {
   const fetchPage = (skip: number) =>
     fetchRow52OData({
       endpoint: API_ENDPOINTS.ROW52_LOCATION_SEARCH,
@@ -160,7 +159,13 @@ function fetchRow52LocationsEffect(): Effect.Effect<
       totalCount ??= data["@odata.count"];
 
       for (const loc of data.value) {
-        if (!loc.isParticipating || !loc.isPublishable) continue;
+        if (
+          !loc.isParticipating ||
+          !loc.isPublishable ||
+          excludedLocationIds.has(loc.locationId)
+        ) {
+          continue;
+        }
         const region = normalizeRegion(
           loc.state,
           loc.stateAbbreviation ?? loc.state,
@@ -354,6 +359,7 @@ export function transformRow52Vehicle(
 export function streamRow52Inventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   cursor?: Row52DurableCursor;
+  excludedLocationIds?: ReadonlySet<number>;
   maxPages?: number;
 }): Effect.Effect<Row52StreamResult, Row52ProviderError | E, R> {
   return Effect.gen(function* () {
@@ -370,7 +376,9 @@ export function streamRow52Inventory<E, R>(options: {
     const errors: string[] = [];
 
     yield* Effect.logInfo("[Row52] Fetching locations...");
-    const locationMap = yield* fetchRow52LocationsEffect().pipe(
+    const locationMap = yield* fetchRow52LocationsEffect(
+      options.excludedLocationIds ?? new Set(),
+    ).pipe(
       Effect.mapError((cause) => new Row52ProviderError({ skip: -1, cause })),
     );
     yield* Effect.logInfo(

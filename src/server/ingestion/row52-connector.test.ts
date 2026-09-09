@@ -184,6 +184,65 @@ describe("Row52 filtered crawl helpers", () => {
     expect(laterPageQuery).not.toContain("%24count=true");
     expect(laterPageQuery).toContain("%24skip=1000");
   });
+
+  test("does not request inventory from excluded published yards", async () => {
+    let vehicleFilter = "";
+    globalThis.fetch = (async (input) => {
+      const url = new URL(
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url,
+      );
+      if (url.pathname.includes("/odata/Locations/Row52.Search")) {
+        return Response.json({
+          "@odata.context": "test",
+          "@odata.count": 2,
+          value: [83, 84].map((locationId) => ({
+            locationId,
+            name: `Yard ${locationId}`,
+            code: String(locationId),
+            address1: "123 Main St",
+            address2: null,
+            state: "Florida",
+            stateAbbreviation: "FL",
+            hours: "9-5",
+            phone: null,
+            city: "Tallahassee",
+            zipCode: "32305",
+            latitude: 30.388,
+            longitude: -84.277,
+            webUrl: null,
+            logoUrl: null,
+            partsPricingUrl: null,
+            isParticipating: true,
+            isPublishable: true,
+          })),
+        });
+      }
+      if (url.pathname === "/odata/Vehicles") {
+        vehicleFilter = url.searchParams.get("$filter") ?? "";
+        return Response.json({
+          "@odata.context": "test",
+          "@odata.count": 0,
+          value: [],
+        });
+      }
+      throw new Error(`Unexpected Row52 request: ${url.href}`);
+    }) as typeof fetch;
+
+    await Effect.runPromise(
+      streamRow52Inventory({
+        onBatch: () => Effect.void,
+        excludedLocationIds: new Set([83]),
+        maxPages: 1,
+      }),
+    );
+
+    expect(vehicleFilter).toContain("locationId eq 84");
+    expect(vehicleFilter).not.toContain("locationId eq 83");
+  });
 });
 
 describe("Row52 durable cursor transitions", () => {
