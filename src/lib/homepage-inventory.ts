@@ -1,8 +1,9 @@
 import "server-only";
 
-import { asc, count, desc, isNull } from "drizzle-orm";
+import { asc, count, desc, isNull, min } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
+import { getYardDetails } from "~/lib/yard-details";
 import { vehicle } from "~/schema";
 
 async function getHomepageInventoryInternal() {
@@ -17,6 +18,7 @@ async function getHomepageInventoryInternal() {
         lat: vehicle.lat,
         lng: vehicle.lng,
         vehicleCount: count(),
+        detailsUrl: min(vehicle.detailsUrl),
       })
       .from(vehicle)
       .where(isNull(vehicle.missingSinceAt))
@@ -39,7 +41,10 @@ async function getHomepageInventoryInternal() {
   ]);
 
   return {
-    yards,
+    yards: yards.map(({ detailsUrl, ...yard }) => ({
+      ...yard,
+      ...getYardDetails({ ...yard, detailsUrl }),
+    })),
     recentVehicles: recentVehicles.map((entry) => ({
       ...entry,
       indexedAt: entry.indexedAt.toISOString(),
@@ -56,6 +61,6 @@ export type RecentVehicle = Awaited<
 
 export const getHomepageInventory = unstable_cache(
   getHomepageInventoryInternal,
-  ["homepage-inventory"],
+  ["homepage-inventory", "yard-details-v1"],
   { revalidate: 3600, tags: ["homepage-live-stats"] },
 );
