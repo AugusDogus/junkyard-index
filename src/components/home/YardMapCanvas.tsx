@@ -44,6 +44,17 @@ export default function YardMapCanvas({
     size.width,
     size.height,
   );
+  const [showLoading, setShowLoading] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setShowLoading(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setShowLoading(true), 200);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
+
   const current = view ?? overview;
   const bounds = getYardMapBounds(yards);
   // Match getYardMapView's geographic fit before the actual size is known.
@@ -230,7 +241,7 @@ export default function YardMapCanvas({
           </Button>
         </div>
       </div>
-      {(loading || tileError || loadError) && (
+      {(loading ? showLoading : tileError || loadError) && (
         <p
           role="status"
           className="bg-card absolute bottom-3 left-3 max-w-60 rounded-md border p-3 text-xs"
