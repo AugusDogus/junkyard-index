@@ -43,6 +43,13 @@
       "when": 1787801691766,
       "tag": "0005_remove_search_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788962996174,
+      "tag": "0006_lush_vindicator",
+      "breakpoints": true
     }
   ]
 }

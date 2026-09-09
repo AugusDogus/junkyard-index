@@ -245,6 +245,14 @@ export const userRelations = relations(user, ({ many }) => ({
 
 // ── Ingestion Pipeline Tables ───────────────────────────────────────────────
 
+export const row52YardExclusion = sqliteTable("row52_yard_exclusion", {
+  locationId: integer("location_id").primaryKey(),
+  reason: text("reason").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .notNull(),
+});
+
 export const vehicle = sqliteTable(
   "vehicle",
   {
