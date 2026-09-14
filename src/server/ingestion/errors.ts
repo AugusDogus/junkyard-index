@@ -93,17 +93,6 @@ export class TapInventoryProviderError extends Data.TaggedError(
   }
 }
 
-export class CrushMvcProviderError extends Data.TaggedError(
-  "CrushMvcProviderError",
-)<{
-  cursor: string;
-  cause: unknown;
-}> {
-  override get message() {
-    return `CRUSH MVC at ${this.cursor}: ${getCauseMessage(this.cause)}`;
-  }
-}
-
 export class BrowserSessionError extends Data.TaggedError(
   "BrowserSessionError",
 )<{
@@ -150,7 +139,6 @@ export type IngestionError =
   | AutorecyclerProviderError
   | PullapartProviderError
   | TapInventoryProviderError
-  | CrushMvcProviderError
   | BrowserSessionError
   | ReconcileError
   | PersistenceError
