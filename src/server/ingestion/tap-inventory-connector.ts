@@ -1,3 +1,4 @@
+import type { IngestionSource } from "~/lib/ingestion-source";
 import { tapYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import {
@@ -26,7 +27,11 @@ export interface TapSiteStreamResult<Source extends string = string> {
   pagesProcessed: number;
 }
 
-export function streamTapSiteInventory<Source extends string, E, R>(options: {
+export function streamTapSiteInventory<
+  Source extends IngestionSource,
+  E,
+  R,
+>(options: {
   config: TapInventorySiteConfig<Source>;
   onBatch: (
     vehicles: Array<TapCanonicalVehicle<Source>>,
@@ -92,7 +97,8 @@ export function streamTapSiteInventory<Source extends string, E, R>(options: {
       storeIndex < concreteStores.length && pagesProcessed < maxPages;
       storeIndex += 1
     ) {
-      const store = concreteStores[storeIndex]!;
+      const store = concreteStores[storeIndex];
+      if (!store) break;
 
       const storeConfig = siteConfig.storeLocations[store.value];
       if (!storeConfig) {
@@ -102,7 +108,8 @@ export function streamTapSiteInventory<Source extends string, E, R>(options: {
         break;
       }
 
-      if (options.onYards) yield* options.onYards([tapYard(storeConfig)]);
+      if (options.onYards)
+        yield* options.onYards([tapYard(storeConfig, siteConfig)]);
       nextStoreIndex = storeIndex;
 
       const result = yield* searchTapInventory({

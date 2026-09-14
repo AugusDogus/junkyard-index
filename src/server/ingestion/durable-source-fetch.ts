@@ -187,12 +187,14 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamPullNSaveInventory({
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startCursor: cursor.page,
           maxPages: context.maxPages,
         }),
       ),
       (page) => ({ source: "pullnsave", page }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
   tearapart: async (cursor, context) =>
     toFetchedChunk(
@@ -200,12 +202,14 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
         streamTapSiteInventory({
           config: TEARAPART_SITE_CONFIG,
           onBatch: context.onBatch,
+          onYards: context.onYards,
           startStoreIndex: cursor.storeIndex,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),
       ),
       (storeIndex) => ({ source: "tearapart", storeIndex }),
       context.vehiclesByVin,
+      context.yardsByCode,
     ),
 };
 

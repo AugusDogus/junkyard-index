@@ -18,6 +18,37 @@ function healthyRow52() {
 }
 
 describe("source snapshot validation", () => {
+  test.each([
+    { source: "pullnsave", count: 11_721 },
+    { source: "tearapart", count: 1_671 },
+  ] as const)(
+    "accepts the measured $source catalog but rejects a collapsed snapshot",
+    ({ source, count }) => {
+      const measured = {
+        ...healthyRow52(),
+        source,
+        uniqueVehicles: count,
+        vehiclesProcessed: count,
+      };
+      expect(validateSourceSnapshot(measured).status).toBe("accepted");
+      expect(
+        validateSourceSnapshot({
+          ...measured,
+          uniqueVehicles: 0,
+          vehiclesProcessed: 0,
+        }).status,
+      ).toBe("rejected");
+      expect(
+        validateSourceSnapshot({ ...measured, terminal: false }).status,
+      ).toBe("rejected");
+      expect(
+        validateSourceSnapshot({
+          ...measured,
+          previousAcceptedCount: count * 3,
+        }).status,
+      ).toBe("rejected");
+    },
+  );
   test("accepts terminal inventory at its source-specific minimum", () => {
     expect(validateSourceSnapshot(healthyRow52())).toEqual({
       status: "accepted",

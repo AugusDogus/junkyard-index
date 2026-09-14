@@ -27,6 +27,8 @@ than treating an inventory ZIP centroid as the yard entrance.
 | Pull-A-Part / U-Pull-&-Pay | Business/operator, address, phone; ZIP centroid coordinates, undocumented email fields, and generic website links are omitted |
 | AutoRecycler               | Business, address, coordinates from the existing organization cache                                                           |
 | U Pull-It Nebraska         | Business/operator, address, phone, coordinates from the store configuration                                                   |
+| Tear-A-Part                | Business/operator, address, phone, coordinates from the store configuration                                                   |
+| Pull-N-Save                | Business/operator, address, coordinates from the configured public yard directory                                             |
 | U Pull It Davie            | Business/operator, coordinates, dedicated yard website                                                                        |
 | GO Pull-It                 | Business/operator and coordinates from the location configuration                                                             |
 

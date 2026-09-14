@@ -6,6 +6,8 @@ import {
 import type { TapInventorySearchProduct } from "./tap-inventory-client";
 import { TEARAPART_SITE_CONFIG, UPULLITNE_SITE_CONFIG } from "./tap-sites";
 import type { CanonicalVehicle } from "./types";
+import { Schema } from "effect";
+import { TapInventorySearchProductSchema } from "./tap-inventory-client";
 
 function fixtureUrl(fileName: string): URL {
   return new URL(`./fixtures/${fileName}`, import.meta.url);
@@ -14,13 +16,38 @@ function fixtureUrl(fileName: string): URL {
 async function firstSearchProduct(
   fileName: string,
 ): Promise<TapInventorySearchProduct> {
-  const payload = JSON.parse(await Bun.file(fixtureUrl(fileName)).text()) as {
-    products: TapInventorySearchProduct[];
-  };
-  return payload.products[0]!;
+  const payload = Schema.decodeUnknownSync(
+    Schema.Struct({
+      products: Schema.Array(TapInventorySearchProductSchema),
+    }),
+  )(await Bun.file(fixtureUrl(fileName)).json());
+  const product = payload.products[0];
+  if (!product) throw new Error(`TAP fixture ${fileName} contains no products`);
+  return product;
 }
 
 describe("transformTapInventoryProduct", () => {
+  test("preserves a live Tear-A-Part vehicle without a yard row or arrival date", () => {
+    const product = Schema.decodeUnknownSync(TapInventorySearchProductSchema)({
+      stocknumber: "STK56911",
+      iyear: "1996",
+      make: "MITSUBISHI",
+      model: "COURIER",
+      color: "GREEN",
+      vin: "JA4MR51M5TJ005340",
+      image_url: "",
+    });
+    const store = TEARAPART_SITE_CONFIG.storeLocations["SALT LAKE CITY"];
+    if (!store) throw new Error("Missing Salt Lake City test configuration");
+    expect(
+      transformTapInventoryProduct(product, store, TEARAPART_SITE_CONFIG),
+    ).toMatchObject({
+      source: "tearapart",
+      vin: "JA4MR51M5TJ005340",
+      row: null,
+      availableDate: null,
+    });
+  });
   test("maps a Tear-A-Part product onto the canonical vehicle shape", async () => {
     const product = await firstSearchProduct(
       "tap-tearapart-search-salt-lake-city.json",

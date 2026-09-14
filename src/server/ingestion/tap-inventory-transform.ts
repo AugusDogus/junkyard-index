@@ -1,3 +1,4 @@
+import type { IngestionSource } from "~/lib/ingestion-source";
 import {
   normalizeCanonicalColor,
   normalizeCanonicalMake,
@@ -9,10 +10,9 @@ import type {
 } from "./tap-inventory-client";
 import type { CanonicalVehicle } from "./types";
 
-export type TapCanonicalVehicle<Source extends string = string> = Omit<
-  CanonicalVehicle,
-  "source"
-> & { source: Source };
+export type TapCanonicalVehicle<
+  Source extends IngestionSource = IngestionSource,
+> = Omit<CanonicalVehicle, "source"> & { source: Source };
 
 function stripHtml(value: string): string {
   return value
@@ -26,7 +26,7 @@ function extractImageUrl(rawHtml: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
-export function transformTapInventoryProduct<Source extends string>(
+export function transformTapInventoryProduct<Source extends IngestionSource>(
   product: TapInventorySearchProduct,
   store: TapInventoryStoreConfig,
   site: TapInventorySiteConfig<Source>,
@@ -68,7 +68,7 @@ export function transformTapInventoryProduct<Source extends string>(
     lat: store.lat,
     lng: store.lng,
     section: null,
-    row: product.vehicle_row.trim() || null,
+    row: product.vehicle_row?.trim() || null,
     space: null,
     detailsUrl,
     // The site exposes a single parts pricing page rather than separate parts/prices routes.
