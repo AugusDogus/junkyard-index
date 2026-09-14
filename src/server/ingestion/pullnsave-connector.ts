@@ -1,6 +1,7 @@
 import { Data, Effect, RateLimiter } from "effect";
 import { fetchPullNSavePage, PullNSaveProviderError } from "./pullnsave-client";
-import { resolvePullNSaveYard } from "./pullnsave-config";
+import { PULLNSAVE_YARDS, resolvePullNSaveYard } from "./pullnsave-config";
+import { pullnsaveYard, type OnYards } from "./yard-metadata";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
 import type { PullNSaveCanonicalVehicle } from "./pullnsave-transform";
@@ -26,6 +27,7 @@ export interface PullNSaveStreamResult {
 }
 
 interface PullNSaveStreamOptions<E, R> {
+  onYards?: OnYards;
   onBatch: (vehicles: PullNSaveCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startCursor?: number;
   maxPages?: number;
@@ -40,6 +42,8 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
   R
 > {
   return Effect.gen(function* () {
+    if (options.onYards)
+      yield* options.onYards(PULLNSAVE_YARDS.map(pullnsaveYard));
     const seen = new Map<string, PullNSaveCanonicalVehicle>();
     let pagesProcessed = 0;
     let recordsProcessed = 0;
@@ -75,6 +79,7 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
       }
       if (records.length === 0) {
         complete = true;
+        pagesProcessed += 1;
         nextPage += 1;
         break;
       }
@@ -109,6 +114,7 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
 
     if (
       complete &&
+      startPage === 1 &&
       recordsProcessed === 0 &&
       seen.size === 0 &&
       recordsSkipped === 0

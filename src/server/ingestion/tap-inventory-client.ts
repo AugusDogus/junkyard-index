@@ -1,4 +1,5 @@
 import { Effect, Schema } from "effect";
+import type { IngestionSource } from "~/lib/ingestion-source";
 import {
   fetchProviderText,
   type ProviderRetryPolicy,
@@ -24,7 +25,9 @@ export interface TapInventoryStoreConfig {
   lng: number;
 }
 
-export interface TapInventorySiteConfig<Source extends string = string> {
+export interface TapInventorySiteConfig<
+  Source extends IngestionSource = IngestionSource,
+> {
   source: Source;
   siteName: string;
   baseUrl: string;
@@ -49,6 +52,7 @@ function tapRequest<T, I, R>(params: {
     method: "POST",
     body: new URLSearchParams(params.formData).toString(),
     headers: {
+      "User-Agent": "JunkyardIndex/1.0",
       Accept: "application/json, text/html;q=0.9, */*;q=0.8",
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
       "X-Requested-With": "XMLHttpRequest",
@@ -65,6 +69,7 @@ function fetchTapBootstrapHtml(url: string): Effect.Effect<string, Error> {
     url,
     context: "TAP inventory page bootstrap",
     headers: {
+      "User-Agent": "JunkyardIndex/1.0",
       Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     },
     retry: {
@@ -132,7 +137,7 @@ export const TapInventorySearchProductSchema = Schema.Struct({
   iyear: Schema.String,
   make: Schema.String,
   model: Schema.String,
-  vehicle_row: Schema.String,
+  vehicle_row: Schema.optional(Schema.String),
   yard_in_date: Schema.optional(Schema.String),
   color: Schema.String,
   vin: Schema.String,

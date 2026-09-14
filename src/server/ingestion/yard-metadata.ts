@@ -5,7 +5,11 @@ import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 import type { GopullitLocation } from "./gopullit-transform";
 import { normalizeRegion } from "./normalization";
 import type { PullapartLocation } from "./pullapart-client";
-import type { TapInventoryStoreConfig } from "./tap-inventory-client";
+import type {
+  TapInventoryStoreConfig,
+  TapInventorySiteConfig,
+} from "./tap-inventory-client";
+import type { PullNSaveYard } from "./pullnsave-config";
 
 export type OnYards = (yards: Yard[]) => Effect.Effect<void>;
 
@@ -119,19 +123,37 @@ export function autorecyclerYard(geo: AutorecyclerOrgGeo): Yard {
   };
 }
 
-export function tapYard(store: TapInventoryStoreConfig): Yard {
+export function tapYard(
+  store: TapInventoryStoreConfig,
+  site: TapInventorySiteConfig,
+): Yard {
   return {
     ...unknownContact,
-    source: "upullitne",
+    source: site.source,
     code: store.code,
     name: store.locationName,
-    operator: "U Pull-It Nebraska",
+    operator: site.siteName,
     address: store.address,
     city: store.city,
     state: store.stateAbbr,
     postalCode: store.zipCode,
     phone: store.phone,
     ...Yard.coordinates(store.lat, store.lng),
+  };
+}
+
+export function pullnsaveYard(yard: PullNSaveYard): Yard {
+  return {
+    ...unknownContact,
+    source: "pullnsave",
+    code: yard.code,
+    name: yard.locationName,
+    operator: "Pull-N-Save",
+    address: yard.address,
+    city: yard.city,
+    state: yard.stateAbbr,
+    postalCode: yard.zipCode,
+    ...Yard.coordinates(yard.lat, yard.lng),
   };
 }
 

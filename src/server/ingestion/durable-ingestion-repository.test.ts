@@ -9,6 +9,14 @@ import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
 import type { DurableSourceCursor } from "./durable-source";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
+import { Schema } from "effect";
+import { PullNSaveVehicleSchema } from "./pullnsave-client";
+import { resolvePullNSaveYard } from "./pullnsave-config";
+import { transformPullNSaveVehicle } from "./pullnsave-transform";
+import { TapInventorySearchProductSchema } from "./tap-inventory-client";
+import { transformTapInventoryProduct } from "./tap-inventory-transform";
+import { TEARAPART_SITE_CONFIG } from "./tap-sites";
+import { pullnsaveYard, tapYard } from "./yard-metadata";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
   return { source: "pyp", page: 2 };
@@ -133,6 +141,121 @@ function makeVehicle(vin = "2MEFM75W4XX703938"): CanonicalVehicle {
 }
 
 describe("durable ingestion repository", () => {
+  test("checkpoints new provider fixtures and yard metadata atomically without duplicating replays", async () => {
+    const pnsRows = Schema.decodeUnknownSync(
+      Schema.Array(PullNSaveVehicleSchema),
+    )(
+      JSON.parse(
+        readFileSync(
+          new URL("./fixtures/pullnsave-search-page1.json", import.meta.url),
+          "utf8",
+        ),
+      ),
+    );
+    const tapResponse = Schema.decodeUnknownSync(
+      Schema.Struct({
+        products: Schema.Array(TapInventorySearchProductSchema),
+      }),
+    )(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            "./fixtures/tap-tearapart-search-salt-lake-city.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ),
+    );
+    const pnsRecord = pnsRows[0];
+    const tapRecord = tapResponse.products[0];
+    if (!pnsRecord || !tapRecord)
+      throw new Error("Provider fixtures need at least one vehicle");
+    const pnsStore = resolvePullNSaveYard(pnsRecord.astStoreNumber);
+    const tapStore = TEARAPART_SITE_CONFIG.storeLocations["SALT LAKE CITY"];
+    if (!pnsStore || !tapStore)
+      throw new Error("Provider fixtures need configured yards");
+    const pnsVehicle = transformPullNSaveVehicle(pnsRecord, pnsStore);
+    const tapVehicle = transformTapInventoryProduct(
+      tapRecord,
+      tapStore,
+      TEARAPART_SITE_CONFIG,
+    );
+    if (!pnsVehicle || !tapVehicle)
+      throw new Error("Provider fixtures need valid canonical vehicles");
+    const cases: Array<{
+      initial: DurableSourceCursor;
+      next: DurableSourceCursor;
+      vehicle: CanonicalVehicle;
+      yard: Yard;
+    }> = [
+      {
+        initial: { source: "pullnsave", page: 1 },
+        next: { source: "pullnsave", page: 2 },
+        vehicle: pnsVehicle,
+        yard: pullnsaveYard(pnsStore),
+      },
+      {
+        initial: { source: "tearapart", storeIndex: 0 },
+        next: { source: "tearapart", storeIndex: 1 },
+        vehicle: tapVehicle,
+        yard: tapYard(tapStore, TEARAPART_SITE_CONFIG),
+      },
+    ];
+    const testDatabase = createTestClient();
+    try {
+      const { client } = testDatabase;
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+      );
+      await repository.initialize("run-new-providers");
+      for (const item of cases) {
+        const checkpoint = {
+          runId: "run-new-providers",
+          requestedCursor: item.initial,
+          fetched: {
+            cursor: item.next,
+            status: "paused",
+            pagesProcessed: 1,
+            vehiclesProcessed: 1,
+            uniqueVehicles: 1,
+            duplicateVehicles: 0,
+            rejectedVehicles: 0,
+            errors: [],
+            vehicles: [item.vehicle],
+            yards: [item.yard],
+          } satisfies FetchedDurableSourceChunk,
+        };
+        const first = await repository.checkpointChunk(checkpoint);
+        const replay = await repository.checkpointChunk(checkpoint);
+        expect(first.count).toBe(1);
+        expect(replay.count).toBe(1);
+        expect(replay.pagesProcessed).toBe(1);
+      }
+      const stored = await client.execute(
+        `select s.source, s.vin, y.code, y.operator from vehicle_snapshot s join yard y on y.source = s.source and y.code = s.location_code order by s.source`,
+      );
+      expect(
+        stored.rows.map(({ source, vin, code, operator }) => ({
+          source,
+          vin,
+          code,
+          operator,
+        })),
+      ).toEqual(
+        cases.map((item) => ({
+          source: item.vehicle.source,
+          vin: item.vehicle.vin,
+          code: item.yard.code,
+          operator: item.yard.operator,
+        })),
+      );
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
   test("makes the first v2 ingestion a full reindex without mutating legacy runs", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;

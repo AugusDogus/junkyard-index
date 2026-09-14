@@ -36,6 +36,9 @@ import {
 import { streamPypInventory } from "../src/server/ingestion/pyp-connector";
 import { streamRow52Inventory } from "../src/server/ingestion/row52-connector";
 import { streamTapInventory } from "../src/server/ingestion/tap-inventory-connector";
+import { streamTapSiteInventory } from "../src/server/ingestion/tap-inventory-connector";
+import { TEARAPART_SITE_CONFIG } from "../src/server/ingestion/tap-sites";
+import { streamPullNSaveInventory } from "../src/server/ingestion/pullnsave-connector";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -309,6 +312,21 @@ async function main(): Promise<void> {
       try {
         const sourceResult = await (() => {
           switch (source) {
+            case "pullnsave":
+              return runProgram(
+                streamPullNSaveInventory({
+                  onBatch,
+                  maxPages: config.maxPages,
+                }),
+              );
+            case "tearapart":
+              return runProgram(
+                streamTapSiteInventory({
+                  config: TEARAPART_SITE_CONFIG,
+                  onBatch,
+                  maxPages: config.maxPages,
+                }),
+              );
             case "row52":
               return runProgram(
                 streamRow52Inventory({

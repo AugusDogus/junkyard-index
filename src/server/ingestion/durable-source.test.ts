@@ -31,6 +31,20 @@ describe("durable ingestion cursors", () => {
   });
 
   test("parses valid integer and pair cursors", () => {
+    expect(parseDurableSourceCursor("pullnsave", "11")).toEqual({
+      source: "pullnsave",
+      page: 11,
+    });
+    expect(parseDurableSourceCursor("tearapart", "1")).toEqual({
+      source: "tearapart",
+      storeIndex: 1,
+    });
+    expect(
+      serializeDurableSourceCursor({ source: "pullnsave", page: 11 }),
+    ).toBe("11");
+    expect(
+      serializeDurableSourceCursor({ source: "tearapart", storeIndex: 1 }),
+    ).toBe("1");
     expect(parseDurableSourceCursor("pyp", "12")).toEqual({
       source: "pyp",
       page: 12,
@@ -43,6 +57,12 @@ describe("durable ingestion cursors", () => {
   });
 
   test("rejects malformed cursors instead of restarting a source", () => {
+    expect(() => parseDurableSourceCursor("pullnsave", "0")).toThrow(
+      "Invalid pullnsave ingestion cursor",
+    );
+    expect(() => parseDurableSourceCursor("tearapart", "-1")).toThrow(
+      "Invalid tearapart ingestion cursor",
+    );
     expect(() => parseDurableSourceCursor("pyp", "12x")).toThrow(
       "Invalid pyp ingestion cursor: 12x",
     );

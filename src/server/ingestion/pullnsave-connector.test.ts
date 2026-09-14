@@ -6,6 +6,7 @@ import {
 } from "./pullnsave-connector";
 import type { ProviderRequestGate } from "./provider-http-client";
 import type { PullNSaveCanonicalVehicle } from "./pullnsave-transform";
+import type { Yard } from "~/lib/yard";
 
 const originalFetch = globalThis.fetch;
 const noRateLimit: ProviderRequestGate = (request) => request;
@@ -46,6 +47,34 @@ function mockSearch(pages: Map<number, unknown[]>) {
 }
 
 describe("Pull-N-Save catalog streaming", () => {
+  test("accepts the terminal empty page when resuming after an exact full page", async () => {
+    const page = await loadFixtureRows("pullnsave-search-page1.json");
+    mockSearch(new Map([[1, page]]));
+    const paused = await Effect.runPromise(
+      streamPullNSaveInventoryWithRequestGate(
+        {
+          onBatch: () => Effect.void,
+          maxPages: 1,
+        },
+        noRateLimit,
+      ),
+    );
+    const terminal = await Effect.runPromise(
+      streamPullNSaveInventoryWithRequestGate(
+        {
+          onBatch: () => Effect.void,
+          startCursor: paused.cursor,
+        },
+        noRateLimit,
+      ),
+    );
+    expect(terminal).toMatchObject({
+      status: "complete",
+      cursor: 3,
+      pagesProcessed: 1,
+      count: 0,
+    });
+  });
   test("streams full pages then completes on a short page", async () => {
     const page1 = await loadFixtureRows("pullnsave-search-page1.json");
     const shortPage = await loadFixtureRows(
@@ -59,9 +88,14 @@ describe("Pull-N-Save catalog streaming", () => {
     );
 
     const batches: PullNSaveCanonicalVehicle[][] = [];
+    const yards: Yard[] = [];
     const result = await Effect.runPromise(
       streamPullNSaveInventoryWithRequestGate(
         {
+          onYards: (batch) =>
+            Effect.sync(() => {
+              yards.push(...batch);
+            }),
           onBatch: (vehicles) =>
             Effect.sync(() => {
               batches.push(vehicles);
@@ -86,6 +120,20 @@ describe("Pull-N-Save catalog streaming", () => {
       pagesProcessed: 2,
     });
     expect(batches).toHaveLength(2);
+    expect(yards).toHaveLength(8);
+    expect(
+      yards.every(
+        (yard) =>
+          yard.source === "pullnsave" && yard.operator === "Pull-N-Save",
+      ),
+    ).toBe(true);
+    expect(
+      batches
+        .flat()
+        .every((vehicle) =>
+          yards.some((yard) => yard.code === vehicle.locationCode),
+        ),
+    ).toBe(true);
     expect(batches.flat()).toHaveLength(114);
     expect(new Set(batches.flat().map((v) => v.vin)).size).toBe(114);
     expect(
