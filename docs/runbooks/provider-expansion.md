@@ -87,3 +87,16 @@ control from its own live inventory.
 This supports adding these sources but is not an exhaustive overlap audit or a
 claim of 13,392 net-new vehicles. Sample incumbent coverage before implementing
 additional provider candidates.
+
+## Review checkpoint (September 15, 2026)
+
+- Round 1 identified missing-state restoration for observation-only returns.
+  Commit `d253297` fixes the reset, guarded refresh queue, and upsert accounting;
+  the regression also checks that a subsequent absence starts a new streak.
+  Commit `39e8eda` removes trailing whitespace from the store fixture.
+- Round 2 reviewed the complete branch at `39e8eda`. Correctness/security and
+  maintainability passes both returned no actionable findings. Their targeted
+  suites passed 114 and 112 tests respectively.
+- Full local verification: `bun run check`, `bun test src` (494 tests), and
+  `git diff --check origin/main` passed. Live provider evidence is listed above.
+  Real Algolia publication and notification delivery were not invoked.
