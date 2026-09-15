@@ -28,8 +28,6 @@ const PULLNSAVE_RETRY_POLICY = {
 
 export const PullNSaveVehicleSchema = Schema.Struct({
   astStoreNumber: Schema.Number,
-  vehicleRno: Schema.Number,
-  storeRno: Schema.Number,
   stockId: Schema.String,
   rcvdDtTm: Schema.optional(Schema.NullOr(Schema.String)),
   vin: Schema.optional(Schema.NullOr(Schema.String)),

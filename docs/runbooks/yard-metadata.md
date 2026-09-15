@@ -20,17 +20,17 @@ than treating an inventory ZIP centroid as the yard entrance.
 
 ## Coverage
 
-| Source                     | Metadata currently recorded                                                                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| PYP                        | Business/operator, address, phone, coordinates, matching location inventory page                                              |
-| Row52                      | Business, address, phone, coordinates, provider-supplied yard URL; repeated URLs and known chain homepages are omitted        |
-| Pull-A-Part / U-Pull-&-Pay | Business/operator, address, phone; ZIP centroid coordinates, undocumented email fields, and generic website links are omitted |
-| AutoRecycler               | Business, address, coordinates from the existing organization cache                                                           |
-| U Pull-It Nebraska         | Business/operator, address, phone, coordinates from the store configuration                                                   |
-| Tear-A-Part                | Business/operator, address, phone, coordinates from the store configuration                                                   |
-| Pull-N-Save                | Business/operator, address, coordinates from the configured public yard directory                                             |
-| U Pull It Davie            | Business/operator, coordinates, dedicated yard website                                                                        |
-| GO Pull-It                 | Business/operator and coordinates from the location configuration                                                             |
+| Source                     | Metadata currently recorded                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| PYP                        | Business/operator, address, phone, coordinates, matching location inventory page                                                   |
+| Row52                      | Business, address, phone, coordinates, provider-supplied yard URL; repeated URLs and known chain homepages are omitted             |
+| Pull-A-Part / U-Pull-&-Pay | Business/operator, address, phone; ZIP centroid coordinates, undocumented email fields, and generic website links are omitted      |
+| AutoRecycler               | Business, address, coordinates from the existing organization cache                                                                |
+| U Pull-It Nebraska         | Business/operator, address, phone, coordinates from the store configuration                                                        |
+| Tear-A-Part                | Business/operator, address, phone, coordinates from the store configuration                                                        |
+| Pull-N-Save                | Verified cached locations plus automatic public-directory lookup for new yard IDs; ZIP centroids are omitted from yard coordinates |
+| U Pull It Davie            | Business/operator, coordinates, dedicated yard website                                                                             |
+| GO Pull-It                 | Business/operator and coordinates from the location configuration                                                                  |
 
 Missing contact fields remain null. No connector currently has a verified public
 contact email. Do not populate that field with operational or employee addresses.
