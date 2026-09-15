@@ -40,6 +40,75 @@ function mockResponse(body: string, status = 200) {
 }
 
 describe("U Pull R Parts complete catalog", () => {
+  test("rejects unusable rows before make enrichment without triggering model fallback", async () => {
+    const invalid = [
+      { ...fixture, VIN: null },
+      { ...fixture, Year: null },
+      { ...fixture, Model: " " },
+    ];
+    const requests: URLSearchParams[] = [];
+    globalThis.fetch = Object.assign(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const params = new URLSearchParams(
+          typeof init?.body === "string" ? init.body : "",
+        );
+        requests.push(params);
+        if (params.get("apiAction") === "getMakes")
+          return Response.json([
+            "Ford",
+            ...Array.from({ length: 55 }, (_, i) => `Make-${i}`),
+          ]);
+        if (params.get("apiAction") === "getModels")
+          return new Response("unused lookup unavailable", { status: 403 });
+        if (params.has("makes"))
+          return Response.json(params.get("makes") === "Ford" ? catalog : []);
+        return Response.json([...catalog, ...invalid]);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const vehicles: UpullRPartsCanonicalVehicle[] = [];
+    const result = await Effect.runPromise(
+      streamUpullRPartsInventoryWithRequestGate(
+        {
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+        },
+        (request) => request,
+      ),
+    );
+    expect(result).toMatchObject({
+      status: "complete",
+      count: 3,
+      accounting: { recordsProcessed: 6, recordsRejected: 3 },
+    });
+    expect(vehicles.map((vehicle) => vehicle.make)).toEqual([
+      "Ford",
+      "Ford",
+      "Ford",
+    ]);
+    expect(requests).toHaveLength(58);
+    expect(
+      requests.some((params) => params.get("apiAction") === "getModels"),
+    ).toBe(false);
+  });
+  test("does not request any make enrichment when every known-yard record is unusable", async () => {
+    const requests = mockResponse(
+      JSON.stringify(catalog.map((row) => ({ ...row, VIN: null }))),
+    );
+    const result = await Effect.runPromise(
+      streamUpullRPartsInventoryWithRequestGate(
+        { onBatch: () => Effect.void },
+        (request) => request,
+      ),
+    );
+    expect(result).toMatchObject({
+      count: 0,
+      accounting: { recordsRejected: 3 },
+    });
+    expect(requests).toHaveLength(1);
+  });
   test.each(["catalog", "makes", "partition", "models"])(
     "rejects explicit partial %s responses before emitting vehicles",
     async (target) => {
