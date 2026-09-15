@@ -28,6 +28,8 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     gopullit: 0,
     pullnsave: 0,
     tearapart: 0,
+    wrenchapart: 0,
+    upullrparts: 0,
   },
   errors: [],
   durationMs: 10,

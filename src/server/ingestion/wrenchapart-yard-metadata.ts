@@ -1,11 +1,8 @@
 import { Yard } from "~/lib/yard";
 import { normalizeRegion } from "./normalization";
-import {
-  WRENCHAPART_INVENTORY_URL,
-  type WrenchApartLocation,
-} from "./wrenchapart-client";
+import type { WrenchApartLocation } from "./wrenchapart-client";
 
-export type WrenchApartYard = Omit<Yard, "source"> & { source: "wrenchapart" };
+export type WrenchApartYard = Yard & { source: "wrenchapart" };
 export type LocatedWrenchApartYard = WrenchApartYard & {
   lat: number;
   lng: number;
@@ -18,6 +15,8 @@ export function wrenchapartYard(
   const city = location.city?.trim();
   const state = location.state?.trim();
   if (!name || !city || !state) return null;
+  const region = normalizeRegion(state, null);
+  if (!region.stateAbbr) return null;
   return {
     source: "wrenchapart",
     code: String(location.id),
@@ -25,10 +24,10 @@ export function wrenchapartYard(
     operator: "Wrench-A-Part",
     address: location.street?.trim() || null,
     city,
-    state: normalizeRegion(state, null).stateAbbr,
+    state: region.stateAbbr,
     postalCode: location.zip?.trim() || null,
     ...Yard.coordinates(location.geoLat ?? null, location.geoLng ?? null),
-    websiteUrl: WRENCHAPART_INVENTORY_URL,
+    websiteUrl: null,
     phone: location.phone?.trim() || null,
     email: null,
   };

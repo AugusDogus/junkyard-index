@@ -1,6 +1,8 @@
 import type { Yard } from "~/lib/yard";
 import type { OnYards } from "./yard-metadata";
 import { Effect } from "effect";
+import { streamWrenchApartInventory } from "./wrenchapart-connector";
+import { streamUpullRPartsInventory } from "./upullrparts-connector";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -71,6 +73,33 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  wrenchapart: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamWrenchApartInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  upullrparts: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamUpullRPartsInventory({
+          startCursor: cursor.catalog,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (catalog) => ({ source: "upullrparts", catalog }),
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   pyp: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

@@ -85,6 +85,14 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: { source: "tearapart", storeIndex: 0 },
     maxPagesPerChunk: 5,
   },
+  wrenchapart: {
+    initialCursor: { source: "wrenchapart", afterLocationId: 0 },
+    maxPagesPerChunk: 1,
+  },
+  upullrparts: {
+    initialCursor: { source: "upullrparts", catalog: 0 },
+    maxPagesPerChunk: 1,
+  },
 };
 
 export function getDurableSourceDefinition<

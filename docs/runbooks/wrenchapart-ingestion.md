@@ -77,15 +77,15 @@ curl --fail --silent --show-error --get 'https://api.row52.com/odata/Vehicles' \
   --data-urlencode '$count=true'
 ```
 
-## Connector and integration recommendations
+## Pipeline integration
 
 - Entry point: `streamWrenchApartInventory({ startCursor, maxPages, onBatch, onYards })` in `wrenchapart-connector.ts`.
 - Cursor schema: `WrenchApartCursorSchema`. Initial value: `{ source: "wrenchapart", afterLocationId: 0 }`. Register with the shared JSON cursor helper, serializing `{ "afterLocationId": 0 }` as the starting payload. Pass the resulting cursor directly back to `startCursor`.
 - `maxPagesPerChunk: 1`, also the connector default. A page means one complete yard, not one record page. Seven chunks complete this catalog; each chunk fetches the current directory and one yard.
 - Cursor advances only after callbacks finish and is based on the completed yard's stable ID. Directory reordering or removal of an already processed ID does not shift the next yard. Newly discovered larger IDs join this run; IDs below the cursor are picked up next run, matching the Row52 high-watermark approach.
-- Suggested initial `minimumCount: 9000`, with the existing prior-accepted-count drop guard and accounting validation. Baseline is 11,460. This is a recommendation for parent registration, not implemented shared policy.
+- Initial minimum accepted inventory is 9,000, with the existing prior-accepted-count drop guard and accounting validation. Measured baseline is 11,460.
 - Keep chunk accounting and `observedVins` when wiring `toFetchedChunk`. Warnings are also logged. Deduplication is within each chunk; the existing durable snapshot/checkpoint layer handles cross-chunk VIN uniqueness.
-- No shared source registration, cursor registry, error union, source validation, reconciliation, UI, soak runner, schema, dependency, or lock files are changed here.
+- The source is registered in durable ingestion, validation, reconciliation, search filters, and the local soak runner. Alert and expression schemas derive their supported sources from the same registry. No new database migration is required.
 
 Working links: inventory uses `https://wrenchapart.com/vehicle-search.html`; price links are derived from public slugs as `https://wrenchapart.com/<slug>-price-list.html`. All eight URLs were checked live and returned HTTP 200 after redirects to extensionless paths. No unsupported VIN-specific deep link is fabricated.
 
@@ -135,4 +135,11 @@ Measured smoke: 11,460 processed and emitted, 11,460 unique VINs; zero excluded,
 - All rows have nonempty VINs; 11,433 match modern 17-character VIN syntax. The remaining 27 include older identifiers and some short identifiers on newer vehicles. Preserve the provider's identity after trimming/uppercasing, consistent with existing connectors; do not invent or repair VINs.
 - The provider does not expose an independent total or snapshot token. Exact global-versus-yard equality was verified live, but future silent server-side caps cannot be ruled out by array decoding alone. Repeat the global/yard comparison if inventory drops or the public client changes.
 - Directory discovery cannot find inventory for an ID omitted entirely from `/locations`. None existed in the live global comparison. Changes during a multi-chunk run are not an atomic snapshot; the parent snapshot count/drop guards remain important.
-- Production persistence and reconciliation were not exercised. Shared registration and the soak-runner integration are owned by the parent task.
+- Production persistence and reconciliation were not invoked. Local SQLite tests cover checkpointing and replay of actual fixture vehicles and yard metadata.
+
+The integrated read-only soak returned 11,460 vehicles across seven yards in
+8.9 seconds, eight HTTP requests, with no warnings or errors:
+
+```sh
+bun run soak:sources -- --sources=wrenchapart --cycles=1
+```

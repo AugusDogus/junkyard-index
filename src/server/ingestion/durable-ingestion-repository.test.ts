@@ -18,6 +18,17 @@ import { transformTapInventoryProduct } from "./tap-inventory-transform";
 import { TEARAPART_SITE_CONFIG } from "./tap-sites";
 import { pullnsaveYard, tapYard } from "./yard-metadata";
 import { connectorChunkMetrics } from "./connector-chunk";
+import wrenchFixture from "./fixtures/wrenchapart-sample.json";
+import upullRPartsFixture from "./fixtures/upullrparts-vehicle.json";
+import { WrenchApartVehicleSchema } from "./wrenchapart-client";
+import {
+  wrenchapartYard,
+  wrenchapartPricesUrl,
+} from "./wrenchapart-yard-metadata";
+import { transformWrenchApartVehicle } from "./wrenchapart-transform";
+import { UpullRPartsVehicleSchema } from "./upullrparts-client";
+import { findUpullRPartsYard } from "./upullrparts-yard-metadata";
+import { transformUpullRPartsVehicle } from "./upullrparts-transform";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
   return { source: "pyp", page: 2 };
@@ -261,6 +272,26 @@ describe("durable ingestion repository", () => {
     );
     if (!pnsVehicle || !tapVehicle)
       throw new Error("Provider fixtures need valid canonical vehicles");
+    const wrenchYard = wrenchapartYard(wrenchFixture.location);
+    if (!wrenchYard || wrenchYard.lat === null || wrenchYard.lng === null)
+      throw new Error("Wrench fixture needs a located yard");
+    const wrenchVehicle = transformWrenchApartVehicle(
+      Schema.decodeUnknownSync(WrenchApartVehicleSchema)(wrenchFixture.vehicle),
+      { ...wrenchYard, lat: wrenchYard.lat, lng: wrenchYard.lng },
+      wrenchapartPricesUrl(wrenchFixture.location),
+    );
+    const uprRecord = Schema.decodeUnknownSync(UpullRPartsVehicleSchema)(
+      upullRPartsFixture,
+    );
+    const uprYard = findUpullRPartsYard(uprRecord.Store);
+    if (!uprYard)
+      throw new Error("U Pull R Parts fixture needs a configured yard");
+    const uprVehicle = transformUpullRPartsVehicle(uprRecord, uprYard, {
+      status: "resolved",
+      make: "Ford",
+    });
+    if (!wrenchVehicle || !uprVehicle)
+      throw new Error("Provider fixtures must produce canonical vehicles");
     const cases: Array<{
       initial: DurableSourceCursor;
       next: DurableSourceCursor;
@@ -278,6 +309,21 @@ describe("durable ingestion repository", () => {
         next: { source: "tearapart", storeIndex: 1 },
         vehicle: tapVehicle,
         yard: tapYard(tapStore, TEARAPART_SITE_CONFIG),
+      },
+      {
+        initial: { source: "upullrparts", catalog: 0 },
+        next: { source: "upullrparts", catalog: 1 },
+        vehicle: uprVehicle,
+        yard: uprYard,
+      },
+      {
+        initial: { source: "wrenchapart", afterLocationId: 0 },
+        next: {
+          source: "wrenchapart",
+          afterLocationId: wrenchFixture.location.id,
+        },
+        vehicle: wrenchVehicle,
+        yard: wrenchYard,
       },
     ];
     const testDatabase = createTestClient();
@@ -311,7 +357,7 @@ describe("durable ingestion repository", () => {
           requestedCursor: item.initial,
           fetched: {
             cursor: item.next,
-            status: "paused",
+            status: item.next.source === "upullrparts" ? "complete" : "paused",
             pagesProcessed: 1,
             ...metrics,
             errors: [],

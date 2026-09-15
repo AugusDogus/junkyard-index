@@ -10,7 +10,7 @@ import {
 } from "./wrenchapart-client";
 import type { LocatedWrenchApartYard } from "./wrenchapart-yard-metadata";
 
-export type WrenchApartCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
+export type WrenchApartCanonicalVehicle = CanonicalVehicle & {
   source: "wrenchapart";
 };
 

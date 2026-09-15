@@ -1,6 +1,12 @@
 import { Data, Effect, RateLimiter } from "effect";
-import { z } from "zod";
-import type { IngestionSource } from "~/lib/ingestion-source";
+import {
+  WrenchApartCursor,
+  WrenchApartCursorSchema,
+} from "./wrenchapart-cursor";
+export {
+  WrenchApartCursor,
+  WrenchApartCursorSchema,
+} from "./wrenchapart-cursor";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
@@ -20,26 +26,16 @@ import {
 
 export const WRENCHAPART_REQUEST_INTERVAL = "1100 millis";
 
-// Resume by stable provider yard ID, never by an array offset in a changing catalog.
-export const WrenchApartCursorSchema = z.object({
-  source: z.literal("wrenchapart"),
-  afterLocationId: z.number().int().nonnegative().safe(),
-});
-export type WrenchApartCursor = z.infer<typeof WrenchApartCursorSchema>;
-export const WrenchApartCursor = {
-  initial: { source: "wrenchapart", afterLocationId: 0 },
-} as const satisfies { initial: WrenchApartCursor };
-
 export class WrenchApartStreamError extends Data.TaggedError(
   "WrenchApartStreamError",
 )<{
   message: string;
 }> {}
 
-export type WrenchApartStreamResult = Omit<
-  ConnectorChunkResult<IngestionSource, WrenchApartCursor>,
-  "source"
-> & { source: "wrenchapart" };
+export type WrenchApartStreamResult = ConnectorChunkResult<
+  "wrenchapart",
+  WrenchApartCursor
+>;
 
 interface WrenchApartStreamOptions<E, R> {
   onBatch: (

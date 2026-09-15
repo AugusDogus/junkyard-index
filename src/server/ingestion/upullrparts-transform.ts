@@ -7,7 +7,7 @@ import {
 import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
 import type { UpullRPartsMakeResolution } from "./upullrparts-makes";
 
-export type UpullRPartsCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
+export type UpullRPartsCanonicalVehicle = CanonicalVehicle & {
   source: "upullrparts";
 };
 

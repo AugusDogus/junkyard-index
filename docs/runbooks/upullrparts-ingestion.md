@@ -185,10 +185,10 @@ map pin agree on 2985. The unqualified 2871 embedded query was ambiguous and was
 not used for coordinates. East Bethel and Toledo queries are the site's own map
 embeds and return the exact addresses. Phones are in the metadata module.
 
-## Parent integration
+## Pipeline integration
 
-- Register source `upullrparts` and `streamUpullRPartsInventory` in shared source,
-  durable fetch, validation, and reconciliation modules.
+- Source `upullrparts` is registered in durable ingestion, validation,
+  reconciliation, search filters, and the local soak runner.
 - Cursor is `0 | 1`: start `0`, complete `1`. One atomic catalog chunk, maximum
   chunks per run `1`. `pagesProcessed=1` means the complete catalog was processed.
   Replaying `1` performs no fetch or callbacks. Persist `1` only after all batches
@@ -214,11 +214,10 @@ embeds and return the exact addresses. Phones are in the metadata module.
 - The provider supplies no independent total. Empty catalogs, oversized catalogs,
   non-array responses, and missing known stores fail. Partial loss within a store
   still requires the shared minimum-count and previous-run drift checks.
-- Suggested minimum unique inventory: **2,000**, plus the existing 50% drift,
-  duplicate, and rejection checks. Verify that registration preserves these.
-- Source-specific types specialize `CanonicalVehicle`, `Yard`, and
-  `ConnectorChunkResult` using `Omit`; replace with registered source types as
-  appropriate. Common field contracts are not duplicated.
+- Minimum accepted unique inventory is **2,000**, plus the existing 50% drift,
+  duplicate, and rejection checks.
+- Source-specific types reuse `CanonicalVehicle`, `Yard`, and
+  `ConnectorChunkResult` with the registered source identifier.
 - Public signature remains `streamUpullRPartsInventory<E, R>(options:
 UpullRPartsStreamOptions<E, R>)`. Options are `startCursor?: 0 | 1`, `onBatch`,
   and optional `onYards`, both callbacks returning `Effect<void, E, R>`. Result is
@@ -250,6 +249,14 @@ batch boundaries, identity/date normalization, missing coordinates, authoritativ
 partition joins, raw make filters, unique/colliding model relations, unknown model
 labels with known makes, lookup bounds/failures, and unchanged inventory ordering.
 
-Final checks: 45 tests passed, zero failed; `bun run check` passed with zero lint
-warnings or errors and no type errors. Formatting is checked on all follow-up
-files. Shared pipeline registration and its integration tests belong to the parent.
+Provider-specific checks: 45 tests passed, zero failed; `bun run check` passed
+with zero lint warnings/errors and no type errors. Local SQLite integration tests
+also cover persisted fixture vehicles, yard metadata, and checkpoint replay.
+
+The later integrated read-only soak returned 3,303 vehicles (five more than
+the earlier sample), 14 batches, 114 requests, in 170.3 seconds, with no warnings
+or errors:
+
+```sh
+bun run soak:sources -- --sources=upullrparts --cycles=1
+```

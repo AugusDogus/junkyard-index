@@ -10,6 +10,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   gopullit: 500,
   pullnsave: 5_000,
   tearapart: 500,
+  wrenchapart: 9_000,
+  upullrparts: 2_000,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;
