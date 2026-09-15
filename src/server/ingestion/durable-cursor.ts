@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
+import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
 const NonNegativeIntegerSchema = z.number().int().nonnegative().safe();
@@ -236,6 +237,33 @@ const DURABLE_CURSOR_DEFINITIONS = {
       if (value !== 0 && value !== 1)
         throw invalidCursor("upullrparts", String(value));
       return { source: "upullrparts", catalog: value };
+    },
+    (cursor) => cursor.catalog,
+  ),
+  ipullupull: defineScalarCursor(
+    "ipullupull",
+    z.object({
+      source: z.literal("ipullupull"),
+      catalog: z.union([z.literal(0), z.literal(1)]),
+    }),
+    (value): { source: "ipullupull"; catalog: 0 | 1 } => {
+      if (value !== 0 && value !== 1)
+        throw invalidCursor("ipullupull", String(value));
+      return { source: "ipullupull", catalog: value };
+    },
+    (cursor) => cursor.catalog,
+  ),
+  upullitwa: defineJsonCursor("upullitwa", UpullitwaCursorSchema),
+  partsgalore: defineScalarCursor(
+    "partsgalore",
+    z.object({
+      source: z.literal("partsgalore"),
+      catalog: z.union([z.literal(0), z.literal(1)]),
+    }),
+    (value): { source: "partsgalore"; catalog: 0 | 1 } => {
+      if (value !== 0 && value !== 1)
+        throw invalidCursor("partsgalore", String(value));
+      return { source: "partsgalore", catalog: value };
     },
     (cursor) => cursor.catalog,
   ),

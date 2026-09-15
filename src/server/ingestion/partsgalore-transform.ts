@@ -9,7 +9,7 @@ import { PARTSGALORE_INVENTORY_URL } from "./partsgalore-client";
 import type { PartsGaloreRecord } from "./partsgalore-parser";
 import type { PartsGaloreYard } from "./partsgalore-yard-metadata";
 
-export type PartsGaloreCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
+export type PartsGaloreCanonicalVehicle = CanonicalVehicle & {
   source: "partsgalore";
 };
 

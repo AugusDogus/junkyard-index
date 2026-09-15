@@ -1,6 +1,5 @@
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
-import type { PipelineSourceName } from "./pipeline-policy";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchUpullitwaPage, type UpullitwaPage } from "./upullitwa-client";
 import {
@@ -20,10 +19,10 @@ import {
 
 export { UpullitwaCursor, UpullitwaCursorSchema } from "./upullitwa-cursor";
 export const UPULLITWA_REQUEST_INTERVAL = "1100 millis";
-export type UpullitwaStreamResult = Omit<
-  ConnectorChunkResult<PipelineSourceName, UpullitwaCursor>,
-  "source"
-> & { source: "upullitwa" };
+export type UpullitwaStreamResult = ConnectorChunkResult<
+  "upullitwa",
+  UpullitwaCursor
+>;
 
 export class UpullitwaStreamError extends Data.TaggedError(
   "UpullitwaStreamError",

@@ -41,6 +41,9 @@ import { TEARAPART_SITE_CONFIG } from "../src/server/ingestion/tap-sites";
 import { streamPullNSaveInventory } from "../src/server/ingestion/pullnsave-connector";
 import { streamWrenchApartInventory } from "../src/server/ingestion/wrenchapart-connector";
 import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-connector";
+import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-connector";
+import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
+import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -315,6 +318,17 @@ async function main(): Promise<void> {
       try {
         const sourceResult = await (() => {
           switch (source) {
+            case "ipullupull":
+              return runProgram(streamIPullUPullInventory({ onBatch }));
+            case "upullitwa":
+              return runProgram(
+                streamUpullitwaInventory({
+                  onBatch,
+                  maxPages: config.maxPages ?? 3200,
+                }),
+              );
+            case "partsgalore":
+              return runProgram(streamPartsGaloreInventory({ onBatch }));
             case "wrenchapart":
               return runProgram(
                 streamWrenchApartInventory({

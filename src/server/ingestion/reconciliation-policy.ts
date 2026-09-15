@@ -15,6 +15,9 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "tearapart",
   "wrenchapart",
   "upullrparts",
+  "ipullupull",
+  "upullitwa",
+  "partsgalore",
   "autorecycler",
 ];
 

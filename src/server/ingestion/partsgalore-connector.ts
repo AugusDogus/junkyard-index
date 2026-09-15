@@ -1,6 +1,5 @@
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
-import type { PipelineSourceName } from "./pipeline-policy";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchPartsGaloreCatalog } from "./partsgalore-client";
 import {
@@ -15,10 +14,10 @@ import {
 
 /** Atomic catalog checkpoint, not a provider page or an offset into local rows. */
 export type PartsGaloreCursor = 0 | 1;
-export type PartsGaloreStreamResult = Omit<
-  ConnectorChunkResult<PipelineSourceName, PartsGaloreCursor>,
-  "source"
-> & { source: "partsgalore" };
+export type PartsGaloreStreamResult = ConnectorChunkResult<
+  "partsgalore",
+  PartsGaloreCursor
+>;
 export const PARTSGALORE_BATCH_SIZE = 250;
 export { PARTSGALORE_MAX_CATALOG_RECORDS } from "./partsgalore-parser";
 

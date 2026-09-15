@@ -93,6 +93,18 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: { source: "upullrparts", catalog: 0 },
     maxPagesPerChunk: 1,
   },
+  ipullupull: {
+    initialCursor: { source: "ipullupull", catalog: 0 },
+    maxPagesPerChunk: 1,
+  },
+  upullitwa: {
+    initialCursor: { source: "upullitwa", phase: "start" },
+    maxPagesPerChunk: 2,
+  },
+  partsgalore: {
+    initialCursor: { source: "partsgalore", catalog: 0 },
+    maxPagesPerChunk: 1,
+  },
 };
 
 export function getDurableSourceDefinition<

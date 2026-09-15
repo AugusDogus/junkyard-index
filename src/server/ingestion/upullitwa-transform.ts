@@ -3,7 +3,7 @@ import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import { upullitwaPageUrl, type UpullitwaRecord } from "./upullitwa-client";
 import type { LocatedUpullitwaYard } from "./upullitwa-yard-metadata";
 
-export type UpullitwaCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
+export type UpullitwaCanonicalVehicle = CanonicalVehicle & {
   source: "upullitwa";
 };
 

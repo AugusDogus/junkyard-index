@@ -1,5 +1,4 @@
 import { Data, Effect, RateLimiter } from "effect";
-import type { IngestionSource } from "~/lib/ingestion-source";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchIPullUPullCatalog } from "./ipullupull-client";
@@ -17,10 +16,10 @@ import {
 
 /** One atomic CSV checkpoint. Never resume an offset into a changing export. */
 export type IPullUPullCursor = 0 | 1;
-export type IPullUPullStreamResult = Omit<
-  ConnectorChunkResult<IngestionSource, IPullUPullCursor>,
-  "source"
-> & { source: "ipullupull" };
+export type IPullUPullStreamResult = ConnectorChunkResult<
+  "ipullupull",
+  IPullUPullCursor
+>;
 export const IPULLUPULL_BATCH_SIZE = 250;
 
 export class IPullUPullStreamError extends Data.TaggedError(
