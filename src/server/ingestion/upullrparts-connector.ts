@@ -1,5 +1,4 @@
 import { Data, Effect, Either, RateLimiter, Schema } from "effect";
-import type { IngestionSource } from "~/lib/ingestion-source";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
@@ -25,10 +24,10 @@ import {
 
 /** One atomic catalog checkpoint, not a provider page number. */
 export type UpullRPartsCursor = 0 | 1;
-export type UpullRPartsStreamResult = Omit<
-  ConnectorChunkResult<IngestionSource, UpullRPartsCursor>,
-  "source"
-> & { source: "upullrparts" };
+export type UpullRPartsStreamResult = ConnectorChunkResult<
+  "upullrparts",
+  UpullRPartsCursor
+>;
 export const UPULLRPARTS_BATCH_SIZE = 250;
 export { UPULLRPARTS_MAX_CATALOG_RECORDS } from "./upullrparts-client";
 

@@ -31,6 +31,26 @@ describe("durable ingestion cursors", () => {
   });
 
   test("parses valid integer and pair cursors", () => {
+    expect(
+      parseDurableSourceCursor("wrenchapart", '{"afterLocationId":4}'),
+    ).toEqual({ source: "wrenchapart", afterLocationId: 4 });
+    expect(
+      serializeDurableSourceCursor({
+        source: "wrenchapart",
+        afterLocationId: 4,
+      }),
+    ).toBe('{"afterLocationId":4}');
+    expect(parseDurableSourceCursor("upullrparts", "0")).toEqual({
+      source: "upullrparts",
+      catalog: 0,
+    });
+    expect(parseDurableSourceCursor("upullrparts", "1")).toEqual({
+      source: "upullrparts",
+      catalog: 1,
+    });
+    expect(
+      serializeDurableSourceCursor({ source: "upullrparts", catalog: 1 }),
+    ).toBe("1");
     expect(parseDurableSourceCursor("pullnsave", "11")).toEqual({
       source: "pullnsave",
       page: 11,
@@ -57,6 +77,12 @@ describe("durable ingestion cursors", () => {
   });
 
   test("rejects malformed cursors instead of restarting a source", () => {
+    expect(() =>
+      parseDurableSourceCursor("wrenchapart", '{"afterLocationId":-1}'),
+    ).toThrow("Invalid wrenchapart ingestion cursor");
+    expect(() => parseDurableSourceCursor("upullrparts", "2")).toThrow(
+      "Invalid upullrparts ingestion cursor",
+    );
     expect(() => parseDurableSourceCursor("pullnsave", "0")).toThrow(
       "Invalid pullnsave ingestion cursor",
     );

@@ -22,6 +22,8 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   gopullit: "GO Pull-It",
   pullnsave: "Pull-N-Save",
   tearapart: "Tear-A-Part",
+  wrenchapart: "Wrench-A-Part",
+  upullrparts: "U Pull R Parts",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",
 };

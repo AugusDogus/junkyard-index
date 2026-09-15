@@ -34,6 +34,10 @@ than treating an inventory ZIP centroid as the yard entrance.
 
 Missing contact fields remain null. No connector currently has a verified public
 contact email. Do not populate that field with operational or employee addresses.
+Wrench-A-Part now supplies live yard names, addresses, phones, and coordinates
+from its public location endpoint. U Pull R Parts uses the three verified public
+locations documented in `upullrparts-ingestion.md`. Neither source substitutes a
+chain-wide inventory/contact page for a yard-specific website link.
 Do not derive location URLs from vehicle URLs or substitute a shared company
 homepage. Add provider-backed location links when they become available.
 

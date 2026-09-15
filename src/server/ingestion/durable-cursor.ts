@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
 const NonNegativeIntegerSchema = z.number().int().nonnegative().safe();
@@ -223,6 +224,20 @@ const DURABLE_CURSOR_DEFINITIONS = {
     }),
     (storeIndex) => ({ source: "tearapart", storeIndex }),
     (cursor) => cursor.storeIndex,
+  ),
+  wrenchapart: defineJsonCursor("wrenchapart", WrenchApartCursorSchema),
+  upullrparts: defineScalarCursor(
+    "upullrparts",
+    z.object({
+      source: z.literal("upullrparts"),
+      catalog: z.union([z.literal(0), z.literal(1)]),
+    }),
+    (value): { source: "upullrparts"; catalog: 0 | 1 } => {
+      if (value !== 0 && value !== 1)
+        throw invalidCursor("upullrparts", String(value));
+      return { source: "upullrparts", catalog: value };
+    },
+    (cursor) => cursor.catalog,
   ),
 } satisfies Record<IngestionSource, unknown>;
 

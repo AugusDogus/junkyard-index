@@ -21,6 +21,8 @@ describe("source snapshot validation", () => {
   test.each([
     { source: "pullnsave", count: 11_721 },
     { source: "tearapart", count: 1_671 },
+    { source: "wrenchapart", count: 11_460 },
+    { source: "upullrparts", count: 3_298 },
   ] as const)(
     "accepts the measured $source catalog but rejects a collapsed snapshot",
     ({ source, count }) => {
