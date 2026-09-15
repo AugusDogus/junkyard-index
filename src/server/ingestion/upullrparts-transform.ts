@@ -23,31 +23,41 @@ function availableDate(value: string | null | undefined): string | null {
   return date.toISOString();
 }
 
+export type UsableUpullRPartsVehicle = UpullRPartsVehicle & {
+  VIN: string;
+  Year: number;
+  Model: string;
+};
+
+export function isUsableUpullRPartsVehicle(
+  record: UpullRPartsVehicle,
+): record is UsableUpullRPartsVehicle {
+  return (
+    text(record.VIN) !== null &&
+    text(record.Model) !== null &&
+    typeof record.Year === "number" &&
+    Number.isInteger(record.Year) &&
+    record.Year > 0
+  );
+}
+
 export function transformUpullRPartsVehicle(
   record: UpullRPartsVehicle,
   yard: UpullRPartsYard,
   make: UpullRPartsMakeResolution,
 ): UpullRPartsCanonicalVehicle | null {
-  const vin = text(record.VIN)?.toUpperCase();
-  const model = text(record.Model);
-  const year = record.Year;
   if (
-    !vin ||
-    !model ||
-    year === null ||
-    year === undefined ||
-    !Number.isInteger(year) ||
-    year <= 0 ||
+    !isUsableUpullRPartsVehicle(record) ||
     yard.lat === null ||
     yard.lng === null
   )
     return null;
   return {
-    vin,
+    vin: record.VIN.trim().toUpperCase(),
     source: "upullrparts",
-    year,
+    year: record.Year,
     make: make.status === "resolved" ? make.make : "Other",
-    model,
+    model: record.Model.trim(),
     color: normalizeCanonicalColor(record.Color ?? null),
     stockNumber: text(record.StockNumber),
     imageUrl: null,

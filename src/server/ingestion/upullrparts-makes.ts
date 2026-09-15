@@ -7,6 +7,7 @@ import {
   type UpullRPartsVehicle,
 } from "./upullrparts-client";
 import { normalizeCanonicalMake } from "./normalization";
+import type { UsableUpullRPartsVehicle } from "./upullrparts-transform";
 
 export class UpullRPartsMakeError extends Data.TaggedError(
   "UpullRPartsMakeError",
@@ -57,7 +58,7 @@ function uniqueMake(
 
 /** Authoritative partition membership first; unique provider model relation second. */
 export function loadUpullRPartsMakeResolver(
-  records: readonly UpullRPartsVehicle[],
+  records: readonly UsableUpullRPartsVehicle[],
   requestGate: ProviderRequestGate,
 ) {
   return Effect.gen(function* () {

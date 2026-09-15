@@ -5,7 +5,6 @@ import {
   fetchUpullRPartsCatalog,
   UpullRPartsVehicleSchema,
   UPULLRPARTS_MAX_CATALOG_RECORDS,
-  type UpullRPartsVehicle,
   type UpullRPartsProviderError,
 } from "./upullrparts-client";
 import {
@@ -14,6 +13,8 @@ import {
 } from "./upullrparts-makes";
 import {
   transformUpullRPartsVehicle,
+  isUsableUpullRPartsVehicle,
+  type UsableUpullRPartsVehicle,
   type UpullRPartsCanonicalVehicle,
 } from "./upullrparts-transform";
 import {
@@ -90,7 +91,7 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
     const reported = new Set<string>();
     const vehicles: UpullRPartsCanonicalVehicle[] = [];
     const acceptedRecords: {
-      record: UpullRPartsVehicle;
+      record: UsableUpullRPartsVehicle;
       yard: UpullRPartsYard;
     }[] = [];
     const unresolvedMakes = new Map<string, number>();
@@ -116,6 +117,10 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
         unresolved.set(record.Store, (unresolved.get(record.Store) ?? 0) + 1);
         continue;
       }
+      if (!isUsableUpullRPartsVehicle(record)) {
+        accounting.recordsRejected += 1;
+        continue;
+      }
       acceptedRecords.push({ record, yard });
     }
     // There is no upstream total/next link. A missing known store is not
@@ -127,26 +132,28 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       return yield* new UpullRPartsStreamError({
         message: `U Pull R Parts catalog is missing known yards ${missing.map((yard) => yard.code).join(", ")}. Verify the unfiltered response and yard directory before retrying; no batches were emitted.`,
       });
-    const resolveMake = yield* loadUpullRPartsMakeResolver(
-      acceptedRecords.map(({ record }) => record),
-      requestGate,
-    );
-    for (const { record, yard } of acceptedRecords) {
-      const make = resolveMake(record);
-      const vehicle = transformUpullRPartsVehicle(record, yard, make);
-      if (!vehicle) {
-        accounting.recordsRejected += 1;
-        continue;
-      }
-      if (seen.has(vehicle.vin)) {
-        accounting.duplicateVehicles += 1;
-        continue;
-      }
-      seen.add(vehicle.vin);
-      vehicles.push(vehicle);
-      if (make.status === "unresolved") {
-        const reason = `${vehicle.model}: ${make.reason}`;
-        unresolvedMakes.set(reason, (unresolvedMakes.get(reason) ?? 0) + 1);
+    if (acceptedRecords.length > 0) {
+      const resolveMake = yield* loadUpullRPartsMakeResolver(
+        acceptedRecords.map(({ record }) => record),
+        requestGate,
+      );
+      for (const { record, yard } of acceptedRecords) {
+        const make = resolveMake(record);
+        const vehicle = transformUpullRPartsVehicle(record, yard, make);
+        if (!vehicle) {
+          accounting.recordsRejected += 1;
+          continue;
+        }
+        if (seen.has(vehicle.vin)) {
+          accounting.duplicateVehicles += 1;
+          continue;
+        }
+        seen.add(vehicle.vin);
+        vehicles.push(vehicle);
+        if (make.status === "unresolved") {
+          const reason = `${vehicle.model}: ${make.reason}`;
+          unresolvedMakes.set(reason, (unresolvedMakes.get(reason) ?? 0) + 1);
+        }
       }
     }
     if (options.onYards) yield* options.onYards([...UPULLRPARTS_YARDS]);
