@@ -44,6 +44,40 @@ function mockDirectory(
 }
 
 describe("U Pull R Parts authoritative make resolution", () => {
+  test("ignores unused display metadata in make partitions", async () => {
+    mockDirectory(
+      ["Ford"],
+      new Map([
+        [
+          "Ford",
+          [
+            {
+              ...vehicle,
+              Color: { unrelated: true },
+              Row: { unrelated: true },
+              DateSetData: { unrelated: true },
+            },
+          ],
+        ],
+      ]),
+    );
+    const resolve = await Effect.runPromise(
+      loadUpullRPartsMakeResolver([vehicle], (request) => request),
+    );
+    expect(resolve(vehicle)).toEqual({ status: "resolved", make: "Ford" });
+  });
+  test("still rejects malformed partition join identities", async () => {
+    mockDirectory(
+      ["Ford"],
+      new Map([["Ford", [{ ...vehicle, Store: "bad" }]]]),
+    );
+    const result = await Effect.runPromise(
+      Effect.either(
+        loadUpullRPartsMakeResolver([vehicle], (request) => request),
+      ),
+    );
+    expect(result._tag).toBe("Left");
+  });
   test("uses complete explicit make partitions, preserves raw make filters, and skips unused model lookups", async () => {
     const requests = mockDirectory(
       ["Ram ", "Ford"],

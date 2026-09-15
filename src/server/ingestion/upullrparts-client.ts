@@ -132,9 +132,15 @@ export function fetchUpullRPartsMakeInventory(
       beginDate: "",
       endDate: "",
     },
-    Schema.Array(UpullRPartsVehicleSchema).pipe(
-      Schema.maxItems(UPULLRPARTS_MAX_CATALOG_RECORDS),
-    ),
+    Schema.Array(
+      UpullRPartsVehicleSchema.pick(
+        "Store",
+        "StockNumber",
+        "VIN",
+        "Year",
+        "Model",
+      ),
+    ).pipe(Schema.maxItems(UPULLRPARTS_MAX_CATALOG_RECORDS)),
     requestGate,
   );
 }
