@@ -1,11 +1,7 @@
 import type { IngestionSource } from "~/lib/ingestion-source";
 import { tapYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
-import {
-  fetchTapBootstrap,
-  fetchTapStores,
-  searchTapInventory,
-} from "./tap-inventory-client";
+import { fetchTapStores, searchTapInventory } from "./tap-inventory-client";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { TapInventoryProviderError } from "./errors";
 import {
@@ -18,14 +14,9 @@ import type { CanonicalVehicle } from "./types";
 
 export type TapStreamResult = ConnectorChunkResult<"upullitne", number>;
 
-export interface TapSiteStreamResult<Source extends string = string> {
-  source: Source;
-  status: "paused" | "complete" | "failed";
-  cursor: number;
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-}
+export type TapSiteStreamResult<
+  Source extends IngestionSource = IngestionSource,
+> = ConnectorChunkResult<Source, number>;
 
 export function streamTapSiteInventory<
   Source extends IngestionSource,
@@ -44,25 +35,8 @@ export function streamTapSiteInventory<
   TapInventoryProviderError | E,
   R
 > {
-  const config: TapInventorySiteConfig<Source> = options.config;
-
-  const loadConfig: Effect.Effect<
-    TapInventorySiteConfig<Source>,
-    TapInventoryProviderError
-  > = fetchTapBootstrap(config).pipe(
-    Effect.mapError(
-      (cause) =>
-        new TapInventoryProviderError({ cursor: "site-config", cause }),
-    ),
-    Effect.map((bootstrap) => ({
-      ...config,
-      ajaxUrl: bootstrap.ajaxUrl,
-      pluginUrl: bootstrap.pluginUrl,
-    })),
-  );
-
   return Effect.gen(function* () {
-    const siteConfig = yield* loadConfig;
+    const siteConfig = options.config;
     let pagesProcessed = 0;
     let vehiclesProcessed = 0;
     const startStoreIndex = Math.max(0, options.startStoreIndex ?? 0);
@@ -160,7 +134,7 @@ export function streamTapSiteInventory<
     const complete = !failed && nextStoreIndex >= concreteStores.length;
 
     return {
-      source: config.source,
+      source: siteConfig.source,
       status: failed ? "failed" : complete ? "complete" : "paused",
       cursor: nextStoreIndex,
       count: vehiclesProcessed,
