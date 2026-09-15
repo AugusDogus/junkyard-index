@@ -1,7 +1,9 @@
 # Next VIN-bearing provider candidates
 
 Public-source research on September 15, 2026. Wrench-A-Part and U Pull R Parts
-have separate implementation runbooks; the candidates below are not implemented.
+have separate implementation runbooks. iPull-uPull, Washington U-Pull-It, and
+Parts Galore are now implemented; see [their runbook](runbooks/independent-yard-ingestion.md)
+for measured full crawls and current filtering. The table retains discovery samples.
 
 Overlap means tested unique VINs found in the public Row52 active inventory and
 AutoRecycler global search. Both lookups passed positive controls. Zero sampled
