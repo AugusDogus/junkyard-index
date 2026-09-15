@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DesktopFiltersBar } from "./DesktopFiltersBar";
 import { MobileFilterContent } from "./MobileFilterContent";
+import { AVAILABLE_SOURCES, InventorySourcesFilter } from "./FilterFields";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 const emptyFilterOptions = {
   makes: [],
@@ -13,6 +15,24 @@ const emptyFilterOptions = {
 const noOp = () => undefined;
 
 describe("search filter visibility", () => {
+  test("offers every registered source, including when selecting all except one", () => {
+    const markup = renderToStaticMarkup(
+      <InventorySourcesFilter
+        idPrefix="test"
+        sources={[]}
+        onSourcesChange={noOp}
+      />,
+    );
+    for (const source of INGESTION_SOURCES) {
+      expect(markup).toContain(`id="test-${source}"`);
+    }
+    expect(AVAILABLE_SOURCES.filter((source) => source !== "row52")).toContain(
+      "pullnsave",
+    );
+    expect(AVAILABLE_SOURCES.filter((source) => source !== "row52")).toContain(
+      "tearapart",
+    );
+  });
   test("allows entering saved-search filters when inventory has no suggestions", () => {
     const markup = renderToStaticMarkup(
       <MobileFilterContent

@@ -11,6 +11,7 @@ import {
 import { Slider } from "~/components/ui/slider";
 import { PLANS } from "~/lib/plans";
 import type { DataSource } from "~/lib/types";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 
 const SOURCE_LABELS: Record<DataSource, string> = {
@@ -25,15 +26,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   autorecycler: "AutoRecycler.io",
 };
 
-export const AVAILABLE_SOURCES: DataSource[] = [
-  "pyp",
-  "pullapart",
-  "upullitne",
-  "upullitdavie",
-  "gopullit",
-  "row52",
-  "autorecycler",
-];
+export const AVAILABLE_SOURCES: readonly DataSource[] = INGESTION_SOURCES;
 
 interface InventorySourcesFilterProps {
   idPrefix: string;

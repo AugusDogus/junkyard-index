@@ -5,12 +5,23 @@ import {
   expressionFromCriteria,
 } from "./search-expression-criteria";
 import { parseExpression, serializeExpression } from "./search-expression";
+import { INGESTION_SOURCES } from "./ingestion-source";
 const criteria = SearchCriteria.fromSavedSearch("Volvo", {
   minYear: 1963,
   maxYear: 2000,
 });
 
 describe("search expression", () => {
+  test.each([...INGESTION_SOURCES])(
+    "preserves %s through expression and basic criteria conversion",
+    (source) => {
+      const original = { ...criteria, sources: [source] };
+      const parsed = parseExpression(expressionFromCriteria(original));
+      if (!parsed.success)
+        throw new Error("Expected a valid source expression");
+      expect(criteriaFromExpression(parsed.value, original)).toEqual(original);
+    },
+  );
   test("preserves initial keyword and inclusive year boundaries", () => {
     const text = expressionFromCriteria(criteria);
     expect(text).toBe("Volvo AND year:>=1963 AND year:<=2000");
