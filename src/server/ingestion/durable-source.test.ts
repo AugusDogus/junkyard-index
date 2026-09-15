@@ -34,7 +34,6 @@ describe("durable ingestion cursors", () => {
       page: 2,
       declaredPageCount: 3,
       completedYardIds: ["JJ65", "UU43"],
-      seenVins: ["1G1JC1242WM107139"],
       pageFingerprints: ["a".repeat(64)],
       usableYardVehicles: 422,
     };

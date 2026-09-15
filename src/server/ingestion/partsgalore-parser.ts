@@ -1,4 +1,9 @@
 import { Data, Effect } from "effect";
+import {
+  stripInventoryRawText,
+  inventoryHtmlAttribute,
+  inventoryTableSections,
+} from "./inventory-html";
 
 // One unpaginated catalog: 1,059 rows on 2026-09-15. Leave growth headroom,
 // but fail rather than truncate if the single-checkpoint contract changes.
@@ -72,25 +77,10 @@ function text(html: string): string {
 function parse(html: string): (PartsGaloreRecord | null)[] {
   if (html.length > PARTSGALORE_MAX_HTML_LENGTH)
     fail("HTML exceeds the 5 MB character bound");
-  const clean = html.replace(
-    /<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
-    "",
-  );
-  if (/<!--|<(?:script|style)\b/i.test(clean))
-    fail("unclosed comment or raw-text element");
+  const clean = stripInventoryRawText(html);
   const openings = [
     ...clean.matchAll(/<table\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi),
-  ].filter(([opening]) =>
-    [
-      ...opening.matchAll(
-        /([^\s=<>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g,
-      ),
-    ].some(
-      (attr) =>
-        attr[1]?.toLowerCase() === "id" &&
-        (attr[2] ?? attr[3] ?? attr[4]) === "alldata",
-    ),
-  );
+  ].filter(([opening]) => inventoryHtmlAttribute(opening, "id") === "alldata");
   const opening = openings[0];
   if (openings.length !== 1 || !opening)
     fail("expected exactly one table #alldata");
@@ -98,29 +88,7 @@ function parse(html: string): (PartsGaloreRecord | null)[] {
   const end = rest.search(/<\/table\s*>/i);
   if (end < 0) fail("unclosed inventory table");
   const table = rest.slice(0, end);
-  if (/<table\b/i.test(table)) fail("nested inventory table");
-  const outsideSections = table.replace(
-    /<(thead|tbody)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
-    "",
-  );
-  if (/<\/?(?:tr|td|th)\b/i.test(outsideSections))
-    fail("inventory cells outside the header/body contract");
-
-  function section(name: "thead" | "tbody") {
-    const pattern = new RegExp(
-      `<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}\\s*>`,
-      "gi",
-    );
-    const sections = [...table.matchAll(pattern)];
-    const content = sections[0]?.[1];
-    if (
-      sections.length !== 1 ||
-      content === undefined ||
-      [...table.matchAll(new RegExp(`<\\/?${name}\\b`, "gi"))].length !== 2
-    )
-      fail(`expected one complete ${name}`);
-    return content;
-  }
+  const { head, body } = inventoryTableSections(table);
   function rows(sectionHtml: string) {
     const matches = [
       ...sectionHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr\s*>/gi),
@@ -149,7 +117,7 @@ function parse(html: string): (PartsGaloreRecord | null)[] {
       return cells.map((cell) => text(cell[3] ?? ""));
     });
   }
-  const headers = rows(section("thead"));
+  const headers = rows(head);
   const header = headers[0];
   if (headers.length !== 1 || !header) fail("expected one header row");
   const names = header.map((value) =>
@@ -158,7 +126,7 @@ function parse(html: string): (PartsGaloreRecord | null)[] {
   if (new Set(names).size !== names.length) fail("ambiguous duplicate headers");
   for (const required of ["year", "make", "model", "vin"])
     if (!names.includes(required)) fail(`missing required ${required} header`);
-  const records = rows(section("tbody"));
+  const records = rows(body);
   if (records.length === 0 || records.length > PARTSGALORE_MAX_CATALOG_RECORDS)
     fail(
       `received ${records.length} rows, expected 1-${PARTSGALORE_MAX_CATALOG_RECORDS}`,

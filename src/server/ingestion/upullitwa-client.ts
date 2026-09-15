@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { Data, Effect } from "effect";
 import {
+  stripInventoryRawText,
+  inventoryHtmlAttribute,
+  inventoryTableSections,
+} from "./inventory-html";
+import {
   fetchProviderText,
   type ProviderRequestGate,
 } from "./provider-http-client";
@@ -93,11 +98,12 @@ function text(html: string): string {
 }
 
 function attribute(tag: string, name: string): string | null {
-  const match = new RegExp(
-    `\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
-    "i",
-  ).exec(tag);
-  return match?.[2] === undefined ? null : decode(match[2]);
+  const value = inventoryHtmlAttribute(tag, name);
+  return value === null ? null : decode(value);
+}
+
+function hasClass(tag: string, name: string): boolean {
+  return (attribute(tag, "class") ?? "").split(/\s+/).includes(name);
 }
 
 function checkUrl(raw: string, yardId: string): URL {
@@ -133,18 +139,14 @@ export function parseUpullitwaPage(
   checkUrl(upullitwaPageUrl(yardId, page), yardId);
   if (yardId !== "ANY" && !UpullitwaYardIdSchema.safeParse(yardId).success)
     throw new Error("Invalid inventory yard ID");
-  const html = rawHtml
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  const html = stripInventoryRawText(rawHtml);
   const selectors = [
-    ...html.matchAll(
-      /<select\b[^>]*class=["'][^"']*\bupullsimpleLocation\b[^"']*["'][^>]*>([\s\S]*?)<\/select>/gi,
-    ),
-  ];
+    ...html.matchAll(/<select\b([^>]*)>([\s\S]*?)<\/select>/gi),
+  ].filter((match) => hasClass(match[1] ?? "", "upullsimpleLocation"));
   if (selectors.length !== 1)
     throw new Error("Missing or ambiguous inventory yard selector");
   const options = [
-    ...(selectors[0]?.[1] ?? "").matchAll(
+    ...(selectors[0]?.[2] ?? "").matchAll(
       /<option\b([^>]*)>([\s\S]*?)<\/option>/gi,
     ),
   ];
@@ -154,7 +156,7 @@ export function parseUpullitwaPage(
     const attrs = option[1] ?? "";
     const id = attribute(attrs, "value");
     if (!id) continue;
-    if (/\bselected(?:\s|=|$)/i.test(attrs)) selected.push(id);
+    if (attribute(attrs, "selected") !== null) selected.push(id);
     if (id === "ANY") continue;
     if (!UpullitwaYardIdSchema.safeParse(id).success || yardIds.includes(id))
       throw new Error("Invalid or duplicate inventory yard ID");
@@ -171,17 +173,12 @@ export function parseUpullitwaPage(
   }
 
   const tables = [
-    ...html.matchAll(
-      /<table\b[^>]*class=["'][^"']*\bIISUpullTable\b[^"']*["'][^>]*>([\s\S]*?)<\/table>/gi,
-    ),
-  ];
+    ...html.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi),
+  ].filter((match) => hasClass(match[1] ?? "", "IISUpullTable"));
   if (tables.length !== 1)
     throw new Error("Missing or ambiguous IISUpullTable inventory table");
-  const table = tables[0]?.[1] ?? "";
-  const head = /<thead\b[^>]*>([\s\S]*?)<\/thead>/i.exec(table)?.[1];
-  const body = /<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i.exec(table)?.[1];
-  if (!head || body === undefined)
-    throw new Error("Inventory table has missing or truncated headers/body");
+  const table = tables[0]?.[2] ?? "";
+  const { head, body } = inventoryTableSections(table);
   const headers = [...head.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi)].map(
     (match) => text(match[1] ?? "").toLowerCase(),
   );
@@ -204,7 +201,8 @@ export function parseUpullitwaPage(
   if (
     rows.length === 0 ||
     rows.length > MAX_ROWS ||
-    rows.length !== [...body.matchAll(/<tr\b/gi)].length
+    rows.length * 2 !== [...body.matchAll(/<\/?tr\b/gi)].length ||
+    /<\/?(?:td|th)\b/i.test(body.replace(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi, ""))
   )
     throw new Error(
       "Inventory table is empty, truncated, or exceeds the row cap",
@@ -216,7 +214,8 @@ export function parseUpullitwaPage(
     ].map((match) => match[2] ?? "");
     if (
       cells.length !== headers.length ||
-      [...rowHtml.matchAll(/<(td|th)\b/gi)].length !== cells.length
+      [...rowHtml.matchAll(/<\/?(td|th)\b/gi)].length !== cells.length * 2 ||
+      /\b(?:colspan|rowspan)\s*=/i.test(rowHtml)
     )
       throw new Error("Inventory row has missing or extra columns");
     const [image, year, make, model, rowText, date, vin, stockNumber] = cells;
@@ -238,11 +237,9 @@ export function parseUpullitwaPage(
     };
   });
 
-  const navs = [
-    ...html.matchAll(
-      /<nav\b[^>]*class=["'][^"']*\biis-upull-pagination-wrapper\b[^"']*["'][^>]*>([\s\S]*?)<\/nav>/gi,
-    ),
-  ];
+  const navs = [...html.matchAll(/<nav\b([^>]*)>([\s\S]*?)<\/nav>/gi)].filter(
+    (match) => hasClass(match[1] ?? "", "iis-upull-pagination-wrapper"),
+  );
   if (navs.length === 0)
     throw new Error(
       "Inventory pagination is missing; completeness cannot be verified",
@@ -251,7 +248,7 @@ export function parseUpullitwaPage(
   let lastPage = 0;
   let previousSignature: string | null = null;
   for (const nav of navs) {
-    const contents = nav[1] ?? "";
+    const contents = nav[2] ?? "";
     const links = [...contents.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)].map(
       (match) => {
         const href = attribute(match[1] ?? "", "href");
@@ -259,11 +256,11 @@ export function parseUpullitwaPage(
         return { url: checkUrl(href, yardId), label: text(match[2] ?? "") };
       },
     );
-    const active =
-      /<li\b[^>]*class=["'][^"']*\bactive\b[^"']*["'][^>]*>\s*<a\b([^>]*)>/i.exec(
-        contents,
-      );
-    const activeHref = attribute(active?.[1] ?? "", "href");
+    const active = [
+      ...contents.matchAll(/<li\b([^>]*)>\s*<a\b([^>]*)>/gi),
+    ].filter((match) => hasClass(match[1] ?? "", "active"));
+    const activeHref =
+      active.length === 1 ? attribute(active[0]?.[2] ?? "", "href") : null;
     if (
       !activeHref ||
       Number(checkUrl(activeHref, yardId).searchParams.get("pagenum")) !== page

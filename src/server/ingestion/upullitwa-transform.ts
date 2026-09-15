@@ -1,4 +1,5 @@
 import type { CanonicalVehicle } from "./types";
+import { inventoryVin } from "./inventory-vin";
 import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import { upullitwaPageUrl, type UpullitwaRecord } from "./upullitwa-client";
 import type { LocatedUpullitwaYard } from "./upullitwa-yard-metadata";
@@ -11,7 +12,7 @@ export function transformUpullitwaVehicle(
   record: UpullitwaRecord,
   yard: LocatedUpullitwaYard,
 ): UpullitwaCanonicalVehicle | null {
-  const vin = record.vin.trim().toUpperCase();
+  const vin = inventoryVin(record.vin, record.year);
   const year = Number(record.year);
   const make = record.make.trim();
   const model = record.model.trim();
@@ -23,10 +24,7 @@ export function transformUpullitwaVehicle(
     year > new Date().getUTCFullYear() + 1 ||
     !make ||
     !model ||
-    !(
-      /^[A-HJ-NPR-Z0-9]{17}$/.test(vin) ||
-      (year < 1981 && /^[A-Z0-9]{5,16}$/.test(vin) && /\d/.test(vin))
-    )
+    !vin
   )
     return null;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(record.date)

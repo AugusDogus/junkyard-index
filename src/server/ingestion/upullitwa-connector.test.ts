@@ -106,6 +106,16 @@ test("accepts the live ellipsis pagination while following the immediate Next li
 });
 
 test.each([
+  ["unclosed comment", `<!--${fixture}`],
+  ["unclosed script", `<script>${fixture}`],
+  [
+    "second body",
+    fixture.replace("</tbody>", `</tbody><tbody>${fixtureRow}</tbody>`),
+  ],
+  ["orphan row", fixture.replace("</tbody>", `</tbody>${fixtureRow}`)],
+  ["nested row", fixture.replace("<tbody>", "<tbody><tr>")],
+  ["false value attribute", fixture.replaceAll("value=", "data-value=")],
+  ["false class attribute", fixture.replaceAll("class=", "data-class=")],
   ["missing table", fixture.replace("IISUpullTable", "OtherTable")],
   ["truncated table", fixture.replace("</table>", "")],
   ["missing column", fixture.replace("<th>Vin</th>", "")],
@@ -133,6 +143,23 @@ test.each([
   ["page cap", pageHtml("JJ65", 1, 100, [vin])],
 ])("fails closed on %s", (_name, html) => {
   expect(() => parseUpullitwaPage(html, "JJ65", 1)).toThrow();
+});
+
+test("preserves independently valid VINs when descriptive metadata is rejected", async () => {
+  mockPages((yard, page) =>
+    pageHtml(yard, page, 1, [vin, secondVin]).replace(
+      `<td>CRUZE</td>`,
+      `<td></td>`,
+    ),
+  );
+  const result = await Effect.runPromise(
+    streamUpullitwaInventoryWithRequestGate(
+      { onBatch: () => Effect.void, maxPages: 8 },
+      noRateLimit,
+    ),
+  );
+  expect(result.observedVins).toEqual([vin]);
+  expect(result.accounting.recordsRejected).toBe(3);
 });
 
 test.each([206, 403])(
@@ -245,7 +272,7 @@ test("normalizes known yard identity without inferring city from row prefix", ()
   ).toMatchObject({ availableDate: null, imageUrl: null });
 });
 
-test("follows short pages, resumes native cursors and preserves cross-chunk/cross-yard dedupe counts", async () => {
+test("follows short pages and deduplicates within chunks while leaving run-wide uniqueness to snapshots", async () => {
   const calls = mockPages((yard, page) =>
     pageHtml(
       yard,
@@ -283,11 +310,11 @@ test("follows short pages, resumes native cursors and preserves cross-chunk/cros
   );
   expect(second).toMatchObject({
     status: "paused",
-    count: 1,
+    count: 2,
     accounting: {
       recordsProcessed: 3,
       recordsRejected: 1,
-      duplicateVehicles: 1,
+      duplicateVehicles: 0,
     },
     cursor: { yardId: "UU43", page: 1 },
   });
@@ -305,10 +332,12 @@ test("follows short pages, resumes native cursors and preserves cross-chunk/cros
   expect(calls).toEqual(["ANY:1", "JJ65:1", "JJ65:2", "UU43:1", "UU44:1"]);
   expect(vehicles.map((vehicle) => vehicle.vin)).toEqual([
     vin,
+    vin,
     secondVin,
     thirdVin,
   ]);
   expect(UpullitwaCursorSchema.safeParse(second.cursor).success).toBe(true);
+  expect(JSON.stringify(second.cursor)).not.toContain(vin);
   const terminal = await Effect.runPromise(
     streamUpullitwaInventoryWithRequestGate(
       { onBatch, startCursor: last.cursor },

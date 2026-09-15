@@ -115,7 +115,7 @@ async function run() {
   return { result, vehicles, batches };
 }
 
-test("accounts every row and preserves unknown status, parts-only, unlocated and invalid-metadata observations", async () => {
+test("preserves uncertain observations but allows sold and parts-only vehicles to retire", async () => {
   const variant = (
     number: number,
     changes: Partial<IPullUPullRecord>,
@@ -154,8 +154,9 @@ test("accounts every row and preserves unknown status, parts-only, unlocated and
       duplicateVehicles: 1,
     },
   });
-  expect(result.observedVins).toHaveLength(6);
+  expect(result.observedVins).toHaveLength(5);
   expect(result.observedVins).not.toContain(rows[5]?.Vin);
+  expect(result.observedVins).not.toContain(rows[8]?.Vin);
   expect(
     vehicles.find((vehicle) => vehicle.vin === first.Vin)?.stockNumber,
   ).toBe(first["Stock Number"]);
@@ -165,6 +166,19 @@ test("accounts every row and preserves unknown status, parts-only, unlocated and
   expect(
     result.warnings?.some((warning) => warning.includes("unknown status")),
   ).toBe(true);
+});
+
+test("publishes pre-1981 identifiers and preserves their presence through metadata failures", async () => {
+  mockCatalog([
+    ...records,
+    { ...first, Year: "1979", Vin: "FH22G9G241556" },
+    { ...first, Year: "1950", Vin: "67019949", Model: "" },
+  ]);
+  const { result, vehicles } = await run();
+  expect(vehicles.some((vehicle) => vehicle.vin === "FH22G9G241556")).toBe(
+    true,
+  );
+  expect(result.observedVins).toContain("67019949");
 });
 
 test("new directory-backed yards are derived from first-party JSON-LD", async () => {

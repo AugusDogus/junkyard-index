@@ -107,9 +107,8 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
       }
       if (record["Vehicle Row"].trim() === "300") {
         accounting.recordsExcluded++;
-        if (vin) observedVins.add(vin);
         warn(
-          "row 300 pre-pulled engines/transmissions only; observed VINs preserved",
+          "row 300 pre-pulled engines/transmissions only; whole vehicles are no longer available",
         );
         continue;
       }
