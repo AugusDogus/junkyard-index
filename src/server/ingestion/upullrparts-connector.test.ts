@@ -40,6 +40,68 @@ function mockResponse(body: string, status = 200) {
 }
 
 describe("U Pull R Parts complete catalog", () => {
+  test.each(["catalog", "makes", "partition", "models"])(
+    "rejects explicit partial %s responses before emitting vehicles",
+    async (target) => {
+      const variants = [
+        {
+          status: 206,
+          headers: new Headers({ "Content-Range": "items 0-2/3000" }),
+        },
+        {
+          status: 200,
+          headers: new Headers({ "Content-Range": "items 0-2/3000" }),
+        },
+        { status: 200, headers: new Headers({ Link: '</next>; rel="next"' }) },
+      ];
+      for (const variant of variants) {
+        globalThis.fetch = Object.assign(
+          async (_input: RequestInfo | URL, init?: RequestInit) => {
+            const params = new URLSearchParams(
+              typeof init?.body === "string" ? init.body : "",
+            );
+            const action = params.get("apiAction");
+            const kind =
+              action === "getMakes"
+                ? "makes"
+                : action === "getModels"
+                  ? "models"
+                  : params.has("makes")
+                    ? "partition"
+                    : "catalog";
+            const body =
+              kind === "makes"
+                ? ["Ford"]
+                : kind === "models"
+                  ? ["FOCUS"]
+                  : kind === "partition"
+                    ? []
+                    : catalog;
+            return Response.json(body, kind === target ? variant : undefined);
+          },
+          { preconnect: originalFetch.preconnect },
+        );
+        let batches = 0;
+        const result = await Effect.runPromise(
+          Effect.either(
+            streamUpullRPartsInventoryWithRequestGate(
+              {
+                onBatch: () =>
+                  Effect.sync(() => {
+                    batches++;
+                  }),
+              },
+              (request) => request,
+            ),
+          ),
+        );
+        expect(result._tag).toBe("Left");
+        if (result._tag === "Left")
+          expect(result.left.message).toContain("partial");
+        expect(batches).toBe(0);
+      }
+    },
+  );
   test("posts the verified unfiltered form, emits yards and completes one atomic checkpoint", async () => {
     const requests = mockResponse(JSON.stringify(catalog));
     const vehicles: UpullRPartsCanonicalVehicle[] = [];

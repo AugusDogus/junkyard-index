@@ -71,6 +71,17 @@ function fetchUpullRPartsJson<A, I>(
       ...params,
     }).toString(),
     schema,
+    onResponse: (response) => {
+      if (
+        response.status === 206 ||
+        response.headers.has("content-range") ||
+        response.headers.has("link")
+      ) {
+        throw new Error(
+          `U Pull R Parts ${apiAction} returned a partial or linked response; verify its pagination before accepting this catalog or make mapping`,
+        );
+      }
+    },
     requestGate,
     retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
   }).pipe(Effect.mapError((cause) => new UpullRPartsProviderError({ cause })));
