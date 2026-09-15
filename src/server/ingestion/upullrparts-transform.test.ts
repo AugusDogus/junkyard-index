@@ -5,14 +5,15 @@ import { findUpullRPartsYard } from "./upullrparts-yard-metadata";
 
 const yard = findUpullRPartsYard(1);
 if (!yard) throw new Error("Missing Rosemount fixture yard");
+const make = { status: "resolved", make: "Ford" } as const;
 
 describe("U Pull R Parts transformation", () => {
-  test("preserves source model and inventory location without inventing a make or image", () => {
-    expect(transformUpullRPartsVehicle(fixture, yard)).toMatchObject({
+  test("preserves source model and location with the authoritative make", () => {
+    expect(transformUpullRPartsVehicle(fixture, yard, make)).toMatchObject({
       vin: "1FADP3F20FL287649",
       source: "upullrparts",
       year: 2015,
-      make: "Other",
+      make: "Ford",
       model: "FOCUS",
       color: "Black",
       stockNumber: "UG072546",
@@ -33,6 +34,7 @@ describe("U Pull R Parts transformation", () => {
       transformUpullRPartsVehicle(
         { ...fixture, VIN: " 6l4752q422582 ", Color: "Unknown", Row: 0 },
         yard,
+        make,
       ),
     ).toMatchObject({
       vin: "6L4752Q422582",
@@ -44,7 +46,7 @@ describe("U Pull R Parts transformation", () => {
     "does not normalize impossible date %s into another day",
     (DateSetData) => {
       expect(
-        transformUpullRPartsVehicle({ ...fixture, DateSetData }, yard)
+        transformUpullRPartsVehicle({ ...fixture, DateSetData }, yard, make)
           ?.availableDate,
       ).toBeNull();
     },
@@ -57,12 +59,24 @@ describe("U Pull R Parts transformation", () => {
     { Model: " " },
   ])("rejects records without required vehicle fields: %j", (fields) => {
     expect(
-      transformUpullRPartsVehicle({ ...fixture, ...fields }, yard),
+      transformUpullRPartsVehicle({ ...fixture, ...fields }, yard, make),
     ).toBeNull();
   });
   test("does not fabricate absent coordinates", () => {
     expect(
-      transformUpullRPartsVehicle(fixture, { ...yard, lat: null, lng: null }),
+      transformUpullRPartsVehicle(
+        fixture,
+        { ...yard, lat: null, lng: null },
+        make,
+      ),
     ).toBeNull();
+  });
+  test("does not infer a manufacturer when provider evidence is unresolved", () => {
+    expect(
+      transformUpullRPartsVehicle(fixture, yard, {
+        status: "unresolved",
+        reason: "missing relation",
+      })?.make,
+    ).toBe("Other");
   });
 });

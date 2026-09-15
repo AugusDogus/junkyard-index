@@ -19,8 +19,9 @@ Verified read-only on 2026-09-15 from base `6be5c4c`. No database or provider cr
   and `DateSetSort` (object). One original row is checked in as a fixture.
 - `DateSetData` is ISO calendar date, not a timestamp. The connector maps it to
   UTC midnight and rejects impossible dates instead of rolling them forward.
-- No `Make` field exists. The connector preserves `Model` and uses the existing
-  canonical `Other` make. Manufacturer-filter coverage remains a limitation.
+- No `Make` field exists in vehicle rows. The connector obtains authoritative
+  make membership from the supporting endpoints described below, preserving
+  original model labels and catalog ordering.
 - The script references AAA image/parts actions separately, including
   `action=doAaaApiCall&apiAction=getVehicleImages&stockID=...`.
   The actual upstream vehicle URL at `api.aaaparts.com` is not exposed or verified.
@@ -39,6 +40,70 @@ The shared HTTP client's Chrome 120 user agent reproducibly received HTTP 403.
 The truthful `JunkyardIndex/1.0` agent returned HTTP 200, as did the initial curl
 and Bun clients. This source supplies its own agent through the existing header
 option. HTTP errors remain failures and nonretryable 403s are not retried.
+
+## Authoritative make resolution
+
+Follow-up verification on 2026-09-15 exhausted the shipped make/model actions:
+
+| Action        | Additional form fields                            | Verified response                                     |
+| ------------- | ------------------------------------------------- | ----------------------------------------------------- |
+| `getMakes`    | none                                              | 56 raw make labels, including `MINI`, `Rover`, `Ram ` |
+| `getMakes`    | `ModelYear=2015&Form=searchPartForm`              | 33 labels for that year                               |
+| `getModels`   | `Make=Ford&ModelYear=0`                           | 74 all-year model labels                              |
+| `getModels`   | `Make=Chevrolet&ModelYear=2015`                   | 23 model labels for that year                         |
+| `getYears`    | `Make=Ford&Model=MUSTANG`                         | 1965 through 2023                                     |
+| `getVehicles` | `makes=Ford&models=0&years=0&beginDate=&endDate=` | 595 vehicles across all three stores                  |
+
+All actions use the same WordPress endpoint, `action=doApiCall`, the same public
+client headers, and top-level JSON arrays. Parameter case matters: `Make` and
+`ModelYear` for model lookups, lowercase `makes` and `years` for inventory forms.
+Preserve raw make labels in requests, including the trailing space in `Ram `.
+
+```sh
+curl -fsS --max-time 30 -A 'JunkyardIndex/1.0' \
+  --data 'action=doApiCall&apiAction=getMakes' \
+  https://upullrparts.com/wp-admin/admin-ajax.php
+curl -fsS --max-time 30 -A 'JunkyardIndex/1.0' \
+  --data 'action=doApiCall&apiAction=getModels&Make=MINI&ModelYear=0' \
+  https://upullrparts.com/wp-admin/admin-ajax.php
+curl -fsS --max-time 30 -A 'JunkyardIndex/1.0' \
+  --data 'action=doApiCall&apiAction=getVehicles&makes=Ford&models=0&years=0&beginDate=&endDate=' \
+  https://upullrparts.com/wp-admin/admin-ajax.php
+```
+
+The 56 all-year model responses contain 1,278 distinct labels. Model relations
+alone resolve 3,275 vehicles: 21 rows have cross-make model collisions and two
+rows have model `UNKNOWN`. Do not guess from names such as MUSTANG or FORD E250
+VAN. The provider maps MUSTANG to both Dodge and Ford, and FORD E250/E350 VAN to
+both Ford and Mercedes-Benz. Year filters do not solve every collision:
+`getYears` returns 1975 through 2014 for FORD E250 VAN under both makes.
+
+The implemented resolution order is:
+
+1. Fetch the original unfiltered catalog once and keep its row ordering.
+2. Fetch `getMakes`, then each make's complete `getVehicles` partition. Join only
+   matching original rows by store, stock number, VIN, year, and model. Require
+   unique make membership; helper responses cannot add, remove, or reorder rows.
+3. If any original rows are unmatched, fetch `getModels&ModelYear=0` for **every**
+   make. Accept a model relation only when it has exactly one normalized make.
+   A conflicting partition is not overridden using the model directory.
+4. Unresolved rows remain inventory with `Other` and counted warnings. Failed or
+   malformed supporting requests fail the checkpoint rather than becoming empty
+   results or manufactured makes. No WMI, VIN decoding, or model-name heuristic.
+
+Measured final attribution:
+
+| Method                | Resolved vehicles | Evidence                                                        |
+| --------------------- | ----------------: | --------------------------------------------------------------- |
+| Unique make partition |             3,295 | 56 partitions, 3,295 distinct original identities, no conflicts |
+| Unique model relation |                 3 | LR2: 1 under `Rover`; MINI COOPER: 2 under `MINI`               |
+| Unresolved            |             **0** | No `Other` values or warnings                                   |
+
+The `Rover` group is retained as the provider names it, not renamed to Land Rover.
+The two `UNKNOWN` model rows resolve directly to Chevrolet (`NG067546`) and Honda
+(`CP017842`). The final catalog has 41 normalized make labels. This resolution
+is live each run, not a hardcoded vehicle or model mapping. The captured MINI
+model response is a decoder/regression fixture only.
 
 ## Measured coverage
 
@@ -124,7 +189,7 @@ embeds and return the exact addresses. Phones are in the metadata module.
 
 - Register source `upullrparts` and `streamUpullRPartsInventory` in shared source,
   durable fetch, validation, and reconciliation modules.
-- Cursor is `0 | 1`: start `0`, complete `1`. One catalog request/chunk, maximum
+- Cursor is `0 | 1`: start `0`, complete `1`. One atomic catalog chunk, maximum
   chunks per run `1`. `pagesProcessed=1` means the complete catalog was processed.
   Replaying `1` performs no fetch or callbacks. Persist `1` only after all batches
   and observations succeed. A failed write retries the entire catalog at `0`.
@@ -133,10 +198,19 @@ embeds and return the exact addresses. Phones are in the metadata module.
 - Measured unfiltered response: **964,136 UTF-8 bytes**, 3,298 rows. Filtered
   responses: Minnesota 702,352 bytes / 2,402 rows; Toledo 261,785 bytes / 896 rows.
   Counts exactly matched the unfiltered union, with no measured truncation.
-- The full array is materialized, transformed, and deduplicated in memory;
+- The full array is materialized, enriched, and deduplicated in memory;
   `onBatch` gets at most 250 vehicles. A hard 20,000-row bound fails before
-  callbacks, rather than slicing and claiming success. HTTP timeout is 30 seconds,
-  with two retries for retryable failures and a 1.5-second request gate.
+  callbacks, rather than slicing and claiming success. Supporting partitions are
+  separately capped at 20,000 rows. The make decoder allows at most 64 nonempty,
+  uniquely normalized make labels; model responses allow at most 500 labels each.
+- Make lookup requires 58 requests without fallback, **114 measured requests**
+  with fallback (catalog + make directory + 56 partitions + 56 model lists).
+  Absolute maximum is 130 logical requests at the 64-make bound, with two retries
+  per retryable request. HTTP timeout is 30 seconds. The existing Effect rate
+  limiter permits one request start per 1.5 seconds, sequentially, including retries.
+  A **four-minute whole-checkpoint timeout** fails with no terminal cursor. Parent
+  execution must allow this budget (for example, 300 seconds); it is no longer a
+  three-second source. No per-VIN requests or invented provider pagination.
 - The provider supplies no independent total. Empty catalogs, oversized catalogs,
   non-array responses, and missing known stores fail. Partial loss within a store
   still requires the shared minimum-count and previous-run drift checks.
@@ -145,6 +219,12 @@ embeds and return the exact addresses. Phones are in the metadata module.
 - Source-specific types specialize `CanonicalVehicle`, `Yard`, and
   `ConnectorChunkResult` using `Omit`; replace with registered source types as
   appropriate. Common field contracts are not duplicated.
+- Public signature remains `streamUpullRPartsInventory<E, R>(options:
+UpullRPartsStreamOptions<E, R>)`. Options are `startCursor?: 0 | 1`, `onBatch`,
+  and optional `onYards`, both callbacks returning `Effect<void, E, R>`. Result is
+  `Effect<UpullRPartsStreamResult, E | UpullRPartsProviderError |
+UpullRPartsMakeError | UpullRPartsStreamError, R>`. No new durable cursor fields.
+  The direct transform now also requires `UpullRPartsMakeResolution`.
 - `onYards` emits the three verified yards. New unknown store IDs are excluded
   with counted warnings and normalized `observedVins`, preserving prior inventory
   via the shared observation path while known yards continue. Review metadata
@@ -153,19 +233,23 @@ embeds and return the exact addresses. Phones are in the metadata module.
 ## Verification
 
 ```sh
-bun test src/server/ingestion/upullrparts-connector.test.ts src/server/ingestion/upullrparts-transform.test.ts
+bun test src/server/ingestion/upullrparts-connector.test.ts src/server/ingestion/upullrparts-transform.test.ts src/server/ingestion/upullrparts-makes.test.ts
 bun run check
 bun -e 'import {Effect} from "effect"; import {streamUpullRPartsInventory} from "./src/server/ingestion/upullrparts-connector"; console.log(await Effect.runPromise(streamUpullRPartsInventory({onBatch: () => Effect.void, onYards: () => Effect.void})));'
 ```
 
-Live smoke: complete cursor `1`, 3,298 vehicles, three yards, 14 discarded batches,
-maximum batch 250, 2,897 ms including the request gate. Raw=3,298; rejected,
-duplicate, excluded, warnings, and errors all zero. No production writes.
+Final make-aware live smoke: complete cursor `1`, 3,298 vehicles, three yards,
+41 makes, **zero Other**, 14 discarded batches, maximum batch 250, **170,905 ms**.
+Raw=3,298; rejected, duplicate, excluded, warnings, and errors all zero. No
+production writes. An initial fixed-delay smoke also resolved all rows but took
+239,521 ms; the existing rate limiter removed avoidable post-response delay.
 
 Targeted regressions cover response envelopes, empty/oversized/missing-yard
 catalogs, callback failures and replay, accounting and unknown-yard observations,
-batch boundaries, identity/date normalization, and missing coordinates.
+batch boundaries, identity/date normalization, missing coordinates, authoritative
+partition joins, raw make filters, unique/colliding model relations, unknown model
+labels with known makes, lookup bounds/failures, and unchanged inventory ordering.
 
-Final checks: 26 tests passed, zero failed; `bun run check` passed with zero lint
-warnings or errors and no type errors. `oxfmt --check` passed for all eight added
+Final checks: 45 tests passed, zero failed; `bun run check` passed with zero lint
+warnings or errors and no type errors. Formatting is checked on all follow-up
 files. Shared pipeline registration and its integration tests belong to the parent.

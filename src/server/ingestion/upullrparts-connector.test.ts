@@ -24,6 +24,14 @@ function mockResponse(body: string, status = 200) {
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push({ url: String(input), init });
+      const params = new URLSearchParams(
+        typeof init?.body === "string" ? init.body : "",
+      );
+      if (params.get("apiAction") === "getMakes")
+        return Response.json(["Ford"]);
+      if (params.get("apiAction") === "getModels")
+        return Response.json(["FOCUS"]);
+      if (params.has("makes")) return Response.json(catalog);
       return new Response(body, { status });
     },
     { preconnect: originalFetch.preconnect },
@@ -51,7 +59,7 @@ describe("U Pull R Parts complete catalog", () => {
         (request) => request,
       ),
     );
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(3);
     expect(requests[0]).toMatchObject({
       url: UPULLRPARTS_API_URL,
       init: {
@@ -203,7 +211,7 @@ describe("U Pull R Parts complete catalog", () => {
       ),
     );
     expect(retry.count).toBe(3);
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(6);
   });
 
   test("propagates a yard callback failure before vehicle callbacks", async () => {
@@ -245,5 +253,81 @@ describe("U Pull R Parts complete catalog", () => {
       pagesProcessed: 0,
     });
     expect(requests).toHaveLength(0);
+  });
+
+  test("keeps original catalog ordering and accounting after reversed make partitions", async () => {
+    let requests = 0;
+    globalThis.fetch = Object.assign(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        requests++;
+        const params = new URLSearchParams(
+          typeof init?.body === "string" ? init.body : "",
+        );
+        if (params.get("apiAction") === "getMakes")
+          return Response.json(["Toyota", "Ford"]);
+        if (params.get("makes") === "Toyota")
+          return Response.json([catalog[2]]);
+        if (params.get("makes") === "Ford")
+          return Response.json([catalog[1], catalog[0]]);
+        return Response.json(catalog);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const emitted: UpullRPartsCanonicalVehicle[] = [];
+    const result = await Effect.runPromise(
+      streamUpullRPartsInventoryWithRequestGate(
+        {
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              expect(requests).toBe(4);
+              emitted.push(...batch);
+            }),
+        },
+        (request) => request,
+      ),
+    );
+    expect(emitted.map((row) => row.vin)).toEqual(
+      catalog.map((row) => row.VIN),
+    );
+    expect(emitted.map((row) => row.make)).toEqual(["Ford", "Ford", "Toyota"]);
+    expect(result).toMatchObject({
+      cursor: 1,
+      status: "complete",
+      count: 3,
+      accounting: {
+        recordsProcessed: 3,
+        recordsRejected: 0,
+        recordsExcluded: 0,
+        duplicateVehicles: 0,
+      },
+    });
+  });
+
+  test("counts unresolved makes while retaining the original inventory", async () => {
+    mockResponse(JSON.stringify(catalog));
+    const upstream = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const params = new URLSearchParams(
+          typeof init?.body === "string" ? init.body : "",
+        );
+        if (params.has("makes") || params.get("apiAction") === "getModels")
+          return Response.json([]);
+        return upstream(input, init);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const result = await Effect.runPromise(
+      streamUpullRPartsInventoryWithRequestGate(
+        { onBatch: () => Effect.void },
+        (request) => request,
+      ),
+    );
+    expect(result.count).toBe(3);
+    expect(result.accounting?.recordsRejected).toBe(0);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings?.[0]).toContain(
+      "retained 3 vehicles with make Other",
+    );
   });
 });

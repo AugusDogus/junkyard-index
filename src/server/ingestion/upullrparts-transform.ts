@@ -5,6 +5,7 @@ import {
   type UpullRPartsVehicle,
 } from "./upullrparts-client";
 import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
+import type { UpullRPartsMakeResolution } from "./upullrparts-makes";
 
 export type UpullRPartsCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
   source: "upullrparts";
@@ -25,6 +26,7 @@ function availableDate(value: string | null | undefined): string | null {
 export function transformUpullRPartsVehicle(
   record: UpullRPartsVehicle,
   yard: UpullRPartsYard,
+  make: UpullRPartsMakeResolution,
 ): UpullRPartsCanonicalVehicle | null {
   const vin = text(record.VIN)?.toUpperCase();
   const model = text(record.Model);
@@ -44,9 +46,7 @@ export function transformUpullRPartsVehicle(
     vin,
     source: "upullrparts",
     year,
-    // The provider does not return Make. Keep its model label intact rather
-    // than treating labels like FOCUS or MALIBU as manufacturers.
-    make: "Other",
+    make: make.status === "resolved" ? make.make : "Other",
     model,
     color: normalizeCanonicalColor(record.Color ?? null),
     stockNumber: text(record.StockNumber),
