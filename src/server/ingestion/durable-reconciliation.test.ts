@@ -109,6 +109,113 @@ function snapshot(runId: string, source: "row52" | "pyp", color: string) {
 }
 
 describe("bounded durable reconciliation", () => {
+  test("an observation-only return clears missing state, queues an index refresh, and resets the absence streak", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const repository = createDurableIngestionRepository(database, client);
+      const firstSeenAt = Date.now() - 86_400_000;
+      await client.execute({
+        sql: `insert into vehicle (vin, source, year, make, model, color, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values ('VIN-RETURNED', 'pullnsave', 2003, 'Chevrolet', 'Cavalier', 'Blue', 'PNS-10', 'Saved Yard', 'Mesa', 'Arizona', 'AZ', 33.43, -111.85, ?, ?, ?, 2)`,
+        args: [firstSeenAt, firstSeenAt, firstSeenAt],
+      });
+      await repository.initialize("run-returned");
+      await repository.checkpointChunk({
+        runId: "run-returned",
+        requestedCursor: { source: "pullnsave", page: 1 },
+        fetched: {
+          cursor: { source: "pullnsave", page: 2 },
+          status: "complete",
+          pagesProcessed: 1,
+          vehiclesProcessed: 0,
+          uniqueVehicles: 0,
+          duplicateVehicles: 0,
+          rejectedVehicles: 0,
+          errors: [],
+          vehicles: [],
+          yards: [],
+          observedVins: ["VIN-RETURNED"],
+        },
+      });
+      await client.execute(
+        "update ingestion_source_run set acceptance_status = 'accepted' where run_id = 'run-returned' and source = 'pullnsave'",
+      );
+      await client.execute(
+        "update ingestion_run set stage = 'reconcile_upsert', accepted_sources = '[\"pullnsave\"]' where id = 'run-returned'",
+      );
+      await reconcileDurableIngestionRun({
+        runId: "run-returned",
+        database,
+        batchClient: client,
+      });
+      await reconcileDurableIngestionRun({
+        runId: "run-returned",
+        database,
+        batchClient: client,
+      });
+      const returned = await client.execute(
+        "select missing_run_count, missing_since_at, first_seen_at, last_seen_at, color, location_name from vehicle where vin = 'VIN-RETURNED'",
+      );
+      expect(returned.rows[0]).toMatchObject({
+        missing_run_count: 0,
+        missing_since_at: null,
+        first_seen_at: firstSeenAt,
+        color: "Blue",
+        location_name: "Saved Yard",
+      });
+      expect(Number(returned.rows[0]?.last_seen_at)).toBeGreaterThan(
+        firstSeenAt,
+      );
+      expect(
+        (
+          await client.execute(
+            "select vin, change_type from vehicle_change_v2 where run_id = 'run-returned'",
+          )
+        ).rows.map(({ vin, change_type }) => ({ vin, change_type })),
+      ).toEqual([{ vin: "VIN-RETURNED", change_type: "upsert" }]);
+      await reconcileDurableIngestionRun({
+        runId: "run-returned",
+        database,
+        batchClient: client,
+      });
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle_change_v2 where run_id = 'run-returned'",
+          )
+        ).rows[0]?.count,
+      ).toBe(1);
+      expect((await repository.getRun("run-returned")).vehiclesUpserted).toBe(
+        1,
+      );
+
+      await client.execute(
+        "update ingestion_run set active_slot = null, status = 'success' where id = 'run-returned'",
+      );
+      await repository.initialize("run-absent-again");
+      await client.execute(
+        "update ingestion_source_run set acceptance_status = 'accepted' where run_id = 'run-absent-again' and source = 'pullnsave'",
+      );
+      await client.execute(
+        "update ingestion_run set stage = 'reconcile_missing', accepted_sources = '[\"pullnsave\"]' where id = 'run-absent-again'",
+      );
+      await reconcileDurableIngestionRun({
+        runId: "run-absent-again",
+        database,
+        batchClient: client,
+      });
+      expect(
+        (
+          await client.execute(
+            "select missing_run_count from vehicle where vin = 'VIN-RETURNED'",
+          )
+        ).rows[0]?.missing_run_count,
+      ).toBe(1);
+    } finally {
+      client.close();
+    }
+  });
   test("metadata failures do not age observed VINs toward deletion while absent vehicles still expire", async () => {
     const client = createClient({ url: ":memory:" });
     const originalFetch = globalThis.fetch;
