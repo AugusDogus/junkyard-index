@@ -260,3 +260,16 @@ or errors:
 ```sh
 bun run soak:sources -- --sources=upullrparts --cycles=1
 ```
+
+## Review checkpoint
+
+Round 1 found explicit partial-response handling and unnecessary display-field
+validation in supporting make partitions. Commits `fb947af` and `1b7bbe8` fix
+those independently, with regressions for all request kinds and join fields.
+
+Round 2 reviewed the complete branch at `1b7bbe8`; correctness/security and
+maintainability passes both returned no actionable findings. The full suite
+passed 576 tests, and lint, typecheck, and branch whitespace checks passed.
+The final read-only soak repeated 3,303 vehicles and 114 requests in 170.3 seconds,
+with no warnings/errors. Production publication and external alert delivery
+were not invoked.
