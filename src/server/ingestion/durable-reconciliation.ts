@@ -516,6 +516,15 @@ async function runMissingBatch(params: {
   const presentVins = new Set(
     [...presentRows, ...observedRows].map((row) => row.vin),
   );
+  const observedVins = [...new Set(observedRows.map((row) => row.vin))];
+  const observedSet = new Set(observedVins);
+  const restoredVins = rows
+    .filter(
+      (row) =>
+        observedSet.has(row.vin) &&
+        (row.missingSinceAt !== null || (row.missingRunCount ?? 0) !== 0),
+    )
+    .map((row) => row.vin);
   const acceptedSources = new Set(params.acceptedSources);
   const transitions = planMissingVehicleTransitions({
     presentVins,
@@ -534,10 +543,29 @@ async function runMissingBatch(params: {
     runId: params.runId,
     stage: "reconcile_missing",
     cursor: params.cursor,
-    changes: transitions.map(({ vin, changeType }) => ({ vin, changeType })),
+    changes: [
+      ...transitions.map(({ vin, changeType }) => ({ vin, changeType })),
+      ...restoredVins.map((vin) => ({ vin, changeType: "upsert" as const })),
+    ],
     now,
   });
   if (changes) statements.push(changes);
+  if (observedVins.length > 0) {
+    statements.push({
+      sql: `
+        update vehicle
+        set missing_since_at = null, missing_run_count = 0, last_seen_at = ?
+        where vin in (${observedVins.map(() => "?").join(", ")})
+          and ${guardSql("reconcile_missing")}
+      `,
+      args: [
+        params.runTimestamp.getTime(),
+        ...observedVins,
+        params.runId,
+        params.cursor,
+      ],
+    });
+  }
   const missingUpdate = missingUpdateStatement({
     runId: params.runId,
     cursor: params.cursor,
@@ -563,6 +591,7 @@ async function runMissingBatch(params: {
                 else 'project_changes'
               end,
               reconciliation_cursor = null,
+              vehicles_upserted = coalesce(vehicles_upserted, 0) + ?,
               vehicles_deleted = coalesce(vehicles_deleted, 0) + ?,
               inventory_outcome = case
                 when (select count(*) from ingestion_source_run
@@ -586,6 +615,7 @@ async function runMissingBatch(params: {
       : `
           update ingestion_run
           set reconciliation_cursor = ?,
+              vehicles_upserted = coalesce(vehicles_upserted, 0) + ?,
               vehicles_deleted = coalesce(vehicles_deleted, 0) + ?,
               last_progress_at = ?
           where id = ?
@@ -595,8 +625,23 @@ async function runMissingBatch(params: {
             and reconciliation_cursor is ?
         `,
     args: finishing
-      ? [deletedCount, params.runId, now, now, params.runId, params.cursor]
-      : [nextCursor, deletedCount, now, params.runId, params.cursor],
+      ? [
+          restoredVins.length,
+          deletedCount,
+          params.runId,
+          now,
+          now,
+          params.runId,
+          params.cursor,
+        ]
+      : [
+          nextCursor,
+          restoredVins.length,
+          deletedCount,
+          now,
+          params.runId,
+          params.cursor,
+        ],
   });
   const results = await params.batchClient.batch(statements, "write");
   const checkpoint = results[checkpointIndex];

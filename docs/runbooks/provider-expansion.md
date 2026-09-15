@@ -52,6 +52,8 @@ Counts and timings are observations, not guarantees.
   `vehicle_observation` with the same cursor guard as full snapshots. Missing
   reconciliation considers that evidence only for accepted sources in the current
   run, so a metadata outage cannot age a still-observed VIN toward deletion.
+  A returning observed VIN clears earlier missing flags and refreshes its search
+  record while preserving stored vehicle metadata and its original first-seen date.
   These observations are not published as vehicles and do not inflate accepted
   snapshot counts. They are cleaned up with snapshots after the run is released.
   Discovered yard metadata is reloaded from the persistent yard table in later
