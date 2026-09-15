@@ -1,11 +1,18 @@
-import { Data, Effect, Either, Schema } from "effect";
+import { Data, Effect, Either, RateLimiter, Schema } from "effect";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import {
   fetchUpullRPartsCatalog,
   UpullRPartsVehicleSchema,
+  UPULLRPARTS_MAX_CATALOG_RECORDS,
+  type UpullRPartsVehicle,
+  type UpullRPartsProviderError,
 } from "./upullrparts-client";
+import {
+  loadUpullRPartsMakeResolver,
+  type UpullRPartsMakeError,
+} from "./upullrparts-makes";
 import {
   transformUpullRPartsVehicle,
   type UpullRPartsCanonicalVehicle,
@@ -23,13 +30,13 @@ export type UpullRPartsStreamResult = Omit<
   "source"
 > & { source: "upullrparts" };
 export const UPULLRPARTS_BATCH_SIZE = 250;
-export const UPULLRPARTS_MAX_CATALOG_RECORDS = 20_000;
+export { UPULLRPARTS_MAX_CATALOG_RECORDS } from "./upullrparts-client";
 
 export class UpullRPartsStreamError extends Data.TaggedError(
   "UpullRPartsStreamError",
 )<{ message: string }> {}
 
-interface UpullRPartsStreamOptions<E, R> {
+export interface UpullRPartsStreamOptions<E, R> {
   startCursor?: UpullRPartsCursor;
   onBatch: (
     vehicles: UpullRPartsCanonicalVehicle[],
@@ -40,7 +47,11 @@ interface UpullRPartsStreamOptions<E, R> {
 export function streamUpullRPartsInventoryWithRequestGate<E, R>(
   options: UpullRPartsStreamOptions<E, R>,
   requestGate: ProviderRequestGate,
-) {
+): Effect.Effect<
+  UpullRPartsStreamResult,
+  UpullRPartsProviderError | UpullRPartsMakeError | UpullRPartsStreamError | E,
+  R
+> {
   return Effect.gen(function* () {
     const cursor = options.startCursor ?? 0;
     if (cursor !== 0 && cursor !== 1)
@@ -79,6 +90,11 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
     const unresolved = new Map<number, number>();
     const reported = new Set<string>();
     const vehicles: UpullRPartsCanonicalVehicle[] = [];
+    const acceptedRecords: {
+      record: UpullRPartsVehicle;
+      yard: UpullRPartsYard;
+    }[] = [];
+    const unresolvedMakes = new Map<string, number>();
     const accounting = {
       recordsProcessed: records.length,
       recordsExcluded: 0,
@@ -101,17 +117,7 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
         unresolved.set(record.Store, (unresolved.get(record.Store) ?? 0) + 1);
         continue;
       }
-      const vehicle = transformUpullRPartsVehicle(record, yard);
-      if (!vehicle) {
-        accounting.recordsRejected += 1;
-        continue;
-      }
-      if (seen.has(vehicle.vin)) {
-        accounting.duplicateVehicles += 1;
-        continue;
-      }
-      seen.add(vehicle.vin);
-      vehicles.push(vehicle);
+      acceptedRecords.push({ record, yard });
     }
     // There is no upstream total/next link. A missing known store is not
     // terminal completeness evidence and must not retire its prior inventory.
@@ -122,6 +128,28 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       return yield* new UpullRPartsStreamError({
         message: `U Pull R Parts catalog is missing known yards ${missing.map((yard) => yard.code).join(", ")}. Verify the unfiltered response and yard directory before retrying; no batches were emitted.`,
       });
+    const resolveMake = yield* loadUpullRPartsMakeResolver(
+      acceptedRecords.map(({ record }) => record),
+      requestGate,
+    );
+    for (const { record, yard } of acceptedRecords) {
+      const make = resolveMake(record);
+      const vehicle = transformUpullRPartsVehicle(record, yard, make);
+      if (!vehicle) {
+        accounting.recordsRejected += 1;
+        continue;
+      }
+      if (seen.has(vehicle.vin)) {
+        accounting.duplicateVehicles += 1;
+        continue;
+      }
+      seen.add(vehicle.vin);
+      vehicles.push(vehicle);
+      if (make.status === "unresolved") {
+        const reason = `${vehicle.model}: ${make.reason}`;
+        unresolvedMakes.set(reason, (unresolvedMakes.get(reason) ?? 0) + 1);
+      }
+    }
     if (options.onYards) yield* options.onYards([...UPULLRPARTS_YARDS]);
     for (
       let offset = 0;
@@ -136,6 +164,12 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       ([store, count]) =>
         `U Pull R Parts yard ${store}: skipped ${count} vehicles because yard coordinates are unresolved. Observed VINs preserve known inventory; verify public metadata before adding this yard.`,
     );
+    warnings.push(
+      ...[...unresolvedMakes].map(
+        ([reason, count]) =>
+          `U Pull R Parts: retained ${count} vehicles with make Other because ${reason}. No manufacturer was inferred from model names or VINs.`,
+      ),
+    );
     for (const warning of warnings) yield* Effect.logWarning(warning);
     return {
       ...result,
@@ -145,14 +179,31 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       warnings,
       observedVins: [...observedVins],
     };
-  });
+  }).pipe(
+    Effect.timeoutFail({
+      duration: "4 minutes",
+      onTimeout: () =>
+        new UpullRPartsStreamError({
+          message:
+            "U Pull R Parts catalog and make resolution exceeded the four-minute checkpoint budget. Retry from cursor 0; no terminal checkpoint was returned.",
+        }),
+    }),
+  );
 }
 
 export function streamUpullRPartsInventory<E, R>(
   options: UpullRPartsStreamOptions<E, R>,
-) {
+): Effect.Effect<
+  UpullRPartsStreamResult,
+  UpullRPartsProviderError | UpullRPartsMakeError | UpullRPartsStreamError | E,
+  R
+> {
   // Includes retries, keeping the single-request protocol polite on failure.
-  return streamUpullRPartsInventoryWithRequestGate(options, (request) =>
-    Effect.sleep("1500 millis").pipe(Effect.zipRight(request)),
+  return Effect.scoped(
+    RateLimiter.make({ limit: 1, interval: "1500 millis" }).pipe(
+      Effect.flatMap((requestGate) =>
+        streamUpullRPartsInventoryWithRequestGate(options, requestGate),
+      ),
+    ),
   );
 }
