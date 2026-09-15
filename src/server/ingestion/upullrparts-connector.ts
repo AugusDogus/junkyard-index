@@ -109,7 +109,8 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       }
       const record = parsed.right;
       const yard = findUpullRPartsYard(record.Store);
-      if (yard) reported.add(yard.code);
+      const usable = isUsableUpullRPartsVehicle(record);
+      if (yard && usable) reported.add(yard.code);
       if (!yard || yard.lat === null || yard.lng === null) {
         accounting.recordsExcluded += 1;
         const vin = record.VIN?.trim().toUpperCase();
@@ -117,7 +118,7 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
         unresolved.set(record.Store, (unresolved.get(record.Store) ?? 0) + 1);
         continue;
       }
-      if (!isUsableUpullRPartsVehicle(record)) {
+      if (!usable) {
         accounting.recordsRejected += 1;
         continue;
       }
