@@ -53,6 +53,7 @@ function mismatchedFetchFromBoundary(
 
 const TEST_SCHEMA = `
 ${readFileSync(new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url), "utf8")}
+${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.meta.url), "utf8")}
   create table ingestion_run (
     id text primary key, source text not null, status text not null,
     schedule_key text, workflow_run_id text, stage text not null default 'sources',
@@ -142,6 +143,80 @@ function makeVehicle(vin = "2MEFM75W4XX703938"): CanonicalVehicle {
 }
 
 describe("durable ingestion repository", () => {
+  test("checkpoints presence evidence atomically, ignores stale replays, and cleans up only released runs", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+      );
+      await repository.initialize("run-observed");
+      const fetched: FetchedDurableSourceChunk<"pullnsave"> = {
+        cursor: { source: "pullnsave", page: 2 },
+        status: "paused",
+        pagesProcessed: 1,
+        vehiclesProcessed: 0,
+        uniqueVehicles: 0,
+        duplicateVehicles: 0,
+        rejectedVehicles: 0,
+        errors: [],
+        vehicles: [],
+        yards: [],
+        observedVins: ["vin-present", "VIN-PRESENT"],
+      };
+      const checkpoint = {
+        runId: "run-observed",
+        requestedCursor: { source: "pullnsave", page: 1 } as const,
+        fetched,
+      };
+      await repository.checkpointChunk(checkpoint);
+      await repository.checkpointChunk({
+        ...checkpoint,
+        fetched: { ...fetched, observedVins: ["VIN-STALE-REPLAY"] },
+      });
+      expect(
+        (await client.execute("select vin from vehicle_observation")).rows.map(
+          (row) => row.vin,
+        ),
+      ).toEqual(["VIN-PRESENT"]);
+      await repository.cleanupStaleSnapshots();
+      await repository.cleanupBatch("run-observed");
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle_observation",
+          )
+        ).rows[0]?.count,
+      ).toBe(1);
+
+      await expect(
+        repository.checkpointChunk({
+          runId: "run-observed",
+          requestedCursor: fetched.cursor,
+          fetched: {
+            ...fetched,
+            cursor: { source: "pullnsave", page: 3 },
+            observedVins: [""],
+          },
+        }),
+      ).rejects.toThrow("invalid observed VIN");
+      await client.execute(
+        "update ingestion_run set active_slot = null, status = 'success' where id = 'run-observed'",
+      );
+      await repository.cleanupBatch("run-observed");
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle_observation",
+          )
+        ).rows[0]?.count,
+      ).toBe(0);
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
   test("checkpoints new provider fixtures and yard metadata atomically without duplicating replays", async () => {
     const pnsRows = Schema.decodeUnknownSync(
       Schema.Array(PullNSaveVehicleSchema),

@@ -399,6 +399,19 @@ export const ingestionSourceRun = sqliteTable(
   ],
 );
 
+// Presence evidence for inventory records that cannot yet become full snapshots.
+export const vehicleObservation = sqliteTable(
+  "vehicle_observation",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => ingestionRun.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    vin: text("vin").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.runId, table.source, table.vin] })],
+);
+
 export const vehicleSnapshot = sqliteTable(
   "vehicle_snapshot",
   {

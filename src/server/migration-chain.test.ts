@@ -88,6 +88,13 @@ describe("migration chain", () => {
         "select name from sqlite_master where type = 'table' and name = 'search_usage'",
       );
       expect(retiredSearchUsage.rows).toHaveLength(0);
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle_observation",
+          )
+        ).rows[0]?.count,
+      ).toBe(0);
 
       const row52Exclusions = await client.execute(
         "select location_id, reason from row52_yard_exclusion order by location_id",

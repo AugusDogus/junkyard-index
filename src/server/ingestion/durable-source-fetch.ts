@@ -14,6 +14,9 @@ import {
   type DurableIngestionSource,
 } from "./durable-source";
 import { streamPullNSaveInventory } from "./pullnsave-connector";
+import { loadCachedPullNSaveYards } from "./pullnsave-yard-directory";
+import { Database } from "./context";
+import { PersistenceError } from "./errors";
 import { streamPullapartInventory } from "./pullapart-connector";
 import { loadPullapartCachedEnrichments } from "./pullapart-enrichment-cache";
 import { streamPypInventory } from "./pyp-connector";
@@ -63,6 +66,7 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
     errors: result.errors,
     vehicles: [...vehiclesByVin.values()],
     yards: [...yardsByCode.values()],
+    observedVins: result.observedVins ?? [],
   };
 }
 
@@ -175,11 +179,23 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
   pullnsave: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
-        streamPullNSaveInventory({
-          onBatch: context.onBatch,
-          onYards: context.onYards,
-          startCursor: cursor.page,
-          maxPages: context.maxPages,
+        Effect.gen(function* () {
+          const database = yield* Database;
+          const cachedYards = yield* Effect.tryPromise({
+            try: () => loadCachedPullNSaveYards(database),
+            catch: (cause) =>
+              new PersistenceError({
+                operation: "pullnsave.yards.load",
+                cause,
+              }),
+          });
+          return yield* streamPullNSaveInventory({
+            cachedYards,
+            onBatch: context.onBatch,
+            onYards: context.onYards,
+            startCursor: cursor.page,
+            maxPages: context.maxPages,
+          });
         }),
       ),
       (page) => ({ source: "pullnsave", page }),

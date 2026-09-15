@@ -57,6 +57,13 @@
       "when": 1788994479621,
       "tag": "0007_yard_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789447332716,
+      "tag": "0008_vehicle_observations",
+      "breakpoints": true
     }
   ]
 }

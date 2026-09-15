@@ -1,20 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
-import { createPullNSaveYardResolver } from "./pullnsave-yard-directory";
-import type { PullNSaveVehicle } from "./pullnsave-client";
+import {
+  createPullNSaveYardResolver,
+  loadCachedPullNSaveYards,
+} from "./pullnsave-yard-directory";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { yard } from "~/schema";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
-const vehicle: PullNSaveVehicle = {
-  astStoreNumber: 10,
-  stockId: "STK-NEW",
-  vin: "1G1JF52F437297781",
-  year: 2003,
-  make: "CHEVROLET",
-  model: "CAVALIER",
-};
 const directoryRow = {
   astStoreNumber: 10,
   yardName: "Pull N Save - New Yard",
@@ -68,7 +65,7 @@ describe("Pull-N-Save runtime yard discovery", () => {
     const resolve = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
     );
-    const result = await Effect.runPromise(resolve(vehicle));
+    const result = await Effect.runPromise(resolve(10));
     expect(result).toMatchObject({
       status: "resolved",
       yard: {
@@ -85,9 +82,7 @@ describe("Pull-N-Save runtime yard discovery", () => {
       },
       metadata: { source: "pullnsave", code: "PNS-10", lat: null, lng: null },
     });
-    expect(
-      await Effect.runPromise(resolve({ ...vehicle, stockId: "STK-NEXT" })),
-    ).toEqual(result);
+    expect(await Effect.runPromise(resolve(10))).toEqual(result);
     expect(requests).toHaveLength(3);
     const query = requests.find((request) =>
       request.url.includes("admin-ajax.php"),
@@ -95,6 +90,9 @@ describe("Pull-N-Save runtime yard discovery", () => {
     expect(query?.get("action")).toBe("pns_get_inventory_assets");
     expect(query?.get("yard[]")).toBe("10");
     expect(query?.get("security")).toBe("fixture-nonce");
+    expect(query?.get("yearStart")).toBe("0");
+    expect(query?.get("yearEnd")).toBe("0");
+    expect(query?.get("make")).toBe("");
   });
 
   test("store 8 is discoverable when the public response identifies it", async () => {
@@ -102,12 +100,43 @@ describe("Pull-N-Save runtime yard discovery", () => {
     const resolve = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
     );
-    expect(
-      await Effect.runPromise(resolve({ ...vehicle, astStoreNumber: 8 })),
-    ).toMatchObject({
+    expect(await Effect.runPromise(resolve(8))).toMatchObject({
       status: "resolved",
       yard: { yardNumber: 8, code: "PNS-8" },
     });
+  });
+
+  test("reloads persisted discoveries when the public directory is unavailable in a later run", async () => {
+    installDirectory([directoryRow]);
+    const firstResolver = await Effect.runPromise(
+      createPullNSaveYardResolver((request) => request),
+    );
+    const discovered = await Effect.runPromise(firstResolver(10));
+    if (discovered.status !== "resolved")
+      throw new Error("Expected discovered yard fixture");
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(
+        await Bun.file(
+          new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
+        ).text(),
+      );
+      const database = drizzle(client);
+      await database
+        .insert(yard)
+        .values({ ...discovered.metadata, updatedAt: new Date() });
+      const requests = installDirectory([], 403);
+      const cached = await loadCachedPullNSaveYards(database);
+      const nextResolver = await Effect.runPromise(
+        createPullNSaveYardResolver((request) => request, cached),
+      );
+      expect(await Effect.runPromise(nextResolver(10))).toEqual(discovered);
+      expect(requests.map((request) => request.url)).toEqual([
+        "https://api.zippopotam.us/us/85201",
+      ]);
+    } finally {
+      client.close();
+    }
   });
 
   test("does not guess metadata from another yard and retries missing metadata in the next chunk", async () => {
@@ -119,17 +148,17 @@ describe("Pull-N-Save runtime yard discovery", () => {
     const resolve = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
     );
-    expect(await Effect.runPromise(resolve(vehicle))).toMatchObject({
+    expect(await Effect.runPromise(resolve(10))).toMatchObject({
       status: "unresolved",
       yardNumber: 10,
     });
-    await Effect.runPromise(resolve(vehicle));
+    await Effect.runPromise(resolve(10));
     expect(requests).toHaveLength(2);
     installDirectory([directoryRow]);
     const nextChunk = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
     );
-    expect(await Effect.runPromise(nextChunk(vehicle))).toMatchObject({
+    expect(await Effect.runPromise(nextChunk(10))).toMatchObject({
       status: "resolved",
     });
   });
@@ -139,11 +168,12 @@ describe("Pull-N-Save runtime yard discovery", () => {
     const resolve = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
     );
-    const result = await Effect.runPromise(resolve(vehicle));
+    const result = await Effect.runPromise(resolve(10));
     expect(result).toMatchObject({ status: "unresolved", yardNumber: 10 });
     if (result.status === "unresolved") expect(result.reason).toContain("403");
-    expect(
-      await Effect.runPromise(resolve({ ...vehicle, astStoreNumber: 1 })),
-    ).toMatchObject({ status: "resolved", yard: { code: "PNS-SLC" } });
+    expect(await Effect.runPromise(resolve(1))).toMatchObject({
+      status: "resolved",
+      yard: { code: "PNS-SLC" },
+    });
   });
 });

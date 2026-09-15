@@ -92,6 +92,7 @@ describe("Pull-N-Save catalog streaming", () => {
     expect(result.errors).toEqual([]);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings?.[0]).toContain("yard 99: skipped 1 vehicles");
+    expect(result.observedVins).toEqual(["1G1JF52F437297781"]);
   });
   test("ingests a newly discovered yard alongside the existing yards", async () => {
     mockSearch(
@@ -99,6 +100,14 @@ describe("Pull-N-Save catalog streaming", () => {
         [
           1,
           [
+            {
+              astStoreNumber: 10,
+              stockId: "STK-NO-YEAR",
+              vin: "VIN-NO-YEAR",
+              year: null,
+              make: "CHEVROLET",
+              model: "CAVALIER",
+            },
             {
               astStoreNumber: 10,
               stockId: "STK-NEW",
@@ -173,6 +182,10 @@ describe("Pull-N-Save catalog streaming", () => {
       count: 1,
       errors: [],
       warnings: [],
+    });
+    expect(result.accounting).toMatchObject({
+      recordsExcluded: 0,
+      recordsRejected: 1,
     });
     expect(vehicles[0]).toMatchObject({
       vin: "1G1JF52F437297781",

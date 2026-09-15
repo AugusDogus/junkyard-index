@@ -4,6 +4,7 @@ import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { Yard } from "~/lib/yard";
 import { yardUpsertStatement } from "./yard-checkpoint";
+import { observationInsertStatement } from "./observation-checkpoint";
 import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
 import type {
   DurableSourceChunkResult,
@@ -435,6 +436,18 @@ export function createDurableIngestionRepository(
         }
         return parsed.data;
       });
+      const observedVins = [
+        ...new Set(
+          (params.fetched.observedVins ?? []).map((vin) => {
+            if (typeof vin !== "string" || !vin.trim()) {
+              throw new Error(
+                `Cannot checkpoint an empty or invalid observed VIN for ${source}. No checkpoint data was written.`,
+              );
+            }
+            return vin.trim().toUpperCase();
+          }),
+        ),
+      ];
       const id = sourceRunId(params.runId, source);
       const [current] = await database
         .select()
@@ -514,6 +527,20 @@ export function createDurableIngestionRepository(
         );
       }
 
+      for (
+        let start = 0;
+        start < observedVins.length;
+        start += SNAPSHOT_WRITE_BATCH_SIZE
+      ) {
+        statements.push(
+          observationInsertStatement({
+            runId: params.runId,
+            source,
+            expectedCursor,
+            vins: observedVins.slice(start, start + SNAPSHOT_WRITE_BATCH_SIZE),
+          }),
+        );
+      }
       const checkpointStatementIndex = statements.length;
       statements.push({
         sql: `
@@ -799,6 +826,17 @@ export function createDurableIngestionRepository(
         [
           {
             sql: `
+              delete from vehicle_observation where rowid in (
+                select observation.rowid from vehicle_observation observation
+                join ingestion_run run on run.id = observation.run_id
+                where observation.run_id = ? and run.active_slot is null
+                limit ?
+              )
+            `,
+            args: [runId, CLEANUP_BATCH_SIZE],
+          },
+          {
+            sql: `
               delete from vehicle_snapshot
               where rowid in (
                 select snapshot.rowid
@@ -855,6 +893,14 @@ export function createDurableIngestionRepository(
     },
 
     async cleanupStaleSnapshots(): Promise<void> {
+      await database.run(sql`
+        delete from vehicle_observation where rowid in (
+          select observation.rowid from vehicle_observation observation
+          join ingestion_run run on run.id = observation.run_id
+          where run.active_slot is null
+          limit ${CLEANUP_BATCH_SIZE}
+        )
+      `);
       await database.run(sql`
         delete from vehicle_snapshot
         where rowid in (
