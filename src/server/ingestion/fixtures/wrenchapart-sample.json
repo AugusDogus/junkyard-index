@@ -1,0 +1,35 @@
+{
+  "location": {
+    "id": 2,
+    "name": "Austin",
+    "slug": "austin",
+    "street": "5055 Hwy 71 East",
+    "city": "Del Valle",
+    "state": "TX",
+    "zip": "78617",
+    "phone": "5125016946",
+    "geoLat": 30.189065919182337,
+    "geoLng": -97.56529557236925
+  },
+  "vehicle": {
+    "yard": 2,
+    "modelYear": 2010,
+    "make": { "id": 38, "name": "NISSAN" },
+    "model": {
+      "id": 633,
+      "name": "MAXIMA",
+      "make": { "id": 38, "name": "NISSAN" },
+      "makeId": 38
+    },
+    "photo": "https://storage.googleapis.com/wrench-car-photos/v1%2F2%2F1N4AA5AP3AC800856%2F1789153586103.png",
+    "vin": "1N4AA5AP3AC800856",
+    "color": "MAROON",
+    "stockNumber": "AWAP084120",
+    "dateAdded": "2026-09-14T13:37:04Z",
+    "row": {
+      "id": 17,
+      "latitude": "30.189883228828364",
+      "longitude": "-97.56593060492821"
+    }
+  }
+}
