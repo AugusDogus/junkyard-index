@@ -9,7 +9,6 @@
  *   bun run soak:sources -- --sources=row52,autorecycler --max-pages=20
  *   bun run soak:sources -- --sources=all --cycles=2 --pause-seconds=60
  */
-import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,6 +43,7 @@ import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
+import { SourceSoakMetrics } from "./source-soak-metrics";
 
 interface SoakConfig {
   sources: IngestionSource[];
@@ -52,12 +52,6 @@ interface SoakConfig {
   pauseSeconds: number;
   pullapartRequestsPerSecond: number | undefined;
   gopullitIntervalMs: number | undefined;
-}
-
-interface RequestMetrics {
-  requests: number;
-  statuses: Map<number, number>;
-  networkErrors: number;
 }
 
 interface SourceResult {
@@ -79,8 +73,7 @@ const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set([
   "pyp",
   "upullitdavie",
 ]);
-const sourceContext = new AsyncLocalStorage<IngestionSource>();
-const requestMetrics = new Map<IngestionSource, RequestMetrics>();
+const requestMetrics = new SourceSoakMetrics();
 
 function positiveInteger(value: string, flag: string): number {
   const parsed = Number.parseInt(value, 10);
@@ -186,47 +179,6 @@ Options:
   };
 }
 
-function metricsFor(source: IngestionSource): RequestMetrics {
-  const existing = requestMetrics.get(source);
-  if (existing) return existing;
-  const created: RequestMetrics = {
-    requests: 0,
-    statuses: new Map(),
-    networkErrors: 0,
-  };
-  requestMetrics.set(source, created);
-  return created;
-}
-
-function installFetchMetrics(): () => void {
-  const originalFetch = globalThis.fetch;
-  const trackedFetch = Object.assign(
-    async (...args: Parameters<typeof fetch>) => {
-      const source = sourceContext.getStore();
-      if (!source) return originalFetch(...args);
-
-      const metrics = metricsFor(source);
-      metrics.requests += 1;
-      try {
-        const response = await originalFetch(...args);
-        metrics.statuses.set(
-          response.status,
-          (metrics.statuses.get(response.status) ?? 0) + 1,
-        );
-        return response;
-      } catch (error) {
-        metrics.networkErrors += 1;
-        throw error;
-      }
-    },
-    { preconnect: originalFetch.preconnect },
-  );
-  globalThis.fetch = trackedFetch;
-  return () => {
-    globalThis.fetch = originalFetch;
-  };
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -267,7 +219,7 @@ async function main(): Promise<void> {
     );
   `);
   const localDatabase = drizzle(localClient);
-  const restoreFetch = installFetchMetrics();
+  const restoreFetch = requestMetrics.installFetchMetrics();
   const allResults: SourceResult[] = [];
   const startedAt = Date.now();
   const heartbeat = setInterval(() => {
@@ -281,222 +233,219 @@ async function main(): Promise<void> {
     source: IngestionSource,
     cycle: number,
   ): Promise<void> => {
-    await sourceContext.run(source, async () => {
-      const before = metricsFor(source);
-      const requestsBefore = before.requests;
-      const rateLimitsBefore = before.statuses.get(429) ?? 0;
-      const networkErrorsBefore = before.networkErrors;
-      let batches = 0;
-      let batchVehicles = 0;
-      const onBatch = (vehicles: CanonicalVehicle[]) =>
-        Effect.sync(() => {
-          batches += 1;
-          batchVehicles += vehicles.length;
-        });
-      const sourceStartedAt = Date.now();
-      console.log(
-        `[soak] cycle=${cycle} source=${source} started maxPages=${config.maxPages ?? "full"}`,
+    const before = requestMetrics.metricsFor(source);
+    const requestsBefore = before.requests;
+    const rateLimitsBefore = before.statuses.get(429) ?? 0;
+    const networkErrorsBefore = before.networkErrors;
+    let batches = 0;
+    let batchVehicles = 0;
+    const onBatch = (vehicles: CanonicalVehicle[]) =>
+      Effect.sync(() => {
+        batches += 1;
+        batchVehicles += vehicles.length;
+      });
+    const sourceStartedAt = Date.now();
+    console.log(
+      `[soak] cycle=${cycle} source=${source} started maxPages=${config.maxPages ?? "full"}`,
+    );
+
+    const runProgram = <A, E>(
+      program: Effect.Effect<A, E, Config | Database | Scope.Scope>,
+    ): Promise<A> =>
+      requestMetrics.runPromise(
+        source,
+        program.pipe(
+          Effect.scoped,
+          Effect.provideService(Config, {
+            betterStackHeartbeatUrl: undefined,
+            hyperbrowserApiKey: hyperbrowserApiKey ?? "unused",
+          }),
+          Effect.provideService(Database, localDatabase),
+        ),
       );
 
-      const runProgram = <A, E>(
-        program: Effect.Effect<A, E, Config | Database | Scope.Scope>,
-      ): Promise<A> =>
-        Effect.runPromise(
-          program.pipe(
-            Effect.scoped,
-            Effect.provideService(Config, {
-              betterStackHeartbeatUrl: undefined,
-              hyperbrowserApiKey: hyperbrowserApiKey ?? "unused",
-            }),
-            Effect.provideService(Database, localDatabase),
-          ),
-        );
-
-      try {
-        const sourceResult = await (() => {
-          switch (source) {
-            case "wrenchapart":
+    try {
+      const sourceResult = await (() => {
+        switch (source) {
+          case "wrenchapart":
+            return runProgram(
+              streamWrenchApartInventory({
+                onBatch,
+                maxPages: config.maxPages ?? Number.MAX_SAFE_INTEGER,
+              }),
+            );
+          case "upullrparts":
+            return runProgram(streamUpullRPartsInventory({ onBatch }));
+          case "pullnsave":
+            return runProgram(
+              streamPullNSaveInventory({
+                onBatch,
+                maxPages: config.maxPages,
+              }),
+            );
+          case "tearapart":
+            return runProgram(
+              streamTapSiteInventory({
+                config: TEARAPART_SITE_CONFIG,
+                onBatch,
+                maxPages: config.maxPages,
+              }),
+            );
+          case "row52":
+            return runProgram(
+              streamRow52Inventory({
+                onBatch,
+                cursor: {
+                  source: "row52",
+                  afterLocationId: 0,
+                  locationIds: [],
+                  skip: 0,
+                },
+                maxPages: config.maxPages,
+              }),
+            );
+          case "pyp":
+            return runProgram(
+              streamPypInventory({
+                onBatch,
+                startPage: 1,
+                maxPages: config.maxPages,
+              }),
+            );
+          case "autorecycler":
+            return runProgram(
+              streamAutorecyclerInventory({
+                onBatch,
+                startFrom: 0,
+                maxPages: config.maxPages,
+              }),
+            );
+          case "pullapart":
+            if (config.pullapartRequestsPerSecond === undefined) {
               return runProgram(
-                streamWrenchApartInventory({
+                streamPullapartInventory({
                   onBatch,
-                  maxPages: config.maxPages ?? Number.MAX_SAFE_INTEGER,
-                }),
-              );
-            case "upullrparts":
-              return runProgram(streamUpullRPartsInventory({ onBatch }));
-            case "pullnsave":
-              return runProgram(
-                streamPullNSaveInventory({
-                  onBatch,
-                  maxPages: config.maxPages,
-                }),
-              );
-            case "tearapart":
-              return runProgram(
-                streamTapSiteInventory({
-                  config: TEARAPART_SITE_CONFIG,
-                  onBatch,
-                  maxPages: config.maxPages,
-                }),
-              );
-            case "row52":
-              return runProgram(
-                streamRow52Inventory({
-                  onBatch,
-                  cursor: {
-                    source: "row52",
-                    afterLocationId: 0,
-                    locationIds: [],
-                    skip: 0,
+                  startAfter: {
+                    source: "pullapart",
+                    locationId: 0,
+                    makeId: 0,
                   },
                   maxPages: config.maxPages,
                 }),
               );
-            case "pyp":
-              return runProgram(
-                streamPypInventory({
-                  onBatch,
-                  startPage: 1,
-                  maxPages: config.maxPages,
-                }),
-              );
-            case "autorecycler":
-              return runProgram(
-                streamAutorecyclerInventory({
-                  onBatch,
-                  startFrom: 0,
-                  maxPages: config.maxPages,
-                }),
-              );
-            case "pullapart":
-              if (config.pullapartRequestsPerSecond === undefined) {
-                return runProgram(
-                  streamPullapartInventory({
-                    onBatch,
-                    startAfter: {
-                      source: "pullapart",
-                      locationId: 0,
-                      makeId: 0,
-                    },
-                    maxPages: config.maxPages,
-                  }),
-                );
-              }
-              return runProgram(
-                Effect.scoped(
-                  RateLimiter.make({
-                    limit: config.pullapartRequestsPerSecond,
-                    interval: "1 second",
-                  }).pipe(
-                    Effect.flatMap((requestGate) =>
-                      streamPullapartInventoryWithRequestGate(
-                        {
-                          onBatch,
-                          startAfter: {
-                            source: "pullapart",
-                            locationId: 0,
-                            makeId: 0,
-                          },
-                          maxPages: config.maxPages,
+            }
+            return runProgram(
+              Effect.scoped(
+                RateLimiter.make({
+                  limit: config.pullapartRequestsPerSecond,
+                  interval: "1 second",
+                }).pipe(
+                  Effect.flatMap((requestGate) =>
+                    streamPullapartInventoryWithRequestGate(
+                      {
+                        onBatch,
+                        startAfter: {
+                          source: "pullapart",
+                          locationId: 0,
+                          makeId: 0,
                         },
-                        requestGate,
-                      ),
+                        maxPages: config.maxPages,
+                      },
+                      requestGate,
                     ),
                   ),
                 ),
-              );
-            case "upullitne":
+              ),
+            );
+          case "upullitne":
+            return runProgram(
+              streamTapInventory({
+                onBatch,
+                startStoreIndex: 0,
+                maxPages: config.maxPages,
+              }),
+            );
+          case "upullitdavie":
+            return runProgram(
+              streamUpullitDavieInventory({
+                onBatch,
+                startCursor: UpullitDavieCursorState.initial,
+                maxPages: config.maxPages,
+              }),
+            );
+          case "gopullit":
+            if (config.gopullitIntervalMs === undefined) {
               return runProgram(
-                streamTapInventory({
+                streamGopullitInventory({
                   onBatch,
-                  startStoreIndex: 0,
+                  startCursor: GopullitCursorState.initial,
                   maxPages: config.maxPages,
                 }),
               );
-            case "upullitdavie":
-              return runProgram(
-                streamUpullitDavieInventory({
-                  onBatch,
-                  startCursor: UpullitDavieCursorState.initial,
-                  maxPages: config.maxPages,
-                }),
-              );
-            case "gopullit":
-              if (config.gopullitIntervalMs === undefined) {
-                return runProgram(
-                  streamGopullitInventory({
-                    onBatch,
-                    startCursor: GopullitCursorState.initial,
-                    maxPages: config.maxPages,
-                  }),
-                );
-              }
-              const interval = Duration.millis(config.gopullitIntervalMs);
-              return runProgram(
-                Effect.sleep(interval).pipe(
-                  Effect.zipRight(
-                    Effect.scoped(
-                      RateLimiter.make({ limit: 1, interval }).pipe(
-                        Effect.flatMap((requestGate) =>
-                          streamGopullitInventoryWithRequestGate(
-                            {
-                              onBatch,
-                              startCursor: GopullitCursorState.initial,
-                              maxPages: config.maxPages,
-                            },
-                            requestGate,
-                          ),
+            }
+            const interval = Duration.millis(config.gopullitIntervalMs);
+            return runProgram(
+              Effect.sleep(interval).pipe(
+                Effect.zipRight(
+                  Effect.scoped(
+                    RateLimiter.make({ limit: 1, interval }).pipe(
+                      Effect.flatMap((requestGate) =>
+                        streamGopullitInventoryWithRequestGate(
+                          {
+                            onBatch,
+                            startCursor: GopullitCursorState.initial,
+                            maxPages: config.maxPages,
+                          },
+                          requestGate,
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-          }
-        })();
-        const after = metricsFor(source);
-        const result: SourceResult = {
-          cycle,
-          source,
-          status: sourceResult.status,
-          pages: sourceResult.pagesProcessed,
-          vehicles: sourceResult.count,
-          batches,
-          durationSeconds: (Date.now() - sourceStartedAt) / 1000,
-          requests: after.requests - requestsBefore,
-          rateLimitedResponses:
-            (after.statuses.get(429) ?? 0) - rateLimitsBefore,
-          networkErrors: after.networkErrors - networkErrorsBefore,
-          error:
-            sourceResult.errors.length > 0
-              ? sourceResult.errors.join("; ")
-              : null,
-          warnings:
-            "warnings" in sourceResult ? (sourceResult.warnings ?? []) : [],
-        };
-        allResults.push(result);
-        console.log("[soak] complete", result);
-      } catch (error) {
-        const after = metricsFor(source);
-        const result: SourceResult = {
-          cycle,
-          source,
-          status: "error",
-          pages: 0,
-          vehicles: batchVehicles,
-          batches,
-          durationSeconds: (Date.now() - sourceStartedAt) / 1000,
-          requests: after.requests - requestsBefore,
-          rateLimitedResponses:
-            (after.statuses.get(429) ?? 0) - rateLimitsBefore,
-          networkErrors: after.networkErrors - networkErrorsBefore,
-          error: errorMessage(error),
-          warnings: [],
-        };
-        allResults.push(result);
-        console.error("[soak] failed", result);
-      }
-    });
+              ),
+            );
+        }
+      })();
+      const after = requestMetrics.metricsFor(source);
+      const result: SourceResult = {
+        cycle,
+        source,
+        status: sourceResult.status,
+        pages: sourceResult.pagesProcessed,
+        vehicles: sourceResult.count,
+        batches,
+        durationSeconds: (Date.now() - sourceStartedAt) / 1000,
+        requests: after.requests - requestsBefore,
+        rateLimitedResponses: (after.statuses.get(429) ?? 0) - rateLimitsBefore,
+        networkErrors: after.networkErrors - networkErrorsBefore,
+        error:
+          sourceResult.errors.length > 0
+            ? sourceResult.errors.join("; ")
+            : null,
+        warnings:
+          "warnings" in sourceResult ? (sourceResult.warnings ?? []) : [],
+      };
+      allResults.push(result);
+      console.log("[soak] complete", result);
+    } catch (error) {
+      const after = requestMetrics.metricsFor(source);
+      const result: SourceResult = {
+        cycle,
+        source,
+        status: "error",
+        pages: 0,
+        vehicles: batchVehicles,
+        batches,
+        durationSeconds: (Date.now() - sourceStartedAt) / 1000,
+        requests: after.requests - requestsBefore,
+        rateLimitedResponses: (after.statuses.get(429) ?? 0) - rateLimitsBefore,
+        networkErrors: after.networkErrors - networkErrorsBefore,
+        error: errorMessage(error),
+        warnings: [],
+      };
+      allResults.push(result);
+      console.error("[soak] failed", result);
+    }
   };
 
   try {
