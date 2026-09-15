@@ -54,6 +54,7 @@
     "better-auth": "1.6.23",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^7.0.2",
     "discord-api-types": "^0.38.37",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.8",
