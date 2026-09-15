@@ -75,8 +75,7 @@ describe("Parts Galore atomic catalog", () => {
       count: 2,
       pagesProcessed: 1,
       errors: [],
-      warnings: [],
-      observedVins: [],
+      observedVins: ["1FADP3K20EL345103"],
       accounting: {
         recordsProcessed: 5,
         recordsRejected: 2,

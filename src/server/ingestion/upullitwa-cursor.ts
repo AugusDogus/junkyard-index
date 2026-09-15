@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const UPULLITWA_MAX_PAGES_PER_YARD = 100;
-export const UPULLITWA_MAX_VINS = 100_000;
 export const UpullitwaYardIdSchema = z.string().regex(/^[A-Z0-9]{4}$/);
 const source = z.literal("upullitwa");
 export const UpullitwaCursorSchema = z.discriminatedUnion("phase", [
@@ -18,7 +17,6 @@ export const UpullitwaCursorSchema = z.discriminatedUnion("phase", [
         .nonnegative()
         .max(UPULLITWA_MAX_PAGES_PER_YARD),
       completedYardIds: z.array(UpullitwaYardIdSchema).max(32),
-      seenVins: z.array(z.string().min(1).max(32)).max(UPULLITWA_MAX_VINS),
       pageFingerprints: z
         .array(z.string().regex(/^[a-f0-9]{64}$/))
         .max(UPULLITWA_MAX_PAGES_PER_YARD),
@@ -26,7 +24,7 @@ export const UpullitwaCursorSchema = z.discriminatedUnion("phase", [
         .number()
         .int()
         .nonnegative()
-        .max(UPULLITWA_MAX_VINS),
+        .max(UPULLITWA_MAX_PAGES_PER_YARD * 1_000),
     })
     .strict(),
   z.object({ source, phase: z.literal("complete") }).strict(),

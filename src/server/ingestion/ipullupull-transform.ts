@@ -1,4 +1,5 @@
 import type { CanonicalVehicle } from "./types";
+import { inventoryVin } from "./inventory-vin";
 import {
   normalizeCanonicalColor,
   normalizeCanonicalMake,
@@ -15,8 +16,7 @@ export type IPullUPullCanonicalVehicle = CanonicalVehicle & {
 };
 
 export function ipullUPullVin(record: IPullUPullRecord): string | null {
-  const vin = record.Vin.trim().toUpperCase();
-  return /^[A-HJ-NPR-Z0-9]{17}$/.test(vin) ? vin : null;
+  return inventoryVin(record.Vin, record.Year);
 }
 
 export function isUsableIPullUPullRecord(record: IPullUPullRecord): boolean {

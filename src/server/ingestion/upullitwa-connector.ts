@@ -1,12 +1,9 @@
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import { inventoryVin } from "./inventory-vin";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchUpullitwaPage, type UpullitwaPage } from "./upullitwa-client";
-import {
-  UPULLITWA_MAX_VINS,
-  UpullitwaCursor,
-  UpullitwaCursorSchema,
-} from "./upullitwa-cursor";
+import { UpullitwaCursor, UpullitwaCursorSchema } from "./upullitwa-cursor";
 import {
   transformUpullitwaVehicle,
   type UpullitwaCanonicalVehicle,
@@ -75,7 +72,6 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
           cursor.pageFingerprints.length ||
         new Set(cursor.completedYardIds).size !==
           cursor.completedYardIds.length ||
-        new Set(cursor.seenVins).size !== cursor.seenVins.length ||
         cursor.completedYardIds.includes(cursor.yardId) ||
         (cursor.page === 1
           ? cursor.declaredPageCount !== 0 || cursor.usableYardVehicles !== 0
@@ -101,12 +97,12 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
         page: 1,
         declaredPageCount: 0,
         completedYardIds: [],
-        seenVins: [],
         pageFingerprints: [],
         usableYardVehicles: 0,
       };
     }
-    const seen = new Set(cursor.phase === "page" ? cursor.seenVins : []);
+    // Run-wide deduplication and exact acceptance counts belong to snapshots.
+    const seen = new Set<string>();
     const observedVins = new Set<string>();
     const excludedYards = new Map<string, number>();
     let count = 0;
@@ -141,7 +137,7 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
       for (const record of page.records) {
         if (!yard) {
           recordsExcluded += 1;
-          const vin = record.vin.trim().toUpperCase();
+          const vin = inventoryVin(record.vin, record.year);
           if (vin) observedVins.add(vin);
           excludedYards.set(
             cursor.yardId,
@@ -152,6 +148,8 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
         const vehicle = transformUpullitwaVehicle(record, yard);
         if (!vehicle) {
           recordsRejected += 1;
+          const vin = inventoryVin(record.vin, record.year);
+          if (vin) observedVins.add(vin);
           continue;
         }
         usableYardVehicles += 1;
@@ -162,11 +160,6 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
         seen.add(vehicle.vin);
         batch.push(vehicle);
       }
-      if (seen.size > UPULLITWA_MAX_VINS)
-        return yield* new UpullitwaStreamError({
-          message:
-            "Washington U-Pull-It exceeded the VIN checkpoint cap; inventory was not marked complete",
-        });
       if (!page.nextUrl && yard && usableYardVehicles === 0)
         return yield* new UpullitwaStreamError({
           message: `Washington U-Pull-It yard ${yard.code} returned no usable vehicles; inspect its inventory before reconciling`,
@@ -175,14 +168,13 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
       if (batch.length) yield* options.onBatch(batch);
       count += batch.length;
       pagesProcessed += 1;
-      // Advance only after callbacks succeed. Persist both fingerprints and VINs
-      // so a resumed chunk cannot silently repeat a page or inflate unique counts.
+      // Advance only after callbacks succeed. Fingerprints detect repeated pages
+      // across resumed chunks without carrying inventory in the cursor.
       if (page.nextUrl) {
         cursor = {
           ...cursor,
           page: cursor.page + 1,
           declaredPageCount: page.lastPage,
-          seenVins: [...seen],
           pageFingerprints: [...cursor.pageFingerprints, page.fingerprint],
           usableYardVehicles,
         };
@@ -203,7 +195,6 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
               page: 1,
               declaredPageCount: 0,
               completedYardIds,
-              seenVins: [...seen],
               pageFingerprints: [],
               usableYardVehicles: 0,
             }
@@ -215,6 +206,10 @@ export function streamUpullitwaInventoryWithRequestGate<E, R>(
       ([id, excluded]) =>
         `Washington U-Pull-It yard ${id}: excluded ${excluded} rows because verified yard metadata/coordinates are unavailable. Observed VINs are preserved; known yards continue. Verify the public location before adding metadata.`,
     );
+    if (recordsRejected > 0)
+      warnings.push(
+        `Washington U-Pull-It: rejected ${recordsRejected} rows with invalid vehicle metadata. Usable observed VINs preserve prior inventory; inspect the source rows.`,
+      );
     for (const warning of warnings) yield* Effect.logWarning(warning);
     return {
       source: "upullitwa",

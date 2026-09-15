@@ -1,5 +1,6 @@
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import { inventoryVin } from "./inventory-vin";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchPartsGaloreCatalog } from "./partsgalore-client";
 import {
@@ -76,6 +77,8 @@ export function streamPartsGaloreInventoryWithRequestGate<E, R>(
     for (const record of records) {
       if (!record || !isUsablePartsGaloreRecord(record)) {
         accounting.recordsRejected++;
+        const vin = record ? inventoryVin(record.vin, record.year) : null;
+        if (vin) observedVins.add(vin);
         continue;
       }
       const vehicle = transformPartsGaloreVehicle(record, PARTSGALORE_YARD);
@@ -91,17 +94,21 @@ export function streamPartsGaloreInventoryWithRequestGate<E, R>(
       seen.add(vehicle.vin);
       vehicles.push(vehicle);
     }
-    if (vehicles.length === 0 && observedVins.size === 0)
+    if (vehicles.length === 0 && accounting.recordsExcluded === 0)
       return yield* new PartsGaloreStreamError({
         message:
           "Parts Galore returned no usable inventory rows. Inspect table #alldata before retrying; no batches were emitted.",
       });
     const warnings =
-      observedVins.size > 0
+      accounting.recordsExcluded > 0
         ? [
             `Parts Galore yard ${PARTSGALORE_YARD.code}: excluded ${accounting.recordsExcluded} rows because yard metadata is incomplete. Observed VINs preserve existing inventory; verify the public contact page before restoring metadata.`,
           ]
         : [];
+    if (accounting.recordsRejected > 0)
+      warnings.push(
+        `Parts Galore: rejected ${accounting.recordsRejected} rows with invalid vehicle metadata. Usable observed VINs preserve prior inventory; inspect table #alldata.`,
+      );
     for (const warning of warnings) yield* Effect.logWarning(warning);
     if (options.onYards) yield* options.onYards([{ ...PARTSGALORE_YARD }]);
     for (
