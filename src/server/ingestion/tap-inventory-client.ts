@@ -30,14 +30,10 @@ export interface TapInventorySiteConfig<
 > {
   source: Source;
   siteName: string;
-  baseUrl: string;
   inventoryPageUrl: string;
-  ajaxUrl: string;
-  pluginUrl: string;
   expectedPluginPath: string;
   partsPricelistPath: string;
   storeLocations: Record<string, TapInventoryStoreConfig>;
-  makes: string[];
 }
 
 function tapRequest<T, I, R>(params: {
