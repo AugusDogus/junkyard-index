@@ -3,6 +3,9 @@ import type { OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import { streamWrenchApartInventory } from "./wrenchapart-connector";
 import { streamUpullRPartsInventory } from "./upullrparts-connector";
+import { streamIPullUPullInventory } from "./ipullupull-connector";
+import { streamUpullitwaInventory } from "./upullitwa-connector";
+import { streamPartsGaloreInventory } from "./partsgalore-connector";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -73,6 +76,46 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  ipullupull: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamIPullUPullInventory({
+          startCursor: cursor.catalog,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (catalog) => ({ source: "ipullupull", catalog }),
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  upullitwa: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamUpullitwaInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  partsgalore: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamPartsGaloreInventory({
+          startCursor: cursor.catalog,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (catalog) => ({ source: "partsgalore", catalog }),
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   wrenchapart: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

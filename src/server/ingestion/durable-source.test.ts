@@ -9,6 +9,45 @@ import {
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 describe("durable ingestion cursors", () => {
+  test.each(["ipullupull", "partsgalore"] as const)(
+    "round trips %s atomic catalog checkpoints",
+    (source) => {
+      for (const catalog of [0, 1] as const) {
+        const cursor = { source, catalog };
+        expect(
+          parseDurableSourceCursor(
+            source,
+            serializeDurableSourceCursor(cursor),
+          ),
+        ).toEqual(cursor);
+      }
+      expect(() => parseDurableSourceCursor(source, "2")).toThrow();
+      expect(() => parseDurableSourceCursor(source, "-1")).toThrow();
+    },
+  );
+
+  test("round trips Washington's resumable yard page evidence", () => {
+    const cursor = {
+      source: "upullitwa" as const,
+      phase: "page" as const,
+      yardId: "UU44",
+      page: 2,
+      declaredPageCount: 3,
+      completedYardIds: ["JJ65", "UU43"],
+      seenVins: ["1G1JC1242WM107139"],
+      pageFingerprints: ["a".repeat(64)],
+      usableYardVehicles: 422,
+    };
+    expect(
+      parseDurableSourceCursor(
+        "upullitwa",
+        serializeDurableSourceCursor(cursor),
+      ),
+    ).toEqual(cursor);
+    expect(() =>
+      parseDurableSourceCursor("upullitwa", '{"phase":"page"}'),
+    ).toThrow();
+  });
   test("registers every canonical ingestion source exactly once", () => {
     expect(Object.keys(DURABLE_SOURCE_DEFINITIONS)).toEqual([
       ...INGESTION_SOURCES,

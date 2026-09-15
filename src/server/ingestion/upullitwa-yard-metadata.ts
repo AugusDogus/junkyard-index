@@ -1,6 +1,6 @@
 import { Yard } from "~/lib/yard";
 
-export type UpullitwaYard = Omit<Yard, "source"> & { source: "upullitwa" };
+export type UpullitwaYard = Yard & { source: "upullitwa" };
 export type LocatedUpullitwaYard = UpullitwaYard & { lat: number; lng: number };
 
 // Public contact blocks at https://go2upullit.com/, verified 2026-09-15.

@@ -10,7 +10,7 @@ import {
 } from "./ipullupull-client";
 import type { IPullUPullYard } from "./ipullupull-yard-metadata";
 
-export type IPullUPullCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
+export type IPullUPullCanonicalVehicle = CanonicalVehicle & {
   source: "ipullupull";
 };
 

@@ -5,7 +5,7 @@ import {
   type ProviderRequestGate,
 } from "./provider-http-client";
 
-export type IPullUPullYard = Omit<Yard, "source"> & { source: "ipullupull" };
+export type IPullUPullYard = Yard & { source: "ipullupull" };
 export const IPULLUPULL_KNOWN_CITIES = [
   "FRESNO",
   "POMONA",

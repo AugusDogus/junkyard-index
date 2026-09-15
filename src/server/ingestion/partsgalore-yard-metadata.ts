@@ -1,6 +1,6 @@
 import type { Yard } from "~/lib/yard";
 
-export type PartsGaloreYard = Omit<Yard, "source"> & { source: "partsgalore" };
+export type PartsGaloreYard = Yard & { source: "partsgalore" };
 
 // Verified 2026-09-15: https://parts-galore.com/contact/ supplies address/phone
 // and a Google Maps embed for 0x8824d124792fbb4f:0xb02a1194b62a4d48.

@@ -69,6 +69,9 @@ describe("reconciliation policy", () => {
       "tearapart",
       "wrenchapart",
       "upullrparts",
+      "ipullupull",
+      "upullitwa",
+      "partsgalore",
       "autorecycler",
     ]);
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
@@ -78,7 +81,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 11",
+      "when 'autorecycler' then 14",
     );
   });
 
