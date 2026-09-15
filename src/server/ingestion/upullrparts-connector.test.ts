@@ -40,6 +40,34 @@ function mockResponse(body: string, status = 200) {
 }
 
 describe("U Pull R Parts complete catalog", () => {
+  test("rejects a catalog whose third yard is represented only by an unusable record", async () => {
+    const healthy = Array.from({ length: 2200 }, (_, i) => ({
+      ...fixture,
+      Store: (i % 2) + 1,
+      VIN: `VIN-${i}`,
+    }));
+    mockResponse(
+      JSON.stringify([...healthy, { ...fixture, Store: 3, Year: null }]),
+    );
+    let batches = 0;
+    const result = await Effect.runPromise(
+      Effect.either(
+        streamUpullRPartsInventoryWithRequestGate(
+          {
+            onBatch: () =>
+              Effect.sync(() => {
+                batches++;
+              }),
+          },
+          (request) => request,
+        ),
+      ),
+    );
+    expect(result._tag).toBe("Left");
+    if (result._tag === "Left")
+      expect(result.left.message).toContain("missing known yards UPRRP-3");
+    expect(batches).toBe(0);
+  });
   test("rejects unusable rows before make enrichment without triggering model fallback", async () => {
     const invalid = [
       { ...fixture, VIN: null },
@@ -93,20 +121,19 @@ describe("U Pull R Parts complete catalog", () => {
       requests.some((params) => params.get("apiAction") === "getModels"),
     ).toBe(false);
   });
-  test("does not request any make enrichment when every known-yard record is unusable", async () => {
+  test("rejects an unusable-only catalog without requesting make enrichment", async () => {
     const requests = mockResponse(
       JSON.stringify(catalog.map((row) => ({ ...row, VIN: null }))),
     );
     const result = await Effect.runPromise(
-      streamUpullRPartsInventoryWithRequestGate(
-        { onBatch: () => Effect.void },
-        (request) => request,
+      Effect.either(
+        streamUpullRPartsInventoryWithRequestGate(
+          { onBatch: () => Effect.void },
+          (request) => request,
+        ),
       ),
     );
-    expect(result).toMatchObject({
-      count: 0,
-      accounting: { recordsRejected: 3 },
-    });
+    expect(result._tag).toBe("Left");
     expect(requests).toHaveLength(1);
   });
   test.each(["catalog", "makes", "partition", "models"])(
