@@ -7,6 +7,7 @@ import {
   ingestionSourceRun,
   vehicle,
   vehicleSnapshot,
+  vehicleObservation,
 } from "~/schema";
 import {
   parseIngestionErrors,
@@ -492,7 +493,29 @@ async function runMissingBatch(params: {
               inArray(vehicleSnapshot.vin, vins),
             ),
           );
-  const presentVins = new Set(presentRows.map((row) => row.vin));
+  const observedRows =
+    vins.length === 0
+      ? []
+      : await params.database
+          .select({ vin: vehicleObservation.vin })
+          .from(vehicleObservation)
+          .innerJoin(
+            ingestionSourceRun,
+            and(
+              eq(ingestionSourceRun.runId, vehicleObservation.runId),
+              eq(ingestionSourceRun.source, vehicleObservation.source),
+              eq(ingestionSourceRun.acceptanceStatus, "accepted"),
+            ),
+          )
+          .where(
+            and(
+              eq(vehicleObservation.runId, params.runId),
+              inArray(vehicleObservation.vin, vins),
+            ),
+          );
+  const presentVins = new Set(
+    [...presentRows, ...observedRows].map((row) => row.vin),
+  );
   const acceptedSources = new Set(params.acceptedSources);
   const transitions = planMissingVehicleTransitions({
     presentVins,

@@ -1,8 +1,10 @@
 import { Effect, Schema } from "effect";
-import type { Yard } from "~/lib/yard";
+import { Yard } from "~/lib/yard";
+import { eq } from "drizzle-orm";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import { yard as yardTable } from "~/schema";
 import { normalizeRegion } from "./normalization";
 import { fetchZipGeo } from "./pullapart-client";
-import type { PullNSaveVehicle } from "./pullnsave-client";
 import {
   PULLNSAVE_INVENTORY_PAGE_URL,
   PULLNSAVE_YARDS,
@@ -62,7 +64,27 @@ function fetchDirectoryNonce(requestGate: ProviderRequestGate) {
 }
 
 /** Previously verified locations are a metadata cache, not a supported-yard allowlist. */
-export function createPullNSaveYardResolver(requestGate: ProviderRequestGate) {
+export async function loadCachedPullNSaveYards(
+  database: LibSQLDatabase,
+): Promise<Yard[]> {
+  const rows = await database
+    .select()
+    .from(yardTable)
+    .where(eq(yardTable.source, "pullnsave"));
+  return rows.map((row) => {
+    const parsed = Yard.parse(row);
+    if (!parsed.success)
+      throw new Error(
+        `Stored Pull-N-Save yard ${row.code} is invalid: ${parsed.error.message}`,
+      );
+    return parsed.data;
+  });
+}
+
+export function createPullNSaveYardResolver(
+  requestGate: ProviderRequestGate,
+  cachedYards: readonly Yard[] = [],
+) {
   return Effect.gen(function* () {
     const nonce = yield* Effect.cached(fetchDirectoryNonce(requestGate));
     const resolved = new Map<number, PullNSaveYardResolution>(
@@ -71,51 +93,67 @@ export function createPullNSaveYardResolver(requestGate: ProviderRequestGate) {
         { status: "resolved", yard, metadata: pullnsaveYard(yard) },
       ]),
     );
+    const storedYards = new Map(
+      cachedYards
+        .filter((yard) => yard.source === "pullnsave")
+        .map((yard) => [yard.code, yard]),
+    );
 
-    return (record: PullNSaveVehicle): Effect.Effect<PullNSaveYardResolution> =>
+    return (yardNumber: number): Effect.Effect<PullNSaveYardResolution> =>
       Effect.gen(function* () {
-        const cached = resolved.get(record.astStoreNumber);
+        const cached = resolved.get(yardNumber);
         if (cached) return cached;
 
         const lookup = yield* Effect.gen(function* () {
-          const security = yield* nonce;
-          const response = yield* fetchProviderJson({
-            url: DIRECTORY_URL,
-            context: `Pull-N-Save public yard metadata for store ${record.astStoreNumber}`,
-            method: "POST",
-            headers: {
-              ...HEADERS,
-              "Content-Type": "application/x-www-form-urlencoded",
-              Referer: PULLNSAVE_INVENTORY_PAGE_URL,
-            },
-            body: new URLSearchParams({
-              action: "pns_get_inventory_assets",
-              security,
-              search_type: "0",
-              yearStart: String(record.year ?? 0),
-              yearEnd: String(record.year ?? 0),
-              make: record.make ?? "",
-              model: "0",
-              "yard[]": String(record.astStoreNumber),
-              zip: "",
-              radius: "0",
-            }).toString(),
-            schema: DirectoryResponseSchema,
-            requestGate,
-          });
-          if (!response.success)
-            return yield* Effect.fail(
-              new Error("Public yard metadata lookup was unsuccessful"),
-            );
-          const entries = response.data.filter(
-            (row) => row?.astStoreNumber === record.astStoreNumber,
-          );
-          const details = entries.find(
-            (row) =>
-              row?.yardName?.trim() &&
-              row.yardAddress?.trim() &&
-              row.yardZip?.trim(),
-          );
+          const stored = storedYards.get(`PNS-${yardNumber}`);
+          const cached =
+            stored?.address && stored.postalCode ? stored : undefined;
+          const details = cached
+            ? {
+                yardName: cached.name,
+                yardAddress: `${cached.address}, ${cached.city}, ${cached.state}`,
+                yardZip: cached.postalCode,
+              }
+            : yield* Effect.gen(function* () {
+                const security = yield* nonce;
+                const response = yield* fetchProviderJson({
+                  url: DIRECTORY_URL,
+                  context: `Pull-N-Save public yard metadata for store ${yardNumber}`,
+                  method: "POST",
+                  headers: {
+                    ...HEADERS,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    Referer: PULLNSAVE_INVENTORY_PAGE_URL,
+                  },
+                  body: new URLSearchParams({
+                    action: "pns_get_inventory_assets",
+                    security,
+                    search_type: "0",
+                    yearStart: "0",
+                    yearEnd: "0",
+                    make: "",
+                    model: "0",
+                    "yard[]": String(yardNumber),
+                    zip: "",
+                    radius: "0",
+                  }).toString(),
+                  schema: DirectoryResponseSchema,
+                  requestGate,
+                });
+                if (!response.success)
+                  return yield* Effect.fail(
+                    new Error("Public yard metadata lookup was unsuccessful"),
+                  );
+                const entries = response.data.filter(
+                  (row) => row?.astStoreNumber === yardNumber,
+                );
+                return entries.find(
+                  (row) =>
+                    row?.yardName?.trim() &&
+                    row.yardAddress?.trim() &&
+                    row.yardZip?.trim(),
+                );
+              });
           const locationName = details?.yardName?.trim();
           const address = details?.yardAddress?.trim();
           const zipCode = details?.yardZip?.trim();
@@ -146,14 +184,19 @@ export function createPullNSaveYardResolver(requestGate: ProviderRequestGate) {
                 `Public yard metadata returned an unrecognized state: ${stateAbbr}`,
               ),
             );
-          const coordinates = yield* requestGate(fetchZipGeo(zipCode));
+          const coordinates =
+            cached?.lat !== null &&
+            cached?.lat !== undefined &&
+            cached.lng !== null
+              ? { lat: cached.lat, lng: cached.lng }
+              : yield* requestGate(fetchZipGeo(zipCode));
           if (Math.abs(coordinates.lat) > 90 || Math.abs(coordinates.lng) > 180)
             return yield* Effect.fail(
               new Error("Yard ZIP lookup returned out-of-range coordinates"),
             );
           const yard: PullNSaveYard = {
-            yardNumber: record.astStoreNumber,
-            code: `PNS-${record.astStoreNumber}`,
+            yardNumber,
+            code: `PNS-${yardNumber}`,
             locationName,
             city,
             address: street,
@@ -165,7 +208,11 @@ export function createPullNSaveYardResolver(requestGate: ProviderRequestGate) {
           return {
             status: "resolved",
             yard,
-            metadata: { ...pullnsaveYard(yard), lat: null, lng: null },
+            metadata: cached ?? {
+              ...pullnsaveYard(yard),
+              lat: null,
+              lng: null,
+            },
           } satisfies PullNSaveYardResolution;
         }).pipe(Effect.either);
 
@@ -174,10 +221,10 @@ export function createPullNSaveYardResolver(requestGate: ProviderRequestGate) {
             ? lookup.right
             : {
                 status: "unresolved",
-                yardNumber: record.astStoreNumber,
+                yardNumber,
                 reason: lookup.left.message,
               };
-        resolved.set(record.astStoreNumber, resolution);
+        resolved.set(yardNumber, resolution);
         return resolution;
       });
   });

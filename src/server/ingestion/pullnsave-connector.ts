@@ -2,6 +2,7 @@ import { Data, Effect, RateLimiter } from "effect";
 import { fetchPullNSavePage, PullNSaveProviderError } from "./pullnsave-client";
 import { PULLNSAVE_YARDS } from "./pullnsave-config";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import type { Yard } from "~/lib/yard";
 import { createPullNSaveYardResolver } from "./pullnsave-yard-directory";
 import { pullnsaveYard, type OnYards } from "./yard-metadata";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
@@ -22,6 +23,7 @@ export class PullNSaveStreamError extends Data.TaggedError(
 export type PullNSaveStreamResult = ConnectorChunkResult<"pullnsave", number>;
 
 interface PullNSaveStreamOptions<E, R> {
+  cachedYards?: readonly Yard[];
   onYards?: OnYards;
   onBatch: (vehicles: PullNSaveCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   startCursor?: number;
@@ -40,12 +42,16 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
     if (options.onYards)
       yield* options.onYards(PULLNSAVE_YARDS.map(pullnsaveYard));
     const seen = new Map<string, PullNSaveCanonicalVehicle>();
+    const observedVins = new Set<string>();
     let pagesProcessed = 0;
     let recordsProcessed = 0;
     let recordsExcluded = 0;
     let recordsRejected = 0;
     let duplicateVehicles = 0;
-    const resolveYard = yield* createPullNSaveYardResolver(requestGate);
+    const resolveYard = yield* createPullNSaveYardResolver(
+      requestGate,
+      options.cachedYards,
+    );
     const unresolvedYards = new Map<
       number,
       { count: number; reason: string }
@@ -92,9 +98,11 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
 
       const batch: PullNSaveCanonicalVehicle[] = [];
       for (const record of records) {
-        const resolution = yield* resolveYard(record);
+        const resolution = yield* resolveYard(record.astStoreNumber);
         if (resolution.status === "unresolved") {
           recordsExcluded += 1;
+          const vin = record.vin?.trim().toUpperCase();
+          if (vin) observedVins.add(vin);
           const previous = unresolvedYards.get(record.astStoreNumber);
           unresolvedYards.set(record.astStoreNumber, {
             count: (previous?.count ?? 0) + 1,
@@ -160,6 +168,7 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
       count: seen.size,
       errors: [],
       warnings,
+      observedVins: [...observedVins],
       pagesProcessed,
       accounting: {
         recordsProcessed,

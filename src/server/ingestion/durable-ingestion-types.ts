@@ -41,6 +41,7 @@ export interface FetchedDurableSourceChunk<
   errors: string[];
   vehicles: CanonicalVehicle[];
   yards: Yard[];
+  observedVins?: string[];
 }
 
 export type DurableReconciliationBatchResult =

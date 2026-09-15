@@ -22,6 +22,8 @@ export interface ConnectorChunkResult<
   /** Raw rows, including intentional exclusions, before transformation and deduplication. */
   accounting?: ConnectorChunkAccounting;
   warnings?: string[];
+  /** VINs seen in inventory without enough metadata to emit a full vehicle. */
+  observedVins?: string[];
 }
 
 export function connectorChunkMetrics(

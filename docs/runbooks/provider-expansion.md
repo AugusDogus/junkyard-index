@@ -1,8 +1,9 @@
 # Pull-N-Save and Tear-A-Part ingestion
 
 These sources use the existing VIN identity and durable ingestion pipeline.
-They report yard metadata independently of vehicle batches. No additional
-database migration or provider credentials are required.
+They report yard metadata independently of vehicle batches. Apply migration
+`0008_vehicle_observations.sql` before deployment; the Vercel build migration
+wrapper applies it automatically. No new provider credentials are required.
 
 ## Local verification
 
@@ -47,7 +48,15 @@ Counts and timings are observations, not guarantees.
   does not present that centroid as the yard entrance.
 - IDs lacking public location metadata are skipped with a per-yard vehicle count
   and reason in the connector logs and soak summary. They do not reject the known
-  yards' inventory. Discovery is cached per chunk and retried in later chunks/runs.
+  yards' inventory. Their observed VINs are checkpointed transactionally in
+  `vehicle_observation` with the same cursor guard as full snapshots. Missing
+  reconciliation considers that evidence only for accepted sources in the current
+  run, so a metadata outage cannot age a still-observed VIN toward deletion.
+  These observations are not published as vehicles and do not inflate accepted
+  snapshot counts. They are cleaned up with snapshots after the run is released.
+  Discovered yard metadata is reloaded from the persistent yard table in later
+  chunks/runs. Discovery queries the whole yard, independent of the first vehicle's
+  year/make. Missing metadata is retried in later chunks/runs.
   There is no permanent exclusion for store 8: its current public response lacks
   name/address/ZIP fields, so its 560 rows still cannot be located.
 - Tear-A-Part uses the shared TAP client. Its endpoint rejected the old Chrome

@@ -2,13 +2,19 @@ import { createClient } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
+import { createDurableIngestionRepository } from "./durable-ingestion-repository";
+import { streamPullNSaveInventoryWithRequestGate } from "./pullnsave-connector";
+import { connectorChunkMetrics } from "./connector-chunk";
+import { Effect } from "effect";
+import type { CanonicalVehicle } from "./types";
 
 const TEST_SCHEMA = `
+${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.meta.url), "utf8")}
   create table ingestion_run (
     id text primary key, source text not null, schedule_key text,
     workflow_run_id text, status text not null, stage text not null,
@@ -46,7 +52,7 @@ const TEST_SCHEMA = `
     location_city text not null, state text not null, state_abbr text not null,
     lat real not null, lng real not null, section text, row text, space text,
     details_url text, parts_url text, prices_url text, engine text, trim text,
-    transmission text, created_at integer not null,
+    transmission text, created_at integer not null default 0,
     primary key (run_id, source, vin)
   );
   create table vehicle (
@@ -103,6 +109,142 @@ function snapshot(runId: string, source: "row52" | "pyp", color: string) {
 }
 
 describe("bounded durable reconciliation", () => {
+  test("metadata failures do not age observed VINs toward deletion while absent vehicles still expire", async () => {
+    const client = createClient({ url: ":memory:" });
+    const originalFetch = globalThis.fetch;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const repository = createDurableIngestionRepository(database, client);
+      const now = Date.now();
+      await repository.initialize("run-old-observation");
+      await client.execute(
+        "insert into vehicle_observation values ('run-old-observation', 'pullnsave', 'VIN-ABSENT')",
+      );
+      await client.execute(
+        "update ingestion_source_run set acceptance_status = 'accepted' where run_id = 'run-old-observation' and source = 'pullnsave'",
+      );
+      await client.execute(
+        "update ingestion_run set active_slot = null, status = 'success' where id = 'run-old-observation'",
+      );
+      for (const vin of ["VIN-PRESENT", "VIN-ABSENT"]) {
+        await client.execute({
+          sql: `insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_run_count) values (?, 'pullnsave', 2003, 'Chevrolet', 'Cavalier', 'PNS-10', 'Discovered Yard', 'Mesa', 'Arizona', 'AZ', 33.43, -111.85, ?, ?, 0)`,
+          args: [vin, now, now],
+        });
+      }
+      globalThis.fetch = Object.assign(
+        async (input: RequestInfo | URL) => {
+          if (String(input).includes("/v1/Vehicles/Search"))
+            return new Response(
+              JSON.stringify([
+                {
+                  astStoreNumber: 10,
+                  stockId: "STK-10",
+                  vin: "VIN-PRESENT",
+                  year: 2003,
+                  make: "CHEVROLET",
+                  model: "CAVALIER",
+                },
+                {
+                  astStoreNumber: 1,
+                  stockId: "STK-1",
+                  vin: "VIN-KNOWN",
+                  year: 2003,
+                  make: "CHEVROLET",
+                  model: "CAVALIER",
+                },
+              ]),
+            );
+          return new Response("metadata unavailable", { status: 403 });
+        },
+        { preconnect: originalFetch.preconnect },
+      );
+      for (let i = 1; i <= 3; i++) {
+        const runId = `run-observed-${i}`;
+        await repository.initialize(runId);
+        const vehicles: CanonicalVehicle[] = [];
+        const result = await Effect.runPromise(
+          streamPullNSaveInventoryWithRequestGate(
+            {
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  vehicles.push(...batch);
+                }),
+            },
+            (request) => request,
+          ),
+        );
+        expect(result.errors).toEqual([]);
+        expect(result.observedVins).toEqual(["VIN-PRESENT"]);
+        await repository.checkpointChunk({
+          runId,
+          requestedCursor: { source: "pullnsave", page: 1 },
+          fetched: {
+            cursor: { source: "pullnsave", page: result.cursor },
+            status: result.status,
+            pagesProcessed: result.pagesProcessed,
+            ...connectorChunkMetrics(result, vehicles.length),
+            errors: result.errors,
+            vehicles,
+            yards: [],
+            observedVins: result.observedVins,
+          },
+        });
+        // Evidence from a source not accepted in this run cannot mask absence.
+        await client.execute({
+          sql: "insert into vehicle_observation values (?, 'row52', 'VIN-ABSENT')",
+          args: [runId],
+        });
+        // Isolate the missing phase of a source accepted by snapshot validation.
+        await client.execute({
+          sql: "update ingestion_source_run set acceptance_status = 'accepted' where run_id = ? and source = 'pullnsave'",
+          args: [runId],
+        });
+        await client.execute({
+          sql: "update ingestion_run set stage = 'reconcile_missing', accepted_sources = '[\"pullnsave\"]' where id = ?",
+          args: [runId],
+        });
+        expect(
+          (
+            await reconcileDurableIngestionRun({
+              runId,
+              database,
+              batchClient: client,
+            })
+          ).status,
+        ).toBe("complete");
+        const present = await client.execute(
+          "select missing_run_count, missing_since_at from vehicle where vin = 'VIN-PRESENT'",
+        );
+        expect(present.rows[0]).toMatchObject({
+          missing_run_count: 0,
+          missing_since_at: null,
+        });
+        await client.execute({
+          sql: "update ingestion_run set active_slot = null, status = 'success' where id = ?",
+          args: [runId],
+        });
+      }
+      expect(
+        (
+          await client.execute(
+            "select vin from vehicle where vin = 'VIN-ABSENT'",
+          )
+        ).rows,
+      ).toHaveLength(0);
+      expect(
+        (
+          await client.execute(
+            "select vin from vehicle_change_v2 where vin = 'VIN-PRESENT'",
+          )
+        ).rows,
+      ).toHaveLength(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      client.close();
+    }
+  });
   test("does not reconcile an abandoned run", async () => {
     const client = createClient({ url: ":memory:" });
     try {
