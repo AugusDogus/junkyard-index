@@ -1,0 +1,17 @@
+{
+  "Year": 2015,
+  "Model": "FOCUS",
+  "Color": "BLACK",
+  "StockNumber": "UG072546",
+  "Row": 402,
+  "DateSet": "09-15-26",
+  "DateSetData": "2026-09-15",
+  "DateSetSort": {
+    "date": "2026-09-15 08:37:22.000000",
+    "timezone_type": 3,
+    "timezone": "America/Tegucigalpa"
+  },
+  "Store": 1,
+  "VIN": "1FADP3F20FL287649",
+  "Odometer": "Unknown"
+}
