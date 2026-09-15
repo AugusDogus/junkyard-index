@@ -131,17 +131,7 @@ export function criteriaFromExpression(
           const source = INGESTION_SOURCES.find(
             (value) => value === item.value,
           );
-          // Narrow through the domain's existing source values at the boundary.
-          if (
-            source === "pyp" ||
-            source === "pullapart" ||
-            source === "upullitne" ||
-            source === "upullitdavie" ||
-            source === "gopullit" ||
-            source === "row52" ||
-            source === "autorecycler"
-          )
-            result.sources.push(source);
+          if (source !== undefined) result.sources.push(source);
           else return false;
         }
       }

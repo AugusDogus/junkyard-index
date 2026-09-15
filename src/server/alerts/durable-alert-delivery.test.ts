@@ -7,6 +7,8 @@ import {
   type NotificationIntentTarget,
 } from "./durable-alert-delivery";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
 
 function payload(searchId: string, count: number): string {
   return JSON.stringify({
@@ -136,6 +138,45 @@ function createOperations(params: {
 }
 
 describe("durable alert delivery", () => {
+  test.each([...INGESTION_SOURCES])(
+    "delivers email and Discord previews containing %s",
+    async (source) => {
+      const preview = algoliaHitToSearchVehicle({
+        objectID: "JG1MR2158JK724014",
+        source,
+        year: 1988,
+        make: "Chevrolet",
+        model: "Sprint",
+      });
+      if (!preview)
+        throw new Error(
+          "Expected a registered source to produce a search vehicle",
+        );
+      const body = JSON.stringify({
+        searchName: "Search 1",
+        query: "chevrolet",
+        searchUrl: "https://example.com/search",
+        searchId: "search-1",
+        match: { count: 1, previewVehicles: [preview] },
+      });
+      const harness = createOperations({
+        emailIntents: [intent("email-1", "search-1", { payload: body })],
+        discordIntents: [
+          intent("discord-1", "search-1", {
+            payload: body,
+            channel: "discord",
+            channelConfigVersion: 4,
+          }),
+        ],
+        targets: [target("search-1")],
+      });
+      await deliverDurableAlertIntentBatch(harness.operations);
+      await deliverDurableAlertIntentBatch(harness.operations);
+      expect(harness.cancelled).toEqual([]);
+      expect(harness.delivered).toEqual(["email-1", "discord-1"]);
+      expect(harness.sentDigests).toHaveLength(1);
+    },
+  );
   test("sends one replay-safe digest for every eligible search in a user publication", async () => {
     const first = intent("email-1", "search-1");
     const second = intent("email-2", "search-2", {

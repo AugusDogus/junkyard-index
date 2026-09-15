@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import {
   SearchAlertMatch,
   type SearchAlertData,
@@ -14,15 +15,7 @@ const SearchVehicleSchema = z
     vin: z.string(),
     stockNumber: z.string(),
     availableDate: z.string(),
-    source: z.enum([
-      "row52",
-      "pyp",
-      "autorecycler",
-      "pullapart",
-      "upullitne",
-      "upullitdavie",
-      "gopullit",
-    ]),
+    source: z.enum(INGESTION_SOURCES),
     locationCode: z.string(),
     locationName: z.string(),
     locationCity: z.string(),
