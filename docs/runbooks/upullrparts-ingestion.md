@@ -49,9 +49,12 @@ model fallback and all makes ultimately resolved.
   labels per make. Empty, malformed, oversized, or missing-known-store catalogs
   fail before publication. Shared acceptance requires at least 2,000 vehicles
   and applies previous-run drift, rejection, and duplicate checks.
-- Requests start at most once every 1.5 seconds, including retries. A four-minute
-  connector timeout bounds enrichment; deployment execution must allow that plus
-  checkpoint persistence. The measured run used 114 requests, about 170 seconds,
+- Requests start at most once every 1.5 seconds, including retries. A ten-minute
+  connector timeout bounds enrichment. On September 15 the Vercel project had
+  Fluid Compute enabled and an 800-second function default; Workflow requests
+  the platform maximum. This leaves roughly 200 seconds for runtime overhead and
+  checkpoint persistence. Recheck that limit if deployment settings change.
+  The measured run used 114 requests, about 170 seconds,
   and emitted 3,303 vehicles. Without model fallback, 56 makes need 58 requests.
 - Unknown yard IDs produce warnings and observed VINs, using the shared
   observation path to preserve existing inventory.

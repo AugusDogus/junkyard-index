@@ -188,11 +188,12 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
     };
   }).pipe(
     Effect.timeoutFail({
-      duration: "4 minutes",
+      // Leave checkpoint headroom below the project's 800-second function limit.
+      duration: "10 minutes",
       onTimeout: () =>
         new UpullRPartsStreamError({
           message:
-            "U Pull R Parts catalog and make resolution exceeded the four-minute checkpoint budget. Retry from cursor 0; no terminal checkpoint was returned.",
+            "U Pull R Parts catalog and make resolution exceeded the ten-minute checkpoint budget. Retry from cursor 0; no terminal checkpoint was returned.",
         }),
     }),
   );
