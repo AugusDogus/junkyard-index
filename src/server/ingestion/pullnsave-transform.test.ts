@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Schema } from "effect";
 import { PullNSaveVehicleSchema } from "./pullnsave-client";
-import { resolvePullNSaveYard } from "./pullnsave-config";
+import { PULLNSAVE_YARDS } from "./pullnsave-config";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
+import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
+import { toAlgoliaRecord } from "./types";
 
 function decodeRecord(raw: unknown) {
   return Schema.decodeUnknownSync(PullNSaveVehicleSchema)(raw);
@@ -24,9 +26,20 @@ const VALID_RECORD = decodeRecord({
   yardRow: 50,
 });
 
-const GILBERT = resolvePullNSaveYard(5);
+const GILBERT = PULLNSAVE_YARDS.find((yard) => yard.yardNumber === 5);
 
 describe("transformPullNSaveVehicle", () => {
+  test("retains a working inventory destination through projection and search conversion", () => {
+    if (!GILBERT) throw new Error("Missing Gilbert fixture yard");
+    const vehicle = transformPullNSaveVehicle(VALID_RECORD, GILBERT);
+    if (!vehicle) throw new Error("Expected a canonical vehicle");
+    const searchVehicle = algoliaHitToSearchVehicle(
+      toAlgoliaRecord(vehicle, new Date(), null, 0),
+    );
+    expect(searchVehicle?.detailsUrl).toBe(
+      "https://www.pullnsave.com/inventory/",
+    );
+  });
   test("maps a complete record into the canonical shape", () => {
     expect(GILBERT).not.toBeNull();
     const vehicle = transformPullNSaveVehicle(
@@ -55,7 +68,7 @@ describe("transformPullNSaveVehicle", () => {
       section: null,
       row: "50",
       space: null,
-      detailsUrl: null,
+      detailsUrl: "https://www.pullnsave.com/inventory/",
       partsUrl: null,
       pricesUrl: null,
       engine: null,
@@ -141,17 +154,5 @@ describe("transformPullNSaveVehicle", () => {
       GILBERT!,
     );
     expect(missing?.availableDate).toBeNull();
-  });
-});
-
-describe("resolvePullNSaveYard", () => {
-  test("resolves every listed yard number", () => {
-    expect(resolvePullNSaveYard(1)?.code).toBe("PNS-SLC");
-    expect(resolvePullNSaveYard(9)?.stateAbbr).toBe("CA");
-  });
-
-  test("does not resolve the unlisted yard or unknown numbers", () => {
-    expect(resolvePullNSaveYard(8)).toBeNull();
-    expect(resolvePullNSaveYard(10)).toBeNull();
   });
 });

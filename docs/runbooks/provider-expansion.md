@@ -28,25 +28,39 @@ Do not confuse the soak with `RUN_INGESTION_SMOKE=1 bun run test:ingestion`:
 that opt-in test invokes the full ingestion lifecycle against configured services,
 including publication and alert delivery.
 
-## Validation evidence (September 14, 2026)
+## Validation evidence (September 15, 2026)
 
-| Source                                           | Full catalog result                       | Requests | Time        |
-| ------------------------------------------------ | ----------------------------------------- | -------- | ----------- |
-| Pull-N-Save                                      | 11,721 emitted vehicles, 560 skipped rows | 123      | 185 seconds |
-| Tear-A-Part                                      | 1,671 vehicles across two stores          | 7        | 1.4 seconds |
-| U Pull-It Nebraska (shared TAP regression check) | 2,536 vehicles across four stores         | 11       | 4.8 seconds |
+| Source                                           | Full catalog result                                                                   | Requests | Time        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- | -------- | ----------- |
+| Pull-N-Save                                      | 11,721 emitted vehicles, 560 without yard metadata, zero rejected rows, one duplicate | 125      | 188 seconds |
+| Tear-A-Part                                      | 1,671 vehicles across two stores                                                      | 6        | 1.2 seconds |
+| U Pull-It Nebraska (shared TAP regression check) | 2,536 vehicles across four stores                                                     | 10       | 3.9 seconds |
 
 No rate-limit responses or network errors were observed in these completed runs.
 Counts and timings are observations, not guarantees.
 
 - Pull-N-Save uses 100-record pages, with one request per 1.5 seconds. Eight
-  configured yards are supported. Store number 8 remains excluded because its
-  public business identity/address have not been established.
+  previously verified locations are retained as a metadata cache, not an allowlist.
+  Other IDs are looked up automatically through the public inventory directory.
+  A resolved new yard gets a stable `PNS-{number}` code. Vehicle distance searches
+  use a ZIP centroid when precise coordinates are unavailable; the yard directory
+  does not present that centroid as the yard entrance.
+- IDs lacking public location metadata are skipped with a per-yard vehicle count
+  and reason in the connector logs and soak summary. They do not reject the known
+  yards' inventory. Discovery is cached per chunk and retried in later chunks/runs.
+  There is no permanent exclusion for store 8: its current public response lacks
+  name/address/ZIP fields, so its 560 rows still cannot be located.
 - Tear-A-Part uses the shared TAP client. Its endpoint rejected the old Chrome
   user-agent but accepted `JunkyardIndex/1.0`. Three valid records lacked a row;
   row and arrival date may be absent without invalidating the vehicle.
 - Initial minimum accepted inventories are 5,000 for Pull-N-Save and 500 for
   Tear-A-Part. Both also use the existing previous-run drift and error checks.
+- Pull-N-Save reports raw, unlocated, rejected, and duplicate row
+  counts separately. Durable checkpoints persist the eligible processed count
+  (raw minus rows without a yard location), rejection count, and duplicate count.
+  Invalid vehicles at known yards count toward the rejection guard. Vehicles at
+  yards whose location cannot be identified are reported separately and do not
+  count as malformed vehicles.
 - New sources rank below existing direct sources and above AutoRecycler during
   VIN reconciliation.
 

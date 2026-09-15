@@ -70,6 +70,7 @@ interface SourceResult {
   rateLimitedResponses: number;
   networkErrors: number;
   error: string | null;
+  warnings: string[];
 }
 
 const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set([
@@ -459,6 +460,8 @@ async function main(): Promise<void> {
             sourceResult.errors.length > 0
               ? sourceResult.errors.join("; ")
               : null,
+          warnings:
+            "warnings" in sourceResult ? (sourceResult.warnings ?? []) : [],
         };
         allResults.push(result);
         console.log("[soak] complete", result);
@@ -477,6 +480,7 @@ async function main(): Promise<void> {
             (after.statuses.get(429) ?? 0) - rateLimitsBefore,
           networkErrors: after.networkErrors - networkErrorsBefore,
           error: errorMessage(error),
+          warnings: [],
         };
         allResults.push(result);
         console.error("[soak] failed", result);
@@ -523,6 +527,7 @@ async function main(): Promise<void> {
       http429: result.rateLimitedResponses,
       networkErrors: result.networkErrors,
       error: result.error,
+      warnings: result.warnings.join("; "),
     })),
   );
 

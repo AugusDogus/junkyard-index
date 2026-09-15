@@ -17,6 +17,19 @@ function fixtureFile(fileName: string): Promise<string> {
 }
 
 describe("PullNSaveSearchPageSchema", () => {
+  test("accepts usable records without unused internal vehicle and store IDs", () => {
+    const record = {
+      astStoreNumber: 1,
+      stockId: "STK082202-1",
+      vin: "1G1JF52F437297781",
+      year: 2003,
+      make: "CHEVROLET",
+      model: "CAVALIER",
+    };
+    expect(
+      Schema.decodeUnknownSync(PullNSaveSearchPageSchema)([record]),
+    ).toEqual([record]);
+  });
   test("decodes the live page-1 fixture", async () => {
     const raw = JSON.parse(await fixtureFile("pullnsave-search-page1.json"));
     const page = Schema.decodeUnknownSync(PullNSaveSearchPageSchema)(raw);

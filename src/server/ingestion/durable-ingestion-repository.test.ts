@@ -11,12 +11,13 @@ import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 import { Schema } from "effect";
 import { PullNSaveVehicleSchema } from "./pullnsave-client";
-import { resolvePullNSaveYard } from "./pullnsave-config";
+import { PULLNSAVE_YARDS } from "./pullnsave-config";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
 import { TapInventorySearchProductSchema } from "./tap-inventory-client";
 import { transformTapInventoryProduct } from "./tap-inventory-transform";
 import { TEARAPART_SITE_CONFIG } from "./tap-sites";
 import { pullnsaveYard, tapYard } from "./yard-metadata";
+import { connectorChunkMetrics } from "./connector-chunk";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
   return { source: "pyp", page: 2 };
@@ -171,7 +172,9 @@ describe("durable ingestion repository", () => {
     const tapRecord = tapResponse.products[0];
     if (!pnsRecord || !tapRecord)
       throw new Error("Provider fixtures need at least one vehicle");
-    const pnsStore = resolvePullNSaveYard(pnsRecord.astStoreNumber);
+    const pnsStore = PULLNSAVE_YARDS.find(
+      (yard) => yard.yardNumber === pnsRecord.astStoreNumber,
+    );
     const tapStore = TEARAPART_SITE_CONFIG.storeLocations["SALT LAKE CITY"];
     if (!pnsStore || !tapStore)
       throw new Error("Provider fixtures need configured yards");
@@ -212,6 +215,22 @@ describe("durable ingestion repository", () => {
       );
       await repository.initialize("run-new-providers");
       for (const item of cases) {
+        const metrics = connectorChunkMetrics(
+          {
+            count: 1,
+            errors: [],
+            accounting:
+              item.vehicle.source === "pullnsave"
+                ? {
+                    recordsProcessed: 4,
+                    recordsExcluded: 1,
+                    recordsRejected: 1,
+                    duplicateVehicles: 1,
+                  }
+                : undefined,
+          },
+          1,
+        );
         const checkpoint = {
           runId: "run-new-providers",
           requestedCursor: item.initial,
@@ -219,10 +238,7 @@ describe("durable ingestion repository", () => {
             cursor: item.next,
             status: "paused",
             pagesProcessed: 1,
-            vehiclesProcessed: 1,
-            uniqueVehicles: 1,
-            duplicateVehicles: 0,
-            rejectedVehicles: 0,
+            ...metrics,
             errors: [],
             vehicles: [item.vehicle],
             yards: [item.yard],
@@ -230,9 +246,13 @@ describe("durable ingestion repository", () => {
         };
         const first = await repository.checkpointChunk(checkpoint);
         const replay = await repository.checkpointChunk(checkpoint);
-        expect(first.count).toBe(1);
-        expect(replay.count).toBe(1);
+        expect(first.count).toBe(metrics.vehiclesProcessed);
+        expect(replay.count).toBe(metrics.vehiclesProcessed);
         expect(replay.pagesProcessed).toBe(1);
+        const persisted = (
+          await repository.getSourceRuns("run-new-providers")
+        ).find((run) => run.source === item.vehicle.source);
+        expect(persisted).toMatchObject(metrics);
       }
       const stored = await client.execute(
         `select s.source, s.vin, y.code, y.operator from vehicle_snapshot s join yard y on y.source = s.source and y.code = s.location_code order by s.source`,

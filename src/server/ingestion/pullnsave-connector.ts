@@ -1,6 +1,8 @@
 import { Data, Effect, RateLimiter } from "effect";
 import { fetchPullNSavePage, PullNSaveProviderError } from "./pullnsave-client";
-import { PULLNSAVE_YARDS, resolvePullNSaveYard } from "./pullnsave-config";
+import { PULLNSAVE_YARDS } from "./pullnsave-config";
+import type { ConnectorChunkResult } from "./connector-chunk";
+import { createPullNSaveYardResolver } from "./pullnsave-yard-directory";
 import { pullnsaveYard, type OnYards } from "./yard-metadata";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -17,14 +19,7 @@ export class PullNSaveStreamError extends Data.TaggedError(
   message: string;
 }> {}
 
-export interface PullNSaveStreamResult {
-  source: "pullnsave";
-  status: "paused" | "complete" | "failed";
-  cursor: number;
-  count: number;
-  errors: string[];
-  pagesProcessed: number;
-}
+export type PullNSaveStreamResult = ConnectorChunkResult<"pullnsave", number>;
 
 interface PullNSaveStreamOptions<E, R> {
   onYards?: OnYards;
@@ -47,7 +42,17 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
     const seen = new Map<string, PullNSaveCanonicalVehicle>();
     let pagesProcessed = 0;
     let recordsProcessed = 0;
-    let recordsSkipped = 0;
+    let recordsExcluded = 0;
+    let recordsRejected = 0;
+    let duplicateVehicles = 0;
+    const resolveYard = yield* createPullNSaveYardResolver(requestGate);
+    const unresolvedYards = new Map<
+      number,
+      { count: number; reason: string }
+    >();
+    const reportedYards = new Set(
+      PULLNSAVE_YARDS.map((yard) => yard.yardNumber),
+    );
     const startPage = Math.max(1, options.startCursor ?? 1);
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
     let nextPage = startPage;
@@ -87,17 +92,30 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
 
       const batch: PullNSaveCanonicalVehicle[] = [];
       for (const record of records) {
-        const yard = resolvePullNSaveYard(record.astStoreNumber);
-        if (!yard) {
-          recordsSkipped += 1;
+        const resolution = yield* resolveYard(record);
+        if (resolution.status === "unresolved") {
+          recordsExcluded += 1;
+          const previous = unresolvedYards.get(record.astStoreNumber);
+          unresolvedYards.set(record.astStoreNumber, {
+            count: (previous?.count ?? 0) + 1,
+            reason: resolution.reason,
+          });
           continue;
+        }
+        const { yard, metadata } = resolution;
+        if (options.onYards && !reportedYards.has(yard.yardNumber)) {
+          yield* options.onYards([metadata]);
+          reportedYards.add(yard.yardNumber);
         }
         const vehicle = transformPullNSaveVehicle(record, yard);
         if (!vehicle) {
-          recordsSkipped += 1;
+          recordsRejected += 1;
           continue;
         }
-        if (seen.has(vehicle.vin)) continue;
+        if (seen.has(vehicle.vin)) {
+          duplicateVehicles += 1;
+          continue;
+        }
         seen.set(vehicle.vin, vehicle);
         batch.push(vehicle);
       }
@@ -117,7 +135,8 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
       startPage === 1 &&
       recordsProcessed === 0 &&
       seen.size === 0 &&
-      recordsSkipped === 0
+      recordsExcluded === 0 &&
+      recordsRejected === 0
     ) {
       return yield* new PullNSaveStreamError({
         message: "Pull-N-Save returned an empty inventory catalog",
@@ -125,8 +144,14 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
     }
 
     yield* Effect.logInfo(
-      `[Pull-N-Save] Ingested ${seen.size} vehicles and skipped ${recordsSkipped} rows`,
+      `[Pull-N-Save] Ingested ${seen.size} vehicles; excluded=${recordsExcluded} rejected=${recordsRejected} duplicates=${duplicateVehicles}`,
     );
+
+    const warnings = [...unresolvedYards].map(
+      ([yardNumber, { count, reason }]) =>
+        `Pull-N-Save yard ${yardNumber}: skipped ${count} vehicles because the yard location could not be resolved. ${reason}. Known yards continue; lookup will be retried next chunk/run.`,
+    );
+    for (const warning of warnings) yield* Effect.logWarning(warning);
 
     return {
       source: "pullnsave" as const,
@@ -134,7 +159,14 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
       cursor: nextPage,
       count: seen.size,
       errors: [],
+      warnings,
       pagesProcessed,
+      accounting: {
+        recordsProcessed,
+        recordsExcluded,
+        recordsRejected,
+        duplicateVehicles,
+      },
     };
   });
 }

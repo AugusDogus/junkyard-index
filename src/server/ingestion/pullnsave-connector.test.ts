@@ -7,6 +7,8 @@ import {
 import type { ProviderRequestGate } from "./provider-http-client";
 import type { PullNSaveCanonicalVehicle } from "./pullnsave-transform";
 import type { Yard } from "~/lib/yard";
+import { connectorChunkMetrics } from "./connector-chunk";
+import { validateSourceSnapshot } from "./source-validation";
 
 const originalFetch = globalThis.fetch;
 const noRateLimit: ProviderRequestGate = (request) => request;
@@ -47,6 +49,215 @@ function mockSearch(pages: Map<number, unknown[]>) {
 }
 
 describe("Pull-N-Save catalog streaming", () => {
+  test("reports unidentified yards without rejecting inventory from known yards", async () => {
+    mockSearch(
+      new Map([
+        [
+          1,
+          [
+            {
+              astStoreNumber: 99,
+              stockId: "STK-NEW-YARD",
+              vin: "1G1JF52F437297781",
+              year: 2003,
+              make: "CHEVROLET",
+              model: "CAVALIER",
+            },
+            {
+              astStoreNumber: 1,
+              stockId: "STK-KNOWN",
+              vin: "2G1WU581769248827",
+              year: 2006,
+              make: "CHEVROLET",
+              model: "IMPALA",
+            },
+          ],
+        ],
+      ]),
+    );
+    const result = await Effect.runPromise(
+      streamPullNSaveInventoryWithRequestGate(
+        { onBatch: () => Effect.void },
+        noRateLimit,
+      ),
+    );
+    expect(result.accounting).toEqual({
+      recordsProcessed: 2,
+      recordsExcluded: 1,
+      recordsRejected: 0,
+      duplicateVehicles: 0,
+    });
+    expect(result.status).toBe("complete");
+    expect(result.count).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings?.[0]).toContain("yard 99: skipped 1 vehicles");
+  });
+  test("ingests a newly discovered yard alongside the existing yards", async () => {
+    mockSearch(
+      new Map([
+        [
+          1,
+          [
+            {
+              astStoreNumber: 10,
+              stockId: "STK-NEW",
+              vin: "1G1JF52F437297781",
+              year: 2003,
+              make: "CHEVROLET",
+              model: "CAVALIER",
+            },
+          ],
+        ],
+      ]),
+    );
+    const inventoryFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/inventory/"))
+          return new Response(
+            '<script>var pns_inventory_sf_ajax = {"nonce":"fixture-nonce"};</script>',
+          );
+        if (url.includes("admin-ajax.php"))
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: [
+                {
+                  astStoreNumber: 10,
+                  yardName: "New Yard",
+                  yardAddress: "100 Main St, Mesa, AZ",
+                  yardZip: "85201",
+                },
+              ],
+            }),
+          );
+        if (url.includes("zippopotam.us"))
+          return new Response(
+            JSON.stringify({
+              places: [
+                {
+                  latitude: "33.43",
+                  longitude: "-111.85",
+                  "place name": "Mesa",
+                  state: "Arizona",
+                  "state abbreviation": "AZ",
+                },
+              ],
+            }),
+          );
+        return inventoryFetch(input, init);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const vehicles: PullNSaveCanonicalVehicle[] = [];
+    const yards: Yard[] = [];
+    const result = await Effect.runPromise(
+      streamPullNSaveInventoryWithRequestGate(
+        {
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+          onYards: (batch) =>
+            Effect.sync(() => {
+              yards.push(...batch);
+            }),
+        },
+        noRateLimit,
+      ),
+    );
+    expect(result).toMatchObject({
+      status: "complete",
+      count: 1,
+      errors: [],
+      warnings: [],
+    });
+    expect(vehicles[0]).toMatchObject({
+      vin: "1G1JF52F437297781",
+      locationCode: "PNS-10",
+      locationName: "New Yard",
+      locationCity: "Mesa",
+      stateAbbr: "AZ",
+    });
+    expect(yards.find((yard) => yard.code === "PNS-10")).toMatchObject({
+      name: "New Yard",
+      address: "100 Main St",
+      lat: null,
+      lng: null,
+    });
+  });
+  test.each(["rejected", "duplicate"] as const)(
+    "preserves %s counts through resumable chunks and fails snapshot validation",
+    async (kind) => {
+      const pages = new Map<number, unknown[]>();
+      for (let page = 1; page <= 120; page++) {
+        pages.set(
+          page,
+          Array.from({ length: 100 }, (_, index) => ({
+            astStoreNumber: 1,
+            vehicleRno: page * 100 + index,
+            storeRno: 1,
+            stockId: `stock-${page}-${index}`,
+            year: 2000,
+            make: "FORD",
+            model: "FOCUS",
+            vin:
+              kind === "rejected" && index >= 80
+                ? null
+                : `VIN-${page}-${kind === "duplicate" ? index % 60 : index}`,
+          })),
+        );
+      }
+      mockSearch(pages);
+      const vins = new Set<string>();
+      let cursor = 1;
+      let vehiclesProcessed = 0;
+      let duplicateVehicles = 0;
+      let rejectedVehicles = 0;
+      while (true) {
+        const chunkVins = new Set<string>();
+        const result = await Effect.runPromise(
+          streamPullNSaveInventoryWithRequestGate(
+            {
+              startCursor: cursor,
+              maxPages: 10,
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  for (const vehicle of batch) {
+                    chunkVins.add(vehicle.vin);
+                    vins.add(vehicle.vin);
+                  }
+                }),
+            },
+            noRateLimit,
+          ),
+        );
+        const metrics = connectorChunkMetrics(result, chunkVins.size);
+        vehiclesProcessed += metrics.vehiclesProcessed;
+        duplicateVehicles += metrics.duplicateVehicles;
+        rejectedVehicles += metrics.rejectedVehicles;
+        if (result.status === "complete") break;
+        cursor = result.cursor;
+      }
+      const validation = validateSourceSnapshot({
+        source: "pullnsave",
+        terminal: true,
+        uniqueVehicles: vins.size,
+        vehiclesProcessed,
+        duplicateVehicles,
+        rejectedVehicles,
+        previousAcceptedCount: 11721,
+        errors: [],
+      });
+      expect(validation.status).toBe("rejected");
+      expect(vehiclesProcessed).toBe(12000);
+      expect(kind === "rejected" ? rejectedVehicles : duplicateVehicles).toBe(
+        kind === "rejected" ? 2400 : 4800,
+      );
+    },
+  );
   test("accepts the terminal empty page when resuming after an exact full page", async () => {
     const page = await loadFixtureRows("pullnsave-search-page1.json");
     mockSearch(new Map([[1, page]]));
@@ -249,5 +460,17 @@ describe("Pull-N-Save catalog streaming", () => {
     expect(result.count).toBe(0);
     expect(result.cursor).toBe(2);
     expect(result.pagesProcessed).toBe(1);
+    expect(result.accounting).toEqual({
+      recordsProcessed: 2,
+      recordsExcluded: 1,
+      recordsRejected: 1,
+      duplicateVehicles: 0,
+    });
+    expect(connectorChunkMetrics(result, 0)).toEqual({
+      vehiclesProcessed: 1,
+      uniqueVehicles: 0,
+      duplicateVehicles: 0,
+      rejectedVehicles: 1,
+    });
   });
 });

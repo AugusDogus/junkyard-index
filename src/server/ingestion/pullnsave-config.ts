@@ -15,6 +15,7 @@ export interface PullNSaveYard {
   lng: number;
 }
 
+// Verified metadata retained for existing locations; new IDs are discovered at runtime.
 export const PULLNSAVE_YARDS: readonly PullNSaveYard[] = [
   {
     yardNumber: 1,
@@ -113,15 +114,3 @@ export const PULLNSAVE_YARDS: readonly PullNSaveYard[] = [
     lng: -117.3533075,
   },
 ];
-
-const YARDS_BY_NUMBER = new Map(
-  PULLNSAVE_YARDS.map((yard) => [yard.yardNumber, yard] as const),
-);
-
-// Yard number 8 exists in the API catalog but has no name, address, or
-// listing on pullnsave.com; rows from it are skipped during ingestion.
-export const PULLNSAVE_UNLISTED_YARD_NUMBERS: readonly number[] = [8];
-
-export function resolvePullNSaveYard(yardNumber: number): PullNSaveYard | null {
-  return YARDS_BY_NUMBER.get(yardNumber) ?? null;
-}

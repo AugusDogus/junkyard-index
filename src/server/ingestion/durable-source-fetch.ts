@@ -1,6 +1,10 @@
 import type { Yard } from "~/lib/yard";
 import type { OnYards } from "./yard-metadata";
 import { Effect } from "effect";
+import {
+  connectorChunkMetrics,
+  type ConnectorChunkResult,
+} from "./connector-chunk";
 import { streamAutorecyclerInventory } from "./autorecycler-connector";
 import { streamGopullitInventory } from "./gopullit-connector";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
@@ -46,30 +50,16 @@ type DurableSourceFetcherRegistry = {
 };
 
 function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
-  result: {
-    status: "paused" | "complete" | "failed";
-    cursor: Cursor;
-    count: number;
-    errors: string[];
-    pagesProcessed: number;
-  },
+  result: Omit<ConnectorChunkResult<Source, Cursor>, "source">,
   toCursor: (cursor: Cursor) => DurableCursorFor<Source>,
   vehiclesByVin: Map<string, CanonicalVehicle>,
   yardsByCode: Map<string, Yard>,
 ): FetchedDurableSourceChunk<Source> {
-  const uniqueVehicles = vehiclesByVin.size;
-  const rejectedVehicles = result.errors.length;
   return {
     cursor: toCursor(result.cursor),
     status: result.status,
     pagesProcessed: result.pagesProcessed,
-    vehiclesProcessed: result.count,
-    uniqueVehicles,
-    duplicateVehicles: Math.max(
-      0,
-      result.count - uniqueVehicles - rejectedVehicles,
-    ),
-    rejectedVehicles,
+    ...connectorChunkMetrics(result, vehiclesByVin.size),
     errors: result.errors,
     vehicles: [...vehiclesByVin.values()],
     yards: [...yardsByCode.values()],
