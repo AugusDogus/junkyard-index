@@ -12,14 +12,13 @@ import {
 } from "./pullnsave-config";
 import {
   fetchProviderJson,
-  fetchProviderText,
   type ProviderRequestGate,
 } from "./provider-http-client";
 import { pullnsaveYard } from "./yard-metadata";
+import { fetchPullNSaveYardList } from "./pullnsave-yard-list";
 
 const DIRECTORY_URL = "https://www.pullnsave.com/wp-admin/admin-ajax.php";
 const HEADERS = { "User-Agent": "JunkyardIndex/1.0" };
-const DirectoryBootstrapSchema = Schema.Struct({ nonce: Schema.String });
 const DirectoryRowSchema = Schema.Struct({
   astStoreNumber: Schema.Number,
   yardName: Schema.optional(Schema.String),
@@ -33,35 +32,8 @@ const DirectoryResponseSchema = Schema.Struct({
 
 export type PullNSaveYardResolution =
   | { status: "resolved"; yard: PullNSaveYard; metadata: Yard }
+  | { status: "unlisted"; yardNumber: number }
   | { status: "unresolved"; yardNumber: number; reason: string };
-
-function fetchDirectoryNonce(requestGate: ProviderRequestGate) {
-  return fetchProviderText({
-    url: PULLNSAVE_INVENTORY_PAGE_URL,
-    context: "Pull-N-Save public yard directory bootstrap",
-    headers: HEADERS,
-    requestGate,
-  }).pipe(
-    Effect.flatMap((html) =>
-      Effect.try({
-        try: () => {
-          const payload = /var\s+pns_inventory_sf_ajax\s*=\s*(\{[^;]+\})/.exec(
-            html,
-          )?.[1];
-          if (!payload)
-            throw new Error(
-              "Pull-N-Save inventory page did not provide its public directory bootstrap",
-            );
-          return Schema.decodeUnknownSync(DirectoryBootstrapSchema)(
-            JSON.parse(payload),
-          ).nonce;
-        },
-        catch: (cause) =>
-          cause instanceof Error ? cause : new Error(String(cause)),
-      }),
-    ),
-  );
-}
 
 /** Previously verified locations are a metadata cache, not a supported-yard allowlist. */
 export async function loadCachedPullNSaveYards(
@@ -86,7 +58,7 @@ export function createPullNSaveYardResolver(
   cachedYards: readonly Yard[] = [],
 ) {
   return Effect.gen(function* () {
-    const nonce = yield* Effect.cached(fetchDirectoryNonce(requestGate));
+    const directory = yield* fetchPullNSaveYardList(requestGate);
     const resolved = new Map<number, PullNSaveYardResolution>(
       PULLNSAVE_YARDS.map((yard) => [
         yard.yardNumber,
@@ -101,6 +73,11 @@ export function createPullNSaveYardResolver(
 
     return (yardNumber: number): Effect.Effect<PullNSaveYardResolution> =>
       Effect.gen(function* () {
+        if (!directory.yardNumbers.has(yardNumber))
+          return {
+            status: "unlisted",
+            yardNumber,
+          } satisfies PullNSaveYardResolution;
         const cached = resolved.get(yardNumber);
         if (cached) return cached;
 
@@ -115,7 +92,7 @@ export function createPullNSaveYardResolver(
                 yardZip: cached.postalCode,
               }
             : yield* Effect.gen(function* () {
-                const security = yield* nonce;
+                const security = directory.nonce;
                 const response = yield* fetchProviderJson({
                   url: DIRECTORY_URL,
                   context: `Pull-N-Save public yard metadata for store ${yardNumber}`,

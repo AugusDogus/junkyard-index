@@ -9,6 +9,9 @@ import { drizzle } from "drizzle-orm/libsql";
 import { yard } from "~/schema";
 
 const originalFetch = globalThis.fetch;
+const yardListHtml = await Bun.file(
+  new URL("./fixtures/pullnsave-yard-list.html", import.meta.url),
+).text();
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
@@ -19,7 +22,7 @@ const directoryRow = {
   yardZip: "85201",
 };
 
-function installDirectory(data: unknown, status = 200) {
+function installDirectory(data: unknown, status = 200, extraYard = 10) {
   const requests: Array<{ url: string; body: URLSearchParams }> = [];
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -32,7 +35,10 @@ function installDirectory(data: unknown, status = 200) {
       });
       if (url.endsWith("/inventory/"))
         return new Response(
-          '<script>var pns_inventory_sf_ajax = {"nonce":"fixture-nonce"};</script>',
+          yardListHtml.replace(
+            "</select>",
+            `<option value="${extraYard}">New Yard</option></select>`,
+          ),
         );
       if (url.includes("admin-ajax.php"))
         return new Response(JSON.stringify({ success: true, data }), {
@@ -95,8 +101,8 @@ describe("Pull-N-Save runtime yard discovery", () => {
     expect(query?.get("make")).toBe("");
   });
 
-  test("store 8 is discoverable when the public response identifies it", async () => {
-    installDirectory([{ ...directoryRow, astStoreNumber: 8 }]);
+  test("store 8 is discoverable if it reappears in the public list with metadata", async () => {
+    installDirectory([{ ...directoryRow, astStoreNumber: 8 }], 200, 8);
     const resolve = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
     );
@@ -106,7 +112,7 @@ describe("Pull-N-Save runtime yard discovery", () => {
     });
   });
 
-  test("reloads persisted discoveries when the public directory is unavailable in a later run", async () => {
+  test("reloads cached metadata only after verifying current public eligibility", async () => {
     installDirectory([directoryRow]);
     const firstResolver = await Effect.runPromise(
       createPullNSaveYardResolver((request) => request),
@@ -132,8 +138,17 @@ describe("Pull-N-Save runtime yard discovery", () => {
       );
       expect(await Effect.runPromise(nextResolver(10))).toEqual(discovered);
       expect(requests.map((request) => request.url)).toEqual([
+        "https://www.pullnsave.com/inventory/",
         "https://api.zippopotam.us/us/85201",
       ]);
+      installDirectory([directoryRow], 200, 11);
+      const removedResolver = await Effect.runPromise(
+        createPullNSaveYardResolver((request) => request, cached),
+      );
+      expect(await Effect.runPromise(removedResolver(10))).toMatchObject({
+        status: "unlisted",
+        yardNumber: 10,
+      });
     } finally {
       client.close();
     }

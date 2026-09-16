@@ -40,13 +40,17 @@ including publication and alert delivery.
 No rate-limit responses or network errors were observed in these completed runs.
 Counts and timings are observations, not guarantees.
 
-- Pull-N-Save uses 100-record pages, with one request per 1.5 seconds. Eight
-  previously verified locations are retained as a metadata cache, not an allowlist.
-  Other IDs are looked up automatically through the public inventory directory.
+- Pull-N-Save uses 100-record pages, with one request per 1.5 seconds. Every chunk
+  first loads the current `#pns_yard` selector from the public inventory page.
+  Only listed yard IDs are eligible. Missing, malformed, empty, partial, or failed
+  directory responses stop the chunk before inventory or yard callbacks, rather
+  than interpreting an outage as removal. Eight previously verified locations are
+  retained as a metadata cache; cached addresses never override eligibility.
+  Newly listed IDs are resolved automatically through the public inventory directory.
   A resolved new yard gets a stable `PNS-{number}` code. Vehicle distance searches
   use a ZIP centroid when precise coordinates are unavailable; the yard directory
   does not present that centroid as the yard entrance.
-- IDs lacking public location metadata are skipped with a per-yard vehicle count
+- Listed IDs lacking public location metadata are skipped with a per-yard vehicle count
   and reason in the connector logs and soak summary. They do not reject the known
   yards' inventory. Their observed VINs are checkpointed transactionally in
   `vehicle_observation` with the same cursor guard as full snapshots. Missing
@@ -59,8 +63,19 @@ Counts and timings are observations, not guarantees.
   Discovered yard metadata is reloaded from the persistent yard table in later
   chunks/runs. Discovery queries the whole yard, independent of the first vehicle's
   year/make. Missing metadata is retried in later chunks/runs.
-  There is no permanent exclusion for store 8: its current public response lacks
-  name/address/ZIP fields, so its 560 rows still cannot be located.
+  Unlisted IDs are counted as excluded and contribute no observed VINs, so their
+  rows cannot keep old listings available. Existing listings follow the normal
+  missing/deletion policy after accepted runs. Eligibility is fetched again on
+  the next chunk/run, including for cached yards and IDs that reappear.
+  On September 16, 2026, store 8 was absent from the inventory selector and the
+  public `getStores` response. Its 560 rows had arrival dates from December 13,
+  2023 through March 18, 2025 and no yard metadata. They are excluded because the
+  provider does not list that yard, not because of an inferred closure or an age
+  cutoff. No mapping from store 8 to a physical yard has been verified.
+  The September 16 full read-only crawl emitted 11,721 vehicles, excluded all
+  560 unlisted-store rows, and found one duplicate with zero rejected rows.
+  It completed 123 inventory pages plus one directory request in 186 seconds,
+  with no 429s or network errors.
 - Tear-A-Part uses the shared TAP client. Its endpoint rejected the old Chrome
   user-agent but accepted `JunkyardIndex/1.0`. Three valid records lacked a row;
   row and arrival date may be absent without invalidating the vehicle.

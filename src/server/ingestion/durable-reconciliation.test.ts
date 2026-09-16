@@ -234,7 +234,7 @@ describe("bounded durable reconciliation", () => {
       await client.execute(
         "update ingestion_run set active_slot = null, status = 'success' where id = 'run-old-observation'",
       );
-      for (const vin of ["VIN-PRESENT", "VIN-ABSENT"]) {
+      for (const vin of ["VIN-PRESENT", "VIN-ABSENT", "VIN-UNLISTED"]) {
         await client.execute({
           sql: `insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_run_count) values (?, 'pullnsave', 2003, 'Chevrolet', 'Cavalier', 'PNS-10', 'Discovered Yard', 'Mesa', 'Arizona', 'AZ', 33.43, -111.85, ?, ?, 0)`,
           args: [vin, now, now],
@@ -242,9 +242,21 @@ describe("bounded durable reconciliation", () => {
       }
       globalThis.fetch = Object.assign(
         async (input: RequestInfo | URL) => {
+          if (String(input).endsWith("/inventory/"))
+            return new Response(
+              '<select id="pns_yard"><option value="0">All</option><option value="1">Salt Lake City</option><option value="10">Discovered Yard</option></select><script>var pns_inventory_sf_ajax = {"nonce":"fixture-nonce"};</script>',
+            );
           if (String(input).includes("/v1/Vehicles/Search"))
             return new Response(
               JSON.stringify([
+                {
+                  astStoreNumber: 8,
+                  stockId: "STK-8",
+                  vin: "VIN-UNLISTED",
+                  year: 2003,
+                  make: "CHEVROLET",
+                  model: "CAVALIER",
+                },
                 {
                   astStoreNumber: 10,
                   stockId: "STK-10",
@@ -336,7 +348,7 @@ describe("bounded durable reconciliation", () => {
       expect(
         (
           await client.execute(
-            "select vin from vehicle where vin = 'VIN-ABSENT'",
+            "select vin from vehicle where vin in ('VIN-ABSENT', 'VIN-UNLISTED')",
           )
         ).rows,
       ).toHaveLength(0);
