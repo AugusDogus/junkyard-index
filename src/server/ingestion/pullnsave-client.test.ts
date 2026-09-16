@@ -103,6 +103,22 @@ describe("fetchPullNSavePage", () => {
 });
 
 describe("buildPullNSaveImageUrl", () => {
+  test("retains legacy stock identifiers and their yard suffix", () => {
+    expect(buildPullNSaveImageUrl("STK091580-1", 1)).toBe(
+      "https://app.pullnsaveapp.com/v1/Vehicles/Images/StockId/STK091580-1/OrderId/1",
+    );
+  });
+
+  test("encodes stock IDs as one path segment without changing the image order", () => {
+    // Synthetic encoding case: no special-character stock IDs occurred in the live audit.
+    const url = new URL(buildPullNSaveImageUrl("STK 12/3?#%&+-9", 4));
+    expect(url.pathname).toBe(
+      "/v1/Vehicles/Images/StockId/STK%2012%2F3%3F%23%25%26%2B-9/OrderId/4",
+    );
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
+  });
+
   test("builds the stock image endpoint used by pullnsave.com", () => {
     expect(buildPullNSaveImageUrl("STK044481-5", 1)).toBe(
       "https://app.pullnsaveapp.com/v1/Vehicles/Images/StockId/STK044481-5/OrderId/1",

@@ -1,0 +1,47 @@
+[
+  {
+    "astStoreNumber": 1,
+    "vehicleRno": 140065,
+    "storeRno": 1,
+    "stockId": "STK133376-1",
+    "rcvdDtTm": "2026-09-09T12:11:00",
+    "vin": "JHMFA16896S005350",
+    "year": 2006,
+    "make": "HONDA",
+    "model": "CIVIC",
+    "color": "GRAY",
+    "transmissionDesc": null,
+    "engineDesc": null,
+    "yardRow": 57
+  },
+  {
+    "astStoreNumber": 3,
+    "vehicleRno": 111990,
+    "storeRno": 1,
+    "stockId": "STK072997-3",
+    "rcvdDtTm": "2026-09-09T12:02:00",
+    "vin": "3N1BC1CP8CK249287",
+    "year": 2012,
+    "make": "NISSAN",
+    "model": "VERSA",
+    "color": "WHITE",
+    "transmissionDesc": null,
+    "engineDesc": null,
+    "yardRow": 53
+  },
+  {
+    "astStoreNumber": 9,
+    "vehicleRno": 28926,
+    "storeRno": 1,
+    "stockId": "STK164520-9",
+    "rcvdDtTm": "2026-09-11T13:54:00",
+    "vin": "JHMCG6658YC022383",
+    "year": 2000,
+    "make": "HONDA",
+    "model": "ACCORD",
+    "color": "GOLD",
+    "transmissionDesc": null,
+    "engineDesc": null,
+    "yardRow": 31
+  }
+]

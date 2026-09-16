@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Schema } from "effect";
-import { PullNSaveVehicleSchema } from "./pullnsave-client";
+import {
+  PullNSaveSearchPageSchema,
+  PullNSaveVehicleSchema,
+} from "./pullnsave-client";
+import mediaSamples from "./fixtures/pullnsave-media-samples.json";
 import { PULLNSAVE_YARDS } from "./pullnsave-config";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
 import { algoliaHitToSearchVehicle } from "~/lib/search-vehicles";
@@ -29,16 +33,50 @@ const VALID_RECORD = decodeRecord({
 const GILBERT = PULLNSAVE_YARDS.find((yard) => yard.yardNumber === 5);
 
 describe("transformPullNSaveVehicle", () => {
-  test("retains a working inventory destination through projection and search conversion", () => {
+  test("preserves live yard-qualified photos through projection and search conversion", () => {
+    const records = Schema.decodeUnknownSync(PullNSaveSearchPageSchema)(
+      mediaSamples,
+    );
+    for (const record of records) {
+      const yard = PULLNSAVE_YARDS.find(
+        (yard) => yard.yardNumber === record.astStoreNumber,
+      );
+      if (!yard)
+        throw new Error(`Missing sample yard ${record.astStoreNumber}`);
+      const vehicle = transformPullNSaveVehicle(record, yard);
+      if (!vehicle) throw new Error(`Invalid live sample ${record.stockId}`);
+      const searchVehicle = algoliaHitToSearchVehicle(
+        toAlgoliaRecord(vehicle, new Date(), null, 0),
+      );
+      expect(searchVehicle?.vin).toBe(vehicle.vin);
+      expect(searchVehicle?.imageUrl).toBe(
+        `https://app.pullnsaveapp.com/v1/Vehicles/Images/StockId/${record.stockId}/OrderId/1`,
+      );
+    }
+  });
+
+  test("does not fabricate an image URL for a blank stock ID", () => {
+    if (!GILBERT) throw new Error("Missing Gilbert fixture yard");
+    const vehicle = transformPullNSaveVehicle(
+      decodeRecord({ ...VALID_RECORD, stockId: "  " }),
+      GILBERT,
+    );
+    expect(vehicle?.stockNumber).toBeNull();
+    expect(vehicle?.imageUrl).toBeNull();
+  });
+
+  test("preserves the generic inventory fallback through projection and search conversion", () => {
     if (!GILBERT) throw new Error("Missing Gilbert fixture yard");
     const vehicle = transformPullNSaveVehicle(VALID_RECORD, GILBERT);
     if (!vehicle) throw new Error("Expected a canonical vehicle");
     const searchVehicle = algoliaHitToSearchVehicle(
       toAlgoliaRecord(vehicle, new Date(), null, 0),
     );
+    // This is only a search form, not a vehicle destination. See the media/link audit runbook.
     expect(searchVehicle?.detailsUrl).toBe(
       "https://www.pullnsave.com/inventory/",
     );
+    expect(searchVehicle?.imageUrl).toBe(vehicle.imageUrl);
   });
   test("maps a complete record into the canonical shape", () => {
     expect(GILBERT).not.toBeNull();
