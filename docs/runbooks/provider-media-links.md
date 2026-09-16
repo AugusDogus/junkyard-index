@@ -72,8 +72,10 @@ Primary runbook: [U Pull R Parts ingestion](upullrparts-ingestion.md).
   Prefer photo order `6, 3, 4, 1, 5, 2`. Timestamped filenames cannot be rebuilt;
   the separate CloudFront parts-photo builder does not describe vehicle photos.
 - Photo requests have concurrency **8**, including retry slots, and do **not**
-  use the catalog/make 1.5-second gate. Both use at most two retries, with no
-  network-error retry or jitter. The gate still covers catalog/make retries.
+  use the catalog/make 1.5-second gate. Photos share **three total attempts**
+  across transport `TypeError`, timeout, and retryable HTTP failures, with
+  1-second then 2-second backoff. Partial responses and invalid payloads are not
+  retried. Catalog/make requests retain their gated, no-network-retry policy.
 - Catalog, make resolution, photos, and callbacks share the **600-second** outer
   deadline. Failed/malformed photo lookups abort before yard/vehicle callbacks.
   Timeout cannot return a terminal checkpoint; inspect the failure and retry `0`.
@@ -81,6 +83,8 @@ Primary runbook: [U Pull R Parts ingestion](upullrparts-ingestion.md).
   lists; 57 `getVehicles`, 1 `getMakes`, 56 `getModels`, 3,311 `getVehicleImages`.
   Peak photo concurrency was 8, with about 129 seconds left before the deadline.
   This is measured headroom, not a guarantee under slower upstream service.
+  After adding transient photo retries, a full run completed 3,317 vehicles in
+  404 seconds with 3,431 requests, zero 429s, and zero network errors.
 - Preserve atomic cursor `0` to `1`, 250-row batches, make resolution, accounting,
   and yard eligibility. Do not publish a partial catalog to fit the budget.
 
