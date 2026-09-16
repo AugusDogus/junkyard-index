@@ -7,7 +7,6 @@ import {
   type PullNSaveVehicle,
 } from "./pullnsave-client";
 import type { PullNSaveYard } from "./pullnsave-config";
-import { PULLNSAVE_INVENTORY_PAGE_URL } from "./pullnsave-config";
 import type { CanonicalVehicle } from "./types";
 
 export type PullNSaveCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
@@ -73,7 +72,7 @@ export function transformPullNSaveVehicle(
         ? String(record.yardRow)
         : null,
     space: null,
-    detailsUrl: PULLNSAVE_INVENTORY_PAGE_URL,
+    detailsUrl: null,
     partsUrl: null,
     pricesUrl: null,
     engine: optionalText(record.engineDesc),

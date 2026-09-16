@@ -28,7 +28,7 @@ const SearchVehicleSchema = z
     row: z.string(),
     space: z.string(),
     imageUrl: z.string().nullable(),
-    detailsUrl: z.string(),
+    detailsUrl: z.string().nullable(),
     partsUrl: z.string(),
     pricesUrl: z.string(),
     engine: z.string().optional(),

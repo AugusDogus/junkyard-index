@@ -65,7 +65,7 @@ describe("transformPullNSaveVehicle", () => {
     expect(vehicle?.imageUrl).toBeNull();
   });
 
-  test("preserves the generic inventory fallback through projection and search conversion", () => {
+  test("preserves absent vehicle links through projection and search conversion", () => {
     if (!GILBERT) throw new Error("Missing Gilbert fixture yard");
     const vehicle = transformPullNSaveVehicle(VALID_RECORD, GILBERT);
     if (!vehicle) throw new Error("Expected a canonical vehicle");
@@ -73,9 +73,7 @@ describe("transformPullNSaveVehicle", () => {
       toAlgoliaRecord(vehicle, new Date(), null, 0),
     );
     // This is only a search form, not a vehicle destination. See the media/link audit runbook.
-    expect(searchVehicle?.detailsUrl).toBe(
-      "https://www.pullnsave.com/inventory/",
-    );
+    expect(searchVehicle?.detailsUrl).toBeNull();
     expect(searchVehicle?.imageUrl).toBe(vehicle.imageUrl);
   });
   test("maps a complete record into the canonical shape", () => {
@@ -106,7 +104,7 @@ describe("transformPullNSaveVehicle", () => {
       section: null,
       row: "50",
       space: null,
-      detailsUrl: "https://www.pullnsave.com/inventory/",
+      detailsUrl: null,
       partsUrl: null,
       pricesUrl: null,
       engine: null,

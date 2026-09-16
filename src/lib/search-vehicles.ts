@@ -130,7 +130,7 @@ export function algoliaHitToSearchVehicle(
     row: parseString(hit.row),
     space: parseString(hit.space),
     imageUrl: parseOptionalString(hit.imageUrl) ?? null,
-    detailsUrl: parseString(hit.detailsUrl),
+    detailsUrl: parseString(hit.detailsUrl).trim() || null,
     partsUrl: parseString(hit.partsUrl),
     pricesUrl: parseString(hit.pricesUrl),
     engine: parseOptionalString(hit.engine),

@@ -80,7 +80,7 @@ describe("transformTapInventoryProduct", () => {
       section: null,
       row: "6",
       space: null,
-      detailsUrl: "https://tearapart.com/inventory/",
+      detailsUrl: null,
       partsUrl: "https://tearapart.com/price-list/",
       pricesUrl: "https://tearapart.com/price-list/",
       engine: null,
@@ -104,7 +104,7 @@ describe("transformTapInventoryProduct", () => {
         store,
         TEARAPART_SITE_CONFIG,
       );
-      expect(vehicle?.detailsUrl).toBe("https://tearapart.com/inventory/");
+      expect(vehicle?.detailsUrl).toBeNull();
       expect(vehicle?.stockNumber).toBe(stocknumber || null);
       expect(vehicle?.vin).toBe(product.vin.trim());
     }

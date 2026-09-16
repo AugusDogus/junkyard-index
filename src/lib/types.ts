@@ -90,7 +90,7 @@ export interface SearchVehicle {
   row: string;
   space: string;
   imageUrl: string | null;
-  detailsUrl: string;
+  detailsUrl: string | null;
   partsUrl: string;
   pricesUrl: string;
   engine?: string;
