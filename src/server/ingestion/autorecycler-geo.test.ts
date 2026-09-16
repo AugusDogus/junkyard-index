@@ -8,6 +8,55 @@ import {
 } from "./autorecycler-geo";
 
 describe("autorecycler geo", () => {
+  test("uses the organization city field when geographic city is blank", () => {
+    const geo = parseOrgGeoFromOrganizationDoc(
+      {
+        _id: "org",
+        _source: {
+          name_text: "Atlanta, GA",
+          address_city_text: "Atlanta",
+          address1_geographic_address: {
+            lat: 33.7877874,
+            lng: -84.4842809,
+            address: "1172 Field Rd NW, Atlanta, GA 30318, USA",
+            components: { city: "", state: "Georgia", "state code": "GA" },
+          },
+        },
+      },
+      "org",
+    );
+    expect(geo?.locationCity).toBe("Atlanta");
+  });
+
+  test("does not mistake the street-address segment for a city", () => {
+    const address = {
+      lat: 33.7877874,
+      lng: -84.4842809,
+      address: "1172 Field Rd NW, Atlanta, GA 30318, USA",
+      components: { state: "Georgia", "state code": "GA" },
+    };
+    const website = parseOrgGeoFromWebsiteRecord(
+      {
+        organization_custom_organization: "org",
+        address_geographic_address: address,
+      },
+      "org",
+    );
+    const details = parseOrgGeoFromDetailsInitData(
+      [
+        {
+          type: "custom.inventory",
+          data: {
+            organization_custom_organization: "org",
+            gps_location_geographic_address: address,
+          },
+        },
+      ],
+      "org",
+    );
+    expect(website?.locationCity).toBe("Unknown");
+    expect(details?.locationCity).toBe("Unknown");
+  });
   test("parseOrgGeoFromOrganizationDoc reads authoritative organization location data", () => {
     const org = "1348695171700984260__LOOKUP__test";
     const g = parseOrgGeoFromOrganizationDoc(
