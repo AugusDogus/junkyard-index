@@ -29,7 +29,7 @@ test("preserves legacy VIN/year and maps inventory fields to the verified Detroi
     lng: -83.00895,
     state: "Michigan",
     stateAbbr: "MI",
-    detailsUrl: "https://parts-galore.com/inventory/",
+    detailsUrl: null,
     imageUrl: null,
   });
 });

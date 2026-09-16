@@ -56,9 +56,11 @@ export function transformTapInventoryProduct<Source extends IngestionSource>(
   // Tear-A-Part ignores stock and filter query parameters. Its public search is
   // POST-only; do not advertise an unsupported vehicle link. See the runbook.
   const detailsUrl =
-    site.source !== "tearapart" && stockNumber.length > 0
-      ? `${site.inventoryPageUrl}?stock=${encodeURIComponent(stockNumber)}`
-      : site.inventoryPageUrl;
+    site.source === "tearapart"
+      ? null
+      : stockNumber.length > 0
+        ? `${site.inventoryPageUrl}?stock=${encodeURIComponent(stockNumber)}`
+        : site.inventoryPageUrl;
 
   return {
     vin,

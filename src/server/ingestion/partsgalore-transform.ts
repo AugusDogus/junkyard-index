@@ -5,7 +5,6 @@ import {
   normalizeCanonicalMake,
   normalizeRegion,
 } from "./normalization";
-import { PARTSGALORE_INVENTORY_URL } from "./partsgalore-client";
 import type { PartsGaloreRecord } from "./partsgalore-parser";
 import type { PartsGaloreYard } from "./partsgalore-yard-metadata";
 
@@ -67,7 +66,7 @@ export function transformPartsGaloreVehicle(
     section: null,
     row: record.row.trim() || null,
     space: null,
-    detailsUrl: PARTSGALORE_INVENTORY_URL,
+    detailsUrl: null,
     partsUrl: null,
     pricesUrl: "https://parts-galore.com/parts-price-list/",
     engine: null,

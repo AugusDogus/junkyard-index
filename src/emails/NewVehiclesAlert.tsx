@@ -16,6 +16,7 @@ import {
   Text,
 } from "@react-email/components";
 import type { SearchAlertMatch } from "~/lib/search-alert-data";
+import { VehicleDestination } from "~/lib/vehicle-destination";
 
 interface NewVehiclesAlertItem {
   searchName: string;
@@ -101,55 +102,77 @@ export function NewVehiclesAlert({
                     </Text>
                   </Section>
 
-                  {vehiclesToShow.map((vehicle) => (
-                    <Link
-                      key={vehicle.id}
-                      href={vehicle.detailsUrl}
-                      className="mb-4 block rounded border border-gray-200 bg-gray-50 p-3 no-underline"
-                    >
-                      <Row>
-                        <Column className="w-[100px] align-top">
-                          {vehicle.imageUrl ? (
-                            <Img
-                              src={vehicle.imageUrl}
-                              alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                              width={90}
-                              height={68}
-                              className="rounded"
-                            />
-                          ) : (
-                            <Section className="flex h-[68px] w-[90px] items-center justify-center rounded bg-gray-200">
-                              <Text className="m-0 text-xs text-gray-500">
-                                No image
+                  {vehiclesToShow.map((vehicle) => {
+                    const destination = VehicleDestination.resolve(vehicle);
+                    return (
+                      <Section
+                        key={vehicle.id}
+                        className="mb-4 block rounded border border-gray-200 bg-gray-50 p-3 no-underline"
+                      >
+                        <Row>
+                          <Column className="w-[100px] align-top">
+                            {vehicle.imageUrl ? (
+                              <Img
+                                src={vehicle.imageUrl}
+                                alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                                width={90}
+                                height={68}
+                                className="rounded"
+                              />
+                            ) : (
+                              <Section className="flex h-[68px] w-[90px] items-center justify-center rounded bg-gray-200">
+                                <Text className="m-0 text-xs text-gray-500">
+                                  No image
+                                </Text>
+                              </Section>
+                            )}
+                          </Column>
+                          <Column className="pl-3 align-top">
+                            <Text className="m-0 text-sm font-semibold text-gray-900">
+                              {vehicle.year} {vehicle.make} {vehicle.model}
+                            </Text>
+                            {vehicle.color && (
+                              <Text className="m-0 text-xs text-gray-600">
+                                {vehicle.color}
                               </Text>
-                            </Section>
-                          )}
-                        </Column>
-                        <Column className="pl-3 align-top">
-                          <Text className="m-0 text-sm font-semibold text-gray-900">
-                            {vehicle.year} {vehicle.make} {vehicle.model}
-                          </Text>
-                          {vehicle.color && (
-                            <Text className="m-0 text-xs text-gray-600">
-                              {vehicle.color}
+                            )}
+                            <Text className="m-0 mt-1 text-xs text-gray-500">
+                              {vehicle.locationName}
                             </Text>
-                          )}
-                          <Text className="m-0 mt-1 text-xs text-gray-500">
-                            {vehicle.locationName}
-                          </Text>
-                          <Text className="m-0 text-xs text-gray-500">
-                            {vehicle.locationCity}, {vehicle.stateAbbr}
-                          </Text>
-                          {vehicle.row && (
                             <Text className="m-0 text-xs text-gray-500">
-                              Row {vehicle.row}
-                              {vehicle.space && `, Space ${vehicle.space}`}
+                              {vehicle.locationCity}, {vehicle.stateAbbr}
                             </Text>
-                          )}
-                        </Column>
-                      </Row>
-                    </Link>
-                  ))}
+                            {vehicle.row && (
+                              <Text className="m-0 text-xs text-gray-500">
+                                Row {vehicle.row}
+                                {vehicle.space && `, Space ${vehicle.space}`}
+                              </Text>
+                            )}
+                            {destination.kind !== "inventory" && (
+                              <>
+                                <Text className="m-0 mt-2 text-xs text-gray-600">
+                                  {destination.explanation}
+                                </Text>
+                                {vehicle.vin.trim() && (
+                                  <Text className="m-0 mt-1 text-xs text-gray-900">
+                                    VIN: <code>{vehicle.vin}</code>
+                                  </Text>
+                                )}
+                              </>
+                            )}
+                            {destination.kind !== "unavailable" && (
+                              <Link
+                                href={destination.href}
+                                className="mt-2 inline-block text-sm text-gray-900 underline"
+                              >
+                                {destination.label}
+                              </Link>
+                            )}
+                          </Column>
+                        </Row>
+                      </Section>
+                    );
+                  })}
 
                   {remainingCount > 0 && (
                     <Text className="m-0 mt-2 text-center text-sm text-gray-500 italic">

@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowUpRight, Copy, MapPin } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
+import { toast } from "sonner";
 import { VehicleImage } from "~/components/search/VehicleImage";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -15,8 +16,12 @@ import {
 } from "~/components/ui/card";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
+import { VehicleDestination } from "~/lib/vehicle-destination";
 
 function VehicleCardComponent({ vehicle }: VehicleCardProps) {
+  const destination = VehicleDestination.resolve(vehicle);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const vin = vehicle.vin.trim();
   const primaryImage = vehicle.imageUrl;
   const geoLabel =
     vehicle.locationCity && vehicle.locationCity !== "Unknown"
@@ -34,6 +39,19 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
       has_image: primaryImage !== null,
     });
   }, [primaryImage, vehicle]);
+
+  const copyVin = async () => {
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(vin);
+      toast.success("VIN copied");
+    } catch {
+      const message =
+        "Could not copy VIN. Select and copy the VIN shown above.";
+      setCopyError(message);
+      toast.error(message);
+    }
+  };
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -99,7 +117,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           </dd>
 
           <dt className="text-muted-foreground">VIN</dt>
-          <dd className="truncate text-right font-mono">
+          <dd className="text-right font-mono break-all select-text">
             {vehicle.vin || "N/A"}
           </dd>
 
@@ -115,18 +133,38 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         </div>
       </CardContent>
 
-      <CardFooter className="p-4 pt-0">
-        <Button asChild className="w-full" variant="default">
-          <Link
-            href={vehicle.detailsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleDetailsClick}
-          >
-            View inventory
-            <ArrowUpRight data-icon="inline-end" />
-          </Link>
-        </Button>
+      <CardFooter className="flex-col items-stretch gap-2 p-4 pt-0">
+        {destination.kind !== "inventory" && (
+          <>
+            <p className="text-muted-foreground text-xs text-pretty">
+              {destination.explanation}
+            </p>
+            {vin && (
+              <Button type="button" variant="outline" onClick={copyVin}>
+                <Copy aria-hidden="true" data-icon="inline-start" />
+                Copy VIN
+              </Button>
+            )}
+            {copyError && (
+              <p role="alert" className="text-destructive text-xs text-pretty">
+                {copyError}
+              </p>
+            )}
+          </>
+        )}
+        {destination.kind !== "unavailable" && (
+          <Button asChild className="w-full" variant="default">
+            <Link
+              href={destination.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleDetailsClick}
+            >
+              {destination.label}
+              <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
+            </Link>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

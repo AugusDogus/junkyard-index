@@ -9,8 +9,8 @@ import {
 import { env } from "~/env";
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
 import type { SearchAlertData } from "~/lib/search-alert-data";
-import type { SearchVehicle } from "~/lib/types";
 import { createDiscordNonce } from "./discord-idempotency";
+import { formatVehicleEmbed } from "./discord-vehicle-embed";
 
 // Initialize Discord REST client
 const discord = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
@@ -97,48 +97,6 @@ export async function sendTestDM(
   };
 
   return sendDM(userId, message);
-}
-
-/**
- * Format vehicles into Discord embeds for the alert notification.
- */
-function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
-  const fields: APIEmbed["fields"] = [
-    {
-      name: "Location",
-      value: vehicle.locationName,
-      inline: true,
-    },
-    {
-      name: "Area",
-      value: `${vehicle.locationCity}, ${vehicle.stateAbbr}`,
-      inline: true,
-    },
-  ];
-
-  if (vehicle.row) {
-    fields.push({
-      name: "Row",
-      value: vehicle.row + (vehicle.space ? `, Space ${vehicle.space}` : ""),
-      inline: true,
-    });
-  }
-
-  if (vehicle.color) {
-    fields.push({
-      name: "Color",
-      value: vehicle.color,
-      inline: true,
-    });
-  }
-
-  return {
-    title: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
-    url: vehicle.detailsUrl,
-    color: 0x5865f2, // Discord blurple
-    fields,
-    thumbnail: vehicle.imageUrl ? { url: vehicle.imageUrl } : undefined,
-  };
 }
 
 /**
