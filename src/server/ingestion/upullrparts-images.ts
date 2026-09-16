@@ -1,4 +1,9 @@
-import { Effect, Schema } from "effect";
+import { Effect, Schedule, Schema } from "effect";
+import {
+  ProviderRequestError,
+  RequestTimeoutError,
+  RetryableHttpStatusError,
+} from "./errors";
 import { fetchProviderJson } from "./provider-http-client";
 import { hasHttpPaginationLink } from "./provider-http-pagination";
 import {
@@ -57,8 +62,26 @@ export function fetchUpullRPartsImage(stock: string) {
         );
       }
     },
-    retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
+    // Use one photo-layer retry budget, rather than nesting transport retries
+    // around the helper's HTTP/timeout retries and multiplying attempts.
+    retry: { retryLimit: 0, retryNetworkErrors: false, jitter: false },
   }).pipe(
+    Effect.retry(
+      Schedule.intersect(
+        Schedule.recurs(2),
+        Schedule.exponential("1 second"),
+      ).pipe(
+        Schedule.whileInput<Error>(
+          (error) =>
+            error instanceof RetryableHttpStatusError ||
+            error instanceof RequestTimeoutError ||
+            // Node/Bun fetch rejects with TypeError for transport failures. The
+            // shared helper also wraps onResponse errors, which must not retry.
+            (error instanceof ProviderRequestError &&
+              error.cause instanceof TypeError),
+        ),
+      ),
+    ),
     Effect.map(
       ({ images }) =>
         [...images].sort(

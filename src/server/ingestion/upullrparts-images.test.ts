@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Clock, Effect, Fiber, Runtime, TestClock, TestContext } from "effect";
 import fixture from "./fixtures/upullrparts-images.json";
 import partialResponses from "./fixtures/upullrparts-partial-images.json";
 import {
@@ -14,13 +14,65 @@ afterEach(() => {
 });
 
 function respond(body: unknown, status = 200) {
+  let requests = 0;
   globalThis.fetch = Object.assign(
-    async () => Response.json(body, { status }),
+    async () => {
+      requests++;
+      return Response.json(body, { status });
+    },
     {
       preconnect: originalFetch.preconnect,
     },
   );
+  return () => requests;
 }
+
+test.each([1, 3])(
+  "photo transport failures retry at most twice with backoff (%i failed attempts)",
+  async (failures) => {
+    const starts: number[] = [];
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const runPromise = Runtime.runPromise(yield* Effect.runtime());
+        globalThis.fetch = Object.assign(
+          async (_input: RequestInfo | URL, init?: RequestInit) => {
+            starts.push(await runPromise(Clock.currentTimeMillis));
+            expect(init?.body).toBe(
+              "action=doAaaApiCall&apiAction=getVehicleImages&stockID=UG072546",
+            );
+            if (starts.length <= failures)
+              throw new TypeError("fetch failed", {
+                cause: Object.assign(new Error("socket reset"), {
+                  code: "ECONNRESET",
+                }),
+              });
+            return Response.json(fixture);
+          },
+          { preconnect: originalFetch.preconnect },
+        );
+        const fiber = yield* Effect.fork(
+          Effect.either(fetchUpullRPartsImage("UG072546")),
+        );
+        yield* TestClock.adjust("3 seconds");
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    expect(starts).toEqual(failures === 1 ? [0, 1000] : [0, 1000, 3000]);
+    if (failures === 1) {
+      expect(result).toMatchObject({
+        _tag: "Right",
+        right:
+          "https://api.aaaparts.com/staticImages/UG072546_6_Facebook_1789479328434.jpg",
+      });
+    } else {
+      expect(result._tag).toBe("Left");
+      if (result._tag === "Left")
+        expect(result.left.message).toContain(
+          "stock UG072546 request failed: fetch failed",
+        );
+    }
+  },
+);
 
 test("uses the public thumbnail order, falling back to a returned corner shot", async () => {
   respond(fixture);
@@ -31,6 +83,57 @@ test("uses the public thumbnail order, falling back to a returned corner shot", 
   expect(await Effect.runPromise(fetchUpullRPartsImage("UG072546"))).toBe(
     "https://api.aaaparts.com/staticImages/UG072546_3_RFCorner_1789479296717.jpg",
   );
+});
+
+test.each(["HTTP 503", "timeout"])(
+  "transport and %s failures share one three-attempt budget",
+  async (failure) => {
+    const starts: number[] = [];
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const runPromise = Runtime.runPromise(yield* Effect.runtime());
+        globalThis.fetch = Object.assign(
+          async () => {
+            starts.push(await runPromise(Clock.currentTimeMillis));
+            if (starts.length === 1) throw new TypeError("fetch failed");
+            if (failure === "timeout")
+              throw new DOMException("request timed out", "TimeoutError");
+            return new Response("temporarily unavailable", { status: 503 });
+          },
+          { preconnect: originalFetch.preconnect },
+        );
+        const fiber = yield* Effect.fork(
+          Effect.either(fetchUpullRPartsImage("UG072546")),
+        );
+        yield* TestClock.adjust("3 seconds");
+        return yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+    expect(starts).toEqual([0, 1000, 3000]);
+    expect(result._tag).toBe("Left");
+    if (result._tag === "Left")
+      expect(result.left.message).toContain(
+        failure === "timeout" ? "timed out" : "HTTP status 503",
+      );
+  },
+);
+
+test("invalid JSON is a failed lookup, not a retry or an empty photo list", async () => {
+  let requests = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      requests++;
+      return new Response("not JSON");
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const result = await Effect.runPromise(
+    Effect.either(fetchUpullRPartsImage("UG072546")),
+  );
+  expect(requests).toBe(1);
+  expect(result._tag).toBe("Left");
+  if (result._tag === "Left")
+    expect(result.left.message).toContain("invalid JSON");
 });
 
 test("keeps an explicit successful empty photo list as null", async () => {
@@ -109,20 +212,22 @@ test.each([
 ])(
   "rejects failed, malformed, placeholder or mismatched-stock responses: %j",
   async (body) => {
-    respond(body);
+    const requests = respond(body);
     const result = await Effect.runPromise(
       Effect.either(fetchUpullRPartsImage("UG072546")),
     );
     expect(result._tag).toBe("Left");
+    expect(requests()).toBe(1);
   },
 );
 
 test("propagates a failed photo request rather than silently removing an existing photo", async () => {
-  respond({ error: "unavailable" }, 403);
+  const requests = respond({ error: "unavailable" }, 403);
   const result = await Effect.runPromise(
     Effect.either(fetchUpullRPartsImage("UG072546")),
   );
   expect(result._tag).toBe("Left");
+  expect(requests()).toBe(1);
   if (result._tag === "Left")
     expect(result.left.message).toContain("stock UG072546 returned HTTP 403");
 });

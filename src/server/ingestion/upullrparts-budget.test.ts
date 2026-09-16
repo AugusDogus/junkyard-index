@@ -20,7 +20,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-test("3,311 unique stocks plus complete make fallback fit the production deadline at observed photo latency", async () => {
+test("3,311 unique stocks plus make fallback and a late photo transport retry fit the production deadline", async () => {
   const catalog = Array.from({ length: 3311 }, (_, i) => ({
     ...fixture,
     Store: (i % 3) + 1,
@@ -33,6 +33,7 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
   let activePhotos = 0;
   let peakPhotos = 0;
   let photosCompleted = 0;
+  let networkFailures = 0;
   let firstPhotoAt: number | undefined;
   let finishedAt: number | undefined;
   let yardsEmitted = 0;
@@ -46,8 +47,8 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
       // not wall, time. Exercise the production gate and eight-worker image pool.
       const runPromise = Runtime.runPromise(yield* Effect.runtime());
       globalThis.fetch = Object.assign(
-        (input: RequestInfo | URL, init?: RequestInit) =>
-          runPromise(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const response = await runPromise(
             Effect.gen(function* () {
               expect(String(input)).toBe(
                 "https://upullrparts.com/wp-admin/admin-ajax.php",
@@ -69,6 +70,12 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
                 // 750ms rather than using the faster ~500ms individual sample calls.
                 yield* Effect.sleep("750 millis");
                 activePhotos--;
+                // Fail the last stock once so retry/backoff is on the critical
+                // path, after almost the entire catalog has been fetched.
+                if (stock === "UG003310" && networkFailures === 0) {
+                  networkFailures++;
+                  return new TypeError("fetch failed");
+                }
                 photosCompleted++;
                 const fileName = `${stock}_6_Facebook_1789569476269.jpg`;
                 return Response.json({
@@ -99,7 +106,11 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
               // Force all 56 make partitions and all 56 fallback model requests.
               return Response.json(params.has("makes") ? [] : catalog);
             }),
-          ),
+          );
+          // Throw the original fetch-shaped error, not Runtime's FiberFailure.
+          if (response instanceof TypeError) throw response;
+          return response;
+        },
         { preconnect: originalFetch.preconnect },
       );
       const fiber = yield* Effect.fork(
@@ -126,7 +137,7 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
       expect(Option.isNone(yield* Fiber.poll(fiber))).toBe(true);
       expect(yardsEmitted).toBe(0);
       expect(batchSizes).toEqual([]);
-      yield* TestClock.adjust("1 second");
+      yield* TestClock.adjust("3 seconds");
       expect(Option.isSome(yield* Fiber.poll(fiber))).toBe(true);
       return yield* Fiber.join(fiber);
     }).pipe(Effect.provide(TestContext.TestContext)),
@@ -136,9 +147,10 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
     getVehicles: 57,
     getMakes: 1,
     getModels: 56,
-    getVehicleImages: 3311,
+    getVehicleImages: 3312,
   });
   expect(requestedStocks.size).toBe(3311);
+  expect(networkFailures).toBe(1);
   expect(peakPhotos).toBe(8);
   expect(activePhotos).toBe(0);
   for (let i = 1; i < catalogStarts.length; i++) {
@@ -147,7 +159,7 @@ test("3,311 unique stocks plus complete make fallback fit the production deadlin
     ).toBeGreaterThanOrEqual(1500);
   }
   expect(firstPhotoAt).toBe(170250);
-  expect(finishedAt).toBe(480750);
+  expect(finishedAt).toBe(482500);
   expect(yardsEmitted).toBe(1);
   expect(batchSizes).toEqual([...Array.from({ length: 13 }, () => 250), 61]);
   expect(emittedVins).toEqual(catalog.map((row) => row.VIN));
