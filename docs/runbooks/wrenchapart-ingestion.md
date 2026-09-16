@@ -36,7 +36,8 @@ drops or the public interface changes.
   the public Vehicle Browser's `https://wrenchapart.com/vehicle-info/<VIN>` route;
   prices use validated provider slugs in
   `https://wrenchapart.com/<slug>-price-list.html`. See
-  [media and link verification](wrenchapart-media-links.md) for browser evidence.
+  [provider photos and inventory links](provider-media-links.md) for contracts
+  and verification steps.
 - Short provider VIN identifiers are preserved under existing ingestion rules;
   characters are not guessed or padded.
 
