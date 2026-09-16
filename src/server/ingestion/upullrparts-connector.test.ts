@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import fixture from "./fixtures/upullrparts-vehicle.json";
+import images from "./fixtures/upullrparts-images.json";
 import { UPULLRPARTS_API_URL } from "./upullrparts-client";
 import {
   streamUpullRPartsInventoryWithRequestGate,
@@ -27,6 +28,8 @@ function mockResponse(body: string, status = 200) {
       const params = new URLSearchParams(
         typeof init?.body === "string" ? init.body : "",
       );
+      if (params.get("apiAction") === "getVehicleImages")
+        return Response.json(images);
       if (params.get("apiAction") === "getMakes")
         return Response.json(["Ford"]);
       if (params.get("apiAction") === "getModels")
@@ -40,6 +43,39 @@ function mockResponse(body: string, status = 200) {
 }
 
 describe("U Pull R Parts complete catalog", () => {
+  test("enriches photos by stock using the public image action before publication", async () => {
+    const requests = mockResponse(JSON.stringify(catalog));
+    const vehicles: UpullRPartsCanonicalVehicle[] = [];
+    await Effect.runPromise(
+      streamUpullRPartsInventoryWithRequestGate(
+        {
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+        },
+        (request) => request,
+      ),
+    );
+    expect(vehicles.map((vehicle) => vehicle.imageUrl)).toEqual(
+      catalog.map(
+        () =>
+          "https://api.aaaparts.com/staticImages/UG072546_6_Facebook_1789479328434.jpg",
+      ),
+    );
+    expect(
+      requests.filter(({ init }) =>
+        String(init?.body).includes("getVehicleImages"),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        init: expect.objectContaining({
+          method: "POST",
+          body: "action=doAaaApiCall&apiAction=getVehicleImages&stockID=UG072546",
+        }),
+      }),
+    ]);
+  });
   test("rejects a catalog whose third yard is represented only by an unusable record", async () => {
     const healthy = Array.from({ length: 2200 }, (_, i) => ({
       ...fixture,
@@ -68,6 +104,44 @@ describe("U Pull R Parts complete catalog", () => {
       expect(result.left.message).toContain("missing known yards UPRRP-3");
     expect(batches).toBe(0);
   });
+  test("a photo failure emits neither yards nor vehicle batches and leaves cursor zero retryable", async () => {
+    mockResponse(JSON.stringify(catalog));
+    const upstream = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const params = new URLSearchParams(
+          typeof init?.body === "string" ? init.body : "",
+        );
+        if (params.get("apiAction") === "getVehicleImages")
+          return new Response("photo service unavailable", { status: 403 });
+        return upstream(input, init);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    let emitted = 0;
+    const onBatch = () =>
+      Effect.sync(() => {
+        emitted++;
+      });
+    const result = await Effect.runPromise(
+      Effect.either(
+        streamUpullRPartsInventoryWithRequestGate(
+          { onBatch, onYards: onBatch },
+          (request) => request,
+        ),
+      ),
+    );
+    expect(result._tag).toBe("Left");
+    expect(emitted).toBe(0);
+    globalThis.fetch = upstream;
+    const retry = await Effect.runPromise(
+      streamUpullRPartsInventoryWithRequestGate(
+        { startCursor: 0, onBatch },
+        (request) => request,
+      ),
+    );
+    expect(retry).toMatchObject({ status: "complete", cursor: 1, count: 3 });
+  });
   test("rejects unusable rows before make enrichment without triggering model fallback", async () => {
     const invalid = [
       { ...fixture, VIN: null },
@@ -81,6 +155,8 @@ describe("U Pull R Parts complete catalog", () => {
           typeof init?.body === "string" ? init.body : "",
         );
         requests.push(params);
+        if (params.get("apiAction") === "getVehicleImages")
+          return Response.json(images);
         if (params.get("apiAction") === "getMakes")
           return Response.json([
             "Ford",
@@ -116,7 +192,7 @@ describe("U Pull R Parts complete catalog", () => {
       "Ford",
       "Ford",
     ]);
-    expect(requests).toHaveLength(58);
+    expect(requests).toHaveLength(59);
     expect(
       requests.some((params) => params.get("apiAction") === "getModels"),
     ).toBe(false);
@@ -217,7 +293,7 @@ describe("U Pull R Parts complete catalog", () => {
         (request) => request,
       ),
     );
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(4);
     expect(requests[0]).toMatchObject({
       url: UPULLRPARTS_API_URL,
       init: {
@@ -369,7 +445,7 @@ describe("U Pull R Parts complete catalog", () => {
       ),
     );
     expect(retry.count).toBe(3);
-    expect(requests).toHaveLength(6);
+    expect(requests).toHaveLength(8);
   });
 
   test("propagates a yard callback failure before vehicle callbacks", async () => {
@@ -421,6 +497,8 @@ describe("U Pull R Parts complete catalog", () => {
         const params = new URLSearchParams(
           typeof init?.body === "string" ? init.body : "",
         );
+        if (params.get("apiAction") === "getVehicleImages")
+          return Response.json(images);
         if (params.get("apiAction") === "getMakes")
           return Response.json(["Toyota", "Ford"]);
         if (params.get("makes") === "Toyota")
@@ -437,7 +515,7 @@ describe("U Pull R Parts complete catalog", () => {
         {
           onBatch: (batch) =>
             Effect.sync(() => {
-              expect(requests).toBe(4);
+              expect(requests).toBe(5);
               emitted.push(...batch);
             }),
         },

@@ -25,7 +25,7 @@ describe("U Pull R Parts transformation", () => {
       stateAbbr: "MN",
       lat: 44.7183045,
       lng: -93.1261146,
-      detailsUrl: "https://upullrparts.com/inventory/",
+      detailsUrl: null,
       imageUrl: null,
     });
   });
