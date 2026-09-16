@@ -9,7 +9,7 @@ import {
   type IPullUPullCanonicalVehicle,
 } from "./ipullupull-transform";
 import {
-  IPULLUPULL_KNOWN_CITIES,
+  loadIPullUPullDirectory,
   loadIPullUPullYards,
   type IPullUPullYard,
 } from "./ipullupull-yard-metadata";
@@ -62,18 +62,17 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
       },
     };
     if (cursor === 1) return result;
+    const directory = yield* loadIPullUPullDirectory(requestGate);
     const records = yield* fetchIPullUPullCatalog(requestGate);
     const reported = new Set(
       records
         .filter(isUsableIPullUPullRecord)
         .map((record) => record["Yard City"].trim().toUpperCase()),
     );
-    const missing = IPULLUPULL_KNOWN_CITIES.filter(
-      (city) => !reported.has(city),
-    );
+    const missing = [...directory.keys()].filter((city) => !reported.has(city));
     if (missing.length > 0)
       return yield* new IPullUPullStreamError({
-        message: `iPull-uPull export is missing usable records for known yards ${missing.join(", ")}; verify the unfiltered catalog before retrying. No batches were emitted.`,
+        message: `iPull-uPull export is missing usable records for currently listed yards ${missing.join(", ")}; verify the unfiltered catalog before retrying. No batches were emitted.`,
       });
 
     const accounting = {
@@ -89,6 +88,14 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
     const accepted = [];
     for (const record of records) {
       const vin = ipullUPullVin(record);
+      const city = record["Yard City"].trim().toUpperCase();
+      if (!directory.has(city)) {
+        accounting.recordsExcluded++;
+        warn(
+          `unlisted or unidentified yard ${JSON.stringify(city)}; no availability preserved`,
+        );
+        continue;
+      }
       const status = record.Status.trim();
       // Sold assets with unsold parts are not available cars. Do not preserve
       // their VINs as active observations, even when their row is 300.
@@ -112,14 +119,6 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
         );
         continue;
       }
-      if (!record["Yard City"].trim()) {
-        accounting.recordsExcluded++;
-        if (vin) observedVins.add(vin);
-        warn(
-          "unlocated records; observed VINs preserved where usable, verify the missing yard metadata",
-        );
-        continue;
-      }
       if (!isUsableIPullUPullRecord(record)) {
         accounting.recordsRejected++;
         if (vin) observedVins.add(vin);
@@ -133,7 +132,7 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
     const cities = new Set(
       accepted.map((record) => record["Yard City"].trim().toUpperCase()),
     );
-    const metadata = yield* loadIPullUPullYards(cities, requestGate);
+    const metadata = yield* loadIPullUPullYards(cities, directory, requestGate);
     const vehicles: IPullUPullCanonicalVehicle[] = [];
     const seen = new Set<string>();
     // Prefer the newest published yard timestamp, then stock number and city.
