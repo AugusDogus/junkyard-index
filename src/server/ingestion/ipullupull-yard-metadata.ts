@@ -56,6 +56,38 @@ export function ipullUPullDirectoryLinks(html: string): URL[] {
 /** Only the directory's location cards establish eligibility, not historical
  * CSV cities or navigation/footer links. Reject incomplete or ambiguous lists.
  */
+function locationListing(body: string): string {
+  const content = body
+    .replace(/<(header|footer)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav\s*>/gi, "");
+  if (/<\/?(?:header|footer|nav)\b/i.test(content))
+    throw new Error(
+      "iPull-uPull directory has incomplete navigation landmarks",
+    );
+  const sections = [
+    ...content.matchAll(/<div\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi),
+  ].filter(([tag]) => {
+    const classes = (inventoryHtmlAttribute(tag, "class") ?? "").split(/\s+/);
+    return ["section", "breakout", "bg_black"].every((name) =>
+      classes.includes(name),
+    );
+  });
+  const section = sections[0];
+  if (sections.length !== 1 || !section)
+    throw new Error(
+      "iPull-uPull directory lacks one identifiable location-listing section",
+    );
+  const rest = content.slice(section.index + section[0].length);
+  let depth = 1;
+  for (const tag of rest.matchAll(/<\/?div\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi)) {
+    depth += /^<\//.test(tag[0]) ? -1 : 1;
+    if (depth === 0) return rest.slice(0, tag.index);
+  }
+  throw new Error(
+    "iPull-uPull directory has an unclosed location-listing section",
+  );
+}
+
 export function parseIPullUPullDirectory(
   html: string,
 ): ReadonlyMap<string, URL> {
@@ -70,12 +102,13 @@ export function parseIPullUPullDirectory(
     throw new Error(
       "iPull-uPull directory is missing a complete HTML document",
     );
+  const listing = locationListing(body);
   const figures = [
-    ...body.matchAll(
+    ...listing.matchAll(
       /<figure\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/figure\s*>/gi,
     ),
   ];
-  if (figures.length * 2 !== [...body.matchAll(/<\/?figure\b/gi)].length)
+  if (figures.length * 2 !== [...listing.matchAll(/<\/?figure\b/gi)].length)
     throw new Error("iPull-uPull directory has incomplete location cards");
   const directory = new Map<string, URL>();
   for (const figure of figures) {
@@ -84,7 +117,7 @@ export function parseIPullUPullDirectory(
         .split(/\s+/)
         .includes("wp-block-image")
     )
-      continue;
+      throw new Error("iPull-uPull directory location-card markup changed");
     const links = ipullUPullDirectoryLinks(figure[2] ?? "");
     const url = links[0];
     const slug = url
@@ -159,9 +192,15 @@ function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
     requestGate,
     retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
     onResponse: (response) => {
-      if (response.status === 206 || response.headers.has("content-range"))
+      if (
+        response.status === 206 ||
+        response.headers.has("content-range") ||
+        /\brel\s*=\s*["']?(?:next|prev|first|last)\b/i.test(
+          response.headers.get("link") ?? "",
+        )
+      )
         throw new Error(
-          `Partial yard metadata from ${url}; retry the complete page.`,
+          `Partial or paginated yard metadata from ${url}; retry the complete page.`,
         );
     },
   });
