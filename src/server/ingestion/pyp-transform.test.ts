@@ -219,6 +219,21 @@ test("PYP yard metadata stores the matching location page and contact info", () 
     "https://www.pyp.com/inventory/other-yard-9999/",
     "javascript:alert(1)",
   ]) {
-    expect(pypYard({ ...mockLocation, locationPageURL }).websiteUrl).toBeNull();
+    expect(
+      pypYard({
+        ...mockLocation,
+        locationPageURL,
+        urls: { ...mockLocation.urls, store: locationPageURL },
+      }).websiteUrl,
+    ).toBeNull();
   }
+});
+
+test("PYP yard metadata accepts the current relative store-page contract", () => {
+  expect(
+    pypYard({
+      ...mockLocation,
+      locationPageURL: "/locations/ca/sun-valley/11201-pendleton-st/",
+    }).websiteUrl,
+  ).toBe("https://www.pyp.com/locations/ca/sun-valley/11201-pendleton-st/");
 });

@@ -22,7 +22,7 @@ than treating an inventory ZIP centroid as the yard entrance.
 
 | Source                     | Metadata currently recorded                                                                                                        |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| PYP                        | Business/operator, address, phone, coordinates, matching location inventory page                                                   |
+| PYP                        | Business/operator, address, phone, coordinates, published store page with relative URLs resolved against the provider              |
 | Row52                      | Business, address, phone, coordinates, provider-supplied yard URL; repeated URLs and known chain homepages are omitted             |
 | Pull-A-Part / U-Pull-&-Pay | Business/operator, address, phone; ZIP centroid coordinates, undocumented email fields, and generic website links are omitted      |
 | AutoRecycler               | Business, address, coordinates from the existing organization cache                                                                |
@@ -38,8 +38,19 @@ Wrench-A-Part now supplies live yard names, addresses, phones, and coordinates
 from its public location endpoint. U Pull R Parts uses the three verified public
 locations documented in `upullrparts-ingestion.md`. Neither source substitutes a
 chain-wide inventory/contact page for a yard-specific website link.
-Do not derive location URLs from vehicle URLs or substitute a shared company
-homepage. Add provider-backed location links when they become available.
+The directory prefers stored yard-specific websites. It can also recover PYP's
+published yard inventory route from an active vehicle URL after validating the
+provider host and matching yard code. Pull-A-Part and U-Pull-&-Pay location routes
+follow their public location directory, including its `s-carolina` spelling.
+
+When only a verified network entry point is available, the directory labels it
+**Provider**, rather than presenting it as a yard-specific website. Independent
+business URLs are not guessed from city or yard names. Kiker's URL is matched to
+its stable organization ID and verified public Pensacola contact address.
+
+The September 16 read-only coverage check increased displayed website links from
+57 to 181 of 205 yards. The remaining 24 AutoRecycler entries have no verified
+website in this mapping. Website recovery changes do not alter inventory counts.
 
 ## Rollout
 
@@ -47,8 +58,10 @@ homepage. Add provider-backed location links when they become available.
    Vercel's existing build wrapper runs committed migrations before the build.
 2. The next normal ingestion fills yard records. No paid crawl or production
    database change is required during local development.
-3. The directory uses inventory fallback data until that ingestion runs. Existing
-   homepage cache invalidation applies; the cache also expires after one hour.
+3. Directory link recovery applies immediately after deployment without a new
+   ingestion. PYP's next ingestion also stores its published contact-page URLs.
+   The homepage cache version changes with the new website-link payload; normal
+   invalidation and the one-hour cache expiry continue to apply.
 
 The migration creates an empty table and preserves all existing inventory.
 Rolling back application code can leave the additive table in place.

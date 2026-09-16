@@ -120,7 +120,7 @@ export function YardMap({
                   <div
                     key={`${yard.source}:${yard.code}`}
                     className={cn(
-                      "border-b last:border-b-0",
+                      "hover:bg-muted focus-within:bg-muted relative border-b last:border-b-0",
                       selected === yard && "bg-muted",
                     )}
                   >
@@ -128,22 +128,23 @@ export function YardMap({
                       type="button"
                       onClick={() => setSelected(yard)}
                       aria-pressed={selected === yard}
-                      className="hover:bg-muted flex w-full items-center gap-3 px-4 pt-3 pb-1 text-left"
+                      className="focus-visible:after:ring-ring block w-full px-4 pt-3 pb-2 text-left outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset"
                     >
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium text-pretty">
+                      <span className="block min-w-0">
+                        <span
+                          className="block truncate text-sm font-medium"
+                          title={yard.name}
+                        >
                           {yard.name}
                         </span>
-                        <span className="text-muted-foreground mt-1 block text-xs">
-                          {yard.city}, {yard.state}
-                        </span>
-                      </span>
-                      <span className="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
-                        <span className="block">
-                          {yard.vehicleCount.toLocaleString("en-US")}{" "}
-                        </span>
-                        <span className="mt-1 block">
-                          {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
+                        <span className="text-muted-foreground mt-1 flex items-center justify-between gap-3 text-xs">
+                          <span className="min-w-0 truncate">
+                            {yard.city}, {yard.state}
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap tabular-nums">
+                            {yard.vehicleCount.toLocaleString("en-US")}{" "}
+                            {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
+                          </span>
                         </span>
                       </span>
                     </button>

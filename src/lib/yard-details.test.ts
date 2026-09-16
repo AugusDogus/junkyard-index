@@ -4,6 +4,7 @@ import { Yard } from "./yard";
 
 const inventory = {
   source: "pullapart",
+  code: "13",
   name: "Montgomery",
   city: "Montgomery",
   state: "AL",
@@ -30,7 +31,8 @@ describe("yard directory metadata", () => {
   test("uses the stored business name and contact details, with an address-based map search", () => {
     const details = getYardDetails(inventory, metadata);
     expect(details.name).toBe(metadata.name);
-    expect(details.websiteUrl).toBe(metadata.websiteUrl);
+    expect(details.website?.kind).toBe("yard");
+    expect(details.website?.href ?? null).toBe(metadata.websiteUrl);
     expect(details.phone).toBe(metadata.phone);
     expect(new URL(details.mapsUrl).searchParams.get("query")).toBe(
       "Pull-A-Part - Montgomery, 4526 Norman Bridge Rd, Montgomery, AL, 36105",
@@ -50,7 +52,10 @@ describe("yard directory metadata", () => {
   test("keeps legacy inventory usable without fabricating contact details", () => {
     const details = getYardDetails(inventory, null);
     expect(details.name).toBe("Pull-A-Part / U-Pull-&-Pay - Montgomery");
-    expect(details.websiteUrl).toBeNull();
+    expect(details.website).toEqual({
+      kind: "provider",
+      href: "https://www.pullapart.com/locations/",
+    });
     expect(details.phone).toBeNull();
     expect(details.email).toBeNull();
     expect(
@@ -78,9 +83,7 @@ describe("yard directory metadata", () => {
       "javascript:alert(1)",
       "https://user:password@yard.example/",
     ]) {
-      expect(
-        getYardDetails(inventory, { ...metadata, websiteUrl }).websiteUrl,
-      ).toBeNull();
+      expect(Yard.website(websiteUrl)).toBeNull();
     }
   });
 

@@ -1,4 +1,4 @@
-import { and, asc, count, eq, getTableColumns, isNull } from "drizzle-orm";
+import { and, asc, count, eq, getTableColumns, isNull, min } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { getYardDetails } from "~/lib/yard-details";
 import { vehicle, yard as yardTable } from "~/schema";
@@ -14,6 +14,7 @@ export async function getHomepageYards(database: LibSQLDatabase) {
       lat: vehicle.lat,
       lng: vehicle.lng,
       vehicleCount: count(),
+      inventoryUrl: min(vehicle.detailsUrl),
       metadata: getTableColumns(yardTable),
     })
     .from(vehicle)
@@ -27,8 +28,8 @@ export async function getHomepageYards(database: LibSQLDatabase) {
     .where(isNull(vehicle.missingSinceAt))
     .groupBy(vehicle.source, vehicle.locationCode)
     .orderBy(asc(vehicle.stateAbbr), asc(vehicle.locationName));
-  return yards.map(({ metadata, ...yard }) => ({
+  return yards.map(({ metadata, inventoryUrl, ...yard }) => ({
     ...yard,
-    ...getYardDetails(yard, metadata),
+    ...getYardDetails({ ...yard, inventoryUrl }, metadata),
   }));
 }

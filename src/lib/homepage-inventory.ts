@@ -43,6 +43,6 @@ export type RecentVehicle = Awaited<
 
 export const getHomepageInventory = unstable_cache(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "yard-metadata-v1"],
+  ["homepage-inventory", "yard-metadata-v2"],
   { revalidate: 3600, tags: ["homepage-live-stats"] },
 );
