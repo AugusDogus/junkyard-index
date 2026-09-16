@@ -33,9 +33,10 @@ drops or the public interface changes.
 - Yards missing required location metadata produce counted warnings and observed
   VINs, protecting previously known vehicles through the shared observation path.
 - Coordinates, addresses, and phones come from `/locations`. Vehicle links use
-  `https://wrenchapart.com/vehicle-search.html`; prices use validated provider slugs
-  in `https://wrenchapart.com/<slug>-price-list.html`. No yard-specific website or
-  VIN deep link is inferred.
+  the public Vehicle Browser's `https://wrenchapart.com/vehicle-info/<VIN>` route;
+  prices use validated provider slugs in
+  `https://wrenchapart.com/<slug>-price-list.html`. See
+  [media and link verification](wrenchapart-media-links.md) for browser evidence.
 - Short provider VIN identifiers are preserved under existing ingestion rules;
   characters are not guessed or padded.
 
