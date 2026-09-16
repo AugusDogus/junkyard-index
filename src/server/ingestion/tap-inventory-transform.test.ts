@@ -68,8 +68,7 @@ describe("transformTapInventoryProduct", () => {
       model: "SPRINT",
       color: "Red",
       stockNumber: "STK239020",
-      imageUrl:
-        "https://tearapart.com/inventory-photos/resized-images/coming-soon-150x113.png",
+      imageUrl: null,
       availableDate: "2026-07-14T08:48:09.737",
       locationCode: "SALT LAKE CITY",
       locationName: "Tear-A-Part - Salt Lake City",
@@ -81,9 +80,102 @@ describe("transformTapInventoryProduct", () => {
       section: null,
       row: "6",
       space: null,
-      detailsUrl: "https://tearapart.com/inventory/?stock=STK239020",
+      detailsUrl: "https://tearapart.com/inventory/",
       partsUrl: "https://tearapart.com/price-list/",
       pricesUrl: "https://tearapart.com/price-list/",
+      engine: null,
+      trim: null,
+      transmission: null,
+    });
+  });
+
+  test.each([
+    ["SALT LAKE CITY", "tap-tearapart-search-salt-lake-city.json"],
+    ["OGDEN", "tap-tearapart-search-ogden.json"],
+  ])("does not invent stock links for %s", async (code, fixture) => {
+    const product = await firstSearchProduct(fixture);
+    const store = TEARAPART_SITE_CONFIG.storeLocations[code];
+    if (!store) throw new Error(`Missing ${code} test configuration`);
+
+    // Special stock formats are synthetic, not observed in the live Utah feed.
+    for (const stocknumber of [product.stocknumber, "STK/001 A&B?#", ""]) {
+      const vehicle = transformTapInventoryProduct(
+        { ...product, stocknumber },
+        store,
+        TEARAPART_SITE_CONFIG,
+      );
+      expect(vehicle?.detailsUrl).toBe("https://tearapart.com/inventory/");
+      expect(vehicle?.stockNumber).toBe(stocknumber || null);
+      expect(vehicle?.vin).toBe(product.vin.trim());
+    }
+  });
+
+  test("keeps supplied vehicle images and treats absent photos as absent", async () => {
+    const product = await firstSearchProduct("tap-tearapart-search-ogden.json");
+    const store = TEARAPART_SITE_CONFIG.storeLocations.OGDEN;
+    if (!store) throw new Error("Missing Ogden test configuration");
+    // Synthetic photo markup ensures placeholder handling cannot discard photos
+    // if the provider starts supplying them again.
+    const photo = "https://images.example.com/STK100580.jpg";
+    for (const { image_url, expected } of [
+      { image_url: product.image_url, expected: null },
+      { image_url: "", expected: null },
+      {
+        image_url: `<a href='${photo}'><img src='${photo}'></a>`,
+        expected: photo,
+      },
+    ]) {
+      expect(
+        transformTapInventoryProduct(
+          { ...product, image_url },
+          store,
+          TEARAPART_SITE_CONFIG,
+        )?.imageUrl,
+      ).toBe(expected);
+    }
+  });
+
+  test("preserves Nebraska links, image extraction, and vehicle metadata", () => {
+    const store = UPULLITNE_SITE_CONFIG.storeLocations.LINCOLN;
+    if (!store) throw new Error("Missing Lincoln test configuration");
+    const product = {
+      stocknumber: "LCN062459",
+      iyear: "2001",
+      make: "FORD",
+      model: "FOCUS",
+      vehicle_row: "403",
+      yard_in_date: "2026-08-03T10:26:45.860",
+      color: "SILVER",
+      vin: "1FAHP34321W208275",
+      image_url:
+        '<a href="https://upullitne.com/inventory-photos/resized-images/coming-soon-150x113.png"><img src="https://upullitne.com/inventory-photos/resized-images/coming-soon-150x113.png"></a>',
+    } satisfies TapInventorySearchProduct;
+    expect(
+      transformTapInventoryProduct(product, store, UPULLITNE_SITE_CONFIG),
+    ).toEqual({
+      vin: "1FAHP34321W208275",
+      source: "upullitne",
+      year: 2001,
+      make: "Ford",
+      model: "FOCUS",
+      color: "Silver",
+      stockNumber: "LCN062459",
+      imageUrl:
+        "https://upullitne.com/inventory-photos/resized-images/coming-soon-150x113.png",
+      availableDate: "2026-08-03T10:26:45.860",
+      locationCode: "LINCOLN",
+      locationName: "U Pull-It Nebraska - Lincoln",
+      locationCity: "Lincoln",
+      state: "Nebraska",
+      stateAbbr: "NE",
+      lat: 40.8715,
+      lng: -96.6256,
+      section: null,
+      row: "403",
+      space: null,
+      detailsUrl: "https://upullitne.com/search-inventory/?stock=LCN062459",
+      partsUrl: "https://upullitne.com/parts-pricelist/",
+      pricesUrl: "https://upullitne.com/parts-pricelist/",
       engine: null,
       trim: null,
       transmission: null,
