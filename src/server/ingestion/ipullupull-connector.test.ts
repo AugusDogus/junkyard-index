@@ -255,6 +255,13 @@ test.each([
   ],
   ["empty directory", () => new Response(directoryHtml([]))],
   [
+    "multiple link relations",
+    () =>
+      new Response(directoryHtml(cities), {
+        headers: { Link: '</locations/?page=2>; rel="alternate next"' },
+      }),
+  ],
+  [
     "truncated directory",
     () => new Response(directoryHtml(cities).replace("</body>", "")),
   ],

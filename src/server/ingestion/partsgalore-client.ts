@@ -1,4 +1,5 @@
 import { Data, Effect } from "effect";
+import { hasHttpPaginationLink } from "./provider-http-pagination";
 import {
   fetchProviderText,
   type ProviderRequestGate,
@@ -36,7 +37,7 @@ export function fetchPartsGaloreCatalog(requestGate?: ProviderRequestGate) {
       if (
         response.status === 206 ||
         response.headers.has("content-range") ||
-        /rel\s*=\s*["']?next\b/i.test(response.headers.get("link") ?? "")
+        hasHttpPaginationLink(response.headers)
       )
         throw new Error(
           "Parts Galore returned partial inventory; inspect the public endpoint's pagination before retrying",

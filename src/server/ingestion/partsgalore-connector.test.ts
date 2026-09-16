@@ -142,6 +142,11 @@ describe("Parts Galore atomic catalog", () => {
       { headers: { Link: '</inventory/?page=2>; rel="next"' } },
     ],
     ["challenge", "<html>Access denied</html>", {}],
+    [
+      "multiple link relations",
+      fixture,
+      { headers: { Link: '</inventory/?page=2>; rel="alternate next"' } },
+    ],
     ["truncated", fixture.replace("</table>", ""), {}],
     [
       "all unusable",
