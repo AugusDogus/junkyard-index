@@ -1,5 +1,6 @@
 import { Effect, Either, Schema } from "effect";
 import { Yard } from "~/lib/yard";
+import { hasHttpPaginationLink } from "./provider-http-pagination";
 import {
   inventoryHtmlAttribute,
   stripInventoryRawText,
@@ -195,9 +196,7 @@ function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
       if (
         response.status === 206 ||
         response.headers.has("content-range") ||
-        /\brel\s*=\s*["']?(?:next|prev|first|last)\b/i.test(
-          response.headers.get("link") ?? "",
-        )
+        hasHttpPaginationLink(response.headers)
       )
         throw new Error(
           `Partial or paginated yard metadata from ${url}; retry the complete page.`,

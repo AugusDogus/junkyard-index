@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Data, Effect } from "effect";
+import { hasHttpPaginationLink } from "./provider-http-pagination";
 import {
   stripInventoryRawText,
   inventoryHtmlAttribute,
@@ -340,9 +341,7 @@ export function fetchUpullitwaPage(
           if (
             response.status === 206 ||
             response.headers.has("content-range") ||
-            /\brel\s*=\s*["']?(?:next|prev|first|last)\b/i.test(
-              response.headers.get("link") ?? "",
-            )
+            hasHttpPaginationLink(response.headers)
           )
             throw new Error(
               "Partial/linked HTTP inventory response; completeness cannot be verified",

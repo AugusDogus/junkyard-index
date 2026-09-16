@@ -180,6 +180,10 @@ test.each([206, 403])(
 
 test("rejects partial headers, non-HTML and unsafe request URLs", async () => {
   const cases: HeadersInit[] = [
+    {
+      link: '</inventory/?page=2>; rel="alternate next"',
+      "content-type": "text/html",
+    },
     { "content-range": "bytes 0-10/20", "content-type": "text/html" },
     { "content-type": "application/json" },
   ];
