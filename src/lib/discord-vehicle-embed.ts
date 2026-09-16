@@ -2,6 +2,15 @@ import type { APIEmbed } from "discord-api-types/v10";
 import type { SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
+function markdownLinkTarget(href: string): string {
+  // URL serialization handles whitespace while preserving existing escapes.
+  // Encode Markdown delimiters separately; encodeURI would double-encode filters.
+  return new URL(href).href.replace(
+    /[()[\]<>]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
 export function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
   const destination = VehicleDestination.resolve(vehicle);
   const fields: APIEmbed["fields"] = [
@@ -36,7 +45,7 @@ export function formatVehicleEmbed(vehicle: SearchVehicle): APIEmbed {
     description:
       destination.kind === "unavailable"
         ? destination.explanation
-        : `[${destination.label}](${destination.href})${
+        : `[${destination.label}](${markdownLinkTarget(destination.href)})${
             destination.kind === "manual-search"
               ? `\n${destination.explanation}`
               : ""

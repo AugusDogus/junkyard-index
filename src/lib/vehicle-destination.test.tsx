@@ -186,6 +186,15 @@ describe("working destinations", () => {
 });
 
 describe("absent or unusable destinations", () => {
+  test("Discord encodes link delimiters without double-encoding existing URL filters", () => {
+    const href =
+      "https://trusted.example/a) [Injected](https://evil.example?filter%5Byard%5D=STOCKTON";
+    const embed = formatVehicleEmbed(vehicle("pyp", href));
+    expect(embed.description?.match(/\]\(/g)).toHaveLength(1);
+    expect(embed.description).toContain("%29%20%5BInjected%5D%28");
+    expect(embed.description).toContain("filter%5Byard%5D=STOCKTON");
+    expect(embed.description).not.toContain("%255B");
+  });
   test.each([null, undefined, "", "  ", 42])(
     "keeps absence as null through mapping and alerts: %j",
     (value) => {
