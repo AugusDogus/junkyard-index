@@ -2,7 +2,7 @@
 export function yardPhoneHref(phone: string | null): string | null {
   if (!phone) return null;
   const first = phone.split("/")[0] ?? "";
-  const extension = /\s+(?:ext\.?|x)\s*(\d+)$/i.exec(first);
+  const extension = /(?:\s+|(?<=\d))(?:ext\.?|x)\s*(\d+)$/i.exec(first);
   const main = extension ? first.slice(0, extension.index) : first;
   if (!/^\s*[+\d(]/.test(main) || (main.match(/\d/g)?.length ?? 0) < 3)
     return null;
