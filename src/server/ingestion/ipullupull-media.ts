@@ -13,9 +13,9 @@ import {
   type ProviderRequestGate,
 } from "./provider-http-client";
 import { hasHttpPaginationLink } from "./provider-http-pagination";
+import { readIPullUPullResponseText } from "./ipullupull-response-text";
 
 const PAGE_SIZE = 96;
-const MAX_PAGE_BYTES = 4 * 1024 * 1024;
 const Gallery = Schema.Array(Schema.Struct({ url: Schema.String }));
 export type IPullUPullMedia = {
   stock: string;
@@ -167,7 +167,7 @@ function fetchMediaPage(page: number, requestGate: ProviderRequestGate) {
   }).pipe(
     Effect.flatMap((response) =>
       Effect.tryPromise({
-        try: async () => {
+        try: async (signal) => {
           if (
             response.status !== 200 ||
             response.headers.has("content-range") ||
@@ -175,38 +175,16 @@ function fetchMediaPage(page: number, requestGate: ProviderRequestGate) {
             !response.headers
               .get("content-type")
               ?.toLowerCase()
-              .startsWith("text/html") ||
-            !response.body
+              .startsWith("text/html")
           )
             throw new Error(
               `Media page ${page} returned HTTP ${response.status}, partial headers, or non-HTML content`,
             );
-          const reader = response.body.getReader();
-          const chunks: Uint8Array[] = [];
-          let bytes = 0;
-          try {
-            while (true) {
-              const chunk = await reader.read();
-              if (chunk.done) break;
-              bytes += chunk.value.byteLength;
-              if (bytes > MAX_PAGE_BYTES)
-                throw new Error(`Media page ${page} exceeds 4 MiB`);
-              chunks.push(chunk.value);
-            }
-          } finally {
-            await reader.cancel();
-            reader.releaseLock();
-          }
-          const length = response.headers.get("content-length");
-          if (
-            length !== null &&
-            !response.headers.has("content-encoding") &&
-            Number(length) !== bytes
-          )
-            throw new Error(`Truncated media page ${page}`);
           return parseIPullUPullMediaPage(
-            new TextDecoder("utf-8", { fatal: true }).decode(
-              Buffer.concat(chunks),
+            await readIPullUPullResponseText(
+              response,
+              `media page ${page}`,
+              signal,
             ),
             page,
           );

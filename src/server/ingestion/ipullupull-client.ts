@@ -1,6 +1,10 @@
 import { parse } from "csv-parse/sync";
 import { Data, Effect, Schema } from "effect";
 import {
+  IPULLUPULL_MAX_RESPONSE_BYTES,
+  readIPullUPullResponseText,
+} from "./ipullupull-response-text";
+import {
   fetchProviderResponse,
   type ProviderRequestGate,
 } from "./provider-http-client";
@@ -9,7 +13,7 @@ export const IPULLUPULL_INVENTORY_URL =
   "https://ipullupull.com/inventory-pricing/";
 export const IPULLUPULL_EXPORT_URL = `${IPULLUPULL_INVENTORY_URL}?ipull_export=1&slug=inventory-pricing&type=inventory&format=csv`;
 export const IPULLUPULL_MAX_CATALOG_RECORDS = 20_000;
-export const IPULLUPULL_MAX_CATALOG_BYTES = 4 * 1024 * 1024;
+export const IPULLUPULL_MAX_CATALOG_BYTES = IPULLUPULL_MAX_RESPONSE_BYTES;
 
 export class IPullUPullProviderError extends Data.TaggedError(
   "IPullUPullProviderError",
@@ -88,7 +92,7 @@ export function fetchIPullUPullCatalog(requestGate?: ProviderRequestGate) {
   }).pipe(
     Effect.flatMap((response) =>
       Effect.tryPromise({
-        try: async () => {
+        try: async (signal) => {
           if (
             response.status !== 200 ||
             response.headers.has("content-range") ||
@@ -106,38 +110,7 @@ export function fetchIPullUPullCatalog(requestGate?: ProviderRequestGate) {
             throw new Error(
               "Expected text/csv; inspect the endpoint for an error page or format change.",
             );
-          if (!response.body)
-            throw new Error("CSV response has no body; retry the export.");
-          const reader = response.body.getReader();
-          const chunks: Uint8Array[] = [];
-          let bytes = 0;
-          try {
-            while (true) {
-              const chunk = await reader.read();
-              if (chunk.done) break;
-              bytes += chunk.value.byteLength;
-              if (bytes > IPULLUPULL_MAX_CATALOG_BYTES)
-                throw new Error(
-                  "CSV exceeds the 4 MiB atomic checkpoint bound; inspect catalog growth before retrying.",
-                );
-              chunks.push(chunk.value);
-            }
-          } finally {
-            await reader.cancel();
-            reader.releaseLock();
-          }
-          const length = response.headers.get("content-length");
-          if (
-            length !== null &&
-            !response.headers.has("content-encoding") &&
-            Number(length) !== bytes
-          )
-            throw new Error(
-              `Truncated CSV: received ${bytes} bytes, expected ${length}; retry the export.`,
-            );
-          return new TextDecoder("utf-8", { fatal: true }).decode(
-            Buffer.concat(chunks),
-          );
+          return readIPullUPullResponseText(response, "CSV", signal);
         },
         catch: (cause) => new IPullUPullProviderError({ cause }),
       }),
