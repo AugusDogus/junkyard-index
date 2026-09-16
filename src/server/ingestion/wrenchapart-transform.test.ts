@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { Schema } from "effect";
+import mediaFixtures from "./fixtures/wrenchapart-media-links.json";
 import fixture from "./fixtures/wrenchapart-sample.json";
 import {
   WrenchApartVehicleSchema,
@@ -46,13 +47,32 @@ test("maps VIN, dates, yard coordinates, row and public inventory links", () => 
     section: null,
     row: "17",
     space: null,
-    detailsUrl: "https://wrenchapart.com/vehicle-search.html",
+    detailsUrl: "https://wrenchapart.com/vehicle-info/1N4AA5AP3AC800856",
     partsUrl: null,
     pricesUrl: "https://wrenchapart.com/austin-price-list.html",
     engine: null,
     trim: null,
     transmission: null,
   });
+});
+
+test.each(mediaFixtures)(
+  "preserves the public photo and links directly to $stockNumber",
+  (sample) => {
+    const vehicle = Schema.decodeUnknownSync(WrenchApartVehicleSchema)(sample);
+    expect(transform(vehicle)).toMatchObject({
+      vin: sample.vin,
+      stockNumber: sample.stockNumber,
+      imageUrl: sample.photo,
+      detailsUrl: `https://wrenchapart.com/vehicle-info/${sample.vin}`,
+    });
+  },
+);
+
+test("encodes provider identifiers as a single vehicle route segment", () => {
+  expect(transform({ vin: " legacy/stock?# " })?.detailsUrl).toBe(
+    "https://wrenchapart.com/vehicle-info/LEGACY%2FSTOCK%3F%23",
+  );
 });
 
 test("preserves legacy provider VINs and normalizes optional fields", () => {
@@ -68,6 +88,7 @@ test("preserves legacy provider VINs and normalizes optional fields", () => {
     }),
   ).toMatchObject({
     vin: "F10GKT44234",
+    detailsUrl: "https://wrenchapart.com/vehicle-info/F10GKT44234",
     availableDate: null,
     imageUrl: null,
     stockNumber: null,

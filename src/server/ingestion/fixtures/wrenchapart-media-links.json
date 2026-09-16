@@ -1,0 +1,38 @@
+[
+  {
+    "yard": 2,
+    "modelYear": 2000,
+    "make": { "id": 15, "name": "FORD" },
+    "model": { "id": 311, "name": "MUSTANG" },
+    "photo": "https://storage.googleapis.com/wrench-car-photos/v1%2F2%2F1FAFP4044YF153043%2F1789416700057.png",
+    "vin": "1FAFP4044YF153043",
+    "color": "RED",
+    "stockNumber": "AWAP084171",
+    "dateAdded": "2026-09-15T15:08:12Z",
+    "row": { "id": 38 }
+  },
+  {
+    "yard": 3,
+    "modelYear": 2008,
+    "make": { "id": 53, "name": "VOLKSWAGEN" },
+    "model": { "id": 845, "name": "PASSAT" },
+    "photo": "https://storage.googleapis.com/wrench-car-photos/v1%2F3%2FWVWJK73C08P045861%2F1788193771716.png",
+    "vin": "WVWJK73C08P045861",
+    "color": "WHITE",
+    "stockNumber": "LWAP006299",
+    "dateAdded": "2026-09-16T08:06:17Z",
+    "row": { "id": 622 }
+  },
+  {
+    "yard": 4,
+    "modelYear": 2002,
+    "make": { "id": 7, "name": "CHEVROLET" },
+    "model": { "id": 82, "name": "AVALANCHE" },
+    "photo": "https://storage.googleapis.com/wrench-car-photos/v1%2F4%2F3GNEC13T32G145550%2F1789413369455.png",
+    "vin": "3GNEC13T32G145550",
+    "color": "BLACK",
+    "stockNumber": "BWAP080371",
+    "dateAdded": "2026-09-15T16:28:17Z",
+    "row": { "id": 313 }
+  }
+]

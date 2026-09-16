@@ -4,10 +4,7 @@ import {
   normalizeRegion,
 } from "./normalization";
 import type { CanonicalVehicle } from "./types";
-import {
-  WRENCHAPART_INVENTORY_URL,
-  type WrenchApartVehicle,
-} from "./wrenchapart-client";
+import type { WrenchApartVehicle } from "./wrenchapart-client";
 import type { LocatedWrenchApartYard } from "./wrenchapart-yard-metadata";
 
 export type WrenchApartCanonicalVehicle = CanonicalVehicle & {
@@ -65,7 +62,8 @@ export function transformWrenchApartVehicle(
         ? null
         : String(record.row.id),
     space: null,
-    detailsUrl: WRENCHAPART_INVENTORY_URL,
+    // Public Vehicle Browser "More info" links use this persistent VIN route.
+    detailsUrl: `https://wrenchapart.com/vehicle-info/${encodeURIComponent(vin)}`,
     partsUrl: null,
     pricesUrl,
     engine: null,

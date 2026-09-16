@@ -6,8 +6,6 @@ import {
 } from "./provider-http-client";
 
 export const WRENCHAPART_API_ORIGIN = "https://api.wrenchapart.com";
-export const WRENCHAPART_INVENTORY_URL =
-  "https://wrenchapart.com/vehicle-search.html";
 
 export class WrenchApartProviderError extends Data.TaggedError(
   "WrenchApartProviderError",
