@@ -48,6 +48,7 @@ function availableDate(value: string): string | null {
 export function transformIPullUPullVehicle(
   record: IPullUPullRecord,
   yard: IPullUPullYard,
+  imageUrl: string | null = null,
 ): IPullUPullCanonicalVehicle | null {
   const vin = ipullUPullVin(record);
   if (
@@ -65,7 +66,7 @@ export function transformIPullUPullVehicle(
     model: record.Model.trim(),
     color: normalizeCanonicalColor(record.Color),
     stockNumber: record["Stock Number"].trim() || null,
-    imageUrl: null,
+    imageUrl,
     availableDate: availableDate(record["Yard Date"]),
     locationCode: yard.code,
     locationName: yard.name,
@@ -76,11 +77,30 @@ export function transformIPullUPullVehicle(
     section: null,
     row: record["Vehicle Row"].trim() || null,
     space: null,
-    detailsUrl: IPULLUPULL_INVENTORY_URL,
+    detailsUrl: ipullUPullDetailsUrl(record),
     partsUrl: null,
     pricesUrl: IPULLUPULL_INVENTORY_URL,
     engine: record.Engine.trim() || null,
     trim: null,
     transmission: record.Transmission.trim() || null,
   };
+}
+
+/** These are the catalog's own Copy Link/search parameters, not asset routes. */
+export function ipullUPullDetailsUrl(record: IPullUPullRecord): string {
+  const url = new URL(IPULLUPULL_INVENTORY_URL);
+  const stock = record["Stock Number"].trim();
+  if (stock) url.searchParams.set("ipull_inventory_pricing_search", stock);
+  for (const [field, value] of Object.entries({
+    yard_city: record["Yard City"],
+    make: record.Make,
+    model: record.Model,
+  })) {
+    if (value.trim())
+      url.searchParams.set(
+        `ipull_inventory_pricing_filter[${field}]`,
+        value.trim(),
+      );
+  }
+  return url.href;
 }

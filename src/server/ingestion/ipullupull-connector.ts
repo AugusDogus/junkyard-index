@@ -2,6 +2,7 @@ import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { fetchIPullUPullCatalog } from "./ipullupull-client";
+import { fetchIPullUPullMedia, ipullUPullMediaKey } from "./ipullupull-media";
 import {
   ipullUPullVin,
   isUsableIPullUPullRecord,
@@ -133,6 +134,7 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
       accepted.map((record) => record["Yard City"].trim().toUpperCase()),
     );
     const metadata = yield* loadIPullUPullYards(cities, directory, requestGate);
+    const media = yield* fetchIPullUPullMedia(requestGate);
     const vehicles: IPullUPullCanonicalVehicle[] = [];
     const seen = new Set<string>();
     // Prefer the newest published yard timestamp, then stock number and city.
@@ -146,7 +148,17 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
     for (const record of accepted) {
       const city = record["Yard City"].trim().toUpperCase();
       const yard = metadata.yards.get(city);
-      const vehicle = yard ? transformIPullUPullVehicle(record, yard) : null;
+      const photo = media.get(
+        ipullUPullMediaKey(record["Stock Number"], record.Vin, city),
+      );
+      if (yard && !photo)
+        return yield* new IPullUPullStreamError({
+          message: `iPull-uPull media is missing CSV vehicle ${record["Stock Number"]} / ${record.Vin} / ${city}; the catalogs may have changed between requests. No batches were emitted and prior images are preserved. Retry from cursor 0.`,
+        });
+      const vehicle =
+        yard && photo
+          ? transformIPullUPullVehicle(record, yard, photo.imageUrl)
+          : null;
       if (!vehicle) {
         accounting.recordsExcluded++;
         const vin = ipullUPullVin(record);
@@ -161,6 +173,10 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
         continue;
       }
       seen.add(vehicle.vin);
+      if (!vehicle.imageUrl)
+        warn(
+          "vehicles explicitly have no upstream asset photos; part images are not substituted",
+        );
       vehicles.push(vehicle);
     }
     if (options.onYards) yield* options.onYards([...metadata.yards.values()]);
