@@ -23,7 +23,15 @@ function stripHtml(value: string): string {
 
 function extractImageUrl(rawHtml: string): string | null {
   const match = /<img[^>]+src=["']([^"']+)["']/i.exec(rawHtml);
-  return match?.[1]?.trim() || null;
+  const url = match?.[1]?.trim() || null;
+  // This is the provider's missing-photo marker, and the URL itself returns 404.
+  if (
+    url ===
+    "https://tearapart.com/inventory-photos/resized-images/coming-soon-150x113.png"
+  ) {
+    return null;
+  }
+  return url;
 }
 
 export function transformTapInventoryProduct<Source extends IngestionSource>(
@@ -45,8 +53,10 @@ export function transformTapInventoryProduct<Source extends IngestionSource>(
 
   const stockNumber = product.stocknumber.trim();
   const imageUrl = extractImageUrl(product.image_url);
+  // Tear-A-Part ignores stock and filter query parameters. Its public search is
+  // POST-only; do not advertise an unsupported vehicle link. See the runbook.
   const detailsUrl =
-    stockNumber.length > 0
+    site.source !== "tearapart" && stockNumber.length > 0
       ? `${site.inventoryPageUrl}?stock=${encodeURIComponent(stockNumber)}`
       : site.inventoryPageUrl;
 
