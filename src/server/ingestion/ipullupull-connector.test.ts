@@ -1,7 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
+import { beetleImage, mediaPage } from "./fixtures/ipullupull-media";
+import { ipullUPullMediaKey } from "./ipullupull-media";
 import {
   IPULLUPULL_EXPORT_URL,
+  IPULLUPULL_INVENTORY_URL,
   parseIPullUPullCsv,
   type IPullUPullRecord,
 } from "./ipullupull-client";
@@ -11,6 +14,7 @@ import {
 } from "./ipullupull-connector";
 import {
   transformIPullUPullVehicle,
+  ipullUPullDetailsUrl,
   type IPullUPullCanonicalVehicle,
 } from "./ipullupull-transform";
 import {
@@ -79,6 +83,35 @@ function mockCatalog(
         return new Response(csv(rows), {
           headers: { "Content-Type": "text/csv" },
         });
+      if (url.startsWith(IPULLUPULL_INVENTORY_URL)) {
+        const media = [
+          ...new Map(
+            rows.map((row) => [
+              ipullUPullMediaKey(
+                row["Stock Number"],
+                row.Vin,
+                row["Yard City"],
+              ),
+              {
+                stock: row["Stock Number"],
+                vin: row.Vin,
+                city: row["Yard City"],
+              },
+            ]),
+          ).values(),
+        ];
+        const page = Number(
+          new URL(url).searchParams.get("ipull_inventory_pricing_page"),
+        );
+        return new Response(
+          mediaPage(
+            media.slice((page - 1) * 96, page * 96),
+            page,
+            media.length,
+          ),
+          { headers: { "content-type": "text/html" } },
+        );
+      }
       if (url.endsWith("/locations/"))
         return new Response(directoryHtml(listedCities));
       const city = [...cities, ...extraCities].find((city) =>
@@ -110,6 +143,125 @@ async function run() {
   );
   return { result, vehicles, batches };
 }
+
+test("links use the supported stock search and preserve raw catalog filter values", () => {
+  const url = new URL(
+    ipullUPullDetailsUrl({
+      ...first,
+      Make: " VOLKSWAGEN ",
+      Model: "NEW BEETLE",
+      "Yard City": "POMONA",
+      "Stock Number": " POM067315 ",
+    }),
+  );
+  expect(url.pathname).toBe("/inventory-pricing/");
+  expect([...url.searchParams]).toEqual([
+    ["ipull_inventory_pricing_search", "POM067315"],
+    ["ipull_inventory_pricing_filter[yard_city]", "POMONA"],
+    ["ipull_inventory_pricing_filter[make]", "VOLKSWAGEN"],
+    ["ipull_inventory_pricing_filter[model]", "NEW BEETLE"],
+  ]);
+  const fallback = new URL(
+    ipullUPullDetailsUrl({ ...first, "Stock Number": "" }),
+  );
+  expect(fallback.searchParams.has("ipull_inventory_pricing_search")).toBe(
+    false,
+  );
+  expect(
+    fallback.searchParams.get("ipull_inventory_pricing_filter[model]"),
+  ).toBe(first.Model);
+});
+
+test.each([
+  "unavailable",
+  "missing VIN",
+  "wrong yard",
+  "wrong stock",
+  "missing gallery",
+])(
+  "%s media fails before callbacks and cannot clear existing photos",
+  async (failure) => {
+    mockCatalog(records);
+    const underlyingFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (
+          !String(input).startsWith(IPULLUPULL_INVENTORY_URL) ||
+          String(input) === IPULLUPULL_EXPORT_URL
+        )
+          return underlyingFetch(input, init);
+        if (failure === "unavailable")
+          return new Response("unavailable", { status: 403 });
+        const response = await underlyingFetch(input, init);
+        const html = await response.text();
+        return new Response(
+          failure === "missing VIN"
+            ? html.replaceAll("<dt>VIN</dt>", "<dt>Unknown</dt>")
+            : failure === "wrong yard"
+              ? html.replaceAll("<dd>FRESNO</dd>", "<dd>STOCKTON</dd>")
+              : failure === "wrong stock"
+                ? html.replaceAll(first["Stock Number"], "OTHER")
+                : html.replaceAll("data-gallery=", "data-unknown="),
+          { headers: { "content-type": "text/html" } },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    let callbacks = 0;
+    await expect(
+      Effect.runPromise(
+        streamIPullUPullInventoryWithRequestGate(
+          {
+            onBatch: () =>
+              Effect.sync(() => {
+                callbacks++;
+              }),
+            onYards: () =>
+              Effect.sync(() => {
+                callbacks++;
+              }),
+          },
+          (request) => request,
+        ),
+      ),
+    ).rejects.toThrow(/prior images are preserved/);
+    expect(callbacks).toBe(0);
+  },
+);
+
+test("explicitly empty galleries retain vehicles with an honest warning", async () => {
+  mockCatalog(records);
+  const underlyingFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (
+        !String(input).startsWith(IPULLUPULL_INVENTORY_URL) ||
+        String(input) === IPULLUPULL_EXPORT_URL
+      )
+        return underlyingFetch(input, init);
+      return new Response(
+        mediaPage(
+          records.map((row) => ({
+            stock: row["Stock Number"],
+            vin: row.Vin,
+            city: row["Yard City"],
+            imageUrl: null,
+          })),
+        ),
+        { headers: { "content-type": "text/html" } },
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const { result, vehicles } = await run();
+  expect(vehicles).toHaveLength(records.length);
+  expect(vehicles.every((vehicle) => vehicle.imageUrl === null)).toBe(true);
+  expect(
+    result.warnings?.some((warning) =>
+      warning.includes("4 vehicles explicitly have no upstream asset photos"),
+    ),
+  ).toBe(true);
+});
 
 test("preserves uncertain observations but allows sold and parts-only vehicles to retire", async () => {
   const variant = (
@@ -160,7 +312,10 @@ test("preserves uncertain observations but allows sold and parts-only vehicles t
   ).toBe(first["Stock Number"]);
   expect(vehicles.find((vehicle) => vehicle.row === "999")).toBeDefined();
   expect(vehicles.some((vehicle) => vehicle.row === "300")).toBe(false);
-  expect(requests).toHaveLength(6);
+  expect(requests).toHaveLength(7);
+  expect(vehicles.every((vehicle) => vehicle.imageUrl === beetleImage)).toBe(
+    true,
+  );
   expect(
     result.warnings?.some((warning) => warning.includes("unknown status")),
   ).toBe(true);
