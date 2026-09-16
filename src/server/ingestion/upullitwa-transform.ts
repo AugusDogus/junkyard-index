@@ -30,7 +30,14 @@ export function transformUpullitwaVehicle(
   const date = /^\d{4}-\d{2}-\d{2}$/.test(record.date)
     ? new Date(`${record.date}T00:00:00.000Z`)
     : null;
-  const image = record.imageUrl ? URL.parse(record.imageUrl) : null;
+  const image = record.imageUrl?.trim()
+    ? URL.parse(record.imageUrl, upullitwaPageUrl(yard.code, 1))
+    : null;
+  // The provider's GET search form persists both yard and VIN. A page number
+  // would instead send older vehicles to an unrelated first page of inventory.
+  const detailsUrl = new URL(upullitwaPageUrl(yard.code, 1));
+  detailsUrl.searchParams.delete("pagenum");
+  detailsUrl.searchParams.set("search", vin);
   return {
     vin,
     source: "upullitwa",
@@ -44,7 +51,9 @@ export function transformUpullitwaVehicle(
       ["https:", "http:"].includes(image.protocol) &&
       !image.username &&
       !image.password &&
-      !/placeholder|no[-_+ ]?image/i.test(image.href)
+      ![image.href, ...image.searchParams.values()].some((value) =>
+        /placeholder|no[-_+ ]?image/i.test(value),
+      )
         ? image.href
         : null,
     availableDate:
@@ -62,7 +71,7 @@ export function transformUpullitwaVehicle(
     section: null,
     row: record.row || null,
     space: null,
-    detailsUrl: upullitwaPageUrl(yard.code, 1),
+    detailsUrl: detailsUrl.href,
     partsUrl: null,
     pricesUrl: null,
     engine: null,
