@@ -1,12 +1,15 @@
 import { Yard } from "./yard";
+import { resolveYardWebsite } from "./yard-website";
 
 type InventoryYard = {
   source: string;
+  code: string;
   name: string;
   city: string;
   state: string;
   lat: number;
   lng: number;
+  inventoryUrl?: string | null;
 };
 
 type YardMetadata = Omit<Yard, "source" | "code">;
@@ -51,7 +54,13 @@ export function getYardDetails(
     operator: metadata?.operator ?? null,
     address,
     postalCode,
-    websiteUrl: Yard.website(metadata?.websiteUrl ?? null),
+    website: resolveYardWebsite({
+      ...yard,
+      name,
+      state,
+      operator: metadata?.operator,
+      websiteUrl: metadata?.websiteUrl,
+    }),
     phone: metadata?.phone ?? null,
     email: metadata?.email ?? null,
     mapsUrl: `https://www.google.com/maps/search/?${mapsQuery}`,

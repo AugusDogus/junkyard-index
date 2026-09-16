@@ -1,6 +1,7 @@
 import type { Effect } from "effect";
 import type { Location, Row52Location } from "~/lib/types";
 import { Yard } from "~/lib/yard";
+import { pypYardWebsite } from "~/lib/yard-website";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 import type { GopullitLocation } from "./gopullit-transform";
 import { normalizeRegion } from "./normalization";
@@ -23,13 +24,6 @@ const unknownContact = {
 };
 
 export function pypYard(location: Location): Yard {
-  const candidate = Yard.website(
-    location.locationPageURL || location.urls.store,
-  );
-  const url = candidate ? URL.parse(candidate) : null;
-  const path = url
-    ? /^\/inventory\/[a-z0-9-]+-(\d+)\/$/.exec(url.pathname)
-    : null;
   return {
     ...unknownContact,
     source: "pyp",
@@ -44,11 +38,8 @@ export function pypYard(location: Location): Yard {
     postalCode: location.zip,
     ...Yard.coordinates(location.lat, location.lng),
     websiteUrl:
-      url &&
-      path?.[1] === location.locationCode &&
-      ["www.pyp.com", "pyp.com"].includes(url.hostname)
-        ? url.href
-        : null,
+      pypYardWebsite(location.locationPageURL, location.locationCode) ??
+      pypYardWebsite(location.urls.store, location.locationCode),
     phone: location.phone,
   };
 }

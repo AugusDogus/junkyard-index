@@ -23,6 +23,7 @@ test("directory joins metadata by source and code without changing active invent
         ('pyp', '1', 'Raw name', 'Old city', 'CA', 34, -118, 1),
         ('row52', '1', 'Independent Yard', 'Tulsa', 'OK', 36, -95, null),
         ('pullapart', '3', 'Montgomery', 'Montgomery', 'AL', 32, -86, null);
+      alter table vehicle add column details_url text;
     `);
     const db = drizzle(client);
     await db.insert(yard).values([
@@ -56,7 +57,7 @@ test("directory joins metadata by source and code without changing active invent
     expect(yards.find((entry) => entry.source === "row52")).toMatchObject({
       name: "Independent Yard",
       vehicleCount: 1,
-      websiteUrl: null,
+      website: null,
       phone: null,
     });
     expect(yards.find((entry) => entry.source === "pullapart")).toMatchObject({
