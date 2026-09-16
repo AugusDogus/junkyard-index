@@ -144,6 +144,105 @@ async function run() {
   return { result, vehicles, batches };
 }
 
+function replaceMedia(
+  rows: readonly IPullUPullRecord[],
+  imageUrl = beetleImage,
+) {
+  const underlyingFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).startsWith(IPULLUPULL_INVENTORY_URL) &&
+      String(input) !== IPULLUPULL_EXPORT_URL
+        ? new Response(
+            mediaPage(
+              rows.map((row) => ({
+                stock: row["Stock Number"],
+                vin: row.Vin,
+                city: row["Yard City"],
+                imageUrl,
+              })),
+            ),
+            { headers: { "content-type": "text/html" } },
+          )
+        : underlyingFetch(input, init),
+    { preconnect: originalFetch.preconnect },
+  );
+}
+
+test.each([false, true])(
+  "ignores missing media for an older duplicate regardless of CSV order (reverse=%s)",
+  async (reverse) => {
+    const older = {
+      ...first,
+      "Stock Number": "OLDER",
+      "Yard Date": "2020-01-01T00:00:00",
+    };
+    const rows = [...records, older];
+    mockCatalog(reverse ? rows.reverse() : rows);
+    replaceMedia(records);
+    const { result, vehicles } = await run();
+    expect(result.accounting).toMatchObject({
+      recordsProcessed: 5,
+      recordsExcluded: 0,
+      duplicateVehicles: 1,
+    });
+    expect(vehicles.find((vehicle) => vehicle.vin === first.Vin)).toMatchObject(
+      { stockNumber: first["Stock Number"], imageUrl: beetleImage },
+    );
+  },
+);
+
+test("a duplicate's photo cannot substitute for missing winner media", async () => {
+  const older = {
+    ...first,
+    "Stock Number": "OLDER",
+    "Yard Date": "2020-01-01T00:00:00",
+  };
+  mockCatalog([...records, older]);
+  replaceMedia([older, ...records.slice(1)]);
+  let batches = 0;
+  await expect(
+    Effect.runPromise(
+      streamIPullUPullInventoryWithRequestGate(
+        {
+          onBatch: () =>
+            Effect.sync(() => {
+              batches++;
+            }),
+        },
+        (request) => request,
+      ),
+    ),
+  ).rejects.toThrow(`missing CSV vehicle ${first["Stock Number"]}`);
+  expect(batches).toBe(0);
+});
+
+test.each(["2020-01-01T00:00:00", "2027-01-01T00:00:00"])(
+  "unresolved duplicate yards preserve observations before or after the resolved winner (%s)",
+  async (date) => {
+    const resolved = {
+      ...first,
+      "Stock Number": "POM-RESOLVED",
+      "Yard City": "POMONA",
+      "Yard Date": date,
+    };
+    mockCatalog([...records, resolved], [], "Fresno");
+    const imageUrl =
+      "https://ipullupull.com/wp-content/uploads/ipullupull-optimized/7e/7ed282ecbe462cfe-large.webp";
+    replaceMedia([...records.slice(1), resolved], imageUrl);
+    const { result, vehicles } = await run();
+    expect(result.observedVins).toEqual([first.Vin]);
+    expect(result.accounting).toMatchObject({
+      recordsProcessed: 5,
+      recordsExcluded: 1,
+      duplicateVehicles: 0,
+    });
+    expect(vehicles.find((vehicle) => vehicle.vin === first.Vin)).toMatchObject(
+      { stockNumber: "POM-RESOLVED", locationCity: "Pomona", imageUrl },
+    );
+  },
+);
+
 test("links use the supported stock search and preserve raw catalog filter values", () => {
   const url = new URL(
     ipullUPullDetailsUrl({

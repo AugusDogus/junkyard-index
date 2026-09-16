@@ -148,17 +148,7 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
     for (const record of accepted) {
       const city = record["Yard City"].trim().toUpperCase();
       const yard = metadata.yards.get(city);
-      const photo = media.get(
-        ipullUPullMediaKey(record["Stock Number"], record.Vin, city),
-      );
-      if (yard && !photo)
-        return yield* new IPullUPullStreamError({
-          message: `iPull-uPull media is missing CSV vehicle ${record["Stock Number"]} / ${record.Vin} / ${city}; the catalogs may have changed between requests. No batches were emitted and prior images are preserved. Retry from cursor 0.`,
-        });
-      const vehicle =
-        yard && photo
-          ? transformIPullUPullVehicle(record, yard, photo.imageUrl)
-          : null;
+      const vehicle = yard ? transformIPullUPullVehicle(record, yard) : null;
       if (!vehicle) {
         accounting.recordsExcluded++;
         const vin = ipullUPullVin(record);
@@ -172,12 +162,21 @@ export function streamIPullUPullInventoryWithRequestGate<E, R>(
         accounting.duplicateVehicles++;
         continue;
       }
+      // Only the resolved winner needs media. Never borrow a duplicate stock's
+      // photo, and keep unresolved-yard observations above out of deduplication.
+      const photo = media.get(
+        ipullUPullMediaKey(record["Stock Number"], record.Vin, city),
+      );
+      if (!photo)
+        return yield* new IPullUPullStreamError({
+          message: `iPull-uPull media is missing CSV vehicle ${record["Stock Number"]} / ${record.Vin} / ${city}; the catalogs may have changed between requests. No batches were emitted and prior images are preserved. Retry from cursor 0.`,
+        });
       seen.add(vehicle.vin);
-      if (!vehicle.imageUrl)
+      if (!photo.imageUrl)
         warn(
           "vehicles explicitly have no upstream asset photos; part images are not substituted",
         );
-      vehicles.push(vehicle);
+      vehicles.push({ ...vehicle, imageUrl: photo.imageUrl });
     }
     if (options.onYards) yield* options.onYards([...metadata.yards.values()]);
     for (
