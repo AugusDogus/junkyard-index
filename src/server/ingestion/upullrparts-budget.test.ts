@@ -1,12 +1,173 @@
 import { afterEach, expect, test } from "bun:test";
-import { Cause, Effect, Fiber, Option, TestClock, TestContext } from "effect";
+import {
+  Cause,
+  Clock,
+  Effect,
+  Fiber,
+  Option,
+  Runtime,
+  TestClock,
+  TestContext,
+} from "effect";
 import fixture from "./fixtures/upullrparts-vehicle.json";
-import { streamUpullRPartsInventoryWithRequestGate } from "./upullrparts-connector";
+import {
+  streamUpullRPartsInventory,
+  streamUpullRPartsInventoryWithRequestGate,
+} from "./upullrparts-connector";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
+
+test("3,311 unique stocks plus complete make fallback fit the production deadline at observed photo latency", async () => {
+  const catalog = Array.from({ length: 3311 }, (_, i) => ({
+    ...fixture,
+    Store: (i % 3) + 1,
+    VIN: String(i).padStart(17, "0"),
+    StockNumber: `UG${String(i).padStart(6, "0")}`,
+  }));
+  const requests = new Map<string, number>();
+  const requestedStocks = new Set<string>();
+  const catalogStarts: number[] = [];
+  let activePhotos = 0;
+  let peakPhotos = 0;
+  let photosCompleted = 0;
+  let firstPhotoAt: number | undefined;
+  let finishedAt: number | undefined;
+  let yardsEmitted = 0;
+  let photoCount = 0;
+  const emittedVins: string[] = [];
+  const batchSizes: number[] = [];
+
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      // Capture the TestClock runtime so mocked HTTP latency advances virtual,
+      // not wall, time. Exercise the production gate and eight-worker image pool.
+      const runPromise = Runtime.runPromise(yield* Effect.runtime());
+      globalThis.fetch = Object.assign(
+        (input: RequestInfo | URL, init?: RequestInit) =>
+          runPromise(
+            Effect.gen(function* () {
+              expect(String(input)).toBe(
+                "https://upullrparts.com/wp-admin/admin-ajax.php",
+              );
+              const params = new URLSearchParams(
+                typeof init?.body === "string" ? init.body : "",
+              );
+              const action = params.get("apiAction") ?? "";
+              requests.set(action, (requests.get(action) ?? 0) + 1);
+              const now = yield* Clock.currentTimeMillis;
+              if (action === "getVehicleImages") {
+                expect(params.get("action")).toBe("doAaaApiCall");
+                const stock = params.get("stockID") ?? "";
+                requestedStocks.add(stock);
+                firstPhotoAt ??= now;
+                activePhotos++;
+                peakPhotos = Math.max(peakPhotos, activePhotos);
+                // Full live run implied ~725ms/photo at eight workers. Round up to
+                // 750ms rather than using the faster ~500ms individual sample calls.
+                yield* Effect.sleep("750 millis");
+                activePhotos--;
+                photosCompleted++;
+                const fileName = `${stock}_6_Facebook_1789569476269.jpg`;
+                return Response.json({
+                  success: 1,
+                  images:
+                    Number(stock.slice(2)) < 3017
+                      ? [
+                          {
+                            fileName,
+                            url: `https://api.aaaparts.com/staticImages/${fileName}`,
+                          },
+                        ]
+                      : [],
+                });
+              }
+              expect(params.get("action")).toBe("doApiCall");
+              catalogStarts.push(now);
+              yield* Effect.sleep("750 millis");
+              if (action === "getMakes")
+                return Response.json([
+                  "Ford",
+                  ...Array.from({ length: 55 }, (_, i) => `Make-${i}`),
+                ]);
+              if (action === "getModels")
+                return Response.json(
+                  params.get("Make") === "Ford" ? ["FOCUS"] : [],
+                );
+              // Force all 56 make partitions and all 56 fallback model requests.
+              return Response.json(params.has("makes") ? [] : catalog);
+            }),
+          ),
+        { preconnect: originalFetch.preconnect },
+      );
+      const fiber = yield* Effect.fork(
+        streamUpullRPartsInventory({
+          onYards: () =>
+            Effect.sync(() => {
+              expect(photosCompleted).toBe(3311);
+              yardsEmitted++;
+            }),
+          onBatch: (batch) =>
+            Effect.gen(function* () {
+              expect(photosCompleted).toBe(3311);
+              finishedAt = yield* Clock.currentTimeMillis;
+              batchSizes.push(batch.length);
+              for (const vehicle of batch) {
+                expect(vehicle.make).toBe("Ford");
+                if (vehicle.imageUrl !== null) photoCount++;
+                emittedVins.push(vehicle.vin);
+              }
+            }),
+        }),
+      );
+      yield* TestClock.adjust("480 seconds");
+      expect(Option.isNone(yield* Fiber.poll(fiber))).toBe(true);
+      expect(yardsEmitted).toBe(0);
+      expect(batchSizes).toEqual([]);
+      yield* TestClock.adjust("1 second");
+      expect(Option.isSome(yield* Fiber.poll(fiber))).toBe(true);
+      return yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+
+  expect(Object.fromEntries(requests)).toEqual({
+    getVehicles: 57,
+    getMakes: 1,
+    getModels: 56,
+    getVehicleImages: 3311,
+  });
+  expect(requestedStocks.size).toBe(3311);
+  expect(peakPhotos).toBe(8);
+  expect(activePhotos).toBe(0);
+  for (let i = 1; i < catalogStarts.length; i++) {
+    expect(
+      (catalogStarts[i] ?? 0) - (catalogStarts[i - 1] ?? 0),
+    ).toBeGreaterThanOrEqual(1500);
+  }
+  expect(firstPhotoAt).toBe(170250);
+  expect(finishedAt).toBe(480750);
+  expect(yardsEmitted).toBe(1);
+  expect(batchSizes).toEqual([...Array.from({ length: 13 }, () => 250), 61]);
+  expect(emittedVins).toEqual(catalog.map((row) => row.VIN));
+  expect(photoCount).toBe(3017);
+  expect(result).toMatchObject({
+    status: "complete",
+    cursor: 1,
+    count: 3311,
+    pagesProcessed: 1,
+    errors: [],
+    warnings: [],
+    observedVins: [],
+    accounting: {
+      recordsProcessed: 3311,
+      recordsExcluded: 0,
+      recordsRejected: 0,
+      duplicateVehicles: 0,
+    },
+  });
+}, 20000);
 
 test("allows a complete make fallback when provider responses take 2.2 seconds", async () => {
   let requests = 0;

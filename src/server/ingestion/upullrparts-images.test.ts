@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import fixture from "./fixtures/upullrparts-images.json";
+import partialResponses from "./fixtures/upullrparts-partial-images.json";
 import {
   fetchUpullRPartsImage,
   loadUpullRPartsImages,
@@ -34,6 +35,53 @@ test("uses the public thumbnail order, falling back to a returned corner shot", 
 
 test("keeps an explicit successful empty photo list as null", async () => {
   respond({ success: 1, images: [] });
+  expect(await Effect.runPromise(fetchUpullRPartsImage("UG067069"))).toBeNull();
+});
+
+test.each(partialResponses)(
+  "rejects partial empty image lists before accepting null: %j",
+  async (init) => {
+    let requests = 0;
+    globalThis.fetch = Object.assign(
+      async () => {
+        requests++;
+        return Response.json(
+          { success: 1, images: [] },
+          {
+            status: init.status,
+            headers: init.headerName
+              ? { [init.headerName]: init.headerValue }
+              : undefined,
+          },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const result = await Effect.runPromise(
+      Effect.either(fetchUpullRPartsImage("UG072546")),
+    );
+    expect(result._tag).toBe("Left");
+    if (result._tag === "Left") {
+      expect(result.left.message).toContain("stock UG072546");
+      expect(result.left.message).toContain("partial");
+    }
+    expect(requests).toBe(1);
+  },
+);
+
+test("accepts a complete empty photo response with a non-pagination discovery link", async () => {
+  globalThis.fetch = Object.assign(
+    async () =>
+      Response.json(
+        { success: 1, images: [] },
+        {
+          headers: {
+            Link: '<https://upullrparts.com/wp-json/>; rel="https://api.w.org/"',
+          },
+        },
+      ),
+    { preconnect: originalFetch.preconnect },
+  );
   expect(await Effect.runPromise(fetchUpullRPartsImage("UG067069"))).toBeNull();
 });
 

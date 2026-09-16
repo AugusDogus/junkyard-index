@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import fixture from "./fixtures/upullrparts-vehicle.json";
 import images from "./fixtures/upullrparts-images.json";
+import partialImages from "./fixtures/upullrparts-partial-images.json";
 import { UPULLRPARTS_API_URL } from "./upullrparts-client";
 import {
   streamUpullRPartsInventoryWithRequestGate,
@@ -43,6 +44,61 @@ function mockResponse(body: string, status = 200) {
 }
 
 describe("U Pull R Parts complete catalog", () => {
+  test.each(partialImages)(
+    "partial empty photos fail before yard or vehicle callbacks: %j",
+    async (responseInit) => {
+      mockResponse(JSON.stringify(catalog));
+      const upstream = globalThis.fetch;
+      let photoRequests = 0;
+      globalThis.fetch = Object.assign(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const params = new URLSearchParams(
+            typeof init?.body === "string" ? init.body : "",
+          );
+          if (params.get("apiAction") === "getVehicleImages") {
+            photoRequests++;
+            expect(params.get("action")).toBe("doAaaApiCall");
+            return Response.json(
+              { success: 1, images: [] },
+              {
+                status: responseInit.status,
+                headers: responseInit.headerName
+                  ? { [responseInit.headerName]: responseInit.headerValue }
+                  : undefined,
+              },
+            );
+          }
+          return upstream(input, init);
+        },
+        { preconnect: originalFetch.preconnect },
+      );
+      let batches = 0;
+      let yards = 0;
+      const result = await Effect.runPromise(
+        Effect.either(
+          streamUpullRPartsInventoryWithRequestGate(
+            {
+              onBatch: () =>
+                Effect.sync(() => {
+                  batches++;
+                }),
+              onYards: () =>
+                Effect.sync(() => {
+                  yards++;
+                }),
+            },
+            (request) => request,
+          ),
+        ),
+      );
+      expect(result._tag).toBe("Left");
+      if (result._tag === "Left")
+        expect(result.left.message).toContain("partial");
+      expect(photoRequests).toBe(1);
+      expect(batches).toBe(0);
+      expect(yards).toBe(0);
+    },
+  );
   test("enriches photos by stock using the public image action before publication", async () => {
     const requests = mockResponse(JSON.stringify(catalog));
     const vehicles: UpullRPartsCanonicalVehicle[] = [];
