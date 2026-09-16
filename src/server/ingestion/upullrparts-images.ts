@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect";
 import { fetchProviderJson } from "./provider-http-client";
+import { hasHttpPaginationLink } from "./provider-http-pagination";
 import {
   UPULLRPARTS_API_URL,
   UpullRPartsProviderError,
@@ -45,6 +46,17 @@ export function fetchUpullRPartsImage(stock: string) {
       success: Schema.Literal(1),
       images: Schema.Array(image).pipe(Schema.maxItems(100)),
     }),
+    onResponse: (response) => {
+      if (
+        response.status === 206 ||
+        response.headers.has("content-range") ||
+        hasHttpPaginationLink(response.headers)
+      ) {
+        throw new Error(
+          `U Pull R Parts getVehicleImages stock ${stock} returned a partial or paginated response. Verify the photo endpoint before retrying from cursor 0; no yard or vehicle batches were emitted.`,
+        );
+      }
+    },
     retry: { retryLimit: 2, retryNetworkErrors: false, jitter: false },
   }).pipe(
     Effect.map(

@@ -1,0 +1,23 @@
+[
+  { "status": 206, "headerName": "", "headerValue": "" },
+  {
+    "status": 200,
+    "headerName": "Content-Range",
+    "headerValue": "items 0-0/6"
+  },
+  {
+    "status": 200,
+    "headerName": "Link",
+    "headerValue": "</images?page=2>; rel=next"
+  },
+  {
+    "status": 200,
+    "headerName": "Link",
+    "headerValue": "</images?page=2>; rel=\"alternate next\""
+  },
+  {
+    "status": 200,
+    "headerName": "Link",
+    "headerValue": "</images?page=2>; rel=\"next alternate\""
+  }
+]
