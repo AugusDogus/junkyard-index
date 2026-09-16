@@ -8,6 +8,18 @@ export type UpullitwaCanonicalVehicle = CanonicalVehicle & {
   source: "upullitwa";
 };
 
+function isPlaceholder(image: URL): boolean {
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(image.pathname);
+  } catch {
+    return true;
+  }
+  return [image.href, pathname, ...image.searchParams.values()].some((value) =>
+    /placeholder|no[-_+ ]?image/i.test(value),
+  );
+}
+
 export function transformUpullitwaVehicle(
   record: UpullitwaRecord,
   yard: LocatedUpullitwaYard,
@@ -51,9 +63,7 @@ export function transformUpullitwaVehicle(
       ["https:", "http:"].includes(image.protocol) &&
       !image.username &&
       !image.password &&
-      ![image.href, ...image.searchParams.values()].some((value) =>
-        /placeholder|no[-_+ ]?image/i.test(value),
-      )
+      !isPlaceholder(image)
         ? image.href
         : null,
     availableDate:
