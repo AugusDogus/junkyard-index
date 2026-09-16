@@ -86,6 +86,7 @@ test.each([
     "https://go2upullit.com/photos/car.jpg?size=large&id=12",
   ],
   ["photos/car.jpg", "https://go2upullit.com/inventory/ANY/ANY/photos/car.jpg"],
+  ["/photos/blue%20car.jpg", "https://go2upullit.com/photos/blue%20car.jpg"],
   ["//cdn.example.com/car.jpg", "https://cdn.example.com/car.jpg"],
   [
     "https://cdn.example.com/car.jpg?x=1&#038;y=2",
@@ -103,6 +104,9 @@ test.each([
   "https://user:password@cdn.example.com/car.jpg",
   "https://via.placeholder.com/348x251?text=No+Image+Available",
   "/images/no-image.jpg",
+  "/images/no%2Dimage.jpg",
+  "/images/%70laceholder.jpg",
+  "/images/invalid%ZZ.jpg",
   "https://cdn.example.com/348x251?text=No%20Image%20Available",
 ])("omits unusable image src %s without rejecting the vehicle", (src) => {
   expect(vehicleWithImage(`<img src="${src}">`)).toMatchObject({
