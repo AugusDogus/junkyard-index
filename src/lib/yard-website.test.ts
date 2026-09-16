@@ -27,11 +27,35 @@ test("accepts published relative PYP store pages and derives matching yard inven
   ).toBeNull();
 });
 
+test("rejects insecure PYP links", () => {
+  expect(
+    pypYardWebsite(
+      "http://www.pyp.com/inventory/west-palm-beach-1196/",
+      "1196",
+    ),
+  ).toBeNull();
+});
+
 test.each([
   [
     "Pull-A-Part - Montgomery",
     "AL",
     "https://www.pullapart.com/locations/alabama/montgomery/",
+  ],
+  [
+    "Pull-A-Part - Montgomery",
+    "Alabama",
+    "https://www.pullapart.com/locations/alabama/montgomery/",
+  ],
+  [
+    "U-Pull-&-Pay - West Palm Beach",
+    "Florida",
+    "https://www.upullandpay.com/locations/florida/west-palm-beach/",
+  ],
+  [
+    "Pull-A-Part - Columbia",
+    "South Carolina",
+    "https://www.pullapart.com/locations/s-carolina/columbia/",
   ],
   [
     "U-Pull-&-Pay - West Palm Beach",

@@ -33,7 +33,7 @@ export function pypYardWebsite(
     ].includes(url.hostname) ||
     url.username ||
     url.password ||
-    !["http:", "https:"].includes(url.protocol)
+    url.protocol !== "https:"
   )
     return null;
   const inventory = /^\/inventory\/([a-z0-9-]+-(\d+))\//.exec(url.pathname);
@@ -84,7 +84,7 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
       .replace(/^(?:Pull-A-Part|U-Pull-&-Pay)\s*-\s*/i, "")
       .toLowerCase()
       .replace(/\s+/g, "-");
-    const region = normalizeRegion(yard.state, yard.state);
+    const region = normalizeRegion(yard.state);
     // The public location directory uses s-carolina, not south-carolina.
     const state =
       region.stateAbbr === "SC"
