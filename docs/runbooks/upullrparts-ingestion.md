@@ -68,8 +68,11 @@ cards also provide **Copy VIN**.
   and applies previous-run drift, rejection, and duplicate checks.
 - Catalog/make requests start at most once every 1.5 seconds, including retries.
   Photo lookups use at most **8 concurrent requests**, including retry slots,
-  independently of that gate. Both allow at most two retries, without network-error
-  retries or jitter. There is one photo lookup per distinct usable stock.
+  independently of that gate. Photos share three total attempts across transport
+  `TypeError`, timeout, and retryable HTTP failures, with 1-second then 2-second
+  backoff. Partial/invalid photo responses are not retried. Catalog/make requests
+  retain at most two retries without network-error retries or jitter. There is
+  one photo lookup per distinct usable stock, plus bounded retries when needed.
 - The **600-second** outer timeout covers catalog, make resolution, photos, and
   callbacks. Timeout returns no terminal checkpoint; inspect the failure and retry
   from `0`. Do not publish partial enrichment to meet the deadline.
