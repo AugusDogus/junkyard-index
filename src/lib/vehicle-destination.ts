@@ -10,7 +10,7 @@ export type VehicleDestination =
     }
   | { kind: "unavailable"; explanation: string };
 
-// Verified public entry points, not vehicle permalinks. See docs/runbooks/*-media-links.md.
+// Verified public entry points, not vehicle permalinks. See docs/runbooks/provider-media-links.md.
 const manualSearchUrls: Partial<Record<DataSource, string>> = {
   pullnsave: "https://www.pullnsave.com/inventory/",
   tearapart: "https://tearapart.com/inventory/",
