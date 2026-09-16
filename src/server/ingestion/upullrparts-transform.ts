@@ -1,9 +1,6 @@
 import type { CanonicalVehicle } from "./types";
 import { normalizeCanonicalColor, normalizeRegion } from "./normalization";
-import {
-  UPULLRPARTS_INVENTORY_URL,
-  type UpullRPartsVehicle,
-} from "./upullrparts-client";
+import type { UpullRPartsVehicle } from "./upullrparts-client";
 import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
 import type { UpullRPartsMakeResolution } from "./upullrparts-makes";
 
@@ -74,7 +71,8 @@ export function transformUpullRPartsVehicle(
         ? null
         : text(String(record.Row)),
     space: null,
-    detailsUrl: UPULLRPARTS_INVENTORY_URL,
+    // The public form is POST-only and does not restore results from a URL.
+    detailsUrl: null,
     partsUrl: null,
     pricesUrl: "https://upullrparts.com/part-pricing/",
     engine: null,

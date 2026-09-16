@@ -16,6 +16,8 @@ test("allows a complete make fallback when provider responses take 2.2 seconds",
       const params = new URLSearchParams(
         typeof init?.body === "string" ? init.body : "",
       );
+      if (params.get("apiAction") === "getVehicleImages")
+        return Response.json({ success: 1, images: [] });
       if (params.get("apiAction") === "getMakes")
         return Response.json([
           "Ford",
@@ -51,7 +53,7 @@ test("allows a complete make fallback when provider responses take 2.2 seconds",
     errors: [],
     warnings: [],
   });
-  expect(requests).toBe(114);
+  expect(requests).toBe(115);
 });
 
 test("bounds a stalled catalog to ten minutes without emitting batches", async () => {
@@ -79,4 +81,53 @@ test("bounds a stalled catalog to ten minutes without emitting batches", async (
   if (exit._tag === "Failure")
     expect(Cause.pretty(exit.cause)).toContain("ten-minute checkpoint budget");
   expect(batches).toBe(0);
+});
+
+test("photo enrichment shares the ten-minute deadline and cannot publish a partial catalog", async () => {
+  let photoStarted = false;
+  let emitted = 0;
+  globalThis.fetch = Object.assign(
+    async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const params = new URLSearchParams(
+        typeof init?.body === "string" ? init.body : "",
+      );
+      if (params.get("apiAction") === "getVehicleImages") {
+        photoStarted = true;
+        return new Promise<Response>(() => {});
+      }
+      if (params.get("apiAction") === "getMakes")
+        return Response.json(["Ford"]);
+      return Response.json([
+        fixture,
+        { ...fixture, Store: 2, VIN: "VIN-2" },
+        { ...fixture, Store: 3, VIN: "VIN-3" },
+      ]);
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const onBatch = () =>
+    Effect.sync(() => {
+      emitted++;
+    });
+  const exit = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        streamUpullRPartsInventoryWithRequestGate(
+          { onBatch, onYards: onBatch },
+          (request) => request,
+        ),
+      );
+      yield* TestClock.adjust("9 minutes");
+      expect(photoStarted).toBe(true);
+      expect(Option.isNone(yield* Fiber.poll(fiber))).toBe(true);
+      yield* TestClock.adjust("1 minute");
+      return yield* Fiber.await(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(exit._tag).toBe("Failure");
+  if (exit._tag === "Failure")
+    expect(Cause.pretty(exit.cause)).toContain(
+      "photos exceeded the ten-minute checkpoint budget",
+    );
+  expect(emitted).toBe(0);
 });

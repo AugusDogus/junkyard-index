@@ -1,6 +1,7 @@
 import { Data, Effect, Either, RateLimiter, Schema } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { loadUpullRPartsImages } from "./upullrparts-images";
 import {
   fetchUpullRPartsCatalog,
   UpullRPartsVehicleSchema,
@@ -157,6 +158,15 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
         }
       }
     }
+    const images = yield* loadUpullRPartsImages(
+      vehicles.map((vehicle) => vehicle.stockNumber),
+    );
+    for (const vehicle of vehicles) {
+      vehicle.imageUrl =
+        vehicle.stockNumber === null
+          ? null
+          : (images.get(vehicle.stockNumber) ?? null);
+    }
     if (options.onYards) yield* options.onYards([...UPULLRPARTS_YARDS]);
     for (
       let offset = 0;
@@ -193,7 +203,7 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       onTimeout: () =>
         new UpullRPartsStreamError({
           message:
-            "U Pull R Parts catalog and make resolution exceeded the ten-minute checkpoint budget. Retry from cursor 0; no terminal checkpoint was returned.",
+            "U Pull R Parts catalog, make resolution, and photos exceeded the ten-minute checkpoint budget. Retry from cursor 0; no terminal checkpoint was returned.",
         }),
     }),
   );
@@ -206,7 +216,7 @@ export function streamUpullRPartsInventory<E, R>(
   UpullRPartsProviderError | UpullRPartsMakeError | UpullRPartsStreamError | E,
   R
 > {
-  // Includes retries, keeping the single-request protocol polite on failure.
+  // Catalog/make requests (including retries) remain serial and rate limited.
   return Effect.scoped(
     RateLimiter.make({ limit: 1, interval: "1500 millis" }).pipe(
       Effect.flatMap((requestGate) =>

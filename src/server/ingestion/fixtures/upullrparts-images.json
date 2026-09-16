@@ -1,0 +1,29 @@
+{
+  "success": 1,
+  "images": [
+    {
+      "fileName": "UG072546_1_Rear_1789479267863.jpg",
+      "url": "https://api.aaaparts.com/staticImages/UG072546_1_Rear_1789479267863.jpg"
+    },
+    {
+      "fileName": "UG072546_2_Interior_1789479277553.jpg",
+      "url": "https://api.aaaparts.com/staticImages/UG072546_2_Interior_1789479277553.jpg"
+    },
+    {
+      "fileName": "UG072546_3_RFCorner_1789479296717.jpg",
+      "url": "https://api.aaaparts.com/staticImages/UG072546_3_RFCorner_1789479296717.jpg"
+    },
+    {
+      "fileName": "UG072546_4_LFCorner_1789479309207.jpg",
+      "url": "https://api.aaaparts.com/staticImages/UG072546_4_LFCorner_1789479309207.jpg"
+    },
+    {
+      "fileName": "UG072546_5_EngineBay_1789479315908.jpg",
+      "url": "https://api.aaaparts.com/staticImages/UG072546_5_EngineBay_1789479315908.jpg"
+    },
+    {
+      "fileName": "UG072546_6_Facebook_1789479328434.jpg",
+      "url": "https://api.aaaparts.com/staticImages/UG072546_6_Facebook_1789479328434.jpg"
+    }
+  ]
+}
