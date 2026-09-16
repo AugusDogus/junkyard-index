@@ -14,9 +14,15 @@ through the existing durable checkpoint contract. No schema migration is require
 
 iPull-uPull accepts `Available` vehicles, including full-service row 999. Sold
 assets and row 300 (pre-pulled engines/transmissions only) are excluded without
-presence protection, allowing former whole-vehicle listings to retire. Unknown
-statuses, missing yard metadata, and unusable descriptive metadata preserve
-independently usable VINs. Pre-1981 manufacturer identifiers are retained.
+presence protection, allowing former whole-vehicle listings to retire. Current
+location cards on the public directory establish yard eligibility before any
+vehicle can be emitted or observed. Navigation/footer links do not establish it.
+Unlisted or unidentified cities receive no presence protection. For listed yards,
+unknown statuses, unavailable yard details, and unusable descriptive metadata
+preserve independently usable VINs. Directory failures or incomplete/ambiguous
+markup abort the catalog; a failed individual yard-details request does not
+invalidate its confirmed eligibility. Catalog completeness is checked against
+currently listed cities, not a historical city list. Pre-1981 identifiers are retained.
 The CSV is limited to 20,000 rows, 4 MiB, and a five-minute checkpoint budget.
 Metadata comes from same-origin directory links and each yard's JSON-LD.
 
@@ -63,6 +69,12 @@ writes. September 15, 2026 full crawl:
 No 429s or network errors. iPull-uPull accounted for 4,275 rows: 4,033 emitted,
 37 rejected, 53 unlocated, 137 parts-only, and 15 sold. Washington accounted for
 2,481 rows, including one duplicate. Parts Galore emitted all 1,059 rows.
+
+After the eligibility change, the September 16 iPull-uPull crawl emitted 4,043
+vehicles from four listed yards in six requests (5.2 seconds). Its 4,286 rows
+included 38 rejected, 53 without an identifiable yard, 137 parts-only, and 15 sold.
+There were no rate limits or network errors. The unlocated records did not supply
+presence protection.
 
 Pre-implementation VIN samples matched neither Row52 active inventory nor
 AutoRecycler global search: iPull-uPull 0/80 (20 per yard), Washington 0/45

@@ -29,6 +29,8 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 const cities = ["Fresno", "Pomona", "Sacramento", "Stockton"];
+const directoryHtml = (listedCities: string[]) =>
+  `<html><body>${listedCities.map((city) => `<figure class="wp-block-image"><a href="/locations/${city.toLowerCase()}-ca/"><img alt="${city}" /></a></figure>`).join("")}</body></html>`;
 const page = (city: string, lat = 36.68622) =>
   `<script type="application/ld+json">${JSON.stringify({
     "@type": "AutoDealer",
@@ -66,6 +68,7 @@ function mockCatalog(
   rows: readonly IPullUPullRecord[],
   extraCities: string[] = [],
   failCity?: string,
+  listedCities = [...cities, ...extraCities],
 ) {
   const requests: string[] = [];
   globalThis.fetch = Object.assign(
@@ -77,14 +80,7 @@ function mockCatalog(
           headers: { "Content-Type": "text/csv" },
         });
       if (url.endsWith("/locations/"))
-        return new Response(
-          [...cities, ...extraCities]
-            .map(
-              (city) =>
-                `<a href="/locations/${city.toLowerCase()}-ca/">${city}</a>`,
-            )
-            .join(""),
-        );
+        return new Response(directoryHtml(listedCities));
       const city = [...cities, ...extraCities].find((city) =>
         url.endsWith(`/${city.toLowerCase()}-ca/`),
       );
@@ -154,9 +150,11 @@ test("preserves uncertain observations but allows sold and parts-only vehicles t
       duplicateVehicles: 1,
     },
   });
-  expect(result.observedVins).toHaveLength(5);
+  expect(result.observedVins).toHaveLength(3);
   expect(result.observedVins).not.toContain(rows[5]?.Vin);
   expect(result.observedVins).not.toContain(rows[8]?.Vin);
+  expect(result.observedVins).not.toContain(rows[9]?.Vin);
+  expect(result.observedVins).not.toContain(rows[10]?.Vin);
   expect(
     vehicles.find((vehicle) => vehicle.vin === first.Vin)?.stockNumber,
   ).toBe(first["Stock Number"]);
@@ -208,7 +206,79 @@ test("known-yard metadata failures preserve VINs and do not fail the entire cata
   );
 });
 
-test("unusable-only known yard fails before requesting metadata or emitting batches", async () => {
+test("unlisted yards cannot emit vehicles or preserve VINs through uncertain metadata/status", async () => {
+  const requests = mockCatalog(
+    [
+      ...records,
+      { ...first, Vin: "1FMCU49H37KA00001", Status: "Pending" },
+      { ...first, Vin: "1FMCU49H37KA00002", Model: "" },
+    ],
+    [],
+    undefined,
+    cities.filter((city) => city !== "Fresno"),
+  );
+  const { result, vehicles } = await run();
+  expect(vehicles).toHaveLength(3);
+  expect(result.observedVins).toEqual([]);
+  expect(result.accounting).toMatchObject({
+    recordsProcessed: 6,
+    recordsExcluded: 3,
+    recordsRejected: 0,
+  });
+  expect(requests.some((url) => url.endsWith("/fresno-ca/"))).toBe(false);
+});
+
+test("catalog completeness follows currently listed yards, not the historical city list", async () => {
+  mockCatalog(
+    records.filter((record) => record["Yard City"] !== "FRESNO"),
+    [],
+    undefined,
+    cities.filter((city) => city !== "Fresno"),
+  );
+  const { result, vehicles } = await run();
+  expect(result.status).toBe("complete");
+  expect(vehicles).toHaveLength(3);
+});
+
+test.each([
+  ["HTTP failure", () => new Response("unavailable", { status: 403 })],
+  [
+    "partial response",
+    () => new Response(directoryHtml(cities), { status: 206 }),
+  ],
+  ["empty directory", () => new Response(directoryHtml([]))],
+  [
+    "truncated directory",
+    () => new Response(directoryHtml(cities).replace("</body>", "")),
+  ],
+])(
+  "%s aborts before emitting inventory or yard metadata",
+  async (_name, response) => {
+    mockCatalog(records);
+    const underlyingFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).endsWith("/locations/")
+          ? response()
+          : underlyingFetch(input, init),
+      { preconnect: originalFetch.preconnect },
+    );
+    await expect(
+      Effect.runPromise(
+        streamIPullUPullInventoryWithRequestGate(
+          {
+            onBatch: () =>
+              Effect.fail(new Error("unexpected vehicle callback")),
+            onYards: () => Effect.fail(new Error("unexpected yard callback")),
+          },
+          (request) => request,
+        ),
+      ),
+    ).rejects.toThrow(/directory|eligibility/i);
+  },
+);
+
+test("unusable-only listed yard fails before requesting yard metadata or emitting batches", async () => {
   const requests = mockCatalog(
     records.map((record) =>
       record["Yard City"] === "FRESNO" ? { ...record, Make: "" } : record,
@@ -229,7 +299,7 @@ test("unusable-only known yard fails before requesting metadata or emitting batc
     ),
   );
   expect(result._tag).toBe("Left");
-  expect(requests).toHaveLength(1);
+  expect(requests).toHaveLength(2);
   expect(batches).toBe(0);
 });
 

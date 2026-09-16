@@ -1,17 +1,15 @@
 import { Effect, Either, Schema } from "effect";
 import { Yard } from "~/lib/yard";
 import {
+  inventoryHtmlAttribute,
+  stripInventoryRawText,
+} from "./inventory-html";
+import {
   fetchProviderText,
   type ProviderRequestGate,
 } from "./provider-http-client";
 
 export type IPullUPullYard = Yard & { source: "ipullupull" };
-export const IPULLUPULL_KNOWN_CITIES = [
-  "FRESNO",
-  "POMONA",
-  "SACRAMENTO",
-  "STOCKTON",
-] as const;
 const DIRECTORY_URL = "https://ipullupull.com/locations/";
 const nonempty = Schema.String.pipe(
   Schema.filter((text) => text.trim().length > 0),
@@ -34,10 +32,17 @@ const YardMetadataSchema = Schema.Struct({
 /** Follow only same-origin yard links actually published in the directory. */
 export function ipullUPullDirectoryLinks(html: string): URL[] {
   const links = new Map<string, URL>();
-  for (const match of html.matchAll(/href\s*=\s*["']([^"']+)["']/gi)) {
-    const url = URL.parse(match[1] ?? "", DIRECTORY_URL);
+  for (const match of stripInventoryRawText(html).matchAll(
+    /<a\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi,
+  )) {
+    const url = URL.parse(
+      inventoryHtmlAttribute(match[0], "href") ?? "",
+      DIRECTORY_URL,
+    );
     if (
       url?.origin === "https://ipullupull.com" &&
+      !url.username &&
+      !url.password &&
       /^\/locations\/[a-z]+(?:-[a-z]+)*-[a-z]{2}\/$/.test(url.pathname)
     ) {
       url.search = "";
@@ -46,6 +51,57 @@ export function ipullUPullDirectoryLinks(html: string): URL[] {
     }
   }
   return [...links.values()];
+}
+
+/** Only the directory's location cards establish eligibility, not historical
+ * CSV cities or navigation/footer links. Reject incomplete or ambiguous lists.
+ */
+export function parseIPullUPullDirectory(
+  html: string,
+): ReadonlyMap<string, URL> {
+  const clean = stripInventoryRawText(html);
+  const bodies = [...clean.matchAll(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/gi)];
+  const body = bodies[0]?.[1];
+  if (
+    bodies.length !== 1 ||
+    body === undefined ||
+    !/<\/html\s*>\s*$/i.test(clean.trim())
+  )
+    throw new Error(
+      "iPull-uPull directory is missing a complete HTML document",
+    );
+  const figures = [
+    ...body.matchAll(
+      /<figure\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/figure\s*>/gi,
+    ),
+  ];
+  if (figures.length * 2 !== [...body.matchAll(/<\/?figure\b/gi)].length)
+    throw new Error("iPull-uPull directory has incomplete location cards");
+  const directory = new Map<string, URL>();
+  for (const figure of figures) {
+    if (
+      !(inventoryHtmlAttribute(figure[1] ?? "", "class") ?? "")
+        .split(/\s+/)
+        .includes("wp-block-image")
+    )
+      continue;
+    const links = ipullUPullDirectoryLinks(figure[2] ?? "");
+    const url = links[0];
+    const slug = url
+      ? /^\/locations\/(.+)-[a-z]{2}\/$/.exec(url.pathname)?.[1]
+      : undefined;
+    if (links.length !== 1 || !url || !slug)
+      throw new Error(
+        "iPull-uPull directory location card lacks one unambiguous yard link",
+      );
+    const city = slug.replaceAll("-", " ").toUpperCase();
+    if (directory.has(city))
+      throw new Error(`iPull-uPull directory has ambiguous city ${city}`);
+    directory.set(city, url);
+  }
+  if (directory.size === 0)
+    throw new Error("iPull-uPull directory returned no location cards");
+  return directory;
 }
 
 export function parseIPullUPullYard(
@@ -111,32 +167,28 @@ function fetchMetadata(url: string, requestGate: ProviderRequestGate) {
   });
 }
 
+export function loadIPullUPullDirectory(requestGate: ProviderRequestGate) {
+  return fetchMetadata(DIRECTORY_URL, requestGate).pipe(
+    Effect.flatMap((html) => Effect.try(() => parseIPullUPullDirectory(html))),
+    Effect.mapError(
+      (cause) =>
+        new Error(
+          `iPull-uPull directory eligibility could not be verified: ${cause.message}. Inspect the public locations page before retrying; no catalog was accepted.`,
+        ),
+    ),
+  );
+}
+
 export function loadIPullUPullYards(
   cities: ReadonlySet<string>,
+  directory: ReadonlyMap<string, URL>,
   requestGate: ProviderRequestGate,
 ) {
   return Effect.gen(function* () {
     const yards = new Map<string, IPullUPullYard>();
     const warnings: string[] = [];
-    if (cities.size === 0) return { yards, warnings };
-    const directory = yield* Effect.either(
-      fetchMetadata(DIRECTORY_URL, requestGate),
-    );
-    if (Either.isLeft(directory)) {
-      warnings.push(
-        `iPull-uPull yard directory unavailable: ${directory.left.message}. Observed VINs preserve prior inventory; retry metadata loading.`,
-      );
-      return { yards, warnings };
-    }
-    const links = ipullUPullDirectoryLinks(directory.right);
     for (const city of cities) {
-      const slug = city.toLowerCase().replace(/\s+/g, "-");
-      const candidates = links.filter(
-        (url) =>
-          /^\/locations\/(.+)-[a-z]{2}\/$/.exec(url.pathname)?.[1] === slug,
-      );
-      if (candidates.length !== 1) continue;
-      const url = candidates[0];
+      const url = directory.get(city);
       if (!url) continue;
       const page = yield* Effect.either(fetchMetadata(url.href, requestGate));
       if (Either.isLeft(page)) {
