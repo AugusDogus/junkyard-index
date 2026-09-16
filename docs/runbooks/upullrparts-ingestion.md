@@ -2,6 +2,8 @@
 
 Source: `upullrparts`. Three verified stores: Rosemount MN (1), East Bethel MN
 (2), and Toledo OH (3). No provider credentials are required.
+See [provider photos and inventory links](provider-media-links.md) for media
+validation and the manual-search destination contract.
 
 ## Public API
 
@@ -20,8 +22,8 @@ Parameter case matters. Preserve raw make labels in requests, including trailing
 whitespace. The [public inventory form](https://upullrparts.com/inventory/) and
 its `wp-content/plugins/V5.0/vehicle-search.js` script define these requests.
 
-Responses are bare JSON arrays. There is no verified provider pagination or
-independent total. HTTP 206, Content-Range, or Link headers fail the checkpoint
+Catalog/make responses are bare JSON arrays. There is no verified provider
+pagination or independent total. HTTP 206, Content-Range, or Link headers fail the checkpoint
 rather than allowing a partial inventory or supporting lookup to appear complete.
 
 ## Make resolution
@@ -40,6 +42,21 @@ or unmatched makes remain `Other` with warnings; failed supporting requests fail
 the checkpoint. In the September 15 sample, three valid listings required the
 model fallback and all makes ultimately resolved.
 
+## Vehicle photos and outbound links
+
+The catalog has no photo fields. After make resolution, POST to the same endpoint
+with `action=doAaaApiCall&apiAction=getVehicleImages&stockID=<stock>` and the same
+user-agent. Deduplicate by usable stock. Success is an object with `success: 1`
+and `images: [{ fileName, url }]`; a successful empty list or missing local stock
+retains null. Failed or malformed lookups abort before yard/vehicle callbacks.
+
+Use only returned `api.aaaparts.com/staticImages` URLs whose filenames match the
+stock, preferring photo order `6, 3, 4, 1, 5, 2`. Filenames include timestamps;
+do not construct them or substitute the separate full-service parts-photo URLs.
+`detailsUrl` is null: the public form does not restore results from query parameters.
+Cards and alerts offer **Search provider inventory** with VIN/yard instructions;
+cards also provide **Copy VIN**.
+
 ## Checkpoints and execution budget
 
 - Cursor `0` means pending, `1` complete. One atomic catalog checkpoint per run;
@@ -49,13 +66,23 @@ model fallback and all makes ultimately resolved.
   labels per make. Empty, malformed, oversized, or missing-known-store catalogs
   fail before publication. Shared acceptance requires at least 2,000 vehicles
   and applies previous-run drift, rejection, and duplicate checks.
-- Requests start at most once every 1.5 seconds, including retries. A ten-minute
-  connector timeout bounds enrichment. On September 15 the Vercel project had
-  Fluid Compute enabled and an 800-second function default; Workflow requests
-  the platform maximum. This leaves roughly 200 seconds for runtime overhead and
-  checkpoint persistence. Recheck that limit if deployment settings change.
-  The measured run used 114 requests, about 170 seconds,
-  and emitted 3,303 vehicles. Without model fallback, 56 makes need 58 requests.
+- Catalog/make requests start at most once every 1.5 seconds, including retries.
+  Photo lookups use at most **8 concurrent requests**, including retry slots,
+  independently of that gate. Both allow at most two retries, without network-error
+  retries or jitter. There is one photo lookup per distinct usable stock.
+- The **600-second** outer timeout covers catalog, make resolution, photos, and
+  callbacks. Timeout returns no terminal checkpoint; inspect the failure and retry
+  from `0`. Do not publish partial enrichment to meet the deadline.
+- September 16's full read-only run took **470.511 seconds**: 3,311 vehicles,
+  3,017 photos, and 294 successful empty lists. Requests: 57 `getVehicles`,
+  1 `getMakes`, 56 `getModels`, and 3,311 `getVehicleImages`. Peak photo concurrency
+  was 8, with no errors or warnings and about 129 seconds of deadline headroom.
+  Slower upstream responses can exhaust this budget.
+- On September 15 the Vercel project had Fluid Compute enabled and an 800-second
+  function default; Workflow requests the platform maximum. The connector limit
+  leaves roughly 200 seconds for runtime overhead and checkpoint persistence.
+  Recheck the deployment limit if settings change; these observations do not
+  establish production verification of photo enrichment.
 - Unknown yard IDs produce warnings and observed VINs, using the shared
   observation path to preserve existing inventory.
 
@@ -71,7 +98,7 @@ The shared contact page is not published as a yard-specific website.
 
 ```sh
 bun run soak:sources -- --sources=upullrparts --cycles=1
-bun test src/server/ingestion/upullrparts-connector.test.ts src/server/ingestion/upullrparts-transform.test.ts src/server/ingestion/upullrparts-makes.test.ts
+bun test src/server/ingestion/upullrparts-connector.test.ts src/server/ingestion/upullrparts-transform.test.ts src/server/ingestion/upullrparts-makes.test.ts src/server/ingestion/upullrparts-images.test.ts src/server/ingestion/upullrparts-budget.test.ts
 ```
 
 The soak counts and discards inventory. It does not publish database changes,

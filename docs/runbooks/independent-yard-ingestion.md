@@ -3,6 +3,8 @@
 All three use public HTTP inventory, without browser sessions or API credentials.
 They emit canonical vehicles, yard metadata, raw accounting, and presence evidence
 through the existing durable checkpoint contract. No schema migration is required.
+See [provider photos and inventory links](provider-media-links.md) for image
+enrichment, destination contracts, and manual-search limitations.
 
 ## Endpoints and checkpoints
 
@@ -23,7 +25,13 @@ preserve independently usable VINs. Directory failures or incomplete/ambiguous
 markup abort the catalog; a failed individual yard-details request does not
 invalidate its confirmed eligibility. Catalog completeness is checked against
 currently listed cities, not a historical city list. Pre-1981 identifiers are retained.
-The CSV is limited to 20,000 rows, 4 MiB, and a five-minute checkpoint budget.
+The CSV is limited to 20,000 rows and 4 MiB. CSV, metadata, bulk media enrichment,
+and callbacks share a five-minute checkpoint budget. Requests, including retries,
+share a one-request-per-second gate. Public card `data-gallery` images join by
+stock, VIN, and yard; `data-parts` photos are not vehicle images. Media pages hold
+up to 96 cards, bounded to 4 MiB each and 20,000 total assets. Incomplete/drifting pages,
+malformed media, or missing emitted-vehicle coverage abort before callbacks;
+retry from cursor `0`. Explicit empty galleries retain null images with warnings.
 Metadata comes from same-origin directory links and each yard's JSON-LD.
 
 Washington discovers yards from the inventory selector and verifies the selected
@@ -32,11 +40,15 @@ Page-count changes, repeated pages, missing known yards, incomplete markup, and
 partial HTTP responses fail closed. The cursor carries traversal evidence, not
 VIN inventory; snapshots own cross-chunk deduplication and exact final counts.
 Unknown yards preserve usable VINs pending metadata verification.
+Published image sources are preserved, including relative URLs; missing/placeholder
+images remain null. Outbound links persist yard and VIN search without a page number.
 
 Parts Galore reads exactly one complete `#alldata` table. Its bounded catalog
 (10,000 rows, 5 million HTML characters, two-minute budget) is delivered in local
 batches of 250 without inventing provider pages. Invalid descriptive metadata
 preserves usable VINs; malformed table structure fails closed.
+The salvage table publishes no vehicle photos or persistent vehicle links.
+`imageUrl` and `detailsUrl` remain null; the UI offers a labeled manual search.
 
 ## Yard metadata
 
@@ -58,23 +70,20 @@ bun test src
 ```
 
 The soak discards inventory and makes no production persistence, search, or alert
-writes. September 15, 2026 full crawl:
+writes. Full read-only observations, not production deployment verification:
 
-| Source               | Yards | Unique emitted | HTTP requests | Seconds |
-| -------------------- | ----: | -------------: | ------------: | ------: |
-| iPull-uPull          |     4 |          4,033 |             6 |     5.2 |
-| Washington U-Pull-It |     3 |          2,480 |             8 |     8.9 |
-| Parts Galore         |     1 |          1,059 |             1 |     0.9 |
+| Source               | Observed   | Yards | Unique emitted | HTTP requests | Seconds |
+| -------------------- | ---------- | ----: | -------------: | ------------: | ------: |
+| iPull-uPull          | 2026-09-16 |     4 |          4,043 |            51 |    62.6 |
+| Washington U-Pull-It | 2026-09-15 |     3 |          2,480 |             8 |     8.9 |
+| Parts Galore         | 2026-09-15 |     1 |          1,059 |             1 |     0.9 |
 
-No 429s or network errors. iPull-uPull accounted for 4,275 rows: 4,033 emitted,
-37 rejected, 53 unlocated, 137 parts-only, and 15 sold. Washington accounted for
-2,481 rows, including one duplicate. Parts Galore emitted all 1,059 rows.
-
-After the eligibility change, the September 16 iPull-uPull crawl emitted 4,043
-vehicles from four listed yards in six requests (5.2 seconds). Its 4,286 rows
-included 38 rejected, 53 without an identifiable yard, 137 parts-only, and 15 sold.
-There were no rate limits or network errors. The unlocated records did not supply
-presence protection.
+iPull-uPull's 51 requests include 45 bulk media pages. Of 4,043 emitted vehicles,
+3,880 had photos and 163 had explicit empty galleries. Its 4,286 CSV rows included
+38 rejected, 53 unlocated, 137 parts-only, and 15 sold; unlocated records supplied
+no presence protection. `pagesProcessed: 1` remains the atomic checkpoint count.
+Washington accounted for 2,481 rows including one duplicate; Parts Galore emitted
+all 1,059 rows. Measured runs had no rate limits or network errors.
 
 Pre-implementation VIN samples matched neither Row52 active inventory nor
 AutoRecycler global search: iPull-uPull 0/80 (20 per yard), Washington 0/45
