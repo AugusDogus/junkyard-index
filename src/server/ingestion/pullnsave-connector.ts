@@ -1,10 +1,9 @@
 import { Data, Effect, RateLimiter } from "effect";
 import { fetchPullNSavePage, PullNSaveProviderError } from "./pullnsave-client";
-import { PULLNSAVE_YARDS } from "./pullnsave-config";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { Yard } from "~/lib/yard";
 import { createPullNSaveYardResolver } from "./pullnsave-yard-directory";
-import { pullnsaveYard, type OnYards } from "./yard-metadata";
+import type { OnYards } from "./yard-metadata";
 import { transformPullNSaveVehicle } from "./pullnsave-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
 import type { PullNSaveCanonicalVehicle } from "./pullnsave-transform";
@@ -39,8 +38,6 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
   R
 > {
   return Effect.gen(function* () {
-    if (options.onYards)
-      yield* options.onYards(PULLNSAVE_YARDS.map(pullnsaveYard));
     const seen = new Map<string, PullNSaveCanonicalVehicle>();
     const observedVins = new Set<string>();
     let pagesProcessed = 0;
@@ -51,14 +48,20 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
     const resolveYard = yield* createPullNSaveYardResolver(
       requestGate,
       options.cachedYards,
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
+          new PullNSaveStreamError({
+            message: `Pull-N-Save could not verify current yard eligibility: ${cause.message}. Retry the public yard list before resuming ingestion; no batches were emitted.`,
+          }),
+      ),
     );
+    const unlistedYards = new Map<number, number>();
     const unresolvedYards = new Map<
       number,
       { count: number; reason: string }
     >();
-    const reportedYards = new Set(
-      PULLNSAVE_YARDS.map((yard) => yard.yardNumber),
-    );
+    const reportedYards = new Set<number>();
     const startPage = Math.max(1, options.startCursor ?? 1);
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
     let nextPage = startPage;
@@ -99,6 +102,14 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
       const batch: PullNSaveCanonicalVehicle[] = [];
       for (const record of records) {
         const resolution = yield* resolveYard(record.astStoreNumber);
+        if (resolution.status === "unlisted") {
+          recordsExcluded += 1;
+          unlistedYards.set(
+            record.astStoreNumber,
+            (unlistedYards.get(record.astStoreNumber) ?? 0) + 1,
+          );
+          continue;
+        }
         if (resolution.status === "unresolved") {
           recordsExcluded += 1;
           const vin = record.vin?.trim().toUpperCase();
@@ -159,6 +170,10 @@ export function streamPullNSaveInventoryWithRequestGate<E, R>(
       ([yardNumber, { count, reason }]) =>
         `Pull-N-Save yard ${yardNumber}: skipped ${count} vehicles because the yard location could not be resolved. ${reason}. Known yards continue; lookup will be retried next chunk/run.`,
     );
+    for (const [yardNumber, count] of unlistedYards)
+      warnings.push(
+        `Pull-N-Save yard ${yardNumber}: skipped ${count} vehicles because it is not listed in the current public inventory selector. These records do not preserve availability; eligibility will be checked next chunk/run.`,
+      );
     for (const warning of warnings) yield* Effect.logWarning(warning);
 
     return {

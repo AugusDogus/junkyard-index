@@ -12,6 +12,9 @@ import { validateSourceSnapshot } from "./source-validation";
 
 const originalFetch = globalThis.fetch;
 const noRateLimit: ProviderRequestGate = (request) => request;
+const yardListHtml = await Bun.file(
+  new URL("./fixtures/pullnsave-yard-list.html", import.meta.url),
+).text();
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -24,13 +27,14 @@ async function loadFixtureRows(fileName: string): Promise<unknown[]> {
   return JSON.parse(text) as unknown[];
 }
 
-function mockSearch(pages: Map<number, unknown[]>) {
+function mockSearch(pages: Map<number, unknown[]>, directory = yardListHtml) {
   const requestedBodies: Array<string | null> = [];
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(
         input instanceof Request ? input.url : input.toString(),
       );
+      if (url.pathname === "/inventory/") return new Response(directory);
       if (url.pathname !== "/v1/Vehicles/Search") {
         return new Response("not found", { status: 404 });
       }
@@ -49,7 +53,7 @@ function mockSearch(pages: Map<number, unknown[]>) {
 }
 
 describe("Pull-N-Save catalog streaming", () => {
-  test("reports unidentified yards without rejecting inventory from known yards", async () => {
+  test("excludes unlisted yards without preserving their VINs or rejecting listed inventory", async () => {
     mockSearch(
       new Map([
         [
@@ -92,7 +96,8 @@ describe("Pull-N-Save catalog streaming", () => {
     expect(result.errors).toEqual([]);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings?.[0]).toContain("yard 99: skipped 1 vehicles");
-    expect(result.observedVins).toEqual(["1G1JF52F437297781"]);
+    expect(result.observedVins).toEqual([]);
+    expect(result.warnings?.[0]).toContain("not listed");
   });
   test("ingests a newly discovered yard alongside the existing yards", async () => {
     mockSearch(
@@ -126,7 +131,10 @@ describe("Pull-N-Save catalog streaming", () => {
         const url = String(input);
         if (url.endsWith("/inventory/"))
           return new Response(
-            '<script>var pns_inventory_sf_ajax = {"nonce":"fixture-nonce"};</script>',
+            yardListHtml.replace(
+              "</select>",
+              '<option value="10">New Yard</option></select>',
+            ),
           );
         if (url.includes("admin-ajax.php"))
           return new Response(
@@ -471,6 +479,7 @@ describe("Pull-N-Save catalog streaming", () => {
 
     expect(result.status).toBe("complete");
     expect(result.count).toBe(0);
+    expect(result.observedVins).toEqual([]);
     expect(result.cursor).toBe(2);
     expect(result.pagesProcessed).toBe(1);
     expect(result.accounting).toEqual({
@@ -485,5 +494,52 @@ describe("Pull-N-Save catalog streaming", () => {
       duplicateVehicles: 0,
       rejectedVehicles: 1,
     });
+  });
+  test("cached known yards cannot override the current public list", async () => {
+    const page = await loadFixtureRows("pullnsave-search-page1.json");
+    mockSearch(
+      new Map([[1, page]]),
+      yardListHtml.replace(/<option value="1">[^<]*<\/option>/, ""),
+    );
+    const yards: Yard[] = [];
+    const result = await Effect.runPromise(
+      streamPullNSaveInventoryWithRequestGate(
+        {
+          onBatch: () => Effect.die("Unlisted inventory must not be emitted"),
+          onYards: (batch) =>
+            Effect.sync(() => {
+              yards.push(...batch);
+            }),
+        },
+        noRateLimit,
+      ),
+    );
+    expect(result.count).toBe(0);
+    expect(result.accounting?.recordsExcluded).toBe(100);
+    expect(result.observedVins).toEqual([]);
+    expect(yards.some((yard) => yard.code === "PNS-SLC")).toBe(false);
+  });
+  test("directory failure stops even resumed chunks before callbacks or inventory requests", async () => {
+    const requests: string[] = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        requests.push(String(input));
+        return new Response("unavailable", { status: 403 });
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    await expect(
+      Effect.runPromise(
+        streamPullNSaveInventoryWithRequestGate(
+          {
+            startCursor: 11,
+            onBatch: () => Effect.die("unexpected batch"),
+            onYards: () => Effect.die("unexpected yard"),
+          },
+          noRateLimit,
+        ),
+      ),
+    ).rejects.toThrow("403");
+    expect(requests).toEqual(["https://www.pullnsave.com/inventory/"]);
   });
 });
