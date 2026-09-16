@@ -30,7 +30,7 @@ afterEach(() => {
 });
 const cities = ["Fresno", "Pomona", "Sacramento", "Stockton"];
 const directoryHtml = (listedCities: string[]) =>
-  `<html><body>${listedCities.map((city) => `<figure class="wp-block-image"><a href="/locations/${city.toLowerCase()}-ca/"><img alt="${city}" /></a></figure>`).join("")}</body></html>`;
+  `<html><body><div class="section breakout bg_black">${listedCities.map((city) => `<figure class="wp-block-image"><a href="/locations/${city.toLowerCase()}-ca/"><img alt="${city}" /></a></figure>`).join("")}</div></body></html>`;
 const page = (city: string, lat = 36.68622) =>
   `<script type="application/ld+json">${JSON.stringify({
     "@type": "AutoDealer",
@@ -245,6 +245,13 @@ test.each([
   [
     "partial response",
     () => new Response(directoryHtml(cities), { status: 206 }),
+  ],
+  [
+    "paginated directory",
+    () =>
+      new Response(directoryHtml(cities), {
+        headers: { Link: '</locations/?page=2>; rel="next"' },
+      }),
   ],
   ["empty directory", () => new Response(directoryHtml([]))],
   [

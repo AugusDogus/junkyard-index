@@ -3,7 +3,7 @@ import { parseIPullUPullDirectory } from "./ipullupull-yard-metadata";
 
 const card = (slug: string) =>
   `<figure class="wp-block-image size-full"><a href="/locations/${slug}/"><img alt="Location" /></a></figure>`;
-const html = `<html><body>${card("fresno-ca")}${card("pomona-ca")}</body></html>`;
+const html = `<html><body><div class="section breakout bg_black"><div class="wp-block-columns">${card("fresno-ca")}${card("pomona-ca")}</div></div></body></html>`;
 
 test("only current location cards establish eligibility, not navigation, comments, or script links", () => {
   const directory = parseIPullUPullDirectory(
@@ -21,7 +21,32 @@ test("only current location cards establish eligibility, not navigation, comment
   );
 });
 
+test.each(["nav", "footer", "header"])(
+  "location image links inside %s cannot establish eligibility",
+  (landmark) => {
+    const directory = parseIPullUPullDirectory(
+      html.replace(
+        "</body>",
+        `<${landmark}>${card("stockton-ca")}</${landmark}></body>`,
+      ),
+    );
+    expect([...directory.keys()]).toEqual(["FRESNO", "POMONA"]);
+  },
+);
+
 test.each([
+  [
+    "missing listing section",
+    html.replace("section breakout bg_black", "other-section"),
+  ],
+  ["unclosed listing section", html.replace("</div></div>", "</div>")],
+  [
+    "changed card class",
+    html.replace(
+      'class="wp-block-image size-full"',
+      'data-class="wp-block-image size-full"',
+    ),
+  ],
   ["empty directory", "<html><body></body></html>"],
   ["missing body end", html.replace("</body>", "")],
   ["missing document end", html.replace("</html>", "")],
