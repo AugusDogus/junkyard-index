@@ -49,7 +49,14 @@ function website(raw: string | null): string | null {
   )
     return null;
   const host = url.hostname.replace(/^www\./, "");
+  const hostedAutoRecyclerYard =
+    url.protocol === "https:" &&
+    ((url.hostname === "app.autorecycler.io" &&
+      /^\/inventory\/[a-zA-Z0-9_-]+\/?$/.test(url.pathname)) ||
+      (url.hostname === "ario.autorecycler.io" &&
+        /^\/yard\/[a-zA-Z0-9_-]+\/?$/.test(url.pathname)));
   if (
+    !hostedAutoRecyclerYard &&
     ["row52.com", "autorecycler.io"].some(
       (domain) => host === domain || host.endsWith(`.${domain}`),
     )

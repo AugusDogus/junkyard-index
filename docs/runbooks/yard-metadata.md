@@ -25,7 +25,7 @@ than treating an inventory ZIP centroid as the yard entrance.
 | PYP                        | Business/operator, address, phone, coordinates, published store page with relative URLs resolved against the provider              |
 | Row52                      | Business, address, phone, coordinates, provider-supplied yard URL; repeated URLs and known chain homepages are omitted             |
 | Pull-A-Part / U-Pull-&-Pay | Business/operator, address, phone; ZIP centroid coordinates, undocumented email fields, and generic website links are omitted      |
-| AutoRecycler               | Business, address, coordinates from the existing organization cache                                                                |
+| AutoRecycler               | Business, address, coordinates from the organization cache; hosted website from the organization's explicit website reference      |
 | U Pull-It Nebraska         | Business/operator, address, phone, coordinates from the store configuration                                                        |
 | Tear-A-Part                | Business/operator, address, phone, coordinates from the store configuration                                                        |
 | Pull-N-Save                | Verified cached locations plus automatic public-directory lookup for new yard IDs; ZIP centroids are omitted from yard coordinates |
@@ -48,9 +48,18 @@ When only a verified network entry point is available, the directory labels it
 business URLs are not guessed from city or yard names. Kiker's URL is matched to
 its stable organization ID and verified public Pensacola contact address.
 
-The September 16 read-only coverage check increased displayed website links from
-57 to 181 of 205 yards. The remaining 24 AutoRecycler entries have no verified
-website in this mapping. Website recovery changes do not alter inventory counts.
+AutoRecycler-hosted business websites count as websites. Ingestion dereferences
+each organization's `website_custom_website` using the underlying Bubble record
+ID, then reads the website's published slug. Sites without a slug use the public
+`/inventory/<website-record-id>` route. Shared business sites may show several
+yards; the link does not promise a preselected yard or vehicle. Generic aggregator
+and vehicle-detail pages remain excluded. Missing records stay null; malformed,
+partial, or failed lookups stop the chunk before yard/vehicle batches are emitted.
+
+The September 17 read-only check resolved hosted websites for all 25 active
+AutoRecycler yards (15 distinct entry URLs), including shared EZ Pull N Pay and
+Foss sites. With the other provider recovery, coverage reaches 205 of 205 current
+yards after ingestion. Website recovery does not alter inventory counts.
 
 ## Rollout
 
@@ -58,8 +67,9 @@ website in this mapping. Website recovery changes do not alter inventory counts.
    Vercel's existing build wrapper runs committed migrations before the build.
 2. The next normal ingestion fills yard records. No paid crawl or production
    database change is required during local development.
-3. Directory link recovery applies immediately after deployment without a new
-   ingestion. PYP's next ingestion also stores its published contact-page URLs.
+3. PYP and Pull-A-Part directory link recovery applies immediately after deployment.
+   The next ingestion persists AutoRecycler's hosted websites and PYP's published
+   contact-page URLs. No manual URL map or homepage-time provider requests are used.
    The homepage cache version changes with the new website-link payload; normal
    invalidation and the one-hour cache expiry continue to apply.
 
