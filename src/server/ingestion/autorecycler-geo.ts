@@ -17,6 +17,8 @@ import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 export type { AutorecyclerOrgGeo };
 type DbClient = typeof import("~/lib/db").db;
 const GEO_RESOLVE_CONCURRENCY = 3;
+// Version 0 may contain inventory GPS or another branch's organization address.
+const GEO_RESOLUTION_VERSION = 1;
 
 function hasKnownCity(city: string): boolean {
   return city.trim().length > 0 && city.trim().toLowerCase() !== "unknown";
@@ -41,34 +43,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+function organizationRecordId(reference: string): string | null {
+  const value = reference.trim();
+  if (/^\d+x\d+$/.test(value)) return value;
+  return /^\d+__LOOKUP__(\d+x\d+)$/.exec(value)?.[1] ?? null;
 }
 
-function extractLocationNameFromSeoDescription(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const text = decodeHtmlEntities(value).trim();
-  if (!text) return null;
-
-  const patterns = [
-    /look no further than\s+([^!.]+?)(?:!|,|\s+your\b)/i,
-    /find the(?: used car)? parts you need at\s+([^!.]+?)(?:!|,| today\b|\.)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = pattern.exec(text);
-    const name = match?.[1]?.trim();
-    if (name) {
-      return name;
-    }
-  }
-
-  return null;
+function ownsOrganization(value: unknown, expectedOrg: string): boolean {
+  if (typeof value !== "string") return false;
+  const actual = value.trim();
+  const recordId = organizationRecordId(expectedOrg);
+  return recordId !== null && (actual === expectedOrg || actual === recordId);
 }
 
 export function parseOrgGeoFromWebsiteRecord(
@@ -78,17 +63,23 @@ export function parseOrgGeoFromWebsiteRecord(
   const want = expectedOrg.trim();
   if (want.length === 0) return null;
 
-  const orgRaw =
-    typeof src.organization_custom_organization === "string"
-      ? src.organization_custom_organization.trim()
-      : null;
-  if (!orgRaw || orgRaw !== want) return null;
+  if (!ownsOrganization(src.organization_custom_organization, want))
+    return null;
+  if (src._type !== undefined && src._type !== "custom.website") return null;
 
   const geoUnknown = src.address_geographic_address;
   if (!isRecord(geoUnknown)) return null;
   const lat = geoUnknown.lat;
   const lng = geoUnknown.lng;
-  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  if (
+    typeof lat !== "number" ||
+    !Number.isFinite(lat) ||
+    Math.abs(lat) > 90 ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lng) ||
+    Math.abs(lng) > 180
+  )
+    return null;
 
   const components = isRecord(geoUnknown.components)
     ? geoUnknown.components
@@ -127,27 +118,26 @@ export function parseOrgGeoFromOrganizationDoc(
   const want = expectedOrg.trim();
   if (want.length === 0) return null;
   const src = doc._source;
-  if (!isRecord(src)) return null;
-  const docId = typeof doc._id === "string" ? doc._id.trim() : "";
-  const parentOrg =
-    typeof src.parent_organization_custom_organization === "string"
-      ? src.parent_organization_custom_organization.trim()
-      : "";
-  const partnerOrgs = Array.isArray(src.partner_orgs_list_custom_organization)
-    ? src.partner_orgs_list_custom_organization
-    : [];
-  const hasPartnerOrg = partnerOrgs.some(
-    (value) => typeof value === "string" && value.trim() === want,
-  );
-  if (docId !== want && !hasPartnerOrg && parentOrg !== want) {
+  if (!isRecord(src) || doc.found === false) return null;
+  if ((doc._type ?? src._type) !== "custom.organization") return null;
+  if (src._type !== undefined && src._type !== "custom.organization")
     return null;
-  }
+  if (!ownsOrganization(doc._id ?? src._id, want)) return null;
+  if (src._id !== undefined && !ownsOrganization(src._id, want)) return null;
 
   const geoUnknown = src.address1_geographic_address;
   if (!isRecord(geoUnknown)) return null;
   const lat = geoUnknown.lat;
   const lng = geoUnknown.lng;
-  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  if (
+    typeof lat !== "number" ||
+    !Number.isFinite(lat) ||
+    Math.abs(lat) > 90 ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lng) ||
+    Math.abs(lng) > 180
+  )
+    return null;
 
   const components = isRecord(geoUnknown.components)
     ? geoUnknown.components
@@ -184,7 +174,7 @@ export function parseOrgGeoFromOrganizationDoc(
   };
 }
 
-/** Extract yard geolocation from `init/data` rows for a vehicle details page. */
+/** Inventory GPS can be inherited from a parent yard. Only organization rows prove location. */
 export function parseOrgGeoFromDetailsInitData(
   rows: Array<{ type?: string; data?: Record<string, unknown> }>,
   expectedOrg: string,
@@ -195,52 +185,11 @@ export function parseOrgGeoFromDetailsInitData(
   for (const row of rows) {
     const d = row.data;
     if (!isRecord(d)) continue;
-    const t = row.type ?? (typeof d._type === "string" ? d._type : undefined);
-    if (t !== "custom.inventory") continue;
-
-    const orgRaw =
-      typeof d.organization_custom_organization === "string"
-        ? d.organization_custom_organization.trim()
-        : null;
-    if (!orgRaw || orgRaw !== want) continue;
-
-    const geoUnknown = d.gps_location_geographic_address;
-    if (!isRecord(geoUnknown)) continue;
-    const lat = geoUnknown.lat;
-    const lng = geoUnknown.lng;
-    if (typeof lat !== "number" || typeof lng !== "number") continue;
-
-    const components = isRecord(geoUnknown.components)
-      ? geoUnknown.components
-      : {};
-    const state = typeof components.state === "string" ? components.state : "";
-    const stateAbbr =
-      typeof components["state code"] === "string"
-        ? components["state code"]
-        : "";
-    const city = typeof components.city === "string" ? components.city : "";
-    const address =
-      typeof geoUnknown.address === "string" ? geoUnknown.address : undefined;
-
-    const locationCity =
-      city && city.trim().length > 0 ? city.trim() : "Unknown";
-    const region = normalizeRegion(state, stateAbbr);
-    const locationName =
-      extractLocationNameFromSeoDescription(d.seo_description_text) ??
-      (locationCity === "Unknown"
-        ? "AutoRecycler"
-        : `AutoRecycler - ${locationCity}`);
-
-    return {
-      orgLookup: want,
-      lat,
-      lng,
-      locationName,
-      locationCity,
-      state: region.state || "Unknown",
-      stateAbbr: region.stateAbbr,
-      address,
-    };
+    const geo = parseOrgGeoFromOrganizationDoc(
+      { _type: row.type, _source: d },
+      want,
+    );
+    if (geo && hasKnownCity(geo.locationCity)) return geo;
   }
   return null;
 }
@@ -266,6 +215,7 @@ function upsertAndCacheOrgGeo(params: {
           state: geo.state,
           stateAbbr: geo.stateAbbr,
           address: geo.address ?? null,
+          resolutionVersion: GEO_RESOLUTION_VERSION,
           updatedAt: now,
         })
         .onConflictDoUpdate({
@@ -278,6 +228,7 @@ function upsertAndCacheOrgGeo(params: {
             state: sql`excluded.state`,
             stateAbbr: sql`excluded.state_abbr`,
             address: sql`excluded.address`,
+            resolutionVersion: sql`excluded.resolution_version`,
             updatedAt: sql`excluded.updated_at`,
           },
         }),
@@ -309,12 +260,22 @@ export function createAutorecyclerOrgGeoResolver() {
     orgLookup: string;
     inventoryIdSeed: string;
   }): Effect.Effect<
-    AutorecyclerOrgGeo | null,
+    AutorecyclerOrgGeo,
     PersistenceError | AutorecyclerProviderError,
     Database
   > =>
     Effect.gen(function* () {
-      const { orgLookup, inventoryIdSeed } = params;
+      const orgLookup = params.orgLookup.trim();
+      const { inventoryIdSeed } = params;
+      const recordId = organizationRecordId(orgLookup);
+      if (!recordId) {
+        return yield* new AutorecyclerProviderError({
+          from: -1,
+          cause: new Error(
+            `Invalid AutoRecycler organization reference ${orgLookup}: expected <digits>__LOOKUP__<digits>x<digits> or a bare record ID. Check the inventory organization reference before retrying.`,
+          ),
+        });
+      }
       geoLookupCount++;
 
       const cachedMem = memory.get(orgLookup);
@@ -344,7 +305,11 @@ export function createAutorecyclerOrgGeoResolver() {
         ),
       );
 
-      if (existing && hasKnownCity(existing.locationCity)) {
+      if (
+        existing &&
+        existing.resolutionVersion === GEO_RESOLUTION_VERSION &&
+        hasKnownCity(existing.locationCity)
+      ) {
         geoHitDb++;
         const mapped: AutorecyclerOrgGeo = {
           orgLookup: existing.orgLookup,
@@ -363,13 +328,12 @@ export function createAutorecyclerOrgGeoResolver() {
       geoFetches++;
 
       const mget = yield* Effect.tryPromise({
-        try: () =>
-          postAutorecyclerElasticsearchMget(buildMgetBody([inventoryIdSeed])),
+        try: () => postAutorecyclerElasticsearchMget(buildMgetBody([recordId])),
         catch: (cause) =>
           new AutorecyclerProviderError({
             from: -1,
             cause: new Error(
-              `details mget inventoryId=${inventoryIdSeed}: ${cause instanceof Error ? cause.message : String(cause)}`,
+              `organization mget orgLookup=${orgLookup} recordId=${recordId}: ${cause instanceof Error ? cause.message : String(cause)}`,
               { cause },
             ),
           }),
@@ -390,11 +354,7 @@ export function createAutorecyclerOrgGeoResolver() {
         return yield* upsertAndCacheOrgGeo({
           dbClient,
           memory,
-          geo: {
-            ...parsedFromOrganization,
-            locationName:
-              existing?.locationName || parsedFromOrganization.locationName,
-          },
+          geo: parsedFromOrganization,
         }).pipe(
           Effect.tapError((e) =>
             Effect.logError(
@@ -410,9 +370,7 @@ export function createAutorecyclerOrgGeoResolver() {
             buildWebsiteLookupMsearchBody(orgLookup),
           );
           const src = res.responses?.[0]?.hits?.hits?.[0]?._source;
-          return src && typeof src === "object"
-            ? (src as Record<string, unknown>)
-            : null;
+          return isRecord(src) ? src : null;
         },
         catch: (cause) =>
           new AutorecyclerProviderError({
@@ -437,11 +395,7 @@ export function createAutorecyclerOrgGeoResolver() {
         return yield* upsertAndCacheOrgGeo({
           dbClient,
           memory,
-          geo: {
-            ...parsedFromWebsite,
-            locationName:
-              existing?.locationName || parsedFromWebsite.locationName,
-          },
+          geo: parsedFromWebsite,
         }).pipe(
           Effect.tapError((e) =>
             Effect.logError(
@@ -468,31 +422,19 @@ export function createAutorecyclerOrgGeoResolver() {
       );
 
       const parsed = parseOrgGeoFromDetailsInitData(rows, orgLookup);
-      if (
-        (existing && !parsed) ||
-        (parsed && !hasKnownCity(parsed.locationCity))
-      ) {
+      if (!parsed) {
+        geoMissAfterFetch++;
         return yield* new AutorecyclerProviderError({
           from: -1,
           cause: new Error(
-            `Could not resolve a city for AutoRecycler organization ${orgLookup} from inventory ${inventoryIdSeed}. The source refresh was stopped without replacing cached data; inspect the provider's geographic address before retrying.`,
+            `Could not resolve an owned yard address and city for AutoRecycler organization ${orgLookup}. The source refresh was stopped without replacing cached data; inspect the organization's address or its own website record before retrying. Inventory GPS and related organizations cannot establish this yard's location.`,
           ),
         });
       }
-      if (!parsed) {
-        geoMissAfterFetch++;
-        return null;
-      }
-
       return yield* upsertAndCacheOrgGeo({
         dbClient,
         memory,
-        geo: {
-          ...parsed,
-          // A details-page SEO description may name another branch. Refresh
-          // geography without replacing an existing organization display name.
-          locationName: existing?.locationName || parsed.locationName,
-        },
+        geo: parsed,
       }).pipe(
         Effect.tapError((e) =>
           Effect.logError(

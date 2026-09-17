@@ -32,6 +32,17 @@ const LEGACY_SCHEMA = `
   );
   create table ingestion_source_run (id text primary key);
   create table vehicle_snapshot (run_id text, vin text, source text);
+  create table autorecycler_org_geo (
+    org_lookup text primary key,
+    lat real not null,
+    lng real not null,
+    location_name text not null,
+    location_city text not null default 'Unknown',
+    state text not null,
+    state_abbr text not null,
+    address text,
+    updated_at integer not null
+  );
   create table vehicle_change (
     id integer primary key autoincrement,
     run_id text not null,

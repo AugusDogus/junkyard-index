@@ -7,202 +7,196 @@ import {
   resolveAutorecyclerSeeds,
 } from "./autorecycler-geo";
 
+const recordId = "1726602417880x199387504054651780";
+const org = `1348695171700984260__LOOKUP__${recordId}`;
+const address = {
+  lat: 36.0552047,
+  lng: -80.2069893,
+  address: "3459 Thomasville Rd, Winston-Salem, NC 27107, USA",
+  components: {
+    city: "Winston-Salem",
+    state: "North Carolina",
+    "state code": "NC",
+  },
+};
+const source = {
+  name_text: "Foss Winston-Salem",
+  address_city_text: "WINSTON-SALEM",
+  address1_geographic_address: address,
+};
+
 describe("autorecycler geo", () => {
   test("uses the organization city field when geographic city is blank", () => {
-    const geo = parseOrgGeoFromOrganizationDoc(
-      {
-        _id: "org",
-        _source: {
-          name_text: "Atlanta, GA",
-          address_city_text: "Atlanta",
-          address1_geographic_address: {
-            lat: 33.7877874,
-            lng: -84.4842809,
-            address: "1172 Field Rd NW, Atlanta, GA 30318, USA",
-            components: { city: "", state: "Georgia", "state code": "GA" },
+    expect(
+      parseOrgGeoFromOrganizationDoc(
+        {
+          _id: recordId,
+          _type: "custom.organization",
+          _source: {
+            ...source,
+            address1_geographic_address: {
+              ...address,
+              components: { city: "" },
+            },
           },
         },
-      },
-      "org",
-    );
-    expect(geo?.locationCity).toBe("Atlanta");
+        org,
+      )?.locationCity,
+    ).toBe("WINSTON-SALEM");
   });
 
   test("does not mistake the street-address segment for a city", () => {
-    const address = {
-      lat: 33.7877874,
-      lng: -84.4842809,
-      address: "1172 Field Rd NW, Atlanta, GA 30318, USA",
-      components: { state: "Georgia", "state code": "GA" },
+    const incomplete = {
+      ...address,
+      components: { state: "North Carolina", "state code": "NC" },
     };
-    const website = parseOrgGeoFromWebsiteRecord(
-      {
-        organization_custom_organization: "org",
-        address_geographic_address: address,
-      },
-      "org",
-    );
-    const details = parseOrgGeoFromDetailsInitData(
-      [
+    expect(
+      parseOrgGeoFromWebsiteRecord(
         {
-          type: "custom.inventory",
-          data: {
-            organization_custom_organization: "org",
-            gps_location_geographic_address: address,
-          },
-        },
-      ],
-      "org",
-    );
-    expect(website?.locationCity).toBe("Unknown");
-    expect(details?.locationCity).toBe("Unknown");
-  });
-  test("parseOrgGeoFromOrganizationDoc reads authoritative organization location data", () => {
-    const org = "1348695171700984260__LOOKUP__test";
-    const g = parseOrgGeoFromOrganizationDoc(
-      {
-        _id: org,
-        _type: "custom.organization",
-        _source: {
-          name_text: "Foss Winston-Salem",
-          address_city_text: "WINSTON-SALEM",
-          address1_geographic_address: {
-            lat: 36.0552047,
-            lng: -80.2069893,
-            address: "3459 Thomasville Rd, Winston-Salem, NC 27107, USA",
-            components: {
-              city: "Winston-Salem",
-              state: "North Carolina",
-              "state code": "NC",
-            },
-          },
-        },
-      },
-      org,
-    );
-    expect(g).not.toBeNull();
-    expect(g!.locationName).toBe("Foss Winston-Salem");
-    expect(g!.locationCity).toBe("Winston-Salem");
-    expect(g!.stateAbbr).toBe("NC");
-  });
-
-  test("parseOrgGeoFromWebsiteRecord reads authoritative website location data", () => {
-    const org = "1348695171700984260__LOOKUP__test";
-    const g = parseOrgGeoFromWebsiteRecord(
-      {
-        organization_custom_organization: org,
-        name_text: "Kiker's U Pull It",
-        address_geographic_address: {
-          lat: 30.4440304,
-          lng: -87.2515714,
-          address: "3010 W Fairfield Dr, Pensacola, FL 32505, USA",
-          components: {
-            city: "Pensacola",
-            state: "Florida",
-            "state code": "FL",
-          },
-        },
-      },
-      org,
-    );
-    expect(g).not.toBeNull();
-    expect(g!.locationName).toBe("Kiker's U Pull It");
-    expect(g!.locationCity).toBe("Pensacola");
-    expect(g!.stateAbbr).toBe("FL");
-  });
-
-  test("parseOrgGeoFromDetailsInitData reads gps_location_geographic_address", () => {
-    const org = "1348695171700984260__LOOKUP__test";
-    const rows = [
-      {
-        type: "custom.inventory",
-        data: {
-          _type: "custom.inventory",
           organization_custom_organization: org,
-          gps_location_geographic_address: {
-            lat: 36.77,
-            lng: -76.45,
-            address: "5411 W Military Hwy, Chesapeake, VA 23321, USA",
-            components: {
-              city: "Chesapeake",
-              state: "Virginia",
-              "state code": "VA",
-            },
-          },
-          seo_description_text:
-            "Looking for used parts in Chesapeake, VA? Look no further than Foss U-Pull-It Chesapeake VA! We are your go-to auto recycler.",
+          address_geographic_address: incomplete,
         },
-      },
-    ];
-    const g = parseOrgGeoFromDetailsInitData(rows, org);
-    expect(g).not.toBeNull();
-    expect(g!.lat).toBe(36.77);
-    expect(g!.lng).toBe(-76.45);
-    expect(g!.stateAbbr).toBe("VA");
-    expect(g!.locationName).toBe("Foss U-Pull-It Chesapeake VA");
-    expect(g!.locationCity).toBe("Chesapeake");
-    expect(g!.address).toContain("Chesapeake");
+        org,
+      )?.locationCity,
+    ).toBe("Unknown");
+    expect(
+      parseOrgGeoFromOrganizationDoc(
+        {
+          _id: recordId,
+          _type: "custom.organization",
+          _source: { address1_geographic_address: incomplete },
+        },
+        org,
+      )?.locationCity,
+    ).toBe("Unknown");
   });
 
-  test("parseOrgGeoFromDetailsInitData falls back to city label when seo name is absent", () => {
-    const org = "1348695171700984260__LOOKUP__test";
-    const rows = [
-      {
-        type: "custom.inventory",
-        data: {
-          _type: "custom.inventory",
+  test.each([recordId, org])(
+    "reads organization identity %s from the source when absent from the envelope",
+    (id) => {
+      expect(
+        parseOrgGeoFromOrganizationDoc(
+          { _source: { ...source, _id: id, _type: "custom.organization" } },
+          ` ${org} `,
+        ),
+      ).toMatchObject({
+        locationName: "Foss Winston-Salem",
+        locationCity: "Winston-Salem",
+        stateAbbr: "NC",
+        orgLookup: org,
+      });
+    },
+  );
+
+  test.each([recordId, org])(
+    "reads the website's own organization reference %s",
+    (id) => {
+      expect(
+        parseOrgGeoFromWebsiteRecord(
+          {
+            organization_custom_organization: ` ${id} `,
+            name_text: "Foss Winston-Salem",
+            address_geographic_address: address,
+          },
+          org,
+        ),
+      ).toMatchObject({
+        locationName: "Foss Winston-Salem",
+        locationCity: "Winston-Salem",
+        stateAbbr: "NC",
+      });
+    },
+  );
+
+  test.each([
+    "other",
+    `999__LOOKUP__${recordId}`,
+    "1726602417881x199387504054651780",
+    undefined,
+  ])("rejects website ownership %s", (id) => {
+    expect(
+      parseOrgGeoFromWebsiteRecord(
+        {
+          organization_custom_organization: id,
+          address_geographic_address: address,
+        },
+        org,
+      ),
+    ).toBeNull();
+  });
+
+  test.each(["custom.organization", undefined])(
+    "reads init/data organization rows with row type %s",
+    (type) => {
+      expect(
+        parseOrgGeoFromDetailsInitData(
+          [
+            {
+              type,
+              data: {
+                ...source,
+                _type: "custom.organization",
+                _id: ` ${recordId} `,
+              },
+            },
+          ],
+          ` ${org} `,
+        ),
+      ).toMatchObject({ locationCity: "Winston-Salem", orgLookup: org });
+    },
+  );
+
+  test.each([
+    { found: false },
+    { _id: "other" },
+    { _type: "custom.inventory" },
+    { _source: { ...source, _type: "custom.inventory" } },
+    { _source: { ...source, _id: "other" } },
+    { _id: `999__LOOKUP__${recordId}` },
+  ])(
+    "rejects missing, conflicting or wrong organization documents: %j",
+    (override) => {
+      expect(
+        parseOrgGeoFromOrganizationDoc(
+          {
+            _id: recordId,
+            _type: "custom.organization",
+            _source: source,
+            ...override,
+          },
+          org,
+        ),
+      ).toBeNull();
+    },
+  );
+
+  test.each([
+    [NaN, 0],
+    [0, Infinity],
+    [91, 0],
+    [0, -181],
+    ["1", 2],
+  ])("rejects invalid coordinates %j, %j", (lat, lng) => {
+    const invalid = { ...address, lat, lng };
+    expect(
+      parseOrgGeoFromOrganizationDoc(
+        {
+          _id: org,
+          _type: "custom.organization",
+          _source: { address1_geographic_address: invalid },
+        },
+        org,
+      ),
+    ).toBeNull();
+    expect(
+      parseOrgGeoFromWebsiteRecord(
+        {
           organization_custom_organization: org,
-          gps_location_geographic_address: {
-            lat: 42.36,
-            lng: -83.18,
-            address: "9309 Hubbell Ave, Detroit, MI 48228, USA",
-            components: {
-              city: "Detroit",
-              state: "Michigan",
-              "state code": "MI",
-            },
-          },
+          address_geographic_address: invalid,
         },
-      },
-    ];
-
-    const g = parseOrgGeoFromDetailsInitData(rows, org);
-    expect(g).not.toBeNull();
-    expect(g!.locationName).toBe("AutoRecycler - Detroit");
-    expect(g!.locationCity).toBe("Detroit");
-  });
-
-  test("parseOrgGeoFromDetailsInitData matches org after trim on both sides", () => {
-    const orgCore = "1348695171700984260__LOOKUP__test";
-    const rows = [
-      {
-        type: "custom.inventory",
-        data: {
-          organization_custom_organization: orgCore,
-          gps_location_geographic_address: {
-            lat: 1,
-            lng: 2,
-            components: { city: "X", "state code": "ST" },
-          },
-        },
-      },
-    ];
-    const g = parseOrgGeoFromDetailsInitData(rows, `  ${orgCore}  `);
-    expect(g).not.toBeNull();
-    expect(g!.orgLookup).toBe(orgCore);
-  });
-
-  test("parseOrgGeoFromDetailsInitData returns null when org mismatches", () => {
-    const rows = [
-      {
-        type: "custom.inventory",
-        data: {
-          organization_custom_organization: "other",
-          gps_location_geographic_address: { lat: 1, lng: 2 },
-        },
-      },
-    ];
-    expect(parseOrgGeoFromDetailsInitData(rows, "expected")).toBeNull();
+        org,
+      ),
+    ).toBeNull();
   });
 
   test("resolves independent organization seeds with bounded concurrency", async () => {
@@ -211,7 +205,6 @@ describe("autorecycler geo", () => {
     );
     let active = 0;
     let maximumActive = 0;
-
     await Effect.runPromise(
       resolveAutorecyclerSeeds(seeds, () =>
         Effect.promise(async () => {
@@ -222,7 +215,6 @@ describe("autorecycler geo", () => {
         }),
       ),
     );
-
     expect(maximumActive).toBe(3);
   });
 });
