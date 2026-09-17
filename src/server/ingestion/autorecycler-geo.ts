@@ -341,7 +341,6 @@ export function createAutorecyclerOrgGeoResolver() {
         Effect.tapError((e) =>
           Effect.logError(`[AutoRecycler geo] ${e.message}`),
         ),
-        Effect.catchAll(() => Effect.succeed({ docs: [] })),
       );
 
       const parsedFromOrganization =

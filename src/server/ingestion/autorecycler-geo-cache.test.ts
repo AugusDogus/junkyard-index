@@ -360,6 +360,37 @@ test("an unverified new organization fails instead of silently dropping its vehi
   }
 });
 
+test("an organization request failure preserves cache even when a fallback could resolve it", async () => {
+  const { client, database } = await databaseWithCity("Atlanta");
+  try {
+    const before = (await client.execute("select * from autorecycler_org_geo"))
+      .rows;
+    const { requests } = mockProvider({
+      fail: "mget",
+      website: {
+        organization_custom_organization: org,
+        name_text: "EZ Pull N Pay Columbus",
+        address_geographic_address: address,
+      },
+    });
+    const resolver = createAutorecyclerOrgGeoResolver();
+    await expect(
+      Effect.runPromise(
+        resolver
+          .resolveOneEffect(seed)
+          .pipe(Effect.provideService(Database, database)),
+      ),
+    ).rejects.toThrow("organization mget");
+    expect(requests).toHaveLength(1);
+    expect(resolver.getCached(org)).toBeUndefined();
+    expect(
+      (await client.execute("select * from autorecycler_org_geo")).rows,
+    ).toEqual(before);
+  } finally {
+    client.close();
+  }
+});
+
 test("a failed upsert does not mark the cache verified or populate memory", async () => {
   const { client, database } = await databaseWithCity("Atlanta");
   try {
