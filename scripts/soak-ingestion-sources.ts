@@ -218,6 +218,7 @@ async function main(): Promise<void> {
       state text not null,
       state_abbr text not null,
       address text,
+      resolution_version integer not null default 0,
       updated_at integer not null
     );
   `);

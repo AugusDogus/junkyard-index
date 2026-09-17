@@ -566,7 +566,7 @@ export const ingestionProjectorCheckpoint = sqliteTable(
   },
 );
 
-/** Cached yard geolocation resolved from AutoRecycler `init/data` (details pages). */
+/** Cached yard geolocation verified against the yard's own AutoRecycler records. */
 export const autorecyclerOrgGeo = sqliteTable(
   "autorecycler_org_geo",
   {
@@ -578,6 +578,7 @@ export const autorecyclerOrgGeo = sqliteTable(
     state: text("state").notNull(),
     stateAbbr: text("state_abbr").notNull(),
     address: text("address"),
+    resolutionVersion: integer("resolution_version").default(0).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [index("autorecycler_org_geo_updated_at_idx").on(table.updatedAt)],
