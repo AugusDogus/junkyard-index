@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { autorecyclerOrgGeo } from "~/schema";
 import { AutorecyclerProviderError, PersistenceError } from "./errors";
 import { Database } from "./context";
@@ -19,6 +20,36 @@ type DbClient = typeof import("~/lib/db").db;
 const GEO_RESOLVE_CONCURRENCY = 3;
 // Version 0 may contain inventory GPS or another branch's organization address.
 const GEO_RESOLUTION_VERSION = 1;
+
+// Elasticsearch can return operation errors inside an HTTP-200 response.
+// Validate before treating a lookup as a miss or persisting any fallback.
+const organizationLookupSchema = z.object({
+  error: z.never().optional(),
+  docs: z.array(
+    z.object({
+      error: z.never().optional(),
+      _id: z.string().optional(),
+      _type: z.string().optional(),
+      found: z.boolean().optional(),
+      _source: z.record(z.unknown()).optional(),
+    }),
+  ),
+});
+const websiteLookupSchema = z.object({
+  error: z.never().optional(),
+  responses: z
+    .array(
+      z.object({
+        error: z.never().optional(),
+        hits: z.object({
+          hits: z.array(
+            z.object({ _source: z.record(z.unknown()).optional() }),
+          ),
+        }),
+      }),
+    )
+    .length(1),
+});
 
 function hasKnownCity(city: string): boolean {
   return city.trim().length > 0 && city.trim().toLowerCase() !== "unknown";
@@ -328,12 +359,15 @@ export function createAutorecyclerOrgGeoResolver() {
       geoFetches++;
 
       const mget = yield* Effect.tryPromise({
-        try: () => postAutorecyclerElasticsearchMget(buildMgetBody([recordId])),
+        try: async () =>
+          organizationLookupSchema.parse(
+            await postAutorecyclerElasticsearchMget(buildMgetBody([recordId])),
+          ),
         catch: (cause) =>
           new AutorecyclerProviderError({
             from: -1,
             cause: new Error(
-              `organization mget orgLookup=${orgLookup} recordId=${recordId}: ${cause instanceof Error ? cause.message : String(cause)}`,
+              `organization mget orgLookup=${orgLookup} recordId=${recordId}: ${cause instanceof Error ? cause.message : String(cause)}. Cached geography is unchanged; inspect the provider response before retrying.`,
               { cause },
             ),
           }),
@@ -345,7 +379,7 @@ export function createAutorecyclerOrgGeoResolver() {
 
       const parsedFromOrganization =
         mget.docs
-          ?.map((doc) => parseOrgGeoFromOrganizationDoc(doc, orgLookup))
+          .map((doc) => parseOrgGeoFromOrganizationDoc(doc, orgLookup))
           .find(
             (value) => value !== null && hasKnownCity(value.locationCity),
           ) ?? null;
@@ -365,17 +399,18 @@ export function createAutorecyclerOrgGeoResolver() {
 
       const website = yield* Effect.tryPromise({
         try: async () => {
-          const res = await postAutorecyclerElasticsearchMsearch(
-            buildWebsiteLookupMsearchBody(orgLookup),
+          const res = websiteLookupSchema.parse(
+            await postAutorecyclerElasticsearchMsearch(
+              buildWebsiteLookupMsearchBody(orgLookup),
+            ),
           );
-          const src = res.responses?.[0]?.hits?.hits?.[0]?._source;
-          return isRecord(src) ? src : null;
+          return res.responses[0]?.hits.hits[0]?._source ?? null;
         },
         catch: (cause) =>
           new AutorecyclerProviderError({
             from: -1,
             cause: new Error(
-              `website msearch orgLookup=${orgLookup}: ${cause instanceof Error ? cause.message : String(cause)}`,
+              `website msearch orgLookup=${orgLookup}: ${cause instanceof Error ? cause.message : String(cause)}. Cached geography is unchanged; inspect the provider response before retrying.`,
               {
                 cause,
               },

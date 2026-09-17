@@ -133,6 +133,8 @@ function mgetIds(body: RequestInit["body"]): string[] {
 function mockProvider(
   options: {
     docs?: unknown[];
+    mgetResponse?: unknown;
+    msearchResponse?: unknown;
     website?: Record<string, unknown>;
     rows?: unknown[];
     fail?: "mget" | "msearch" | "init/data";
@@ -148,17 +150,23 @@ function mockProvider(
       if (options.fail && url.includes(`/${options.fail}`))
         return new Response("Provider unavailable", { status: 403 });
       if (url.includes("/mget"))
-        return Response.json({ docs: options.docs ?? [organization] });
+        return Response.json(
+          "mgetResponse" in options
+            ? options.mgetResponse
+            : { docs: options.docs ?? [organization] },
+        );
       if (url.includes("/msearch"))
-        return Response.json({
-          responses: [
-            {
-              hits: {
-                hits: options.website ? [{ _source: options.website }] : [],
+        return Response.json(
+          options.msearchResponse ?? {
+            responses: [
+              {
+                hits: {
+                  hits: options.website ? [{ _source: options.website }] : [],
+                },
               },
-            },
-          ],
-        });
+            ],
+          },
+        );
       if (url.includes("/init/data"))
         return Response.json(
           options.rows ?? [
@@ -416,3 +424,86 @@ test("a failed upsert does not mark the cache verified or populate memory", asyn
     client.close();
   }
 });
+
+test.each([
+  {
+    name: "mget document error",
+    mgetResponse: {
+      docs: [
+        { _id: recordId, error: { type: "unavailable_shards_exception" } },
+      ],
+    },
+    requests: 1,
+  },
+  {
+    name: "mget error with usable source",
+    mgetResponse: { docs: [{ ...organization, error: "lookup failed" }] },
+    requests: 1,
+  },
+  {
+    name: "mget response error",
+    mgetResponse: { error: "lookup failed", docs: [] },
+    requests: 1,
+  },
+  { name: "missing mget docs", mgetResponse: {}, requests: 1 },
+  { name: "null mget response", mgetResponse: null, requests: 1 },
+  {
+    name: "malformed mget document",
+    mgetResponse: { docs: [null] },
+    requests: 1,
+  },
+  {
+    name: "website search error",
+    msearchResponse: {
+      responses: [{ error: { type: "unavailable_shards_exception" } }],
+    },
+    requests: 2,
+  },
+  {
+    name: "missing website hits",
+    msearchResponse: { responses: [{}] },
+    requests: 2,
+  },
+])(
+  "preserves the cache after HTTP-200 $name even with a valid fallback",
+  async (response) => {
+    const { client, database } = await databaseWithCity("Atlanta");
+    try {
+      const before = (
+        await client.execute("select * from autorecycler_org_geo")
+      ).rows;
+      const { requests } = mockProvider({
+        docs: [],
+        ...response,
+        website: {
+          organization_custom_organization: org,
+          name_text: "EZ Pull N Pay Columbus",
+          address_geographic_address: address,
+        },
+        rows: [
+          {
+            type: "custom.organization",
+            data: { ...organization._source, _id: recordId },
+          },
+        ],
+      });
+      const resolver = createAutorecyclerOrgGeoResolver();
+      await expect(
+        Effect.runPromise(
+          resolver
+            .resolveOneEffect(seed)
+            .pipe(Effect.provideService(Database, database)),
+        ),
+      ).rejects.toThrow(
+        response.requests === 1 ? "organization mget" : "website msearch",
+      );
+      expect(requests).toHaveLength(response.requests);
+      expect(resolver.getCached(org)).toBeUndefined();
+      expect(
+        (await client.execute("select * from autorecycler_org_geo")).rows,
+      ).toEqual(before);
+    } finally {
+      client.close();
+    }
+  },
+);
