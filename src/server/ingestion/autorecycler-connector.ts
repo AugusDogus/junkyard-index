@@ -8,6 +8,7 @@ import {
 } from "./autorecycler-client";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { createAutorecyclerOrgGeoResolver } from "./autorecycler-geo";
+import { fetchAutorecyclerYardWebsites } from "./autorecycler-website";
 import { transformAutorecyclerMsearchHit } from "./autorecycler-transform";
 import type { CanonicalVehicle } from "./types";
 import { AutorecyclerProviderError } from "./errors";
@@ -156,6 +157,7 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
     yield* Effect.logInfo("[AutoRecycler] Starting stream");
 
     const geo = createAutorecyclerOrgGeoResolver();
+    const websites = new Map<string, string | null>();
     let from = Math.max(0, options.startFrom ?? 0);
     let pagesProcessed = 0;
     let totalCanonical = 0;
@@ -202,6 +204,20 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
 
         yield* geo.resolveBatchEffect(seeds);
 
+        if (options.onYards) {
+          const missingWebsites = [...seeds.keys()].filter(
+            (key) => !websites.has(key),
+          );
+          if (missingWebsites.length > 0) {
+            const resolved = yield* Effect.tryPromise({
+              try: () => fetchAutorecyclerYardWebsites(missingWebsites),
+              catch: (cause) =>
+                new AutorecyclerProviderError({ from: requestFrom, cause }),
+            });
+            for (const [key, url] of resolved) websites.set(key, url);
+          }
+        }
+
         const pageCanonical: CanonicalVehicle[] = [];
         const pageYards = new Map<
           string,
@@ -216,7 +232,10 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
           if (!orgKey) continue;
           const g = geo.getCached(orgKey);
           if (!g) continue;
-          pageYards.set(orgKey, autorecyclerYard(g));
+          pageYards.set(
+            orgKey,
+            autorecyclerYard(g, websites.get(orgKey) ?? null),
+          );
           const c = transformAutorecyclerMsearchHit(src, g);
           if (c) pageCanonical.push(c);
         }

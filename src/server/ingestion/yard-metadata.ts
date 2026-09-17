@@ -101,11 +101,15 @@ export function row52Yards(locations: readonly Row52Location[]): Yard[] {
   }));
 }
 
-export function autorecyclerYard(geo: AutorecyclerOrgGeo): Yard {
+export function autorecyclerYard(
+  geo: AutorecyclerOrgGeo,
+  websiteUrl: string | null = null,
+): Yard {
   return {
     ...unknownContact,
     source: "autorecycler",
     code: geo.orgLookup,
+    websiteUrl: Yard.website(websiteUrl),
     name: geo.locationName,
     address: geo.address ?? null,
     city: geo.locationCity,
