@@ -110,5 +110,17 @@ test("labels known provider entry points honestly and never invents an independe
       name: "Kiker's U Pull It",
       state: "FL",
     }),
-  ).toEqual({ kind: "yard", href: "https://www.kikersupullit.com/" });
+  ).toBeNull();
+  expect(
+    resolveYardWebsite({
+      source: "autorecycler",
+      code: "1348695171700984260__LOOKUP__1708055368961x545475433275588600",
+      name: "Kiker's U Pull It",
+      state: "FL",
+      websiteUrl: "https://app.autorecycler.io/inventory/kikers-u-pull-it",
+    }),
+  ).toEqual({
+    kind: "yard",
+    href: "https://app.autorecycler.io/inventory/kikers-u-pull-it",
+  });
 });

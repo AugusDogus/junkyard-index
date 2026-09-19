@@ -45,8 +45,8 @@ follow their public location directory, including its `s-carolina` spelling.
 
 When only a verified network entry point is available, the directory labels it
 **Provider**, rather than presenting it as a yard-specific website. Independent
-business URLs are not guessed from city or yard names. Kiker's URL is matched to
-its stable organization ID and verified public Pensacola contact address.
+business URLs are not guessed from city or yard names. AutoRecycler websites
+come from persisted provider metadata, without organization-specific URL overrides.
 
 AutoRecycler-hosted business websites count as websites. Ingestion dereferences
 each organization's `website_custom_website` using the underlying Bubble record
