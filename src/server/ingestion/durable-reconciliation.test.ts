@@ -281,8 +281,8 @@ describe("bounded durable reconciliation", () => {
           startFrom === 0
             ? {
                 recordsProcessed: 3,
-                recordsExcluded: 3,
-                recordsRejected: 0,
+                recordsExcluded: 2,
+                recordsRejected: 1,
                 duplicateVehicles: 0,
               }
             : {
@@ -338,9 +338,9 @@ describe("bounded durable reconciliation", () => {
       ).toMatchObject({
         status: "success",
         acceptanceStatus: "accepted",
-        vehiclesProcessed: 102,
+        vehiclesProcessed: 103,
         uniqueVehicles: 100,
-        rejectedVehicles: 1,
+        rejectedVehicles: 2,
         duplicateVehicles: 1,
       });
       await reconcileDurableIngestionRun({

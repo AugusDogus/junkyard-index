@@ -129,16 +129,27 @@ describe("streamAutorecyclerInventory", () => {
                 at_end: true,
                 hits: {
                   hits: [
-                    { vin: " knade123666155428 ", name: "2006 Kia Rio" },
-                    { vin: "abc1234567", name: "1970 Ford Mustang" },
-                    { vin: "invalid", name: "2006 Kia Rio" },
-                    { vin: "12345", name: "2006 Kia Rio" },
-                  ].map(({ vin, name }) => ({
+                    {
+                      vin: " knade123666155428 ",
+                      name: "2006 Kia Rio",
+                      year: 2006,
+                    },
+                    {
+                      vin: "abc1234567",
+                      name: "1970 Ford Mustang",
+                      year: 1970,
+                    },
+                    { vin: "invalid", name: "2006 Kia Rio", year: 2006 },
+                    { vin: "12345", name: "2006 Kia Rio", year: 2006 },
+                    { vin: "def1234567", name: undefined, year: 1970 },
+                    { vin: "ghi1234567", name: "", year: 1970 },
+                  ].map(({ vin, name, year }) => ({
                     _source: {
                       organization_custom_organization: org,
                       inventory_id_text: "1761173598052x497522696752949400",
                       vin_text: vin,
                       name_text: name,
+                      vehicle_year_number: year,
                     },
                   })),
                 },
@@ -150,18 +161,23 @@ describe("streamAutorecyclerInventory", () => {
       );
       expect(result).toMatchObject({
         status: "complete",
-        cursor: 4,
+        cursor: 6,
         count: 0,
         errors: [],
-        observedVins: ["KNADE123666155428", "ABC1234567"],
+        observedVins: [
+          "KNADE123666155428",
+          "ABC1234567",
+          "DEF1234567",
+          "GHI1234567",
+        ],
         accounting: {
-          recordsProcessed: 4,
+          recordsProcessed: 6,
           recordsExcluded: 4,
-          recordsRejected: 0,
+          recordsRejected: 2,
           duplicateVehicles: 0,
         },
       });
-      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings).toHaveLength(2);
       expect(requests).toHaveLength(3);
       expect(yards).toEqual([]);
       expect(emitted).toBe(0);
