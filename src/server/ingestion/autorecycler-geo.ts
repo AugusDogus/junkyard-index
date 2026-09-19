@@ -14,6 +14,7 @@ import {
 } from "./autorecycler-client";
 import { normalizeRegion } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
+import { resolveAutorecyclerPullapartGeo } from "./autorecycler-pullapart-geo";
 
 export type { AutorecyclerOrgGeo };
 export type AutorecyclerGeoResolution =
@@ -553,7 +554,15 @@ export function createAutorecyclerOrgGeoResolver() {
         ),
       );
 
-      const parsed = parseOrgGeoFromDetailsInitData(rows, orgLookup);
+      const parsed =
+        parseOrgGeoFromDetailsInitData(rows, orgLookup) ??
+        (yield* resolveAutorecyclerPullapartGeo(mget._source, orgLookup).pipe(
+          Effect.catchAll((error) =>
+            Effect.logWarning(
+              `[AutoRecycler geo] Official location lookup failed for ${orgLookup}: ${error.message}. The yard remains unresolved; cached geography is unchanged.`,
+            ).pipe(Effect.as(null)),
+          ),
+        ));
       if (!parsed) {
         geoMissAfterFetch++;
         const unresolved: AutorecyclerGeoResolution = {

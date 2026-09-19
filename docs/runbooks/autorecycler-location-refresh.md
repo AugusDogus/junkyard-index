@@ -10,6 +10,12 @@ checks the returned organization identity and type. Bare and full lookup IDs
 are accepted in responses. If needed, an exactly owned website address or an
 exact organization row in details `init/data` can supply the location. Inventory
 GPS and vehicle SEO descriptions are never used for yard geography or names.
+For Pull-A-Part organizations without geographic addresses, the resolver also
+checks the operator's live directory and official location page. The market name
+and ZIP must identify exactly one directory entry; the page's canonical URL,
+business name, street address, ZIP, state, and coordinates must agree. Standard
+street abbreviations and published municipality names are accepted. Conflicting
+ZIPs, ambiguous entries, and missing coordinates remain unresolved.
 
 Migration `0009_autorecycler_geo_provenance.sql` adds `resolution_version` with
 default `0`, leaving existing data intact. The resolver rechecks every legacy
@@ -24,10 +30,19 @@ be corrected. Normal ingestion updates yard metadata and reconciles vehicle
 geography into the search index. Apply the migration before running the repaired
 ingestion code. No direct production data patch or hardcoded yard list is needed.
 
-An unresolved location fails the source refresh, including for a new organization.
-Provider and persistence failures leave stored cache data intact and do not mark
-it verified or populate the resolver's memory. Previously published inventory
-is preserved rather than replaced with an incomplete source snapshot.
+An unresolved location skips only that organization's canonical vehicle updates.
+Its valid observed VINs preserve existing inventory through checkpoint and
+reconciliation; known yards continue, and warnings identify unresolved yards.
+The unresolved result is cached only within the chunk and retried next chunk/run.
+Existing geographic and yard metadata is not overwritten by an unresolved result.
+
+Malformed AutoRecycler responses, identity mismatches, source transport failures,
+and persistence failures still fail the chunk. An unavailable optional official
+location page leaves that yard unresolved with a warning. These failures never
+mark cached geography verified. Previously published inventory is preserved.
+
+Validation must traverse the complete provider feed and run source validation,
+not start from the organizations already published in the homepage directory.
 
 ## Reproduction receipt
 
