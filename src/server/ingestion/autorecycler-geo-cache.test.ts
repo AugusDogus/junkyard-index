@@ -138,6 +138,7 @@ function mockProvider(
     msearchResponse?: unknown;
     website?: Record<string, unknown>;
     rows?: unknown[];
+    detailsResponse?: unknown;
     fail?: "mget" | "msearch" | "init/data";
   } = {},
 ) {
@@ -170,25 +171,27 @@ function mockProvider(
         );
       if (url.includes("/init/data"))
         return Response.json(
-          options.rows ?? [
-            {
-              type: "custom.inventory",
-              data: {
-                organization_custom_organization: org,
-                gps_location_geographic_address: {
-                  lat: 33.7877874,
-                  lng: -84.4842809,
-                  components: {
-                    city: "Atlanta",
-                    state: "Georgia",
-                    "state code": "GA",
+          "detailsResponse" in options
+            ? options.detailsResponse
+            : (options.rows ?? [
+                {
+                  type: "custom.inventory",
+                  data: {
+                    organization_custom_organization: org,
+                    gps_location_geographic_address: {
+                      lat: 33.7877874,
+                      lng: -84.4842809,
+                      components: {
+                        city: "Atlanta",
+                        state: "Georgia",
+                        "state code": "GA",
+                      },
+                    },
+                    seo_description_text:
+                      "Look no further than Ez Pull N Pay Columbus!",
                   },
                 },
-                seo_description_text:
-                  "Look no further than Ez Pull N Pay Columbus!",
-              },
-            },
-          ],
+              ]),
         );
       throw new Error("Unexpected provider endpoint");
     },
@@ -211,11 +214,14 @@ test.each(["Atlanta", "Unknown", " UNKNOWN ", "", " "])(
             .pipe(Effect.provideService(Database, database)),
         );
       expect(await resolve()).toMatchObject({
-        locationCity: "Columbus",
-        locationName: "EZ Pull N Pay Columbus",
-        lat: address.lat,
-        lng: address.lng,
-        address: address.address,
+        status: "resolved",
+        geo: {
+          locationCity: "Columbus",
+          locationName: "EZ Pull N Pay Columbus",
+          lat: address.lat,
+          lng: address.lng,
+          address: address.address,
+        },
       });
       expect(ids).toEqual([[recordId]]);
       expect(
@@ -228,7 +234,10 @@ test.each(["Atlanta", "Unknown", " UNKNOWN ", "", " "])(
         address: address.address,
         resolution_version: 1,
       });
-      expect(resolver.getCached(org)?.locationCity).toBe("Columbus");
+      expect(resolver.getCached(org)).toMatchObject({
+        status: "resolved",
+        geo: { locationCity: "Columbus" },
+      });
       await resolve();
       await Effect.runPromise(
         createAutorecyclerOrgGeoResolver()
@@ -251,7 +260,10 @@ test("verified complete cached cities do not make new provider requests", async 
         .resolveOneEffect(seed)
         .pipe(Effect.provideService(Database, database)),
     );
-    expect(resolved?.locationCity).toBe("Atlanta");
+    expect(resolved).toMatchObject({
+      status: "resolved",
+      geo: { locationCity: "Atlanta" },
+    });
     expect(requests).toHaveLength(0);
   } finally {
     client.close();
@@ -263,14 +275,12 @@ test("verified but incomplete city still refreshes", async () => {
   try {
     mockProvider();
     expect(
-      (
-        await Effect.runPromise(
-          createAutorecyclerOrgGeoResolver()
-            .resolveOneEffect(seed)
-            .pipe(Effect.provideService(Database, database)),
-        )
-      )?.locationCity,
-    ).toBe("Columbus");
+      await Effect.runPromise(
+        createAutorecyclerOrgGeoResolver()
+          .resolveOneEffect(seed)
+          .pipe(Effect.provideService(Database, database)),
+      ),
+    ).toMatchObject({ status: "resolved", geo: { locationCity: "Columbus" } });
   } finally {
     client.close();
   }
@@ -301,14 +311,15 @@ test.each(["website", "init/data"])(
             }),
       });
       expect(
-        (
-          await Effect.runPromise(
-            createAutorecyclerOrgGeoResolver()
-              .resolveOneEffect(seed)
-              .pipe(Effect.provideService(Database, database)),
-          )
-        )?.locationCity,
-      ).toBe("Columbus");
+        await Effect.runPromise(
+          createAutorecyclerOrgGeoResolver()
+            .resolveOneEffect(seed)
+            .pipe(Effect.provideService(Database, database)),
+        ),
+      ).toMatchObject({
+        status: "resolved",
+        geo: { locationCity: "Columbus" },
+      });
       expect(
         (
           await client.execute(
@@ -322,7 +333,7 @@ test.each(["website", "init/data"])(
   },
 );
 
-test.each([undefined, "mget", "msearch", "init/data"] as const)(
+test.each(["mget", "msearch", "init/data"] as const)(
   "unverified refresh (%s) fails and preserves every cached field",
   async (fail) => {
     const { client, database } = await databaseWithCity("Atlanta");
@@ -377,7 +388,10 @@ test.each(["organization", "website"])(
           .resolveOneEffect(seed)
           .pipe(Effect.provideService(Database, database)),
       );
-      expect(geo?.locationCity).toBe("Columbus");
+      expect(geo).toMatchObject({
+        status: "resolved",
+        geo: { locationCity: "Columbus" },
+      });
       expect(requests).toHaveLength(stage === "organization" ? 2 : 3);
     } finally {
       client.close();
@@ -385,25 +399,58 @@ test.each(["organization", "website"])(
   },
 );
 
-test("an unverified new organization fails instead of silently dropping its vehicles", async () => {
-  const { client, database } = await databaseWithCity("Atlanta");
-  try {
-    await client.execute("delete from autorecycler_org_geo");
-    mockProvider({ docs: [missingOrganization] });
-    await expect(
-      Effect.runPromise(
+test.each([false, true])(
+  "valid missing geography is cached only for this resolver and leaves stored metadata intact (legacy=%s)",
+  async (legacy) => {
+    const { client, database } = await databaseWithCity("Atlanta");
+    try {
+      if (!legacy) await client.execute("delete from autorecycler_org_geo");
+      const before = (
+        await client.execute("select * from autorecycler_org_geo")
+      ).rows;
+      const { requests } = mockProvider({
+        docs: [
+          {
+            ...organization,
+            _source: {
+              name_text: "Unlocated yard",
+              address_city_text: "Winston-Salem",
+            },
+          },
+        ],
+      });
+      const resolver = createAutorecyclerOrgGeoResolver();
+      const resolve = () =>
+        Effect.runPromise(
+          resolver
+            .resolveOneEffect(seed)
+            .pipe(Effect.provideService(Database, database)),
+        );
+      expect(await resolve()).toEqual({ status: "unresolved", orgLookup: org });
+      expect(resolver.getCached(org)).toEqual({
+        status: "unresolved",
+        orgLookup: org,
+      });
+      expect(await resolve()).toEqual({ status: "unresolved", orgLookup: org });
+      expect(requests).toHaveLength(3);
+      expect(resolver.getStats()).toMatchObject({
+        geoMissAfterFetch: 1,
+        geoHitMemory: 1,
+      });
+      await Effect.runPromise(
         createAutorecyclerOrgGeoResolver()
           .resolveOneEffect(seed)
           .pipe(Effect.provideService(Database, database)),
-      ),
-    ).rejects.toThrow("owned yard address");
-    expect(
-      (await client.execute("select * from autorecycler_org_geo")).rows,
-    ).toHaveLength(0);
-  } finally {
-    client.close();
-  }
-});
+      );
+      expect(requests).toHaveLength(6);
+      expect(
+        (await client.execute("select * from autorecycler_org_geo")).rows,
+      ).toEqual(before);
+    } finally {
+      client.close();
+    }
+  },
+);
 
 test("an organization request failure preserves cache even when a fallback could resolve it", async () => {
   const { client, database } = await databaseWithCity("Atlanta");
@@ -457,6 +504,70 @@ test("a failed upsert does not mark the cache verified or populate memory", asyn
     expect(
       (await client.execute("select * from autorecycler_org_geo")).rows,
     ).toEqual(before);
+  } finally {
+    client.close();
+  }
+});
+
+test.each(
+  [
+    null,
+    {},
+    { error: "details unavailable" },
+    [null],
+    [{}],
+    [{ type: "custom.inventory", data: [] }],
+    [{ type: "custom.inventory", data: {}, error: "details unavailable" }],
+    [{ type: "custom.organization", data: {} }],
+    [
+      {
+        type: "custom.organization",
+        data: { _id: recordId, _type: "custom.inventory" },
+      },
+    ],
+  ].map((detailsResponse) => ({ detailsResponse })),
+)(
+  "malformed details response $detailsResponse stays fatal and does not cache an unresolved outcome",
+  async ({ detailsResponse }) => {
+    const { client, database } = await databaseWithCity("Atlanta");
+    try {
+      const before = (
+        await client.execute("select * from autorecycler_org_geo")
+      ).rows;
+      mockProvider({ docs: [missingOrganization], detailsResponse });
+      const resolver = createAutorecyclerOrgGeoResolver();
+      await expect(
+        Effect.runPromise(
+          resolver
+            .resolveOneEffect(seed)
+            .pipe(Effect.provideService(Database, database)),
+        ),
+      ).rejects.toThrow("details init/data");
+      expect(resolver.getCached(org)).toBeUndefined();
+      expect(
+        (await client.execute("select * from autorecycler_org_geo")).rows,
+      ).toEqual(before);
+    } finally {
+      client.close();
+    }
+  },
+);
+
+test("a failed cache read is fatal before any provider requests", async () => {
+  const { client, database } = await databaseWithCity("Atlanta");
+  try {
+    await client.execute("drop table autorecycler_org_geo");
+    const { requests } = mockProvider();
+    const resolver = createAutorecyclerOrgGeoResolver();
+    await expect(
+      Effect.runPromise(
+        resolver
+          .resolveOneEffect(seed)
+          .pipe(Effect.provideService(Database, database)),
+      ),
+    ).rejects.toThrow("autorecyclerOrgGeo.select");
+    expect(resolver.getCached(org)).toBeUndefined();
+    expect(requests).toEqual([]);
   } finally {
     client.close();
   }
@@ -695,9 +806,15 @@ test.each([
         .resolveOneEffect(seed)
         .pipe(Effect.provideService(Database, database)),
     );
-    expect(geo?.locationCity).toBe("Columbus");
+    expect(geo).toMatchObject({
+      status: "resolved",
+      geo: { locationCity: "Columbus" },
+    });
     expect(requests).toHaveLength(name === "explicit record miss" ? 2 : 1);
-    expect(resolver.getCached(org)?.locationCity).toBe("Columbus");
+    expect(resolver.getCached(org)).toMatchObject({
+      status: "resolved",
+      geo: { locationCity: "Columbus" },
+    });
   } finally {
     client.close();
   }
