@@ -278,14 +278,14 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
             autorecyclerYard(g, websites.get(orgKey) ?? null),
           );
           const c = transformAutorecyclerMsearchHit(src, g);
-          if (!c) {
+          if (!c || !identity) {
             recordsRejected += 1;
             if (identity) observedVins.add(identity);
-          } else if (seen.has(c.vin)) {
+          } else if (seen.has(identity)) {
             duplicateVehicles += 1;
           } else {
-            seen.add(c.vin);
-            pageCanonical.push(c);
+            seen.add(identity);
+            pageCanonical.push({ ...c, vin: identity });
           }
         }
 

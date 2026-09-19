@@ -209,108 +209,114 @@ test("accepts published municipality aliases only when the official street and Z
   ).toBe(node.geo.latitude);
 });
 
-test.each(["matched", "conflicting ZIP", "unavailable page"])(
-  "official location lookup: %s",
-  async (scenario) => {
-    const originalFetch = globalThis.fetch;
-    const client = createClient({ url: ":memory:" });
-    let requests = 0;
-    const officialLocation = {
-      idNumber: 19,
-      nameItem: "Winston-Salem",
-      locationID: 19,
-      locationName: "Winston-Salem",
-      address1: "4125 N. Patterson Ave",
-      address2: "",
-      cityName: "Winston-Salem",
-      stateName: "NC",
-      zipCode: scenario === "conflicting ZIP" ? "27107" : "27105-2250",
-      siteTypeID: 3,
-      phone: "336-661-1110",
-      phoneCarBuying: "336-462-8148",
-      phoneUsedCar: null,
-      distanceInMiles: 0,
-      taxRate: 0,
-      warrantyDays: 0,
-      coreDays: 0,
-      allowsCashReturns: 0,
-      email: "",
-      passcodeForMiscItems: false,
-      retailEmail: "",
-      environmentalFeeRate: 0,
-      environmentalFeeCap: 0,
-      locationShortName: "winston",
+test.each([
+  "matched",
+  "conflicting ZIP",
+  "unavailable page",
+  "invalid directory",
+])("official location lookup: %s", async (scenario) => {
+  const originalFetch = globalThis.fetch;
+  const client = createClient({ url: ":memory:" });
+  let requests = 0;
+  const officialLocation = {
+    idNumber: 19,
+    nameItem: "Winston-Salem",
+    locationID: 19,
+    locationName: "Winston-Salem",
+    address1: "4125 N. Patterson Ave",
+    address2: "",
+    cityName: "Winston-Salem",
+    stateName: "NC",
+    zipCode: scenario === "conflicting ZIP" ? "27107" : "27105-2250",
+    siteTypeID: 3,
+    phone: "336-661-1110",
+    phoneCarBuying: "336-462-8148",
+    phoneUsedCar: null,
+    distanceInMiles: 0,
+    taxRate: 0,
+    warrantyDays: 0,
+    coreDays: 0,
+    allowsCashReturns: 0,
+    email: "",
+    passcodeForMiscItems: false,
+    retailEmail: "",
+    environmentalFeeRate: 0,
+    environmentalFeeCap: 0,
+    locationShortName: "winston",
+  };
+  try {
+    await client.executeMultiple(
+      `create table autorecycler_org_geo (org_lookup text primary key, lat real not null, lng real not null, location_name text not null, location_city text not null, state text not null, state_abbr text not null, address text, updated_at integer not null, resolution_version integer not null default 0)`,
+    );
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        requests++;
+        const target = String(input);
+        if (target.endsWith("/mget"))
+          return Response.json({
+            docs: [
+              {
+                _id: "1761169972557x110781710658965700",
+                _type: "custom.organization",
+                found: true,
+                _source: org,
+              },
+            ],
+          });
+        if (target.endsWith("/msearch"))
+          return Response.json({ responses: [{ hits: { hits: [] } }] });
+        if (target.includes("/init/data")) return Response.json([]);
+        if (target.endsWith("/interchange/GetLocations"))
+          return Response.json(
+            scenario === "invalid directory"
+              ? { unavailable: true }
+              : [officialLocation],
+          );
+        if (target === url)
+          return scenario === "unavailable page"
+            ? new Response("Unavailable", { status: 403 })
+            : new Response(html([node]));
+        throw new Error(`Unexpected test request: ${target}`);
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    const database = drizzle(client);
+    const seed = {
+      orgLookup: expected.orgLookup,
+      inventoryIdSeed: "1761173625126x883105909157925400",
     };
-    try {
-      await client.executeMultiple(
-        `create table autorecycler_org_geo (org_lookup text primary key, lat real not null, lng real not null, location_name text not null, location_city text not null, state text not null, state_abbr text not null, address text, updated_at integer not null, resolution_version integer not null default 0)`,
+    const resolve = () =>
+      Effect.runPromise(
+        createAutorecyclerOrgGeoResolver()
+          .resolveOneEffect(seed)
+          .pipe(Effect.provideService(Database, database)),
       );
-      globalThis.fetch = Object.assign(
-        async (input: RequestInfo | URL) => {
-          requests++;
-          const target = String(input);
-          if (target.endsWith("/mget"))
-            return Response.json({
-              docs: [
-                {
-                  _id: "1761169972557x110781710658965700",
-                  _type: "custom.organization",
-                  found: true,
-                  _source: org,
-                },
-              ],
-            });
-          if (target.endsWith("/msearch"))
-            return Response.json({ responses: [{ hits: { hits: [] } }] });
-          if (target.includes("/init/data")) return Response.json([]);
-          if (target.endsWith("/interchange/GetLocations"))
-            return Response.json([officialLocation]);
-          if (target === url)
-            return scenario === "unavailable page"
-              ? new Response("Unavailable", { status: 403 })
-              : new Response(html([node]));
-          throw new Error(`Unexpected test request: ${target}`);
-        },
-        { preconnect: originalFetch.preconnect },
-      );
-      const database = drizzle(client);
-      const seed = {
-        orgLookup: expected.orgLookup,
-        inventoryIdSeed: "1761173625126x883105909157925400",
-      };
-      const resolve = () =>
-        Effect.runPromise(
-          createAutorecyclerOrgGeoResolver()
-            .resolveOneEffect(seed)
-            .pipe(Effect.provideService(Database, database)),
-        );
-      const result = await resolve();
-      if (scenario === "matched") {
-        expect(result.status).toBe("resolved");
-        expect(
-          (
-            await client.execute(
-              "select address, lat, lng, resolution_version from autorecycler_org_geo",
-            )
-          ).rows[0],
-        ).toMatchObject({
-          address: "4125 N. Patterson Ave, Winston-Salem, NC 27105, USA",
-          lat: 36.1622791,
-          lng: -80.2565927,
-          resolution_version: 1,
-        });
-        expect(requests).toBe(5);
-        expect((await resolve()).status).toBe("resolved");
-        expect(requests).toBe(5);
-      } else {
-        expect(result.status).toBe("unresolved");
-        expect(
-          (await client.execute("select * from autorecycler_org_geo")).rows,
-        ).toHaveLength(0);
-      }
-    } finally {
-      globalThis.fetch = originalFetch;
-      client.close();
+    const result = await resolve();
+    if (scenario === "matched") {
+      expect(result.status).toBe("resolved");
+      expect(
+        (
+          await client.execute(
+            "select address, lat, lng, resolution_version from autorecycler_org_geo",
+          )
+        ).rows[0],
+      ).toMatchObject({
+        address: "4125 N. Patterson Ave, Winston-Salem, NC 27105, USA",
+        lat: 36.1622791,
+        lng: -80.2565927,
+        resolution_version: 1,
+      });
+      expect(requests).toBe(5);
+      expect((await resolve()).status).toBe("resolved");
+      expect(requests).toBe(5);
+    } else {
+      expect(result.status).toBe("unresolved");
+      expect(
+        (await client.execute("select * from autorecycler_org_geo")).rows,
+      ).toHaveLength(0);
     }
-  },
-);
+  } finally {
+    globalThis.fetch = originalFetch;
+    client.close();
+  }
+});

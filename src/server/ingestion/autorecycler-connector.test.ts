@@ -7,6 +7,61 @@ import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-conne
 import type { Yard } from "~/lib/yard";
 
 describe("streamAutorecyclerInventory", () => {
+  test("uses one validated VIN identity for accepted records, deduplication and observations", async () => {
+    const client = createClient({ url: ":memory:" });
+    const org = "1348695171700984260__LOOKUP__1726602417880x199387504054651780";
+    const vins: string[] = [];
+    try {
+      await client.executeMultiple(
+        `create table autorecycler_org_geo (org_lookup text primary key, lat real not null, lng real not null, location_name text not null, location_city text not null, state text not null, state_abbr text not null, address text, updated_at integer not null, resolution_version integer not null default 1)`,
+      );
+      await client.execute({
+        sql: "insert into autorecycler_org_geo (org_lookup, lat, lng, location_name, location_city, state, state_abbr, updated_at) values (?, 32.44, -84.94, 'EZ Pull N Pay Columbus', 'Columbus', 'Georgia', 'GA', 1)",
+        args: [org],
+      });
+      const result = await Effect.runPromise(
+        streamAutorecyclerInventoryWithPageFetcher(
+          {
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                vins.push(...batch.map((vehicle) => vehicle.vin));
+              }),
+          },
+          async () => ({
+            responses: [
+              {
+                at_end: true,
+                hits: {
+                  hits: [
+                    " knade123666155428 ",
+                    "KNADE123666155428",
+                    "NOT-A-VIN",
+                  ].map((vin_text) => ({
+                    _source: {
+                      organization_custom_organization: org,
+                      inventory_id_text: "1787737161109x728407258643232400",
+                      name_text: "2006 Kia Rio",
+                      vin_text,
+                    },
+                  })),
+                },
+              },
+            ],
+          }),
+        ).pipe(Effect.provideService(Database, drizzle(client))),
+      );
+      expect(vins).toEqual(["KNADE123666155428"]);
+      expect(result.count).toBe(1);
+      expect(result.accounting).toMatchObject({
+        recordsProcessed: 3,
+        duplicateVehicles: 1,
+        recordsRejected: 1,
+      });
+      expect(result.observedVins).toEqual([]);
+    } finally {
+      client.close();
+    }
+  });
   test("unresolved yards preserve only valid VINs and never request website-link enrichment or emit metadata", async () => {
     const client = createClient({ url: ":memory:" });
     const originalFetch = globalThis.fetch;

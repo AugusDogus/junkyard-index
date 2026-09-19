@@ -37,8 +37,10 @@ The unresolved result is cached only within the chunk and retried next chunk/run
 Existing geographic and yard metadata is not overwritten by an unresolved result.
 
 Malformed AutoRecycler responses, identity mismatches, source transport failures,
-and persistence failures still fail the chunk. An unavailable optional official
-location page leaves that yard unresolved with a warning. These failures never
+and persistence failures still fail the chunk. Unavailable or invalid optional
+operator directory/page metadata leaves that yard unresolved with a warning,
+including network and schema failures. AutoRecycler inventory was still observed;
+optional location enrichment must not stop other yards. These failures never
 mark cached geography verified. Previously published inventory is preserved.
 
 Validation must traverse the complete provider feed and run source validation,
