@@ -16,6 +16,9 @@ import { normalizeRegion } from "./normalization";
 import type { AutorecyclerOrgGeo } from "./autorecycler-transform";
 
 export type { AutorecyclerOrgGeo };
+export type AutorecyclerGeoResolution =
+  | { status: "resolved"; geo: AutorecyclerOrgGeo }
+  | { status: "unresolved"; orgLookup: string };
 type DbClient = typeof import("~/lib/db").db;
 const GEO_RESOLVE_CONCURRENCY = 3;
 // Version 0 may contain inventory GPS or another branch's organization address.
@@ -68,6 +71,14 @@ const websiteLookupSchema = z.object({
     )
     .length(1),
 });
+const detailsRowsSchema = z.array(
+  z.object({
+    type: z.string().optional(),
+    data: z.record(z.unknown()),
+    error: z.never().optional(),
+    errors: z.never().optional(),
+  }),
+);
 
 function hasKnownCity(city: string): boolean {
   return city.trim().length > 0 && city.trim().toLowerCase() !== "unknown";
@@ -267,11 +278,12 @@ export function parseOrgGeoFromDetailsInitData(
 
 function upsertAndCacheOrgGeo(params: {
   dbClient: DbClient;
-  memory: Map<string, AutorecyclerOrgGeo>;
+  memory: Map<string, AutorecyclerGeoResolution>;
   geo: AutorecyclerOrgGeo;
-}): Effect.Effect<AutorecyclerOrgGeo, PersistenceError> {
+}): Effect.Effect<AutorecyclerGeoResolution, PersistenceError> {
   const { dbClient, memory, geo } = params;
   const now = new Date();
+  const resolved: AutorecyclerGeoResolution = { status: "resolved", geo };
 
   return Effect.tryPromise({
     try: () =>
@@ -306,13 +318,14 @@ function upsertAndCacheOrgGeo(params: {
     catch: (cause) =>
       new PersistenceError({ operation: "autorecyclerOrgGeo.upsert", cause }),
   }).pipe(
-    Effect.tap(() => Effect.sync(() => memory.set(geo.orgLookup, geo))),
-    Effect.as(geo),
+    Effect.tap(() => Effect.sync(() => memory.set(geo.orgLookup, resolved))),
+    Effect.as(resolved),
   );
 }
 
 export function createAutorecyclerOrgGeoResolver() {
-  const memory = new Map<string, AutorecyclerOrgGeo>();
+  // Missing metadata is retryable next chunk/run, never persisted as verified geography.
+  const memory = new Map<string, AutorecyclerGeoResolution>();
   let geoLookupCount = 0;
   let geoHitMemory = 0;
   let geoHitDb = 0;
@@ -331,7 +344,7 @@ export function createAutorecyclerOrgGeoResolver() {
     orgLookup: string;
     inventoryIdSeed: string;
   }): Effect.Effect<
-    AutorecyclerOrgGeo,
+    AutorecyclerGeoResolution,
     PersistenceError | AutorecyclerProviderError,
     Database
   > =>
@@ -392,8 +405,12 @@ export function createAutorecyclerOrgGeoResolver() {
           stateAbbr: existing.stateAbbr,
           address: existing.address ?? undefined,
         };
-        memory.set(orgLookup, mapped);
-        return mapped;
+        const resolved: AutorecyclerGeoResolution = {
+          status: "resolved",
+          geo: mapped,
+        };
+        memory.set(orgLookup, resolved);
+        return resolved;
       }
 
       geoFetches++;
@@ -495,7 +512,33 @@ export function createAutorecyclerOrgGeoResolver() {
       }
 
       const rows = yield* Effect.tryPromise({
-        try: () => fetchAutorecyclerDetailsInitData(inventoryIdSeed),
+        try: async () => {
+          const rows = detailsRowsSchema.parse(
+            await fetchAutorecyclerDetailsInitData(inventoryIdSeed),
+          );
+          for (const row of rows) {
+            if (
+              row.type !== "custom.organization" &&
+              row.data._type !== "custom.organization" &&
+              !ownsOrganization(row.data._id, orgLookup)
+            )
+              continue;
+            const id = row.data._id;
+            if (
+              typeof id !== "string" ||
+              !organizationRecordId(id) ||
+              !matchesOrganizationRecord(
+                { _type: row.type, _source: row.data },
+                id,
+              )
+            ) {
+              throw new Error(
+                "Expected init/data organization rows to identify their record ID with consistent custom.organization types",
+              );
+            }
+          }
+          return rows;
+        },
         catch: (cause) =>
           new AutorecyclerProviderError({
             from: -1,
@@ -513,12 +556,12 @@ export function createAutorecyclerOrgGeoResolver() {
       const parsed = parseOrgGeoFromDetailsInitData(rows, orgLookup);
       if (!parsed) {
         geoMissAfterFetch++;
-        return yield* new AutorecyclerProviderError({
-          from: -1,
-          cause: new Error(
-            `Could not resolve an owned yard address and city for AutoRecycler organization ${orgLookup}. The source refresh was stopped without replacing cached data; inspect the organization's address or its own website record before retrying. Inventory GPS and related organizations cannot establish this yard's location.`,
-          ),
-        });
+        const unresolved: AutorecyclerGeoResolution = {
+          status: "unresolved",
+          orgLookup,
+        };
+        memory.set(orgLookup, unresolved);
+        return unresolved;
       }
       return yield* upsertAndCacheOrgGeo({
         dbClient,
