@@ -103,6 +103,7 @@ const organization = {
     address1_geographic_address: address,
   },
 };
+const missingOrganization = { _id: recordId, found: false };
 
 // Decode the real wire request so a seed-ID regression cannot pass a canned mget mock.
 function mgetIds(body: RequestInit["body"]): string[] {
@@ -281,7 +282,7 @@ test.each(["website", "init/data"])(
     const { client, database } = await databaseWithCity("Atlanta");
     try {
       mockProvider({
-        docs: [],
+        docs: [missingOrganization],
         ...(fallback === "website"
           ? {
               website: {
@@ -329,7 +330,7 @@ test.each([undefined, "mget", "msearch", "init/data"] as const)(
       const before = (
         await client.execute("select * from autorecycler_org_geo")
       ).rows;
-      mockProvider({ docs: [], fail });
+      mockProvider({ docs: [missingOrganization], fail });
       const resolver = createAutorecyclerOrgGeoResolver();
       await expect(
         Effect.runPromise(
@@ -348,11 +349,47 @@ test.each([undefined, "mget", "msearch", "init/data"] as const)(
   },
 );
 
+test.each(["organization", "website"])(
+  "an owned %s record without geography can use a valid fallback",
+  async (stage) => {
+    const { client, database } = await databaseWithCity("Atlanta");
+    try {
+      const { requests } = mockProvider({
+        docs:
+          stage === "organization"
+            ? [{ ...organization, _source: {} }]
+            : [missingOrganization],
+        website: {
+          organization_custom_organization: org,
+          ...(stage === "organization"
+            ? { address_geographic_address: address }
+            : {}),
+        },
+        rows: [
+          {
+            type: "custom.organization",
+            data: { ...organization._source, _id: recordId },
+          },
+        ],
+      });
+      const geo = await Effect.runPromise(
+        createAutorecyclerOrgGeoResolver()
+          .resolveOneEffect(seed)
+          .pipe(Effect.provideService(Database, database)),
+      );
+      expect(geo?.locationCity).toBe("Columbus");
+      expect(requests).toHaveLength(stage === "organization" ? 2 : 3);
+    } finally {
+      client.close();
+    }
+  },
+);
+
 test("an unverified new organization fails instead of silently dropping its vehicles", async () => {
   const { client, database } = await databaseWithCity("Atlanta");
   try {
     await client.execute("delete from autorecycler_org_geo");
-    mockProvider({ docs: [] });
+    mockProvider({ docs: [missingOrganization] });
     await expect(
       Effect.runPromise(
         createAutorecyclerOrgGeoResolver()
@@ -460,6 +497,88 @@ test.each([
     requests: 2,
   },
   { name: "empty mget document", mgetResponse: { docs: [{}] }, requests: 1 },
+  ...[
+    {
+      ...organization,
+      _source: {
+        ...organization._source,
+        _id: "1716932435477x905965313898837800",
+      },
+    },
+    { ...organization, _source: { ...organization._source, _id: null } },
+    { ...organization, _type: "custom.inventory" },
+    {
+      _source: {
+        ...organization._source,
+        _id: recordId,
+        _type: "custom.inventory",
+      },
+    },
+    {
+      ...organization,
+      _source: { ...organization._source, _type: "custom.inventory" },
+    },
+    { ...organization, _source: { ...organization._source, _type: null } },
+  ].map((doc, index) => ({
+    name: `contradictory mget identity/type ${index}`,
+    mgetResponse: { docs: [doc] },
+    requests: 1,
+  })),
+  ...[
+    {},
+    { organization_custom_organization: "1716932435477x905965313898837800" },
+    { organization_custom_organization: org, _type: "custom.inventory" },
+  ].map((source, index) => ({
+    name: `invalid website identity/type ${index}`,
+    msearchResponse: { responses: [{ hits: { hits: [{ _source: source }] } }] },
+    requests: 2,
+  })),
+  {
+    name: "too many website results",
+    msearchResponse: {
+      responses: [
+        {
+          hits: {
+            hits: [
+              {
+                _source: {
+                  organization_custom_organization: org,
+                  address_geographic_address: address,
+                },
+              },
+              {
+                _source: {
+                  organization_custom_organization: org,
+                  address_geographic_address: address,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+    requests: 2,
+  },
+  { name: "empty mget results", mgetResponse: { docs: [] }, requests: 1 },
+  {
+    name: "duplicate mget results",
+    mgetResponse: { docs: [organization, organization] },
+    requests: 1,
+  },
+  {
+    name: "unrequested mget record",
+    mgetResponse: {
+      docs: [{ ...organization, _id: "1716932435477x905965313898837800" }],
+    },
+    requests: 1,
+  },
+  {
+    name: "unrequested mget miss",
+    mgetResponse: {
+      docs: [{ _id: "1716932435477x905965313898837800", found: false }],
+    },
+    requests: 1,
+  },
   {
     name: "found mget document missing source",
     mgetResponse: {
@@ -511,7 +630,7 @@ test.each([
         await client.execute("select * from autorecycler_org_geo")
       ).rows;
       const { requests } = mockProvider({
-        docs: [],
+        docs: [missingOrganization],
         ...response,
         website: {
           organization_custom_organization: org,

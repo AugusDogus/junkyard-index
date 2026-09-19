@@ -25,7 +25,7 @@ const GEO_RESOLUTION_VERSION = 1;
 // Validate before treating a lookup as a miss or persisting any fallback.
 const organizationLookupSchema = z.object({
   error: z.never().optional(),
-  docs: z.array(
+  docs: z.tuple([
     z.union([
       z.object({
         error: z.never().optional(),
@@ -53,7 +53,7 @@ const organizationLookupSchema = z.object({
           },
         ),
     ]),
-  ),
+  ]),
 });
 const websiteLookupSchema = z.object({
   error: z.never().optional(),
@@ -62,7 +62,7 @@ const websiteLookupSchema = z.object({
       z.object({
         error: z.never().optional(),
         hits: z.object({
-          hits: z.array(z.object({ _source: z.record(z.unknown()) })),
+          hits: z.array(z.object({ _source: z.record(z.unknown()) })).max(1),
         }),
       }),
     )
@@ -105,6 +105,34 @@ function ownsOrganization(value: unknown, expectedOrg: string): boolean {
   return recordId !== null && (actual === expectedOrg || actual === recordId);
 }
 
+function matchesOrganizationRecord(
+  doc: AutorecyclerMgetDoc,
+  expectedOrg: string,
+): boolean {
+  const ids = [doc._id, doc._source?._id].filter(
+    (value) => value !== undefined,
+  );
+  const types = [doc._type, doc._source?._type].filter(
+    (value) => value !== undefined,
+  );
+  return (
+    ids.length > 0 &&
+    ids.every((id) => ownsOrganization(id, expectedOrg)) &&
+    (types.length > 0 || doc.found === false) &&
+    types.every((type) => type === "custom.organization")
+  );
+}
+
+function matchesOrganizationWebsite(
+  src: Record<string, unknown>,
+  expectedOrg: string,
+): boolean {
+  return (
+    ownsOrganization(src.organization_custom_organization, expectedOrg) &&
+    (src._type === undefined || src._type === "custom.website")
+  );
+}
+
 export function parseOrgGeoFromWebsiteRecord(
   src: Record<string, unknown>,
   expectedOrg: string,
@@ -112,9 +140,7 @@ export function parseOrgGeoFromWebsiteRecord(
   const want = expectedOrg.trim();
   if (want.length === 0) return null;
 
-  if (!ownsOrganization(src.organization_custom_organization, want))
-    return null;
-  if (src._type !== undefined && src._type !== "custom.website") return null;
+  if (!matchesOrganizationWebsite(src, want)) return null;
 
   const geoUnknown = src.address_geographic_address;
   if (!isRecord(geoUnknown)) return null;
@@ -168,11 +194,7 @@ export function parseOrgGeoFromOrganizationDoc(
   if (want.length === 0) return null;
   const src = doc._source;
   if (!isRecord(src) || doc.found === false) return null;
-  if ((doc._type ?? src._type) !== "custom.organization") return null;
-  if (src._type !== undefined && src._type !== "custom.organization")
-    return null;
-  if (!ownsOrganization(doc._id ?? src._id, want)) return null;
-  if (src._id !== undefined && !ownsOrganization(src._id, want)) return null;
+  if (!matchesOrganizationRecord(doc, want)) return null;
 
   const geoUnknown = src.address1_geographic_address;
   if (!isRecord(geoUnknown)) return null;
@@ -377,10 +399,18 @@ export function createAutorecyclerOrgGeoResolver() {
       geoFetches++;
 
       const mget = yield* Effect.tryPromise({
-        try: async () =>
-          organizationLookupSchema.parse(
+        try: async () => {
+          const response = organizationLookupSchema.parse(
             await postAutorecyclerElasticsearchMget(buildMgetBody([recordId])),
-          ),
+          );
+          const doc = response.docs[0];
+          if (!matchesOrganizationRecord(doc, orgLookup)) {
+            throw new Error(
+              `Expected organization record ${recordId}; all returned IDs must match and all supplied types must be custom.organization`,
+            );
+          }
+          return doc;
+        },
         catch: (cause) =>
           new AutorecyclerProviderError({
             from: -1,
@@ -395,13 +425,14 @@ export function createAutorecyclerOrgGeoResolver() {
         ),
       );
 
-      const parsedFromOrganization =
-        mget.docs
-          .map((doc) => parseOrgGeoFromOrganizationDoc(doc, orgLookup))
-          .find(
-            (value) => value !== null && hasKnownCity(value.locationCity),
-          ) ?? null;
-      if (parsedFromOrganization) {
+      const parsedFromOrganization = parseOrgGeoFromOrganizationDoc(
+        mget,
+        orgLookup,
+      );
+      if (
+        parsedFromOrganization &&
+        hasKnownCity(parsedFromOrganization.locationCity)
+      ) {
         return yield* upsertAndCacheOrgGeo({
           dbClient,
           memory,
@@ -422,7 +453,13 @@ export function createAutorecyclerOrgGeoResolver() {
               buildWebsiteLookupMsearchBody(orgLookup),
             ),
           );
-          return res.responses[0]?.hits.hits[0]?._source ?? null;
+          const website = res.responses[0]?.hits.hits[0]?._source ?? null;
+          if (website && !matchesOrganizationWebsite(website, orgLookup)) {
+            throw new Error(
+              `Expected a website owned by organization ${orgLookup} with type custom.website when supplied`,
+            );
+          }
+          return website;
         },
         catch: (cause) =>
           new AutorecyclerProviderError({
