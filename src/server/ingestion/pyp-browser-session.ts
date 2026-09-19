@@ -8,7 +8,7 @@ import {
 import { Effect, Scope, Schema } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
-import { BrowserSessionError } from "./errors";
+import { BrowserSessionError, PypProviderError } from "./errors";
 import { normalizeRegion } from "./normalization";
 
 const PypPhotoSchema = Schema.Struct({
@@ -58,8 +58,9 @@ export type PypFilterResponse = Schema.Schema.Type<
   typeof PypFilterResponseSchema
 >;
 
-export const decodePypFilterResponse =
-  Schema.decodeUnknownSync(PypFilterResponseSchema);
+export const decodePypFilterResponse = Schema.decodeUnknownSync(
+  PypFilterResponseSchema,
+);
 
 interface PypRawLocation {
   LocationCode: string;
@@ -194,9 +195,8 @@ interface ManagedPypSession {
 export function acquirePypSession(
   apiKey: string,
 ): Effect.Effect<PypSession, BrowserSessionError, Scope.Scope> {
-  const managed = Effect.acquireRelease(
-    openSession(apiKey),
-    (session) => session.close.pipe(Effect.catchAll(() => Effect.void)),
+  const managed = Effect.acquireRelease(openSession(apiKey), (session) =>
+    session.close.pipe(Effect.catchAll(() => Effect.void)),
   );
   return managed.pipe(Effect.map((session) => session.session));
 }
@@ -234,12 +234,18 @@ function openSession(
     };
 
     yield* doOpen(state).pipe(
-      Effect.tapError(() => doClose(state).pipe(Effect.catchAll(() => Effect.void))),
-      Effect.mapError((cause) => new BrowserSessionError({ phase: "open", cause })),
+      Effect.tapError(() =>
+        doClose(state).pipe(Effect.catchAll(() => Effect.void)),
+      ),
+      Effect.mapError(
+        (cause) => new BrowserSessionError({ phase: "open", cause }),
+      ),
     );
 
     const close = doClose(state).pipe(
-      Effect.mapError((cause) => new BrowserSessionError({ phase: "close", cause })),
+      Effect.mapError(
+        (cause) => new BrowserSessionError({ phase: "close", cause }),
+      ),
     );
 
     const session: PypSession = {
@@ -252,14 +258,22 @@ function openSession(
       },
       fetchRawFilterPage: (storeCodes, pageNumber, pageSize) =>
         doFetchFilterPageRaw(state, storeCodes, pageNumber, pageSize).pipe(
-          Effect.mapError((cause) =>
-            new BrowserSessionError({ phase: "fetch", cause }),
+          Effect.mapError(
+            (cause) =>
+              new BrowserSessionError({
+                phase: "fetch",
+                cause: new PypProviderError({ page: pageNumber, cause }),
+              }),
           ),
         ),
       fetchFilterPage: (storeCodes, pageNumber, pageSize) =>
         doFetchFilterPage(state, storeCodes, pageNumber, pageSize).pipe(
-          Effect.mapError((cause) =>
-            new BrowserSessionError({ phase: "fetch", cause }),
+          Effect.mapError(
+            (cause) =>
+              new BrowserSessionError({
+                phase: "fetch",
+                cause: new PypProviderError({ page: pageNumber, cause }),
+              }),
           ),
         ),
       reopen: () =>
@@ -270,8 +284,8 @@ function openSession(
             Effect.tapError(() =>
               doClose(state).pipe(Effect.catchAll(() => Effect.void)),
             ),
-            Effect.mapError((cause) =>
-              new BrowserSessionError({ phase: "rotate", cause }),
+            Effect.mapError(
+              (cause) => new BrowserSessionError({ phase: "rotate", cause }),
             ),
           );
           if (cachedLocations.length > 0 && state.locations.length === 0) {
@@ -292,10 +306,10 @@ function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
       const session = yield* Effect.tryPromise({
         try: () =>
           state.client.sessions.create({
-          useStealth: true,
-          acceptCookies: true,
-          region: HYPERBROWSER_REGION,
-        }),
+            useStealth: true,
+            acceptCookies: true,
+            region: HYPERBROWSER_REGION,
+          }),
         catch: toError,
       });
       state.sessionId = session.id;
@@ -342,38 +356,53 @@ function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
 
     const context =
       browser.contexts()[0] ??
-      (yield* Effect.tryPromise(() => browser.newContext()));
+      (yield* Effect.tryPromise({
+        try: () => browser.newContext(),
+        catch: toError,
+      }));
     state.context = context;
 
     const page =
-      context.pages()[0] ?? (yield* Effect.tryPromise(() => context.newPage()));
+      context.pages()[0] ??
+      (yield* Effect.tryPromise({
+        try: () => context.newPage(),
+        catch: toError,
+      }));
     state.page = page;
 
-    yield* Effect.tryPromise(() =>
-      page.goto(`${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`, {
-        waitUntil: "networkidle",
-        timeout: 60_000,
-      }),
-    );
+    yield* Effect.tryPromise({
+      try: () =>
+        page.goto(`${API_ENDPOINTS.PYP_BASE}${API_ENDPOINTS.LOCATION_PAGE}`, {
+          waitUntil: "networkidle",
+          timeout: 60_000,
+        }),
+      catch: toError,
+    });
 
-    state.csrfToken = yield* Effect.tryPromise(() =>
-      page.evaluate(() => {
-        const element = document.querySelector("[name=__RequestVerificationToken]");
-        return element instanceof HTMLInputElement ? element.value : null;
-      }),
-    );
+    state.csrfToken = yield* Effect.tryPromise({
+      try: () =>
+        page.evaluate(() => {
+          const element = document.querySelector(
+            "[name=__RequestVerificationToken]",
+          );
+          return element instanceof HTMLInputElement ? element.value : null;
+        }),
+      catch: toError,
+    });
     if (!state.csrfToken) {
       return yield* Effect.fail(
         new Error("Could not extract RequestVerificationToken from PYP page"),
       );
     }
 
-    const rawLocations = yield* Effect.tryPromise(() =>
-      page.evaluate(() => {
-        const value = Reflect.get(globalThis, "_locationList");
-        return Array.isArray(value) ? value : [];
-      }),
-    );
+    const rawLocations = yield* Effect.tryPromise({
+      try: () =>
+        page.evaluate(() => {
+          const value = Reflect.get(globalThis, "_locationList");
+          return Array.isArray(value) ? value : [];
+        }),
+      catch: toError,
+    });
     state.locations = rawLocations.filter(isPypRawLocation).map(mapRawLocation);
   }).pipe(Effect.asVoid);
 }
@@ -412,40 +441,42 @@ function doFetchFilterPageRaw(
 
     const path = `${API_ENDPOINTS.PYP_FILTER_INVENTORY}?store=${storeCodes}&filter=&page=${pageNumber}&pageSize=${pageSize}`;
 
-    const result = yield* Effect.tryPromise(() =>
-      page.evaluate(
-        async ({ path, token, timeoutMs }) => {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(
-            () =>
-              controller.abort(
-                new Error(
-                  `PYP inventory request timed out after ${timeoutMs}ms`,
+    const result = yield* Effect.tryPromise({
+      try: () =>
+        page.evaluate(
+          async ({ path, token, timeoutMs }) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(
+              () =>
+                controller.abort(
+                  new Error(
+                    `PYP inventory request timed out after ${timeoutMs}ms`,
+                  ),
                 ),
-              ),
-            timeoutMs,
-          );
-          try {
-            const res = await fetch(path, {
-              headers: {
-                Accept: "application/json",
-                RequestVerificationToken: token,
-                "X-Requested-With": "XMLHttpRequest",
-              },
-              signal: controller.signal,
-            });
-            if (!res.ok) {
-              return { _error: true as const, status: res.status };
+              timeoutMs,
+            );
+            try {
+              const res = await fetch(path, {
+                headers: {
+                  Accept: "application/json",
+                  RequestVerificationToken: token,
+                  "X-Requested-With": "XMLHttpRequest",
+                },
+                signal: controller.signal,
+              });
+              if (!res.ok) {
+                return { _error: true as const, status: res.status };
+              }
+              const data: unknown = await res.json();
+              return { _error: false as const, data };
+            } finally {
+              clearTimeout(timeoutId);
             }
-            const data: unknown = await res.json();
-            return { _error: false as const, data };
-          } finally {
-            clearTimeout(timeoutId);
-          }
-        },
-        { path, token, timeoutMs: BROWSER_REQUEST_TIMEOUT_MS },
-      ),
-    );
+          },
+          { path, token, timeoutMs: BROWSER_REQUEST_TIMEOUT_MS },
+        ),
+      catch: toError,
+    });
 
     if (result._error) {
       return yield* Effect.fail(
@@ -467,7 +498,11 @@ export function fetchRawPypFilterPage(
     const storeCodes = session.locations
       .map((location) => location.locationCode)
       .join(",");
-    const raw = yield* session.fetchRawFilterPage(storeCodes, pageNumber, pageSize);
+    const raw = yield* session.fetchRawFilterPage(
+      storeCodes,
+      pageNumber,
+      pageSize,
+    );
     return { locations: session.locations, raw };
   });
 }
@@ -476,15 +511,24 @@ function doClose(state: MutableSessionState): Effect.Effect<void, unknown> {
   return Effect.gen(function* () {
     const page = state.page;
     if (page) {
-      yield* Effect.tryPromise(() => page.close().catch(() => undefined));
+      yield* Effect.tryPromise({
+        try: () => page.close().catch(() => undefined),
+        catch: toError,
+      });
     }
     const context = state.context;
     if (context) {
-      yield* Effect.tryPromise(() => context.close().catch(() => undefined));
+      yield* Effect.tryPromise({
+        try: () => context.close().catch(() => undefined),
+        catch: toError,
+      });
     }
     const browser = state.browser;
     if (browser) {
-      yield* Effect.tryPromise(() => browser.close().catch(() => undefined));
+      yield* Effect.tryPromise({
+        try: () => browser.close().catch(() => undefined),
+        catch: toError,
+      });
     }
     state.page = null;
     state.context = null;
@@ -496,9 +540,10 @@ function doClose(state: MutableSessionState): Effect.Effect<void, unknown> {
       yield* Effect.logInfo(
         `[PYP] Hyperbrowser session: https://app.hyperbrowser.ai/sessions/${sessionId}`,
       );
-      yield* Effect.tryPromise(() =>
-        state.client.sessions.stop(sessionId).catch(() => undefined),
-      );
+      yield* Effect.tryPromise({
+        try: () => state.client.sessions.stop(sessionId).catch(() => undefined),
+        catch: toError,
+      });
       state.sessionId = null;
     }
   }).pipe(Effect.asVoid);
@@ -539,4 +584,3 @@ function mapRawLocation(raw: PypRawLocation): Location {
     },
   };
 }
-

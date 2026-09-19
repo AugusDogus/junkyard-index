@@ -69,6 +69,98 @@ function makeOperations(
 }
 
 describe("durable ingestion source orchestration", () => {
+  test.each([
+    {
+      error: {
+        name: "RetryableError",
+        message:
+          "Could not resolve an owned yard address for organization 1761169972557x110781710658965700",
+        token: "must not be included",
+      },
+      message:
+        "Could not resolve an owned yard address for organization 1761169972557x110781710658965700",
+    },
+    {
+      error: {
+        message: "Workflow step failed",
+        cause: { message: "Provider unavailable" },
+      },
+      message: "Workflow step failed: Provider unavailable",
+    },
+    {
+      error: { message: "  ", cause: { message: "Provider unavailable" } },
+      message: "Provider unavailable",
+    },
+    {
+      error: { message: 42, token: "must not be included" },
+      message: "Unknown ingestion error",
+    },
+    { error: null, message: "Unknown ingestion error" },
+    { error: "", message: "Unknown ingestion error" },
+    { error: "Provider unavailable", message: "Provider unavailable" },
+    {
+      error: {
+        message: "Provider unavailable",
+        cause: { message: "Provider unavailable" },
+      },
+      message: "Provider unavailable",
+    },
+    {
+      error: new Error("PYP page 2: Provider unavailable", {
+        cause: new Error("Provider unavailable"),
+      }),
+      message: "PYP page 2: Provider unavailable",
+    },
+    {
+      error: new Error("Workflow step failed", {
+        cause: new Error("Provider unavailable"),
+      }),
+      message: "Workflow step failed: Provider unavailable",
+    },
+  ])(
+    "preserves validated workflow failure messages: $message",
+    async ({ error, message }) => {
+      const result = await ingestDurableSource({
+        runId: "diagnostic-repro",
+        initialCursor: { source: "autorecycler", from: 0 },
+        operations: {
+          runChunk: async () => {
+            throw error;
+          },
+          markFailed: async (_runId, source, failure) => ({
+            cursor: { source, from: 0 },
+            status: "failed",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [failure],
+          }),
+        },
+      });
+      expect(result.errors).toEqual([
+        `autorecycler ingestion failed: ${message}`,
+      ]);
+    },
+  );
+
+  test("handles cyclic causes without losing the available message", async () => {
+    const error = { message: "Provider unavailable", cause: {} };
+    error.cause = error;
+    await expect(
+      ingestDurableSource({
+        runId: "diagnostic-repro",
+        initialCursor: { source: "autorecycler", from: 0 },
+        operations: {
+          runChunk: async () => {
+            throw error;
+          },
+          markFailed: async (_runId, _source, message) => {
+            throw new Error(message);
+          },
+        },
+      }),
+    ).rejects.toThrow("autorecycler ingestion failed: Provider unavailable");
+  });
+
   test("advances typed checkpoints until the source is complete", async () => {
     const pages: number[] = [];
     const result = await ingestDurableSource({
@@ -169,6 +261,27 @@ describe("durable ingestion source orchestration", () => {
 });
 
 describe("durable ingestion lifecycle", () => {
+  test("records serialized run failures and rethrows the original error", async () => {
+    const error = { name: "RetryableError", message: "database unavailable" };
+    const failures: string[] = [];
+    await expect(
+      executeDurableIngestion({
+        runId: "diagnostic-repro",
+        operations: makeOperations({
+          reconcile: async () => {
+            throw error;
+          },
+          markRunFailed: async (_runId, message) => {
+            failures.push(message);
+          },
+        }),
+      }),
+    ).rejects.toBe(error);
+    expect(failures).toEqual([
+      "Durable ingestion failed: database unavailable",
+    ]);
+  });
+
   test("runs every coordinator phase in order", async () => {
     const events: string[] = [];
     const result = await executeDurableIngestion({
