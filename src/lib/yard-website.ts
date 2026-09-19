@@ -96,14 +96,6 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
         href: `https://www.${upp ? "upullandpay" : "pullapart"}.com/locations/${state}/${name}/`,
       };
   }
-  // Verified against the business's public contact address, 3010 W Fairfield Dr,
-  // Pensacola FL, on 2026-09-16. Do not infer independent websites from city names.
-  if (
-    yard.source === "autorecycler" &&
-    yard.code ===
-      "1348695171700984260__LOOKUP__1708055368961x545475433275588600"
-  )
-    return { kind: "yard", href: "https://www.kikersupullit.com/" };
   const provider = providerWebsites.get(yard.source);
   return provider ? { kind: "provider", href: provider } : null;
 }
