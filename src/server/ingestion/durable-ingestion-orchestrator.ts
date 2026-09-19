@@ -55,9 +55,37 @@ export type DurableIngestionExecution =
   | { status: "completed"; ingestion: DurableIngestionResult };
 
 function formatError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "Unknown ingestion error";
+  const messages: string[] = [];
+  const seen = new Set<unknown>();
+  let current = error;
+  // Workflow errors can cross a serialization boundary and lose their prototype.
+  // Read only messages and causes, never stringify arbitrary provider payloads.
+  while (!seen.has(current)) {
+    seen.add(current);
+    const message =
+      typeof current === "string"
+        ? current
+        : typeof current === "object" &&
+            current !== null &&
+            "message" in current
+          ? current.message
+          : undefined;
+    if (
+      typeof message === "string" &&
+      message.trim() &&
+      !messages.some((existing) => existing.endsWith(message.trim()))
+    ) {
+      messages.push(message.trim());
+    }
+    if (
+      typeof current !== "object" ||
+      current === null ||
+      !("cause" in current)
+    )
+      break;
+    current = current.cause;
+  }
+  return messages.join(": ") || "Unknown ingestion error";
 }
 
 export async function ingestDurableSource<
