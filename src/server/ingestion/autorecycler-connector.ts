@@ -293,18 +293,23 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
             mirroredRecords++;
             continue;
           }
+          const identityYear =
+            parseAutorecyclerNameText(src.name_text, src.vehicle_year_number)
+              ?.year ?? src.vehicle_year_number;
           const identity =
             typeof src.vin_text === "string"
               ? inventoryVin(
                   src.vin_text,
-                  String(
-                    parseAutorecyclerNameText(
-                      src.name_text,
-                      src.vehicle_year_number,
-                    )?.year ?? "",
-                  ),
+                  typeof identityYear === "number" &&
+                    Number.isFinite(identityYear)
+                    ? String(identityYear)
+                    : "",
                 )
               : null;
+          if (!identity) {
+            recordsRejected++;
+            continue;
+          }
           const resolution = orgKey ? geo.getCached(orgKey) : undefined;
           if (
             orgKey &&
@@ -312,13 +317,13 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
               resolution?.status === "unresolved")
           ) {
             recordsExcluded += 1;
-            if (identity) observedVins.add(identity);
+            observedVins.add(identity);
             excludedYards.set(orgKey, (excludedYards.get(orgKey) ?? 0) + 1);
             continue;
           }
           if (resolution?.status !== "resolved" || !orgKey) {
             recordsRejected += 1;
-            if (identity) observedVins.add(identity);
+            observedVins.add(identity);
             continue;
           }
           const g = resolution.geo;
@@ -327,9 +332,9 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
             autorecyclerYard(g, websites.get(orgKey) ?? null),
           );
           const c = transformAutorecyclerMsearchHit(src, g);
-          if (!c || !identity) {
+          if (!c) {
             recordsRejected += 1;
-            if (identity) observedVins.add(identity);
+            observedVins.add(identity);
           } else if (seen.has(identity)) {
             duplicateVehicles += 1;
           } else {
