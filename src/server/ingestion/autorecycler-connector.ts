@@ -9,7 +9,12 @@ import {
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { createAutorecyclerOrgGeoResolver } from "./autorecycler-geo";
 import { fetchAutorecyclerYardWebsites } from "./autorecycler-website";
-import { transformAutorecyclerMsearchHit } from "./autorecycler-transform";
+import { AutorecyclerSourcePolicy } from "./autorecycler-source-policy";
+import {
+  parseAutorecyclerNameText,
+  transformAutorecyclerMsearchHit,
+} from "./autorecycler-transform";
+import { inventoryVin } from "./inventory-vin";
 import type { CanonicalVehicle } from "./types";
 import { AutorecyclerProviderError } from "./errors";
 import type { PersistenceError } from "./errors";
@@ -38,6 +43,21 @@ function autorecyclerOrgLookupKey(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const t = raw.trim();
   return t.length > 0 ? t : null;
+}
+
+/** The public catalog also contains real listings without a VIN. They cannot
+ * enter a VIN-keyed inventory; nonempty malformed VINs remain rejections. */
+function isVinlessCatalogRecord(src: Record<string, unknown>): boolean {
+  const reference = /^(?:\d+__LOOKUP__)?\d+x\d+$/;
+  return (
+    (src.vin_text === undefined ||
+      src.vin_text === null ||
+      (typeof src.vin_text === "string" && src.vin_text.trim() === "")) &&
+    typeof src.inventory_id_text === "string" &&
+    reference.test(src.inventory_id_text.trim()) &&
+    typeof src.organization_custom_organization === "string" &&
+    reference.test(src.organization_custom_organization.trim())
+  );
 }
 
 type MsearchFirstPage =
@@ -148,6 +168,7 @@ type AutorecyclerPageFetcher = (
 export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
   options: AutorecyclerStreamOptions<E, R>,
   fetchPage: AutorecyclerPageFetcher,
+  sourcePolicy: AutorecyclerSourcePolicy = AutorecyclerSourcePolicy.create(),
 ): Effect.Effect<
   AutorecyclerStreamResult,
   AutorecyclerProviderError | PersistenceError | E,
@@ -163,6 +184,15 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
     let totalCanonical = 0;
     let done = false;
     const errors: string[] = [];
+    const observedVins = new Set<string>();
+    const seen = new Set<string>();
+    const excludedYards = new Map<string, number>();
+    let recordsProcessed = 0;
+    let recordsExcluded = 0;
+    let recordsRejected = 0;
+    let duplicateVehicles = 0;
+    let mirroredRecords = 0;
+    let vinlessRecords = 0;
 
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
 
@@ -187,15 +217,34 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         }
 
         const { r0, hits } = parsed;
+        const organizations = new Set<string>();
+        for (const hit of hits) {
+          const src = hitSource(hit);
+          if (!src || isVinlessCatalogRecord(src)) continue;
+          const org = autorecyclerOrgLookupKey(
+            src.organization_custom_organization,
+          );
+          if (org) organizations.add(org);
+        }
+        const decisions = yield* sourcePolicy([...organizations]);
+        for (const org of organizations) {
+          if (!decisions.has(org))
+            return yield* new AutorecyclerProviderError({
+              from: requestFrom,
+              cause: new Error(
+                `Source ownership lookup omitted organization ${org}; no page inventory was emitted`,
+              ),
+            });
+        }
         const seeds = new Map<string, string>();
         for (const h of hits) {
           const src = hitSource(h);
-          if (!src) continue;
+          if (!src || isVinlessCatalogRecord(src)) continue;
           const orgKey = autorecyclerOrgLookupKey(
             src.organization_custom_organization,
           );
           const invKey = autorecyclerOrgLookupKey(src.inventory_id_text);
-          if (orgKey && invKey) {
+          if (orgKey && invKey && decisions.get(orgKey) === "independent") {
             if (!geo.getCached(orgKey) && !seeds.has(orgKey)) {
               seeds.set(orgKey, invKey);
             }
@@ -206,7 +255,8 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
 
         if (options.onYards) {
           const missingWebsites = [...seeds.keys()].filter(
-            (key) => !websites.has(key),
+            (key) =>
+              geo.getCached(key)?.status === "resolved" && !websites.has(key),
           );
           if (missingWebsites.length > 0) {
             const resolved = yield* Effect.tryPromise({
@@ -223,21 +273,69 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
           string,
           ReturnType<typeof autorecyclerYard>
         >();
+        recordsProcessed += hits.length;
         for (const h of hits) {
           const src = hitSource(h);
-          if (!src) continue;
+          if (!src) {
+            recordsRejected += 1;
+            continue;
+          }
+          if (isVinlessCatalogRecord(src)) {
+            recordsExcluded++;
+            vinlessRecords++;
+            continue;
+          }
           const orgKey = autorecyclerOrgLookupKey(
             src.organization_custom_organization,
           );
-          if (!orgKey) continue;
-          const g = geo.getCached(orgKey);
-          if (!g) continue;
+          if (orgKey && decisions.get(orgKey) === "direct-provider") {
+            recordsExcluded++;
+            mirroredRecords++;
+            continue;
+          }
+          const identity =
+            typeof src.vin_text === "string"
+              ? inventoryVin(
+                  src.vin_text,
+                  String(
+                    parseAutorecyclerNameText(
+                      src.name_text,
+                      src.vehicle_year_number,
+                    )?.year ?? "",
+                  ),
+                )
+              : null;
+          const resolution = orgKey ? geo.getCached(orgKey) : undefined;
+          if (
+            orgKey &&
+            (decisions.get(orgKey) === "unresolved" ||
+              resolution?.status === "unresolved")
+          ) {
+            recordsExcluded += 1;
+            if (identity) observedVins.add(identity);
+            excludedYards.set(orgKey, (excludedYards.get(orgKey) ?? 0) + 1);
+            continue;
+          }
+          if (resolution?.status !== "resolved" || !orgKey) {
+            recordsRejected += 1;
+            if (identity) observedVins.add(identity);
+            continue;
+          }
+          const g = resolution.geo;
           pageYards.set(
             orgKey,
             autorecyclerYard(g, websites.get(orgKey) ?? null),
           );
           const c = transformAutorecyclerMsearchHit(src, g);
-          if (c) pageCanonical.push(c);
+          if (!c || !identity) {
+            recordsRejected += 1;
+            if (identity) observedVins.add(identity);
+          } else if (seen.has(identity)) {
+            duplicateVehicles += 1;
+          } else {
+            seen.add(identity);
+            pageCanonical.push({ ...c, vin: identity });
+          }
         }
 
         if (options.onYards) yield* options.onYards([...pageYards.values()]);
@@ -300,6 +398,23 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
       }
     }
 
+    const warnings = [...excludedYards].map(
+      ([orgLookup, count]) =>
+        `AutoRecycler yard ${orgLookup}: skipped ${count} rows because its owned address and city could not be resolved. Observed VINs are preserved; cached geography is unchanged and known yards continue. Verify this organization's own metadata; resolution will be retried next chunk/run.`,
+    );
+    if (mirroredRecords > 0)
+      yield* Effect.logInfo(
+        `[AutoRecycler] Excluded ${mirroredRecords} Pull-A-Part/U-Pull-&-Pay mirror rows; the direct provider owns their inventory and VIN presence`,
+      );
+    if (vinlessRecords > 0)
+      warnings.push(
+        `AutoRecycler: excluded ${vinlessRecords} catalog entries without VINs. These entries cannot identify vehicles in the VIN-keyed catalog and do not preserve availability.`,
+      );
+    if (recordsRejected > 0)
+      warnings.push(
+        `AutoRecycler: rejected ${recordsRejected} rows with invalid vehicle metadata. Usable observed VINs preserve prior inventory; inspect the source rows.`,
+      );
+    for (const warning of warnings) yield* Effect.logWarning(warning);
     yield* Effect.logInfo(
       `[AutoRecycler] ${done ? "Completed" : "Paused"} pages=${pagesProcessed} vehicles=${totalCanonical} geo=${JSON.stringify(geo.getStats())}`,
     );
@@ -312,6 +427,14 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
       errors,
       pagesProcessed,
       geoStats: geo.getStats(),
+      observedVins: [...observedVins],
+      warnings,
+      accounting: {
+        recordsProcessed,
+        recordsExcluded,
+        recordsRejected,
+        duplicateVehicles,
+      },
     };
   });
 }

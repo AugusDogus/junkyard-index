@@ -12,6 +12,9 @@ import { streamPullNSaveInventoryWithRequestGate } from "./pullnsave-connector";
 import { connectorChunkMetrics } from "./connector-chunk";
 import { Effect } from "effect";
 import type { CanonicalVehicle } from "./types";
+import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-connector";
+import { Database } from "./context";
+import { validateDurableSourceRuns } from "./durable-source-validation";
 
 const TEST_SCHEMA = `
 ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.meta.url), "utf8")}
@@ -109,6 +112,289 @@ function snapshot(runId: string, source: "row52" | "pyp", color: string) {
 }
 
 describe("bounded durable reconciliation", () => {
+  test("AutoRecycler preserves unresolved independent VINs across resume but lets excluded mirror VINs retire", async () => {
+    const client = createClient({ url: ":memory:" });
+    const originalFetch = globalThis.fetch;
+    const recordId = "1761169972557x110781710658965700";
+    const org = `1348695171700984260__LOOKUP__${recordId}`;
+    const knownOrg =
+      "1348695171700984260__LOOKUP__1726602417880x199387504054651780";
+    const presentVin = "KNADE123666155428";
+    const mirrorOrg =
+      "1348695171700984260__LOOKUP__1761169592468x394558876247902400";
+    const mirrorVin = "1N4AL21EX9N533416";
+    const missing = {
+      _source: {
+        organization_custom_organization: org,
+        inventory_id_text: "1761173625126x883105909157925400",
+        vin_text: ` ${presentVin.toLowerCase()} `,
+        name_text: "2006 Kia Rio",
+      },
+    };
+    let geoRequests = 0;
+    const offsets: number[] = [];
+    try {
+      await client.executeMultiple(`${TEST_SCHEMA}
+        create table autorecycler_org_geo (
+          org_lookup text primary key, lat real not null, lng real not null,
+          location_name text not null, location_city text not null,
+          state text not null, state_abbr text not null, address text,
+          updated_at integer not null, resolution_version integer not null default 0
+        );`);
+      for (const [id, version] of [
+        [org, 0],
+        [knownOrg, 1],
+        [mirrorOrg, 1],
+      ] as const) {
+        await client.execute({
+          sql: "insert into autorecycler_org_geo values (?, 32.44, -84.94, 'Saved yard', 'Columbus', 'Georgia', 'GA', 'Saved address', 1, ?)",
+          args: [id, version],
+        });
+      }
+      const cachedBefore = (
+        await client.execute(
+          "select * from autorecycler_org_geo order by org_lookup",
+        )
+      ).rows;
+      const firstSeenAt = Date.now() - 86_400_000;
+      for (const vin of [presentVin, "VIN-ABSENT", mirrorVin]) {
+        await client.execute({
+          sql: "insert into vehicle (vin, source, year, make, model, color, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values (?, 'autorecycler', 2006, 'Kia', 'Rio', 'Blue', ?, 'Saved yard', 'Columbus', 'Georgia', 'GA', 32.44, -84.94, ?, ?, ?, 2)",
+          args: [
+            vin,
+            vin === mirrorVin ? mirrorOrg : org,
+            firstSeenAt,
+            firstSeenAt,
+            firstSeenAt,
+          ],
+        });
+      }
+      globalThis.fetch = Object.assign(
+        async (input: RequestInfo | URL) => {
+          geoRequests++;
+          const url = String(input);
+          if (url.includes("/mget"))
+            return Response.json({
+              docs: [
+                {
+                  _id: recordId,
+                  _type: "custom.organization",
+                  found: true,
+                  _source: { address_city_text: "Winston-Salem" },
+                },
+              ],
+            });
+          if (url.includes("/msearch"))
+            return Response.json({ responses: [{ hits: { hits: [] } }] });
+          if (url.includes("/init/data"))
+            return Response.json([
+              {
+                type: "custom.inventory",
+                data: {
+                  organization_custom_organization: org,
+                  gps_location_geographic_address: { lat: 33.7, lng: -84.4 },
+                },
+              },
+            ]);
+          throw new Error("Unexpected provider endpoint");
+        },
+        { preconnect: originalFetch.preconnect },
+      );
+      const database = drizzle(client);
+      const repository = createDurableIngestionRepository(database, client);
+      const runId = "run-autorecycler-quarantine";
+      await repository.initialize(runId);
+      const known = Array.from({ length: 100 }, (_, index) => ({
+        _source: {
+          organization_custom_organization: knownOrg,
+          inventory_id_text: `known-${index}`,
+          vin_text: `1HGCM82633A${String(index).padStart(6, "0")}`,
+          name_text: "2003 Honda Accord",
+        },
+      }));
+      for (const startFrom of [0, 3]) {
+        const vehicles: CanonicalVehicle[] = [];
+        const result = await Effect.runPromise(
+          streamAutorecyclerInventoryWithPageFetcher(
+            {
+              startFrom,
+              maxPages: 2,
+              onBatch: (batch) =>
+                Effect.sync(() => {
+                  vehicles.push(...batch);
+                }),
+            },
+            async (from) => {
+              offsets.push(from);
+              const hits =
+                from === 0
+                  ? [
+                      missing,
+                      { _source: { ...missing._source, vin_text: "invalid" } },
+                    ]
+                  : from === 2
+                    ? [missing]
+                    : [
+                        missing,
+                        {
+                          _source: {
+                            ...missing._source,
+                            organization_custom_organization: mirrorOrg,
+                            vin_text: mirrorVin,
+                          },
+                        },
+                        {
+                          _source: {
+                            ...missing._source,
+                            organization_custom_organization: mirrorOrg,
+                            vin_text: "1HGCM82633A000000",
+                          },
+                        },
+                        ...known,
+                        ...known.slice(0, 1),
+                        { _source: {} },
+                      ];
+              return { responses: [{ hits: { hits }, at_end: from === 3 }] };
+            },
+            (orgs) =>
+              Effect.succeed(
+                new Map(
+                  orgs.map(
+                    (org) =>
+                      [
+                        org,
+                        org === mirrorOrg ? "direct-provider" : "independent",
+                      ] as const,
+                  ),
+                ),
+              ),
+          ).pipe(Effect.provideService(Database, database)),
+        );
+        expect(result.status).toBe(startFrom === 0 ? "paused" : "complete");
+        expect(result.cursor).toBe(startFrom === 0 ? 3 : 108);
+        expect(result.observedVins).toEqual([presentVin]);
+        expect(result.errors).toEqual([]);
+        expect(result.warnings?.join(" ")).toContain(
+          "Observed VINs are preserved",
+        );
+        expect(result.accounting).toEqual(
+          startFrom === 0
+            ? {
+                recordsProcessed: 3,
+                recordsExcluded: 3,
+                recordsRejected: 0,
+                duplicateVehicles: 0,
+              }
+            : {
+                recordsProcessed: 105,
+                recordsExcluded: 3,
+                recordsRejected: 1,
+                duplicateVehicles: 1,
+              },
+        );
+        expect(vehicles).toHaveLength(startFrom === 0 ? 0 : 100);
+        expect(
+          vehicles.every((vehicle) => vehicle.locationCode === knownOrg),
+        ).toBe(true);
+        await repository.checkpointChunk({
+          runId,
+          requestedCursor: { source: "autorecycler", from: startFrom },
+          fetched: {
+            cursor: { source: "autorecycler", from: result.cursor },
+            status: result.status,
+            pagesProcessed: result.pagesProcessed,
+            ...connectorChunkMetrics(result, vehicles.length),
+            errors: result.errors,
+            vehicles,
+            yards: [],
+            observedVins: result.observedVins ?? [],
+          },
+        });
+      }
+      expect(offsets).toEqual([0, 2, 3]);
+      expect(geoRequests).toBe(6);
+      expect(
+        (
+          await client.execute(
+            "select * from autorecycler_org_geo order by org_lookup",
+          )
+        ).rows,
+      ).toEqual(cachedBefore);
+      await client.execute(
+        "update ingestion_source_run set status = 'failed' where source <> 'autorecycler'",
+      );
+      const validation = await validateDurableSourceRuns({
+        runId,
+        database,
+        batchClient: client,
+      });
+      expect(validation.status).toBe("ready");
+      if (validation.status !== "ready") throw new Error("Expected validation");
+      expect(validation.acceptedSources).toEqual(["autorecycler"]);
+      expect(
+        (await repository.getSourceRuns(runId)).find(
+          (source) => source.source === "autorecycler",
+        ),
+      ).toMatchObject({
+        status: "success",
+        acceptanceStatus: "accepted",
+        vehiclesProcessed: 102,
+        uniqueVehicles: 100,
+        rejectedVehicles: 1,
+        duplicateVehicles: 1,
+      });
+      await reconcileDurableIngestionRun({
+        runId,
+        database,
+        batchClient: client,
+      });
+      await reconcileDurableIngestionRun({
+        runId,
+        database,
+        batchClient: client,
+      });
+      const preserved = (
+        await client.execute({
+          sql: "select * from vehicle where vin = ?",
+          args: [presentVin],
+        })
+      ).rows[0];
+      expect(preserved).toMatchObject({
+        missing_run_count: 0,
+        missing_since_at: null,
+        first_seen_at: firstSeenAt,
+        color: "Blue",
+        location_name: "Saved yard",
+        location_city: "Columbus",
+        lat: 32.44,
+        lng: -84.94,
+      });
+      expect(Number(preserved?.last_seen_at)).toBeGreaterThan(firstSeenAt);
+      expect(
+        (
+          await client.execute(
+            "select vin from vehicle where vin = 'VIN-ABSENT'",
+          )
+        ).rows,
+      ).toHaveLength(0);
+      expect(
+        (
+          await client.execute({
+            sql: "select vin from vehicle where vin = ?",
+            args: [mirrorVin],
+          })
+        ).rows,
+      ).toHaveLength(0);
+      expect(
+        (await client.execute("select count(*) as count from vehicle")).rows[0]
+          ?.count,
+      ).toBe(101);
+    } finally {
+      globalThis.fetch = originalFetch;
+      client.close();
+    }
+  });
+
   test("an observation-only return clears missing state, queues an index refresh, and resets the absence streak", async () => {
     const client = createClient({ url: ":memory:" });
     try {

@@ -11,6 +11,25 @@ are accepted in responses. If needed, an exactly owned website address or an
 exact organization row in details `init/data` can supply the location. Inventory
 GPS and vehicle SEO descriptions are never used for yard geography or names.
 
+## Source ownership
+
+Pull-A-Part and U-Pull-&-Pay inventory comes from the direct `pullapart` connector.
+AutoRecycler's mirrored operator is organization `1761169592468x394558876247902400`.
+The connector checks each organization's current parent reference before using
+cached geography. That organization and its children emit neither canonical
+vehicles, yard metadata, nor observed VINs. Names and partner lists do not establish
+ownership. Ownership decisions are cached within a chunk and rechecked next chunk.
+Missing organization records remain unresolved; failed or malformed ownership
+responses fail the page without emitting its inventory.
+
+The September 19 audit found all 35 direct operator locations already published.
+For six audited yards, all 6,964 live direct VINs matched published inventory.
+Only one of 4,879 AutoRecycler mirror VINs remained in the live direct feed, and
+none of the mirrors was published under AutoRecycler. All 35 mirrored organizations'
+latest arrivals were October 21–22, 2025. Do not recover coordinates for these stale
+copies or let their observations keep vehicles available after the direct feed
+removes them.
+
 Migration `0009_autorecycler_geo_provenance.sql` adds `resolution_version` with
 default `0`, leaving existing data intact. The resolver rechecks every legacy
 cache row, including those with populated cities. Only an owned address with a
@@ -24,10 +43,24 @@ be corrected. Normal ingestion updates yard metadata and reconciles vehicle
 geography into the search index. Apply the migration before running the repaired
 ingestion code. No direct production data patch or hardcoded yard list is needed.
 
-An unresolved location fails the source refresh, including for a new organization.
-Provider and persistence failures leave stored cache data intact and do not mark
-it verified or populate the resolver's memory. Previously published inventory
-is preserved rather than replaced with an incomplete source snapshot.
+An unresolved location skips only that organization's canonical vehicle updates.
+Its valid observed VINs preserve existing inventory through checkpoint and
+reconciliation; known yards continue, and warnings identify unresolved yards.
+The unresolved result is cached only within the chunk and retried next chunk/run.
+Existing geographic and yard metadata is not overwritten by an unresolved result.
+
+Malformed AutoRecycler responses, identity mismatches, source transport failures,
+and persistence failures still fail the chunk. These failures never mark cached
+geography verified. Previously published inventory is preserved.
+
+The public catalog also contains identifiable inventory entries without VINs
+(confirmed in both search and inventory-detail records). The VIN-keyed catalog
+cannot represent them, so they are counted as explicit exclusions and emit no
+observations. Nonempty invalid VINs and malformed records remain rejections.
+Minimum inventory, drift, duplicate, and rejection limits remain unchanged.
+
+Validation must traverse the complete provider feed and run source validation,
+not start from the organizations already published in the homepage directory.
 
 ## Reproduction receipt
 
