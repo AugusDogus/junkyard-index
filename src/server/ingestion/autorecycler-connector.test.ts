@@ -7,6 +7,167 @@ import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-conne
 import type { Yard } from "~/lib/yard";
 
 describe("streamAutorecyclerInventory", () => {
+  test("uses one validated VIN identity for accepted records, deduplication and observations", async () => {
+    const client = createClient({ url: ":memory:" });
+    const org = "1348695171700984260__LOOKUP__1726602417880x199387504054651780";
+    const vins: string[] = [];
+    try {
+      await client.executeMultiple(
+        `create table autorecycler_org_geo (org_lookup text primary key, lat real not null, lng real not null, location_name text not null, location_city text not null, state text not null, state_abbr text not null, address text, updated_at integer not null, resolution_version integer not null default 1)`,
+      );
+      await client.execute({
+        sql: "insert into autorecycler_org_geo (org_lookup, lat, lng, location_name, location_city, state, state_abbr, updated_at) values (?, 32.44, -84.94, 'EZ Pull N Pay Columbus', 'Columbus', 'Georgia', 'GA', 1)",
+        args: [org],
+      });
+      const result = await Effect.runPromise(
+        streamAutorecyclerInventoryWithPageFetcher(
+          {
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                vins.push(...batch.map((vehicle) => vehicle.vin));
+              }),
+          },
+          async () => ({
+            responses: [
+              {
+                at_end: true,
+                hits: {
+                  hits: [
+                    " knade123666155428 ",
+                    "KNADE123666155428",
+                    "NOT-A-VIN",
+                  ].map((vin_text) => ({
+                    _source: {
+                      organization_custom_organization: org,
+                      inventory_id_text: "1787737161109x728407258643232400",
+                      name_text: "2006 Kia Rio",
+                      vin_text,
+                    },
+                  })),
+                },
+              },
+            ],
+          }),
+        ).pipe(Effect.provideService(Database, drizzle(client))),
+      );
+      expect(vins).toEqual(["KNADE123666155428"]);
+      expect(result.count).toBe(1);
+      expect(result.accounting).toMatchObject({
+        recordsProcessed: 3,
+        duplicateVehicles: 1,
+        recordsRejected: 1,
+      });
+      expect(result.observedVins).toEqual([]);
+    } finally {
+      client.close();
+    }
+  });
+  test("unresolved yards preserve only valid VINs and never request website-link enrichment or emit metadata", async () => {
+    const client = createClient({ url: ":memory:" });
+    const originalFetch = globalThis.fetch;
+    const id = "1761169972809x397685278936687600";
+    const org = `1348695171700984260__LOOKUP__${id}`;
+    const requests: string[] = [];
+    const yards: Yard[] = [];
+    let emitted = 0;
+    try {
+      await client.executeMultiple(`create table autorecycler_org_geo (
+        org_lookup text primary key, lat real not null, lng real not null,
+        location_name text not null, location_city text not null,
+        state text not null, state_abbr text not null, address text,
+        updated_at integer not null, resolution_version integer not null default 0
+      )`);
+      globalThis.fetch = Object.assign(
+        async (input: RequestInfo | URL) => {
+          const url = String(input);
+          requests.push(url);
+          if (url.includes("/mget")) {
+            if (requests.length !== 1)
+              throw new Error("Unresolved yard must not request website links");
+            return Response.json({
+              docs: [
+                {
+                  _id: id,
+                  _type: "custom.organization",
+                  found: true,
+                  _source: {
+                    name_text: "Unlocated yard",
+                    address_city_text: "Pittsburgh",
+                    website_custom_website: "invalid brand reference",
+                  },
+                },
+              ],
+            });
+          }
+          if (url.includes("/msearch"))
+            return Response.json({ responses: [{ hits: { hits: [] } }] });
+          if (url.includes("/init/data")) return Response.json([]);
+          throw new Error("Unexpected request");
+        },
+        { preconnect: originalFetch.preconnect },
+      );
+      const result = await Effect.runPromise(
+        streamAutorecyclerInventoryWithPageFetcher(
+          {
+            onBatch: (batch) =>
+              Effect.sync(() => {
+                emitted += batch.length;
+              }),
+            onYards: (batch) =>
+              Effect.sync(() => {
+                yards.push(...batch);
+              }),
+          },
+          async () => ({
+            responses: [
+              {
+                at_end: true,
+                hits: {
+                  hits: [
+                    { vin: " knade123666155428 ", name: "2006 Kia Rio" },
+                    { vin: "abc1234567", name: "1970 Ford Mustang" },
+                    { vin: "invalid", name: "2006 Kia Rio" },
+                    { vin: "12345", name: "2006 Kia Rio" },
+                  ].map(({ vin, name }) => ({
+                    _source: {
+                      organization_custom_organization: org,
+                      inventory_id_text: "1761173598052x497522696752949400",
+                      vin_text: vin,
+                      name_text: name,
+                    },
+                  })),
+                },
+              },
+            ],
+          }),
+        ).pipe(Effect.provideService(Database, drizzle(client))),
+      );
+      expect(result).toMatchObject({
+        status: "complete",
+        cursor: 4,
+        count: 0,
+        errors: [],
+        observedVins: ["KNADE123666155428", "ABC1234567"],
+        accounting: {
+          recordsProcessed: 4,
+          recordsExcluded: 4,
+          recordsRejected: 0,
+          duplicateVehicles: 0,
+        },
+      });
+      expect(result.warnings).toHaveLength(1);
+      expect(requests).toHaveLength(3);
+      expect(yards).toEqual([]);
+      expect(emitted).toBe(0);
+      expect(
+        (await client.execute("select * from autorecycler_org_geo")).rows,
+      ).toEqual([]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      client.close();
+    }
+  });
+
   test.each([false, true])(
     "persists hosted websites across pages and stops before emitting batches on lookup failure (failure=%s)",
     async (failLookup) => {
@@ -81,7 +242,10 @@ describe("streamAutorecyclerInventory", () => {
                         _source: {
                           organization_custom_organization: org,
                           inventory_id_text: "1787737161109x728407258643232400",
-                          vin_text: "KNADE123666155428",
+                          vin_text:
+                            pages === 0
+                              ? "KNADE123666155428"
+                              : "3N1CB51D7YL308709",
                           name_text: "2006 Kia Rio",
                         },
                       },
