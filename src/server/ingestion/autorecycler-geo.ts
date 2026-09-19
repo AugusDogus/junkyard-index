@@ -26,13 +26,33 @@ const GEO_RESOLUTION_VERSION = 1;
 const organizationLookupSchema = z.object({
   error: z.never().optional(),
   docs: z.array(
-    z.object({
-      error: z.never().optional(),
-      _id: z.string().optional(),
-      _type: z.string().optional(),
-      found: z.boolean().optional(),
-      _source: z.record(z.unknown()).optional(),
-    }),
+    z.union([
+      z.object({
+        error: z.never().optional(),
+        _id: z.string().trim().min(1),
+        _type: z.string().optional(),
+        found: z.literal(false),
+        _source: z.never().optional(),
+      }),
+      z
+        .object({
+          error: z.never().optional(),
+          _id: z.string().optional(),
+          _type: z.string().optional(),
+          found: z.literal(true).optional(),
+          _source: z.record(z.unknown()),
+        })
+        .refine(
+          (doc) =>
+            [doc._id ?? doc._source._id, doc._type ?? doc._source._type].every(
+              (value) => typeof value === "string" && value.trim().length > 0,
+            ),
+          {
+            message:
+              "Returned organization documents must identify their record ID and type in the envelope or source",
+          },
+        ),
+    ]),
   ),
 });
 const websiteLookupSchema = z.object({
@@ -42,9 +62,7 @@ const websiteLookupSchema = z.object({
       z.object({
         error: z.never().optional(),
         hits: z.object({
-          hits: z.array(
-            z.object({ _source: z.record(z.unknown()).optional() }),
-          ),
+          hits: z.array(z.object({ _source: z.record(z.unknown()) })),
         }),
       }),
     )

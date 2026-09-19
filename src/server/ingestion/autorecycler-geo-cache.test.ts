@@ -459,6 +459,44 @@ test.each([
     },
     requests: 2,
   },
+  { name: "empty mget document", mgetResponse: { docs: [{}] }, requests: 1 },
+  {
+    name: "found mget document missing source",
+    mgetResponse: {
+      docs: [{ _id: recordId, _type: "custom.organization", found: true }],
+    },
+    requests: 1,
+  },
+  {
+    name: "mget document missing identity",
+    mgetResponse: {
+      docs: [
+        {
+          _type: "custom.organization",
+          found: true,
+          _source: organization._source,
+        },
+      ],
+    },
+    requests: 1,
+  },
+  {
+    name: "mget document missing type",
+    mgetResponse: {
+      docs: [{ _id: recordId, found: true, _source: organization._source }],
+    },
+    requests: 1,
+  },
+  {
+    name: "missing mget record carrying a source",
+    mgetResponse: { docs: [{ ...organization, found: false }] },
+    requests: 1,
+  },
+  {
+    name: "website hit missing source",
+    msearchResponse: { responses: [{ hits: { hits: [{}] } }] },
+    requests: 2,
+  },
   {
     name: "missing website hits",
     msearchResponse: { responses: [{}] },
@@ -507,3 +545,41 @@ test.each([
     }
   },
 );
+
+test.each([
+  { name: "envelope identity", doc: organization },
+  {
+    name: "source identity",
+    doc: {
+      _source: {
+        ...organization._source,
+        _id: recordId,
+        _type: "custom.organization",
+      },
+    },
+  },
+  { name: "explicit record miss", doc: { _id: recordId, found: false } },
+])("accepts supported $name response shapes", async ({ name, doc }) => {
+  const { client, database } = await databaseWithCity("Atlanta");
+  try {
+    const { requests } = mockProvider({
+      docs: [doc],
+      website: {
+        organization_custom_organization: org,
+        name_text: "EZ Pull N Pay Columbus",
+        address_geographic_address: address,
+      },
+    });
+    const resolver = createAutorecyclerOrgGeoResolver();
+    const geo = await Effect.runPromise(
+      resolver
+        .resolveOneEffect(seed)
+        .pipe(Effect.provideService(Database, database)),
+    );
+    expect(geo?.locationCity).toBe("Columbus");
+    expect(requests).toHaveLength(name === "explicit record miss" ? 2 : 1);
+    expect(resolver.getCached(org)?.locationCity).toBe("Columbus");
+  } finally {
+    client.close();
+  }
+});
