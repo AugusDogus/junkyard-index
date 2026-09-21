@@ -37,6 +37,7 @@ function intent(
     payload: payload(searchId, 1),
     status: "sending",
     attempts: 1,
+    deliveryGroupId: "email:run-1:7:user-1",
     claimToken: "claim-1",
     claimedAt: new Date("2026-08-23T07:00:00.000Z"),
     nextAttemptAt: null,
@@ -84,26 +85,33 @@ function createOperations(params: {
     digest: SearchAlertDigest;
     idempotencyKey: string;
   }> = [];
+  const sentDiscordDigests: typeof sentDigests = [];
   const targetBySearch = new Map(
     params.targets.map((item) => [item.searchId, item] as const),
   );
+  const targetLoads: string[][] = [];
   let alertEntitlementChecks = 0;
   let emailClaimed = false;
   let discordClaimed = false;
 
   const operations: DurableAlertDeliveryOperations = {
-    deliveryBatchSize: 20,
     claimEmailGroup: async () => {
       if (emailClaimed) return [];
       emailClaimed = true;
       return params.emailIntents ?? [];
     },
-    claimDiscordBatch: async () => {
+    claimDiscordGroup: async () => {
       if (discordClaimed) return [];
       discordClaimed = true;
       return params.discordIntents ?? [];
     },
-    loadTarget: async (searchId) => targetBySearch.get(searchId) ?? null,
+    loadTargets: async (searchIds) => {
+      targetLoads.push([...searchIds]);
+      return searchIds.flatMap((searchId) => {
+        const value = targetBySearch.get(searchId);
+        return value ? [value] : [];
+      });
+    },
     parsePayload: parseNotificationIntentPayload,
     hasAlertEntitlement: async () => {
       alertEntitlementChecks += 1;
@@ -113,7 +121,13 @@ function createOperations(params: {
       sentDigests.push({ digest, idempotencyKey: options.idempotencyKey });
       return params.emailDelivery ?? { success: true };
     },
-    sendDiscordAlert: async () => ({ success: true }),
+    sendDiscordDigest: async (_recipient, digest, options) => {
+      sentDiscordDigests.push({
+        digest,
+        idempotencyKey: options.idempotencyKey,
+      });
+      return params.emailDelivery ?? { success: true };
+    },
     cancelIntents: async (intents, reason) => {
       cancelled.push(...intents.map(({ id }) => id));
       cancellationReasons.push(reason);
@@ -133,6 +147,8 @@ function createOperations(params: {
     retried,
     delivered,
     sentDigests,
+    sentDiscordDigests,
+    targetLoads,
     alertEntitlementChecks: () => alertEntitlementChecks,
   };
 }
@@ -198,6 +214,44 @@ describe("durable alert delivery", () => {
     expect(harness.alertEntitlementChecks()).toBe(1);
     expect(harness.delivered).toEqual(["email-1", "email-2"]);
   });
+
+  test.each(["email", "discord"] as const)(
+    "combines publications and repeated searches into one %s digest",
+    async (channel) => {
+      const intents = [
+        intent("a", "search-1", {
+          channel,
+          channelConfigVersion: channel === "email" ? 3 : 4,
+        }),
+        intent("b", "search-1", {
+          channel,
+          channelConfigVersion: channel === "email" ? 3 : 4,
+          runId: "run-2",
+          publicationSequence: 8,
+          payload: payload("search-1", 3),
+        }),
+        intent("c", "search-2", {
+          channel,
+          channelConfigVersion: channel === "email" ? 3 : 4,
+        }),
+      ];
+      const harness = createOperations({
+        ...(channel === "email"
+          ? { emailIntents: intents }
+          : { discordIntents: intents }),
+        targets: [target("search-1"), target("search-2")],
+      });
+      await deliverDurableAlertIntentBatch(harness.operations);
+      const sends =
+        channel === "email" ? harness.sentDigests : harness.sentDiscordDigests;
+      expect(sends).toHaveLength(1);
+      expect(sends[0]?.digest.alertCount).toBe(2);
+      expect(sends[0]?.digest.vehicleCount).toBe(5);
+      expect(sends[0]?.digest.previewAlerts[0]?.match.count).toBe(4);
+      expect(harness.delivered).toEqual(["a", "b", "c"]);
+      expect(harness.targetLoads).toEqual([["search-1", "search-2"]]);
+    },
+  );
 
   test("revalidates each search before assembling the digest", async () => {
     const harness = createOperations({

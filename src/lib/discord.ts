@@ -8,9 +8,9 @@ import {
 } from "discord-api-types/v10";
 import { env } from "~/env";
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
-import type { SearchAlertData } from "~/lib/search-alert-data";
+import type { SearchAlertDigest } from "~/lib/search-alert-data";
 import { createDiscordNonce } from "./discord-idempotency";
-import { formatVehicleEmbed } from "./discord-vehicle-embed";
+import { formatDiscordDigest } from "./discord-alert-digest";
 
 // Initialize Discord REST client
 const discord = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
@@ -99,45 +99,22 @@ export async function sendTestDM(
   return sendDM(userId, message);
 }
 
-/**
- * Send a Discord DM alert for new vehicles matching a saved search.
- */
-export async function sendDiscordAlert(
+/** Send the recipient's daily saved-search digest in one Discord message. */
+export async function sendDiscordDigest(
   discordUserId: string,
-  data: SearchAlertData,
+  digest: SearchAlertDigest,
   options?: { idempotencyKey?: string },
 ): Promise<NotificationDeliveryResult> {
-  // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
-  const vehiclesToShow = data.match.previewVehicles.slice(0, 9);
-  const remainingCount = data.match.count - vehiclesToShow.length;
-
-  // Create the main message embed
-  const mainEmbed: APIEmbed = {
-    title: `New Vehicles Found: ${data.searchName}`,
-    description: `Found **${data.match.count}** new vehicle${data.match.count === 1 ? "" : "s"} matching your search${data.query ? ` for "${data.query}"` : ""}.`,
-    url: data.searchUrl,
-    color: 0x57f287, // Green
-    footer:
-      remainingCount > 0
-        ? {
-            text: `...and ${remainingCount} more vehicle${remainingCount === 1 ? "" : "s"}`,
-          }
-        : undefined,
-  };
-
-  // Create embeds for each vehicle
-  const vehicleEmbeds = vehiclesToShow.map(formatVehicleEmbed);
-
-  // Discord allows max 10 embeds per message (1 main + 9 vehicles = 10 max)
-  const message: DiscordMessage = {
-    embeds: [mainEmbed, ...vehicleEmbeds],
+  return sendDM(discordUserId, {
+    embeds: formatDiscordDigest(
+      digest,
+      `${env.NEXT_PUBLIC_APP_URL}/settings/searches`,
+    ),
     ...(options?.idempotencyKey
       ? {
           nonce: createDiscordNonce(options.idempotencyKey),
           enforce_nonce: true,
         }
       : {}),
-  };
-
-  return sendDM(discordUserId, message);
+  });
 }

@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "~/lib/db";
-import { sendDiscordAlert } from "~/lib/discord";
+import { sendDiscordDigest } from "~/lib/discord";
 import { sendEmailDigest } from "~/lib/email";
 import { hasPlanFeature } from "~/lib/plans";
 import { savedSearch, searchNotificationIntent, user } from "~/schema";
@@ -12,21 +12,30 @@ import {
 } from "./durable-alert-delivery";
 import {
   cancelClaimedNotificationIntents,
-  claimDiscordNotificationIntents,
-  claimEmailNotificationIntentGroup,
+  claimNotificationIntentGroup,
+  markNotificationGroupDelivered,
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
 
-const DELIVERY_BATCH_SIZE = 20;
 const DELIVERY_LEASE_MS = 15 * 60 * 1000;
 
 function claimedGroup(intents: readonly ClaimedNotificationIntent[]) {
-  const claimToken = intents[0]?.claimToken;
-  if (typeof claimToken !== "string" || intents.length === 0) {
+  const first = intents[0];
+  const claimToken = first?.claimToken;
+  if (
+    !first ||
+    typeof claimToken !== "string" ||
+    (first.channel !== "email" && first.channel !== "discord")
+  ) {
     throw new Error("Cannot update an empty or unclaimed notification group.");
   }
   for (const intent of intents) {
-    if (intent.claimToken !== claimToken || intent.status !== "sending") {
+    if (
+      intent.claimToken !== claimToken ||
+      intent.status !== "sending" ||
+      intent.userId !== first.userId ||
+      intent.channel !== first.channel
+    ) {
       throw new Error(
         `Notification intent ${intent.id} does not share the active group claim.`,
       );
@@ -34,34 +43,37 @@ function claimedGroup(intents: readonly ClaimedNotificationIntent[]) {
   }
   return {
     claimToken,
+    userId: first.userId,
+    channel: first.channel,
     ids: intents.map(({ id }) => id),
     attempts: Math.max(...intents.map(({ attempts }) => attempts)),
-  };
+  } as const;
 }
 
 const operations: DurableAlertDeliveryOperations = {
-  deliveryBatchSize: DELIVERY_BATCH_SIZE,
   claimEmailGroup: () => {
     const now = new Date();
-    return claimEmailNotificationIntentGroup({
+    return claimNotificationIntentGroup({
+      channel: "email",
       database: db,
       now,
       leaseMs: DELIVERY_LEASE_MS,
       claimToken: crypto.randomUUID(),
     });
   },
-  claimDiscordBatch: () => {
+  claimDiscordGroup: () => {
     const now = new Date();
-    return claimDiscordNotificationIntents({
+    return claimNotificationIntentGroup({
+      channel: "discord",
       database: db,
       now,
       leaseMs: DELIVERY_LEASE_MS,
-      batchSize: DELIVERY_BATCH_SIZE,
       claimToken: crypto.randomUUID(),
     });
   },
-  loadTarget: async (savedSearchId) => {
-    const [target] = await db
+  loadTargets: async (savedSearchIds) => {
+    if (savedSearchIds.length === 0) return [];
+    return db
       .select({
         searchId: savedSearch.id,
         userId: savedSearch.userId,
@@ -78,9 +90,7 @@ const operations: DurableAlertDeliveryOperations = {
       })
       .from(savedSearch)
       .innerJoin(user, eq(user.id, savedSearch.userId))
-      .where(eq(savedSearch.id, savedSearchId))
-      .limit(1);
-    return target ?? null;
+      .where(inArray(savedSearch.id, savedSearchIds));
   },
   parsePayload: parseNotificationIntentPayload,
   hasAlertEntitlement: async (userId) => {
@@ -88,7 +98,7 @@ const operations: DurableAlertDeliveryOperations = {
     return hasPlanFeature(tier, "alerts");
   },
   sendEmailDigest,
-  sendDiscordAlert,
+  sendDiscordDigest,
   cancelIntents: async (intents, reason) => {
     const claim = claimedGroup(intents);
     await cancelClaimedNotificationIntents({
@@ -122,21 +132,14 @@ const operations: DurableAlertDeliveryOperations = {
   },
   markDelivered: async (intents) => {
     const claim = claimedGroup(intents);
-    await db
-      .update(searchNotificationIntent)
-      .set({
-        status: "delivered",
-        deliveredAt: new Date(),
-        claimToken: null,
-        lastError: null,
-      })
-      .where(
-        and(
-          inArray(searchNotificationIntent.id, claim.ids),
-          eq(searchNotificationIntent.status, "sending"),
-          eq(searchNotificationIntent.claimToken, claim.claimToken),
-        ),
-      );
+    await markNotificationGroupDelivered({
+      database: db,
+      userId: claim.userId,
+      channel: claim.channel,
+      intentIds: claim.ids,
+      claimToken: claim.claimToken,
+      now: new Date(),
+    });
   },
 };
 

@@ -47,6 +47,34 @@ export interface SearchAlertDigest {
 }
 
 export const SearchAlertDigest = {
+  fromAlerts(alerts: readonly SearchAlertData[]): SearchAlertDigest {
+    const bySearch = new Map<string, SearchAlertData>();
+    for (const alert of alerts) {
+      const previous = bySearch.get(alert.searchId);
+      bySearch.set(
+        alert.searchId,
+        previous
+          ? {
+              ...alert,
+              match: SearchAlertMatch.create(
+                previous.match.count + alert.match.count,
+                [
+                  ...previous.match.previewVehicles,
+                  ...alert.match.previewVehicles,
+                ].slice(0, MAX_SEARCH_ALERT_PREVIEW_VEHICLES),
+              ),
+            }
+          : alert,
+      );
+    }
+    const combined = [...bySearch.values()];
+    return SearchAlertDigest.create(
+      combined.slice(0, MAX_SEARCH_ALERT_DIGEST_PREVIEWS),
+      combined.length,
+      combined.reduce((total, alert) => total + alert.match.count, 0),
+    );
+  },
+
   create(
     previewAlerts: SearchAlertData[],
     alertCount: number,

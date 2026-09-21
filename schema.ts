@@ -527,6 +527,7 @@ export const searchNotificationIntent = sqliteTable(
     payload: text("payload").notNull(),
     status: text("status").default("pending").notNull(),
     attempts: integer("attempts").default(0).notNull(),
+    deliveryGroupId: text("delivery_group_id"),
     claimToken: text("claim_token"),
     claimedAt: integer("claimed_at", { mode: "timestamp_ms" }),
     nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }),
@@ -549,7 +550,25 @@ export const searchNotificationIntent = sqliteTable(
       table.id,
     ),
     index("search_notification_intent_run_idx").on(table.runId),
+    index("search_notification_intent_recipient_idx").on(
+      table.userId,
+      table.channel,
+      table.status,
+    ),
   ],
+);
+
+// Delivery history survives saved-search deletion and ingestion-state cleanup.
+export const searchNotificationDelivery = sqliteTable(
+  "search_notification_delivery",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    deliveredAt: integer("delivered_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.channel] })],
 );
 
 export const ingestionProjectorCheckpoint = sqliteTable(

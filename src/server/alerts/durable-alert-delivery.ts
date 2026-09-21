@@ -1,6 +1,5 @@
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
 import {
-  MAX_SEARCH_ALERT_DIGEST_PREVIEWS,
   SearchAlertDigest,
   type SearchAlertData,
 } from "~/lib/search-alert-data";
@@ -35,10 +34,11 @@ type IntentCancellationReason =
   | "alert_entitlement_missing";
 
 export interface DurableAlertDeliveryOperations {
-  deliveryBatchSize: number;
   claimEmailGroup(): Promise<ClaimedNotificationIntent[]>;
-  claimDiscordBatch(): Promise<ClaimedNotificationIntent[]>;
-  loadTarget(savedSearchId: string): Promise<NotificationIntentTarget | null>;
+  claimDiscordGroup(): Promise<ClaimedNotificationIntent[]>;
+  loadTargets(
+    savedSearchIds: readonly string[],
+  ): Promise<readonly NotificationIntentTarget[]>;
   parsePayload(payload: string): SearchAlertData;
   hasAlertEntitlement(userId: string): Promise<boolean>;
   sendEmailDigest(
@@ -46,9 +46,9 @@ export interface DurableAlertDeliveryOperations {
     digest: SearchAlertDigest,
     options: { idempotencyKey: string },
   ): Promise<NotificationDeliveryResult>;
-  sendDiscordAlert(
+  sendDiscordDigest(
     discordUserId: string,
-    alert: SearchAlertData,
+    digest: SearchAlertDigest,
     options: { idempotencyKey: string },
   ): Promise<NotificationDeliveryResult>;
   cancelIntents(
@@ -91,9 +91,9 @@ function requireClaimed(intents: readonly ClaimedNotificationIntent[]): string {
 
 async function revalidateIntent(
   intent: ClaimedNotificationIntent,
+  target: NotificationIntentTarget | undefined,
   operations: DurableAlertDeliveryOperations,
 ): Promise<EligibleIntent | null> {
-  const target = await operations.loadTarget(intent.savedSearchId);
   if (!target) {
     await operations.cancelIntents([intent], "saved_search_deleted");
     return null;
@@ -165,7 +165,7 @@ async function retainAlertEntitledIntents(
   return false;
 }
 
-async function deliverEmailGroup(
+async function deliverNotificationGroup(
   intents: readonly ClaimedNotificationIntent[],
   operations: DurableAlertDeliveryOperations,
 ): Promise<void> {
@@ -174,43 +174,58 @@ async function deliverEmailGroup(
   if (!first) return;
   for (const intent of intents) {
     if (
-      intent.channel !== "email" ||
-      intent.runId !== first.runId ||
+      (intent.channel !== "email" && intent.channel !== "discord") ||
+      intent.channel !== first.channel ||
       intent.userId !== first.userId ||
-      intent.publicationSequence !== first.publicationSequence
+      !first.deliveryGroupId ||
+      intent.deliveryGroupId !== first.deliveryGroupId
     ) {
       throw new Error(
-        `Email notification intent ${intent.id} is outside its claimed digest group.`,
+        `Notification intent ${intent.id} is outside its claimed digest group.`,
       );
     }
   }
 
+  const searchIds = [...new Set(intents.map((intent) => intent.savedSearchId))];
+  const targets = new Map(
+    (await operations.loadTargets(searchIds)).map((target) => [
+      target.searchId,
+      target,
+    ]),
+  );
   const eligible: EligibleIntent[] = [];
-  for (const intent of intents) {
-    const item = await revalidateIntent(intent, operations);
+  for (const intent of [...intents].sort((a, b) => a.id.localeCompare(b.id))) {
+    const item = await revalidateIntent(
+      intent,
+      targets.get(intent.savedSearchId),
+      operations,
+    );
     if (item) eligible.push(item);
   }
   if (!(await retainAlertEntitledIntents(eligible, operations))) return;
   const firstEligible = eligible[0];
   if (!firstEligible) return;
 
-  const previewAlerts = eligible
-    .slice(0, MAX_SEARCH_ALERT_DIGEST_PREVIEWS)
-    .map(({ payload }) => payload);
-  const digest = SearchAlertDigest.create(
-    previewAlerts,
-    eligible.length,
-    eligible.reduce((count, item) => count + item.payload.match.count, 0),
+  const digest = SearchAlertDigest.fromAlerts(
+    eligible.map(({ payload }) => payload),
   );
+  const idempotencyKey = first.deliveryGroupId;
+  if (!idempotencyKey)
+    throw new Error("Notification digest has no durable group ID.");
   let delivery: NotificationDeliveryResult;
   try {
-    delivery = await operations.sendEmailDigest(
-      { userId: first.userId, email: firstEligible.target.email },
-      digest,
-      {
-        idempotencyKey: `email:${first.runId}:${first.publicationSequence}:${first.userId}`,
-      },
-    );
+    delivery =
+      first.channel === "email"
+        ? await operations.sendEmailDigest(
+            { userId: first.userId, email: firstEligible.target.email },
+            digest,
+            { idempotencyKey },
+          )
+        : await operations.sendDiscordDigest(
+            firstEligible.target.discordId ?? "",
+            digest,
+            { idempotencyKey },
+          );
   } catch (error) {
     delivery = { success: false, error: deliveryError(error) };
   }
@@ -220,32 +235,6 @@ async function deliverEmailGroup(
     return;
   }
   await operations.markDelivered(eligibleIntents);
-}
-
-async function deliverDiscordIntent(
-  intent: ClaimedNotificationIntent,
-  operations: DurableAlertDeliveryOperations,
-): Promise<void> {
-  requireClaimed([intent]);
-  const eligible = await revalidateIntent(intent, operations);
-  if (!eligible) return;
-  if (!(await retainAlertEntitledIntents([eligible], operations))) return;
-
-  let delivery: NotificationDeliveryResult;
-  try {
-    delivery = await operations.sendDiscordAlert(
-      eligible.target.discordId ?? "",
-      eligible.payload,
-      { idempotencyKey: intent.id },
-    );
-  } catch (error) {
-    delivery = { success: false, error: deliveryError(error) };
-  }
-  if (!delivery.success) {
-    await operations.retryIntents([intent], delivery.error);
-    return;
-  }
-  await operations.markDelivered([intent]);
 }
 
 export interface DurableAlertDeliveryBatchResult {
@@ -258,19 +247,14 @@ export async function deliverDurableAlertIntentBatch(
 ): Promise<DurableAlertDeliveryBatchResult> {
   const emailIntents = await operations.claimEmailGroup();
   if (emailIntents.length > 0) {
-    await deliverEmailGroup(emailIntents, operations);
+    await deliverNotificationGroup(emailIntents, operations);
     return { status: "paused", intentsProcessed: emailIntents.length };
   }
 
-  const discordIntents = await operations.claimDiscordBatch();
-  for (const intent of discordIntents) {
-    await deliverDiscordIntent(intent, operations);
+  const discordIntents = await operations.claimDiscordGroup();
+  if (discordIntents.length > 0) {
+    await deliverNotificationGroup(discordIntents, operations);
+    return { status: "paused", intentsProcessed: discordIntents.length };
   }
-  return {
-    status:
-      discordIntents.length < operations.deliveryBatchSize
-        ? "complete"
-        : "paused",
-    intentsProcessed: discordIntents.length,
-  };
+  return { status: "complete", intentsProcessed: 0 };
 }

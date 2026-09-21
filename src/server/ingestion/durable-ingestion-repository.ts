@@ -1,3 +1,4 @@
+import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement, InValue } from "@libsql/client";
 import { and, eq, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -27,7 +28,6 @@ const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const SNAPSHOT_VALUE_COLUMN_COUNT = 24;
 const CLEANUP_BATCH_SIZE = 5_000;
 const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
-const INGESTION_DUE_HOUR_UTC = 7;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
 type LibSqlBatchClient = Pick<Client, "batch">;
@@ -64,13 +64,6 @@ function sourceRunInsertStatement(
       runId,
     ],
   };
-}
-
-export function ingestionScheduleKey(now: Date): string {
-  const shifted = new Date(
-    now.getTime() - INGESTION_DUE_HOUR_UTC * 60 * 60 * 1000,
-  );
-  return shifted.toISOString().slice(0, 10);
 }
 
 export function parseIngestionErrors(errorsJson: string | null): string[] {
@@ -246,7 +239,7 @@ export function createDurableIngestionRepository(
     async prepareWakeup(
       now = new Date(),
     ): Promise<DurableIngestionWakeupResult> {
-      const scheduleKey = ingestionScheduleKey(now);
+      const scheduleKey = IngestionDay.key(now);
       await database
         .update(ingestionRun)
         .set({ activeSlot: null })
