@@ -8,9 +8,9 @@ import {
 } from "discord-api-types/v10";
 import { env } from "~/env";
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
-import type { SearchAlertDigest } from "~/lib/search-alert-data";
+import type { SearchAlertData } from "~/lib/search-alert-data";
+import { formatDiscordAlert } from "./discord-alert";
 import { createDiscordNonce } from "./discord-idempotency";
-import { formatDiscordDigest } from "./discord-alert-digest";
 
 // Initialize Discord REST client
 const discord = new REST({ version: "10" }).setToken(env.DISCORD_BOT_TOKEN);
@@ -99,17 +99,16 @@ export async function sendTestDM(
   return sendDM(userId, message);
 }
 
-/** Send the recipient's daily saved-search digest in one Discord message. */
-export async function sendDiscordDigest(
+/**
+ * Send a Discord DM alert for new vehicles matching a saved search.
+ */
+export async function sendDiscordAlert(
   discordUserId: string,
-  digest: SearchAlertDigest,
+  data: SearchAlertData,
   options?: { idempotencyKey?: string },
 ): Promise<NotificationDeliveryResult> {
   return sendDM(discordUserId, {
-    embeds: formatDiscordDigest(
-      digest,
-      `${env.NEXT_PUBLIC_APP_URL}/settings/searches`,
-    ),
+    embeds: formatDiscordAlert(data),
     ...(options?.idempotencyKey
       ? {
           nonce: createDiscordNonce(options.idempotencyKey),

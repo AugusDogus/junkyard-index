@@ -46,28 +46,34 @@ export interface SearchAlertDigest {
   readonly [searchAlertDigestBrand]: true;
 }
 
+export function combineSearchAlerts(
+  alerts: readonly SearchAlertData[],
+): SearchAlertData[] {
+  const bySearch = new Map<string, SearchAlertData>();
+  for (const alert of alerts) {
+    const previous = bySearch.get(alert.searchId);
+    bySearch.set(
+      alert.searchId,
+      previous
+        ? {
+            ...alert,
+            match: SearchAlertMatch.create(
+              previous.match.count + alert.match.count,
+              [
+                ...previous.match.previewVehicles,
+                ...alert.match.previewVehicles,
+              ].slice(0, MAX_SEARCH_ALERT_PREVIEW_VEHICLES),
+            ),
+          }
+        : alert,
+    );
+  }
+  return [...bySearch.values()];
+}
+
 export const SearchAlertDigest = {
   fromAlerts(alerts: readonly SearchAlertData[]): SearchAlertDigest {
-    const bySearch = new Map<string, SearchAlertData>();
-    for (const alert of alerts) {
-      const previous = bySearch.get(alert.searchId);
-      bySearch.set(
-        alert.searchId,
-        previous
-          ? {
-              ...alert,
-              match: SearchAlertMatch.create(
-                previous.match.count + alert.match.count,
-                [
-                  ...previous.match.previewVehicles,
-                  ...alert.match.previewVehicles,
-                ].slice(0, MAX_SEARCH_ALERT_PREVIEW_VEHICLES),
-              ),
-            }
-          : alert,
-      );
-    }
-    const combined = [...bySearch.values()];
+    const combined = combineSearchAlerts(alerts);
     return SearchAlertDigest.create(
       combined.slice(0, MAX_SEARCH_ALERT_DIGEST_PREVIEWS),
       combined.length,

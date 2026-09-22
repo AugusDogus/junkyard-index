@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { SearchAlertDigest } from "~/lib/search-alert-data";
+import type {
+  SearchAlertData,
+  SearchAlertDigest,
+} from "~/lib/search-alert-data";
 import {
   deliverDurableAlertIntentBatch,
   type ClaimedNotificationIntent,
@@ -85,7 +88,10 @@ function createOperations(params: {
     digest: SearchAlertDigest;
     idempotencyKey: string;
   }> = [];
-  const sentDiscordDigests: typeof sentDigests = [];
+  const sentDiscordAlerts: Array<{
+    alert: SearchAlertData;
+    idempotencyKey: string;
+  }> = [];
   const targetBySearch = new Map(
     params.targets.map((item) => [item.searchId, item] as const),
   );
@@ -121,9 +127,9 @@ function createOperations(params: {
       sentDigests.push({ digest, idempotencyKey: options.idempotencyKey });
       return params.emailDelivery ?? { success: true };
     },
-    sendDiscordDigest: async (_recipient, digest, options) => {
-      sentDiscordDigests.push({
-        digest,
+    sendDiscordAlert: async (_recipient, alert, options) => {
+      sentDiscordAlerts.push({
+        alert,
         idempotencyKey: options.idempotencyKey,
       });
       return params.emailDelivery ?? { success: true };
@@ -147,7 +153,7 @@ function createOperations(params: {
     retried,
     delivered,
     sentDigests,
-    sentDiscordDigests,
+    sentDiscordAlerts,
     targetLoads,
     alertEntitlementChecks: () => alertEntitlementChecks,
   };
@@ -191,6 +197,10 @@ describe("durable alert delivery", () => {
       expect(harness.cancelled).toEqual([]);
       expect(harness.delivered).toEqual(["email-1", "discord-1"]);
       expect(harness.sentDigests).toHaveLength(1);
+      expect(harness.sentDiscordAlerts).toHaveLength(1);
+      expect(
+        harness.sentDiscordAlerts[0]?.alert.match.previewVehicles[0]?.source,
+      ).toBe(source);
     },
   );
   test("sends one replay-safe digest for every eligible search in a user publication", async () => {
@@ -215,43 +225,89 @@ describe("durable alert delivery", () => {
     expect(harness.delivered).toEqual(["email-1", "email-2"]);
   });
 
-  test.each(["email", "discord"] as const)(
-    "combines publications and repeated searches into one %s digest",
-    async (channel) => {
-      const intents = [
-        intent("a", "search-1", {
-          channel,
-          channelConfigVersion: channel === "email" ? 3 : 4,
-        }),
-        intent("b", "search-1", {
-          channel,
-          channelConfigVersion: channel === "email" ? 3 : 4,
-          runId: "run-2",
-          publicationSequence: 8,
-          payload: payload("search-1", 3),
-        }),
-        intent("c", "search-2", {
-          channel,
-          channelConfigVersion: channel === "email" ? 3 : 4,
-        }),
-      ];
-      const harness = createOperations({
-        ...(channel === "email"
-          ? { emailIntents: intents }
-          : { discordIntents: intents }),
-        targets: [target("search-1"), target("search-2")],
-      });
-      await deliverDurableAlertIntentBatch(harness.operations);
-      const sends =
-        channel === "email" ? harness.sentDigests : harness.sentDiscordDigests;
-      expect(sends).toHaveLength(1);
-      expect(sends[0]?.digest.alertCount).toBe(2);
-      expect(sends[0]?.digest.vehicleCount).toBe(5);
-      expect(sends[0]?.digest.previewAlerts[0]?.match.count).toBe(4);
-      expect(harness.delivered).toEqual(["a", "b", "c"]);
-      expect(harness.targetLoads).toEqual([["search-1", "search-2"]]);
-    },
-  );
+  test("combines publications and repeated searches into one email digest", async () => {
+    const intents = [
+      intent("a", "search-1"),
+      intent("b", "search-1", {
+        runId: "run-2",
+        publicationSequence: 8,
+        payload: payload("search-1", 3),
+      }),
+      intent("c", "search-2"),
+    ];
+    const harness = createOperations({
+      emailIntents: intents,
+      targets: [target("search-1"), target("search-2")],
+    });
+    await deliverDurableAlertIntentBatch(harness.operations);
+    expect(harness.sentDigests).toHaveLength(1);
+    expect(harness.sentDigests[0]?.digest.alertCount).toBe(2);
+    expect(harness.sentDigests[0]?.digest.vehicleCount).toBe(5);
+    expect(harness.sentDigests[0]?.digest.previewAlerts[0]?.match.count).toBe(
+      4,
+    );
+    expect(harness.delivered).toEqual(["a", "b", "c"]);
+    expect(harness.targetLoads).toEqual([["search-1", "search-2"]]);
+  });
+
+  test("sends one Discord preview message per search in the same daily batch", async () => {
+    const intents = [
+      intent("a", "search-1", {
+        channel: "discord",
+        channelConfigVersion: 4,
+        deliveryGroupId: "discord:digest:claim-1",
+      }),
+      intent("b", "search-1", {
+        channel: "discord",
+        channelConfigVersion: 4,
+        deliveryGroupId: "discord:digest:claim-1",
+        runId: "run-2",
+        publicationSequence: 8,
+        payload: payload("search-1", 3),
+      }),
+      intent("c", "search-2", {
+        channel: "discord",
+        channelConfigVersion: 4,
+        deliveryGroupId: "discord:digest:claim-1",
+      }),
+    ];
+    const harness = createOperations({
+      discordIntents: intents,
+      targets: [target("search-1"), target("search-2")],
+    });
+    await deliverDurableAlertIntentBatch(harness.operations);
+    expect(harness.sentDiscordAlerts).toHaveLength(2);
+    expect(harness.sentDiscordAlerts[0]?.alert.searchId).toBe("search-1");
+    expect(harness.sentDiscordAlerts[0]?.alert.match.count).toBe(4);
+    expect(harness.sentDiscordAlerts[0]?.idempotencyKey).toBe(
+      "discord:digest:claim-1:search-1",
+    );
+    expect(harness.sentDiscordAlerts[1]?.alert.searchId).toBe("search-2");
+    expect(harness.sentDiscordAlerts[1]?.alert.match.count).toBe(1);
+    expect(harness.sentDiscordAlerts[1]?.idempotencyKey).toBe(
+      "discord:digest:claim-1:search-2",
+    );
+    expect(harness.delivered).toEqual(["a", "b", "c"]);
+    expect(harness.targetLoads).toEqual([["search-1", "search-2"]]);
+  });
+
+  test("sends a Discord preview for every search in the daily batch", async () => {
+    const intents = Array.from({ length: 12 }, (_, index) =>
+      intent(`discord-${index}`, `search-${index}`, {
+        channel: "discord",
+        channelConfigVersion: 4,
+        deliveryGroupId: "discord:digest:claim-1",
+        payload: payload(`search-${index}`, 1),
+      }),
+    );
+    const harness = createOperations({
+      discordIntents: intents,
+      targets: intents.map((item) => target(item.savedSearchId)),
+    });
+    await deliverDurableAlertIntentBatch(harness.operations);
+    expect(harness.sentDiscordAlerts).toHaveLength(12);
+    expect(harness.delivered).toHaveLength(12);
+  });
 
   test("revalidates each search before assembling the digest", async () => {
     const harness = createOperations({
@@ -270,6 +326,44 @@ describe("durable alert delivery", () => {
     expect(harness.cancelled).toEqual(["email-2"]);
     expect(harness.sentDigests[0]?.digest.alertCount).toBe(1);
     expect(harness.delivered).toEqual(["email-1"]);
+  });
+
+  test("retries the whole Discord batch if a later search send fails", async () => {
+    let discordSends = 0;
+    const harness = createOperations({
+      discordIntents: [
+        intent("discord-1", "search-1", {
+          channel: "discord",
+          channelConfigVersion: 4,
+        }),
+        intent("discord-2", "search-2", {
+          channel: "discord",
+          channelConfigVersion: 4,
+        }),
+      ],
+      targets: [target("search-1"), target("search-2")],
+    });
+    harness.operations.sendDiscordAlert = async (
+      _recipient,
+      alert,
+      options,
+    ) => {
+      discordSends += 1;
+      harness.sentDiscordAlerts.push({
+        alert,
+        idempotencyKey: options.idempotencyKey,
+      });
+      if (discordSends === 2) {
+        return { success: false, error: "provider unavailable" };
+      }
+      return { success: true };
+    };
+
+    await deliverDurableAlertIntentBatch(harness.operations);
+
+    expect(discordSends).toBe(2);
+    expect(harness.retried).toEqual(["discord-1", "discord-2"]);
+    expect(harness.delivered).toEqual([]);
   });
 
   test("retries the whole eligible digest group after a provider failure", async () => {
