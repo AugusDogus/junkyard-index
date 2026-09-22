@@ -1,12 +1,13 @@
 import { expect, test } from "bun:test";
 import { formatDiscordAlert } from "./discord-alert";
 import { SearchAlertMatch } from "./search-alert-data";
-import { algoliaHitToSearchVehicle } from "./search-vehicles";
+import {
+  algoliaHitToSearchVehicle,
+  type AlgoliaVehicleHit,
+} from "./search-vehicles";
 import type { SearchVehicle } from "./types";
 
-function vehicleFixture(
-  overrides: Record<string, unknown> = {},
-): SearchVehicle {
+function vehicleFixture(overrides: AlgoliaVehicleHit = {}): SearchVehicle {
   const vehicle = algoliaHitToSearchVehicle({
     objectID: "JG1MR2158JK724014",
     source: "row52",

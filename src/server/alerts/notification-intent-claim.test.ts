@@ -144,6 +144,41 @@ describe("notification intent claims", () => {
     },
   );
 
+  test("reclaims a same-day Discord retry without opening the gate to new pending matches", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(`${TEST_SCHEMA}
+        insert into search_notification_intent (id, channel, status, delivery_group_id, claim_token)
+        values ('sent', 'discord', 'sending', 'discord:group:1', 'first-claim');
+        insert into search_notification_intent (id, saved_search_id, channel, status, next_attempt_at, delivery_group_id)
+        values ('retry-later', 'search-2', 'discord', 'retry', 0, 'discord:group:1');
+      `);
+      const database = drizzle(client);
+      const now = new Date("2026-09-19T10:00:00Z");
+      await markNotificationGroupDelivered({
+        database,
+        userId: "user-1",
+        channel: "discord",
+        intentIds: ["sent"],
+        claimToken: "first-claim",
+        now,
+      });
+      await client.execute({
+        sql: "insert into search_notification_intent (id, saved_search_id, channel) values ('later-pending', 'search-3', 'discord')",
+      });
+      const claimed = await claimNotificationIntentGroup({
+        database,
+        channel: "discord",
+        now,
+        leaseMs: 900000,
+        claimToken: "retry-claim",
+      });
+      expect(claimed.map((row) => row.id)).toEqual(["retry-later"]);
+    } finally {
+      cleanup();
+    }
+  });
+
   test("a confirmed stale send consumes the day without changing a newer claim", async () => {
     const { client, cleanup } = createTestClient();
     try {
