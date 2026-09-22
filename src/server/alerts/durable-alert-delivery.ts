@@ -1,6 +1,7 @@
 import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
 import {
   SearchAlertDigest,
+  combineSearchAlerts,
   type SearchAlertData,
 } from "~/lib/search-alert-data";
 import type { searchNotificationIntent } from "~/schema";
@@ -46,9 +47,9 @@ export interface DurableAlertDeliveryOperations {
     digest: SearchAlertDigest,
     options: { idempotencyKey: string },
   ): Promise<NotificationDeliveryResult>;
-  sendDiscordDigest(
+  sendDiscordAlert(
     discordUserId: string,
-    digest: SearchAlertDigest,
+    alert: SearchAlertData,
     options: { idempotencyKey: string },
   ): Promise<NotificationDeliveryResult>;
   cancelIntents(
@@ -206,26 +207,32 @@ async function deliverNotificationGroup(
   const firstEligible = eligible[0];
   if (!firstEligible) return;
 
-  const digest = SearchAlertDigest.fromAlerts(
-    eligible.map(({ payload }) => payload),
-  );
+  const payloads = eligible.map(({ payload }) => payload);
   const idempotencyKey = first.deliveryGroupId;
   if (!idempotencyKey)
     throw new Error("Notification digest has no durable group ID.");
   let delivery: NotificationDeliveryResult;
   try {
-    delivery =
-      first.channel === "email"
-        ? await operations.sendEmailDigest(
-            { userId: first.userId, email: firstEligible.target.email },
-            digest,
-            { idempotencyKey },
-          )
-        : await operations.sendDiscordDigest(
-            firstEligible.target.discordId ?? "",
-            digest,
-            { idempotencyKey },
-          );
+    if (first.channel === "email") {
+      delivery = await operations.sendEmailDigest(
+        { userId: first.userId, email: firstEligible.target.email },
+        SearchAlertDigest.fromAlerts(payloads),
+        { idempotencyKey },
+      );
+    } else {
+      delivery = { success: true };
+      for (const alert of combineSearchAlerts(payloads)) {
+        const result = await operations.sendDiscordAlert(
+          firstEligible.target.discordId ?? "",
+          alert,
+          { idempotencyKey: `${idempotencyKey}:${alert.searchId}` },
+        );
+        if (!result.success) {
+          delivery = result;
+          break;
+        }
+      }
+    }
   } catch (error) {
     delivery = { success: false, error: deliveryError(error) };
   }

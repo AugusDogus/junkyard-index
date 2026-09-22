@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "~/lib/db";
-import { sendDiscordDigest } from "~/lib/discord";
+import { sendDiscordAlert } from "~/lib/discord";
 import { sendEmailDigest } from "~/lib/email";
 import { hasPlanFeature } from "~/lib/plans";
 import { savedSearch, searchNotificationIntent, user } from "~/schema";
@@ -98,7 +98,7 @@ const operations: DurableAlertDeliveryOperations = {
     return hasPlanFeature(tier, "alerts");
   },
   sendEmailDigest,
-  sendDiscordDigest,
+  sendDiscordAlert,
   cancelIntents: async (intents, reason) => {
     const claim = claimedGroup(intents);
     await cancelClaimedNotificationIntents({
