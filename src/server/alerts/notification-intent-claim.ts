@@ -56,11 +56,14 @@ export async function claimNotificationIntentGroup(
     eq(searchNotificationIntent.channel, params.channel),
     claimable,
     releasedRun,
-    sql`not exists (
-        select 1 from search_notification_delivery d
-        where d.user_id = ${searchNotificationIntent.userId}
-          and d.channel = ${searchNotificationIntent.channel}
-          and d.delivered_at >= ${IngestionDay.start(params.now).getTime()}
+    sql`(
+        ${searchNotificationIntent.status} in ('retry', 'sending')
+        or not exists (
+          select 1 from search_notification_delivery d
+          where d.user_id = ${searchNotificationIntent.userId}
+            and d.channel = ${searchNotificationIntent.channel}
+            and d.delivered_at >= ${IngestionDay.start(params.now).getTime()}
+        )
       )`,
     sql`not exists (
         select 1 from search_notification_intent busy

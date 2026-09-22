@@ -2,9 +2,15 @@ import type { APIEmbed } from "discord-api-types/v10";
 import type { SearchAlertData } from "./search-alert-data";
 import { formatVehicleEmbed } from "./discord-vehicle-embed";
 
+const DISCORD_MESSAGE_EMBED_LIMIT = 10;
+const DISCORD_ALERT_VEHICLE_SLOTS = DISCORD_MESSAGE_EMBED_LIMIT - 1;
+
 export function formatDiscordAlert(data: SearchAlertData): APIEmbed[] {
   // Limit to first 9 vehicles (Discord allows max 10 embeds, and we need 1 for the main embed)
-  const vehiclesToShow = data.match.previewVehicles.slice(0, 9);
+  const vehiclesToShow = data.match.previewVehicles.slice(
+    0,
+    DISCORD_ALERT_VEHICLE_SLOTS,
+  );
   const remainingCount = data.match.count - vehiclesToShow.length;
 
   const mainEmbed: APIEmbed = {

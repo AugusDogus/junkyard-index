@@ -127,12 +127,23 @@ function createOperations(params: {
       sentDigests.push({ digest, idempotencyKey: options.idempotencyKey });
       return params.emailDelivery ?? { success: true };
     },
-    sendDiscordAlert: async (_recipient, alert, options) => {
-      sentDiscordAlerts.push({
-        alert,
-        idempotencyKey: options.idempotencyKey,
-      });
-      return params.emailDelivery ?? { success: true };
+    sendDiscordAlerts: async (_recipient, alerts, options) => {
+      const sentSearchIds: string[] = [];
+      for (const alert of alerts) {
+        sentDiscordAlerts.push({
+          alert,
+          idempotencyKey: `${options.idempotencyKey}:${alert.searchId}`,
+        });
+        if (params.emailDelivery && !params.emailDelivery.success) {
+          return {
+            success: false,
+            error: params.emailDelivery.error,
+            sentSearchIds,
+          };
+        }
+        sentSearchIds.push(alert.searchId);
+      }
+      return { success: true, sentSearchIds };
     },
     cancelIntents: async (intents, reason) => {
       cancelled.push(...intents.map(({ id }) => id));
@@ -328,42 +339,50 @@ describe("durable alert delivery", () => {
     expect(harness.delivered).toEqual(["email-1"]);
   });
 
-  test("retries the whole Discord batch if a later search send fails", async () => {
-    let discordSends = 0;
+  test("retries only Discord searches that were not sent", async () => {
     const harness = createOperations({
       discordIntents: [
         intent("discord-1", "search-1", {
           channel: "discord",
           channelConfigVersion: 4,
+          deliveryGroupId: "discord:group:claim-1",
         }),
         intent("discord-2", "search-2", {
           channel: "discord",
           channelConfigVersion: 4,
+          deliveryGroupId: "discord:group:claim-1",
         }),
       ],
       targets: [target("search-1"), target("search-2")],
     });
-    harness.operations.sendDiscordAlert = async (
+    harness.operations.sendDiscordAlerts = async (
       _recipient,
-      alert,
+      alerts,
       options,
     ) => {
-      discordSends += 1;
-      harness.sentDiscordAlerts.push({
-        alert,
-        idempotencyKey: options.idempotencyKey,
-      });
-      if (discordSends === 2) {
-        return { success: false, error: "provider unavailable" };
+      const sentSearchIds: string[] = [];
+      for (const alert of alerts) {
+        harness.sentDiscordAlerts.push({
+          alert,
+          idempotencyKey: `${options.idempotencyKey}:${alert.searchId}`,
+        });
+        if (alert.searchId === "search-2") continue;
+        sentSearchIds.push(alert.searchId);
       }
-      return { success: true };
+      return {
+        success: false,
+        error: "provider unavailable",
+        sentSearchIds,
+      };
     };
 
     await deliverDurableAlertIntentBatch(harness.operations);
 
-    expect(discordSends).toBe(2);
-    expect(harness.retried).toEqual(["discord-1", "discord-2"]);
-    expect(harness.delivered).toEqual([]);
+    expect(
+      harness.sentDiscordAlerts.map((send) => send.alert.searchId),
+    ).toEqual(["search-1", "search-2"]);
+    expect(harness.delivered).toEqual(["discord-1"]);
+    expect(harness.retried).toEqual(["discord-2"]);
   });
 
   test("retries the whole eligible digest group after a provider failure", async () => {

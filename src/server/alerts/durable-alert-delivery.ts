@@ -1,4 +1,7 @@
-import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
+import type {
+  NotificationBatchDeliveryResult,
+  NotificationDeliveryResult,
+} from "~/lib/notification-delivery-result";
 import {
   SearchAlertDigest,
   combineSearchAlerts,
@@ -47,11 +50,11 @@ export interface DurableAlertDeliveryOperations {
     digest: SearchAlertDigest,
     options: { idempotencyKey: string },
   ): Promise<NotificationDeliveryResult>;
-  sendDiscordAlert(
+  sendDiscordAlerts(
     discordUserId: string,
-    alert: SearchAlertData,
+    alerts: readonly SearchAlertData[],
     options: { idempotencyKey: string },
-  ): Promise<NotificationDeliveryResult>;
+  ): Promise<NotificationBatchDeliveryResult>;
   cancelIntents(
     intents: readonly ClaimedNotificationIntent[],
     reason: IntentCancellationReason,
@@ -210,38 +213,72 @@ async function deliverNotificationGroup(
   const payloads = eligible.map(({ payload }) => payload);
   const idempotencyKey = first.deliveryGroupId;
   if (!idempotencyKey)
-    throw new Error("Notification digest has no durable group ID.");
-  let delivery: NotificationDeliveryResult;
-  try {
-    if (first.channel === "email") {
+    throw new Error("Notification group has no durable group ID.");
+  const eligibleIntents = eligible.map(({ intent }) => intent);
+
+  if (first.channel === "email") {
+    let delivery: NotificationDeliveryResult;
+    try {
       delivery = await operations.sendEmailDigest(
         { userId: first.userId, email: firstEligible.target.email },
         SearchAlertDigest.fromAlerts(payloads),
         { idempotencyKey },
       );
-    } else {
-      delivery = { success: true };
-      for (const alert of combineSearchAlerts(payloads)) {
-        const result = await operations.sendDiscordAlert(
-          firstEligible.target.discordId ?? "",
-          alert,
-          { idempotencyKey: `${idempotencyKey}:${alert.searchId}` },
-        );
-        if (!result.success) {
-          delivery = result;
-          break;
-        }
-      }
+    } catch (error) {
+      delivery = { success: false, error: deliveryError(error) };
     }
-  } catch (error) {
-    delivery = { success: false, error: deliveryError(error) };
-  }
-  const eligibleIntents = eligible.map(({ intent }) => intent);
-  if (!delivery.success) {
-    await operations.retryIntents(eligibleIntents, delivery.error);
+    if (!delivery.success) {
+      await operations.retryIntents(eligibleIntents, delivery.error);
+      return;
+    }
+    await operations.markDelivered(eligibleIntents);
     return;
   }
-  await operations.markDelivered(eligibleIntents);
+
+  if (first.channel !== "discord") {
+    await operations.cancelIntents(eligibleIntents, "unknown_channel");
+    return;
+  }
+
+  const discordUserId = firstEligible.target.discordId;
+  if (!discordUserId) {
+    await operations.cancelIntents(
+      eligibleIntents,
+      "channel_no_longer_eligible",
+    );
+    return;
+  }
+
+  let batch: NotificationBatchDeliveryResult;
+  try {
+    batch = await operations.sendDiscordAlerts(
+      discordUserId,
+      combineSearchAlerts(payloads),
+      { idempotencyKey },
+    );
+  } catch (error) {
+    batch = {
+      success: false,
+      error: deliveryError(error),
+      sentSearchIds: [],
+    };
+  }
+  const sent = new Set(batch.sentSearchIds);
+  const delivered = eligible
+    .filter(({ payload }) => sent.has(payload.searchId))
+    .map(({ intent }) => intent);
+  const failed = eligible
+    .filter(({ payload }) => !sent.has(payload.searchId))
+    .map(({ intent }) => intent);
+  if (delivered.length > 0) {
+    await operations.markDelivered(delivered);
+  }
+  if (failed.length > 0) {
+    await operations.retryIntents(
+      failed,
+      batch.success ? "discord_alert_incomplete" : batch.error,
+    );
+  }
 }
 
 export interface DurableAlertDeliveryBatchResult {

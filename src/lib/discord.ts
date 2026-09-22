@@ -7,7 +7,10 @@ import {
   type APIMessage,
 } from "discord-api-types/v10";
 import { env } from "~/env";
-import type { NotificationDeliveryResult } from "~/lib/notification-delivery-result";
+import type {
+  NotificationBatchDeliveryResult,
+  NotificationDeliveryResult,
+} from "~/lib/notification-delivery-result";
 import type { SearchAlertData } from "~/lib/search-alert-data";
 import { formatDiscordAlert } from "./discord-alert";
 import { createDiscordNonce } from "./discord-idempotency";
@@ -116,4 +119,27 @@ export async function sendDiscordAlert(
         }
       : {}),
   });
+}
+
+/** Send one restored per-search preview DM for every alert in the daily claim. */
+export async function sendDiscordAlerts(
+  discordUserId: string,
+  alerts: readonly SearchAlertData[],
+  options: { idempotencyKey: string },
+): Promise<NotificationBatchDeliveryResult> {
+  const sentSearchIds: string[] = [];
+  let error: string | undefined;
+  for (const alert of alerts) {
+    const result = await sendDiscordAlert(discordUserId, alert, {
+      idempotencyKey: `${options.idempotencyKey}:${alert.searchId}`,
+    });
+    if (result.success) {
+      sentSearchIds.push(alert.searchId);
+      continue;
+    }
+    error ??= result.error;
+  }
+  return error === undefined
+    ? { success: true, sentSearchIds }
+    : { success: false, error, sentSearchIds };
 }
