@@ -145,7 +145,9 @@ export function parseUpullitwaPage(
     ...html.matchAll(/<select\b([^>]*)>([\s\S]*?)<\/select>/gi),
   ].filter((match) => hasClass(match[1] ?? "", "upullsimpleLocation"));
   if (selectors.length !== 1)
-    throw new Error("Missing or ambiguous inventory yard selector");
+    throw new Error(
+      "Missing or ambiguous inventory yard selector; inspect the provider page markup before resuming",
+    );
   const options = [
     ...(selectors[0]?.[2] ?? "").matchAll(
       /<option\b([^>]*)>([\s\S]*?)<\/option>/gi,
@@ -177,7 +179,9 @@ export function parseUpullitwaPage(
     ...html.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi),
   ].filter((match) => hasClass(match[1] ?? "", "IISUpullTable"));
   if (tables.length !== 1)
-    throw new Error("Missing or ambiguous IISUpullTable inventory table");
+    throw new Error(
+      "Missing or ambiguous IISUpullTable inventory table; inspect the provider page markup before resuming",
+    );
   const table = tables[0]?.[2] ?? "";
   const { head, body } = inventoryTableSections(table);
   const headers = [...head.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi)].map(
@@ -358,7 +362,10 @@ export function fetchUpullitwaPage(
         },
       }).pipe(
         Effect.flatMap((html) =>
-          Effect.try(() => parseUpullitwaPage(html, yardId, page)),
+          Effect.try({
+            try: () => parseUpullitwaPage(html, yardId, page),
+            catch: (cause) => cause,
+          }),
         ),
         Effect.mapError(
           (cause) => new UpullitwaProviderError({ operation, cause }),
