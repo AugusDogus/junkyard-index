@@ -3,6 +3,8 @@ import * as hyperbrowser from "@hyperbrowser/sdk";
 import * as playwright from "playwright-core";
 import { Effect } from "effect";
 import { PypProviderError } from "./errors";
+import { Config } from "./context";
+import { streamPypInventory } from "./pyp-connector";
 import {
   acquirePypSession,
   fetchRawPypFilterPage,
@@ -54,6 +56,112 @@ beforeEach(() => {
   stopSession.mockReset().mockResolvedValue(undefined);
   newPage.mockReset().mockResolvedValue(page);
   newContext.mockReset().mockResolvedValue(context);
+});
+
+describe("PYP inventory pagination", () => {
+  test("streams the first zero-based API page before checkpointing page one", async () => {
+    const rawLocation = {
+      LocationCode: "1265",
+      LocationPageURL: "https://www.pyp.com/inventory/test-1265/",
+      Name: "PYP Test",
+      DisplayName: "Test",
+      Address: "1 Main St",
+      City: "Test",
+      State: "California",
+      StateAbbr: "CA",
+      Zip: "90000",
+      Phone: "555-0100",
+      Lat: 34,
+      Lng: -118,
+      Distance: 0,
+      LegacyCode: "265",
+      Primo: "",
+      Urls: {
+        Store: "",
+        Interchange: "",
+        Inventory: "",
+        Prices: "",
+        Directions: "",
+        SellACar: "",
+        Contact: "",
+        CustomerServiceChat: null,
+        CarbuyChat: null,
+        Deals: "",
+        Parts: "",
+      },
+    };
+    evaluate.mockReset();
+    evaluate.mockResolvedValueOnce("mock-csrf-token");
+    evaluate.mockResolvedValueOnce(
+      Array.from({ length: 20 }, (_, i) => ({
+        ...rawLocation,
+        LocationCode: String(1265 + i),
+      })),
+    );
+    evaluate.mockResolvedValueOnce({
+      _error: false,
+      data: {
+        Success: true,
+        Errors: [],
+        ResponseData: {
+          Request: {
+            YardCode: ["1265"],
+            Filter: "",
+            PageSize: 500,
+            PageNumber: 1,
+            FilterDeals: false,
+          },
+          Vehicles: [
+            {
+              YardCode: "1265",
+              Section: "Yard",
+              Row: "1",
+              SpaceNumber: "2",
+              Color: "Blue",
+              Year: "2020",
+              Make: "HONDA",
+              Model: "CIVIC",
+              InYardDate: "2026-02-05T14:07:19Z",
+              StockNumber: "1265-1",
+              Vin: "2HGFC2F84LH554430",
+              Photos: [],
+            },
+          ],
+        },
+        Messages: [],
+      },
+    });
+
+    const ingestedVins: string[] = [];
+    const result = await Effect.runPromise(
+      streamPypInventory({
+        startPage: 0,
+        maxPages: 1,
+        onBatch: (vehicles) =>
+          Effect.sync(() => {
+            ingestedVins.push(...vehicles.map((vehicle) => vehicle.vin));
+          }),
+      }).pipe(
+        Effect.provideService(Config, {
+          hyperbrowserApiKey: "mock-api-key",
+          betterStackHeartbeatUrl: undefined,
+        }),
+        Effect.scoped,
+      ),
+    );
+
+    expect(evaluate).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        path: expect.stringContaining("&page=0&pageSize=500"),
+      }),
+    );
+    expect(result.status).toBe("complete");
+    expect(result.cursor).toBe(1);
+    expect(result.pagesProcessed).toBe(1);
+    expect(result.count).toBe(1);
+    expect(ingestedVins).toEqual(["2HGFC2F84LH554430"]);
+  });
 });
 
 describe("PYP browser failure diagnostics", () => {
