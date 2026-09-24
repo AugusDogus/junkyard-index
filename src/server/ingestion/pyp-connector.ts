@@ -103,7 +103,7 @@ export function streamPypInventory<E, R>(options: {
     let { locationMap, storeCodes } = buildLocationContext(session.locations);
     if (options.onYards) yield* options.onYards(session.locations.map(pypYard));
 
-    let nextPage = Math.max(1, options.startPage ?? 1);
+    let nextPage = Math.max(0, options.startPage ?? 0);
     let totalCount = 0;
     let pagesProcessed = 0;
     let done = false;

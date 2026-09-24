@@ -64,6 +64,17 @@ describe("durable ingestion cursors", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.pyp.maxPagesPerChunk).toBe(30);
   });
 
+  test("starts PYP at its zero-based first API page", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS.pyp.initialCursor).toEqual({
+      source: "pyp",
+      page: 0,
+    });
+    expect(parseDurableSourceCursor("pyp", "0")).toEqual({
+      source: "pyp",
+      page: 0,
+    });
+  });
+
   test("amortizes Pull-A-Part setup across ten make pages", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.pullapart.maxPagesPerChunk).toBe(10);
   });
