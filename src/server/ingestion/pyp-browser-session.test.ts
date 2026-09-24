@@ -58,109 +58,249 @@ beforeEach(() => {
   newContext.mockReset().mockResolvedValue(context);
 });
 
+const rawLocation = {
+  LocationCode: "1265",
+  LocationPageURL: "https://www.pyp.com/inventory/test-1265/",
+  Name: "PYP Test",
+  DisplayName: "Test",
+  Address: "1 Main St",
+  City: "Test",
+  State: "California",
+  StateAbbr: "CA",
+  Zip: "90000",
+  Phone: "555-0100",
+  Lat: 34,
+  Lng: -118,
+  Distance: 0,
+  LegacyCode: "265",
+  Primo: "",
+  Urls: {
+    Store: "",
+    Interchange: "",
+    Inventory: "",
+    Prices: "",
+    Directions: "",
+    SellACar: "",
+    Contact: "",
+    CustomerServiceChat: null,
+    CarbuyChat: null,
+    Deals: "",
+    Parts: "",
+  },
+};
+
+const rawLocations = Array.from({ length: 20 }, (_, index) => ({
+  ...rawLocation,
+  LocationCode: String(1265 + index),
+}));
+
+function mockPypOpen(locations = rawLocations) {
+  evaluate.mockReset();
+  evaluate.mockResolvedValueOnce("mock-csrf-token");
+  evaluate.mockResolvedValueOnce(locations);
+}
+
+const rawVehicle = {
+  YardCode: "1265",
+  Section: "Yard",
+  Row: "1",
+  SpaceNumber: "2",
+  Color: "Blue",
+  Year: "2020",
+  Make: "HONDA",
+  Model: "CIVIC",
+  InYardDate: "2026-02-05T14:07:19Z",
+  StockNumber: "1265-1",
+  Vin: "2HGFC2F84LH554430",
+  Photos: [],
+};
+
+function filterResponse(
+  storeCode: string,
+  requestedPage: number,
+  vehicles: (typeof rawVehicle)[],
+) {
+  return {
+    _error: false,
+    data: {
+      Success: true,
+      Errors: [],
+      ResponseData: {
+        Request: {
+          YardCode: [storeCode],
+          Filter: "",
+          PageSize: 500,
+          PageNumber: requestedPage + 1,
+          FilterDeals: false,
+        },
+        Vehicles: vehicles,
+      },
+      Messages: [],
+    },
+  };
+}
+
+const mockConfig = {
+  hyperbrowserApiKey: "mock-api-key",
+  betterStackHeartbeatUrl: undefined,
+};
+
 describe("PYP inventory pagination", () => {
   test("streams the first zero-based API page before checkpointing page one", async () => {
-    const rawLocation = {
-      LocationCode: "1265",
-      LocationPageURL: "https://www.pyp.com/inventory/test-1265/",
-      Name: "PYP Test",
-      DisplayName: "Test",
-      Address: "1 Main St",
-      City: "Test",
-      State: "California",
-      StateAbbr: "CA",
-      Zip: "90000",
-      Phone: "555-0100",
-      Lat: 34,
-      Lng: -118,
-      Distance: 0,
-      LegacyCode: "265",
-      Primo: "",
-      Urls: {
-        Store: "",
-        Interchange: "",
-        Inventory: "",
-        Prices: "",
-        Directions: "",
-        SellACar: "",
-        Contact: "",
-        CustomerServiceChat: null,
-        CarbuyChat: null,
-        Deals: "",
-        Parts: "",
-      },
-    };
-    evaluate.mockReset();
-    evaluate.mockResolvedValueOnce("mock-csrf-token");
-    evaluate.mockResolvedValueOnce(
-      Array.from({ length: 20 }, (_, i) => ({
-        ...rawLocation,
-        LocationCode: String(1265 + i),
-      })),
-    );
-    evaluate.mockResolvedValueOnce({
-      _error: false,
-      data: {
-        Success: true,
-        Errors: [],
-        ResponseData: {
-          Request: {
-            YardCode: ["1265"],
-            Filter: "",
-            PageSize: 500,
-            PageNumber: 1,
-            FilterDeals: false,
-          },
-          Vehicles: [
-            {
-              YardCode: "1265",
-              Section: "Yard",
-              Row: "1",
-              SpaceNumber: "2",
-              Color: "Blue",
-              Year: "2020",
-              Make: "HONDA",
-              Model: "CIVIC",
-              InYardDate: "2026-02-05T14:07:19Z",
-              StockNumber: "1265-1",
-              Vin: "2HGFC2F84LH554430",
-              Photos: [],
-            },
-          ],
-        },
-        Messages: [],
-      },
-    });
+    mockPypOpen();
+    evaluate.mockResolvedValueOnce(filterResponse("1265", 0, [rawVehicle]));
 
     const ingestedVins: string[] = [];
     const result = await Effect.runPromise(
       streamPypInventory({
-        startPage: 0,
+        cursor: { source: "pyp", storeCodes: null, storeIndex: 0, page: 0 },
         maxPages: 1,
         onBatch: (vehicles) =>
           Effect.sync(() => {
             ingestedVins.push(...vehicles.map((vehicle) => vehicle.vin));
           }),
-      }).pipe(
-        Effect.provideService(Config, {
-          hyperbrowserApiKey: "mock-api-key",
-          betterStackHeartbeatUrl: undefined,
-        }),
-        Effect.scoped,
-      ),
+      }).pipe(Effect.provideService(Config, mockConfig), Effect.scoped),
     );
 
     expect(evaluate).toHaveBeenCalledWith(
       expect.any(Function),
       expect.objectContaining({
-        path: expect.stringContaining("&page=0&pageSize=500"),
+        path: expect.stringContaining("store=1265&filter=&page=0&pageSize=500"),
       }),
     );
-    expect(result.status).toBe("complete");
-    expect(result.cursor).toBe(1);
+    expect(result.status).toBe("paused");
+    expect(result.cursor).toEqual({
+      source: "pyp",
+      storeCodes: Array.from({ length: 20 }, (_, index) =>
+        String(1265 + index),
+      ),
+      storeIndex: 1,
+      page: 0,
+    });
     expect(result.pagesProcessed).toBe(1);
     expect(result.count).toBe(1);
     expect(ingestedVins).toEqual(["2HGFC2F84LH554430"]);
+  });
+
+  test("resumes a full store page before advancing to the next store", async () => {
+    mockPypOpen();
+    evaluate.mockResolvedValueOnce(
+      filterResponse(
+        "1265",
+        0,
+        Array.from({ length: 500 }, () => rawVehicle),
+      ),
+    );
+    const first = await Effect.runPromise(
+      streamPypInventory({
+        cursor: { source: "pyp", storeCodes: null, storeIndex: 0, page: 0 },
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      }).pipe(Effect.provideService(Config, mockConfig), Effect.scoped),
+    );
+    expect(first.status).toBe("paused");
+    expect(first.cursor).toMatchObject({ storeIndex: 0, page: 1 });
+
+    mockPypOpen();
+    evaluate.mockResolvedValueOnce(filterResponse("1265", 1, [rawVehicle]));
+    const second = await Effect.runPromise(
+      streamPypInventory({
+        cursor: first.cursor,
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      }).pipe(Effect.provideService(Config, mockConfig), Effect.scoped),
+    );
+    expect(evaluate).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        path: expect.stringContaining("store=1265&filter=&page=1&pageSize=500"),
+      }),
+    );
+    expect(second.status).toBe("paused");
+    expect(second.cursor).toMatchObject({ storeIndex: 1, page: 0 });
+  });
+
+  test("fails when the store list changes between chunks", async () => {
+    mockPypOpen([
+      ...rawLocations.slice(0, -1),
+      { ...rawLocation, LocationCode: "9999" },
+    ]);
+    const result = await Effect.runPromise(
+      streamPypInventory({
+        cursor: {
+          source: "pyp",
+          storeCodes: rawLocations.map((location) => location.LocationCode),
+          storeIndex: 1,
+          page: 0,
+        },
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      }).pipe(
+        Effect.provideService(Config, mockConfig),
+        Effect.scoped,
+        Effect.either,
+      ),
+    );
+    expect(result._tag).toBe("Left");
+    if (result._tag !== "Left") throw new Error("Expected changed-store error");
+    expect(result.left.message).toContain("store list changed");
+    expect(evaluate).toHaveBeenCalledTimes(2);
+  });
+
+  test("does not advance on a response for the wrong store", async () => {
+    mockPypOpen();
+    evaluate.mockResolvedValueOnce(filterResponse("1266", 0, [rawVehicle]));
+    const result = await Effect.runPromise(
+      streamPypInventory({
+        cursor: { source: "pyp", storeCodes: null, storeIndex: 0, page: 0 },
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      }).pipe(Effect.provideService(Config, mockConfig), Effect.scoped),
+    );
+    expect(result.status).toBe("failed");
+    expect(result.pagesProcessed).toBe(0);
+    expect(result.cursor).toMatchObject({ storeIndex: 0, page: 0 });
+    expect(result.errors[0]).toContain("response does not match");
+  });
+
+  test("completes after visiting every store, including empty stores", async () => {
+    mockPypOpen();
+    for (const location of rawLocations) {
+      evaluate.mockResolvedValueOnce(
+        filterResponse(location.LocationCode, 0, []),
+      );
+    }
+    const result = await Effect.runPromise(
+      streamPypInventory({
+        cursor: { source: "pyp", storeCodes: null, storeIndex: 0, page: 0 },
+        maxPages: 20,
+        onBatch: () => Effect.void,
+      }).pipe(Effect.provideService(Config, mockConfig), Effect.scoped),
+    );
+    expect(result.status).toBe("complete");
+    expect(result.pagesProcessed).toBe(20);
+    expect(result.count).toBe(0);
+    expect(result.cursor).toMatchObject({ storeIndex: 20, page: 0 });
+  });
+
+  test("continues an in-flight legacy global-page run", async () => {
+    mockPypOpen();
+    evaluate.mockResolvedValueOnce(filterResponse("1265", 3, [rawVehicle]));
+    const result = await Effect.runPromise(
+      streamPypInventory({
+        cursor: { source: "pyp", page: 3 },
+        maxPages: 1,
+        onBatch: () => Effect.void,
+      }).pipe(Effect.provideService(Config, mockConfig), Effect.scoped),
+    );
+    expect(evaluate).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        path: expect.stringContaining("&page=3&pageSize=500"),
+      }),
+    );
+    expect(result.status).toBe("complete");
+    expect(result.cursor).toEqual({ source: "pyp", page: 4 });
   });
 });
 

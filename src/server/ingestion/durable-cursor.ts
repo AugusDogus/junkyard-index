@@ -140,6 +140,42 @@ function definePairCursor<
   };
 }
 
+const PypLegacyCursorSchema = z
+  .object({ source: z.literal("pyp"), page: NonNegativeIntegerSchema })
+  .strict();
+const PypInitialCursorSchema = z
+  .object({
+    source: z.literal("pyp"),
+    storeCodes: z.null(),
+    storeIndex: z.literal(0),
+    page: z.literal(0),
+  })
+  .strict();
+const PypActiveCursorSchema = z
+  .object({
+    source: z.literal("pyp"),
+    storeCodes: z.array(z.string().min(1)).min(20),
+    storeIndex: NonNegativeIntegerSchema,
+    page: NonNegativeIntegerSchema,
+  })
+  .strict()
+  .refine(
+    (cursor) =>
+      cursor.storeCodes.every((code, index) => {
+        const previous = cursor.storeCodes[index - 1];
+        return previous === undefined || previous < code;
+      }) &&
+      (cursor.storeIndex < cursor.storeCodes.length ||
+        (cursor.storeIndex === cursor.storeCodes.length && cursor.page === 0)),
+  );
+const PypStoreCursorSchema = z.union([
+  PypInitialCursorSchema,
+  PypActiveCursorSchema,
+]);
+
+export type PypStoreCursor = z.infer<typeof PypStoreCursorSchema>;
+export type PypActiveCursor = z.infer<typeof PypActiveCursorSchema>;
+
 const DURABLE_CURSOR_DEFINITIONS = {
   row52: defineJsonCursor(
     "row52",
@@ -150,15 +186,51 @@ const DURABLE_CURSOR_DEFINITIONS = {
       skip: NonNegativeIntegerSchema,
     }),
   ),
-  pyp: defineScalarCursor(
-    "pyp",
-    z.object({
-      source: z.literal("pyp"),
-      page: NonNegativeIntegerSchema,
-    }),
-    (page) => ({ source: "pyp", page }),
-    (cursor) => cursor.page,
-  ),
+  pyp: {
+    parse: (
+      value: string,
+    ): z.infer<typeof PypLegacyCursorSchema> | PypStoreCursor =>
+      /^(0|[1-9]\d*)$/.test(value)
+        ? parseWithSchema(
+            "pyp",
+            PypLegacyCursorSchema,
+            { source: "pyp", page: parseNonNegativeInteger(value, "pyp") },
+            value,
+          )
+        : parseWithSchema(
+            "pyp",
+            PypStoreCursorSchema,
+            parseJsonPayload(value, "pyp"),
+            value,
+          ),
+    serialize: (
+      cursor:
+        | z.infer<typeof PypLegacyCursorSchema>
+        | z.infer<typeof PypStoreCursorSchema>,
+    ) => {
+      if ("storeCodes" in cursor) {
+        const parsed = parseWithSchema(
+          "pyp",
+          PypStoreCursorSchema,
+          cursor,
+          JSON.stringify(cursor),
+        );
+        return JSON.stringify({
+          storeCodes: parsed.storeCodes,
+          storeIndex: parsed.storeIndex,
+          page: parsed.page,
+        });
+      }
+      return String(
+        parseWithSchema(
+          "pyp",
+          PypLegacyCursorSchema,
+          cursor,
+          JSON.stringify(cursor),
+        ).page,
+      );
+    },
+  },
   autorecycler: defineScalarCursor(
     "autorecycler",
     z.object({

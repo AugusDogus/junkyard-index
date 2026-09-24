@@ -149,11 +149,11 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
         streamPypInventory({
           onBatch: context.onBatch,
           onYards: context.onYards,
-          startPage: cursor.page,
+          cursor,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),
       ),
-      (page) => ({ source: "pyp", page }),
+      (nextCursor) => nextCursor,
       context.vehiclesByVin,
       context.yardsByCode,
     ),
