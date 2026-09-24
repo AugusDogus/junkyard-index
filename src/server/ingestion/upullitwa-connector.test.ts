@@ -178,6 +178,16 @@ test.each([206, 403])(
   },
 );
 
+test("reports the inventory parser failure with yard and page context", async () => {
+  mockPages(() => fixture.replace("IISUpullTable", "OtherTable"));
+
+  await expect(
+    Effect.runPromise(fetchUpullitwaPage("JJ65", 1, noRateLimit)),
+  ).rejects.toThrow(
+    "Washington U-Pull-It yard JJ65 page 1: Missing or ambiguous IISUpullTable inventory table; inspect the provider page markup before resuming",
+  );
+});
+
 test("rejects partial headers, non-HTML and unsafe request URLs", async () => {
   const cases: HeadersInit[] = [
     {
