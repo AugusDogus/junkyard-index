@@ -42,12 +42,12 @@ export class ProviderRequestError extends Data.TaggedError(
   }
 }
 
-export class PypProviderError extends Data.TaggedError("PypProviderError")<{
-  page: number;
+export class PypSessionError extends Data.TaggedError("PypSessionError")<{
+  phase: "open" | "fetch";
   cause: unknown;
 }> {
   override get message() {
-    return `PYP page ${this.page}: ${getCauseMessage(this.cause)}`;
+    return `PYP direct HTTP ${this.phase}: ${getCauseMessage(this.cause)}`;
   }
 }
 
@@ -134,7 +134,7 @@ export type IngestionError =
   | RetryableHttpStatusError
   | RequestTimeoutError
   | ProviderRequestError
-  | PypProviderError
+  | PypSessionError
   | Row52ProviderError
   | AutorecyclerProviderError
   | PullapartProviderError

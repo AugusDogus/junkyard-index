@@ -66,15 +66,14 @@ interface SourceResult {
   vehicles: number;
   batches: number;
   durationSeconds: number;
-  requests: number;
-  rateLimitedResponses: number;
-  networkErrors: number;
+  requests: number | null;
+  rateLimitedResponses: number | null;
+  networkErrors: number | null;
   error: string | null;
   warnings: string[];
 }
 
 const HYPERBROWSER_SOURCES: ReadonlySet<IngestionSource> = new Set([
-  "pyp",
   "upullitdavie",
 ]);
 const requestMetrics = new SourceSoakMetrics();
@@ -199,7 +198,7 @@ async function main(): Promise<void> {
     !hyperbrowserApiKey
   ) {
     throw new Error(
-      "HYPERBROWSER_API_KEY is required for PYP and U Pull It Davie soaks",
+      "HYPERBROWSER_API_KEY is required for U Pull It Davie soaks",
     );
   }
 
@@ -431,9 +430,14 @@ async function main(): Promise<void> {
         vehicles: sourceResult.count,
         batches,
         durationSeconds: (Date.now() - sourceStartedAt) / 1000,
-        requests: after.requests - requestsBefore,
-        rateLimitedResponses: (after.statuses.get(429) ?? 0) - rateLimitsBefore,
-        networkErrors: after.networkErrors - networkErrorsBefore,
+        // PYP uses curl, which bypasses the fetch instrumentation below.
+        requests: source === "pyp" ? null : after.requests - requestsBefore,
+        rateLimitedResponses:
+          source === "pyp"
+            ? null
+            : (after.statuses.get(429) ?? 0) - rateLimitsBefore,
+        networkErrors:
+          source === "pyp" ? null : after.networkErrors - networkErrorsBefore,
         error:
           sourceResult.errors.length > 0
             ? sourceResult.errors.join("; ")
@@ -453,9 +457,13 @@ async function main(): Promise<void> {
         vehicles: batchVehicles,
         batches,
         durationSeconds: (Date.now() - sourceStartedAt) / 1000,
-        requests: after.requests - requestsBefore,
-        rateLimitedResponses: (after.statuses.get(429) ?? 0) - rateLimitsBefore,
-        networkErrors: after.networkErrors - networkErrorsBefore,
+        requests: source === "pyp" ? null : after.requests - requestsBefore,
+        rateLimitedResponses:
+          source === "pyp"
+            ? null
+            : (after.statuses.get(429) ?? 0) - rateLimitsBefore,
+        networkErrors:
+          source === "pyp" ? null : after.networkErrors - networkErrorsBefore,
         error: errorMessage(error),
         warnings: [],
       };
@@ -512,7 +520,7 @@ async function main(): Promise<void> {
       (result) =>
         result.status === "error" ||
         result.status === "failed" ||
-        result.rateLimitedResponses > 0,
+        (result.rateLimitedResponses ?? 0) > 0,
     )
   ) {
     process.exitCode = 1;

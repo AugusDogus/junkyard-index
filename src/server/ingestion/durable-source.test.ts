@@ -60,7 +60,7 @@ describe("durable ingestion cursors", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.row52.maxPagesPerChunk).toBe(1);
   });
 
-  test("amortizes PYP browser startup across thirty pages", () => {
+  test("bounds PYP chunks to thirty pages", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.pyp.maxPagesPerChunk).toBe(30);
   });
 
@@ -100,11 +100,10 @@ describe("durable ingestion cursors", () => {
     ).toThrow("Invalid pyp ingestion cursor");
   });
 
-  test("parses old PYP page cursors for in-flight global crawls", () => {
-    expect(parseDurableSourceCursor("pyp", "0")).toEqual({
-      source: "pyp",
-      page: 0,
-    });
+  test("rejects old PYP global page cursors", () => {
+    expect(() => parseDurableSourceCursor("pyp", "0")).toThrow(
+      "Invalid pyp ingestion cursor",
+    );
   });
 
   test("amortizes Pull-A-Part setup across ten make pages", () => {
@@ -146,10 +145,9 @@ describe("durable ingestion cursors", () => {
     expect(
       serializeDurableSourceCursor({ source: "tearapart", storeIndex: 1 }),
     ).toBe("1");
-    expect(parseDurableSourceCursor("pyp", "12")).toEqual({
-      source: "pyp",
-      page: 12,
-    });
+    expect(() => parseDurableSourceCursor("pyp", "12")).toThrow(
+      "Invalid pyp ingestion cursor",
+    );
     expect(parseDurableSourceCursor("pullapart", "3:7")).toEqual({
       source: "pullapart",
       locationId: 3,

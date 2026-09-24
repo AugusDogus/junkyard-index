@@ -11,7 +11,7 @@ import {
 } from "./durable-source";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
-  return { source: "pyp", page: 1 };
+  return { source: "pyp", storeCodes: null, storeIndex: 0, page: 0 };
 }
 
 const COMPLETED_INGESTION: DurableIngestionResult = {
@@ -163,16 +163,24 @@ describe("durable ingestion source orchestration", () => {
 
   test("advances typed checkpoints until the source is complete", async () => {
     const pages: number[] = [];
+    const storeCodes = Array.from({ length: 20 }, (_, index) =>
+      String(1200 + index),
+    );
     const result = await ingestDurableSource({
       runId: "run-1",
-      initialCursor: { source: "pyp", page: 1 },
+      initialCursor: { source: "pyp", storeCodes, storeIndex: 0, page: 1 },
       operations: {
         runChunk: async (_runId, cursor) => {
           if (cursor.source !== "pyp") throw new Error("Expected PYP cursor");
           pages.push(cursor.page);
           const complete = cursor.page !== 1;
           return {
-            cursor: { source: "pyp", page: complete ? 21 : 11 },
+            cursor: {
+              source: "pyp",
+              storeCodes,
+              storeIndex: 0,
+              page: complete ? 21 : 11,
+            },
             status: complete ? "complete" : "paused",
             count: complete ? 20 : 10,
             pagesProcessed: complete ? 20 : 10,
@@ -187,7 +195,12 @@ describe("durable ingestion source orchestration", () => {
 
     expect(pages).toEqual([1, 11]);
     expect(result.status).toBe("complete");
-    expect(result.cursor).toEqual({ source: "pyp", page: 21 });
+    expect(result.cursor).toEqual({
+      source: "pyp",
+      storeCodes,
+      storeIndex: 0,
+      page: 21,
+    });
   });
 
   test("records a terminal source failure with a valid source cursor", async () => {
@@ -244,7 +257,7 @@ describe("durable ingestion source orchestration", () => {
         markFailed: async (_runId, source, message) => {
           failures.push(message);
           return {
-            cursor: { source: "pyp", page: 1 },
+            cursor: pypCursorFromBoundary(),
             status: "failed",
             count: 0,
             pagesProcessed: 0,
@@ -321,52 +334,6 @@ describe("durable ingestion lifecycle", () => {
       DURABLE_INGESTION_SOURCES.map((source) => `source:${source}`).sort(),
     );
     expect(events.slice(sourcePhaseEnd)).toEqual(["reconcile"]);
-  });
-
-  test("serializes Hyperbrowser sources while other sources remain concurrent", async () => {
-    let activeBrowserSources = 0;
-    let maxActiveBrowserSources = 0;
-    let nonBrowserSourceOverlapped = false;
-    const browserSourceOrder: ("pyp" | "upullitdavie")[] = [];
-    let releaseFirstBrowserSource: () => void = () => undefined;
-    const firstBrowserSourceCanFinish = new Promise<void>((resolve) => {
-      releaseFirstBrowserSource = resolve;
-    });
-
-    await executeDurableIngestion({
-      runId: "run-1",
-      operations: makeOperations({
-        runChunk: async (_runId, cursor) => {
-          if (cursor.source === "pyp" || cursor.source === "upullitdavie") {
-            browserSourceOrder.push(cursor.source);
-            activeBrowserSources += 1;
-            maxActiveBrowserSources = Math.max(
-              maxActiveBrowserSources,
-              activeBrowserSources,
-            );
-            if (browserSourceOrder.length === 1) {
-              await firstBrowserSourceCanFinish;
-            }
-            activeBrowserSources -= 1;
-          } else if (activeBrowserSources > 0) {
-            nonBrowserSourceOverlapped = true;
-            releaseFirstBrowserSource();
-          }
-
-          return {
-            cursor,
-            status: "complete",
-            count: 0,
-            pagesProcessed: 0,
-            errors: [],
-          };
-        },
-      }),
-    });
-
-    expect(browserSourceOrder).toEqual(["pyp", "upullitdavie"]);
-    expect(maxActiveBrowserSources).toBe(1);
-    expect(nonBrowserSourceOverlapped).toBe(true);
   });
 
   test("stops after a deduplicated initialization", async () => {

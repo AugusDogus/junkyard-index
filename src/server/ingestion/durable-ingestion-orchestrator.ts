@@ -13,11 +13,6 @@ import {
   type DurableSourceCursor,
 } from "./durable-source";
 
-const HYPERBROWSER_SOURCES: ReadonlySet<DurableIngestionSource> = new Set([
-  "pyp",
-  "upullitdavie",
-]);
-
 export interface DurableSourceOperations<
   Source extends DurableIngestionSource,
 > {
@@ -138,21 +133,7 @@ export async function executeDurableIngestion(params: {
         initialCursor,
         operations: params.operations,
       });
-    const hyperbrowserCursors = DURABLE_INITIAL_SOURCE_CURSORS.filter(
-      (cursor) => HYPERBROWSER_SOURCES.has(cursor.source),
-    );
-    const otherCursors = DURABLE_INITIAL_SOURCE_CURSORS.filter(
-      (cursor) => !HYPERBROWSER_SOURCES.has(cursor.source),
-    );
-
-    await Promise.all([
-      (async () => {
-        for (const cursor of hyperbrowserCursors) {
-          await ingestSource(cursor);
-        }
-      })(),
-      ...otherCursors.map(ingestSource),
-    ]);
+    await Promise.all(DURABLE_INITIAL_SOURCE_CURSORS.map(ingestSource));
     const validation = await params.operations.validateSources(params.runId);
     if (validation.status === "stopped") return validation;
     while (true) {

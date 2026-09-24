@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Schema } from "effect";
 import { Row52LocationSchema, transformRow52Vehicle } from "./row52-connector";
-import { decodePypFilterResponse } from "./pyp-browser-session";
+import { decodePypFilterResponse } from "./pyp-api";
 
 describe("provider decoder regressions", () => {
   test("accepts null Row52 partsPricingUrl", () => {
@@ -162,7 +162,8 @@ describe("provider decoder regressions", () => {
             isParticipating: true,
             webUrl: "https://picknpull.com/locations/159/detail",
             logoUrl: null,
-            partsPricingUrl: "http://www.picknpull.com/part_pricing.aspx?LocationID=159",
+            partsPricingUrl:
+              "http://www.picknpull.com/part_pricing.aspx?LocationID=159",
             state: {
               id: 0,
               name: "KS",
