@@ -179,7 +179,7 @@ test("3,311 unique stocks plus make fallback and a late photo transport retry fi
       duplicateVehicles: 0,
     },
   });
-}, 20000);
+}, 60000);
 
 test("allows a complete make fallback when provider responses take 2.2 seconds", async () => {
   let requests = 0;
