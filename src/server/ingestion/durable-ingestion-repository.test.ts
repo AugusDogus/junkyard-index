@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
 import type { DurableSourceCursor } from "./durable-source";
+import type { PypStoreCursor } from "./durable-cursor";
 import type { Yard } from "~/lib/yard";
 import {
   createTestClient,
@@ -10,8 +11,24 @@ import {
   makeVehicle,
 } from "./durable-ingestion-test-fixtures";
 
-function pypCursorFromBoundary(): DurableSourceCursor {
-  return { source: "pyp", page: 1 };
+const initialPypCursor: PypStoreCursor = {
+  source: "pyp",
+  storeCodes: null,
+  storeIndex: 0,
+  page: 0,
+};
+
+function pypCursorFromBoundary(page = 1): PypStoreCursor {
+  return {
+    source: "pyp",
+    storeCodes: Array.from({ length: 20 }, (_, index) => String(1200 + index)),
+    storeIndex: 0,
+    page,
+  };
+}
+
+function pypCursorAtSourceBoundary(): DurableSourceCursor {
+  return pypCursorFromBoundary();
 }
 
 function mismatchedFetchFromBoundary(
@@ -169,12 +186,12 @@ describe("durable ingestion repository", () => {
       expect(
         await repository.getCheckpoint({
           runId: "run-1",
-          requestedCursor: { source: "pyp", page: 0 },
+          requestedCursor: initialPypCursor,
         }),
       ).toBeNull();
 
       const fetched = {
-        cursor: { source: "pyp" as const, page: 1 },
+        cursor: pypCursorFromBoundary(),
         status: "paused" as const,
         pagesProcessed: 1,
         vehiclesProcessed: 1,
@@ -187,12 +204,12 @@ describe("durable ingestion repository", () => {
       };
       const first = await repository.checkpointChunk({
         runId: "run-1",
-        requestedCursor: { source: "pyp", page: 0 },
+        requestedCursor: initialPypCursor,
         fetched,
       });
       const replay = await repository.checkpointChunk({
         runId: "run-1",
-        requestedCursor: { source: "pyp", page: 0 },
+        requestedCursor: initialPypCursor,
         fetched,
       });
       expect(first.count).toBe(1);
@@ -202,7 +219,7 @@ describe("durable ingestion repository", () => {
       await expect(
         repository.checkpointChunk({
           runId: "run-1",
-          requestedCursor: pypCursorFromBoundary(),
+          requestedCursor: pypCursorAtSourceBoundary(),
           fetched: mismatchedFetchFromBoundary(fetched),
         }),
       ).rejects.toThrow("Cannot checkpoint row52 cursor for pyp source run");
@@ -237,9 +254,9 @@ describe("durable ingestion repository", () => {
       const checkpoint = (vin: string) =>
         repository.checkpointChunk({
           runId: "run-race",
-          requestedCursor: { source: "pyp", page: 0 },
+          requestedCursor: initialPypCursor,
           fetched: {
-            cursor: { source: "pyp", page: 1 },
+            cursor: pypCursorFromBoundary(),
             status: "paused",
             pagesProcessed: 1,
             vehiclesProcessed: 1,
@@ -520,7 +537,7 @@ const testYard: Yard = {
 
 function yardChunk(yards: Yard[]): FetchedDurableSourceChunk<"pyp"> {
   return {
-    cursor: { source: "pyp", page: 1 },
+    cursor: pypCursorFromBoundary(),
     status: "paused",
     pagesProcessed: 1,
     vehiclesProcessed: 0,
@@ -544,7 +561,7 @@ test("yard checkpoints upsert metadata without vehicles and ignore stale replay"
     await repository.initialize("yard-run");
     const request = {
       runId: "yard-run",
-      requestedCursor: { source: "pyp", page: 0 } as const,
+      requestedCursor: initialPypCursor,
       fetched: yardChunk([testYard]),
     };
     await repository.checkpointChunk(request);
@@ -557,12 +574,12 @@ test("yard checkpoints upsert metadata without vehicles and ignore stale replay"
     });
     await repository.checkpointChunk({
       ...request,
-      requestedCursor: { source: "pyp", page: 1 },
+      requestedCursor: pypCursorFromBoundary(),
       fetched: {
         ...yardChunk([
           { ...testYard, phone: "800-555-1234", websiteUrl: null },
         ]),
-        cursor: { source: "pyp", page: 2 },
+        cursor: pypCursorFromBoundary(2),
       },
     });
     await repository.checkpointChunk(request);
@@ -614,7 +631,7 @@ test("yard checkpoints reject mismatched sources and roll back when vehicle writ
     await repository.initialize("yard-failure");
     const request = {
       runId: "yard-failure",
-      requestedCursor: { source: "pyp", page: 0 } as const,
+      requestedCursor: initialPypCursor,
       fetched: yardChunk([{ ...testYard, source: "row52" }]),
     };
     await expect(repository.checkpointChunk(request)).rejects.toThrow(

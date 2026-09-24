@@ -11,11 +11,19 @@ import type { CanonicalVehicle } from "./types";
 import { PypProviderError, BrowserSessionError } from "./errors";
 import { Config } from "./context";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import type {
+  DurableCursorFor,
+  PypActiveCursor,
+  PypStoreCursor,
+} from "./durable-cursor";
 
 const PAGE_SIZE = 500;
 const PAGE_COUNT_WARNING_THRESHOLD = 250;
 
-export type PypStreamResult = ConnectorChunkResult<"pyp", number>;
+export type PypStreamResult = ConnectorChunkResult<
+  "pyp",
+  DurableCursorFor<"pyp">
+>;
 
 function processPage(
   data: PypFilterResponse,
@@ -73,17 +81,35 @@ function assertMinLocations(locations: Location[]) {
   }
 }
 
-/**
- * Effect-based PYP inventory stream.
- * Uses a scoped browser session that is automatically cleaned up on failure or completion.
- */
-export function streamPypInventory<E, R>(options: {
+function orderedStoreCodes(locations: Location[]): string[] {
+  const codes = locations.map((location) => location.locationCode).sort();
+  if (new Set(codes).size !== codes.length) {
+    throw new Error("PYP location list contains duplicate store codes");
+  }
+  return codes;
+}
+
+function assertSameStores(expected: string[] | null, actual: string[]) {
+  if (
+    expected !== null &&
+    (expected.length !== actual.length ||
+      expected.some((code, index) => code !== actual[index]))
+  ) {
+    throw new Error(
+      "PYP store list changed during the inventory run. Start a new run so every store is crawled exactly once.",
+    );
+  }
+}
+
+// Numeric checkpoints belong to in-flight global crawls. Finish those runs
+// with their original traversal so one snapshot does not mix page schemes.
+function streamLegacyPypInventory<E, R>(options: {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: OnYards;
   startPage?: number;
   maxPages?: number;
 }): Effect.Effect<
-  PypStreamResult,
+  ConnectorChunkResult<"pyp", number>,
   PypProviderError | BrowserSessionError | E,
   Config | Scope.Scope | R
 > {
@@ -207,4 +233,184 @@ export function streamPypInventory<E, R>(options: {
       pagesProcessed,
     };
   });
+}
+
+// Freeze the store list in the cursor so a changing directory cannot silently
+// skip a yard while a run moves between durable workflow chunks.
+function streamStorePypInventory<E, R>(options: {
+  onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
+  cursor: PypStoreCursor;
+  maxPages?: number;
+}): Effect.Effect<
+  ConnectorChunkResult<"pyp", PypStoreCursor>,
+  PypProviderError | BrowserSessionError | E,
+  Config | Scope.Scope | R
+> {
+  return Effect.gen(function* () {
+    const config = yield* Config;
+    const session = yield* acquirePypSession(config.hyperbrowserApiKey);
+    const storeCodes = yield* Effect.try({
+      try: () => {
+        assertMinLocations(session.locations);
+        const codes = orderedStoreCodes(session.locations);
+        assertSameStores(options.cursor.storeCodes, codes);
+        return codes;
+      },
+      catch: (cause) => new BrowserSessionError({ phase: "open", cause }),
+    });
+    let locationMap = new Map(
+      session.locations.map((location) => [location.locationCode, location]),
+    );
+    if (options.onYards) yield* options.onYards(session.locations.map(pypYard));
+
+    let cursor: PypActiveCursor = {
+      source: "pyp",
+      storeCodes,
+      storeIndex: options.cursor.storeIndex,
+      page: options.cursor.page,
+    };
+    let count = 0;
+    let pagesProcessed = 0;
+    let sessionCount = 1;
+    const errors: string[] = [];
+    const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
+
+    yield* Effect.logInfo(
+      `[PYP] Streaming inventory from ${storeCodes.length} stores via zero-based per-store JSON pages`,
+    );
+
+    while (cursor.storeIndex < storeCodes.length && pagesProcessed < maxPages) {
+      const storeCode = storeCodes[cursor.storeIndex];
+      if (storeCode === undefined) {
+        return yield* Effect.fail(
+          new BrowserSessionError({
+            phase: "fetch",
+            cause: new Error(`PYP store index ${cursor.storeIndex} is missing`),
+          }),
+        );
+      }
+
+      if (session.shouldRotate) {
+        yield* Effect.logInfo(
+          `[PYP] Rotating session before store ${storeCode} page ${cursor.page}`,
+        );
+        yield* session.reopen();
+        yield* Effect.try({
+          try: () =>
+            assertSameStores(storeCodes, orderedStoreCodes(session.locations)),
+          catch: (cause) => new BrowserSessionError({ phase: "rotate", cause }),
+        });
+        locationMap = new Map(
+          session.locations.map((location) => [
+            location.locationCode,
+            location,
+          ]),
+        );
+        if (options.onYards)
+          yield* options.onYards(session.locations.map(pypYard));
+        sessionCount++;
+      }
+
+      const pageNumber: number = cursor.page;
+      const fetchResult = yield* session
+        .fetchFilterPage(storeCode, pageNumber, PAGE_SIZE)
+        .pipe(
+          Effect.map((data) => ({ ok: true as const, data })),
+          Effect.catchAll((error) =>
+            Effect.succeed({ ok: false as const, error }),
+          ),
+        );
+      if (!fetchResult.ok) {
+        const message = `PYP store ${storeCode}: ${fetchResult.error.message}`;
+        yield* Effect.logError(message);
+        errors.push(message);
+        break;
+      }
+
+      const data = fetchResult.data;
+      if (!data.Success) {
+        errors.push(
+          `PYP store ${storeCode} page ${pageNumber}: ${data.Errors.join(", ")}`,
+        );
+        break;
+      }
+      const request = data.ResponseData.Request;
+      const mismatchedVehicle = data.ResponseData.Vehicles.find(
+        (vehicle) => vehicle.YardCode !== storeCode,
+      );
+      if (
+        request.PageNumber !== pageNumber + 1 ||
+        request.PageSize !== PAGE_SIZE ||
+        request.YardCode.length !== 1 ||
+        request.YardCode[0] !== storeCode ||
+        mismatchedVehicle !== undefined
+      ) {
+        errors.push(
+          `PYP store ${storeCode} page ${pageNumber}: response does not match the request. Expected yard ${storeCode}, echoed page ${pageNumber + 1}, size ${PAGE_SIZE}; got yards ${request.YardCode.join(",")}, page ${request.PageNumber}, size ${request.PageSize}, first unexpected vehicle yard ${mismatchedVehicle?.YardCode ?? "none"}. No checkpoint advanced; inspect the PYP API contract.`,
+        );
+        break;
+      }
+
+      const result = processPage(data, pageNumber, locationMap);
+      if (result.apiError) {
+        errors.push(`PYP store ${storeCode}: ${result.apiError}`);
+        break;
+      }
+      if (result.canonical.length > 0) {
+        yield* options.onBatch(result.canonical);
+      }
+      count += result.canonical.length;
+      pagesProcessed++;
+      yield* Effect.logInfo(
+        `[PYP] Store ${storeCode} page ${pageNumber}: ${result.vehicleCount} vehicles fetched, ${result.canonical.length} transformed (${count} this chunk)`,
+      );
+
+      cursor = result.isLastPage
+        ? { ...cursor, storeIndex: cursor.storeIndex + 1, page: 0 }
+        : { ...cursor, page: pageNumber + 1 };
+    }
+
+    const status =
+      errors.length > 0
+        ? "failed"
+        : cursor.storeIndex === storeCodes.length
+          ? "complete"
+          : "paused";
+    yield* Effect.logInfo(
+      `[PYP] Per-store stream ${status}: ${count} vehicles across ${pagesProcessed} pages (${sessionCount} sessions), ${errors.length} errors`,
+    );
+    return {
+      source: "pyp" as const,
+      status,
+      cursor,
+      count,
+      errors,
+      pagesProcessed,
+    };
+  });
+}
+
+export function streamPypInventory<E, R>(options: {
+  onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
+  onYards?: OnYards;
+  cursor: DurableCursorFor<"pyp">;
+  maxPages?: number;
+}): Effect.Effect<
+  PypStreamResult,
+  PypProviderError | BrowserSessionError | E,
+  Config | Scope.Scope | R
+> {
+  if ("storeCodes" in options.cursor) {
+    return streamStorePypInventory({ ...options, cursor: options.cursor });
+  }
+  return streamLegacyPypInventory({
+    ...options,
+    startPage: options.cursor.page,
+  }).pipe(
+    Effect.map((result) => ({
+      ...result,
+      cursor: { source: "pyp" as const, page: result.cursor },
+    })),
+  );
 }

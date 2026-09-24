@@ -64,11 +64,43 @@ describe("durable ingestion cursors", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.pyp.maxPagesPerChunk).toBe(30);
   });
 
-  test("starts PYP at its zero-based first API page", () => {
+  test("starts PYP at the first store and preserves store and page checkpoints", () => {
     expect(DURABLE_SOURCE_DEFINITIONS.pyp.initialCursor).toEqual({
       source: "pyp",
+      storeCodes: null,
+      storeIndex: 0,
       page: 0,
     });
+    const cursor = {
+      source: "pyp" as const,
+      storeCodes: Array.from({ length: 20 }, (_, index) =>
+        String(1200 + index),
+      ),
+      storeIndex: 1,
+      page: 2,
+    };
+    expect(
+      parseDurableSourceCursor("pyp", serializeDurableSourceCursor(cursor)),
+    ).toEqual(cursor);
+    expect(() =>
+      parseDurableSourceCursor(
+        "pyp",
+        JSON.stringify({ storeCodes: null, storeIndex: 1, page: 0 }),
+      ),
+    ).toThrow("Invalid pyp ingestion cursor");
+    expect(() =>
+      parseDurableSourceCursor(
+        "pyp",
+        JSON.stringify({
+          storeCodes: [...cursor.storeCodes].reverse(),
+          storeIndex: 1,
+          page: 0,
+        }),
+      ),
+    ).toThrow("Invalid pyp ingestion cursor");
+  });
+
+  test("parses old PYP page cursors for in-flight global crawls", () => {
     expect(parseDurableSourceCursor("pyp", "0")).toEqual({
       source: "pyp",
       page: 0,

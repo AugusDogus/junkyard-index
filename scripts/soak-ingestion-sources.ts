@@ -24,6 +24,7 @@ import {
 import { streamAutorecyclerInventory } from "../src/server/ingestion/autorecycler-connector";
 import { Config, Database } from "../src/server/ingestion/context";
 import { GopullitCursorState } from "../src/server/ingestion/durable-cursor";
+import { DURABLE_SOURCE_DEFINITIONS } from "../src/server/ingestion/durable-source";
 import {
   streamGopullitInventory,
   streamGopullitInventoryWithRequestGate,
@@ -323,7 +324,7 @@ async function main(): Promise<void> {
             return runProgram(
               streamPypInventory({
                 onBatch,
-                startPage: 1,
+                cursor: DURABLE_SOURCE_DEFINITIONS.pyp.initialCursor,
                 maxPages: config.maxPages,
               }),
             );
