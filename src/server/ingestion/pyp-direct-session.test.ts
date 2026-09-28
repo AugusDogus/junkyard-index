@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import * as Sentry from "@sentry/nextjs";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -156,6 +157,7 @@ test("curl carries session headers, retries transient failures, and rejects perm
     },
   });
   const temporaryRoot = await mkdtemp(join(tmpdir(), "pyp-session-test-"));
+  const retryLogs = spyOn(Sentry.logger, "warn").mockImplementation(() => {});
   try {
     const result = await Effect.runPromise(
       Effect.scoped(
@@ -218,6 +220,11 @@ test("curl carries session headers, retries transient failures, and rejects perm
     expect(exhaustedAttempts).toBe(3);
     expect(result.recoveredServerError.ResponseData.Vehicles).toHaveLength(1);
     expect(nonstandardServerErrorAttempts).toBe(2);
+    expect(
+      retryLogs.mock.calls.filter(
+        ([message]) => message === "PYP direct HTTP request retry",
+      ),
+    ).toHaveLength(5);
     expect(requests).toEqual(
       ["0", "1", "2", "2", "3", "3", "4", "4", "4", "5", "5"].map((page) => ({
         page,
@@ -228,6 +235,7 @@ test("curl carries session headers, retries transient failures, and rejects perm
     );
     expect(await readdir(temporaryRoot)).toEqual([]);
   } finally {
+    retryLogs.mockRestore();
     server.stop(true);
     await rm(temporaryRoot, { recursive: true, force: true });
   }

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import * as Sentry from "@sentry/nextjs";
 import { Effect, Scope } from "effect";
 import { API_ENDPOINTS } from "~/lib/constants";
 import type { Location } from "~/lib/types";
@@ -120,6 +121,17 @@ async function request(
       const delay = RETRY_DELAYS_MS[attempt];
       if (!(cause instanceof RetryablePypRequestError) || delay === undefined) {
         throw cause;
+      }
+      try {
+        Sentry.logger.warn("PYP direct HTTP request retry", {
+          source: "pyp",
+          path,
+          attempt: attempt + 1,
+          delayMs: delay,
+          error: cause.message.slice(0, 500),
+        });
+      } catch (reportError) {
+        console.error("Failed to report PYP HTTP retry", reportError);
       }
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
