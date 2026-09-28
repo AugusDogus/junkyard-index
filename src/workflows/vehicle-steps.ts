@@ -1,4 +1,5 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
+import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
@@ -26,8 +27,8 @@ import {
   type SearchIndexMigrationState,
 } from "~/server/ingestion/search-index-migration";
 import {
-  DurableSourceFailure,
-  recordDurableSourceFailure,
+  recordDurableRunFailure,
+  recordDurableSourceRejections,
 } from "./vehicle-observability";
 
 function formatError(error: unknown): string {
@@ -80,7 +81,10 @@ export async function validateDurableIngestionSourcesStep(runId: string) {
   "use step";
 
   try {
-    return await validateDurableIngestionSources(runId);
+    return await recordDurableSourceRejections({
+      runId,
+      validate: () => validateDurableIngestionSources(runId),
+    });
   } catch (error) {
     throwRetryableStepError("Validate durable ingestion sources", error);
   }
@@ -98,6 +102,16 @@ export async function runDurableSourceChunkStep<
     console.info("[Workflow] Completed source chunk", result);
     return result;
   } catch (error) {
+    try {
+      Sentry.logger.warn("Vehicle ingestion source attempt failed", {
+        runId,
+        source: cursor.source,
+        attempt: getStepMetadata().attempt,
+        error: formatError(error).slice(0, 500),
+      });
+    } catch (reportError) {
+      console.error("Failed to report vehicle source retry", reportError);
+    }
     throwRetryableStepError(
       `Vehicle source chunk ${cursor.source}/${JSON.stringify(cursor)}`,
       error,
@@ -112,10 +126,7 @@ export async function markDurableSourceFailedStep<
   "use step";
 
   try {
-    return await recordDurableSourceFailure({
-      failure: DurableSourceFailure.make({ runId, source, message }),
-      markFailed: () => markDurableSourceFailed({ runId, source, message }),
-    });
+    return await markDurableSourceFailed({ runId, source, message });
   } catch (error) {
     throwRetryableStepError(`Mark vehicle source ${source} failed`, error);
   }
@@ -148,7 +159,11 @@ export async function markDurableIngestionFailedStep(
   "use step";
 
   try {
-    await markDurableIngestionFailed(runId, message);
+    await recordDurableRunFailure({
+      runId,
+      message,
+      markFailed: () => markDurableIngestionFailed(runId, message),
+    });
   } catch (error) {
     throwRetryableStepError("Mark durable ingestion failed", error);
   }

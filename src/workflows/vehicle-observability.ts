@@ -1,46 +1,57 @@
 import * as Sentry from "@sentry/nextjs";
-import type { DurableIngestionSource } from "~/server/ingestion/durable-source";
+import type { DurableSourceValidationSummary } from "~/server/ingestion/durable-source-validation";
 
-const SOURCE_FAILURE_CATEGORY = "vehicle-ingestion-source-failed";
+const SOURCE_REJECTION_CATEGORY = "vehicle-ingestion-source-rejected";
+const RUN_FAILURE_CATEGORY = "vehicle-ingestion-run-failed";
 
-export type DurableSourceFailure = {
-  category: typeof SOURCE_FAILURE_CATEGORY;
+export async function recordDurableSourceRejections(params: {
   runId: string;
-  source: DurableIngestionSource;
+  validate: () => Promise<DurableSourceValidationSummary>;
+  captureMessage?: typeof Sentry.captureMessage;
+}): Promise<DurableSourceValidationSummary> {
+  const result = await params.validate();
+  if (result.status === "stopped") return result;
+
+  const captureMessage = params.captureMessage ?? Sentry.captureMessage;
+  for (const rejection of result.rejectedSources) {
+    try {
+      captureMessage(`${rejection.source} ingestion rejected`, {
+        level: "error",
+        fingerprint: [SOURCE_REJECTION_CATEGORY, rejection.source],
+        tags: {
+          failure_category: SOURCE_REJECTION_CATEGORY,
+          ingestion_source: rejection.source,
+          workflow: "vehicle-ingestion",
+        },
+        extra: { runId: params.runId, errors: rejection.errors },
+      });
+    } catch (error) {
+      console.error(
+        `Failed to report ingestion rejection for ${rejection.source}`,
+        error,
+      );
+    }
+  }
+  return result;
+}
+
+export async function recordDurableRunFailure(params: {
+  runId: string;
   message: string;
-};
-
-export const DurableSourceFailure = {
-  make(params: {
-    runId: string;
-    source: DurableIngestionSource;
-    message: string;
-  }): DurableSourceFailure {
-    return { category: SOURCE_FAILURE_CATEGORY, ...params };
-  },
-
-  capture(
-    failure: DurableSourceFailure,
-    captureMessage: typeof Sentry.captureMessage = Sentry.captureMessage,
-  ): string {
-    return captureMessage(failure.message, {
+  markFailed: () => Promise<void>;
+  captureMessage?: typeof Sentry.captureMessage;
+}): Promise<void> {
+  await params.markFailed();
+  try {
+    (params.captureMessage ?? Sentry.captureMessage)(params.message, {
       level: "error",
       tags: {
-        failure_category: failure.category,
-        ingestion_source: failure.source,
+        failure_category: RUN_FAILURE_CATEGORY,
         workflow: "vehicle-ingestion",
       },
-      extra: { runId: failure.runId },
+      extra: { runId: params.runId },
     });
-  },
-} as const;
-
-export async function recordDurableSourceFailure<Result>(params: {
-  failure: DurableSourceFailure;
-  markFailed: () => Promise<Result>;
-  captureMessage?: typeof Sentry.captureMessage;
-}): Promise<Result> {
-  const result = await params.markFailed();
-  DurableSourceFailure.capture(params.failure, params.captureMessage);
-  return result;
+  } catch (error) {
+    console.error(`Failed to report ingestion run ${params.runId}`, error);
+  }
 }
