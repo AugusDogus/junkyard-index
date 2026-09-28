@@ -52,6 +52,10 @@ export async function vehicleIngestionWorkflow(runId: string) {
 
     const { workflowRunId } = getWorkflowMetadata();
     await attachDurableIngestionWorkflowStep(runId, workflowRunId);
+    const markRunFailed = async (failedRunId: string, message: string) => {
+      await markDurableIngestionFailedStep(failedRunId, message);
+      await reportDurableIngestionDownStep(failedRunId);
+    };
     const ingestionResult = await executeDurableIngestion({
       runId,
       operations: {
@@ -61,10 +65,7 @@ export async function vehicleIngestionWorkflow(runId: string) {
         markFailed: markDurableSourceFailedStep,
         validateSources: validateDurableIngestionSourcesStep,
         reconcile: reconcileDurableIngestionStep,
-        markRunFailed: async (failedRunId, message) => {
-          await markDurableIngestionFailedStep(failedRunId, message);
-          await reportDurableIngestionDownStep(failedRunId);
-        },
+        markRunFailed,
       },
     });
     if (
@@ -90,7 +91,7 @@ export async function vehicleIngestionWorkflow(runId: string) {
           return runProjectionWithFailureRecording({
             runId,
             runBatch: () => runAlgoliaProjectorStep(runId),
-            markFailed: markDurableIngestionFailedStep,
+            markFailed: markRunFailed,
           });
         }
       },
