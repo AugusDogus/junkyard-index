@@ -155,7 +155,18 @@ export async function markDurableIngestionFailed(
   runId: string,
   message: string,
 ): Promise<void> {
-  await repository.markRunFailed(runId, message);
+  await persistDurableIngestionFailure(runId, message);
+  await reportDurableIngestionDown();
+}
+
+export function persistDurableIngestionFailure(
+  runId: string,
+  message: string,
+): Promise<void> {
+  return repository.markRunFailed(runId, message);
+}
+
+export async function reportDurableIngestionDown(): Promise<void> {
   await sendHeartbeat(true).catch((error: unknown) => {
     console.warn("[Ingestion] BetterStack failure heartbeat failed", error);
   });
