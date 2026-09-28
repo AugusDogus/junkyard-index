@@ -54,7 +54,14 @@ export async function vehicleIngestionWorkflow(runId: string) {
     await attachDurableIngestionWorkflowStep(runId, workflowRunId);
     const markRunFailed = async (failedRunId: string, message: string) => {
       await markDurableIngestionFailedStep(failedRunId, message);
-      await reportDurableIngestionDownStep(failedRunId);
+      try {
+        await reportDurableIngestionDownStep(failedRunId);
+      } catch (error) {
+        console.error(
+          `Failed to report ingestion run ${failedRunId} down after recording its failure`,
+          error,
+        );
+      }
     };
     const ingestionResult = await executeDurableIngestion({
       runId,
