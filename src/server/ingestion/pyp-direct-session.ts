@@ -26,6 +26,22 @@ const execFileAsync = promisify(execFile);
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const STATUS_MARKER = "\n__PYP_HTTP_STATUS__";
+const RETRYABLE_CURL_CODES = new Set([7, 18, 28, 35, 52, 55, 56]);
+const RETRYABLE_HTTP_STATUSES = new Set([
+  "429",
+  "500",
+  "502",
+  "503",
+  "504",
+  "520",
+  "521",
+  "522",
+  "523",
+  "524",
+]);
+const RETRY_DELAYS_MS = [1_000, 2_000] as const;
+
+class RetryablePypRequestError extends Error {}
 
 interface CurlContext {
   baseUrl: string;
@@ -45,14 +61,23 @@ function toError(cause: unknown): Error {
 function curlFailure(cause: unknown): Error {
   const code =
     typeof cause === "object" && cause !== null && "code" in cause
-      ? String(cause.code)
+      ? cause.code
       : "unknown";
-  return new Error(
-    `PYP direct HTTP request failed (curl exit ${code}). Check curl availability and PYP access from this runtime.`,
-  );
+  const stderr =
+    typeof cause === "object" && cause !== null && "stderr" in cause
+      ? cause.stderr
+      : null;
+  const detail =
+    typeof stderr === "string"
+      ? stderr.trim().split("\n").at(-1)?.slice(0, 200)
+      : null;
+  const message = `PYP direct HTTP request failed (curl exit ${String(code)})${detail ? `: ${detail}` : ""}. Check PYP access from this runtime.`;
+  return typeof code === "number" && RETRYABLE_CURL_CODES.has(code)
+    ? new RetryablePypRequestError(message)
+    : new Error(message);
 }
 
-async function request(
+async function requestOnce(
   context: CurlContext,
   path: string,
   headers: string[],
@@ -87,9 +112,30 @@ async function request(
   if (marker === -1) throw new Error("PYP curl response omitted HTTP status");
   const status = stdout.slice(marker + STATUS_MARKER.length);
   if (status !== "200") {
-    throw new Error(`PYP direct HTTP request returned status ${status}`);
+    const message = `PYP direct HTTP request returned status ${status}`;
+    throw RETRYABLE_HTTP_STATUSES.has(status)
+      ? new RetryablePypRequestError(message)
+      : new Error(message);
   }
   return stdout.slice(0, marker);
+}
+
+async function request(
+  context: CurlContext,
+  path: string,
+  headers: string[],
+): Promise<string> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await requestOnce(context, path, headers);
+    } catch (cause) {
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (!(cause instanceof RetryablePypRequestError) || delay === undefined) {
+        throw cause;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 }
 
 function readJsonArray(html: string, start: number): unknown {

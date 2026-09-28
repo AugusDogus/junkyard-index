@@ -62,7 +62,7 @@ test("rejects a Cloudflare challenge instead of treating it as inventory", () =>
   ).toThrow("omitted CSRF token");
 });
 
-test("curl carries the inventory cookie and CSRF token, decodes JSON, and rejects HTTP errors", async () => {
+test("curl carries session headers, retries transient failures, and rejects permanent errors", async () => {
   const locations = Array.from({ length: 20 }, (_, index) => ({
     ...location,
     LocationCode: String(1265 + index),
@@ -73,6 +73,9 @@ test("curl carries the inventory cookie and CSRF token, decodes JSON, and reject
     token: string | null;
     referer: string | null;
   }> = [];
+  let transientAttempts = 0;
+  let disconnectAttempts = 0;
+  let exhaustedAttempts = 0;
   const server = Bun.serve({
     port: 0,
     fetch(request) {
@@ -94,6 +97,24 @@ test("curl carries the inventory cookie and CSRF token, decodes JSON, and reject
       });
       if (url.searchParams.get("page") === "1") {
         return new Response("blocked", { status: 403 });
+      }
+      if (url.searchParams.get("page") === "2" && transientAttempts++ === 0) {
+        return new Response("temporarily unavailable", { status: 503 });
+      }
+      if (url.searchParams.get("page") === "3" && disconnectAttempts++ === 0) {
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("partial"));
+              setTimeout(() => controller.error(), 10);
+            },
+          }),
+          { headers: { "Content-Length": "1000" } },
+        );
+      }
+      if (url.searchParams.get("page") === "4") {
+        exhaustedAttempts++;
+        return new Response("temporarily unavailable", { status: 503 });
       }
       return Response.json({
         Success: true,
@@ -140,7 +161,23 @@ test("curl carries the inventory cookie and CSRF token, decodes JSON, and reject
           const blocked = yield* session
             .fetchFilterPage("1265", 1, 500)
             .pipe(Effect.either);
-          return { locations: session.locations, page, blocked };
+          const recovered = yield* session.fetchFilterPage("1265", 2, 500);
+          const recoveredDisconnect = yield* session.fetchFilterPage(
+            "1265",
+            3,
+            500,
+          );
+          const exhausted = yield* session
+            .fetchFilterPage("1265", 4, 500)
+            .pipe(Effect.either);
+          return {
+            locations: session.locations,
+            page,
+            blocked,
+            recovered,
+            recoveredDisconnect,
+            exhausted,
+          };
         }),
       ),
     );
@@ -152,23 +189,31 @@ test("curl carries the inventory cookie and CSRF token, decodes JSON, and reject
       throw new Error("Expected HTTP 403 failure");
     }
     expect(result.blocked.left.message).toContain("status 403");
-    expect(requests).toEqual([
-      {
-        page: "0",
+    expect(result.recovered.ResponseData.Vehicles[0]?.Vin).toBe(
+      "2HGFC2F84LH554430",
+    );
+    expect(transientAttempts).toBe(2);
+    expect(result.recoveredDisconnect.ResponseData.Vehicles[0]?.Vin).toBe(
+      "2HGFC2F84LH554430",
+    );
+    expect(disconnectAttempts).toBe(2);
+    expect(result.exhausted._tag).toBe("Left");
+    if (result.exhausted._tag !== "Left") {
+      throw new Error("Expected exhausted HTTP 503 failure");
+    }
+    expect(result.exhausted.left.message).toContain("status 503");
+    expect(exhaustedAttempts).toBe(3);
+    expect(requests).toEqual(
+      ["0", "1", "2", "2", "3", "3", "4", "4", "4"].map((page) => ({
+        page,
         cookie: "test-session=ready",
         token: "test-csrf",
         referer: `${server.url.origin}/inventory/`,
-      },
-      {
-        page: "1",
-        cookie: "test-session=ready",
-        token: "test-csrf",
-        referer: `${server.url.origin}/inventory/`,
-      },
-    ]);
+      })),
+    );
     expect(await readdir(temporaryRoot)).toEqual([]);
   } finally {
     server.stop(true);
     await rm(temporaryRoot, { recursive: true, force: true });
   }
-});
+}, 10000);
