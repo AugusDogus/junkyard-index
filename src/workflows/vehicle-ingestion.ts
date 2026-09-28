@@ -15,6 +15,7 @@ import {
   initializeDurableIngestionStep,
   markDurableIngestionFailedStep,
   markDurableSourceFailedStep,
+  reportDurableIngestionDownStep,
   reportDurableIngestionHealthStep,
   reconcileDurableIngestionStep,
   runAlgoliaProjectorStep,
@@ -60,7 +61,10 @@ export async function vehicleIngestionWorkflow(runId: string) {
         markFailed: markDurableSourceFailedStep,
         validateSources: validateDurableIngestionSourcesStep,
         reconcile: reconcileDurableIngestionStep,
-        markRunFailed: markDurableIngestionFailedStep,
+        markRunFailed: async (failedRunId, message) => {
+          await markDurableIngestionFailedStep(failedRunId, message);
+          await reportDurableIngestionDownStep(failedRunId);
+        },
       },
     });
     if (

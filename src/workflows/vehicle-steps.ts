@@ -8,9 +8,10 @@ import {
   cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
   initializeDurableIngestion,
-  markDurableIngestionFailed,
   markDurableSourceFailed,
+  persistDurableIngestionFailure,
   reconcileDurableIngestion,
+  reportDurableIngestionDown,
   reportDurableIngestionHealth,
   runDurableSourceChunk,
   validateDurableIngestionSources,
@@ -162,13 +163,27 @@ export async function markDurableIngestionFailedStep(
     await recordDurableRunFailure({
       runId,
       message,
-      markFailed: () => markDurableIngestionFailed(runId, message),
+      markFailed: () => persistDurableIngestionFailure(runId, message),
     });
   } catch (error) {
     throwRetryableStepError("Mark durable ingestion failed", error);
   }
 }
 markDurableIngestionFailedStep.maxRetries = 2;
+
+export async function reportDurableIngestionDownStep(runId: string) {
+  "use step";
+
+  try {
+    await reportDurableIngestionDown();
+  } catch (error) {
+    throwRetryableStepError(
+      `Report failed ingestion health for run ${runId}`,
+      error,
+    );
+  }
+}
+reportDurableIngestionDownStep.maxRetries = 2;
 
 export async function cleanupStaleDurableIngestionSnapshotsStep() {
   "use step";
