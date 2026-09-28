@@ -26,19 +26,7 @@ const execFileAsync = promisify(execFile);
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const STATUS_MARKER = "\n__PYP_HTTP_STATUS__";
-const RETRYABLE_CURL_CODES = new Set([7, 18, 28, 35, 52, 55, 56]);
-const RETRYABLE_HTTP_STATUSES = new Set([
-  "429",
-  "500",
-  "502",
-  "503",
-  "504",
-  "520",
-  "521",
-  "522",
-  "523",
-  "524",
-]);
+const RETRYABLE_CURL_CODES = new Set([6, 7, 18, 28, 35, 52, 55, 56, 92]);
 const RETRY_DELAYS_MS = [1_000, 2_000] as const;
 
 class RetryablePypRequestError extends Error {}
@@ -113,7 +101,7 @@ async function requestOnce(
   const status = stdout.slice(marker + STATUS_MARKER.length);
   if (status !== "200") {
     const message = `PYP direct HTTP request returned status ${status}`;
-    throw RETRYABLE_HTTP_STATUSES.has(status)
+    throw status === "429" || /^5\d\d$/.test(status)
       ? new RetryablePypRequestError(message)
       : new Error(message);
   }

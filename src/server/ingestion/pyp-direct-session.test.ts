@@ -76,6 +76,7 @@ test("curl carries session headers, retries transient failures, and rejects perm
   let transientAttempts = 0;
   let disconnectAttempts = 0;
   let exhaustedAttempts = 0;
+  let nonstandardServerErrorAttempts = 0;
   const server = Bun.serve({
     port: 0,
     fetch(request) {
@@ -115,6 +116,12 @@ test("curl carries session headers, retries transient failures, and rejects perm
       if (url.searchParams.get("page") === "4") {
         exhaustedAttempts++;
         return new Response("temporarily unavailable", { status: 503 });
+      }
+      if (
+        url.searchParams.get("page") === "5" &&
+        nonstandardServerErrorAttempts++ === 0
+      ) {
+        return new Response("temporarily unavailable", { status: 529 });
       }
       return Response.json({
         Success: true,
@@ -170,6 +177,11 @@ test("curl carries session headers, retries transient failures, and rejects perm
           const exhausted = yield* session
             .fetchFilterPage("1265", 4, 500)
             .pipe(Effect.either);
+          const recoveredServerError = yield* session.fetchFilterPage(
+            "1265",
+            5,
+            500,
+          );
           return {
             locations: session.locations,
             page,
@@ -177,6 +189,7 @@ test("curl carries session headers, retries transient failures, and rejects perm
             recovered,
             recoveredDisconnect,
             exhausted,
+            recoveredServerError,
           };
         }),
       ),
@@ -203,8 +216,10 @@ test("curl carries session headers, retries transient failures, and rejects perm
     }
     expect(result.exhausted.left.message).toContain("status 503");
     expect(exhaustedAttempts).toBe(3);
+    expect(result.recoveredServerError.ResponseData.Vehicles).toHaveLength(1);
+    expect(nonstandardServerErrorAttempts).toBe(2);
     expect(requests).toEqual(
-      ["0", "1", "2", "2", "3", "3", "4", "4", "4"].map((page) => ({
+      ["0", "1", "2", "2", "3", "3", "4", "4", "4", "5", "5"].map((page) => ({
         page,
         cookie: "test-session=ready",
         token: "test-csrf",
