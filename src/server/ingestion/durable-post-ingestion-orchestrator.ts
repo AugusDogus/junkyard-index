@@ -18,11 +18,12 @@ export async function runProjectionWithFailureRecording<
   runBatch: () => Promise<Result>;
   markFailed(runId: string, error: string): Promise<void>;
 }): Promise<Result> {
+  const { runBatch, markFailed } = params;
   try {
-    return await drainDurablePhase(params.runBatch);
+    return await drainDurablePhase(runBatch);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    await params.markFailed(
+    await markFailed(
       params.runId,
       `Algolia projection stopped after retries: ${detail}`,
     );
@@ -47,17 +48,18 @@ export async function runDurablePublicationLifecycle<
   matchAlerts(runId: string): Promise<AlertMatching>;
   reportHealth(runId: string): Promise<void>;
 }) {
-  const projector = await params.project(params.runId);
+  // Workflow steps must not capture params and its sibling callbacks as `this`.
+  const { project, matchAlerts, reportHealth } = params;
+  const projector = await project(params.runId);
   if (projector.status === "stopped") {
     return { status: "stopped" as const, phase: "projection" as const };
   }
 
-  const alertMatching = await params.matchAlerts(params.runId);
+  const alertMatching = await matchAlerts(params.runId);
   if (alertMatching.status === "stopped") {
     return { status: "stopped" as const, phase: "alert_matching" as const };
   }
 
-  const reportHealth = params.reportHealth;
   await reportHealth(params.runId);
   return {
     status: "completed" as const,
@@ -73,7 +75,8 @@ export async function runDurablePostReleaseLifecycle<
   deliverAlerts(): Promise<Delivery | null>;
   cleanup(runId: string): Promise<void>;
 }) {
-  const delivery = await params.deliverAlerts();
-  await params.cleanup(params.runId);
+  const { deliverAlerts, cleanup } = params;
+  const delivery = await deliverAlerts();
+  await cleanup(params.runId);
   return { delivery };
 }
