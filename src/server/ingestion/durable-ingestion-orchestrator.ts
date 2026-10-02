@@ -90,11 +90,13 @@ export async function ingestDurableSource<
   initialCursor: DurableCursorFor<Source>;
   operations: DurableSourceOperations<NoInfer<Source>>;
 }): Promise<DurableSourceChunkResult<Source>> {
+  // Workflow step proxies serialize method receivers, including sibling callbacks.
+  const { runChunk, markFailed } = params.operations;
   let cursor = params.initialCursor;
   const source = cursor.source;
   try {
     while (true) {
-      const result = await params.operations.runChunk(params.runId, cursor);
+      const result = await runChunk(params.runId, cursor);
       if (result.cursor.source !== source) {
         throw new Error(
           `Source ${source} returned a ${result.cursor.source} cursor`,
@@ -109,7 +111,7 @@ export async function ingestDurableSource<
       cursor = result.cursor;
     }
   } catch (error) {
-    return params.operations.markFailed(
+    return markFailed(
       params.runId,
       source,
       `${source} ingestion failed: ${formatError(error)}`,
@@ -121,8 +123,16 @@ export async function executeDurableIngestion(params: {
   runId: string;
   operations: DurableIngestionOperations;
 }): Promise<DurableIngestionExecution> {
-  await params.operations.cleanupStale();
-  const initialized = await params.operations.initialize(params.runId);
+  // Invoke step callbacks without serializing the operations object as `this`.
+  const {
+    cleanupStale,
+    initialize,
+    validateSources,
+    reconcile,
+    markRunFailed,
+  } = params.operations;
+  await cleanupStale();
+  const initialized = await initialize(params.runId);
   if (initialized.status === "deduplicated") return initialized;
 
   let ingestion: DurableIngestionResult;
@@ -134,10 +144,10 @@ export async function executeDurableIngestion(params: {
         operations: params.operations,
       });
     await Promise.all(DURABLE_INITIAL_SOURCE_CURSORS.map(ingestSource));
-    const validation = await params.operations.validateSources(params.runId);
+    const validation = await validateSources(params.runId);
     if (validation.status === "stopped") return validation;
     while (true) {
-      const reconciliation = await params.operations.reconcile(params.runId);
+      const reconciliation = await reconcile(params.runId);
       if (reconciliation.status === "stopped") return reconciliation;
       if (reconciliation.status === "complete") {
         ingestion = reconciliation.result;
@@ -146,7 +156,7 @@ export async function executeDurableIngestion(params: {
     }
   } catch (error) {
     try {
-      await params.operations.markRunFailed(
+      await markRunFailed(
         params.runId,
         `Durable ingestion failed: ${formatError(error)}`,
       );

@@ -1,4 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test";
+import { stringify } from "devalue";
 import {
   executeDurableIngestion,
   ingestDurableSource,
@@ -213,21 +214,25 @@ describe("durable ingestion source orchestration", () => {
         skip: 0,
       },
       operations: {
-        runChunk: async () => {
+        runChunk: async function (this: unknown) {
+          expect(this).toBeUndefined();
           throw new Error("provider unavailable");
         },
-        markFailed: async (_runId, source, message) => ({
-          cursor: {
-            source: "row52",
-            afterLocationId: 0,
-            locationIds: [],
-            skip: 0,
-          },
-          status: "failed",
-          count: 0,
-          pagesProcessed: 0,
-          errors: [message],
-        }),
+        markFailed: async function (this: unknown, _runId, source, message) {
+          expect(this).toBeUndefined();
+          return {
+            cursor: {
+              source: "row52",
+              afterLocationId: 0,
+              locationIds: [],
+              skip: 0,
+            },
+            status: "failed",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [message],
+          };
+        },
       },
     });
 
@@ -284,7 +289,8 @@ describe("durable ingestion lifecycle", () => {
           reconcile: async () => {
             throw error;
           },
-          markRunFailed: async (_runId, message) => {
+          markRunFailed: async function (this: unknown, _runId, message) {
+            expect(this).toBeUndefined();
             failures.push(message);
           },
         }),
@@ -295,19 +301,23 @@ describe("durable ingestion lifecycle", () => {
     ]);
   });
 
-  test("runs every coordinator phase in order", async () => {
+  test("runs every coordinator phase in order without serializing sibling callbacks", async () => {
     const events: string[] = [];
     const result = await executeDurableIngestion({
       runId: "run-1",
       operations: makeOperations({
-        cleanupStale: async () => {
+        cleanupStale: async function (this: unknown) {
+          stringify({ args: [], thisVal: this });
+          expect(this).toBeUndefined();
           events.push("cleanup-stale");
         },
-        initialize: async (runId) => {
+        initialize: async function (this: unknown, runId) {
+          expect(this).toBeUndefined();
           events.push("initialize");
           return { status: "started", runId };
         },
-        runChunk: async (_runId, cursor) => {
+        runChunk: async function (this: unknown, _runId, cursor) {
+          expect(this).toBeUndefined();
           events.push(`source:${cursor.source}`);
           return {
             cursor,
@@ -317,7 +327,12 @@ describe("durable ingestion lifecycle", () => {
             errors: [],
           };
         },
-        reconcile: async () => {
+        validateSources: async function (this: unknown) {
+          expect(this).toBeUndefined();
+          return { status: "ready", acceptedSources: [], rejectedSources: [] };
+        },
+        reconcile: async function (this: unknown) {
+          expect(this).toBeUndefined();
           events.push("reconcile");
           return { status: "complete", result: COMPLETED_INGESTION };
         },
