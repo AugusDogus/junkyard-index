@@ -21,8 +21,13 @@ export function resolveSearchCommit(
   return { kind: "vin", value: parsed.data.normalized };
 }
 
+export interface PendingSearchCommit {
+  value: string;
+  inputValue: string;
+}
+
 export interface SearchCommitOperations {
-  setPendingValue: (value: string) => void;
+  setPendingCommit: (commit: PendingSearchCommit) => void;
   changeMode: (value: {
     query: string | null;
     vinPattern: string | null;
@@ -42,7 +47,10 @@ export async function executeSearchCommit(params: {
   );
   if (commit.kind === "invalid-vin") return commit;
 
-  params.operations.setPendingValue(commit.value);
+  params.operations.setPendingCommit({
+    value: commit.value,
+    inputValue: params.value,
+  });
   if (commit.kind === "vin") {
     await params.operations.changeMode({
       query: null,
@@ -72,20 +80,22 @@ export type CommittedSearchSync =
 
 export function resolveCommittedSearchSync(params: {
   committedValue: string;
-  pendingValue: string | null;
+  pendingCommit: PendingSearchCommit | null;
   inputValue: string;
 }): CommittedSearchSync {
   if (
-    params.pendingValue !== null &&
-    params.committedValue !== params.pendingValue
+    params.pendingCommit !== null &&
+    params.committedValue !== params.pendingCommit.value
   ) {
     return { kind: "wait" };
   }
 
   return {
     kind: "apply",
-    clearPending: params.committedValue === params.pendingValue,
+    clearPending: params.pendingCommit !== null,
     inputValue:
+      (params.pendingCommit !== null &&
+        params.inputValue !== params.pendingCommit.inputValue) ||
       params.committedValue === params.inputValue.trim()
         ? null
         : params.committedValue,

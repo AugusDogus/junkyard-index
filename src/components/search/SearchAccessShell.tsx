@@ -15,6 +15,7 @@ import {
 } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
+import { createSearchRouteSync } from "~/lib/search-route-sync";
 import { api } from "~/trpc/react";
 
 const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
@@ -65,15 +66,30 @@ export function SearchAccessShell({
     expressionMode,
     canUseAdvancedFilters,
   );
-  const routing = useMemo(
-    () =>
-      createSearchRouting(
-        ALGOLIA_INDEX_NAME,
-        vinPatternIndexReady,
-        canUseAdvancedFilters,
-      ),
-    [vinPatternIndexReady, canUseAdvancedFilters],
-  );
+  const routing = useMemo(() => {
+    const config = createSearchRouting(
+      ALGOLIA_INDEX_NAME,
+      vinPatternIndexReady,
+      canUseAdvancedFilters,
+    );
+    const sync = createSearchRouteSync((url) => {
+      window.history.pushState({}, "", url);
+    });
+    return {
+      ...config,
+      router: {
+        ...config.router,
+        push: sync.push,
+        start: sync.start,
+        dispose: sync.dispose,
+      },
+      onUrlChange: sync.onUrlChange,
+    };
+  }, [vinPatternIndexReady, canUseAdvancedFilters]);
+
+  useEffect(() => {
+    routing.onUrlChange(window.location.href);
+  }, [routing, searchParams]);
 
   if (isSearchPending) {
     return (
