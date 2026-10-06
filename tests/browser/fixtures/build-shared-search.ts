@@ -17,7 +17,7 @@ export async function bundleSharedSearchFixture(target: "bun" | "browser") {
               'export const env = {NEXT_PUBLIC_APP_URL:"http://shared-search.test"};',
             loader: "js",
           }));
-          builder.onResolve({ filter: /^~\/lib\/algolia-search$/ }, () => ({
+          builder.onResolve({ filter: /^algoliasearch\/lite$/ }, () => ({
             path: resolve("tests/browser/fixtures/shared-search-client.ts"),
           }));
           builder.onLoad({ filter: /next\/headers\.js$/ }, () => ({
@@ -36,12 +36,18 @@ export async function bundleSharedSearchFixture(target: "bun" | "browser") {
   return output;
 }
 
-export async function renderSharedSearchFixture() {
+export async function renderSharedSearchFixture(
+  searchParams = "q=toyota+venza&states=Alabama",
+) {
   const directory = await mkdtemp(join(tmpdir(), "shared-search-"));
   try {
     const path = join(directory, "server.mjs");
     await Bun.write(path, await bundleSharedSearchFixture("bun"));
-    const result = Bun.spawn(["bun", path], { stdout: "pipe", stderr: "pipe" });
+    const result = Bun.spawn(["bun", path, searchParams], {
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 5000,
+    });
     const [html, errors, status] = await Promise.all([
       new Response(result.stdout).text(),
       new Response(result.stderr).text(),

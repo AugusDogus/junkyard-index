@@ -5,9 +5,14 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
+import { SearchExpressionFeedback } from "~/components/search/SearchExpressionFeedback";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
-import { ALGOLIA_INDEX_NAME, getSearchClient } from "~/lib/algolia-search";
+import {
+  ALGOLIA_INDEX_NAME,
+  getSearchClient,
+  prepareSearchExpression,
+} from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { api } from "~/trpc/react";
@@ -21,6 +26,16 @@ interface SearchAccessShellProps {
     vinPatternIndexReady: boolean;
     booleanOrSearchReady: boolean;
   }): ReactNode;
+}
+
+function ConsumeSearchHydration() {
+  useEffect(() => {
+    // InstantSearchNext 1.x keeps SSR results in this window slot after hydration.
+    // Consume them only after the provider mounts, including after error recovery.
+    // Later capability/plan remounts must search with their own routed state.
+    Reflect.deleteProperty(window, Symbol.for("InstantSearchInitialResults"));
+  }, []);
+  return null;
 }
 
 export function SearchAccessShell({
@@ -41,7 +56,10 @@ export function SearchAccessShell({
     searchCapabilities?.vinPatternSearchReady ?? false;
   const booleanOrSearchReady =
     searchCapabilities?.booleanOrSearchReady ?? false;
-  const expressionMode = useSearchParams().get("syntax") === "expression";
+  const searchParams = useSearchParams();
+  const expressionMode = searchParams.get("syntax") === "expression";
+  const isSearchPending =
+    isPending || (expressionMode && planAccess.kind === "loading");
   const searchClient = getSearchClient(
     booleanOrSearchReady,
     expressionMode,
@@ -57,14 +75,7 @@ export function SearchAccessShell({
     [vinPatternIndexReady, canUseAdvancedFilters],
   );
 
-  useEffect(() => {
-    if (isPending) return;
-    // InstantSearchNext 1.x keeps SSR results in this window slot after hydration.
-    // Later capability/plan remounts must search with their own routed state.
-    Reflect.deleteProperty(window, Symbol.for("InstantSearchInitialResults"));
-  }, [isPending]);
-
-  if (isPending) {
+  if (isSearchPending) {
     return (
       <div
         className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8"
@@ -80,6 +91,31 @@ export function SearchAccessShell({
     );
   }
 
+  if (expressionMode) {
+    const prepared = prepareSearchExpression(
+      searchParams.get("q") ?? "",
+      booleanOrSearchReady,
+      canUseAdvancedFilters,
+    );
+    if (!prepared.success) {
+      return (
+        <SearchExpressionFeedback
+          error={
+            prepared.error.kind === "upgrade_required" &&
+            planAccess.kind === "unavailable"
+              ? {
+                  kind: "unavailable",
+                  message:
+                    "Your plan could not be confirmed. Refresh this page to retry, or remove field conditions to search for free.",
+                }
+              : prepared.error
+          }
+          isLoggedIn={isLoggedIn}
+        />
+      );
+    }
+  }
+
   return (
     <InstantSearchNext
       key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
@@ -88,6 +124,7 @@ export function SearchAccessShell({
       routing={routing}
       future={INSTANT_SEARCH_FUTURE}
     >
+      <ConsumeSearchHydration />
       <ErrorBoundary>
         {children({
           planAccess,
