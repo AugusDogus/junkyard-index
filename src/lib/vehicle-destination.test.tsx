@@ -71,6 +71,7 @@ async function renderSurfaces(vehicle: SearchVehicle) {
 }
 
 const manualProviders = [
+  ["upullitne", "https://upullitne.com/search-inventory/"],
   ["pullnsave", "https://www.pullnsave.com/inventory/"],
   ["tearapart", "https://tearapart.com/inventory/"],
   ["upullrparts", "https://upullrparts.com/inventory/"],
@@ -150,11 +151,6 @@ describe("working destinations", () => {
     [
       "pullapart",
       "https://www.pullapart.com/inventory/vehicle/123",
-      "View inventory",
-    ],
-    [
-      "upullitne",
-      "https://upullitne.com/search-inventory/?stock=LCN062459",
       "View inventory",
     ],
     [

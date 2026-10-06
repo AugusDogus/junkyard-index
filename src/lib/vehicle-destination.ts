@@ -12,6 +12,7 @@ export type VehicleDestination =
 
 // Verified public entry points, not vehicle permalinks. See docs/runbooks/provider-media-links.md.
 const manualSearchUrls: Partial<Record<DataSource, string>> = {
+  upullitne: "https://upullitne.com/search-inventory/",
   pullnsave: "https://www.pullnsave.com/inventory/",
   tearapart: "https://tearapart.com/inventory/",
   upullrparts: "https://upullrparts.com/inventory/",

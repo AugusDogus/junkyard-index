@@ -135,7 +135,7 @@ describe("transformTapInventoryProduct", () => {
     }
   });
 
-  test("preserves Nebraska links, image extraction, and vehicle metadata", () => {
+  test("omits unsupported Nebraska vehicle links while preserving metadata", () => {
     const store = UPULLITNE_SITE_CONFIG.storeLocations.LINCOLN;
     if (!store) throw new Error("Missing Lincoln test configuration");
     const product = {
@@ -173,7 +173,7 @@ describe("transformTapInventoryProduct", () => {
       section: null,
       row: "403",
       space: null,
-      detailsUrl: "https://upullitne.com/search-inventory/?stock=LCN062459",
+      detailsUrl: null,
       partsUrl: "https://upullitne.com/parts-pricelist/",
       pricesUrl: "https://upullitne.com/parts-pricelist/",
       engine: null,

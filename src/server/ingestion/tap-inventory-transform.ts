@@ -53,10 +53,10 @@ export function transformTapInventoryProduct<Source extends IngestionSource>(
 
   const stockNumber = product.stocknumber.trim();
   const imageUrl = extractImageUrl(product.image_url);
-  // Tear-A-Part ignores stock and filter query parameters. Its public search is
-  // POST-only; do not advertise an unsupported vehicle link. See the runbook.
+  // Tear-A-Part and U Pull-It Nebraska ignore stock query parameters. Their public
+  // searches are POST-only; do not advertise unsupported vehicle links.
   const detailsUrl =
-    site.source === "tearapart"
+    site.source === "tearapart" || site.source === "upullitne"
       ? null
       : stockNumber.length > 0
         ? `${site.inventoryPageUrl}?stock=${encodeURIComponent(stockNumber)}`
