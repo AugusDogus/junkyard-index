@@ -257,6 +257,9 @@ export function createSearchRouting(
   return {
     router: {
       cleanUrlOnDispose: false,
+      // The input already debounces. Reset native history navigation before
+      // another user action can replace its pending URL write.
+      writeDelay: 0,
       createURL({
         routeState,
         location,
