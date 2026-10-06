@@ -35,3 +35,29 @@ test("server results honor the shared query and state before hydration", async (
     hits: [{ objectID: "venza-al" }],
   });
 }, 30_000);
+
+for (const scenario of [
+  { query: "(", extra: "", message: "Search could not run" },
+  {
+    query: "make:Toyota",
+    extra: "&fixtureGuest=1",
+    message: "Upgrade to use field conditions",
+  },
+  {
+    query: "Toyota OR Ford",
+    extra: "&fixtureBooleanReady=0",
+    message: "Boolean OR search is temporarily unavailable",
+  },
+]) {
+  test(`shared expression renders recovery instead of hanging: ${scenario.query}${scenario.extra}`, async () => {
+    const html = await renderSharedSearchFixture(
+      `q=${encodeURIComponent(scenario.query)}&syntax=expression${scenario.extra}`,
+    );
+    expect(html).toContain(scenario.message);
+    expect(html).toContain('action="/search"');
+    expect(html).toContain('name="q"');
+    expect(html).not.toContain(
+      'window[Symbol.for("InstantSearchInitialResults")]',
+    );
+  }, 15_000);
+}

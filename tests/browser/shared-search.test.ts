@@ -89,3 +89,55 @@ for (const scenario of [
     }
   }, 15_000);
 }
+
+for (const scenario of [
+  { query: "(", extra: "", count: 1 },
+  { query: "make:Toyota", extra: "&fixtureGuest=1", count: 2 },
+  { query: "Toyota OR Ford", extra: "&fixtureBooleanReady=0", count: 1 },
+]) {
+  test(`rejected shared expression can be edited and submitted: ${scenario.query}${scenario.extra}`, async () => {
+    const page = await browser.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    try {
+      await page.route("http://shared-search.test/**", async (route) => {
+        const url = new URL(route.request().url());
+        const isScript = url.pathname === "/app.js";
+        return route.fulfill({
+          contentType: isScript ? "text/javascript" : "text/html",
+          body: isScript ? script : await renderSharedSearchFixture(url.search),
+        });
+      });
+      await page.goto(
+        `http://shared-search.test/search?q=${encodeURIComponent(scenario.query)}&syntax=expression&states=Alabama${scenario.extra}`,
+      );
+      await page.getByRole("alert").waitFor();
+      expect(await page.getByRole("searchbox").inputValue()).toBe(
+        scenario.query,
+      );
+      if (scenario.extra === "&fixtureGuest=1") {
+        expect(await page.getByRole("link", { name: "Sign in" }).count()).toBe(
+          1,
+        );
+        expect(
+          await page.getByRole("link", { name: "See plans" }).count(),
+        ).toBe(1);
+      }
+      await page.getByRole("searchbox").fill("toyota venza");
+      await page.getByRole("button", { name: "Search", exact: true }).click();
+      await page.getByRole("heading", { name: "2010 Toyota Venza" }).waitFor();
+      expect(new URL(page.url()).searchParams.get("states")).toBe("Alabama");
+      expect(
+        await page
+          .getByText(`${scenario.count} vehicles`, { exact: true })
+          .count(),
+      ).toBeGreaterThan(0);
+      expect(
+        await page.getByRole("heading", { name: "2012 Ford Focus" }).count(),
+      ).toBe(0);
+      expect(errors).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 15_000);
+}

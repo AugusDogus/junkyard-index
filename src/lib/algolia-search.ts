@@ -1,5 +1,6 @@
 import {
   compileSearchExpression,
+  type CompiledExpression,
   combineSearchFilters,
 } from "~/lib/compile-search-expression";
 import { liteClient as algoliasearch } from "algoliasearch/lite";
@@ -25,6 +26,48 @@ const baseSearchClient = algoliasearch(
   env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
 );
 
+export type SearchExpressionError = {
+  kind: "invalid" | "upgrade_required" | "unavailable";
+  message: string;
+};
+
+/** Shared validation for routed SSR initialization and subsequent search requests. */
+export function prepareSearchExpression(
+  query: string,
+  booleanOrSearchReady: boolean,
+  allowAdvancedFilters: boolean,
+):
+  | { success: true; data: CompiledExpression }
+  | { success: false; error: SearchExpressionError } {
+  const compiled = compileSearchExpression(query);
+  if (!compiled.success) {
+    return {
+      success: false,
+      error: { kind: "invalid", message: compiled.error },
+    };
+  }
+  if (compiled.data.hasFields && !allowAdvancedFilters) {
+    return {
+      success: false,
+      error: {
+        kind: "upgrade_required",
+        message: "Upgrade to use field conditions in advanced search.",
+      },
+    };
+  }
+  if (compiled.data.requiresTokens && !booleanOrSearchReady) {
+    return {
+      success: false,
+      error: {
+        kind: "unavailable",
+        message:
+          "Boolean OR search is temporarily unavailable while the index updates.",
+      },
+    };
+  }
+  return compiled;
+}
+
 function addAdvancedSyntax(
   params: SearchParamsObject | undefined,
   booleanOrSearchReady: boolean,
@@ -34,14 +77,12 @@ function addAdvancedSyntax(
   if (!params || typeof params.query !== "string") return params;
 
   if (expressionMode) {
-    const compiled = compileSearchExpression(params.query);
-    if (!compiled.success) throw new Error(compiled.error);
-    if (compiled.data.hasFields && !allowAdvancedFilters)
-      throw new Error("Upgrade to use field conditions in advanced search.");
-    if (compiled.data.requiresTokens && !booleanOrSearchReady)
-      throw new Error(
-        "Boolean OR search is temporarily unavailable while the index updates.",
-      );
+    const compiled = prepareSearchExpression(
+      params.query,
+      booleanOrSearchReady,
+      allowAdvancedFilters,
+    );
+    if (!compiled.success) throw new Error(compiled.error.message);
     return {
       ...params,
       query: compiled.data.query,

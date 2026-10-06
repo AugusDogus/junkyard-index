@@ -1,5 +1,3 @@
-export { ALGOLIA_INDEX_NAME } from "~/lib/constants";
-
 const vehicles = [
   {
     objectID: "venza-al",
@@ -33,12 +31,14 @@ const vehicles = [
   vin: vehicle.objectID,
 }));
 
+type SearchParams = { query?: string; facetFilters?: unknown; page?: number };
+type SearchRequest = { indexName: string; params?: SearchParams };
+
 const client = {
   async search(
-    requests: {
-      indexName: string;
-      params?: { query?: string; facetFilters?: unknown; page?: number };
-    }[],
+    input:
+      | SearchRequest[]
+      | { requests: (SearchParams & { indexName: string })[] },
   ) {
     if (typeof document !== "undefined") {
       const previous = Number(
@@ -46,6 +46,12 @@ const client = {
       );
       document.documentElement.dataset.searchRequests = String(previous + 1);
     }
+    const requests = Array.isArray(input)
+      ? input
+      : input.requests.map(({ indexName, ...params }) => ({
+          indexName,
+          params,
+        }));
     return {
       results: requests.map(({ indexName, params }) => {
         const query = params?.query ?? "";
@@ -79,6 +85,6 @@ const client = {
     };
   },
 };
-export function getSearchClient() {
+export function liteClient() {
   return client;
 }

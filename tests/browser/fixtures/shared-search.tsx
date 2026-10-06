@@ -15,6 +15,10 @@ import superjson from "superjson";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { api } from "~/trpc/react";
 
+const params = new URLSearchParams(
+  typeof window === "undefined" ? process.argv[2] : window.location.search,
+);
+const isLoggedIn = params.get("fixtureGuest") !== "1";
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: Infinity, retry: false } },
 });
@@ -22,7 +26,7 @@ queryClient.setQueryData(
   getQueryKey(api.status.searchCapabilities, undefined, "query"),
   {
     vinPatternSearchReady: true,
-    booleanOrSearchReady: true,
+    booleanOrSearchReady: params.get("fixtureBooleanReady") !== "0",
   },
 );
 queryClient.setQueryData(
@@ -49,7 +53,6 @@ const trpcClient = api.createClient({
     httpLink({ url: "http://unused.test/api/trpc", transformer: superjson }),
   ],
 });
-const params = new URLSearchParams("q=toyota+venza&states=Alabama");
 const router = {
   back() {},
   forward() {},
@@ -102,7 +105,7 @@ function Fixture() {
                   Switch plan
                 </button>
                 <Suspense>
-                  <SearchPageContent isLoggedIn />
+                  <SearchPageContent isLoggedIn={isLoggedIn} />
                 </Suspense>
               </api.Provider>
             </QueryClientProvider>
