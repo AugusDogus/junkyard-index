@@ -53,15 +53,6 @@ export function transformTapInventoryProduct<Source extends IngestionSource>(
 
   const stockNumber = product.stocknumber.trim();
   const imageUrl = extractImageUrl(product.image_url);
-  // Tear-A-Part and U Pull-It Nebraska ignore stock query parameters. Their public
-  // searches are POST-only; do not advertise unsupported vehicle links.
-  const detailsUrl =
-    site.source === "tearapart" || site.source === "upullitne"
-      ? null
-      : stockNumber.length > 0
-        ? `${site.inventoryPageUrl}?stock=${encodeURIComponent(stockNumber)}`
-        : site.inventoryPageUrl;
-
   return {
     vin,
     source: site.source,
@@ -82,7 +73,8 @@ export function transformTapInventoryProduct<Source extends IngestionSource>(
     section: null,
     row: product.vehicle_row?.trim() || null,
     space: null,
-    detailsUrl,
+    // Both configured TAP providers use POST-only search and ignore stock URLs.
+    detailsUrl: null,
     // The site exposes a single parts pricing page rather than separate parts/prices routes.
     partsUrl: `${new URL(site.partsPricelistPath, site.inventoryPageUrl).toString()}`,
     pricesUrl: `${new URL(site.partsPricelistPath, site.inventoryPageUrl).toString()}`,
