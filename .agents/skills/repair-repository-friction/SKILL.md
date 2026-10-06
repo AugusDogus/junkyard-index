@@ -7,8 +7,17 @@ description: Repair a reproducible defect in Junkyard Index code discovered whil
 
 Take one confirmed Junkyard Index defect from a minimized reproduction to a
 reviewed pull request. The discovering agent retains ownership of the task that
-exposed the defect. If you are the delegated repair agent, own this repair
-through its completion handoff instead of delegating it again.
+exposed the defect. When the repair is separable and T3 Code thread orchestration
+is available, the discovering agent launches a new top-level repair thread,
+not a subagent, under the standing authorization in `AGENTS.md`. Use
+`t3_thread_launch` with `workspaceStrategy: { type: "worktree", baseRef: "main",
+branch: "fix/<defect>", startFromOrigin: true }` so T3 binds the thread to its
+checkout before work starts. Include this skill, the handoff evidence below,
+scope, and discovering thread ID; retain the returned thread ID for coordination.
+If you are the repair thread, own the repair through its completion handoff
+without launching another owner. Review subagents remain allowed. If thread
+orchestration is unavailable or the repair cannot be separated, run this skill
+directly.
 
 ## Confirm the handoff
 
@@ -33,8 +42,9 @@ upstream.
 
 ## Own the repair
 
-1. Create an isolated worktree and a dedicated branch from the refreshed default
-   branch. Leave the discovering agent's checkout and task changes untouched.
+1. Use the isolated worktree and dedicated branch bound at thread launch. For a
+   repair run directly without a separate T3 thread, create them from the
+   refreshed default branch. Leave the discovering agent's task changes untouched.
 2. Make the minimized failure red outside the original task. Prefer a focused
    regression test. When no test seam exists, use the smallest deterministic
    command that proves the same failure and retain its output as the receipt.
