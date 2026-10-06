@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
@@ -56,6 +56,13 @@ export function SearchAccessShell({
       ),
     [vinPatternIndexReady, canUseAdvancedFilters],
   );
+
+  useEffect(() => {
+    if (isPending) return;
+    // InstantSearchNext 1.x keeps SSR results in this window slot after hydration.
+    // Later capability/plan remounts must search with their own routed state.
+    Reflect.deleteProperty(window, Symbol.for("InstantSearchInitialResults"));
+  }, [isPending]);
 
   if (isPending) {
     return (
