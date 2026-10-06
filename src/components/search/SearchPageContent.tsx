@@ -13,12 +13,13 @@ import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  Configure,
   useClearRefinements,
+  useConfigure,
   useInfiniteHits,
   useInstantSearch,
   useRange,
   useRefinementList,
+  useSearchBox,
   useSortBy,
   useStats,
 } from "react-instantsearch";
@@ -433,43 +434,66 @@ function AlgoliaSearchInner({
     string[]
   >;
   const yearRangeState = (indexUiState.range ?? {}) as Record<string, string>;
-  const query = (indexUiState.query as string) ?? "";
-  const { hits, showMore, isLastPage } = useInfiniteHits<AlgoliaVehicleHit>();
-  const { nbHits, processingTimeMS } = useStats();
+  // Register the complete routed search before suspending in useConfigure below.
+  // The input shares this query widget; registering it here includes it in SSR.
+  const { query } = useSearchBox({}, { skipSuspense: true });
+  const { hits, showMore, isLastPage } = useInfiniteHits<AlgoliaVehicleHit>(
+    {},
+    { skipSuspense: true },
+  );
+  const { nbHits, processingTimeMS } = useStats({}, { skipSuspense: true });
 
   // Facets
-  const { items: makeItems, refine: refineMake } = useRefinementList({
-    ...SEARCH_FILTER_FACETS.makes,
-    sortBy: ["name:asc"],
-  });
-  const { items: colorItems, refine: refineColor } = useRefinementList({
-    ...SEARCH_FILTER_FACETS.colors,
-    sortBy: ["name:asc"],
-  });
-  const { items: stateItems, refine: refineState } = useRefinementList({
-    ...SEARCH_FILTER_FACETS.states,
-    sortBy: ["name:asc"],
-  });
-  const { items: locationItems, refine: refineLocation } = useRefinementList({
-    ...SEARCH_FILTER_FACETS.salvageYards,
-    sortBy: ["name:asc"],
-  });
-  const { refine: refineSource } = useRefinementList({
-    ...SEARCH_FILTER_FACETS.sources,
-  });
+  const { items: makeItems, refine: refineMake } = useRefinementList(
+    {
+      ...SEARCH_FILTER_FACETS.makes,
+      sortBy: ["name:asc"],
+    },
+    { skipSuspense: true },
+  );
+  const { items: colorItems, refine: refineColor } = useRefinementList(
+    {
+      ...SEARCH_FILTER_FACETS.colors,
+      sortBy: ["name:asc"],
+    },
+    { skipSuspense: true },
+  );
+  const { items: stateItems, refine: refineState } = useRefinementList(
+    {
+      ...SEARCH_FILTER_FACETS.states,
+      sortBy: ["name:asc"],
+    },
+    { skipSuspense: true },
+  );
+  const { items: locationItems, refine: refineLocation } = useRefinementList(
+    {
+      ...SEARCH_FILTER_FACETS.salvageYards,
+      sortBy: ["name:asc"],
+    },
+    { skipSuspense: true },
+  );
+  const { refine: refineSource } = useRefinementList(
+    {
+      ...SEARCH_FILTER_FACETS.sources,
+    },
+    { skipSuspense: true },
+  );
 
   // Year range
-  const { start: yearStart, refine: refineYear } = useRange({
-    attribute: "year",
-    min: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
-    max: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
-  });
+  const { start: yearStart, refine: refineYear } = useRange(
+    {
+      attribute: "year",
+      min: SEARCHABLE_VEHICLE_YEAR_RANGE.min,
+      max: SEARCHABLE_VEHICLE_YEAR_RANGE.max,
+    },
+    { skipSuspense: true },
+  );
 
   // Server-side sorting via Algolia replicas.
   // Virtual replicas for date/year (share records with primary).
   // Standard replica for distance (separate index with geo-dominant ranking).
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
-    useSortBy({ items: SEARCH_SORT_ITEMS });
+    useSortBy({ items: SEARCH_SORT_ITEMS }, { skipSuspense: true });
 
   const sortBy = useMemo(
     () => getSearchSortKey(currentSortIndex),
@@ -963,7 +987,10 @@ function AlgoliaSearchInner({
     ],
   );
 
-  const { refine: clearRefinements } = useClearRefinements();
+  const { refine: clearRefinements } = useClearRefinements(
+    {},
+    { skipSuspense: true },
+  );
 
   const clearAllFilters = useCallback(() => {
     posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
@@ -1309,20 +1336,22 @@ function AlgoliaSearchInner({
     },
   });
 
+  // This final search hook suspends only after query, facets, and sort are registered.
+  useConfigure({
+    // Intentionally 1000 (Algolia max). Small page sizes break sorting:
+    // virtual replicas with relevancyStrictness:0 + useInfiniteHits
+    // reset on sort switch, and the virtualizer needs enough rows to
+    // render without the "5 results" bug. 1000 per page means most
+    // queries complete in 1-2 API calls.
+    hitsPerPage: 1000,
+    aroundLatLng,
+    aroundLatLngViaIP: useAlgoliaIpLocation,
+    aroundRadius: isDistanceSort ? "all" : undefined,
+    filters: effectiveVinPatternFilter,
+  });
+
   return (
     <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-      <Configure
-        // Intentionally 1000 (Algolia max). Small page sizes break sorting:
-        // virtual replicas with relevancyStrictness:0 + useInfiniteHits
-        // reset on sort switch, and the virtualizer needs enough rows to
-        // render without the "5 results" bug. 1000 per page means most
-        // queries complete in 1-2 API calls.
-        hitsPerPage={1000}
-        aroundLatLng={aroundLatLng}
-        aroundLatLngViaIP={useAlgoliaIpLocation}
-        aroundRadius={isDistanceSort ? "all" : undefined}
-        filters={effectiveVinPatternFilter}
-      />
       <DistancePreferenceDialog
         open={showDistancePreferenceDialog}
         manualZipCode={manualZipCode}
