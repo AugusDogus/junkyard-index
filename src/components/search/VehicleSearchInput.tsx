@@ -13,6 +13,7 @@ import { cn } from "~/lib/utils";
 import {
   executeSearchCommit,
   resolveCommittedSearchSync,
+  type PendingSearchCommit,
 } from "~/lib/search-commit";
 import { VinPattern } from "~/lib/vin-pattern";
 
@@ -41,7 +42,7 @@ export function VehicleSearchInput({
   const [inputValue, setInputValue] = useState(committedValue);
   const inputValueRef = useRef(inputValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const committingValueRef = useRef<string | null>(null);
+  const pendingCommitRef = useRef<PendingSearchCommit | null>(null);
 
   useEffect(() => {
     refineRef.current = refine;
@@ -54,11 +55,11 @@ export function VehicleSearchInput({
   useEffect(() => {
     const sync = resolveCommittedSearchSync({
       committedValue,
-      pendingValue: committingValueRef.current,
+      pendingCommit: pendingCommitRef.current,
       inputValue: inputValueRef.current,
     });
     if (sync.kind === "wait") return;
-    if (sync.clearPending) committingValueRef.current = null;
+    if (sync.clearPending) pendingCommitRef.current = null;
     if (sync.inputValue !== null) setInputValue(sync.inputValue);
   }, [committedValue]);
 
@@ -87,7 +88,7 @@ export function VehicleSearchInput({
   );
   const urlQuery = searchParams.get("q") ?? "";
   useEffect(() => {
-    if (committingValueRef.current !== null) return;
+    if (pendingCommitRef.current !== null) return;
     if (!urlQuery && inputValueRef.current) {
       setInputValue("");
       void onSearchModeChange({ query: null, vinPattern: null });
@@ -168,8 +169,8 @@ export function VehicleSearchInput({
         vinPatternSearchReady: vinPatternSearchReady && !expressionMode,
         currentVinPattern: vinPattern,
         operations: {
-          setPendingValue: (pendingValue) => {
-            committingValueRef.current = pendingValue;
+          setPendingCommit: (pendingCommit) => {
+            pendingCommitRef.current = pendingCommit;
           },
           changeMode: onSearchModeChange,
           refine: (queryValue) => refineRef.current(queryValue),

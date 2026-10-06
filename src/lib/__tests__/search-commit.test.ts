@@ -3,9 +3,40 @@ import {
   executeSearchCommit,
   resolveCommittedSearchSync,
   resolveSearchCommit,
+  type PendingSearchCommit,
 } from "../search-commit";
 
 describe("resolveSearchCommit", () => {
+  test("preserves a newer draft when an older search commit is acknowledged", () => {
+    expect(
+      resolveCommittedSearchSync({
+        committedValue: "toyota venza",
+        pendingCommit: { value: "toyota venza", inputValue: "toyota venza" },
+        inputValue: "h",
+      }),
+    ).toEqual({ kind: "apply", clearPending: true, inputValue: null });
+  });
+
+  test("keeps waiting when a newer commit is still pending", () => {
+    expect(
+      resolveCommittedSearchSync({
+        committedValue: "toyota venza",
+        pendingCommit: { value: "honda", inputValue: "honda" },
+        inputValue: "honda civic",
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  test("accepts external query changes when no local commit is pending", () => {
+    expect(
+      resolveCommittedSearchSync({
+        committedValue: "ford",
+        pendingCommit: null,
+        inputValue: "honda",
+      }),
+    ).toEqual({ kind: "apply", clearPending: false, inputValue: "ford" });
+  });
+
   test("normalizes lowercase VINs before storing pending navigation state", () => {
     expect(resolveSearchCommit(" 1fadp3f29fl123456 ", true)).toEqual({
       kind: "vin",
@@ -21,7 +52,7 @@ describe("resolveSearchCommit", () => {
   });
 
   test("completes a normalized VIN commit across pending, URL, and Algolia state", async () => {
-    const pendingValues: string[] = [];
+    const pendingCommits: PendingSearchCommit[] = [];
     const modeChanges: Array<{
       query: string | null;
       vinPattern: string | null;
@@ -33,8 +64,8 @@ describe("resolveSearchCommit", () => {
       vinPatternSearchReady: true,
       currentVinPattern: "",
       operations: {
-        setPendingValue: (value) => {
-          pendingValues.push(value);
+        setPendingCommit: (commit) => {
+          pendingCommits.push(commit);
         },
         changeMode: async (value) => {
           modeChanges.push(value);
@@ -45,7 +76,9 @@ describe("resolveSearchCommit", () => {
       },
     });
 
-    expect(pendingValues).toEqual(["1FADP3F29FL123456"]);
+    expect(pendingCommits).toEqual([
+      { value: "1FADP3F29FL123456", inputValue: "1fadp3f29fl123456" },
+    ]);
     expect(modeChanges).toEqual([
       { query: null, vinPattern: "1FADP3F29FL123456" },
     ]);
@@ -53,7 +86,7 @@ describe("resolveSearchCommit", () => {
     expect(
       resolveCommittedSearchSync({
         committedValue: "1FADP3F29FL123456",
-        pendingValue: pendingValues.at(-1) ?? null,
+        pendingCommit: pendingCommits.at(-1) ?? null,
         inputValue: "1fadp3f29fl123456",
       }),
     ).toEqual({
