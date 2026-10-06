@@ -66,6 +66,7 @@ export function SearchAccessShell({
     expressionMode,
     canUseAdvancedFilters,
   );
+  // Each keyed InstantSearch instance must own its router's lifecycle state.
   const routing = useMemo(() => {
     const config = createSearchRouting(
       ALGOLIA_INDEX_NAME,
@@ -85,7 +86,7 @@ export function SearchAccessShell({
       },
       onUrlChange: sync.onUrlChange,
     };
-  }, [vinPatternIndexReady, canUseAdvancedFilters]);
+  }, [vinPatternIndexReady, booleanOrSearchReady, canUseAdvancedFilters]);
 
   useEffect(() => {
     routing.onUrlChange(window.location.href);
