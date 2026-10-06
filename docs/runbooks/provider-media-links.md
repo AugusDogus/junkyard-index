@@ -33,6 +33,19 @@ establish production deployment verification. Counts and timings are observation
 - Do not invent stock/filter parameters for manual-search providers. A successful
   page load or a lightbox is not evidence of a persistent vehicle destination.
 
+## U Pull-It Nebraska link verification (October 6, 2026)
+
+- The indexed Des Moines Venza (VIN `4T3BA3BB5A4019081`, stock `DMI034407`)
+  linked to `https://upullitne.com/search-inventory/?stock=DMI034407`.
+  Opening that URL left the search form unset and displayed "Please use the
+  search form to find vehicles." The provider's frontend script uses POST
+  `sif_search_products` requests and does not read the stock query parameter.
+- U Pull-It Nebraska now emits null `detailsUrl` and uses the shared manual
+  inventory search destination. This also corrects older indexed and queued
+  stock URLs in vehicle cards, email, and Discord without a reindex.
+- This is a link capability defect, not evidence that a vehicle is missing.
+  Missing status still depends on accepted ingestion results.
+
 ## iPull-uPull enrichment
 
 Primary runbook: [independent yard ingestion](independent-yard-ingestion.md).
