@@ -26,6 +26,7 @@ import type {
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
+import { IngestionSourceFlags } from "./ingestion-source-flags";
 
 export type {
   DurableIngestionResult,
@@ -86,13 +87,14 @@ async function sendHeartbeat(fail: boolean): Promise<void> {
 export function initializeDurableIngestion(
   runId: string,
 ): Promise<InitializeDurableIngestionResult> {
-  return repository.initialize(runId);
+  return repository.initialize(runId, IngestionSourceFlags.enabledSources);
 }
 
-export function prepareDurableIngestionWakeup(
+export async function prepareDurableIngestionWakeup(
   now = new Date(),
 ): Promise<DurableIngestionWakeupResult> {
-  return repository.prepareWakeup(now);
+  const sources = await IngestionSourceFlags.enabledSources();
+  return repository.prepareWakeup(now, sources);
 }
 
 export function attachDurableIngestionWorkflow(

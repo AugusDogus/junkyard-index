@@ -6,8 +6,8 @@ import type {
 } from "./durable-ingestion-types";
 import type { DurableSourceValidationSummary } from "./durable-source-validation";
 import {
-  DURABLE_INITIAL_SOURCE_CURSORS,
   durableSourceCursorEquals,
+  getDurableSourceDefinition,
   type DurableCursorFor,
   type DurableIngestionSource,
   type DurableSourceCursor,
@@ -143,7 +143,11 @@ export async function executeDurableIngestion(params: {
         initialCursor,
         operations: params.operations,
       });
-    await Promise.all(DURABLE_INITIAL_SOURCE_CURSORS.map(ingestSource));
+    await Promise.all(
+      initialized.sources.map((source) =>
+        ingestSource(getDurableSourceDefinition(source).initialCursor),
+      ),
+    );
     const validation = await validateSources(params.runId);
     if (validation.status === "stopped") return validation;
     while (true) {

@@ -44,7 +44,11 @@ function makeOperations(
 ): DurableIngestionOperations {
   return {
     cleanupStale: async () => undefined,
-    initialize: async (runId) => ({ status: "started", runId }),
+    initialize: async (runId) => ({
+      status: "started",
+      runId,
+      sources: DURABLE_INGESTION_SOURCES,
+    }),
     runChunk: async (_runId, cursor) => ({
       cursor,
       status: "complete",
@@ -314,7 +318,11 @@ describe("durable ingestion lifecycle", () => {
         initialize: async function (this: unknown, runId) {
           expect(this).toBeUndefined();
           events.push("initialize");
-          return { status: "started", runId };
+          return {
+            status: "started",
+            runId,
+            sources: DURABLE_INGESTION_SOURCES,
+          };
         },
         runChunk: async function (this: unknown, _runId, cursor) {
           expect(this).toBeUndefined();
@@ -431,5 +439,34 @@ describe("durable ingestion lifecycle", () => {
     } finally {
       warning.mockRestore();
     }
+  });
+});
+
+describe("durable ingestion run sources", () => {
+  test("ingests only the sources the run was created with", async () => {
+    const ingested: string[] = [];
+    const result = await executeDurableIngestion({
+      runId: "run-1",
+      operations: makeOperations({
+        initialize: async (runId) => ({
+          status: "started",
+          runId,
+          sources: ["row52", "pyp"],
+        }),
+        runChunk: async (_runId, cursor) => {
+          ingested.push(cursor.source);
+          return {
+            cursor,
+            status: "complete",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [],
+          };
+        },
+      }),
+    });
+
+    expect(result.status).toBe("completed");
+    expect(ingested.sort()).toEqual(["pyp", "row52"]);
   });
 });
