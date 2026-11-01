@@ -9,6 +9,10 @@ const DatabaseLive = Layer.succeed(Database, db);
 const ConfigLive = Layer.succeed(Config, {
   betterStackHeartbeatUrl: env.BETTERSTACK_HEARTBEAT_URL,
   hyperbrowserApiKey: env.HYPERBROWSER_API_KEY,
+  browserbase: {
+    apiKey: env.BROWSERBASE_API_KEY,
+    projectId: env.BROWSERBASE_PROJECT_ID,
+  },
 });
 
 export const IngestionLayer = Layer.mergeAll(DatabaseLive, ConfigLive);

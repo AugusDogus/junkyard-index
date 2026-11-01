@@ -1,9 +1,10 @@
-import { Data, Effect, Either, RateLimiter, Schema } from "effect";
+import { Data, Effect, Either, Fiber, RateLimiter, Schema } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import { Config } from "./context";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { loadUpullRPartsImages } from "./upullrparts-images";
+import { fetchUpullRPartsBrowserCatalog } from "./upullrparts-browser-catalog";
 import {
-  fetchUpullRPartsCatalog,
   UpullRPartsVehicleSchema,
   UPULLRPARTS_MAX_CATALOG_RECORDS,
   type UpullRPartsProviderError,
@@ -45,9 +46,15 @@ export interface UpullRPartsStreamOptions<E, R> {
   onYards?: (yards: UpullRPartsYard[]) => Effect.Effect<void, E, R>;
 }
 
+export type UpullRPartsCatalogFetch = Effect.Effect<
+  readonly unknown[],
+  UpullRPartsProviderError
+>;
+
 export function streamUpullRPartsInventoryWithRequestGate<E, R>(
   options: UpullRPartsStreamOptions<E, R>,
   requestGate: ProviderRequestGate,
+  fetchCatalog: UpullRPartsCatalogFetch,
 ): Effect.Effect<
   UpullRPartsStreamResult,
   UpullRPartsProviderError | UpullRPartsMakeError | UpullRPartsStreamError | E,
@@ -77,7 +84,10 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
       },
     };
     if (cursor === 1) return result;
-    const records = yield* fetchUpullRPartsCatalog(requestGate);
+    const makeResolver = yield* Effect.fork(
+      loadUpullRPartsMakeResolver(requestGate),
+    );
+    const records = yield* fetchCatalog;
     if (
       records.length === 0 ||
       records.length > UPULLRPARTS_MAX_CATALOG_RECORDS
@@ -135,10 +145,7 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
         message: `U Pull R Parts catalog is missing known yards ${missing.map((yard) => yard.code).join(", ")}. Verify the unfiltered response and yard directory before retrying; no batches were emitted.`,
       });
     if (acceptedRecords.length > 0) {
-      const resolveMake = yield* loadUpullRPartsMakeResolver(
-        acceptedRecords.map(({ record }) => record),
-        requestGate,
-      );
+      const resolveMake = yield* Fiber.join(makeResolver);
       for (const { record, yard } of acceptedRecords) {
         const make = resolveMake(record);
         const vehicle = transformUpullRPartsVehicle(record, yard, make);
@@ -209,19 +216,26 @@ export function streamUpullRPartsInventoryWithRequestGate<E, R>(
   );
 }
 
+// Make and model requests (including retries) remain serial and rate limited.
+export const makeUpullRPartsRequestGate = RateLimiter.make({
+  limit: 1,
+  interval: "1500 millis",
+});
+
 export function streamUpullRPartsInventory<E, R>(
   options: UpullRPartsStreamOptions<E, R>,
 ): Effect.Effect<
   UpullRPartsStreamResult,
   UpullRPartsProviderError | UpullRPartsMakeError | UpullRPartsStreamError | E,
-  R
+  Config | R
 > {
-  // Catalog/make requests (including retries) remain serial and rate limited.
-  return Effect.scoped(
-    RateLimiter.make({ limit: 1, interval: "1500 millis" }).pipe(
-      Effect.flatMap((requestGate) =>
-        streamUpullRPartsInventoryWithRequestGate(options, requestGate),
-      ),
-    ),
-  );
+  return Effect.gen(function* () {
+    const config = yield* Config;
+    const requestGate = yield* makeUpullRPartsRequestGate;
+    return yield* streamUpullRPartsInventoryWithRequestGate(
+      options,
+      requestGate,
+      fetchUpullRPartsBrowserCatalog(config.browserbase),
+    );
+  }).pipe(Effect.scoped);
 }

@@ -50,7 +50,7 @@ export const UpullRPartsModelsSchema = Schema.Array(providerLabel).pipe(
 );
 
 function fetchUpullRPartsJson<A, I>(
-  apiAction: "getVehicles" | "getMakes" | "getModels",
+  apiAction: "getMakes" | "getModels",
   params: Record<string, string>,
   schema: Schema.Schema<A, I>,
   requestGate?: ProviderRequestGate,
@@ -66,7 +66,7 @@ function fetchUpullRPartsJson<A, I>(
       "User-Agent": "JunkyardIndex/1.0",
     },
     body: new URLSearchParams({
-      action: "doApiCall",
+      action: "doAaaApiCall",
       apiAction,
       ...params,
     }).toString(),
@@ -87,17 +87,6 @@ function fetchUpullRPartsJson<A, I>(
   }).pipe(Effect.mapError((cause) => new UpullRPartsProviderError({ cause })));
 }
 
-/** The shipped form has no paging. Omitting site returns all three stores. */
-export function fetchUpullRPartsCatalog(requestGate?: ProviderRequestGate) {
-  // Count individual rejected rows in the connector.
-  return fetchUpullRPartsJson(
-    "getVehicles",
-    {},
-    Schema.Array(Schema.Unknown),
-    requestGate,
-  );
-}
-
 export function fetchUpullRPartsMakes(requestGate: ProviderRequestGate) {
   return fetchUpullRPartsJson(
     "getMakes",
@@ -115,32 +104,6 @@ export function fetchUpullRPartsModels(
     "getModels",
     { Make: make, ModelYear: "0" },
     UpullRPartsModelsSchema,
-    requestGate,
-  );
-}
-
-export function fetchUpullRPartsMakeInventory(
-  make: string,
-  requestGate: ProviderRequestGate,
-) {
-  return fetchUpullRPartsJson(
-    "getVehicles",
-    {
-      makes: make,
-      models: "0",
-      years: "0",
-      beginDate: "",
-      endDate: "",
-    },
-    Schema.Array(
-      UpullRPartsVehicleSchema.pick(
-        "Store",
-        "StockNumber",
-        "VIN",
-        "Year",
-        "Model",
-      ),
-    ).pipe(Schema.maxItems(UPULLRPARTS_MAX_CATALOG_RECORDS)),
     requestGate,
   );
 }

@@ -11,16 +11,24 @@ import {
 } from "effect";
 import fixture from "./fixtures/upullrparts-vehicle.json";
 import {
-  streamUpullRPartsInventory,
+  makeUpullRPartsRequestGate,
   streamUpullRPartsInventoryWithRequestGate,
 } from "./upullrparts-connector";
+
+// Two parallel Browserbase sessions read both locations in about 201 seconds.
+const BROWSER_CATALOG = "210 seconds";
+const threeYardCatalog = [
+  fixture,
+  { ...fixture, Store: 2, VIN: "VIN-2" },
+  { ...fixture, Store: 3, VIN: "VIN-3" },
+];
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-test("3,311 unique stocks plus make fallback and a late photo transport retry fit the production deadline", async () => {
+test("a browser catalog, 3,311 photos with a late transport retry, and the make directory fit the production deadline", async () => {
   const catalog = Array.from({ length: 3311 }, (_, i) => ({
     ...fixture,
     Store: (i % 3) + 1,
@@ -29,7 +37,7 @@ test("3,311 unique stocks plus make fallback and a late photo transport retry fi
   }));
   const requests = new Map<string, number>();
   const requestedStocks = new Set<string>();
-  const catalogStarts: number[] = [];
+  const lookupStarts: number[] = [];
   let activePhotos = 0;
   let peakPhotos = 0;
   let photosCompleted = 0;
@@ -91,20 +99,17 @@ test("3,311 unique stocks plus make fallback and a late photo transport retry fi
                       : [],
                 });
               }
-              expect(params.get("action")).toBe("doApiCall");
-              catalogStarts.push(now);
+              expect(params.get("action")).toBe("doAaaApiCall");
+              lookupStarts.push(now);
               yield* Effect.sleep("750 millis");
               if (action === "getMakes")
                 return Response.json([
                   "Ford",
                   ...Array.from({ length: 55 }, (_, i) => `Make-${i}`),
                 ]);
-              if (action === "getModels")
-                return Response.json(
-                  params.get("Make") === "Ford" ? ["FOCUS"] : [],
-                );
-              // Force all 56 make partitions and all 56 fallback model requests.
-              return Response.json(params.has("makes") ? [] : catalog);
+              return Response.json(
+                params.get("Make") === "Ford" ? ["FOCUS"] : [],
+              );
             }),
           );
           // Throw the original fetch-shaped error, not Runtime's FiberFailure.
@@ -113,38 +118,42 @@ test("3,311 unique stocks plus make fallback and a late photo transport retry fi
         },
         { preconnect: originalFetch.preconnect },
       );
+      const requestGate = yield* makeUpullRPartsRequestGate;
       const fiber = yield* Effect.fork(
-        streamUpullRPartsInventory({
-          onYards: () =>
-            Effect.sync(() => {
-              expect(photosCompleted).toBe(3311);
-              yardsEmitted++;
-            }),
-          onBatch: (batch) =>
-            Effect.gen(function* () {
-              expect(photosCompleted).toBe(3311);
-              finishedAt = yield* Clock.currentTimeMillis;
-              batchSizes.push(batch.length);
-              for (const vehicle of batch) {
-                expect(vehicle.make).toBe("Ford");
-                if (vehicle.imageUrl !== null) photoCount++;
-                emittedVins.push(vehicle.vin);
-              }
-            }),
-        }),
+        streamUpullRPartsInventoryWithRequestGate(
+          {
+            onYards: () =>
+              Effect.sync(() => {
+                expect(photosCompleted).toBe(3311);
+                yardsEmitted++;
+              }),
+            onBatch: (batch) =>
+              Effect.gen(function* () {
+                expect(photosCompleted).toBe(3311);
+                finishedAt = yield* Clock.currentTimeMillis;
+                batchSizes.push(batch.length);
+                for (const vehicle of batch) {
+                  expect(vehicle.make).toBe("Ford");
+                  if (vehicle.imageUrl !== null) photoCount++;
+                  emittedVins.push(vehicle.vin);
+                }
+              }),
+          },
+          requestGate,
+          Effect.sleep(BROWSER_CATALOG).pipe(Effect.as(catalog)),
+        ),
       );
-      yield* TestClock.adjust("480 seconds");
+      yield* TestClock.adjust("520 seconds");
       expect(Option.isNone(yield* Fiber.poll(fiber))).toBe(true);
       expect(yardsEmitted).toBe(0);
       expect(batchSizes).toEqual([]);
       yield* TestClock.adjust("3 seconds");
       expect(Option.isSome(yield* Fiber.poll(fiber))).toBe(true);
       return yield* Fiber.join(fiber);
-    }).pipe(Effect.provide(TestContext.TestContext)),
+    }).pipe(Effect.scoped, Effect.provide(TestContext.TestContext)),
   );
 
   expect(Object.fromEntries(requests)).toEqual({
-    getVehicles: 57,
     getMakes: 1,
     getModels: 56,
     getVehicleImages: 3312,
@@ -153,13 +162,15 @@ test("3,311 unique stocks plus make fallback and a late photo transport retry fi
   expect(networkFailures).toBe(1);
   expect(peakPhotos).toBe(8);
   expect(activePhotos).toBe(0);
-  for (let i = 1; i < catalogStarts.length; i++) {
+  for (let i = 1; i < lookupStarts.length; i++) {
     expect(
-      (catalogStarts[i] ?? 0) - (catalogStarts[i - 1] ?? 0),
+      (lookupStarts[i] ?? 0) - (lookupStarts[i - 1] ?? 0),
     ).toBeGreaterThanOrEqual(1500);
   }
-  expect(firstPhotoAt).toBe(170250);
-  expect(finishedAt).toBe(482500);
+  // The make directory loads during the browser catalog, so photos start as
+  // soon as the catalog arrives.
+  expect(firstPhotoAt).toBe(210000);
+  expect(finishedAt).toBe(522250);
   expect(yardsEmitted).toBe(1);
   expect(batchSizes).toEqual([...Array.from({ length: 13 }, () => 250), 61]);
   expect(emittedVins).toEqual(catalog.map((row) => row.VIN));
@@ -181,7 +192,7 @@ test("3,311 unique stocks plus make fallback and a late photo transport retry fi
   });
 }, 60000);
 
-test("allows a complete make fallback when provider responses take 2.2 seconds", async () => {
+test("allows the complete make directory when provider responses take 2.2 seconds", async () => {
   let requests = 0;
   globalThis.fetch = Object.assign(
     async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -196,14 +207,7 @@ test("allows a complete make fallback when provider responses take 2.2 seconds",
           "Ford",
           ...Array.from({ length: 55 }, (_, i) => `Make-${i}`),
         ]);
-      if (params.get("apiAction") === "getModels")
-        return Response.json(params.get("Make") === "Ford" ? ["FOCUS"] : []);
-      if (params.has("makes")) return Response.json([]);
-      return Response.json([
-        fixture,
-        { ...fixture, Store: 2, VIN: "VIN-2" },
-        { ...fixture, Store: 3, VIN: "VIN-3" },
-      ]);
+      return Response.json(params.get("Make") === "Ford" ? ["FOCUS"] : []);
     },
     { preconnect: originalFetch.preconnect },
   );
@@ -214,6 +218,7 @@ test("allows a complete make fallback when provider responses take 2.2 seconds",
           { onBatch: () => Effect.void },
           (request) =>
             Effect.sleep("2200 millis").pipe(Effect.zipRight(request)),
+          Effect.succeed(threeYardCatalog),
         ),
       );
       yield* TestClock.adjust("5 minutes");
@@ -226,7 +231,7 @@ test("allows a complete make fallback when provider responses take 2.2 seconds",
     errors: [],
     warnings: [],
   });
-  expect(requests).toBe(115);
+  expect(requests).toBe(58);
 });
 
 test("bounds a stalled catalog to ten minutes without emitting batches", async () => {
@@ -242,6 +247,7 @@ test("bounds a stalled catalog to ten minutes without emitting batches", async (
               }),
           },
           () => Effect.never,
+          Effect.never,
         ),
       );
       yield* TestClock.adjust("9 minutes");
@@ -270,11 +276,7 @@ test("photo enrichment shares the ten-minute deadline and cannot publish a parti
       }
       if (params.get("apiAction") === "getMakes")
         return Response.json(["Ford"]);
-      return Response.json([
-        fixture,
-        { ...fixture, Store: 2, VIN: "VIN-2" },
-        { ...fixture, Store: 3, VIN: "VIN-3" },
-      ]);
+      return Response.json(["FOCUS"]);
     },
     { preconnect: originalFetch.preconnect },
   );
@@ -288,6 +290,7 @@ test("photo enrichment shares the ten-minute deadline and cannot publish a parti
         streamUpullRPartsInventoryWithRequestGate(
           { onBatch, onYards: onBatch },
           (request) => request,
+          Effect.succeed(threeYardCatalog),
         ),
       );
       yield* TestClock.adjust("9 minutes");

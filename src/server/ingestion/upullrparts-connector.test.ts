@@ -3,10 +3,14 @@ import { Effect } from "effect";
 import fixture from "./fixtures/upullrparts-vehicle.json";
 import images from "./fixtures/upullrparts-images.json";
 import partialImages from "./fixtures/upullrparts-partial-images.json";
-import { UPULLRPARTS_API_URL } from "./upullrparts-client";
+import {
+  UPULLRPARTS_API_URL,
+  UpullRPartsProviderError,
+} from "./upullrparts-client";
 import {
   streamUpullRPartsInventoryWithRequestGate,
   UPULLRPARTS_MAX_CATALOG_RECORDS,
+  type UpullRPartsCatalogFetch,
 } from "./upullrparts-connector";
 import type { UpullRPartsCanonicalVehicle } from "./upullrparts-transform";
 import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
@@ -14,6 +18,22 @@ import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
 const originalFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = originalFetch;
+});
+
+// Production reads the catalog through a browser session. These tests serve
+// catalog bodies from the mocked fetch instead.
+const mockedCatalog: UpullRPartsCatalogFetch = Effect.tryPromise({
+  try: async () => {
+    const response = await fetch(UPULLRPARTS_API_URL, {
+      method: "POST",
+      body: "action=doAaaApiCall&apiAction=getVehicles",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body: unknown = await response.json();
+    if (!Array.isArray(body)) throw new Error("catalog is not an array");
+    return body;
+  },
+  catch: (cause) => new UpullRPartsProviderError({ cause }),
 });
 const catalog = [
   fixture,
@@ -35,12 +55,19 @@ function mockResponse(body: string, status = 200) {
         return Response.json(["Ford"]);
       if (params.get("apiAction") === "getModels")
         return Response.json(["FOCUS"]);
-      if (params.has("makes")) return Response.json(catalog);
       return new Response(body, { status });
     },
     { preconnect: originalFetch.preconnect },
   );
   return requests;
+}
+
+function requestedApiActions(requests: { init: RequestInit | undefined }[]) {
+  return requests.map((request) =>
+    new URLSearchParams(
+      typeof request.init?.body === "string" ? request.init.body : "",
+    ).get("apiAction"),
+  );
 }
 
 describe("U Pull R Parts complete catalog", () => {
@@ -88,6 +115,7 @@ describe("U Pull R Parts complete catalog", () => {
                 }),
             },
             (request) => request,
+            mockedCatalog,
           ),
         ),
       );
@@ -111,6 +139,7 @@ describe("U Pull R Parts complete catalog", () => {
             }),
         },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(vehicles.map((vehicle) => vehicle.imageUrl)).toEqual(
@@ -152,6 +181,7 @@ describe("U Pull R Parts complete catalog", () => {
               }),
           },
           (request) => request,
+          mockedCatalog,
         ),
       ),
     );
@@ -184,6 +214,7 @@ describe("U Pull R Parts complete catalog", () => {
         streamUpullRPartsInventoryWithRequestGate(
           { onBatch, onYards: onBatch },
           (request) => request,
+          mockedCatalog,
         ),
       ),
     );
@@ -194,11 +225,12 @@ describe("U Pull R Parts complete catalog", () => {
       streamUpullRPartsInventoryWithRequestGate(
         { startCursor: 0, onBatch },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(retry).toMatchObject({ status: "complete", cursor: 1, count: 3 });
   });
-  test("rejects unusable rows before make enrichment without triggering model fallback", async () => {
+  test("rejects unusable rows before make enrichment", async () => {
     const invalid = [
       { ...fixture, VIN: null },
       { ...fixture, Year: null },
@@ -219,9 +251,7 @@ describe("U Pull R Parts complete catalog", () => {
             ...Array.from({ length: 55 }, (_, i) => `Make-${i}`),
           ]);
         if (params.get("apiAction") === "getModels")
-          return new Response("unused lookup unavailable", { status: 403 });
-        if (params.has("makes"))
-          return Response.json(params.get("makes") === "Ford" ? catalog : []);
+          return Response.json(params.get("Make") === "Ford" ? ["FOCUS"] : []);
         return Response.json([...catalog, ...invalid]);
       },
       { preconnect: originalFetch.preconnect },
@@ -236,6 +266,7 @@ describe("U Pull R Parts complete catalog", () => {
             }),
         },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(result).toMatchObject({
@@ -248,12 +279,11 @@ describe("U Pull R Parts complete catalog", () => {
       "Ford",
       "Ford",
     ]);
-    expect(requests).toHaveLength(59);
     expect(
-      requests.some((params) => params.get("apiAction") === "getModels"),
-    ).toBe(false);
+      requests.filter((params) => params.get("apiAction") === "getModels"),
+    ).toHaveLength(56);
   });
-  test("rejects an unusable-only catalog without requesting make enrichment", async () => {
+  test("rejects an unusable-only catalog without requesting photos", async () => {
     const requests = mockResponse(
       JSON.stringify(catalog.map((row) => ({ ...row, VIN: null }))),
     );
@@ -262,13 +292,14 @@ describe("U Pull R Parts complete catalog", () => {
         streamUpullRPartsInventoryWithRequestGate(
           { onBatch: () => Effect.void },
           (request) => request,
+          mockedCatalog,
         ),
       ),
     );
     expect(result._tag).toBe("Left");
-    expect(requests).toHaveLength(1);
+    expect(requestedApiActions(requests)).not.toContain("getVehicleImages");
   });
-  test.each(["catalog", "makes", "partition", "models"])(
+  test.each(["makes", "models"])(
     "rejects explicit partial %s responses before emitting vehicles",
     async (target) => {
       const variants = [
@@ -294,17 +325,13 @@ describe("U Pull R Parts complete catalog", () => {
                 ? "makes"
                 : action === "getModels"
                   ? "models"
-                  : params.has("makes")
-                    ? "partition"
-                    : "catalog";
+                  : "catalog";
             const body =
               kind === "makes"
                 ? ["Ford"]
                 : kind === "models"
                   ? ["FOCUS"]
-                  : kind === "partition"
-                    ? []
-                    : catalog;
+                  : catalog;
             return Response.json(body, kind === target ? variant : undefined);
           },
           { preconnect: originalFetch.preconnect },
@@ -320,6 +347,7 @@ describe("U Pull R Parts complete catalog", () => {
                   }),
               },
               (request) => request,
+              mockedCatalog,
             ),
           ),
         );
@@ -330,7 +358,7 @@ describe("U Pull R Parts complete catalog", () => {
       }
     },
   );
-  test("posts the verified unfiltered form, emits yards and completes one atomic checkpoint", async () => {
+  test("posts open lookups with the current action, emits yards and completes one atomic checkpoint", async () => {
     const requests = mockResponse(JSON.stringify(catalog));
     const vehicles: UpullRPartsCanonicalVehicle[] = [];
     const yards: UpullRPartsYard[] = [];
@@ -347,14 +375,15 @@ describe("U Pull R Parts complete catalog", () => {
             }),
         },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(requests).toHaveLength(4);
-    expect(requests[0]).toMatchObject({
+    expect(requests[2]).toMatchObject({
       url: UPULLRPARTS_API_URL,
       init: {
         method: "POST",
-        body: "action=doApiCall&apiAction=getVehicles",
+        body: "action=doAaaApiCall&apiAction=getModels&Make=Ford&ModelYear=0",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           "User-Agent": "JunkyardIndex/1.0",
@@ -403,6 +432,7 @@ describe("U Pull R Parts complete catalog", () => {
       streamUpullRPartsInventoryWithRequestGate(
         { onBatch: () => Effect.void },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(result.count).toBe(3);
@@ -433,6 +463,7 @@ describe("U Pull R Parts complete catalog", () => {
             }),
         },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(sizes).toEqual([250, 250, 250, 4]);
@@ -474,12 +505,13 @@ describe("U Pull R Parts complete catalog", () => {
               }),
           },
           (request) => request,
+          mockedCatalog,
         ),
       ),
     );
     expect(result._tag).toBe("Left");
     expect(emitted).toBe(false);
-    expect(requests).toHaveLength(1);
+    expect(requestedApiActions(requests)).not.toContain("getVehicleImages");
   });
 
   test("propagates a failed batch and leaves the catalog retryable from cursor zero", async () => {
@@ -490,6 +522,7 @@ describe("U Pull R Parts complete catalog", () => {
         streamUpullRPartsInventoryWithRequestGate(
           { onBatch: () => Effect.fail(failure) },
           (request) => request,
+          mockedCatalog,
         ),
       ),
     );
@@ -498,6 +531,7 @@ describe("U Pull R Parts complete catalog", () => {
       streamUpullRPartsInventoryWithRequestGate(
         { startCursor: 0, onBatch: () => Effect.void },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(retry.count).toBe(3);
@@ -518,6 +552,7 @@ describe("U Pull R Parts complete catalog", () => {
               }),
           },
           (request) => request,
+          mockedCatalog,
         ),
       ),
     );
@@ -534,6 +569,7 @@ describe("U Pull R Parts complete catalog", () => {
       streamUpullRPartsInventoryWithRequestGate(
         { startCursor: 1, onBatch: () => Effect.die("must not emit") },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(result).toMatchObject({
@@ -545,56 +581,6 @@ describe("U Pull R Parts complete catalog", () => {
     expect(requests).toHaveLength(0);
   });
 
-  test("keeps original catalog ordering and accounting after reversed make partitions", async () => {
-    let requests = 0;
-    globalThis.fetch = Object.assign(
-      async (_input: RequestInfo | URL, init?: RequestInit) => {
-        requests++;
-        const params = new URLSearchParams(
-          typeof init?.body === "string" ? init.body : "",
-        );
-        if (params.get("apiAction") === "getVehicleImages")
-          return Response.json(images);
-        if (params.get("apiAction") === "getMakes")
-          return Response.json(["Toyota", "Ford"]);
-        if (params.get("makes") === "Toyota")
-          return Response.json([catalog[2]]);
-        if (params.get("makes") === "Ford")
-          return Response.json([catalog[1], catalog[0]]);
-        return Response.json(catalog);
-      },
-      { preconnect: originalFetch.preconnect },
-    );
-    const emitted: UpullRPartsCanonicalVehicle[] = [];
-    const result = await Effect.runPromise(
-      streamUpullRPartsInventoryWithRequestGate(
-        {
-          onBatch: (batch) =>
-            Effect.sync(() => {
-              expect(requests).toBe(5);
-              emitted.push(...batch);
-            }),
-        },
-        (request) => request,
-      ),
-    );
-    expect(emitted.map((row) => row.vin)).toEqual(
-      catalog.map((row) => row.VIN),
-    );
-    expect(emitted.map((row) => row.make)).toEqual(["Ford", "Ford", "Toyota"]);
-    expect(result).toMatchObject({
-      cursor: 1,
-      status: "complete",
-      count: 3,
-      accounting: {
-        recordsProcessed: 3,
-        recordsRejected: 0,
-        recordsExcluded: 0,
-        duplicateVehicles: 0,
-      },
-    });
-  });
-
   test("counts unresolved makes while retaining the original inventory", async () => {
     mockResponse(JSON.stringify(catalog));
     const upstream = globalThis.fetch;
@@ -603,8 +589,7 @@ describe("U Pull R Parts complete catalog", () => {
         const params = new URLSearchParams(
           typeof init?.body === "string" ? init.body : "",
         );
-        if (params.has("makes") || params.get("apiAction") === "getModels")
-          return Response.json([]);
+        if (params.get("apiAction") === "getModels") return Response.json([]);
         return upstream(input, init);
       },
       { preconnect: originalFetch.preconnect },
@@ -613,6 +598,7 @@ describe("U Pull R Parts complete catalog", () => {
       streamUpullRPartsInventoryWithRequestGate(
         { onBatch: () => Effect.void },
         (request) => request,
+        mockedCatalog,
       ),
     );
     expect(result.count).toBe(3);
