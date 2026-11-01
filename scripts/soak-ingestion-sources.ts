@@ -201,6 +201,16 @@ async function main(): Promise<void> {
       "HYPERBROWSER_API_KEY is required for U Pull It Davie soaks",
     );
   }
+  const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
+  const browserbaseProjectId = process.env.BROWSERBASE_PROJECT_ID;
+  if (
+    config.sources.includes("upullrparts") &&
+    (!browserbaseApiKey || !browserbaseProjectId)
+  ) {
+    throw new Error(
+      "BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID are required for U Pull R Parts soaks",
+    );
+  }
 
   const temporaryDirectory = mkdtempSync(
     join(tmpdir(), "junkyard-source-soak-"),
@@ -263,6 +273,10 @@ async function main(): Promise<void> {
           Effect.provideService(Config, {
             betterStackHeartbeatUrl: undefined,
             hyperbrowserApiKey: hyperbrowserApiKey ?? "unused",
+            browserbase: {
+              apiKey: browserbaseApiKey ?? "unused",
+              projectId: browserbaseProjectId ?? "unused",
+            },
           }),
           Effect.provideService(Database, localDatabase),
         ),
