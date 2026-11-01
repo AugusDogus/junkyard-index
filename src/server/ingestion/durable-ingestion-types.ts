@@ -8,7 +8,11 @@ import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 
 export type InitializeDurableIngestionResult =
-  | { status: "started"; runId: string }
+  | {
+      status: "started";
+      runId: string;
+      sources: readonly DurableIngestionSource[];
+    }
   | { status: "deduplicated"; activeRunId: string | null };
 
 export type DurableIngestionWakeupResult =

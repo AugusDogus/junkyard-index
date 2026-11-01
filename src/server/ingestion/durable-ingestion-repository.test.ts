@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
-import type { DurableSourceCursor } from "./durable-source";
+import {
+  DURABLE_INGESTION_SOURCES,
+  type DurableSourceCursor,
+} from "./durable-source";
 import type { PypStoreCursor } from "./durable-cursor";
 import type { Yard } from "~/lib/yard";
 import {
@@ -178,10 +181,12 @@ describe("durable ingestion repository", () => {
       expect(await repository.initialize("run-1")).toEqual({
         status: "started",
         runId: "run-1",
+        sources: DURABLE_INGESTION_SOURCES,
       });
       expect(await repository.initialize("run-1")).toEqual({
         status: "started",
         runId: "run-1",
+        sources: DURABLE_INGESTION_SOURCES,
       });
       expect(
         await repository.getCheckpoint({
@@ -364,6 +369,43 @@ describe("durable ingestion repository", () => {
           last_error: "owning_ingestion_run_abandoned",
         }),
       );
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("creates a scheduled run with only enabled sources", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+      );
+      const wakeup = await repository.prepareWakeup(
+        new Date("2026-08-22T09:00:00.000Z"),
+        ["row52", "pyp"],
+      );
+      if (wakeup.status !== "start") throw new Error("Expected a new run");
+
+      expect(
+        await repository.initialize(wakeup.runId, async () => {
+          throw new Error("An existing run must keep its own sources");
+        }),
+      ).toEqual({
+        status: "started",
+        runId: wakeup.runId,
+        sources: ["row52", "pyp"],
+      });
+      const sourceRows = await client.execute({
+        sql: "select source from ingestion_source_run where run_id = ? order by source",
+        args: [wakeup.runId],
+      });
+      expect(sourceRows.rows.map((row) => row.source)).toEqual([
+        "pyp",
+        "row52",
+      ]);
     } finally {
       testDatabase.cleanup();
     }

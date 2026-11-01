@@ -14,7 +14,7 @@ import type {
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
 import {
-  DURABLE_INITIAL_SOURCE_CURSORS,
+  DURABLE_INGESTION_SOURCES,
   durableSourceCursorEquals,
   getDurableSourceDefinition,
   parseDurableSourceCursor,
@@ -38,9 +38,10 @@ function sourceRunId(runId: string, source: DurableIngestionSource): string {
 
 function sourceRunInsertStatement(
   runId: string,
-  initialCursor: (typeof DURABLE_INITIAL_SOURCE_CURSORS)[number],
+  source: DurableIngestionSource,
   startedAt: Date,
 ): InStatement {
+  const initialCursor = getDurableSourceDefinition(source).initialCursor;
   const cursor = serializeDurableSourceCursor(initialCursor);
   return {
     sql: `
@@ -238,6 +239,7 @@ export function createDurableIngestionRepository(
   return {
     async prepareWakeup(
       now = new Date(),
+      sources: readonly DurableIngestionSource[] = DURABLE_INGESTION_SOURCES,
     ): Promise<DurableIngestionWakeupResult> {
       const scheduleKey = IngestionDay.key(now);
       await database
@@ -297,8 +299,8 @@ export function createDurableIngestionRepository(
               `,
               args: [runId, scheduleKey, now.getTime(), now.getTime()],
             },
-            ...DURABLE_INITIAL_SOURCE_CURSORS.map((cursor) =>
-              sourceRunInsertStatement(runId, cursor, now),
+            ...sources.map((source) =>
+              sourceRunInsertStatement(runId, source, now),
             ),
           ],
           "write",
@@ -331,53 +333,72 @@ export function createDurableIngestionRepository(
         );
     },
 
-    async initialize(runId: string): Promise<InitializeDurableIngestionResult> {
-      const startedAt = new Date();
-      const results = await batchClient.batch(
-        [
-          {
-            sql: `
-              insert into ingestion_run (
-                id, source, status, stage, active_slot, full_reindex_required,
-                started_at, last_progress_at
-              )
-              select ?, 'all', 'running', 'sources', 1,
-                     case when exists (
-                       select 1 from ingestion_run
-                       where full_reindex_required = 1
-                     ) or not exists (
-                       select 1 from ingestion_run
-                       where publication_sequence is not null
-                     ) then 1 else 0 end,
-                     ?, ?
-              where not exists (
-                select 1 from ingestion_run where active_slot = 1
-              )
-              on conflict(id) do nothing
-            `,
-            args: [runId, startedAt.getTime(), startedAt.getTime()],
-          },
-          ...DURABLE_INITIAL_SOURCE_CURSORS.map((cursor) =>
-            sourceRunInsertStatement(runId, cursor, startedAt),
-          ),
-        ],
-        "write",
-      );
-      const inserted = results[0];
-      if (!inserted) {
-        throw new Error(`Ingestion run ${runId} initialization had no result.`);
-      }
-      if (inserted.rowsAffected === 1) {
-        return { status: "started", runId };
+    async initialize(
+      runId: string,
+      resolveSources: () => Promise<
+        readonly DurableIngestionSource[]
+      > = async () => DURABLE_INGESTION_SOURCES,
+    ): Promise<InitializeDurableIngestionResult> {
+      // A scheduled run keeps the sources chosen when its wakeup created it.
+      const [existingRun] = await database
+        .select({ id: ingestionRun.id })
+        .from(ingestionRun)
+        .where(eq(ingestionRun.id, runId))
+        .limit(1);
+      if (!existingRun) {
+        const sources = await resolveSources();
+        const startedAt = new Date();
+        await batchClient.batch(
+          [
+            {
+              sql: `
+                insert into ingestion_run (
+                  id, source, status, stage, active_slot, full_reindex_required,
+                  started_at, last_progress_at
+                )
+                select ?, 'all', 'running', 'sources', 1,
+                       case when exists (
+                         select 1 from ingestion_run
+                         where full_reindex_required = 1
+                       ) or not exists (
+                         select 1 from ingestion_run
+                         where publication_sequence is not null
+                       ) then 1 else 0 end,
+                       ?, ?
+                where not exists (
+                  select 1 from ingestion_run where active_slot = 1
+                )
+                on conflict(id) do nothing
+              `,
+              args: [runId, startedAt.getTime(), startedAt.getTime()],
+            },
+            ...sources.map((source) =>
+              sourceRunInsertStatement(runId, source, startedAt),
+            ),
+          ],
+          "write",
+        );
       }
       const [activeRun] = await database
         .select({ id: ingestionRun.id })
         .from(ingestionRun)
         .where(eq(ingestionRun.activeSlot, 1))
         .limit(1);
-      return activeRun?.id === runId
-        ? { status: "started", runId }
-        : { status: "deduplicated", activeRunId: activeRun?.id ?? null };
+      if (activeRun?.id !== runId) {
+        return { status: "deduplicated", activeRunId: activeRun?.id ?? null };
+      }
+      const sourceRows = await database
+        .select({ source: ingestionSourceRun.source })
+        .from(ingestionSourceRun)
+        .where(eq(ingestionSourceRun.runId, runId));
+      const runSources = new Set(sourceRows.map((row) => row.source));
+      return {
+        status: "started",
+        runId,
+        sources: DURABLE_INGESTION_SOURCES.filter((source) =>
+          runSources.has(source),
+        ),
+      };
     },
 
     async getCheckpoint<Source extends DurableIngestionSource>(params: {
