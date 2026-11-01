@@ -369,7 +369,7 @@ describe("durable ingestion repository", () => {
     }
   });
 
-  test("retries a degraded daily publication and stops after a healthy retry", async () => {
+  test("does not rerun all sources after a degraded daily publication", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
     try {
@@ -394,24 +394,9 @@ describe("durable ingestion repository", () => {
         args: [now.getTime(), now.getTime(), first.runId],
       });
 
-      const retry = await repository.prepareWakeup(now);
-      expect(retry.status).toBe("start");
-      if (retry.status !== "start") throw new Error("Expected degraded retry");
-      await client.execute({
-        sql: `
-          update ingestion_run
-          set status = 'success', stage = 'released', active_slot = null,
-              full_reindex_required = 0, publication_sequence = 2,
-              inventory_outcome = 'published',
-              search_published_at = ?, completed_at = ?
-          where id = ?
-        `,
-        args: [now.getTime(), now.getTime(), retry.runId],
-      });
-
       expect(await repository.prepareWakeup(now)).toEqual({
         status: "not_due",
-        publishedRunId: retry.runId,
+        publishedRunId: first.runId,
       });
     } finally {
       testDatabase.cleanup();

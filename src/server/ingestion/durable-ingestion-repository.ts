@@ -256,6 +256,9 @@ export function createDurableIngestionRepository(
         .limit(1);
       if (activeRun) return { status: "resume", runId: activeRun.id };
 
+      // A degraded publication completes the day. Retrying recrawls every
+      // source, so a persistently failing source would otherwise rerun all
+      // healthy sources on every hourly wakeup. Failed sources retry tomorrow.
       const [publishedRun] = await database
         .select({ id: ingestionRun.id })
         .from(ingestionRun)
@@ -263,7 +266,7 @@ export function createDurableIngestionRepository(
           and(
             eq(ingestionRun.scheduleKey, scheduleKey),
             eq(ingestionRun.fullReindexRequired, false),
-            eq(ingestionRun.inventoryOutcome, "published"),
+            sql`${ingestionRun.inventoryOutcome} in ('published', 'published_degraded')`,
             sql`${ingestionRun.searchPublishedAt} is not null`,
           ),
         )
