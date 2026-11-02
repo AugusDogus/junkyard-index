@@ -311,6 +311,13 @@ export const vehicle = sqliteTable(
     index("vehicle_source_idx").on(table.source),
     index("vehicle_make_model_idx").on(table.make, table.model),
     index("vehicle_first_seen_at_idx").on(table.firstSeenAt),
+    // The homepage's newest live vehicles: filter, sort, and tie-break from
+    // the index, so it reads only the rows it shows.
+    index("vehicle_recent_idx").on(
+      table.missingSinceAt,
+      sql`${table.firstSeenAt} desc`,
+      table.vin,
+    ),
     index("vehicle_last_seen_at_idx").on(table.lastSeenAt),
     index("vehicle_missing_since_at_idx").on(table.missingSinceAt),
     index("vehicle_missing_run_count_idx").on(table.missingRunCount),

@@ -22,7 +22,12 @@ const LEGACY_SCHEMA = `
     updated_at integer not null default 0
   );
   create table saved_search (id text primary key);
-  create table vehicle (vin text primary key, location_code text not null);
+  create table vehicle (
+    vin text primary key,
+    location_code text not null,
+    first_seen_at integer not null default 0,
+    missing_since_at integer
+  );
   create table ingestion_run (
     id text primary key,
     source text not null,

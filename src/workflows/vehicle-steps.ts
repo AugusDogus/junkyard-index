@@ -1,5 +1,7 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
+import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
+import { HOMEPAGE_CACHE_TAG } from "~/lib/homepage-stats";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
@@ -93,6 +95,20 @@ export async function reportIngestionRunStep(
     // The pass ended or has not registered yet; its next plan sees the run.
     console.warn(
       `[Workflow] Could not report run ${report.runId} to the ${day} pass: ${formatError(error)}`,
+    );
+  }
+}
+
+/** Shows the day's published inventory on the homepage. */
+export async function refreshHomepageStep() {
+  "use step";
+
+  try {
+    revalidateTag(HOMEPAGE_CACHE_TAG, "max");
+  } catch (error) {
+    // The homepage caches still expire within a day.
+    console.error(
+      `[Workflow] Could not refresh the homepage cache: ${formatError(error)}`,
     );
   }
 }

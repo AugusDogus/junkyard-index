@@ -35,7 +35,7 @@ export interface IngestionPassOperations {
  */
 export async function runIngestionPass(
   operations: IngestionPassOperations,
-): Promise<void> {
+): Promise<"complete" | "expired"> {
   // Invoke step callbacks without serializing the operations object as `this`.
   const {
     plan,
@@ -47,7 +47,7 @@ export async function runIngestionPass(
   } = operations;
   while (true) {
     const next = await plan();
-    if (next.status === "expired") return;
+    if (next.status === "expired") return "expired";
     if (next.status === "complete") break;
     if (next.status === "waiting") {
       await sleepUntil(next.retryAt);
@@ -66,6 +66,7 @@ export async function runIngestionPass(
     }
   }
   await deliverNotifications();
+  return "complete";
 }
 
 /** Claims the shared commit, waiting for a turn signal while it is busy. */

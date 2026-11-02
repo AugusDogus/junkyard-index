@@ -24,6 +24,7 @@ import {
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
   prepareIngestionPassStep,
+  refreshHomepageStep,
   reportIngestionRunStep,
   signalCommitWaitersStep,
   deliverVehicleSearchAlertIntentsStep,
@@ -93,7 +94,7 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   // A report that loses a race against the watchdog stays pending for the
   // next wait instead of being dropped.
   let pendingReport = incoming.next();
-  await runIngestionPass({
+  const outcome = await runIngestionPass({
     plan: () => prepareIngestionPassStep(day),
     startRuns: (runIds) => startIngestionRunWorkflowsStep(runIds, day),
     nextReport: async () => {
@@ -109,6 +110,7 @@ export async function vehicleIngestionPassWorkflow(day: string) {
     pauseAfterFailure: () => sleep(FAILED_RUN_RESUME_DELAY),
     deliverNotifications: () => deliverIngestionPassNotificationsStep(day),
   });
+  if (outcome === "complete") await refreshHomepageStep();
   return { status: "completed" as const, day };
 }
 
