@@ -51,6 +51,9 @@ export const env = createEnv({
     ALGOLIA_WRITE_API_KEY: z.string(),
     BETTERSTACK_HEARTBEAT_URL: z.string().url().optional(),
     BETTERSTACK_API_TOKEN: betterStackApiTokenSchema,
+    // JSON object of ingestion source to its Better Stack status page row:
+    // { "pyp": { "resourceId": 123, "heartbeatUrl": "https://..." }, ... }
+    BETTERSTACK_PROVIDERS: z.string().optional(),
     // Hyperbrowser (remote browser for protected provider ingestion)
     HYPERBROWSER_API_KEY: z.string(),
     // Vercel Blob (private store for staged ingestion snapshot chunks)
@@ -114,6 +117,7 @@ export const env = createEnv({
     ALGOLIA_WRITE_API_KEY: process.env.ALGOLIA_WRITE_API_KEY,
     BETTERSTACK_HEARTBEAT_URL: process.env.BETTERSTACK_HEARTBEAT_URL,
     BETTERSTACK_API_TOKEN: process.env.BETTERSTACK_API_TOKEN,
+    BETTERSTACK_PROVIDERS: process.env.BETTERSTACK_PROVIDERS,
     HYPERBROWSER_API_KEY: process.env.HYPERBROWSER_API_KEY,
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,

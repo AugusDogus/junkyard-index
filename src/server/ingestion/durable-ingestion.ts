@@ -1,15 +1,9 @@
 import { env } from "~/env";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import { db, dbClient } from "~/lib/db";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
-import {
-  syncIngestionStatusPage,
-  type BetterStackStatusPageConfig,
-} from "./better-stack-status-page";
-import {
-  assessIngestionFreshness,
-  classifyDurableIngestionHealth,
-  type DurableIngestionHealth,
-} from "./durable-health";
+import type { IngestionSourceFreshness } from "./durable-health";
+import { parseAcceptedSources } from "./durable-run-state";
 import type {
   DurableIngestionResult,
   DurableIngestionWakeupResult,
@@ -28,6 +22,7 @@ import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { BetterStackProviders } from "./better-stack-providers";
 
 export type {
   DurableIngestionResult,
@@ -37,9 +32,10 @@ export type {
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
 
-const HEARTBEAT_TIMEOUT_MS = 5_000;
 const BETTER_STACK_STATUS_PAGE_ID = 239393;
-const BETTER_STACK_DAILY_INGESTION_RESOURCE_ID = 8746061;
+const betterStackProviders = BetterStackProviders.parse(
+  env.BETTERSTACK_PROVIDERS,
+);
 const snapshotStore = IngestionSnapshotStore.vercelBlob(
   env.BLOB_READ_WRITE_TOKEN,
 );
@@ -48,49 +44,6 @@ const repository = createDurableIngestionRepository(
   dbClient,
   snapshotStore,
 );
-
-function getBetterStackStatusPageConfig(): BetterStackStatusPageConfig | null {
-  if (process.env.VERCEL_ENV !== "production") return null;
-  if (!env.BETTERSTACK_API_TOKEN) {
-    throw new Error(
-      "BETTERSTACK_API_TOKEN is required for production ingestion status reporting.",
-    );
-  }
-  return {
-    apiToken: env.BETTERSTACK_API_TOKEN,
-    statusPageId: BETTER_STACK_STATUS_PAGE_ID,
-    resourceId: BETTER_STACK_DAILY_INGESTION_RESOURCE_ID,
-  };
-}
-
-async function syncProductionIngestionStatusPage(
-  health: DurableIngestionHealth,
-): Promise<void> {
-  const config = getBetterStackStatusPageConfig();
-  if (!config) return;
-  const result = await syncIngestionStatusPage({ config, health });
-  if (result.status === "failed") {
-    throw new Error(
-      `Better Stack ingestion status reporting failed during ${result.operation}: ${result.message} The ingestion result is preserved; retry this reporting step after Better Stack recovers.`,
-    );
-  }
-}
-
-async function sendHeartbeat(fail: boolean): Promise<void> {
-  if (!env.BETTERSTACK_HEARTBEAT_URL) return;
-  const response = await fetch(
-    fail
-      ? `${env.BETTERSTACK_HEARTBEAT_URL}/fail`
-      : env.BETTERSTACK_HEARTBEAT_URL,
-    {
-      method: "HEAD",
-      signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(`Heartbeat responded with HTTP ${response.status}`);
-  }
-}
 
 export function initializeDurableIngestion(
   runId: string,
@@ -190,7 +143,6 @@ export async function markDurableIngestionFailed(
   message: string,
 ): Promise<void> {
   await persistDurableIngestionFailure(runId, message);
-  await reportDurableIngestionFailure();
 }
 
 export function persistDurableIngestionFailure(
@@ -200,37 +152,39 @@ export function persistDurableIngestionFailure(
   return repository.markRunFailed(runId, message);
 }
 
-async function reportIngestionHealth(runFailed: boolean): Promise<void> {
-  const now = new Date();
-  const freshness = assessIngestionFreshness(
-    await repository.getSourceFreshness(now),
-    now,
-  );
-  if (freshness.stale.length > 0)
-    console.warn(
-      `[Ingestion] Sources without an accepted publication in 30 hours: ${freshness.stale.join(", ")}`,
-    );
-  const health = classifyDurableIngestionHealth({ runFailed, ...freshness });
-
-  if (health === "degraded") {
-    await syncProductionIngestionStatusPage(health);
-  }
-  await sendHeartbeat(health === "down").catch((error: unknown) => {
-    console.warn("[Ingestion] BetterStack heartbeat failed", error);
-  });
-  if (health !== "degraded") {
-    await syncProductionIngestionStatusPage(health);
-  }
-}
-
-/** Reports health after a failed run; one source's failure degrades it. */
-export function reportDurableIngestionFailure(): Promise<void> {
-  return reportIngestionHealth(true);
-}
-
-export async function reportDurableIngestionHealth(runId: string) {
+/**
+ * Shows a source run's outcome on its provider's public status row: a good
+ * publication pings its heartbeat and clears a delay report; any other
+ * outcome reports the provider delayed (yellow) while its last inventory stays
+ * up.
+ */
+export async function reportDurableProviderStatus(runId: string) {
+  if (process.env.VERCEL_ENV !== "production") return;
   const run = await repository.getRun(runId);
-  await reportIngestionHealth(run.status !== "success");
+  if (!isIngestionSource(run.source)) return;
+  if (!env.BETTERSTACK_API_TOKEN) {
+    throw new Error(
+      "BETTERSTACK_API_TOKEN is required to report provider status in production. Set it to a Better Stack Uptime API token.",
+    );
+  }
+  const published =
+    run.status === "success" &&
+    run.searchPublishedAt !== null &&
+    parseAcceptedSources(run.acceptedSources).includes(run.source);
+  await BetterStackProviders.report({
+    providers: betterStackProviders,
+    apiToken: env.BETTERSTACK_API_TOKEN,
+    statusPageId: BETTER_STACK_STATUS_PAGE_ID,
+    source: run.source,
+    state: published ? "published" : "retrying",
+  });
+}
+
+/** Each source's latest attempt and accepted publication in the last 3 days. */
+export function getDurableSourceFreshness(
+  now: Date,
+): Promise<IngestionSourceFreshness[]> {
+  return repository.getSourceFreshness(now);
 }
 
 export function cleanupDurableIngestionStateBatch(runId: string) {

@@ -9,7 +9,7 @@ import {
   markDurableIngestionFailed,
   markDurableSourceFailed,
   reconcileDurableIngestion,
-  reportDurableIngestionHealth,
+  reportDurableProviderStatus,
   runDurableSourceChunk,
   type DurableIngestionResult,
   validateDurableIngestionSources,
@@ -65,7 +65,7 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
       }),
     matchAlerts: () =>
       drainDurablePhase(() => runDurableAlertMatchingBatch(runId)),
-    reportHealth: reportDurableIngestionHealth,
+    reportHealth: reportDurableProviderStatus,
   });
   if (publication.status === "stopped") {
     throw new Error(

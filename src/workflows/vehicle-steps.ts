@@ -15,8 +15,7 @@ import {
   markDurableSourceFailed,
   persistDurableIngestionFailure,
   reconcileDurableIngestion,
-  reportDurableIngestionFailure,
-  reportDurableIngestionHealth,
+  reportDurableProviderStatus,
   runDurableSourceChunk,
   validateDurableIngestionSources,
 } from "~/server/ingestion/durable-ingestion";
@@ -237,20 +236,6 @@ export async function markDurableIngestionFailedStep(
 }
 markDurableIngestionFailedStep.maxRetries = 2;
 
-export async function reportDurableIngestionFailureStep(runId: string) {
-  "use step";
-
-  try {
-    await reportDurableIngestionFailure();
-  } catch (error) {
-    throwRetryableStepError(
-      `Report failed ingestion health for run ${runId}`,
-      error,
-    );
-  }
-}
-reportDurableIngestionFailureStep.maxRetries = 2;
-
 export async function cleanupStaleDurableIngestionSnapshotsStep() {
   "use step";
 
@@ -292,16 +277,18 @@ export async function runVehicleSearchAlertsStep(runId: string) {
 }
 runVehicleSearchAlertsStep.maxRetries = 2;
 
-export async function reportDurableIngestionHealthStep(runId: string) {
+/** Updates the provider's status page row; never fails the run. */
+export async function reportProviderStatusStep(runId: string) {
   "use step";
 
   try {
-    await reportDurableIngestionHealth(runId);
+    await reportDurableProviderStatus(runId);
   } catch (error) {
-    throwRetryableStepError("Report durable ingestion health", error);
+    console.error(
+      `[Workflow] Could not update the status page for run ${runId}; the ingestion result is unaffected: ${formatError(error)}`,
+    );
   }
 }
-reportDurableIngestionHealthStep.maxRetries = 2;
 
 export async function deliverVehicleSearchAlertIntentsStep() {
   "use step";
