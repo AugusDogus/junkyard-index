@@ -1,4 +1,5 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
+import { resumeHook } from "workflow/api";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
@@ -8,6 +9,8 @@ import {
   cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
   claimDurableIngestionCommit,
+  listDurableIngestionCommitWaiters,
+  prepareIngestionPass,
   initializeDurableIngestion,
   markDurableSourceFailed,
   persistDurableIngestionFailure,
@@ -28,6 +31,8 @@ import {
   SearchIndexMigrationValidationError,
   type SearchIndexMigrationState,
 } from "~/server/ingestion/search-index-migration";
+import type { IngestionRunReport } from "~/server/ingestion/ingestion-pass-orchestrator";
+import { IngestionTokens } from "./ingestion-tokens";
 import {
   recordDurableRunFailure,
   recordDurableSourceRejections,
@@ -64,6 +69,55 @@ export async function initializeDurableIngestionStep(runId: string) {
   }
 }
 initializeDurableIngestionStep.maxRetries = 2;
+
+export async function prepareIngestionPassStep(day: string) {
+  "use step";
+
+  try {
+    return await prepareIngestionPass(day);
+  } catch (error) {
+    throwRetryableStepError(`Plan ingestion pass ${day}`, error);
+  }
+}
+prepareIngestionPassStep.maxRetries = 2;
+
+/** Reports a stopped source run to its pass, if the pass is listening. */
+export async function reportIngestionRunStep(
+  day: string,
+  report: IngestionRunReport,
+) {
+  "use step";
+
+  try {
+    await resumeHook(IngestionTokens.passReports(day), report);
+  } catch (error) {
+    // The pass ended or has not registered yet; its next plan sees the run.
+    console.warn(
+      `[Workflow] Could not report run ${report.runId} to the ${day} pass: ${formatError(error)}`,
+    );
+  }
+}
+
+/** Wakes runs waiting for the shared commit after it is released. */
+export async function signalCommitWaitersStep() {
+  "use step";
+
+  let waiters: string[];
+  try {
+    waiters = await listDurableIngestionCommitWaiters();
+  } catch (error) {
+    throwRetryableStepError("List ingestion commit waiters", error);
+  }
+  await Promise.all(
+    waiters.map((runId) =>
+      // A waiter that has not registered its hook rechecks on its own timer.
+      resumeHook(IngestionTokens.commitTurn(runId), null).catch(
+        () => undefined,
+      ),
+    ),
+  );
+}
+signalCommitWaitersStep.maxRetries = 2;
 
 export async function claimDurableIngestionCommitStep(runId: string) {
   "use step";

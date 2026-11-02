@@ -523,6 +523,7 @@ describe("durable ingestion repository", () => {
       // row52 is done for the day; pyp waits out its retry delay.
       expect(await repository.prepareWakeup(now, ["row52", "pyp"])).toEqual({
         status: "waiting",
+        retryAt: now.getTime() + IngestionSchedule.retryDelayMs,
       });
       for (
         let attempt = 2;

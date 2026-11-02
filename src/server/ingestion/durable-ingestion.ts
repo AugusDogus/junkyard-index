@@ -24,6 +24,8 @@ import type {
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
+import { IngestionDay } from "./ingestion-day";
+import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 
@@ -101,6 +103,22 @@ export async function prepareDurableIngestionWakeup(
 ): Promise<DurableIngestionWakeupResult> {
   const sources = await IngestionSourceFlags.enabledSources();
   return repository.prepareWakeup(now, sources);
+}
+
+/** Plans the day's pass; a pass for an earlier day has expired. */
+export async function prepareIngestionPass(
+  day: string,
+): Promise<IngestionPassPlan> {
+  const now = new Date();
+  if (IngestionDay.key(now) !== day) return { status: "expired" };
+  const wakeup = await prepareDurableIngestionWakeup(now);
+  return wakeup.status === "active"
+    ? { status: "active", runIds: wakeup.runs.map((run) => run.runId) }
+    : wakeup;
+}
+
+export function listDurableIngestionCommitWaiters(): Promise<string[]> {
+  return repository.listCommitWaiters();
 }
 
 export function claimDurableIngestionCommit(

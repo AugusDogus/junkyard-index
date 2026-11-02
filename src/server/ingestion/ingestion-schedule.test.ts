@@ -87,3 +87,42 @@ describe("IngestionSchedule.passComplete", () => {
     ).toBe(true);
   });
 });
+
+describe("IngestionSchedule.nextRetryAt", () => {
+  test("returns the earliest retry of a source that can still run today", () => {
+    expect(
+      IngestionSchedule.nextRetryAt({
+        days: [
+          {
+            source: "row52",
+            published: true,
+            attempts: 1,
+            lastStartedAt: hoursAgo(1),
+          },
+          {
+            source: "pyp",
+            published: false,
+            attempts: 1,
+            lastStartedAt: hoursAgo(1),
+          },
+          {
+            source: "pullnsave",
+            published: false,
+            attempts: 1,
+            lastStartedAt: hoursAgo(1.5),
+          },
+          {
+            source: "ipullupull",
+            published: false,
+            attempts: IngestionSchedule.maxAttemptsPerDay,
+            lastStartedAt: hoursAgo(1.9),
+          },
+        ],
+        enabledSources: ["row52", "pyp", "pullnsave", "ipullupull"],
+      }),
+    ).toBe(hoursAgo(1.5) + IngestionSchedule.retryDelayMs);
+    expect(
+      IngestionSchedule.nextRetryAt({ days: [], enabledSources: ["row52"] }),
+    ).toBeNull();
+  });
+});
