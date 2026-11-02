@@ -33,6 +33,7 @@ const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const CLEANUP_BATCH_SIZE = 5_000;
 const STALE_SNAPSHOT_RUN_BATCH_SIZE = 50;
 const MAX_EXECUTION_FAILURES = 5;
+const CONCURRENT_WAKEUP_RECHECK_MS = 5 * 60 * 1000;
 const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
@@ -251,13 +252,23 @@ export function createDurableIngestionRepository(
         if (created?.rowsAffected === 1) runs.push({ action: "start", runId });
       }
       if (runs.length > 0) return { status: "active", runs };
+      // A source started meanwhile by a concurrent wakeup is due for a check
+      // shortly; a waiting retry is due when its delay ends.
+      const waiting = {
+        status: "waiting",
+        retryAt:
+          IngestionSchedule.nextRetryAt({
+            days: sourceDays,
+            enabledSources: sources,
+          }) ?? now.getTime() + CONCURRENT_WAKEUP_RECHECK_MS,
+      } as const;
       if (
         !IngestionSchedule.passComplete({
           days: sourceDays,
           enabledSources: sources,
         })
       )
-        return { status: "waiting" };
+        return waiting;
       // A concurrent wakeup may have started a final attempt after the active
       // runs were read; the pass is not over while it runs.
       const [startedMeanwhile] = await database
@@ -265,7 +276,7 @@ export function createDurableIngestionRepository(
         .from(ingestionRun)
         .where(eq(ingestionRun.activeSlot, 1))
         .limit(1);
-      return startedMeanwhile ? { status: "waiting" } : { status: "complete" };
+      return startedMeanwhile ? waiting : { status: "complete" };
     },
 
     /**
@@ -351,6 +362,20 @@ export function createDurableIngestionRepository(
       return run?.status === "running" && run.activeSlot === 1
         ? "busy"
         : "stopped";
+    },
+
+    /** Active runs that have not claimed the commit yet. */
+    async listCommitWaiters(): Promise<string[]> {
+      const rows = await database
+        .select({ id: ingestionRun.id })
+        .from(ingestionRun)
+        .where(
+          and(
+            eq(ingestionRun.activeSlot, 1),
+            isNull(ingestionRun.commitStartedAt),
+          ),
+        );
+      return rows.map((row) => row.id);
     },
 
     async attachWorkflowRun(

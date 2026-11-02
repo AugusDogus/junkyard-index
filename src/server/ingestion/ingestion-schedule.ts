@@ -41,6 +41,24 @@ export const IngestionSchedule = {
     });
   },
 
+  /** When the earliest waiting source's retry delay ends, if any is waiting. */
+  nextRetryAt(params: {
+    days: readonly IngestionSourceDay[];
+    enabledSources: readonly DurableIngestionSource[];
+  }): number | null {
+    const daysBySource = new Map(params.days.map((day) => [day.source, day]));
+    const retryTimes = params.enabledSources.flatMap((source) => {
+      const day = daysBySource.get(source);
+      return day &&
+        !day.published &&
+        day.attempts < MAX_ATTEMPTS_PER_DAY &&
+        day.lastStartedAt !== null
+        ? [day.lastStartedAt + RETRY_DELAY_MS]
+        : [];
+    });
+    return retryTimes.length === 0 ? null : Math.min(...retryTimes);
+  },
+
   /**
    * Whether today's pass is over: every enabled source has published or used
    * its attempts. A source waiting out a retry delay keeps the pass open.

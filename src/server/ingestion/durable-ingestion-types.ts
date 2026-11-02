@@ -22,12 +22,12 @@ export interface DurableIngestionWakeupRun {
 
 /**
  * Active: runs to start or resume. Waiting: nothing to run now, but a source
- * can still run today. Complete: every enabled source published or used its
+ * can still run today, at `retryAt` at the earliest. Complete: every enabled source published or used its
  * attempts today.
  */
 export type DurableIngestionWakeupResult =
   | { status: "active"; runs: DurableIngestionWakeupRun[] }
-  | { status: "waiting" }
+  | { status: "waiting"; retryAt: number }
   | { status: "complete" };
 
 export interface DurableSourceChunkResult<

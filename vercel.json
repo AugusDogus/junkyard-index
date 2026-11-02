@@ -8,7 +8,7 @@
     },
     {
       "path": "/api/cron/vehicle-ingestion",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
