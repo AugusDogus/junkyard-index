@@ -39,6 +39,15 @@ export function reconciliationSourcePrioritySql(tableAlias: string): string {
   end`;
 }
 
+// Turso's HTTP API returns REAL values rounded to 15 significant digits, so a
+// stored coordinate can differ from the provider's by float noise. 1e-9
+// degrees is under a millimetre.
+const COORDINATE_TOLERANCE = 1e-9;
+
+function sameCoordinate(a: number, b: number): boolean {
+  return Math.abs(a - b) <= COORDINATE_TOLERANCE;
+}
+
 function vehicleNeedsUpsert(
   existing: ExistingVehicle | undefined,
   next: CanonicalVehicle,
@@ -58,8 +67,8 @@ function vehicleNeedsUpsert(
     existing.locationCity !== next.locationCity ||
     existing.state !== next.state ||
     existing.stateAbbr !== next.stateAbbr ||
-    existing.lat !== next.lat ||
-    existing.lng !== next.lng ||
+    !sameCoordinate(existing.lat, next.lat) ||
+    !sameCoordinate(existing.lng, next.lng) ||
     existing.section !== next.section ||
     existing.row !== next.row ||
     existing.space !== next.space ||
