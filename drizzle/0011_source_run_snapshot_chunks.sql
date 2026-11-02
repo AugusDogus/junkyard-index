@@ -1,0 +1,1 @@
+ALTER TABLE `ingestion_source_run` ADD `snapshot_chunks` text DEFAULT '[]' NOT NULL;

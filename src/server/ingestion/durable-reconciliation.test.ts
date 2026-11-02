@@ -5,8 +5,9 @@ import { eq } from "drizzle-orm";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
+import { ingestionRun, ingestionSourceRun } from "~/schema";
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import { streamPullNSaveInventoryWithRequestGate } from "./pullnsave-connector";
 import { connectorChunkMetrics } from "./connector-chunk";
@@ -44,7 +45,8 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
     duplicate_vehicles integer not null default 0,
     rejected_vehicles integer not null default 0,
     acceptance_status text not null default 'pending',
-    validation_errors text, errors text, started_at integer not null,
+    validation_errors text, errors text,
+    snapshot_chunks text not null default '[]', started_at integer not null,
     completed_at integer
   );
   create table vehicle_snapshot (
@@ -79,9 +81,8 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
     where processed_at is null;
 `;
 
-function snapshot(runId: string, source: "row52" | "pyp", color: string) {
+function snapshot(source: "row52" | "pyp", color: string): CanonicalVehicle {
   return {
-    runId,
     source,
     vin: "VIN-1",
     year: 2018,
@@ -107,8 +108,26 @@ function snapshot(runId: string, source: "row52" | "pyp", color: string) {
     engine: null,
     trim: null,
     transmission: null,
-    createdAt: new Date("2026-08-22T07:00:00.000Z"),
   };
+}
+
+async function stageSnapshots(params: {
+  client: ReturnType<typeof createClient>;
+  store: IngestionSnapshotStore;
+  runId: string;
+  vehicles: readonly CanonicalVehicle[];
+}) {
+  for (const vehicle of params.vehicles) {
+    const pathname = await params.store.put({
+      runId: params.runId,
+      source: vehicle.source,
+      chunk: { vehicles: [vehicle], observedVins: [] },
+    });
+    await params.client.execute({
+      sql: "update ingestion_source_run set snapshot_chunks = json_insert(snapshot_chunks, '$[#]', ?) where id = ?",
+      args: [pathname, `${params.runId}:${vehicle.source}`],
+    });
+  }
 }
 
 describe("bounded durable reconciliation", () => {
@@ -201,7 +220,12 @@ describe("bounded durable reconciliation", () => {
         { preconnect: originalFetch.preconnect },
       );
       const database = drizzle(client);
-      const repository = createDurableIngestionRepository(database, client);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
       const runId = "run-autorecycler-quarantine";
       await repository.initialize(runId);
       const known = Array.from({ length: 100 }, (_, index) => ({
@@ -327,6 +351,7 @@ describe("bounded durable reconciliation", () => {
         runId,
         database,
         batchClient: client,
+        snapshotStore,
       });
       expect(validation.status).toBe("ready");
       if (validation.status !== "ready") throw new Error("Expected validation");
@@ -347,11 +372,15 @@ describe("bounded durable reconciliation", () => {
         runId,
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       await reconcileDurableIngestionRun({
         runId,
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       const preserved = (
         await client.execute({
@@ -400,7 +429,12 @@ describe("bounded durable reconciliation", () => {
     try {
       await client.executeMultiple(TEST_SCHEMA);
       const database = drizzle(client);
-      const repository = createDurableIngestionRepository(database, client);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
       const firstSeenAt = Date.now() - 86_400_000;
       await client.execute({
         sql: `insert into vehicle (vin, source, year, make, model, color, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values ('VIN-RETURNED', 'pullnsave', 2003, 'Chevrolet', 'Cavalier', 'Blue', 'PNS-10', 'Saved Yard', 'Mesa', 'Arizona', 'AZ', 33.43, -111.85, ?, ?, ?, 2)`,
@@ -434,11 +468,15 @@ describe("bounded durable reconciliation", () => {
         runId: "run-returned",
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       await reconcileDurableIngestionRun({
         runId: "run-returned",
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       const returned = await client.execute(
         "select missing_run_count, missing_since_at, first_seen_at, last_seen_at, color, location_name from vehicle where vin = 'VIN-RETURNED'",
@@ -464,6 +502,8 @@ describe("bounded durable reconciliation", () => {
         runId: "run-returned",
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       expect(
         (
@@ -490,6 +530,8 @@ describe("bounded durable reconciliation", () => {
         runId: "run-absent-again",
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       expect(
         (
@@ -508,7 +550,12 @@ describe("bounded durable reconciliation", () => {
     try {
       await client.executeMultiple(TEST_SCHEMA);
       const database = drizzle(client);
-      const repository = createDurableIngestionRepository(database, client);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
       const now = Date.now();
       await repository.initialize("run-old-observation");
       await client.execute(
@@ -616,6 +663,8 @@ describe("bounded durable reconciliation", () => {
               runId,
               database,
               batchClient: client,
+              snapshotStore,
+              budgetMs: 0,
             })
           ).status,
         ).toBe("complete");
@@ -654,6 +703,7 @@ describe("bounded durable reconciliation", () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const startedAt = new Date("2026-08-22T07:00:00.000Z");
       await drizzle(client)
         .insert(ingestionRun)
@@ -672,6 +722,8 @@ describe("bounded durable reconciliation", () => {
         runId: "run-abandoned",
         database: drizzle(client),
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
 
       expect(result).toEqual({ status: "stopped" });
@@ -684,6 +736,7 @@ describe("bounded durable reconciliation", () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       await client.execute({
         sql: `
           insert into ingestion_run (
@@ -699,6 +752,8 @@ describe("bounded durable reconciliation", () => {
         runId: "run-failed-publish",
         database: drizzle(client),
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
 
       expect(result.status).toBe("complete");
@@ -706,6 +761,59 @@ describe("bounded durable reconciliation", () => {
         "select stage from ingestion_run where id = 'run-failed-publish'",
       );
       expect(row.rows[0]?.stage).toBe("full_reindex_publish_failed");
+    } finally {
+      client.close();
+    }
+  });
+
+  test("reconciles many batches from staged chunks in one step", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const startedAt = new Date("2026-08-22T07:00:00.000Z");
+      await database.insert(ingestionRun).values({
+        id: "run-many",
+        source: "all",
+        status: "running",
+        stage: "reconcile_upsert",
+        activeSlot: 1,
+        acceptedSources: JSON.stringify(["pyp"]),
+        startedAt,
+        lastProgressAt: startedAt,
+      });
+      await database.insert(ingestionSourceRun).values({
+        id: "run-many:pyp",
+        runId: "run-many",
+        source: "pyp",
+        status: "success",
+        acceptanceStatus: "accepted",
+        uniqueVehicles: 1_200,
+        startedAt,
+      });
+      const snapshotStore = IngestionSnapshotStore.memory();
+      await stageSnapshots({
+        client,
+        store: snapshotStore,
+        runId: "run-many",
+        vehicles: Array.from({ length: 1_200 }, (_, index) => ({
+          ...snapshot("pyp", "Blue"),
+          vin: `VIN-${String(index).padStart(5, "0")}`,
+        })),
+      });
+
+      const result = await reconcileDurableIngestionRun({
+        runId: "run-many",
+        database,
+        batchClient: client,
+        snapshotStore,
+      });
+
+      expect(result.status).toBe("complete");
+      const count = await client.execute(
+        "select count(*) as count from vehicle",
+      );
+      expect(count.rows[0]?.count).toBe(1_200);
     } finally {
       client.close();
     }
@@ -748,12 +856,13 @@ describe("bounded durable reconciliation", () => {
           startedAt,
         },
       ]);
-      await database
-        .insert(vehicleSnapshot)
-        .values([
-          snapshot("run-1", "pyp", "Blue"),
-          snapshot("run-1", "row52", "Black"),
-        ]);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      await stageSnapshots({
+        client,
+        store: snapshotStore,
+        runId: "run-1",
+        vehicles: [snapshot("pyp", "Blue"), snapshot("row52", "Black")],
+      });
       await client.execute({
         sql: `insert into vehicle (
           vin, source, year, make, model, location_code, location_name,
@@ -783,6 +892,8 @@ describe("bounded durable reconciliation", () => {
         runId: "run-1",
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       expect(upsert).toMatchObject({ status: "paused", phase: "missing" });
 
@@ -790,6 +901,8 @@ describe("bounded durable reconciliation", () => {
         runId: "run-1",
         database,
         batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
       });
       expect(completed.status).toBe("complete");
       const vehicles = await client.execute(

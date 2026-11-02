@@ -1,7 +1,9 @@
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { loadSourceSnapshot } from "./run-snapshot-inventory";
 import type { CanonicalVehicle } from "./types";
 
 export function createTestClient() {
@@ -13,6 +15,33 @@ export function createTestClient() {
       client.close();
       rmSync(directory, { recursive: true });
     },
+  };
+}
+
+/** Staged vehicles and observed VINs across a run's (or every run's) sources. */
+export async function stagedSnapshots(
+  client: Client,
+  store: IngestionSnapshotStore,
+  runId?: string,
+) {
+  const rows = await client.execute({
+    sql: `select snapshot_chunks from ingestion_source_run ${runId === undefined ? "" : "where run_id = ?"}`,
+    args: runId === undefined ? [] : [runId],
+  });
+  const vehicles: CanonicalVehicle[] = [];
+  const observedVins: string[] = [];
+  for (const row of rows.rows) {
+    const snapshot = await loadSourceSnapshot(
+      store,
+      String(row.snapshot_chunks),
+    );
+    vehicles.push(...snapshot.vehicles.values());
+    observedVins.push(...snapshot.observedVins);
+  }
+  return {
+    vehicles: vehicles.sort((a, b) => a.vin.localeCompare(b.vin)),
+    vins: vehicles.map((vehicle) => vehicle.vin).sort(),
+    observedVins: observedVins.sort(),
   };
 }
 
@@ -48,7 +77,8 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
     rejected_vehicles integer not null default 0,
     acceptance_status text not null default 'pending',
     validation_errors text,
-    errors text, started_at integer not null, completed_at integer,
+    errors text, snapshot_chunks text not null default '[]',
+    started_at integer not null, completed_at integer,
     foreign key (run_id) references ingestion_run(id) on delete cascade
   );
   create table vehicle_snapshot (
