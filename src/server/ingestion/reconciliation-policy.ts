@@ -21,6 +21,14 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "autorecycler",
 ];
 
+/** The rank reconciliationSourcePrioritySql assigns: 1 is highest. */
+export function reconciliationSourcePriority(source: string): number {
+  const index = RECONCILIATION_SOURCE_PRIORITY.findIndex(
+    (candidate) => candidate === source,
+  );
+  return index < 0 ? 999 : index + 1;
+}
+
 export function reconciliationSourcePrioritySql(tableAlias: string): string {
   const branches = RECONCILIATION_SOURCE_PRIORITY.map(
     (source, index) => `when '${source}' then ${index + 1}`,
@@ -66,10 +74,30 @@ function vehicleNeedsUpsert(
   );
 }
 
+/**
+ * Runs reconcile only their own sources, so a VIN another source still lists
+ * keeps the higher-priority listing. The owner's own runs retire it when it
+ * stops listing the VIN; until then a lower-priority source cannot take it.
+ */
+function keptByHigherPriorityOwner(
+  existing: ExistingVehicle | undefined,
+  next: CanonicalVehicle,
+  acceptedSources: ReadonlySet<string>,
+): boolean {
+  return (
+    existing !== undefined &&
+    existing.missingSinceAt === null &&
+    !acceptedSources.has(existing.source) &&
+    reconciliationSourcePriority(existing.source) <
+      reconciliationSourcePriority(next.source)
+  );
+}
+
 export function planChangedVehicleUpserts(params: {
   inventory: ReadonlyMap<string, CanonicalVehicle>;
   existingRows: readonly ExistingVehicle[];
   runTimestamp: Date;
+  acceptedSources: ReadonlySet<string>;
 }) {
   const existingByVin = new Map(
     params.existingRows.map((row) => [row.vin, row] as const),
@@ -77,6 +105,8 @@ export function planChangedVehicleUpserts(params: {
   const changed: Array<{ vehicle: CanonicalVehicle; firstSeenAt: Date }> = [];
   for (const [vin, next] of params.inventory) {
     const existing = existingByVin.get(vin);
+    if (keptByHigherPriorityOwner(existing, next, params.acceptedSources))
+      continue;
     if (!vehicleNeedsUpsert(existing, next)) continue;
     changed.push({
       vehicle: next,

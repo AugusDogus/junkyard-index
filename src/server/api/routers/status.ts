@@ -1,4 +1,4 @@
-import { desc, eq, isNotNull, sql } from "drizzle-orm";
+import { asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { env } from "~/env";
 import { db } from "~/lib/db";
@@ -121,6 +121,12 @@ export const statusRouter = createTRPCRouter({
           })
           .from(ingestionRun)
           .where(eq(ingestionRun.activeSlot, 1))
+          // Sources stage in parallel and commit one at a time. Report the
+          // committing run, else the staging run with the oldest progress.
+          .orderBy(
+            sql`${ingestionRun.commitStartedAt} is null`,
+            asc(ingestionRun.lastProgressAt),
+          )
           .limit(1),
         db
           .select({

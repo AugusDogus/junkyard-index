@@ -46,15 +46,11 @@ function claimValues(params: ClaimNotificationIntentGroupParams) {
   } as const;
 }
 
-export async function claimNotificationIntentGroup(
-  params: ClaimNotificationIntentGroupParams & { channel: "email" | "discord" },
-) {
-  const claimable = claimableNotificationIntent(params);
+/** Intents a delivery worker could claim now, on any channel. */
+function deliverableNotificationIntent(params: { now: Date; leaseMs: number }) {
   const stale = params.now.getTime() - params.leaseMs;
-  const database = params.database;
-  const eligible = and(
-    eq(searchNotificationIntent.channel, params.channel),
-    claimable,
+  return and(
+    claimableNotificationIntent(params),
     releasedRun,
     sql`(
         ${searchNotificationIntent.status} in ('retry', 'sending')
@@ -78,6 +74,33 @@ export async function claimNotificationIntentGroup(
           and queued.delivery_group_id is not null
           and queued.status in ('pending', 'retry', 'sending')
       ))`,
+  );
+}
+
+/**
+ * Whether a delivery worker would find work now. Intents held back by a
+ * recipient's daily limit do not count, so callers do not start empty workers.
+ */
+export async function hasDeliverableNotificationIntent(params: {
+  database: LibSQLDatabase;
+  now: Date;
+  leaseMs: number;
+}): Promise<boolean> {
+  const [intent] = await params.database
+    .select({ id: searchNotificationIntent.id })
+    .from(searchNotificationIntent)
+    .where(deliverableNotificationIntent(params))
+    .limit(1);
+  return intent !== undefined;
+}
+
+export async function claimNotificationIntentGroup(
+  params: ClaimNotificationIntentGroupParams & { channel: "email" | "discord" },
+) {
+  const database = params.database;
+  const eligible = and(
+    eq(searchNotificationIntent.channel, params.channel),
+    deliverableNotificationIntent(params),
   );
   const [candidate] = await database
     .select()

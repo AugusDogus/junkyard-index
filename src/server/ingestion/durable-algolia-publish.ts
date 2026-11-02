@@ -222,7 +222,7 @@ export async function publishFullReindexForRun(params: {
         )`,
       ),
     );
-  // The active-run fence prevents newer reconciliation changes while this
+  // The commit claim prevents other runs from reconciling while this
   // generation is built, so every currently unprocessed row is covered.
   const clearPublishedChanges = params.database.delete(vehicleChange).where(
     and(

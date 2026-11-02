@@ -1,9 +1,13 @@
 import { createHook, getWorkflowMetadata, sleep } from "workflow";
-import { executeDurableIngestion } from "~/server/ingestion/durable-ingestion-orchestrator";
+import {
+  commitDurableIngestion,
+  recordingFailure,
+  stageDurableIngestion,
+  type DurableIngestionCompletion,
+} from "~/server/ingestion/durable-ingestion-orchestrator";
 import {
   drainDurableCleanup,
   drainDurablePhase,
-  runDurablePostReleaseLifecycle,
   runDurablePublicationLifecycle,
   runProjectionWithFailureRecording,
 } from "~/server/ingestion/durable-post-ingestion-orchestrator";
@@ -11,11 +15,12 @@ import {
   cleanupDurableIngestionStateBatchStep,
   cleanupStaleDurableIngestionSnapshotsStep,
   attachDurableIngestionWorkflowStep,
+  claimDurableIngestionCommitStep,
   deliverVehicleSearchAlertIntentsStep,
   initializeDurableIngestionStep,
   markDurableIngestionFailedStep,
   markDurableSourceFailedStep,
-  reportDurableIngestionDownStep,
+  reportDurableIngestionFailureStep,
   reportDurableIngestionHealthStep,
   reconcileDurableIngestionStep,
   runAlgoliaProjectorStep,
@@ -33,15 +38,15 @@ export async function vehicleIngestionWorkflow(runId: string) {
   "use workflow";
 
   let publication: {
-    ingestion: Awaited<ReturnType<typeof executeDurableIngestion>> & {
-      status: "completed";
-    };
+    ingestion: DurableIngestionCompletion;
     projector: Awaited<ReturnType<typeof runAlgoliaProjectorStep>>;
     alertMatching: Awaited<ReturnType<typeof runVehicleSearchAlertsStep>>;
   } | null = null;
 
   {
-    using ingestionRun = createHook({ token: INGESTION_RUN_TOKEN });
+    using ingestionRun = createHook({
+      token: `${INGESTION_RUN_TOKEN}:${runId}`,
+    });
     const activeRun = await ingestionRun.getConflict();
     if (activeRun) {
       return {
@@ -55,7 +60,7 @@ export async function vehicleIngestionWorkflow(runId: string) {
     const markRunFailed = async (failedRunId: string, message: string) => {
       await markDurableIngestionFailedStep(failedRunId, message);
       try {
-        await reportDurableIngestionDownStep(failedRunId);
+        await reportDurableIngestionFailureStep(failedRunId);
       } catch (error) {
         console.error(
           `Failed to report ingestion run ${failedRunId} down after recording its failure`,
@@ -63,79 +68,91 @@ export async function vehicleIngestionWorkflow(runId: string) {
         );
       }
     };
-    const ingestionResult = await executeDurableIngestion({
-      runId,
-      operations: {
-        cleanupStale: cleanupStaleDurableIngestionSnapshotsStep,
-        initialize: initializeDurableIngestionStep,
-        runChunk: runDurableSourceChunkStep,
-        markFailed: markDurableSourceFailedStep,
-        validateSources: validateDurableIngestionSourcesStep,
-        reconcile: reconcileDurableIngestionStep,
-        markRunFailed,
-      },
-    });
-    if (
-      ingestionResult.status === "deduplicated" ||
-      ingestionResult.status === "stopped"
-    ) {
-      return ingestionResult;
-    }
-
-    const publicationResult = await runDurablePublicationLifecycle({
-      runId,
-      project: async () => {
-        while (true) {
-          using algoliaWrites = createHook({ token: ALGOLIA_WRITES_TOKEN });
-          const activeWriter = await algoliaWrites.getConflict();
-          if (activeWriter) {
-            console.info(
-              `[Workflow] Waiting for Algolia writer ${activeWriter.runId}`,
-            );
-            await sleep(LOCK_RETRY_DELAY);
-            continue;
-          }
-          return runProjectionWithFailureRecording({
-            runId,
-            runBatch: () => runAlgoliaProjectorStep(runId),
-            markFailed: markRunFailed,
-          });
-        }
-      },
-      matchAlerts: () =>
-        drainDurablePhase(() => runVehicleSearchAlertsStep(runId)),
-      reportHealth: reportDurableIngestionHealthStep,
-    });
-    if (publicationResult.status === "stopped") return publicationResult;
-    publication = {
-      ingestion: ingestionResult,
-      projector: publicationResult.projector,
-      alertMatching: publicationResult.alertMatching,
+    const operations = {
+      cleanupStale: cleanupStaleDurableIngestionSnapshotsStep,
+      initialize: initializeDurableIngestionStep,
+      runChunk: runDurableSourceChunkStep,
+      markFailed: markDurableSourceFailedStep,
+      validateSources: validateDurableIngestionSourcesStep,
+      reconcile: reconcileDurableIngestionStep,
+      markRunFailed,
     };
+    // Each source's run fetches and stages in parallel with the others.
+    const staging = await stageDurableIngestion({ runId, operations });
+    if (staging.status !== "staged") return staging;
+
+    // Committing writes the shared inventory, search index, and alert intents,
+    // so one run commits at a time. The claim lives in the database, so a run
+    // whose workflow died mid-commit keeps it until a resumed workflow
+    // finishes the commit or the run is abandoned.
+    while (true) {
+      const claim = await recordingFailure(runId, markRunFailed, () =>
+        claimDurableIngestionCommitStep(runId),
+      );
+      if (claim === "stopped") return { status: "stopped" as const };
+      if (claim === "busy") {
+        await sleep(LOCK_RETRY_DELAY);
+        continue;
+      }
+      const ingestionResult = await commitDurableIngestion({
+        runId,
+        operations,
+      });
+      if (ingestionResult.status === "stopped") return ingestionResult;
+
+      const publicationResult = await runDurablePublicationLifecycle({
+        runId,
+        project: async () => {
+          while (true) {
+            using algoliaWrites = createHook({ token: ALGOLIA_WRITES_TOKEN });
+            const activeWriter = await algoliaWrites.getConflict();
+            if (activeWriter) {
+              console.info(
+                `[Workflow] Waiting for Algolia writer ${activeWriter.runId}`,
+              );
+              await sleep(LOCK_RETRY_DELAY);
+              continue;
+            }
+            return runProjectionWithFailureRecording({
+              runId,
+              runBatch: () => runAlgoliaProjectorStep(runId),
+              markFailed: markRunFailed,
+            });
+          }
+        },
+        // Projection records its own failures; record the rest so a run that
+        // keeps failing while holding the commit is eventually abandoned.
+        matchAlerts: () =>
+          recordingFailure(runId, markRunFailed, () =>
+            drainDurablePhase(() => runVehicleSearchAlertsStep(runId)),
+          ),
+        reportHealth: (healthRunId) =>
+          recordingFailure(runId, markRunFailed, () =>
+            reportDurableIngestionHealthStep(healthRunId),
+          ),
+      });
+      if (publicationResult.status === "stopped") return publicationResult;
+      publication = {
+        ingestion: ingestionResult,
+        projector: publicationResult.projector,
+        alertMatching: publicationResult.alertMatching,
+      };
+      break;
+    }
   }
 
   if (!publication) {
     throw new Error(`Ingestion run ${runId} completed without publication.`);
   }
-  const postRelease = await runDurablePostReleaseLifecycle({
-    runId,
-    deliverAlerts: async () => {
-      using alertDelivery = createHook({ token: ALERT_DELIVERY_TOKEN });
-      const activeDelivery = await alertDelivery.getConflict();
-      return activeDelivery
-        ? null
-        : drainDurablePhase(deliverVehicleSearchAlertIntentsStep);
-    },
-    cleanup: () =>
-      drainDurableCleanup(() => cleanupDurableIngestionStateBatchStep(runId)),
-  });
+  // Each run covers one source, so delivery waits for the day's last source
+  // (see the vehicle-ingestion cron) to keep one digest per recipient per day.
+  await drainDurableCleanup(() => cleanupDurableIngestionStateBatchStep(runId));
 
   return {
     status: "completed" as const,
     ingestion: publication.ingestion.ingestion,
     projector: publication.projector,
     alertMatching: publication.alertMatching,
-    delivery: postRelease.delivery,
   };
 }
 

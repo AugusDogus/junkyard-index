@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import {
   cancelClaimedNotificationIntents,
   claimNotificationIntentGroup,
+  hasDeliverableNotificationIntent,
   markNotificationGroupDelivered,
 } from "./notification-intent-claim";
 
@@ -75,6 +76,29 @@ describe("notification intent claims", () => {
       const next = await claim(new Date("2026-09-20T07:00:00Z"));
       expect(next.map((row) => row.id).sort()).toEqual(["later-1", "later-2"]);
       expect(new Set(next.map((row) => row.deliveryGroupId)).size).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("reports deliverable work only when the daily limit lets a claim succeed", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(`${TEST_SCHEMA}
+        insert into search_notification_intent (id) values ('held');
+      `);
+      await client.execute({
+        sql: "insert into search_notification_delivery values ('user-1', 'email', ?)",
+        args: [new Date("2026-09-19T08:00:00Z").getTime()],
+      });
+      const deliverable = (now: Date) =>
+        hasDeliverableNotificationIntent({
+          database: drizzle(client),
+          now,
+          leaseMs: 900000,
+        });
+      expect(await deliverable(new Date("2026-09-20T06:59:59Z"))).toBe(false);
+      expect(await deliverable(new Date("2026-09-20T07:00:00Z"))).toBe(true);
     } finally {
       cleanup();
     }

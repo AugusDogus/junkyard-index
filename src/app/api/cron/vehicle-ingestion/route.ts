@@ -3,6 +3,7 @@ import { start } from "workflow/api";
 import { env } from "~/env";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
+import { hasDeliverableNotificationIntents } from "~/server/alerts/durable-alert-delivery-runtime";
 import { prepareDurableIngestionWakeup } from "~/server/ingestion/durable-ingestion";
 import {
   vehicleIngestionWorkflow,
@@ -20,28 +21,45 @@ export async function GET(request: Request) {
   }
 
   const wakeup = await prepareDurableIngestionWakeup();
-  if (wakeup.status === "not_due") {
+  if (wakeup.status === "waiting") {
+    return Response.json({
+      message: "No vehicle source is due yet; a retry is still pending today",
+    });
+  }
+  if (wakeup.status === "complete") {
+    // Deliver once every source has published or used its attempts, so each
+    // recipient's one digest per day covers every source.
+    if (!(await hasDeliverableNotificationIntents())) {
+      return Response.json({
+        message:
+          "Today's ingestion pass is complete; no notification is deliverable",
+      });
+    }
     const delivery = await pRetry(
       () => start(vehicleNotificationDeliveryWorkflow),
       workflowStartRetryOptions,
     );
     return Response.json({
-      message: "Vehicle ingestion is not due",
-      publishedRunId: wakeup.publishedRunId,
+      message: "Today's ingestion pass is complete; delivering notifications",
       deliveryWorkflowRunId: delivery.runId,
     });
   }
 
-  const workflow = await pRetry(
-    () => start(vehicleIngestionWorkflow, [wakeup.runId]),
-    workflowStartRetryOptions,
+  // Resuming starts a workflow that exits at once if the run's workflow is
+  // still alive, and otherwise continues the run from its checkpoints.
+  const workflows = await Promise.all(
+    wakeup.runs.map(async (run) => ({
+      ...run,
+      workflowRunId: (
+        await pRetry(
+          () => start(vehicleIngestionWorkflow, [run.runId]),
+          workflowStartRetryOptions,
+        )
+      ).runId,
+    })),
   );
   return Response.json(
-    {
-      message: `Vehicle ingestion workflow ${wakeup.status === "resume" ? "resumed" : "started"}`,
-      runId: wakeup.runId,
-      workflowRunId: workflow.runId,
-    },
+    { message: "Vehicle ingestion workflows started", runs: workflows },
     { status: 202 },
   );
 }

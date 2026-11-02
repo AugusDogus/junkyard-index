@@ -470,3 +470,23 @@ describe("durable ingestion run sources", () => {
     expect(ingested.sort()).toEqual(["pyp", "row52"]);
   });
 });
+
+describe("durable ingestion failure recording", () => {
+  test("records a failure while initializing the run", async () => {
+    const failures: string[] = [];
+    await expect(
+      executeDurableIngestion({
+        runId: "run-1",
+        operations: makeOperations({
+          initialize: async () => {
+            throw new Error("Turso unavailable");
+          },
+          markRunFailed: async (_runId, message) => {
+            failures.push(message);
+          },
+        }),
+      }),
+    ).rejects.toThrow("Turso unavailable");
+    expect(failures).toEqual(["Durable ingestion failed: Turso unavailable"]);
+  });
+});

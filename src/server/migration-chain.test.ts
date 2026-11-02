@@ -25,6 +25,7 @@ const LEGACY_SCHEMA = `
   create table vehicle (vin text primary key, location_code text not null);
   create table ingestion_run (
     id text primary key,
+    source text not null,
     status text not null,
     errors text,
     started_at integer not null,

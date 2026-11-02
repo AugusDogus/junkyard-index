@@ -1,14 +1,12 @@
 import { env } from "~/env";
 import { db, dbClient } from "~/lib/db";
-import {
-  createDurableIngestionRepository,
-  parseIngestionErrors,
-} from "./durable-ingestion-repository";
+import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import {
   syncIngestionStatusPage,
   type BetterStackStatusPageConfig,
 } from "./better-stack-status-page";
 import {
+  assessIngestionFreshness,
   classifyDurableIngestionHealth,
   type DurableIngestionHealth,
 } from "./durable-health";
@@ -105,6 +103,12 @@ export async function prepareDurableIngestionWakeup(
   return repository.prepareWakeup(now, sources);
 }
 
+export function claimDurableIngestionCommit(
+  runId: string,
+): Promise<"claimed" | "busy" | "stopped"> {
+  return repository.claimCommit(runId);
+}
+
 export function attachDurableIngestionWorkflow(
   runId: string,
   workflowRunId: string,
@@ -168,7 +172,7 @@ export async function markDurableIngestionFailed(
   message: string,
 ): Promise<void> {
   await persistDurableIngestionFailure(runId, message);
-  await reportDurableIngestionDown();
+  await reportDurableIngestionFailure();
 }
 
 export function persistDurableIngestionFailure(
@@ -178,20 +182,17 @@ export function persistDurableIngestionFailure(
   return repository.markRunFailed(runId, message);
 }
 
-export async function reportDurableIngestionDown(): Promise<void> {
-  await sendHeartbeat(true).catch((error: unknown) => {
-    console.warn("[Ingestion] BetterStack failure heartbeat failed", error);
-  });
-  await syncProductionIngestionStatusPage("down");
-}
-
-export async function reportDurableIngestionHealth(runId: string) {
-  const run = await repository.getRun(runId);
-  const health = classifyDurableIngestionHealth({
-    status: run.status,
-    inventoryOutcome: run.inventoryOutcome,
-    inventoryErrors: parseIngestionErrors(run.errors),
-  });
+async function reportIngestionHealth(runFailed: boolean): Promise<void> {
+  const now = new Date();
+  const freshness = assessIngestionFreshness(
+    await repository.getSourceFreshness(now),
+    now,
+  );
+  if (freshness.stale.length > 0)
+    console.warn(
+      `[Ingestion] Sources without an accepted publication in 30 hours: ${freshness.stale.join(", ")}`,
+    );
+  const health = classifyDurableIngestionHealth({ runFailed, ...freshness });
 
   if (health === "degraded") {
     await syncProductionIngestionStatusPage(health);
@@ -202,6 +203,16 @@ export async function reportDurableIngestionHealth(runId: string) {
   if (health !== "degraded") {
     await syncProductionIngestionStatusPage(health);
   }
+}
+
+/** Reports health after a failed run; one source's failure degrades it. */
+export function reportDurableIngestionFailure(): Promise<void> {
+  return reportIngestionHealth(true);
+}
+
+export async function reportDurableIngestionHealth(runId: string) {
+  const run = await repository.getRun(runId);
+  await reportIngestionHealth(run.status !== "success");
 }
 
 export function cleanupDurableIngestionStateBatch(runId: string) {

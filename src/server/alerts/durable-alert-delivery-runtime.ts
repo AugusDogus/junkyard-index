@@ -13,11 +13,21 @@ import {
 import {
   cancelClaimedNotificationIntents,
   claimNotificationIntentGroup,
+  hasDeliverableNotificationIntent,
   markNotificationGroupDelivered,
 } from "./notification-intent-claim";
 import { parseNotificationIntentPayload } from "./notification-intent-payload";
 
 const DELIVERY_LEASE_MS = 15 * 60 * 1000;
+
+/** Whether a delivery workflow would find a notification to send now. */
+export function hasDeliverableNotificationIntents(): Promise<boolean> {
+  return hasDeliverableNotificationIntent({
+    database: db,
+    now: new Date(),
+    leaseMs: DELIVERY_LEASE_MS,
+  });
+}
 
 function claimedGroup(intents: readonly ClaimedNotificationIntent[]) {
   const first = intents[0];

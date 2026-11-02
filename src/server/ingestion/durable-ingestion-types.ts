@@ -15,9 +15,20 @@ export type InitializeDurableIngestionResult =
     }
   | { status: "deduplicated"; activeRunId: string | null };
 
+export interface DurableIngestionWakeupRun {
+  action: "start" | "resume";
+  runId: string;
+}
+
+/**
+ * Active: runs to start or resume. Waiting: nothing to run now, but a source
+ * can still run today. Complete: every enabled source published or used its
+ * attempts today.
+ */
 export type DurableIngestionWakeupResult =
-  | { status: "start" | "resume"; runId: string }
-  | { status: "not_due"; publishedRunId: string };
+  | { status: "active"; runs: DurableIngestionWakeupRun[] }
+  | { status: "waiting" }
+  | { status: "complete" };
 
 export interface DurableSourceChunkResult<
   Source extends DurableIngestionSource = DurableIngestionSource,
