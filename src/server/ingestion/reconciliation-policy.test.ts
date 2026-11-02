@@ -85,6 +85,20 @@ describe("reconciliation policy", () => {
     );
   });
 
+  test("ignores coordinate noise from the database's float round trip", () => {
+    // Turso returns -97.51810604352379 as -97.5181060435238.
+    const changed = planChangedVehicleUpserts({
+      inventory: new Map([
+        ["VIN123", canonicalVehicle("VIN123", { lng: -97.51810604352379 })],
+      ]),
+      existingRows: [existingVehicle("VIN123", { lng: -97.5181060435238 })],
+      runTimestamp: new Date("2026-03-05T00:00:00.000Z"),
+      acceptedSources: new Set(["pyp"]),
+    });
+
+    expect(changed).toEqual([]);
+  });
+
   test("treats a reappearing vehicle as changed", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
     const changed = planChangedVehicleUpserts({
