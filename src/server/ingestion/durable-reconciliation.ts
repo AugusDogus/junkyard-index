@@ -305,6 +305,7 @@ async function runUpsertBatch(
     inventory: finalInventory,
     existingRows,
     runTimestamp: params.runTimestamp,
+    acceptedSources: inventory.acceptedSources,
   });
   const nextCursor = rows.at(-1)?.vin ?? params.cursor;
   const nextStage =
@@ -653,17 +654,20 @@ async function reconcileBatch(
       `Ingestion run ${params.runId} has not validated its sources.`,
     );
   }
+  // Stamp vehicles with the commit claim so they follow every earlier run's
+  // alert matching. Local runs that never claim use their start.
+  const runTimestamp = run.commitStartedAt ?? run.startedAt;
   if (stage === "reconcile_upsert") {
     return runUpsertBatch({
       ...params,
       cursor: run.reconciliationCursor,
-      runTimestamp: run.startedAt,
+      runTimestamp,
     });
   }
   return runMissingBatch({
     ...params,
     cursor: run.reconciliationCursor,
-    runTimestamp: run.startedAt,
+    runTimestamp,
     acceptedSources: parseAcceptedSources(run.acceptedSources),
   });
 }

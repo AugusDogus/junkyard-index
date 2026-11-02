@@ -8,6 +8,7 @@ import { ingestionRun, ingestionSourceRun } from "~/schema";
 import type {
   DurableSourceChunkResult,
   DurableIngestionWakeupResult,
+  DurableIngestionWakeupRun,
   FetchedDurableSourceChunk,
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
@@ -21,10 +22,17 @@ import {
   type DurableIngestionSource,
 } from "./durable-source";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { IngestionSchedule } from "./ingestion-schedule";
+import {
+  reconciliationSourcePriority,
+  reconciliationSourcePrioritySql,
+} from "./reconciliation-policy";
+import type { IngestionSourceFreshness } from "./durable-health";
 
 const SNAPSHOT_WRITE_BATCH_SIZE = 500;
 const CLEANUP_BATCH_SIZE = 5_000;
 const STALE_SNAPSHOT_RUN_BATCH_SIZE = 50;
+const MAX_EXECUTION_FAILURES = 5;
 const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
@@ -161,35 +169,50 @@ export function createDurableIngestionRepository(
             sql`${ingestionRun.status} != 'running'`,
           ),
         );
-      const [activeRun] = await database
-        .select({ id: ingestionRun.id })
+      const activeRuns = await database
+        .select({ id: ingestionRun.id, source: ingestionRun.source })
         .from(ingestionRun)
-        .where(eq(ingestionRun.activeSlot, 1))
-        .limit(1);
-      if (activeRun) return { status: "resume", runId: activeRun.id };
-
-      // A degraded publication completes the day. Retrying recrawls every
-      // source, so a persistently failing source would otherwise rerun all
-      // healthy sources on every hourly wakeup. Failed sources retry tomorrow.
-      const [publishedRun] = await database
-        .select({ id: ingestionRun.id })
-        .from(ingestionRun)
-        .where(
-          and(
-            eq(ingestionRun.scheduleKey, scheduleKey),
-            eq(ingestionRun.fullReindexRequired, false),
-            sql`${ingestionRun.inventoryOutcome} in ('published', 'published_degraded')`,
-            sql`${ingestionRun.searchPublishedAt} is not null`,
-          ),
-        )
-        .limit(1);
-      if (publishedRun) {
-        return { status: "not_due", publishedRunId: publishedRun.id };
+        .where(eq(ingestionRun.activeSlot, 1));
+      const runs: DurableIngestionWakeupRun[] = activeRuns.map((run) => ({
+        action: "resume",
+        runId: run.id,
+      }));
+      // A run across every source (a local `runIngestion`) owns the inventory
+      // until it finishes; scheduled runs each cover one source.
+      if (activeRuns.some((run) => run.source === "all")) {
+        return { status: "active", runs };
       }
 
-      const runId = crypto.randomUUID();
-      try {
-        await batchClient.batch(
+      const days = await database
+        .select({
+          source: ingestionSourceRun.source,
+          published: sql<number>`max(
+            ${ingestionSourceRun.acceptanceStatus} = 'accepted'
+            and ${ingestionRun.searchPublishedAt} is not null
+          )`,
+          attempts: sql<number>`count(*)`,
+          lastStartedAt: sql<
+            number | null
+          >`max(${ingestionSourceRun.startedAt})`,
+        })
+        .from(ingestionSourceRun)
+        .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+        .where(eq(ingestionRun.scheduleKey, scheduleKey))
+        .groupBy(ingestionSourceRun.source);
+      const activeSources = new Set(activeRuns.map((run) => run.source));
+      const sourceDays = days.map((day) => ({
+        ...day,
+        published: day.published === 1,
+      }));
+      const due = IngestionSchedule.dueSources({
+        days: sourceDays,
+        enabledSources: sources,
+        now,
+      }).filter((source) => !activeSources.has(source));
+
+      for (const source of due) {
+        const runId = crypto.randomUUID();
+        const [created] = await batchClient.batch(
           [
             {
               sql: `
@@ -197,34 +220,137 @@ export function createDurableIngestionRepository(
                   id, source, schedule_key, status, stage, active_slot,
                   full_reindex_required, started_at, last_progress_at
                 )
-                values (?, 'all', ?, 'running', 'sources', 1,
+                select ?, ?, ?, 'running', 'sources', 1,
                   case when exists (
                     select 1 from ingestion_run
-                    where full_reindex_required = 1
+                    where full_reindex_required = 1 and active_slot is null
                   ) or not exists (
                     select 1 from ingestion_run
                     where publication_sequence is not null
                   ) then 1 else 0 end,
-                  ?, ?)
+                  ?, ?
+                where not exists (
+                  select 1 from ingestion_run
+                  where active_slot = 1 and source in (?, 'all')
+                )
               `,
-              args: [runId, scheduleKey, now.getTime(), now.getTime()],
+              args: [
+                runId,
+                source,
+                scheduleKey,
+                now.getTime(),
+                now.getTime(),
+                source,
+              ],
             },
-            ...sources.map((source) =>
-              sourceRunInsertStatement(runId, source, now),
-            ),
+            sourceRunInsertStatement(runId, source, now),
           ],
           "write",
         );
-        return { status: "start", runId };
-      } catch (error) {
-        const [winner] = await database
-          .select({ id: ingestionRun.id })
-          .from(ingestionRun)
-          .where(eq(ingestionRun.activeSlot, 1))
-          .limit(1);
-        if (winner) return { status: "resume", runId: winner.id };
-        throw error;
+        // A concurrent wakeup that won the race resumes that source's run.
+        if (created?.rowsAffected === 1) runs.push({ action: "start", runId });
       }
+      if (runs.length > 0) return { status: "active", runs };
+      if (
+        !IngestionSchedule.passComplete({
+          days: sourceDays,
+          enabledSources: sources,
+        })
+      )
+        return { status: "waiting" };
+      // A concurrent wakeup may have started a final attempt after the active
+      // runs were read; the pass is not over while it runs.
+      const [startedMeanwhile] = await database
+        .select({ id: ingestionRun.id })
+        .from(ingestionRun)
+        .where(eq(ingestionRun.activeSlot, 1))
+        .limit(1);
+      return startedMeanwhile ? { status: "waiting" } : { status: "complete" };
+    },
+
+    /**
+     * Claims the shared commit for a staged run. One active run holds it at a
+     * time, even across workflow failures, so reconciliation, Algolia
+     * publication, and alert matching never interleave between runs.
+     *
+     * Active runs claim in source-priority order: a VIN two sources list
+     * settles on its higher-priority owner before alerts first see it, so a
+     * search filtered to that owner is not skipped. The claim time, which
+     * stamps the run's newly seen vehicles, follows every earlier alert check.
+     * A full rebuild left by a finished (abandoned) run is taken on here, since
+     * runs created before it was abandoned did not inherit it.
+     */
+    async claimCommit(
+      runId: string,
+      now = new Date(),
+    ): Promise<"claimed" | "busy" | "stopped"> {
+      const [current] = await database
+        .select({ source: ingestionRun.source })
+        .from(ingestionRun)
+        .where(eq(ingestionRun.id, runId))
+        .limit(1);
+      if (!current) return "stopped";
+      const [result] = await batchClient.batch(
+        [
+          {
+            sql: `
+              update ingestion_run
+              set full_reindex_required = case
+                    when commit_started_at is null and exists (
+                      select 1 from ingestion_run finished
+                      where finished.full_reindex_required = 1
+                        and finished.active_slot is null
+                    ) then 1
+                    else full_reindex_required
+                  end,
+                  commit_started_at = coalesce(commit_started_at, ?),
+                  last_progress_at = ?
+              where id = ? and status = 'running' and active_slot = 1
+                and not exists (
+                  select 1 from ingestion_run other
+                  where other.id <> ? and other.active_slot = 1
+                    and other.commit_started_at is not null
+                )
+                -- A run resuming its own commit skips the first-claim waits.
+                and (commit_started_at is not null or (
+                  not exists (
+                    select 1 from ingestion_run other
+                    where other.id <> ? and other.active_slot = 1
+                      and (${reconciliationSourcePrioritySql("other")}) < ?
+                  )
+                  -- Algolia compares whole seconds, so stamp a full second
+                  -- after the newest alert check.
+                  and ? >= (
+                    select coalesce(max(last_checked_at), 0) + 1000
+                    from saved_search
+                  )
+                ))
+            `,
+            args: [
+              now.getTime(),
+              now.getTime(),
+              runId,
+              runId,
+              runId,
+              reconciliationSourcePriority(current.source),
+              now.getTime(),
+            ],
+          },
+        ],
+        "write",
+      );
+      if (result?.rowsAffected === 1) return "claimed";
+      const [run] = await database
+        .select({
+          status: ingestionRun.status,
+          activeSlot: ingestionRun.activeSlot,
+        })
+        .from(ingestionRun)
+        .where(eq(ingestionRun.id, runId))
+        .limit(1);
+      return run?.status === "running" && run.activeSlot === 1
+        ? "busy"
+        : "stopped";
     },
 
     async attachWorkflowRun(
@@ -270,6 +396,7 @@ export function createDurableIngestionRepository(
                        case when exists (
                          select 1 from ingestion_run
                          where full_reindex_required = 1
+                           and active_slot is null
                        ) or not exists (
                          select 1 from ingestion_run
                          where publication_sequence is not null
@@ -289,12 +416,18 @@ export function createDurableIngestionRepository(
           "write",
         );
       }
-      const [activeRun] = await database
-        .select({ id: ingestionRun.id })
+      const [run] = await database
+        .select({ activeSlot: ingestionRun.activeSlot })
         .from(ingestionRun)
-        .where(eq(ingestionRun.activeSlot, 1))
+        .where(eq(ingestionRun.id, runId))
         .limit(1);
-      if (activeRun?.id !== runId) {
+      if (run?.activeSlot !== 1) {
+        // A local run across every source waits for all scheduled runs.
+        const [activeRun] = await database
+          .select({ id: ingestionRun.id })
+          .from(ingestionRun)
+          .where(eq(ingestionRun.activeSlot, 1))
+          .limit(1);
         return { status: "deduplicated", activeRunId: activeRun?.id ?? null };
       }
       const sourceRows = await database
@@ -603,6 +736,26 @@ export function createDurableIngestionRepository(
       return toChunkResult(params.source, latest);
     },
 
+    /** Each source's latest attempt and accepted publication in the last 3 days. */
+    async getSourceFreshness(now: Date): Promise<IngestionSourceFreshness[]> {
+      const rows = await database
+        .select({
+          source: ingestionSourceRun.source,
+          lastAttemptAt: sql<number>`max(${ingestionSourceRun.startedAt})`,
+          lastPublishedAt: sql<number | null>`max(case
+            when ${ingestionSourceRun.acceptanceStatus} = 'accepted'
+            then ${ingestionRun.searchPublishedAt}
+          end)`,
+        })
+        .from(ingestionSourceRun)
+        .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
+        .where(
+          sql`${ingestionSourceRun.startedAt} > ${now.getTime() - 3 * 24 * 60 * 60 * 1000}`,
+        )
+        .groupBy(ingestionSourceRun.source);
+      return rows;
+    },
+
     async getRun(runId: string) {
       const [run] = await database
         .select()
@@ -624,6 +777,7 @@ export function createDurableIngestionRepository(
       const [run] = await database
         .select({
           executionErrors: ingestionRun.executionErrors,
+          executionFailures: ingestionRun.executionFailures,
           stage: ingestionRun.stage,
         })
         .from(ingestionRun)
@@ -635,10 +789,12 @@ export function createDurableIngestionRepository(
         ...parseIngestionErrors(run.executionErrors),
         message,
       ]);
+      const failures = run.executionFailures + 1;
       await database
         .update(ingestionRun)
         .set({
           executionErrors: JSON.stringify(errors),
+          executionFailures: failures,
           stage:
             run.stage === "full_reindex_publish"
               ? "full_reindex_publish_failed"
@@ -652,6 +808,20 @@ export function createDurableIngestionRepository(
             eq(ingestionRun.stage, run.stage),
           ),
         );
+      // A run that keeps failing would hold its source, and possibly the
+      // shared commit, forever. Abandon it as an operator would: its source
+      // retries within the daily schedule, and a started reconciliation makes
+      // the next run rebuild search. An unconfirmed Algolia move and alert
+      // matching stay resumable.
+      if (
+        failures >= MAX_EXECUTION_FAILURES &&
+        run.stage !== "full_reindex_move_pending" &&
+        // Abandoning would cancel intents whose searches already advanced
+        // their checkpoints, losing those alerts.
+        run.stage !== "match_alerts"
+      ) {
+        await this.abandon(runId, true);
+      }
     },
 
     async abandon(runId: string, force: boolean): Promise<string | null> {

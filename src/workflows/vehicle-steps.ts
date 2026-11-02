@@ -7,11 +7,12 @@ import {
   cleanupDurableIngestionStateBatch,
   cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
+  claimDurableIngestionCommit,
   initializeDurableIngestion,
   markDurableSourceFailed,
   persistDurableIngestionFailure,
   reconcileDurableIngestion,
-  reportDurableIngestionDown,
+  reportDurableIngestionFailure,
   reportDurableIngestionHealth,
   runDurableSourceChunk,
   validateDurableIngestionSources,
@@ -63,6 +64,17 @@ export async function initializeDurableIngestionStep(runId: string) {
   }
 }
 initializeDurableIngestionStep.maxRetries = 2;
+
+export async function claimDurableIngestionCommitStep(runId: string) {
+  "use step";
+
+  try {
+    return await claimDurableIngestionCommit(runId);
+  } catch (error) {
+    throwRetryableStepError("Claim durable ingestion commit", error);
+  }
+}
+claimDurableIngestionCommitStep.maxRetries = 2;
 
 export async function attachDurableIngestionWorkflowStep(
   runId: string,
@@ -171,11 +183,11 @@ export async function markDurableIngestionFailedStep(
 }
 markDurableIngestionFailedStep.maxRetries = 2;
 
-export async function reportDurableIngestionDownStep(runId: string) {
+export async function reportDurableIngestionFailureStep(runId: string) {
   "use step";
 
   try {
-    await reportDurableIngestionDown();
+    await reportDurableIngestionFailure();
   } catch (error) {
     throwRetryableStepError(
       `Report failed ingestion health for run ${runId}`,
@@ -183,7 +195,7 @@ export async function reportDurableIngestionDownStep(runId: string) {
     );
   }
 }
-reportDurableIngestionDownStep.maxRetries = 2;
+reportDurableIngestionFailureStep.maxRetries = 2;
 
 export async function cleanupStaleDurableIngestionSnapshotsStep() {
   "use step";

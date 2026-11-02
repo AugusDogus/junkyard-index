@@ -51,7 +51,8 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
   create table ingestion_run (
     id text primary key, source text not null, status text not null,
     schedule_key text, workflow_run_id text, stage text not null default 'sources',
-    active_slot integer, reconciliation_cursor text,
+    active_slot integer, commit_started_at integer,
+    execution_failures integer not null default 0, reconciliation_cursor text,
     projector_cursor integer not null default 0,
     full_reindex_required integer not null default 0,
     full_reindex_cursor text, full_reindex_move_task_id integer,
@@ -66,7 +67,8 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
     alert_matching_completed_at integer, released_at integer,
     completed_at integer
   );
-  create unique index ingestion_run_single_active_idx on ingestion_run(active_slot);
+  create unique index ingestion_run_active_source_idx on ingestion_run(source, active_slot);
+  create table saved_search (id text primary key, last_checked_at integer);
   create table ingestion_source_run (
     id text primary key, run_id text not null, source text not null,
     status text not null, start_cursor text, next_cursor text,

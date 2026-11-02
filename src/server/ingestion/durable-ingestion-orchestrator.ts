@@ -44,10 +44,15 @@ export interface DurableIngestionOperations {
   markRunFailed: (runId: string, message: string) => Promise<void>;
 }
 
+export type DurableIngestionCompletion = {
+  status: "completed";
+  ingestion: DurableIngestionResult;
+};
+
 export type DurableIngestionExecution =
   | { status: "deduplicated"; activeRunId: string | null }
   | { status: "stopped" }
-  | { status: "completed"; ingestion: DurableIngestionResult };
+  | DurableIngestionCompletion;
 
 function formatError(error: unknown): string {
   const messages: string[] = [];
@@ -119,24 +124,51 @@ export async function ingestDurableSource<
   }
 }
 
-export async function executeDurableIngestion(params: {
+export type DurableIngestionStaging =
+  | { status: "deduplicated"; activeRunId: string | null }
+  | { status: "stopped" }
+  | { status: "staged" };
+
+/**
+ * Runs part of a run's lifecycle, recording a failure so repeated failures
+ * count toward abandoning the run, then rethrows.
+ */
+export async function recordingFailure<T>(
+  runId: string,
+  markRunFailed: DurableIngestionOperations["markRunFailed"],
+  work: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    try {
+      await markRunFailed(
+        runId,
+        `Durable ingestion failed: ${formatError(error)}`,
+      );
+    } catch (markError) {
+      console.error("Failed to record durable ingestion failure", markError);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Fetches, stages, and validates the run's sources. This touches only the
+ * run's own rows and snapshot chunks, so runs for different sources stage in
+ * parallel.
+ */
+export async function stageDurableIngestion(params: {
   runId: string;
   operations: DurableIngestionOperations;
-}): Promise<DurableIngestionExecution> {
+}): Promise<DurableIngestionStaging> {
   // Invoke step callbacks without serializing the operations object as `this`.
-  const {
-    cleanupStale,
-    initialize,
-    validateSources,
-    reconcile,
-    markRunFailed,
-  } = params.operations;
-  await cleanupStale();
-  const initialized = await initialize(params.runId);
-  if (initialized.status === "deduplicated") return initialized;
-
-  let ingestion: DurableIngestionResult;
-  try {
+  const { cleanupStale, initialize, validateSources, markRunFailed } =
+    params.operations;
+  return recordingFailure(params.runId, markRunFailed, async () => {
+    await cleanupStale();
+    const initialized = await initialize(params.runId);
+    if (initialized.status === "deduplicated") return initialized;
     const ingestSource = (initialCursor: DurableSourceCursor) =>
       ingestDurableSource({
         runId: params.runId,
@@ -149,26 +181,37 @@ export async function executeDurableIngestion(params: {
       ),
     );
     const validation = await validateSources(params.runId);
-    if (validation.status === "stopped") return validation;
+    return validation.status === "stopped"
+      ? { status: "stopped" }
+      : { status: "staged" };
+  });
+}
+
+/**
+ * Reconciles a staged run into the shared inventory. Callers serialize commits
+ * across runs because sources can list the same VIN.
+ */
+export async function commitDurableIngestion(params: {
+  runId: string;
+  operations: DurableIngestionOperations;
+}): Promise<{ status: "stopped" } | DurableIngestionCompletion> {
+  const { reconcile, markRunFailed } = params.operations;
+  return recordingFailure(params.runId, markRunFailed, async () => {
     while (true) {
       const reconciliation = await reconcile(params.runId);
       if (reconciliation.status === "stopped") return reconciliation;
       if (reconciliation.status === "complete") {
-        ingestion = reconciliation.result;
-        break;
+        return { status: "completed", ingestion: reconciliation.result };
       }
     }
-  } catch (error) {
-    try {
-      await markRunFailed(
-        params.runId,
-        `Durable ingestion failed: ${formatError(error)}`,
-      );
-    } catch (markError) {
-      console.error("Failed to record durable ingestion failure", markError);
-    }
-    throw error;
-  }
+  });
+}
 
-  return { status: "completed", ingestion };
+export async function executeDurableIngestion(params: {
+  runId: string;
+  operations: DurableIngestionOperations;
+}): Promise<DurableIngestionExecution> {
+  const staging = await stageDurableIngestion(params);
+  if (staging.status !== "staged") return staging;
+  return commitDurableIngestion(params);
 }

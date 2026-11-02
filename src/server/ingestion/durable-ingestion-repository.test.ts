@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { IngestionSchedule } from "./ingestion-schedule";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
-import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
+import type {
+  DurableIngestionWakeupResult,
+  FetchedDurableSourceChunk,
+} from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
   type DurableSourceCursor,
@@ -48,6 +52,18 @@ function mismatchedFetchFromBoundary(
       skip: 0,
     },
   };
+}
+
+/** The single run a wakeup started, failing the test otherwise. */
+function startedRun(wakeup: DurableIngestionWakeupResult): string {
+  const started =
+    wakeup.status === "active"
+      ? wakeup.runs.filter((run) => run.action === "start")
+      : [];
+  const [run] = started;
+  if (!run || started.length !== 1)
+    throw new Error(`Expected one started run, got ${JSON.stringify(wakeup)}`);
+  return run.runId;
 }
 
 describe("durable ingestion repository", () => {
@@ -137,14 +153,12 @@ describe("durable ingestion repository", () => {
         snapshotStore,
       );
 
-      const wakeup = await repository.prepareWakeup(
-        new Date("2026-08-22T07:00:00.000Z"),
+      const runId = startedRun(
+        await repository.prepareWakeup(new Date("2026-08-22T07:00:00.000Z"), [
+          "pyp",
+        ]),
       );
-      expect(wakeup.status).toBe("start");
-      if (wakeup.status !== "start") throw new Error("Expected a new run");
-      expect((await repository.getRun(wakeup.runId)).fullReindexRequired).toBe(
-        true,
-      );
+      expect((await repository.getRun(runId)).fullReindexRequired).toBe(true);
 
       const legacyRun = await client.execute(
         `select status, stage, full_reindex_required, started_at,
@@ -311,14 +325,21 @@ describe("durable ingestion repository", () => {
         client,
         snapshotStore,
       );
-      const first = await repository.prepareWakeup(
-        new Date("2026-08-22T07:00:00.000Z"),
-      );
-      expect(first.status).toBe("start");
-      if (first.status !== "start") throw new Error("Expected a new run");
+      const first = {
+        runId: startedRun(
+          await repository.prepareWakeup(new Date("2026-08-22T07:00:00.000Z"), [
+            "pyp",
+          ]),
+        ),
+      };
       expect(
-        await repository.prepareWakeup(new Date("2026-08-22T08:00:00.000Z")),
-      ).toEqual({ status: "resume", runId: first.runId });
+        await repository.prepareWakeup(new Date("2026-08-22T08:00:00.000Z"), [
+          "pyp",
+        ]),
+      ).toEqual({
+        status: "active",
+        runs: [{ action: "resume", runId: first.runId }],
+      });
 
       await client.execute({
         sql: "update ingestion_run set stage = 'reconcile_missing' where id = ?",
@@ -332,11 +353,13 @@ describe("durable ingestion repository", () => {
       expect(abandoned.status).toBe("abandoned");
       expect(abandoned.fullReindexRequired).toBe(true);
 
-      const repair = await repository.prepareWakeup(
-        new Date("2026-08-22T09:00:00.000Z"),
-      );
-      expect(repair.status).toBe("start");
-      if (repair.status !== "start") throw new Error("Expected a repair run");
+      const repair = {
+        runId: startedRun(
+          await repository.prepareWakeup(new Date("2026-08-22T09:00:00.000Z"), [
+            "pyp",
+          ]),
+        ),
+      };
       expect((await repository.getRun(repair.runId)).fullReindexRequired).toBe(
         true,
       );
@@ -376,7 +399,160 @@ describe("durable ingestion repository", () => {
     }
   });
 
-  test("creates a scheduled run with only enabled sources", async () => {
+  test("starts a run for every due source and resumes them on later wakeups", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        snapshotStore,
+      );
+      const now = new Date("2026-08-22T09:00:00.000Z");
+      const wakeup = await repository.prepareWakeup(now, ["row52", "pyp"]);
+      if (wakeup.status !== "active") throw new Error("Expected new runs");
+      expect(wakeup.runs.map((run) => run.action)).toEqual(["start", "start"]);
+      const sources = await Promise.all(
+        wakeup.runs.map(async (run) => {
+          const initialized = await repository.initialize(
+            run.runId,
+            async () => {
+              throw new Error("An existing run must keep its own sources");
+            },
+          );
+          if (initialized.status !== "started")
+            throw new Error("Expected each run to stay active");
+          return [
+            (await repository.getRun(run.runId)).source,
+            initialized.sources,
+          ];
+        }),
+      );
+      expect(sources).toEqual([
+        ["row52", ["row52"]],
+        ["pyp", ["pyp"]],
+      ]);
+
+      expect(await repository.prepareWakeup(now, ["row52", "pyp"])).toEqual({
+        status: "active",
+        runs: wakeup.runs.map((run) => ({ ...run, action: "resume" })),
+      });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("starts no scheduled run while a local run covers every source", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        snapshotStore,
+      );
+      expect((await repository.initialize("local-run")).status).toBe("started");
+      expect(
+        await repository.prepareWakeup(new Date("2026-08-22T09:00:00.000Z"), [
+          "pyp",
+        ]),
+      ).toEqual({
+        status: "active",
+        runs: [{ action: "resume", runId: "local-run" }],
+      });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("retries a failed source on its own and completes the pass after its last attempt", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        snapshotStore,
+      );
+      const now = new Date("2026-08-22T09:00:00.000Z");
+      const finish = async (
+        runId: string,
+        outcome: "published" | "published_degraded",
+      ) => {
+        await client.execute({
+          sql: `
+            update ingestion_run
+            set status = 'success', stage = 'released', active_slot = null,
+                full_reindex_required = 0, publication_sequence = 1,
+                inventory_outcome = ?, search_published_at = ?, completed_at = ?
+            where id = ?
+          `,
+          args: [outcome, now.getTime(), now.getTime(), runId],
+        });
+        await client.execute({
+          sql: "update ingestion_source_run set status = 'success', acceptance_status = ? where run_id = ?",
+          args: [outcome === "published" ? "accepted" : "rejected", runId],
+        });
+      };
+
+      const wakeup = await repository.prepareWakeup(now, ["row52", "pyp"]);
+      if (wakeup.status !== "active") throw new Error("Expected new runs");
+      const [row52, pyp] = wakeup.runs;
+      if (!row52 || !pyp) throw new Error("Expected two runs");
+      await finish(row52.runId, "published");
+      await finish(pyp.runId, "published_degraded");
+
+      expect(
+        (await repository.getSourceFreshness(now)).sort((a, b) =>
+          a.source.localeCompare(b.source),
+        ),
+      ).toEqual([
+        { source: "pyp", lastAttemptAt: now.getTime(), lastPublishedAt: null },
+        {
+          source: "row52",
+          lastAttemptAt: now.getTime(),
+          lastPublishedAt: now.getTime(),
+        },
+      ]);
+      // row52 is done for the day; pyp waits out its retry delay.
+      expect(await repository.prepareWakeup(now, ["row52", "pyp"])).toEqual({
+        status: "waiting",
+      });
+      for (
+        let attempt = 2;
+        attempt <= IngestionSchedule.maxAttemptsPerDay;
+        attempt += 1
+      ) {
+        const retry = startedRun(
+          await repository.prepareWakeup(
+            new Date(
+              now.getTime() + (attempt - 1) * IngestionSchedule.retryDelayMs,
+            ),
+            ["row52", "pyp"],
+          ),
+        );
+        expect((await repository.getRun(retry)).source).toBe("pyp");
+        await finish(retry, "published_degraded");
+      }
+      // pyp used its attempts, so today's pass is complete.
+      expect(
+        await repository.prepareWakeup(
+          new Date(now.getTime() + 5 * IngestionSchedule.retryDelayMs),
+          ["row52", "pyp"],
+        ),
+      ).toEqual({ status: "complete" });
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("lets one active run hold the commit, even after its workflow dies", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
     try {
@@ -391,31 +567,96 @@ describe("durable ingestion repository", () => {
         new Date("2026-08-22T09:00:00.000Z"),
         ["row52", "pyp"],
       );
-      if (wakeup.status !== "start") throw new Error("Expected a new run");
+      if (wakeup.status !== "active") throw new Error("Expected new runs");
+      const [first, second] = wakeup.runs;
+      if (!first || !second) throw new Error("Expected two runs");
 
-      expect(
-        await repository.initialize(wakeup.runId, async () => {
-          throw new Error("An existing run must keep its own sources");
-        }),
-      ).toEqual({
-        status: "started",
-        runId: wakeup.runId,
-        sources: ["row52", "pyp"],
+      // pyp waits for row52, which outranks it and is still active.
+      expect(await repository.claimCommit(second.runId)).toBe("busy");
+      const claimedAt = new Date("2026-08-22T09:30:00.000Z");
+      expect(await repository.claimCommit(first.runId, claimedAt)).toBe(
+        "claimed",
+      );
+      expect(await repository.claimCommit(second.runId)).toBe("busy");
+      // A resumed workflow reclaims its own commit and keeps the first stamp.
+      expect(await repository.claimCommit(first.runId)).toBe("claimed");
+      expect((await repository.getRun(first.runId)).commitStartedAt).toEqual(
+        claimedAt,
+      );
+      expect(await repository.claimCommit(second.runId)).toBe("busy");
+
+      await client.execute({
+        sql: "update ingestion_run set status = 'success', stage = 'released', active_slot = null where id = ?",
+        args: [first.runId],
       });
-      const sourceRows = await client.execute({
-        sql: "select source from ingestion_source_run where run_id = ? order by source",
-        args: [wakeup.runId],
-      });
-      expect(sourceRows.rows.map((row) => row.source)).toEqual([
-        "pyp",
-        "row52",
-      ]);
+      expect(await repository.claimCommit(first.runId)).toBe("stopped");
+      expect(await repository.claimCommit(second.runId)).toBe("claimed");
     } finally {
       testDatabase.cleanup();
     }
   });
 
-  test("does not rerun all sources after a degraded daily publication", async () => {
+  test("takes on a rebuild abandoned after it started and stamps after alert checks", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        snapshotStore,
+      );
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, status, stage, started_at, last_progress_at,
+          publication_sequence
+        ) values ('published', 'row52', 'success', 'released', 1, 1, 1)
+      `);
+      const wakeup = await repository.prepareWakeup(
+        new Date("2026-08-22T09:00:00.000Z"),
+        ["row52", "pyp"],
+      );
+      if (wakeup.status !== "active") throw new Error("Expected new runs");
+      const [row52, pyp] = wakeup.runs;
+      if (!row52 || !pyp) throw new Error("Expected two runs");
+      expect((await repository.getRun(pyp.runId)).fullReindexRequired).toBe(
+        false,
+      );
+
+      // row52 dies after reconciling part of its commit and is abandoned.
+      expect(await repository.claimCommit(row52.runId)).toBe("claimed");
+      await client.execute({
+        sql: "update ingestion_run set stage = 'project_changes' where id = ?",
+        args: [row52.runId],
+      });
+      await repository.abandon(row52.runId, true);
+
+      const lastChecked = new Date("2026-08-22T10:00:00.000Z");
+      await client.execute({
+        sql: "insert into saved_search (id, last_checked_at) values ('search', ?)",
+        args: [lastChecked.getTime()],
+      });
+      // Within a second of the newest alert check, the first claim waits.
+      expect(
+        await repository.claimCommit(
+          pyp.runId,
+          new Date(lastChecked.getTime() + 999),
+        ),
+      ).toBe("busy");
+      const claimedAt = new Date(lastChecked.getTime() + 1000);
+      expect(await repository.claimCommit(pyp.runId, claimedAt)).toBe(
+        "claimed",
+      );
+      const run = await repository.getRun(pyp.runId);
+      expect(run.fullReindexRequired).toBe(true);
+      expect(run.commitStartedAt).toEqual(claimedAt);
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("resumes a held commit even after a higher-priority run starts", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
     try {
@@ -427,25 +668,98 @@ describe("durable ingestion repository", () => {
         snapshotStore,
       );
       const now = new Date("2026-08-22T09:00:00.000Z");
-      const first = await repository.prepareWakeup(now);
-      expect(first.status).toBe("start");
-      if (first.status !== "start") throw new Error("Expected first run");
-      await client.execute({
-        sql: `
-          update ingestion_run
-          set status = 'success', stage = 'released', active_slot = null,
-              full_reindex_required = 0, publication_sequence = 1,
-              inventory_outcome = 'published_degraded',
-              search_published_at = ?, completed_at = ?
-          where id = ?
-        `,
-        args: [now.getTime(), now.getTime(), first.runId],
-      });
+      const pyp = startedRun(await repository.prepareWakeup(now, ["pyp"]));
+      expect(await repository.claimCommit(pyp, now)).toBe("claimed");
+      const row52 = startedRun(
+        await repository.prepareWakeup(now, ["row52", "pyp"]),
+      );
 
-      expect(await repository.prepareWakeup(now)).toEqual({
-        status: "not_due",
-        publishedRunId: first.runId,
+      expect(await repository.claimCommit(row52, now)).toBe("busy");
+      expect(await repository.claimCommit(pyp, now)).toBe("claimed");
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("inherits a full rebuild only from finished runs", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        snapshotStore,
+      );
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, status, stage, started_at, last_progress_at,
+          publication_sequence
+        ) values ('published', 'row52', 'success', 'released', 1, 1, 1)
+      `);
+      await client.execute(`
+        insert into ingestion_run (
+          id, source, status, stage, active_slot, full_reindex_required,
+          started_at, last_progress_at
+        ) values ('rebuilding', 'row52', 'running', 'sources', 1, 1, 2, 2)
+      `);
+      const now = new Date("2026-08-22T09:00:00.000Z");
+      const sibling = startedRun(await repository.prepareWakeup(now, ["pyp"]));
+      expect((await repository.getRun(sibling)).fullReindexRequired).toBe(
+        false,
+      );
+
+      await repository.abandon("rebuilding", true);
+      const next = startedRun(
+        await repository.prepareWakeup(now, ["partsgalore"]),
+      );
+      expect((await repository.getRun(next)).fullReindexRequired).toBe(true);
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
+  test("abandons a run after repeated execution failures", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        snapshotStore,
+      );
+      const runId = startedRun(
+        await repository.prepareWakeup(new Date("2026-08-22T09:00:00.000Z"), [
+          "pyp",
+        ]),
+      );
+      for (let failure = 1; failure < 5; failure += 1) {
+        await repository.markRunFailed(runId, "Turso unavailable");
+        expect((await repository.getRun(runId)).status).toBe("running");
+      }
+      await repository.markRunFailed(runId, "Turso unavailable");
+      const run = await repository.getRun(runId);
+      expect(run.status).toBe("abandoned");
+      expect(run.activeSlot).toBeNull();
+      expect(run.executionFailures).toBe(5);
+
+      // Alert matching stays resumable: abandoning it would cancel intents
+      // whose searches already advanced their checkpoints.
+      const matching = startedRun(
+        await repository.prepareWakeup(new Date("2026-08-22T11:00:00.000Z"), [
+          "pyp",
+        ]),
+      );
+      await client.execute({
+        sql: "update ingestion_run set stage = 'match_alerts' where id = ?",
+        args: [matching],
       });
+      for (let failure = 1; failure <= 6; failure += 1)
+        await repository.markRunFailed(matching, "Algolia unavailable");
+      expect((await repository.getRun(matching)).status).toBe("running");
     } finally {
       testDatabase.cleanup();
     }
@@ -462,10 +776,13 @@ describe("durable ingestion repository", () => {
         client,
         snapshotStore,
       );
-      const wakeup = await repository.prepareWakeup(
-        new Date("2026-08-22T07:00:00.000Z"),
-      );
-      if (wakeup.status !== "start") throw new Error("Expected a new run");
+      const wakeup = {
+        runId: startedRun(
+          await repository.prepareWakeup(new Date("2026-08-22T07:00:00.000Z"), [
+            "pyp",
+          ]),
+        ),
+      };
       await client.execute({
         sql: "update ingestion_run set stage = 'full_reindex_publish' where id = ?",
         args: [wakeup.runId],

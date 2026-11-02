@@ -7,7 +7,7 @@ import {
 import { ingestionSourceRun } from "~/schema";
 import { parseSnapshotChunks } from "./durable-ingestion-repository";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
-import { RECONCILIATION_SOURCE_PRIORITY } from "./reconciliation-policy";
+import { reconciliationSourcePriority } from "./reconciliation-policy";
 import type { CanonicalVehicle } from "./types";
 
 export interface SourceSnapshot {
@@ -22,6 +22,7 @@ export interface RunSnapshotInventory {
   /** VINs ordered for cursor-based reconciliation batches. */
   vins: string[];
   observedVins: Set<string>;
+  acceptedSources: Set<IngestionSource>;
 }
 
 export async function loadSourceSnapshot(
@@ -40,11 +41,6 @@ export async function loadSourceSnapshot(
     for (const vin of chunk.observedVins) snapshot.observedVins.add(vin);
   }
   return snapshot;
-}
-
-function sourcePriority(source: IngestionSource): number {
-  const index = RECONCILIATION_SOURCE_PRIORITY.indexOf(source);
-  return index < 0 ? RECONCILIATION_SOURCE_PRIORITY.length : index;
 }
 
 export async function loadRunSnapshotInventory(params: {
@@ -68,11 +64,16 @@ export async function loadRunSnapshotInventory(params: {
     .flatMap((row) =>
       isIngestionSource(row.source) ? [{ ...row, source: row.source }] : [],
     )
-    .sort((a, b) => sourcePriority(a.source) - sourcePriority(b.source));
+    .sort(
+      (a, b) =>
+        reconciliationSourcePriority(a.source) -
+        reconciliationSourcePriority(b.source),
+    );
   const inventory: RunSnapshotInventory = {
     vehicles: new Map(),
     vins: [],
     observedVins: new Set(),
+    acceptedSources: new Set(accepted.map((row) => row.source)),
   };
   for (const row of accepted) {
     const snapshot = await loadSourceSnapshot(params.store, row.snapshotChunks);

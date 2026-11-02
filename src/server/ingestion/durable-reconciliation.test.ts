@@ -22,7 +22,8 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
   create table ingestion_run (
     id text primary key, source text not null, schedule_key text,
     workflow_run_id text, status text not null, stage text not null,
-    active_slot integer, reconciliation_cursor text,
+    active_slot integer, commit_started_at integer,
+    execution_failures integer not null default 0, reconciliation_cursor text,
     projector_cursor integer not null default 0,
     full_reindex_required integer not null default 0,
     full_reindex_cursor text, full_reindex_move_task_id integer,
@@ -766,18 +767,22 @@ describe("bounded durable reconciliation", () => {
     }
   });
 
-  test("reconciles many batches from staged chunks in one step", async () => {
+  test("reconciles many batches in one step, stamping vehicles at commit", async () => {
     const client = createClient({ url: ":memory:" });
     try {
       await client.executeMultiple(TEST_SCHEMA);
       const database = drizzle(client);
       const startedAt = new Date("2026-08-22T07:00:00.000Z");
+      // Parallel runs stage before claiming the commit; vehicles are first
+      // seen when the run commits, after earlier runs matched alerts.
+      const commitStartedAt = new Date("2026-08-22T08:30:00.000Z");
       await database.insert(ingestionRun).values({
         id: "run-many",
-        source: "all",
+        source: "pyp",
         status: "running",
         stage: "reconcile_upsert",
         activeSlot: 1,
+        commitStartedAt,
         acceptedSources: JSON.stringify(["pyp"]),
         startedAt,
         lastProgressAt: startedAt,
@@ -814,6 +819,12 @@ describe("bounded durable reconciliation", () => {
         "select count(*) as count from vehicle",
       );
       expect(count.rows[0]?.count).toBe(1_200);
+      const firstSeen = await client.execute(
+        "select distinct first_seen_at from vehicle",
+      );
+      expect(firstSeen.rows.map((row) => row.first_seen_at)).toEqual([
+        commitStartedAt.getTime(),
+      ]);
     } finally {
       client.close();
     }

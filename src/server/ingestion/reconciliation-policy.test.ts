@@ -96,10 +96,45 @@ describe("reconciliation policy", () => {
         }),
       ],
       runTimestamp,
+      acceptedSources: new Set(["pyp"]),
     });
 
     expect(changed).toHaveLength(1);
     expect(changed[0]?.vehicle.vin).toBe("VIN123");
+  });
+
+  test("leaves a VIN with its listed higher-priority owner outside this run", () => {
+    const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
+    const plan = (owner: typeof vehicle.$inferSelect) =>
+      planChangedVehicleUpserts({
+        inventory: new Map([
+          ["VIN123", canonicalVehicle("VIN123", { source: "autorecycler" })],
+        ]),
+        existingRows: [owner],
+        runTimestamp,
+        acceptedSources: new Set(["autorecycler"]),
+      });
+
+    expect(plan(existingVehicle("VIN123", { source: "row52" }))).toEqual([]);
+    // Once the owner stops listing it, the next source to list it takes over.
+    expect(
+      plan(
+        existingVehicle("VIN123", {
+          source: "row52",
+          missingSinceAt: new Date("2026-03-04T00:00:00.000Z"),
+          missingRunCount: 1,
+        }),
+      ).map((entry) => entry.vehicle.source),
+    ).toEqual(["autorecycler"]);
+    // A lower-priority owner yields to a higher-priority source.
+    expect(
+      planChangedVehicleUpserts({
+        inventory: new Map([["VIN123", canonicalVehicle("VIN123")]]),
+        existingRows: [existingVehicle("VIN123", { source: "autorecycler" })],
+        runTimestamp,
+        acceptedSources: new Set(["pyp"]),
+      }).map((entry) => entry.vehicle.source),
+    ).toEqual(["pyp"]);
   });
 
   test("advances missing state only for accepted sources and deletes at the threshold", () => {

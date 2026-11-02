@@ -328,7 +328,12 @@ export const ingestionRun = sqliteTable(
     workflowRunId: text("workflow_run_id"),
     status: text("status").notNull(), // "running" | "success" | "error" | "abandoned"
     stage: text("stage").default("sources").notNull(),
-    activeSlot: integer("active_slot"), // 1 for the only nonterminal run, null otherwise
+    activeSlot: integer("active_slot"), // 1 for a source's one nonterminal run, null otherwise
+    // When this run claimed the shared commit. One active run holds it at a
+    // time; it also stamps the vehicles the run first publishes.
+    commitStartedAt: integer("commit_started_at", { mode: "timestamp_ms" }),
+    // Workflow executions that failed; repeated failures abandon the run.
+    executionFailures: integer("execution_failures").default(0).notNull(),
     reconciliationCursor: text("reconciliation_cursor"),
     projectorCursor: integer("projector_cursor").default(0).notNull(),
     fullReindexRequired: integer("full_reindex_required", { mode: "boolean" })
@@ -363,7 +368,10 @@ export const ingestionRun = sqliteTable(
     completedAt: integer("completed_at", { mode: "timestamp_ms" }),
   },
   (table) => [
-    uniqueIndex("ingestion_run_single_active_idx").on(table.activeSlot),
+    uniqueIndex("ingestion_run_active_source_idx").on(
+      table.source,
+      table.activeSlot,
+    ),
     index("ingestion_run_schedule_key_idx").on(table.scheduleKey),
     index("ingestion_run_search_published_at_idx").on(table.searchPublishedAt),
     index("ingestion_run_stage_idx").on(table.stage),
