@@ -27,6 +27,7 @@ import { reconcileDurableIngestionRun } from "./durable-reconciliation";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 
 export type {
   DurableIngestionResult,
@@ -39,7 +40,14 @@ export type {
 const HEARTBEAT_TIMEOUT_MS = 5_000;
 const BETTER_STACK_STATUS_PAGE_ID = 239393;
 const BETTER_STACK_DAILY_INGESTION_RESOURCE_ID = 8746061;
-const repository = createDurableIngestionRepository(db, dbClient);
+const snapshotStore = IngestionSnapshotStore.vercelBlob(
+  env.BLOB_READ_WRITE_TOKEN,
+);
+const repository = createDurableIngestionRepository(
+  db,
+  dbClient,
+  snapshotStore,
+);
 
 function getBetterStackStatusPageConfig(): BetterStackStatusPageConfig | null {
   if (process.env.VERCEL_ENV !== "production") return null;
@@ -141,6 +149,7 @@ export async function reconcileDurableIngestion(
     runId,
     database: db,
     batchClient: dbClient,
+    snapshotStore,
   });
   return result;
 }
@@ -150,6 +159,7 @@ export function validateDurableIngestionSources(runId: string) {
     runId,
     database: db,
     batchClient: dbClient,
+    snapshotStore,
   });
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
 import {
@@ -12,6 +13,7 @@ import {
   createTestClient,
   TEST_SCHEMA,
   makeVehicle,
+  stagedSnapshots,
 } from "./durable-ingestion-test-fixtures";
 
 const initialPypCursor: PypStoreCursor = {
@@ -54,9 +56,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       await repository.initialize("run-observed");
       const fetched: FetchedDurableSourceChunk<"pullnsave"> = {
@@ -83,19 +87,12 @@ describe("durable ingestion repository", () => {
         fetched: { ...fetched, observedVins: ["VIN-STALE-REPLAY"] },
       });
       expect(
-        (await client.execute("select vin from vehicle_observation")).rows.map(
-          (row) => row.vin,
-        ),
+        (await stagedSnapshots(client, snapshotStore, "run-observed"))
+          .observedVins,
       ).toEqual(["VIN-PRESENT"]);
       await repository.cleanupStaleSnapshots();
       await repository.cleanupBatch("run-observed");
-      expect(
-        (
-          await client.execute(
-            "select count(*) as count from vehicle_observation",
-          )
-        ).rows[0]?.count,
-      ).toBe(1);
+      expect(snapshotStore.pathnames()).toHaveLength(1);
 
       await expect(
         repository.checkpointChunk({
@@ -112,13 +109,11 @@ describe("durable ingestion repository", () => {
         "update ingestion_run set active_slot = null, status = 'success' where id = 'run-observed'",
       );
       await repository.cleanupBatch("run-observed");
+      expect(snapshotStore.pathnames()).toHaveLength(0);
       expect(
-        (
-          await client.execute(
-            "select count(*) as count from vehicle_observation",
-          )
-        ).rows[0]?.count,
-      ).toBe(0);
+        (await stagedSnapshots(client, snapshotStore, "run-observed"))
+          .observedVins,
+      ).toEqual([]);
     } finally {
       testDatabase.cleanup();
     }
@@ -135,9 +130,11 @@ describe("durable ingestion repository", () => {
           'legacy-success', 'all', 'success', 'sources', 1000, 0, 2000
         )
       `);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
 
       const wakeup = await repository.prepareWakeup(
@@ -173,9 +170,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
 
       expect(await repository.initialize("run-1")).toEqual({
@@ -236,10 +235,9 @@ describe("durable ingestion repository", () => {
       expect(run.status).toBe("running");
       expect(run.executionErrors).toContain("reconciliation failed");
 
-      const snapshots = await client.execute(
-        "select count(*) as count from vehicle_snapshot",
-      );
-      expect(snapshots.rows[0]?.count).toBe(1);
+      expect(
+        (await stagedSnapshots(client, snapshotStore, "run-1")).vins,
+      ).toHaveLength(1);
     } finally {
       testDatabase.cleanup();
     }
@@ -250,9 +248,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       await repository.initialize("run-race");
 
@@ -283,11 +283,11 @@ describe("durable ingestion repository", () => {
       expect(first.pagesProcessed).toBe(1);
       expect(second.pagesProcessed).toBe(1);
 
-      const snapshots = await client.execute(
-        "select vin from vehicle_snapshot where run_id = 'run-race'",
-      );
-      expect(snapshots.rows).toHaveLength(1);
-      const snapshotVin = snapshots.rows[0]?.vin;
+      const { vins } = await stagedSnapshots(client, snapshotStore, "run-race");
+      expect(vins).toHaveLength(1);
+      // The losing attempt's staged chunk is deleted, not left orphaned.
+      expect(snapshotStore.pathnames()).toHaveLength(1);
+      const snapshotVin = vins[0];
       expect(typeof snapshotVin).toBe("string");
       if (typeof snapshotVin !== "string") {
         throw new Error("Expected one snapshot VIN after checkpoint race");
@@ -305,9 +305,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       const first = await repository.prepareWakeup(
         new Date("2026-08-22T07:00:00.000Z"),
@@ -379,9 +381,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       const wakeup = await repository.prepareWakeup(
         new Date("2026-08-22T09:00:00.000Z"),
@@ -416,9 +420,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       const now = new Date("2026-08-22T09:00:00.000Z");
       const first = await repository.prepareWakeup(now);
@@ -450,9 +456,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       const wakeup = await repository.prepareWakeup(
         new Date("2026-08-22T07:00:00.000Z"),
@@ -480,9 +488,11 @@ describe("durable ingestion repository", () => {
     const { client } = testDatabase;
     try {
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       await repository.initialize("run-cleanup");
       await client.execute({
@@ -494,16 +504,17 @@ describe("durable ingestion repository", () => {
         args: [],
       });
       await client.execute({
-        sql: `
-          insert into vehicle_snapshot (
-            run_id, source, vin, year, make, model, location_code,
-            location_name, state, state_abbr, lat, lng
-          ) values (
-            'run-cleanup', 'pyp', 'VIN-SNAPSHOT', 2000, 'Make', 'Model',
-            'yard', 'Yard', 'State', 'ST', 0, 0
-          )
-        `,
-        args: [],
+        sql: "update ingestion_source_run set snapshot_chunks = json_array(?) where id = 'run-cleanup:pyp'",
+        args: [
+          await snapshotStore.put({
+            runId: "run-cleanup",
+            source: "pyp",
+            chunk: {
+              vehicles: [makeVehicle("VIN-SNAPSHOT")],
+              observedVins: [],
+            },
+          }),
+        ],
       });
       await client.executeMultiple(`
         insert into vehicle_change_v2 (run_id, vin, change_type, processed_at)
@@ -525,10 +536,7 @@ describe("durable ingestion repository", () => {
         ),
       ).toEqual({ deleted: 3, done: true });
 
-      const snapshots = await client.execute(
-        "select vin from vehicle_snapshot order by vin",
-      );
-      expect(snapshots.rows).toHaveLength(0);
+      expect(snapshotStore.pathnames()).toHaveLength(0);
       const changes = await client.execute(
         "select vin from vehicle_change_v2 order by vin",
       );
@@ -581,9 +589,11 @@ test("yard checkpoints upsert metadata without vehicles and ignore stale replay"
   const database = createTestClient();
   try {
     await database.client.executeMultiple(TEST_SCHEMA);
+    const snapshotStore = IngestionSnapshotStore.memory();
     const repository = createDurableIngestionRepository(
       drizzle(database.client),
       database.client,
+      snapshotStore,
     );
     await repository.initialize("yard-run");
     const request = {
@@ -647,13 +657,15 @@ test("yard checkpoints upsert metadata without vehicles and ignore stale replay"
   }
 });
 
-test("yard checkpoints reject mismatched sources and roll back when vehicle writes fail", async () => {
+test("yard checkpoints reject mismatched sources and roll back when snapshot staging or the checkpoint fails", async () => {
   const database = createTestClient();
   try {
     await database.client.executeMultiple(TEST_SCHEMA);
+    const snapshotStore = IngestionSnapshotStore.memory();
     const repository = createDurableIngestionRepository(
       drizzle(database.client),
       database.client,
+      snapshotStore,
     );
     await repository.initialize("yard-failure");
     const request = {
@@ -664,15 +676,33 @@ test("yard checkpoints reject mismatched sources and roll back when vehicle writ
     await expect(repository.checkpointChunk(request)).rejects.toThrow(
       "source does not match",
     );
+    const rejectingRepository = createDurableIngestionRepository(
+      drizzle(database.client),
+      database.client,
+      {
+        ...snapshotStore,
+        put: async () => {
+          throw new Error("snapshot rejected");
+        },
+      },
+    );
+    await expect(
+      rejectingRepository.checkpointChunk({
+        ...request,
+        fetched: { ...yardChunk([testYard]), vehicles: [makeVehicle()] },
+      }),
+    ).rejects.toThrow("snapshot rejected");
     await database.client.executeMultiple(
-      "create trigger reject_snapshot before insert on vehicle_snapshot begin select raise(abort, 'snapshot rejected'); end;",
+      "create trigger reject_checkpoint before update on ingestion_source_run begin select raise(abort, 'checkpoint rejected'); end;",
     );
     await expect(
       repository.checkpointChunk({
         ...request,
         fetched: { ...yardChunk([testYard]), vehicles: [makeVehicle()] },
       }),
-    ).rejects.toThrow("snapshot rejected");
+    ).rejects.toThrow("checkpoint rejected");
+    // A failed checkpoint deletes the chunk it staged.
+    expect(snapshotStore.pathnames()).toEqual([]);
     expect(
       (await database.client.execute("select count(*) as count from yard"))
         .rows[0]?.count,

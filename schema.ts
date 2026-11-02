@@ -389,6 +389,8 @@ export const ingestionSourceRun = sqliteTable(
     acceptanceStatus: text("acceptance_status").default("pending").notNull(),
     validationErrors: text("validation_errors"),
     errors: text("errors"), // JSON array of error strings
+    // JSON array of Blob pathnames, one per checkpointed snapshot chunk.
+    snapshotChunks: text("snapshot_chunks").default("[]").notNull(),
     startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
     completedAt: integer("completed_at", { mode: "timestamp_ms" }),
   },

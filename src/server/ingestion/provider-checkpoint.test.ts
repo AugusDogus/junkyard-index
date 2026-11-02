@@ -3,11 +3,13 @@ import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
 import { Effect, Schema } from "effect";
 import type { Yard } from "~/lib/yard";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import {
   createTestClient,
   TEST_SCHEMA,
   makeVehicle,
+  stagedSnapshots,
 } from "./durable-ingestion-test-fixtures";
 import type { FetchedDurableSourceChunk } from "./durable-ingestion-types";
 import type { DurableSourceCursor } from "./durable-source";
@@ -199,9 +201,11 @@ describe("provider checkpoints", () => {
     try {
       const { client } = testDatabase;
       await client.executeMultiple(TEST_SCHEMA);
+      const snapshotStore = IngestionSnapshotStore.memory();
       const repository = createDurableIngestionRepository(
         drizzle(client),
         client,
+        snapshotStore,
       );
       await repository.initialize("run-new-providers");
       for (const item of cases) {
@@ -248,17 +252,21 @@ describe("provider checkpoints", () => {
         ).find((run) => run.source === item.vehicle.source);
         expect(persisted).toMatchObject(metrics);
       }
-      const stored = await client.execute(
-        `select s.source, s.vin, y.code, y.operator from vehicle_snapshot s join yard y on y.source = s.source and y.code = s.location_code order by s.source`,
-      );
-      expect(
-        stored.rows.map(({ source, vin, code, operator }) => ({
-          source,
-          vin,
-          code,
-          operator,
-        })),
-      ).toEqual(
+      const stored = [];
+      for (const vehicle of (await stagedSnapshots(client, snapshotStore))
+        .vehicles) {
+        const yard = await client.execute({
+          sql: "select code, operator from yard where source = ? and code = ?",
+          args: [vehicle.source, vehicle.locationCode],
+        });
+        stored.push({
+          source: vehicle.source,
+          vin: vehicle.vin,
+          code: yard.rows[0]?.code,
+          operator: yard.rows[0]?.operator,
+        });
+      }
+      expect(stored.sort((a, b) => a.source.localeCompare(b.source))).toEqual(
         cases
           .map((item) => ({
             source: item.vehicle.source,
@@ -278,7 +286,12 @@ describe("provider checkpoints", () => {
     try {
       await client.executeMultiple(TEST_SCHEMA);
       const database = drizzle(client);
-      const repository = createDurableIngestionRepository(database, client);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
       await repository.initialize("run-wa-duplicates");
       const initial = { source: "upullitwa", phase: "start" } as const;
       const page = {
@@ -338,6 +351,7 @@ describe("provider checkpoints", () => {
         runId: "run-wa-duplicates",
         database,
         batchClient: client,
+        snapshotStore,
       });
       const stored = (await repository.getSourceRuns("run-wa-duplicates")).find(
         (row) => row.source === "upullitwa",

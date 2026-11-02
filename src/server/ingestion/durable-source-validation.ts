@@ -4,8 +4,10 @@ import {
   isIngestionSource,
   type IngestionSource,
 } from "~/lib/ingestion-source";
-import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
+import { ingestionRun, ingestionSourceRun } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
+import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
+import { loadSourceSnapshot } from "./run-snapshot-inventory";
 import {
   parseAcceptedSources,
   parseDurableRunStage,
@@ -35,6 +37,7 @@ export async function validateDurableSourceRuns(params: {
   runId: string;
   database: LibSQLDatabase;
   batchClient: Pick<Client, "batch">;
+  snapshotStore: IngestionSnapshotStore;
 }): Promise<DurableSourceValidationSummary> {
   const [run] = await params.database
     .select()
@@ -63,19 +66,14 @@ export async function validateDurableSourceRuns(params: {
       `Cannot validate ingestion run ${params.runId} before every source is terminal.`,
     );
   }
-  const exactCounts = await params.database
-    .select({
-      source: vehicleSnapshot.source,
-      count: sql<number>`count(*)`,
-    })
-    .from(vehicleSnapshot)
-    .where(eq(vehicleSnapshot.runId, params.runId))
-    .groupBy(vehicleSnapshot.source);
-  const countBySource = new Map(
-    exactCounts
-      .filter((row) => isIngestionSource(row.source))
-      .map((row) => [row.source, row.count] as const),
-  );
+  const countBySource = new Map<string, number>();
+  for (const row of sourceRows) {
+    const snapshot = await loadSourceSnapshot(
+      params.snapshotStore,
+      row.snapshotChunks,
+    );
+    countBySource.set(row.source, snapshot.vehicles.size);
+  }
 
   const validations: Array<{
     source: IngestionSource;

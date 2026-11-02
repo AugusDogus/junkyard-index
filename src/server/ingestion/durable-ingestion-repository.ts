@@ -1,12 +1,10 @@
 import { IngestionDay } from "./ingestion-day";
-import type { Client, InStatement, InValue } from "@libsql/client";
-import { and, eq, sql } from "drizzle-orm";
+import type { Client, InStatement } from "@libsql/client";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { isIngestionSource } from "~/lib/ingestion-source";
 import { Yard } from "~/lib/yard";
 import { yardUpsertStatement } from "./yard-checkpoint";
-import { observationInsertStatement } from "./observation-checkpoint";
-import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
+import { ingestionRun, ingestionSourceRun } from "~/schema";
 import type {
   DurableSourceChunkResult,
   DurableIngestionWakeupResult,
@@ -22,11 +20,11 @@ import {
   type DurableCursorFor,
   type DurableIngestionSource,
 } from "./durable-source";
-import type { CanonicalVehicle } from "./types";
+import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 
 const SNAPSHOT_WRITE_BATCH_SIZE = 500;
-const SNAPSHOT_VALUE_COLUMN_COUNT = 24;
 const CLEANUP_BATCH_SIZE = 5_000;
+const STALE_SNAPSHOT_RUN_BATCH_SIZE = 50;
 const TERMINAL_INTENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type SourceRunStatus = "running" | "success" | "partial" | "error";
@@ -86,125 +84,6 @@ function statusForFailedSource(vehiclesProcessed: number): SourceRunStatus {
   return vehiclesProcessed > 0 ? "partial" : "error";
 }
 
-function toSnapshotValues(vehicle: CanonicalVehicle): InValue[] {
-  return [
-    vehicle.vin,
-    vehicle.year,
-    vehicle.make,
-    vehicle.model,
-    vehicle.color,
-    vehicle.stockNumber,
-    vehicle.imageUrl,
-    vehicle.availableDate,
-    vehicle.locationCode,
-    vehicle.locationName,
-    vehicle.locationCity,
-    vehicle.state,
-    vehicle.stateAbbr,
-    vehicle.lat,
-    vehicle.lng,
-    vehicle.section,
-    vehicle.row,
-    vehicle.space,
-    vehicle.detailsUrl,
-    vehicle.partsUrl,
-    vehicle.pricesUrl,
-    vehicle.engine,
-    vehicle.trim,
-    vehicle.transmission,
-  ];
-}
-
-function snapshotInsertStatement(params: {
-  runId: string;
-  source: DurableIngestionSource;
-  expectedCursor: string;
-  vehicles: CanonicalVehicle[];
-}): InStatement {
-  const rowPlaceholder = `(${Array.from(
-    { length: SNAPSHOT_VALUE_COLUMN_COUNT },
-    () => "?",
-  ).join(", ")})`;
-  const valuePlaceholders = params.vehicles
-    .map(() => rowPlaceholder)
-    .join(", ");
-  const valueColumns = Array.from(
-    { length: SNAPSHOT_VALUE_COLUMN_COUNT },
-    (_, index) => `column${index + 1}`,
-  ).join(", ");
-
-  return {
-    sql: `
-      insert into vehicle_snapshot (
-        run_id, source, vin, year, make, model, color, stock_number,
-        image_url, available_date, location_code, location_name,
-        location_city, state, state_abbr, lat, lng, section, row, space,
-        details_url, parts_url, prices_url, engine, trim, transmission
-      )
-      select ?, ?, ${valueColumns}
-      from (values ${valuePlaceholders})
-      where exists (
-        select 1
-        from ingestion_source_run source_run
-        join ingestion_run run on run.id = source_run.run_id
-        where source_run.id = ?
-          and source_run.run_id = ?
-          and source_run.source = ?
-          and source_run.status = 'running'
-          and source_run.next_cursor = ?
-          and run.status = 'running'
-      )
-      on conflict(run_id, source, vin) do nothing
-    `,
-    args: [
-      params.runId,
-      params.source,
-      ...params.vehicles.flatMap(toSnapshotValues),
-      sourceRunId(params.runId, params.source),
-      params.runId,
-      params.source,
-      params.expectedCursor,
-    ],
-  };
-}
-
-export function snapshotToVehicle(
-  row: typeof vehicleSnapshot.$inferSelect,
-): CanonicalVehicle {
-  if (!isIngestionSource(row.source)) {
-    throw new Error(
-      `Snapshot ${row.runId}/${row.vin} has unsupported source ${row.source}`,
-    );
-  }
-  return {
-    vin: row.vin,
-    source: row.source,
-    year: row.year,
-    make: row.make,
-    model: row.model,
-    color: row.color,
-    stockNumber: row.stockNumber,
-    imageUrl: row.imageUrl,
-    availableDate: row.availableDate,
-    locationCode: row.locationCode,
-    locationName: row.locationName,
-    locationCity: row.locationCity,
-    state: row.state,
-    stateAbbr: row.stateAbbr,
-    lat: row.lat,
-    lng: row.lng,
-    section: row.section,
-    row: row.row,
-    space: row.space,
-    detailsUrl: row.detailsUrl,
-    partsUrl: row.partsUrl,
-    pricesUrl: row.pricesUrl,
-    engine: row.engine,
-    trim: row.trim,
-    transmission: row.transmission,
-  };
-}
-
 function toChunkResult<Source extends DurableIngestionSource>(
   source: Source,
   row: typeof ingestionSourceRun.$inferSelect,
@@ -232,10 +111,41 @@ function toChunkResult<Source extends DurableIngestionSource>(
   };
 }
 
+export function parseSnapshotChunks(json: string): string[] {
+  const parsed: unknown = JSON.parse(json);
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((pathname) => typeof pathname === "string")
+  ) {
+    throw new Error(
+      `ingestion_source_run.snapshot_chunks must be a JSON array of Blob pathnames; got ${json.slice(0, 200)}.`,
+    );
+  }
+  return parsed;
+}
+
 export function createDurableIngestionRepository(
   database: LibSQLDatabase,
   batchClient: LibSqlBatchClient,
+  snapshotStore: IngestionSnapshotStore,
 ) {
+  /** Deletes released runs' staged chunks and returns how many it deleted. */
+  async function deleteRunSnapshots(
+    rows: readonly { id: string; snapshotChunks: string }[],
+  ): Promise<number> {
+    let deleted = 0;
+    for (const row of rows) {
+      const pathnames = parseSnapshotChunks(row.snapshotChunks);
+      await snapshotStore.delete(pathnames);
+      await database
+        .update(ingestionSourceRun)
+        .set({ snapshotChunks: "[]" })
+        .where(eq(ingestionSourceRun.id, row.id));
+      deleted += pathnames.length;
+    }
+    return deleted;
+  }
+
   return {
     async prepareWakeup(
       now = new Date(),
@@ -508,6 +418,16 @@ export function createDurableIngestionRepository(
       );
       const nextCursor = serializeDurableSourceCursor(params.fetched.cursor);
       const statements: InStatement[] = [];
+      // Stage the chunk before the guarded checkpoint that records it. A lost
+      // race leaves an unreferenced blob, which is deleted below.
+      const snapshotPathname =
+        params.fetched.vehicles.length > 0 || observedVins.length > 0
+          ? await snapshotStore.put({
+              runId: params.runId,
+              source,
+              chunk: { vehicles: params.fetched.vehicles, observedVins },
+            })
+          : null;
 
       for (
         let start = 0;
@@ -524,40 +444,6 @@ export function createDurableIngestionRepository(
         );
       }
 
-      for (
-        let start = 0;
-        start < params.fetched.vehicles.length;
-        start += SNAPSHOT_WRITE_BATCH_SIZE
-      ) {
-        const vehicles = params.fetched.vehicles.slice(
-          start,
-          start + SNAPSHOT_WRITE_BATCH_SIZE,
-        );
-        if (vehicles.length === 0) continue;
-        statements.push(
-          snapshotInsertStatement({
-            runId: params.runId,
-            source,
-            expectedCursor,
-            vehicles,
-          }),
-        );
-      }
-
-      for (
-        let start = 0;
-        start < observedVins.length;
-        start += SNAPSHOT_WRITE_BATCH_SIZE
-      ) {
-        statements.push(
-          observationInsertStatement({
-            runId: params.runId,
-            source,
-            expectedCursor,
-            vins: observedVins.slice(start, start + SNAPSHOT_WRITE_BATCH_SIZE),
-          }),
-        );
-      }
       const checkpointStatementIndex = statements.length;
       statements.push({
         sql: `
@@ -570,6 +456,10 @@ export function createDurableIngestionRepository(
               duplicate_vehicles = ?,
               rejected_vehicles = ?,
               errors = ?,
+              snapshot_chunks = case
+                when ? is null then snapshot_chunks
+                else json_insert(snapshot_chunks, '$[#]', ?)
+              end,
               completed_at = ?
           where id = ?
             and run_id = ?
@@ -590,6 +480,8 @@ export function createDurableIngestionRepository(
           duplicateVehicles,
           rejectedVehicles,
           errors.length > 0 ? JSON.stringify(errors) : null,
+          snapshotPathname,
+          snapshotPathname,
           terminal ? Date.now() : null,
           id,
           params.runId,
@@ -612,7 +504,13 @@ export function createDurableIngestionRepository(
         args: [Date.now(), params.runId, id, nextCursor],
       });
 
-      const results = await batchClient.batch(statements, "write");
+      const results = await batchClient
+        .batch(statements, "write")
+        .catch(async (error: unknown) => {
+          if (snapshotPathname !== null)
+            await snapshotStore.delete([snapshotPathname]);
+          throw error;
+        });
       const checkpointResult = results[checkpointStatementIndex];
       if (!checkpointResult) {
         throw new Error(`Source run ${id} checkpoint returned no result.`);
@@ -634,6 +532,8 @@ export function createDurableIngestionRepository(
           `Source run ${id} checkpoint affected ${checkpointResult.rowsAffected} rows; expected 0 or 1.`,
         );
       }
+      if (snapshotPathname !== null)
+        await snapshotStore.delete([snapshotPathname]);
 
       const [latest] = await database
         .select()
@@ -839,33 +739,30 @@ export function createDurableIngestionRepository(
     },
 
     async cleanupBatch(runId: string, now = new Date()) {
+      const [run] = await database
+        .select({ activeSlot: ingestionRun.activeSlot })
+        .from(ingestionRun)
+        .where(eq(ingestionRun.id, runId))
+        .limit(1);
+      const snapshotsDeleted =
+        run && run.activeSlot === null
+          ? await deleteRunSnapshots(
+              await database
+                .select({
+                  id: ingestionSourceRun.id,
+                  snapshotChunks: ingestionSourceRun.snapshotChunks,
+                })
+                .from(ingestionSourceRun)
+                .where(
+                  and(
+                    eq(ingestionSourceRun.runId, runId),
+                    ne(ingestionSourceRun.snapshotChunks, "[]"),
+                  ),
+                ),
+            )
+          : 0;
       const results = await batchClient.batch(
         [
-          {
-            sql: `
-              delete from vehicle_observation where rowid in (
-                select observation.rowid from vehicle_observation observation
-                join ingestion_run run on run.id = observation.run_id
-                where observation.run_id = ? and run.active_slot is null
-                limit ?
-              )
-            `,
-            args: [runId, CLEANUP_BATCH_SIZE],
-          },
-          {
-            sql: `
-              delete from vehicle_snapshot
-              where rowid in (
-                select snapshot.rowid
-                from vehicle_snapshot snapshot
-                join ingestion_run run on run.id = snapshot.run_id
-                where snapshot.run_id = ?
-                  and run.active_slot is null
-                limit ?
-              )
-            `,
-            args: [runId, CLEANUP_BATCH_SIZE],
-          },
           {
             sql: `
               delete from vehicle_change_v2
@@ -899,7 +796,7 @@ export function createDurableIngestionRepository(
       );
       const deleted = results.reduce(
         (total, result) => total + result.rowsAffected,
-        0,
+        snapshotsDeleted,
       );
       return {
         deleted,
@@ -910,6 +807,26 @@ export function createDurableIngestionRepository(
     },
 
     async cleanupStaleSnapshots(): Promise<void> {
+      await deleteRunSnapshots(
+        await database
+          .select({
+            id: ingestionSourceRun.id,
+            snapshotChunks: ingestionSourceRun.snapshotChunks,
+          })
+          .from(ingestionSourceRun)
+          .innerJoin(
+            ingestionRun,
+            eq(ingestionRun.id, ingestionSourceRun.runId),
+          )
+          .where(
+            and(
+              isNull(ingestionRun.activeSlot),
+              ne(ingestionSourceRun.snapshotChunks, "[]"),
+            ),
+          )
+          .limit(STALE_SNAPSHOT_RUN_BATCH_SIZE),
+      );
+      // Drain rows staged before snapshots moved to Blob storage.
       await database.run(sql`
         delete from vehicle_observation where rowid in (
           select observation.rowid from vehicle_observation observation

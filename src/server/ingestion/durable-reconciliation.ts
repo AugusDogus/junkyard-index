@@ -1,18 +1,9 @@
 import type { Client, InStatement, InValue } from "@libsql/client";
-import { and, asc, eq, getTableColumns, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { mapIngestionSources } from "~/lib/ingestion-source";
-import {
-  ingestionRun,
-  ingestionSourceRun,
-  vehicle,
-  vehicleSnapshot,
-  vehicleObservation,
-} from "~/schema";
-import {
-  parseIngestionErrors,
-  snapshotToVehicle,
-} from "./durable-ingestion-repository";
+import { ingestionRun, ingestionSourceRun, vehicle } from "~/schema";
+import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type {
   DurableIngestionResult,
   DurableReconciliationBatchResult,
@@ -22,12 +13,16 @@ import {
   parseDurableRunStage,
 } from "./durable-run-state";
 import { DURABLE_INGESTION_SOURCES } from "./durable-source";
+import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import {
   type MissingVehicleTransition,
   planChangedVehicleUpserts,
   planMissingVehicleTransitions,
-  reconciliationSourcePrioritySql,
 } from "./reconciliation-policy";
+import {
+  loadRunSnapshotInventory,
+  type RunSnapshotInventory,
+} from "./run-snapshot-inventory";
 import type { CanonicalVehicle } from "./types";
 
 const RECONCILIATION_BATCH_SIZE = 500;
@@ -35,11 +30,31 @@ const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const VEHICLE_VALUE_COLUMN_COUNT = 29;
 
+// Leave most of a workflow step's duration for the batches' own writes.
+const RECONCILIATION_STEP_BUDGET_MS = 240_000;
+
 type BatchClient = Pick<Client, "batch">;
 
-const HIGHER_PRIORITY_SOURCE_SQL = reconciliationSourcePrioritySql("higher");
-const CURRENT_SOURCE_PRIORITY_SQL =
-  reconciliationSourcePrioritySql("vehicle_snapshot");
+interface ReconciliationContext {
+  runId: string;
+  database: LibSQLDatabase;
+  batchClient: BatchClient;
+  /** Loads the run's staged inventory at most once per step. */
+  inventory: () => Promise<RunSnapshotInventory>;
+}
+
+/** Index of the first VIN after the cursor in ascending VIN order. */
+function firstVinAfter(vins: readonly string[], cursor: string | null) {
+  if (cursor === null) return 0;
+  let low = 0;
+  let high = vins.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if ((vins[middle] ?? "") <= cursor) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
 
 function guardSql(stage: "reconcile_upsert" | "reconcile_missing") {
   return `
@@ -260,50 +275,23 @@ async function buildResult(
   };
 }
 
-async function runUpsertBatch(params: {
-  runId: string;
-  cursor: string | null;
-  runTimestamp: Date;
-  database: LibSQLDatabase;
-  batchClient: BatchClient;
-}): Promise<DurableReconciliationBatchResult> {
-  const rows = await params.database
-    .select(getTableColumns(vehicleSnapshot))
-    .from(vehicleSnapshot)
-    .innerJoin(
-      ingestionSourceRun,
-      and(
-        eq(ingestionSourceRun.runId, vehicleSnapshot.runId),
-        eq(ingestionSourceRun.source, vehicleSnapshot.source),
-        eq(ingestionSourceRun.acceptanceStatus, "accepted"),
-      ),
-    )
-    .where(
-      and(
-        eq(vehicleSnapshot.runId, params.runId),
-        gt(vehicleSnapshot.vin, params.cursor ?? ""),
-        sql`not exists (
-          select 1
-          from vehicle_snapshot higher
-          join ingestion_source_run higher_run
-            on higher_run.run_id = higher.run_id
-           and higher_run.source = higher.source
-           and higher_run.acceptance_status = 'accepted'
-          where higher.run_id = vehicle_snapshot.run_id
-            and higher.vin = vehicle_snapshot.vin
-            and (${sql.raw(HIGHER_PRIORITY_SOURCE_SQL)})
-              < (${sql.raw(CURRENT_SOURCE_PRIORITY_SQL)})
-        )`,
-      ),
-    )
-    .orderBy(asc(vehicleSnapshot.vin))
-    .limit(RECONCILIATION_BATCH_SIZE);
+async function runUpsertBatch(
+  params: ReconciliationContext & {
+    cursor: string | null;
+    runTimestamp: Date;
+  },
+): Promise<DurableReconciliationBatchResult> {
+  const inventory = await params.inventory();
+  const start = firstVinAfter(inventory.vins, params.cursor);
+  const rows = inventory.vins
+    .slice(start, start + RECONCILIATION_BATCH_SIZE)
+    .flatMap((vin) => {
+      const snapshot = inventory.vehicles.get(vin);
+      return snapshot ? [snapshot] : [];
+    });
 
   const finalInventory = new Map(
-    rows.map((row) => {
-      const canonical = snapshotToVehicle(row);
-      return [canonical.vin, canonical] as const;
-    }),
+    rows.map((snapshot) => [snapshot.vin, snapshot] as const),
   );
   const vins = [...finalInventory.keys()];
   const existingRows =
@@ -380,7 +368,7 @@ async function runUpsertBatch(params: {
     );
   }
   if (checkpoint.rowsAffected === 0) {
-    return reconcileDurableIngestionRun(params);
+    return reconcileBatch(params);
   }
   return {
     status: "paused",
@@ -441,14 +429,13 @@ function deleteStatement(params: {
   };
 }
 
-async function runMissingBatch(params: {
-  runId: string;
-  cursor: string | null;
-  runTimestamp: Date;
-  acceptedSources: string[];
-  database: LibSQLDatabase;
-  batchClient: BatchClient;
-}): Promise<DurableReconciliationBatchResult> {
+async function runMissingBatch(
+  params: ReconciliationContext & {
+    cursor: string | null;
+    runTimestamp: Date;
+    acceptedSources: string[];
+  },
+): Promise<DurableReconciliationBatchResult> {
   const rows =
     params.cursor === null
       ? await params.database
@@ -472,51 +459,17 @@ async function runMissingBatch(params: {
           .where(gt(vehicle.vin, params.cursor))
           .orderBy(asc(vehicle.vin))
           .limit(RECONCILIATION_BATCH_SIZE);
-  const vins = rows.map((row) => row.vin);
-  const presentRows =
-    vins.length === 0
-      ? []
-      : await params.database
-          .select({ vin: vehicleSnapshot.vin })
-          .from(vehicleSnapshot)
-          .innerJoin(
-            ingestionSourceRun,
-            and(
-              eq(ingestionSourceRun.runId, vehicleSnapshot.runId),
-              eq(ingestionSourceRun.source, vehicleSnapshot.source),
-              eq(ingestionSourceRun.acceptanceStatus, "accepted"),
-            ),
-          )
-          .where(
-            and(
-              eq(vehicleSnapshot.runId, params.runId),
-              inArray(vehicleSnapshot.vin, vins),
-            ),
-          );
-  const observedRows =
-    vins.length === 0
-      ? []
-      : await params.database
-          .select({ vin: vehicleObservation.vin })
-          .from(vehicleObservation)
-          .innerJoin(
-            ingestionSourceRun,
-            and(
-              eq(ingestionSourceRun.runId, vehicleObservation.runId),
-              eq(ingestionSourceRun.source, vehicleObservation.source),
-              eq(ingestionSourceRun.acceptanceStatus, "accepted"),
-            ),
-          )
-          .where(
-            and(
-              eq(vehicleObservation.runId, params.runId),
-              inArray(vehicleObservation.vin, vins),
-            ),
-          );
+  const inventory = await params.inventory();
   const presentVins = new Set(
-    [...presentRows, ...observedRows].map((row) => row.vin),
+    rows
+      .map((row) => row.vin)
+      .filter(
+        (vin) => inventory.vehicles.has(vin) || inventory.observedVins.has(vin),
+      ),
   );
-  const observedVins = [...new Set(observedRows.map((row) => row.vin))];
+  const observedVins = rows
+    .map((row) => row.vin)
+    .filter((vin) => inventory.observedVins.has(vin));
   const observedSet = new Set(observedVins);
   const restoredVins = rows
     .filter(
@@ -656,7 +609,7 @@ async function runMissingBatch(params: {
     );
   }
   if (checkpoint.rowsAffected === 0) {
-    return reconcileDurableIngestionRun(params);
+    return reconcileBatch(params);
   }
   if (finishing) {
     return {
@@ -667,11 +620,9 @@ async function runMissingBatch(params: {
   return { status: "paused", phase: "missing", cursor: nextCursor };
 }
 
-export async function reconcileDurableIngestionRun(params: {
-  runId: string;
-  database: LibSQLDatabase;
-  batchClient: BatchClient;
-}): Promise<DurableReconciliationBatchResult> {
+async function reconcileBatch(
+  params: ReconciliationContext,
+): Promise<DurableReconciliationBatchResult> {
   const [run] = await params.database
     .select()
     .from(ingestionRun)
@@ -704,19 +655,46 @@ export async function reconcileDurableIngestionRun(params: {
   }
   if (stage === "reconcile_upsert") {
     return runUpsertBatch({
-      runId: params.runId,
+      ...params,
       cursor: run.reconciliationCursor,
       runTimestamp: run.startedAt,
-      database: params.database,
-      batchClient: params.batchClient,
     });
   }
   return runMissingBatch({
-    runId: params.runId,
+    ...params,
     cursor: run.reconciliationCursor,
     runTimestamp: run.startedAt,
     acceptedSources: parseAcceptedSources(run.acceptedSources),
+  });
+}
+
+/**
+ * Advances reconciliation through as many guarded batches as fit in one
+ * workflow step, loading the run's staged inventory once.
+ */
+export async function reconcileDurableIngestionRun(params: {
+  runId: string;
+  database: LibSQLDatabase;
+  batchClient: BatchClient;
+  snapshotStore: IngestionSnapshotStore;
+  budgetMs?: number;
+}): Promise<DurableReconciliationBatchResult> {
+  let inventory: Promise<RunSnapshotInventory> | null = null;
+  const context: ReconciliationContext = {
+    runId: params.runId,
     database: params.database,
     batchClient: params.batchClient,
-  });
+    inventory: () =>
+      (inventory ??= loadRunSnapshotInventory({
+        runId: params.runId,
+        database: params.database,
+        store: params.snapshotStore,
+      })),
+  };
+  const deadline =
+    Date.now() + (params.budgetMs ?? RECONCILIATION_STEP_BUDGET_MS);
+  while (true) {
+    const result = await reconcileBatch(context);
+    if (result.status !== "paused" || Date.now() >= deadline) return result;
+  }
 }
