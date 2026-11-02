@@ -3,6 +3,10 @@ import "server-only";
 import { asc, desc, isNull } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
+import {
+  HOMEPAGE_CACHE_SECONDS,
+  HOMEPAGE_CACHE_TAG,
+} from "~/lib/homepage-stats";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { vehicle } from "~/schema";
 
@@ -44,5 +48,5 @@ export type RecentVehicle = Awaited<
 export const getHomepageInventory = unstable_cache(
   getHomepageInventoryInternal,
   ["homepage-inventory", "yard-metadata-v2"],
-  { revalidate: 3600, tags: ["homepage-live-stats"] },
+  { revalidate: HOMEPAGE_CACHE_SECONDS, tags: [HOMEPAGE_CACHE_TAG] },
 );

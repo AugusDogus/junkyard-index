@@ -1,0 +1,1 @@
+CREATE INDEX `vehicle_recent_idx` ON `vehicle` (`missing_since_at`,"first_seen_at" desc,`vin`);

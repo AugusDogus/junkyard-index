@@ -57,7 +57,7 @@ describe("runIngestionPass", () => {
       ],
     );
 
-    await runIngestionPass(operations);
+    expect(await runIngestionPass(operations)).toBe("complete");
 
     expect(events).toEqual([
       "plan:active",
@@ -90,7 +90,7 @@ describe("runIngestionPass", () => {
       ],
     );
 
-    await runIngestionPass(operations);
+    expect(await runIngestionPass(operations)).toBe("complete");
 
     expect(events).toEqual([
       "plan:active",
@@ -117,7 +117,7 @@ describe("runIngestionPass after its day", () => {
       [],
     );
 
-    await runIngestionPass(operations);
+    expect(await runIngestionPass(operations)).toBe("expired");
 
     expect(events).toEqual(["plan:waiting", "sleep:2000", "plan:expired"]);
   });
