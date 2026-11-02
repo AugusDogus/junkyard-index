@@ -31,7 +31,10 @@ const LEGACY_SCHEMA = `
     started_at integer not null,
     completed_at integer
   );
-  create table ingestion_source_run (id text primary key);
+  create table ingestion_source_run (
+    id text primary key,
+    started_at integer not null default 0
+  );
   create table vehicle_snapshot (run_id text, vin text, source text);
   create table autorecycler_org_geo (
     org_lookup text primary key,

@@ -30,8 +30,7 @@ import {
   initializeDurableIngestionStep,
   markDurableIngestionFailedStep,
   markDurableSourceFailedStep,
-  reportDurableIngestionFailureStep,
-  reportDurableIngestionHealthStep,
+  reportProviderStatusStep,
   reconcileDurableIngestionStep,
   runAlgoliaProjectorStep,
   runDurableSourceChunkStep,
@@ -130,11 +129,16 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
   }
 
   let failed = true;
+  let completed = false;
   try {
     const result = await runSourceIngestion(runId);
     failed = false;
+    completed = result.status === "completed";
     return result;
   } finally {
+    // A completed run reported itself after publishing; any other outcome
+    // shows the provider delayed while its last inventory stays up.
+    if (!completed) await reportProviderStatusStep(runId);
     if (day !== undefined) {
       await reportIngestionRunStep(day, { runId, failed });
     }
@@ -144,17 +148,8 @@ export async function vehicleIngestionWorkflow(runId: string, day?: string) {
 async function runSourceIngestion(runId: string) {
   const { workflowRunId } = getWorkflowMetadata();
   await attachDurableIngestionWorkflowStep(runId, workflowRunId);
-  const markRunFailed = async (failedRunId: string, message: string) => {
-    await markDurableIngestionFailedStep(failedRunId, message);
-    try {
-      await reportDurableIngestionFailureStep(failedRunId);
-    } catch (error) {
-      console.error(
-        `Failed to report ingestion run ${failedRunId} health after recording its failure`,
-        error,
-      );
-    }
-  };
+  const markRunFailed = (failedRunId: string, message: string) =>
+    markDurableIngestionFailedStep(failedRunId, message);
   const operations = {
     cleanupStale: cleanupStaleDurableIngestionSnapshotsStep,
     initialize: initializeDurableIngestionStep,
@@ -229,10 +224,7 @@ async function runSourceIngestion(runId: string) {
         recordingFailure(runId, markRunFailed, () =>
           drainDurablePhase(() => runVehicleSearchAlertsStep(runId)),
         ),
-      reportHealth: (healthRunId) =>
-        recordingFailure(runId, markRunFailed, () =>
-          reportDurableIngestionHealthStep(healthRunId),
-        ),
+      reportHealth: reportProviderStatusStep,
     });
     if (publicationResult.status === "stopped") return publicationResult;
 

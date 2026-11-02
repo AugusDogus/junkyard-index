@@ -2,26 +2,18 @@ import { asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { unstable_cache } from "next/cache";
 import { env } from "~/env";
 import { db } from "~/lib/db";
-import {
-  INGESTION_SOURCE_DISPLAY_NAMES,
-  INGESTION_SOURCES,
-  type IngestionSource,
-} from "~/lib/ingestion-source";
+import type { IngestionSource } from "~/lib/ingestion-source";
 import {
   ingestionRun,
-  ingestionSourceRun,
   savedSearch,
   searchNotificationIntent,
   vehicleChange,
 } from "~/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { getSearchIndexCapabilities } from "~/server/ingestion/search-index-readiness";
-import {
-  mapRunStatus,
-  parseErrors,
-  worstStatus,
-  type IngestionStatus,
-} from "./status-utils";
+import { getDurableSourceFreshness } from "~/server/ingestion/durable-ingestion";
+import { providerFreshness } from "~/server/ingestion/provider-freshness";
+import { worstStatus, type IngestionStatus } from "./status-utils";
 
 type SourceKey = IngestionSource;
 
@@ -29,9 +21,7 @@ interface ProviderStatus {
   name: string;
   source: SourceKey;
   status: IngestionStatus;
-  lastRunAt: string | null;
-  errors: string[] | null;
-  vehiclesProcessed: number;
+  lastPublishedAt: string | null;
 }
 
 interface StatusResponse {
@@ -41,56 +31,18 @@ interface StatusResponse {
 }
 
 async function getProviderStatusInternal(): Promise<StatusResponse> {
-  const latestRuns = await Promise.all(
-    INGESTION_SOURCES.map(async (source) => {
-      const [latestRun] = await db
-        .select({
-          status: ingestionSourceRun.status,
-          completedAt: ingestionSourceRun.completedAt,
-          startedAt: ingestionSourceRun.startedAt,
-          errors: ingestionSourceRun.errors,
-          acceptanceStatus: ingestionSourceRun.acceptanceStatus,
-          validationErrors: ingestionSourceRun.validationErrors,
-          vehiclesProcessed: ingestionSourceRun.vehiclesProcessed,
-        })
-        .from(ingestionSourceRun)
-        .where(eq(ingestionSourceRun.source, source))
-        .orderBy(desc(ingestionSourceRun.startedAt))
-        .limit(1);
-
-      return { source, latestRun };
+  const now = new Date();
+  const providers = providerFreshness(
+    await getDurableSourceFreshness(now),
+    now,
+  ).map(
+    (provider): ProviderStatus => ({
+      name: provider.name,
+      source: provider.source,
+      status: provider.fresh ? "operational" : "degraded",
+      lastPublishedAt: provider.lastPublishedAt?.toISOString() ?? null,
     }),
   );
-
-  const providers = latestRuns.map(({ source, latestRun }): ProviderStatus => {
-    if (!latestRun) {
-      return {
-        name: INGESTION_SOURCE_DISPLAY_NAMES[source],
-        source,
-        status: "operational",
-        lastRunAt: null,
-        errors: null,
-        vehiclesProcessed: 0,
-      };
-    }
-
-    const lastRunAt = latestRun.completedAt ?? latestRun.startedAt;
-
-    return {
-      name: INGESTION_SOURCE_DISPLAY_NAMES[source],
-      source,
-      status:
-        latestRun.acceptanceStatus === "rejected"
-          ? "degraded"
-          : mapRunStatus(latestRun.status),
-      lastRunAt: lastRunAt ? lastRunAt.toISOString() : null,
-      errors:
-        parseErrors(latestRun.validationErrors) ??
-        parseErrors(latestRun.errors),
-      vehiclesProcessed: latestRun.vehiclesProcessed,
-    };
-  });
-
   return {
     aggregateStatus: worstStatus(providers.map((p) => p.status)),
     providers,
@@ -101,7 +53,8 @@ async function getProviderStatusInternal(): Promise<StatusResponse> {
 const getProviderStatus = unstable_cache(
   getProviderStatusInternal,
   ["provider-status"],
-  { revalidate: 10 },
+  // Freshness changes only when a source publishes.
+  { revalidate: 300 },
 );
 
 export const statusRouter = createTRPCRouter({

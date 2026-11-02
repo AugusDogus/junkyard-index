@@ -1,0 +1,1 @@
+CREATE INDEX `ingestion_source_run_started_at_idx` ON `ingestion_source_run` (`started_at`);
