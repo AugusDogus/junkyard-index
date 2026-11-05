@@ -11,6 +11,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/auth/"],
       },
     ],
-    sitemap: `${APP_URL}/sitemap.xml`,
+    sitemap: [`${APP_URL}/sitemap.xml`, `${APP_URL}/junkyards/sitemap.xml`],
   };
 }
