@@ -43,6 +43,11 @@ including all registered sources. The six foreign-key children all cascade:
   Its preserved yard set still filters the source-scoped missing scan. Retention
   does not change vehicle or yard rows. Once that run is terminal, its Ario state
   is collectible only after the existing snapshot cleanup removes its registration.
+- `InventoryAnnouncement` reads the commit-time anchor at or before its
+  `indexnow-announcement` checkpoint. Retain the checkpoint run and every tied
+  commit-time anchor until it advances. Departures only inspect recent run
+  progress (three hours), already inside the retention window. Inventory rollup
+  snapshots read the protected publication watermark and store their own data.
 - `durable-reconciliation` allocates `max(publication_sequence) + 1`;
   `alert-config-repository` uses the same watermark for new subscriptions.
   Preserve the maximum sequence even if no search publication followed it.

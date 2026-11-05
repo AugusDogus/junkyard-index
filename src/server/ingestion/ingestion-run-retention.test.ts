@@ -3,6 +3,7 @@ import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { sql, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
+import { InventoryAnnouncement } from "../inventory-announcement";
 import { DURABLE_INGESTION_SOURCES } from "./durable-source";
 import { UrgiisCursor } from "./urgiis-cursor";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
@@ -28,6 +29,7 @@ async function setup() {
   clients.push(client);
   await client.executeMultiple(TEST_SCHEMA);
   await client.executeMultiple(`
+    create table ingestion_projector_checkpoint (name text primary key, last_processed_change_id integer not null default 0, updated_at integer not null);
     drop table search_notification_intent;
     create table search_notification_intent (id text primary key, run_id text not null references ingestion_run(id) on delete cascade, status text not null, claim_token text);
     drop table vehicle_change_v2;
@@ -74,6 +76,39 @@ describe("ingestion run retention", () => {
     await pruneIngestionRuns({ database, now });
     await pruneIngestionRuns({ database, now });
     expect(await ids(client)).toEqual(["boundary", "new", "recent-release"]);
+  });
+
+  test("keeps the IndexNow checkpoint and compared commit anchor until the checkpoint advances", async () => {
+    const { client, database } = await setup();
+    await addRun(database, "obsolete", { publicationSequence: 0 });
+    await addRun(database, "compared-commit", {
+      publicationSequence: 1,
+      commitStartedAt: new Date(old.getTime() + 2),
+    });
+    await addRun(database, "checkpoint", {
+      publicationSequence: 2,
+      commitStartedAt: new Date(old.getTime() + 1),
+    });
+    await addRun(database, "latest", {
+      publicationSequence: 3,
+      startedAt: now,
+      commitStartedAt: now,
+      completedAt: now,
+    });
+    await InventoryAnnouncement.record(database, 2);
+    const before = await InventoryAnnouncement.window(database, 3, now);
+    await pruneIngestionRuns({ database, now });
+    expect(await ids(client)).toEqual([
+      "checkpoint",
+      "compared-commit",
+      "latest",
+    ]);
+    expect(await InventoryAnnouncement.window(database, 3, now)).toEqual(
+      before,
+    );
+    await InventoryAnnouncement.record(database, 3);
+    await pruneIngestionRuns({ database, now });
+    expect(await ids(client)).toEqual(["latest"]);
   });
 
   test("keeps latest accepted and published baselines and the publication sequence watermark", async () => {
@@ -216,16 +251,14 @@ describe("ingestion run retention", () => {
         inventoryPublishedAt:
           publication === null ? null : new Date(publication),
       });
-      await database
-        .insert(ingestionSourceRun)
-        .values({
-          id,
-          runId: id,
-          source,
-          status: "success",
-          acceptanceStatus: "accepted",
-          startedAt: new Date(start),
-        });
+      await database.insert(ingestionSourceRun).values({
+        id,
+        runId: id,
+        source,
+        status: "success",
+        acceptanceStatus: "accepted",
+        startedAt: new Date(start),
+      });
     }
     await pruneIngestionRuns({ database, now });
     expect(await ids(client)).toEqual([

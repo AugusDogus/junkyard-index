@@ -9,6 +9,7 @@ const MAX_BATCHES_PER_PASS = 10;
  * A single statement rechecks every reference under SQLite's write lock. Foreign
  * keys cascade all six child tables. Snapshot cleanup owns Blob deletion first.
  * Old failed URG attempts since its last publication remain heartbeat evidence.
+ * IndexNow keeps its sequence cursor and the commit-time anchor it compares.
  */
 export async function pruneIngestionRuns(params: {
   database: LibSQLDatabase;
@@ -59,6 +60,19 @@ export async function pruneIngestionRuns(params: {
             and (r.publication_sequence is null or r.publication_sequence < (
               select max(publication_sequence) from ingestion_run
             ))
+            and not exists (
+              select 1 from ingestion_projector_checkpoint checkpoint
+              where checkpoint.name = 'indexnow-announcement'
+                and r.publication_sequence <= checkpoint.last_processed_change_id
+                and (
+                  r.publication_sequence = checkpoint.last_processed_change_id
+                  or coalesce(r.commit_started_at, r.started_at) = (
+                    select max(coalesce(anchor.commit_started_at, anchor.started_at))
+                    from ingestion_run anchor
+                    where anchor.publication_sequence <= checkpoint.last_processed_change_id
+                  )
+                )
+            )
             and not exists (
               select 1 from ingestion_source_run s where s.run_id = r.id
                 and (s.status = 'running' or s.snapshot_chunks != '[]'
