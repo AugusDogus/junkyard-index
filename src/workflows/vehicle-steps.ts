@@ -2,6 +2,11 @@ import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import {
+  announceInventoryPaths,
+  primeChangedInventory,
+  warmChangedInventory,
+} from "~/server/indexnow";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
@@ -104,9 +109,10 @@ export async function reportIngestionRunStep(
 /**
  * Shows newly published inventory on the homepage and inventory pages. Every
  * pass that completes calls this, but it revalidates only once per new
- * publication.
+ * publication. Returns the publication it refreshed the pages for, or null
+ * when they were already current or could not be refreshed.
  */
-export async function refreshHomepageStep() {
+export async function refreshHomepageStep(): Promise<number | null> {
   "use step";
 
   let refresh: InventoryCacheRefresh;
@@ -122,9 +128,67 @@ export async function refreshHomepageStep() {
     console.error(
       `[Workflow] Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the next hourly pass retries: ${formatError(refresh.error)}`,
     );
+    return null;
   }
+  return refresh.status === "refreshed" ? refresh.publicationSequence : null;
 }
 refreshHomepageStep.maxRetries = 2;
+
+/**
+ * Starts announcing a publication's changed pages to IndexNow: lists the
+ * pages changed since the last announcement, which also starts rebuilding the
+ * inventory caches they share. Returns how many pages changed.
+ */
+export async function primeInventoryAnnouncementStep(
+  publicationSequence: number,
+): Promise<number> {
+  "use step";
+
+  return primeChangedInventory(publicationSequence);
+}
+
+/** Requests each changed page so it regenerates, and returns the pages. */
+export async function warmInventoryAnnouncementStep(
+  publicationSequence: number,
+): Promise<string[]> {
+  "use step";
+
+  const { paths, warmed, failed } =
+    await warmChangedInventory(publicationSequence);
+  console.info("[Workflow] Requested changed inventory pages", {
+    publicationSequence,
+    pages: paths.length,
+    warmed,
+    failed,
+  });
+  return paths;
+}
+warmInventoryAnnouncementStep.maxRetries = 1;
+
+/**
+ * Tells IndexNow engines which pages changed. Not retried, so a submission is
+ * never sent twice; a failure leaves the announcement checkpoint behind, and
+ * the next publication's announcement includes these pages.
+ */
+export async function announceInventoryStep(
+  publicationSequence: number,
+  paths: string[],
+) {
+  "use step";
+
+  const announcement = await announceInventoryPaths(publicationSequence, paths);
+  if (announcement.status === "failed") {
+    console.error(
+      `[Workflow] IndexNow rejected ${announcement.urls} changed inventory URLs for publication ${publicationSequence} with HTTP ${announcement.httpStatus}; the next publication's announcement retries them, and the sitemaps still list them: ${announcement.detail}`,
+    );
+  } else {
+    console.info("[Workflow] Announced changed inventory", {
+      publicationSequence,
+      ...announcement,
+    });
+  }
+}
+announceInventoryStep.maxRetries = 0;
 
 /** Wakes runs waiting for the shared commit after it is released. */
 export async function signalCommitWaitersStep() {
