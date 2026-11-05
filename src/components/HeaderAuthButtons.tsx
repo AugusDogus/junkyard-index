@@ -1,12 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
-import { UserMenu } from "~/components/auth/UserMenu";
 import posthog from "posthog-js";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { cn } from "~/lib/utils";
+
+// Only signed-in visitors render the menu, so its dropdown, billing, and
+// session code load for them alone.
+const UserMenu = dynamic(() =>
+  import("~/components/auth/UserMenu").then((module) => module.UserMenu),
+);
 
 interface HeaderAuthButtonsProps {
   user: { name: string; email: string; image?: string | null } | null;
