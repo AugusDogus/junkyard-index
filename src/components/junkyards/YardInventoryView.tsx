@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { JsonLd } from "~/components/JsonLd";
-import { TrackedPricingButton } from "~/components/marketing/TrackedPricingButton";
+import { AlertsCallout } from "~/components/junkyards/AlertsCallout";
 import { Button } from "~/components/ui/button";
 import { env } from "~/env";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
@@ -68,6 +68,7 @@ export function YardInventoryView({
   inventory,
   total,
   makes,
+  makeHrefs,
   publishedAt,
   nearby,
   chain,
@@ -76,6 +77,8 @@ export function YardInventoryView({
   inventory: YardInventoryPage;
   total: number;
   makes: MakeCount[];
+  /** Each make's national page, by make key. */
+  makeHrefs: ReadonlyMap<string, string>;
   publishedAt: string | null;
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
@@ -140,7 +143,9 @@ export function YardInventoryView({
         <YardContact yard={yard} />
       </header>
 
-      {first && makes.length > 0 && <MakeSummary makes={makes} />}
+      {first && makes.length > 0 && (
+        <MakeSummary makes={makes} hrefs={makeHrefs} />
+      )}
 
       <section aria-labelledby="vehicles-title" className="mt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -177,7 +182,12 @@ export function YardInventoryView({
         </p>
       </section>
 
-      {first && <AlertsCallout yardName={headline} />}
+      {first && (
+        <AlertsCallout
+          subject={`a matching vehicle shows up at ${headline} or any other yard we track`}
+          sourcePage="yard"
+        />
+      )}
 
       {nearby.length > 0 && (
         <section aria-labelledby="nearby-title" className="mt-10">
@@ -278,7 +288,13 @@ function YardContact({ yard }: { yard: RoutedYard }) {
 
 const SHOWN_MAKES = 24;
 
-function MakeSummary({ makes }: { makes: readonly MakeCount[] }) {
+function MakeSummary({
+  makes,
+  hrefs,
+}: {
+  makes: readonly MakeCount[];
+  hrefs: ReadonlyMap<string, string>;
+}) {
   const shown = makes.slice(0, SHOWN_MAKES);
   const rest = makes.length - shown.length;
   return (
@@ -287,14 +303,32 @@ function MakeSummary({ makes }: { makes: readonly MakeCount[] }) {
         Makes in the yard
       </h2>
       <ul className="mt-2 flex flex-wrap gap-1.5">
-        {shown.map(({ make, count: vehicles }) => (
-          <li
-            key={make}
-            className="bg-muted rounded-md px-2 py-1 text-xs tabular-nums"
-          >
-            {make} <span className="text-muted-foreground">{vehicles}</span>
-          </li>
-        ))}
+        {shown.map(({ key, make, count: vehicles }) => {
+          const href = hrefs.get(key);
+          const label = (
+            <>
+              {make} <span className="text-muted-foreground">{vehicles}</span>
+            </>
+          );
+          return (
+            <li key={key} className="text-xs tabular-nums">
+              {href ? (
+                <Link
+                  href={href}
+                  prefetch={false}
+                  title={`${make} vehicles at every yard`}
+                  className="bg-muted hover:bg-accent block rounded-md px-2 py-1"
+                >
+                  {label}
+                </Link>
+              ) : (
+                <span className="bg-muted block rounded-md px-2 py-1">
+                  {label}
+                </span>
+              )}
+            </li>
+          );
+        })}
         {rest > 0 && (
           <li className="text-muted-foreground px-2 py-1 text-xs">
             and {InventoryFormat.plural(rest, "more make", "more makes")}
@@ -403,32 +437,5 @@ function Pagination({
         ))}
       </ul>
     </nav>
-  );
-}
-
-function AlertsCallout({ yardName }: { yardName: string }) {
-  return (
-    <aside className="bg-muted/40 mt-10 rounded-lg border p-5">
-      <h2 className="text-lg font-semibold text-balance">
-        Waiting on a specific car?
-      </h2>
-      <p className="text-muted-foreground mt-2 text-sm text-pretty">
-        Save a search and get an email or Discord alert when a matching vehicle
-        shows up at {yardName} or any other yard we track. New vehicles usually
-        appear here within a day or two of the yard listing them.
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <TrackedPricingButton
-          href="/pricing"
-          label="See alert plans"
-          sourcePage="yard"
-          ctaLocation="yard_alerts_callout"
-          size="sm"
-        />
-        <Button asChild variant="outline" size="sm">
-          <Link href="/search">Search every yard</Link>
-        </Button>
-      </div>
-    </aside>
   );
 }

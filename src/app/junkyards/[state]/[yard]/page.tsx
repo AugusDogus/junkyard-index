@@ -6,6 +6,7 @@ import {
   yardPageMetadata,
 } from "~/components/junkyards/YardInventoryView";
 import { YardInventory } from "~/lib/yard-inventory";
+import { getMakeHrefs } from "~/server/vehicle-models";
 import { getYardPageData } from "~/server/yard-inventory";
 
 // Served from the CDN and rebuilt after each daily ingestion pass, which
@@ -48,6 +49,7 @@ export default async function YardPage({
         inventory={inventory}
         total={data.vehicles.length}
         makes={data.makes}
+        makeHrefs={await getMakeHrefs()}
         publishedAt={data.publishedAt}
         nearby={data.nearby}
         chain={data.chain}

@@ -6,6 +6,7 @@ import {
   yardPageMetadata,
 } from "~/components/junkyards/YardInventoryView";
 import { YardInventory } from "~/lib/yard-inventory";
+import { getMakeHrefs } from "~/server/vehicle-models";
 import { getYardPageData } from "~/server/yard-inventory";
 
 // See ../../page.tsx: rebuilt after each daily pass; this is the fallback.
@@ -66,6 +67,7 @@ export default async function YardInventoryPage({
         inventory={inventory}
         total={data.vehicles.length}
         makes={data.makes}
+        makeHrefs={await getMakeHrefs()}
         publishedAt={data.publishedAt}
         nearby={data.nearby}
         chain={data.chain}
