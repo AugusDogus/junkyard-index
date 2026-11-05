@@ -21,9 +21,11 @@ import {
 import {
   cleanupDurableIngestionStateBatchStep,
   cleanupStaleDurableIngestionSnapshotsStep,
+  announceInventoryStep,
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
   prepareIngestionPassStep,
+  primeInventoryAnnouncementStep,
   refreshHomepageStep,
   reportIngestionRunStep,
   signalCommitWaitersStep,
@@ -37,6 +39,7 @@ import {
   runDurableSourceChunkStep,
   runVehicleSearchAlertsStep,
   validateDurableIngestionSourcesStep,
+  warmInventoryAnnouncementStep,
 } from "./vehicle-steps";
 import { IngestionTokens } from "./ingestion-tokens";
 
@@ -48,6 +51,8 @@ const COMMIT_TURN_FALLBACK = "10m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
+// Time for caches and pages to finish rebuilding in the background.
+const BACKGROUND_REBUILD_DELAY = "5m";
 
 /** Starts or resumes each source run's workflow; live ones exit at once. */
 async function startIngestionRunWorkflowsStep(
@@ -112,8 +117,35 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   });
   // Only the pass that ran sources refreshes the homepage. Rebuilding it
   // scans every live vehicle, and an hourly refresh stalled the homepage.
-  if (outcome === "completed") await refreshHomepageStep();
+  if (outcome === "completed") {
+    const refreshed = await refreshHomepageStep();
+    if (refreshed !== null) {
+      try {
+        await announceChangedInventoryPages(refreshed);
+      } catch (error) {
+        // Best effort: the pass already published. The checkpoint stays
+        // behind, so the next publication's announcement includes these pages.
+        console.error(
+          `[Workflow] Could not announce publication ${refreshed}'s changed inventory pages to IndexNow; the next publication's announcement retries them: ${String(error)}`,
+        );
+      }
+    }
+  }
   return { status: outcome, day };
+}
+
+/**
+ * Announces the pages a publication changed once they show it. The caches
+ * the pages share rebuild first, then each page regenerates, then IndexNow
+ * engines hear about them, so a crawler that follows gets the new page.
+ */
+async function announceChangedInventoryPages(publicationSequence: number) {
+  if ((await primeInventoryAnnouncementStep(publicationSequence)) === 0) return;
+  await sleep(BACKGROUND_REBUILD_DELAY);
+  const paths = await warmInventoryAnnouncementStep(publicationSequence);
+  if (paths.length === 0) return;
+  await sleep(BACKGROUND_REBUILD_DELAY);
+  await announceInventoryStep(publicationSequence, paths);
 }
 
 /**
