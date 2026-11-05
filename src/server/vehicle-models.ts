@@ -156,19 +156,20 @@ function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
   return new Map(yards.map((yard) => [`${yard.source}:${yard.code}`, yard]));
 }
 
+/** A make's models, most vehicles first. */
+export async function getMakeModels(make: MakeEntry): Promise<ModelEntry[]> {
+  return MakeInventory.models(make, await getMakeRollup(make.rawMakes));
+}
+
 /** A make's models and the yard pages they link to. */
 export const getMakePageData = cache(async (makeSlug: string) => {
   const make = await findMake(makeSlug);
   if (!make) return null;
-  const [rollup, yards] = await Promise.all([
-    getMakeRollup(make.rawMakes),
+  const [models, yards] = await Promise.all([
+    getMakeModels(make),
     getRoutedYards(),
   ]);
-  return {
-    make,
-    models: MakeInventory.models(make, rollup),
-    yards: yardsByKey(yards),
-  };
+  return { make, models, yards: yardsByKey(yards) };
 });
 
 /** A model's yards and newest arrivals, or null when it has none. */
