@@ -35,20 +35,10 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Junkyard Index" }],
   creator: "Junkyard Index",
-  openGraph: {
-    ...SITE_OPEN_GRAPH,
-    type: "website",
-    url: APP_URL,
-    title: "Junkyard Index",
-    description:
-      "Search salvage yard inventory across major yard networks, save searches, and get alerts when new donor vehicles arrive.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Junkyard Index",
-    description:
-      "Search salvage yard inventory across major yard networks, save searches, and get alerts when new donor vehicles arrive.",
-  },
+  // Only site-wide facts. A page's URL, title, and description are its own;
+  // pages that want a link preview set them, so none inherits the homepage's.
+  openGraph: { ...SITE_OPEN_GRAPH, type: "website" },
+  twitter: { card: "summary" },
   robots: {
     index: true,
     follow: true,
