@@ -5,6 +5,7 @@ const FOOTER_LINKS = [
   { kind: "static", href: "/home", label: "Home" },
   { kind: "static", href: "/search", label: "Search" },
   { kind: "static", href: "/junkyards", label: "Junkyards" },
+  { kind: "static", href: "/cars", label: "Cars by make" },
   { kind: "static", href: "/pricing", label: "Pricing" },
   { kind: "request-yard" },
   { kind: "static", href: "/privacy", label: "Privacy Policy" },
