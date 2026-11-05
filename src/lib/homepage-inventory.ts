@@ -1,12 +1,8 @@
 import "server-only";
 
 import { asc, desc, isNull } from "drizzle-orm";
-import { unstable_cache } from "next/cache";
 import { db } from "~/lib/db";
-import {
-  HOMEPAGE_CACHE_SECONDS,
-  HOMEPAGE_CACHE_TAG,
-} from "~/lib/homepage-stats";
+import { cacheInventory } from "~/lib/inventory-cache";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { vehicle } from "~/schema";
 
@@ -45,8 +41,7 @@ export type RecentVehicle = Awaited<
   ReturnType<typeof getHomepageInventoryInternal>
 >["recentVehicles"][number];
 
-export const getHomepageInventory = unstable_cache(
+export const getHomepageInventory = cacheInventory(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "yard-metadata-v2"],
-  { revalidate: HOMEPAGE_CACHE_SECONDS, tags: [HOMEPAGE_CACHE_TAG] },
+  ["homepage-inventory", "yard-paths-v3"],
 );

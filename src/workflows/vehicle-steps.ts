@@ -1,7 +1,7 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
-import { HOMEPAGE_CACHE_TAG } from "~/lib/homepage-stats";
+import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
@@ -102,8 +102,9 @@ export async function reportIngestionRunStep(
 }
 
 /**
- * Shows newly published inventory on the homepage. Every pass that completes
- * calls this, but it revalidates only once per new publication.
+ * Shows newly published inventory on the homepage and inventory pages. Every
+ * pass that completes calls this, but it revalidates only once per new
+ * publication.
  */
 export async function refreshHomepageStep() {
   "use step";
@@ -111,15 +112,15 @@ export async function refreshHomepageStep() {
   let refresh: InventoryCacheRefresh;
   try {
     refresh = await refreshInventoryCaches(() =>
-      revalidateTag(HOMEPAGE_CACHE_TAG, "max"),
+      revalidateTag(INVENTORY_CACHE_TAG, "max"),
     );
   } catch (error) {
-    throwRetryableStepError("Refresh the homepage cache", error);
+    throwRetryableStepError("Refresh the inventory caches", error);
   }
   if (refresh.status === "failed") {
     // The checkpoint stays behind, so the next hourly pass retries.
     console.error(
-      `[Workflow] Could not refresh the homepage cache for publication ${refresh.publicationSequence}; the homepage keeps the previous inventory until the next hourly pass retries: ${formatError(refresh.error)}`,
+      `[Workflow] Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the next hourly pass retries: ${formatError(refresh.error)}`,
     );
   }
 }
