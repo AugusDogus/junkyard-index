@@ -5,7 +5,7 @@ import { findUpullRPartsYard } from "./upullrparts-yard-metadata";
 
 const yard = findUpullRPartsYard(1);
 if (!yard) throw new Error("Missing Rosemount fixture yard");
-const make = { status: "resolved", make: "Ford" } as const;
+const make = "Ford";
 
 describe("U Pull R Parts transformation", () => {
   test("preserves source model and location with the authoritative make", () => {
@@ -70,13 +70,5 @@ describe("U Pull R Parts transformation", () => {
         make,
       ),
     ).toBeNull();
-  });
-  test("does not infer a manufacturer when provider evidence is unresolved", () => {
-    expect(
-      transformUpullRPartsVehicle(fixture, yard, {
-        status: "unresolved",
-        reason: "missing relation",
-      })?.make,
-    ).toBe("Other");
   });
 });

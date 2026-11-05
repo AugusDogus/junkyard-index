@@ -8,7 +8,6 @@ export class Database extends Context.Tag("ingestion/Database")<
 export interface IngestionConfig {
   betterStackHeartbeatUrl: string | undefined;
   hyperbrowserApiKey: string;
-  browserbase: { apiKey: string; projectId: string };
 }
 
 export class Config extends Context.Tag("ingestion/Config")<

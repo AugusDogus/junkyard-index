@@ -52,6 +52,7 @@
     "@vercel/blob": "^2.8.2",
     "@vercel/flags-core": "^1.11.0",
     "@vercel/functions": "^2.2.12",
+    "@vercel/sandbox": "^3.9.1",
     "algoliasearch": "^5.49.0",
     "better-auth": "1.6.23",
     "class-variance-authority": "^0.7.1",

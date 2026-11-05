@@ -1,3 +1,4 @@
+import { UpullRPartsCursor } from "./upullrparts-cursor";
 import {
   INGESTION_SOURCES,
   type IngestionSource,
@@ -95,7 +96,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 1,
   },
   upullrparts: {
-    initialCursor: { source: "upullrparts", catalog: 0 },
+    initialCursor: UpullRPartsCursor.initial,
     maxPagesPerChunk: 1,
   },
   ipullupull: {

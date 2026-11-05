@@ -50,7 +50,7 @@ export const UpullRPartsModelsSchema = Schema.Array(providerLabel).pipe(
 );
 
 function fetchUpullRPartsJson<A, I>(
-  apiAction: "getMakes" | "getModels",
+  apiAction: "getMakes" | "getModels" | "getYears",
   params: Record<string, string>,
   schema: Schema.Schema<A, I>,
   requestGate?: ProviderRequestGate,
@@ -92,6 +92,23 @@ export function fetchUpullRPartsMakes(requestGate: ProviderRequestGate) {
     "getMakes",
     {},
     UpullRPartsMakesSchema,
+    requestGate,
+  );
+}
+
+export const UpullRPartsYearsSchema = Schema.Array(
+  Schema.String.pipe(Schema.pattern(/^\d{4}$/)),
+).pipe(Schema.maxItems(200));
+
+export function fetchUpullRPartsYears(
+  make: string,
+  model: string,
+  requestGate: ProviderRequestGate,
+) {
+  return fetchUpullRPartsJson(
+    "getYears",
+    { Make: make, Model: model },
+    UpullRPartsYearsSchema,
     requestGate,
   );
 }

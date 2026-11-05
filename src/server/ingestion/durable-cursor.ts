@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
+import {
+  UpullRPartsCursor,
+  UpullRPartsCursorSchema,
+} from "./upullrparts-cursor";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
 const NonNegativeIntegerSchema = z.number().int().nonnegative().safe();
@@ -88,6 +92,22 @@ function defineJsonCursor<
       );
       return JSON.stringify(payload);
     },
+  };
+}
+
+/** A JSON cursor that also accepts checkpoints from an earlier format. */
+function defineLegacyJsonCursor<
+  Source extends IngestionSource,
+  Cursor extends SourceCursor<Source>,
+>(
+  source: Source,
+  schema: z.ZodType<Cursor>,
+  legacy: Readonly<Record<string, Cursor>>,
+): DurableCursorDefinition<Cursor> {
+  const json = defineJsonCursor(source, schema);
+  return {
+    parse: (value) => legacy[value] ?? json.parse(value),
+    serialize: json.serialize,
   };
 }
 
@@ -252,18 +272,14 @@ const DURABLE_CURSOR_DEFINITIONS = {
     (cursor) => cursor.storeIndex,
   ),
   wrenchapart: defineJsonCursor("wrenchapart", WrenchApartCursorSchema),
-  upullrparts: defineScalarCursor(
+  upullrparts: defineLegacyJsonCursor(
     "upullrparts",
-    z.object({
-      source: z.literal("upullrparts"),
-      catalog: z.union([z.literal(0), z.literal(1)]),
-    }),
-    (value): { source: "upullrparts"; catalog: 0 | 1 } => {
-      if (value !== 0 && value !== 1)
-        throw invalidCursor("upullrparts", String(value));
-      return { source: "upullrparts", catalog: value };
+    UpullRPartsCursorSchema,
+    // Runs started before the make crawl stored a scalar catalog checkpoint.
+    {
+      "0": UpullRPartsCursor.initial,
+      "1": { source: "upullrparts", phase: "complete", storesSeen: [] },
     },
-    (cursor) => cursor.catalog,
   ),
   ipullupull: defineScalarCursor(
     "ipullupull",
