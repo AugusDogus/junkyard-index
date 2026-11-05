@@ -34,8 +34,9 @@ function regionHref(region: Region): string {
 }
 
 /**
- * The yard's name, plus its city when the name doesn't already say it, so
- * the slug depends only on the yard itself and other yards can't change it.
+ * The yard's name, plus its city when the name doesn't already say it. New
+ * yards elsewhere can't change it. A yard with the same name and city in the
+ * same region would, since `assign` then hashes both slugs.
  */
 function baseSlug(yard: YardIdentity): string {
   const name = Slug.from(yard.name) || "yard";
