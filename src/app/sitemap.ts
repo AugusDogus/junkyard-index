@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://junkyardindex.com";
 
 /**
- * Static pages. They carry no lastmod: a build time would claim changes that
- * didn't happen. Yard pages are in /junkyards/sitemap.xml.
+ * Site pages. They carry no lastmod: a build time would claim changes that
+ * didn't happen. Region and yard pages are in /junkyards/sitemap.xml.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -12,6 +12,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: APP_URL,
       changeFrequency: "weekly",
       priority: 1,
+    },
+    {
+      url: `${APP_URL}/junkyards`,
+      changeFrequency: "daily",
+      priority: 0.9,
     },
     {
       url: `${APP_URL}/search`,
