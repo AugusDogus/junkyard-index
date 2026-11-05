@@ -32,7 +32,11 @@ const FAQ_ITEMS = [
         <Link href="#yards" className="underline underline-offset-4">
           map and yard directory
         </Link>{" "}
-        above to see current coverage. If a yard is missing, you can{" "}
+        above, or see{" "}
+        <Link href="/junkyards" className="underline underline-offset-4">
+          every yard by state
+        </Link>{" "}
+        with its full inventory. If a yard is missing, you can{" "}
         <Link href="/request-yard" className="underline underline-offset-4">
           request it
         </Link>

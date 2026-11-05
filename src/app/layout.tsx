@@ -8,6 +8,7 @@ import { Toaster } from "~/components/ui/sonner";
 
 import { TailwindIndicator } from "~/components/tailwind-indicator";
 import { ThemeProvider } from "~/components/theme/theme-provider";
+import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { TRPCReactProvider } from "~/trpc/react";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://junkyardindex.com";
@@ -35,10 +36,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Junkyard Index" }],
   creator: "Junkyard Index",
   openGraph: {
+    ...SITE_OPEN_GRAPH,
     type: "website",
-    locale: "en_US",
     url: APP_URL,
-    siteName: "Junkyard Index",
     title: "Junkyard Index",
     description:
       "Search salvage yard inventory across major yard networks, save searches, and get alerts when new donor vehicles arrive.",
