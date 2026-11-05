@@ -64,4 +64,5 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
     on vehicle_change_v2(run_id, vin, change_type)
     where processed_at is null;
 ${readFileSync(new URL("../../../drizzle/0016_yard_inventory.sql", import.meta.url), "utf8")}
+${readFileSync(new URL("../../../drizzle/0017_observed_vehicle_arrival.sql", import.meta.url), "utf8")}
 `;

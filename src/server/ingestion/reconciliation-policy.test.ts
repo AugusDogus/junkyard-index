@@ -49,6 +49,7 @@ function existingVehicle(
 ): typeof vehicle.$inferSelect {
   return {
     ...canonicalVehicle(vin),
+    observedArrivalAt: null,
     firstSeenAt: new Date("2026-02-01T00:00:00.000Z"),
     lastSeenAt: new Date("2026-03-01T00:00:00.000Z"),
     missingSinceAt: null,

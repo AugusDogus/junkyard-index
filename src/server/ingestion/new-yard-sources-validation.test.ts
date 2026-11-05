@@ -55,7 +55,8 @@ const schema = `${TEST_SCHEMA}
   create table vehicle (
     vin text primary key, source text not null, year integer not null,
     make text not null, model text not null, color text, stock_number text,
-    image_url text, available_date text, location_code text not null,
+    image_url text, available_date text, observed_arrival_at integer,
+    location_code text not null,
     location_name text not null, location_city text not null, state text not null,
     state_abbr text not null, lat real not null, lng real not null,
     section text, row text, space text, details_url text, parts_url text,

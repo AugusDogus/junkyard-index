@@ -296,6 +296,23 @@ export const yardInventory = sqliteTable(
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
 );
 
+/**
+ * Retains published yard history even after its last vehicle is retired.
+ * `establishedAt` is the run timestamp of the yard's first published crawl;
+ * yards that already had inventory when this table was added use epoch 0.
+ */
+export const yardArrivalBaseline = sqliteTable(
+  "yard_arrival_baseline",
+  {
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    establishedAt: integer("established_at", {
+      mode: "timestamp_ms",
+    }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
+);
+
 export const vehicle = sqliteTable(
   "vehicle",
   {
@@ -308,6 +325,7 @@ export const vehicle = sqliteTable(
     stockNumber: text("stock_number"),
     imageUrl: text("image_url"),
     availableDate: text("available_date"),
+    observedArrivalAt: integer("observed_arrival_at", { mode: "timestamp_ms" }),
     locationCode: text("location_code").notNull(),
     locationName: text("location_name").notNull(),
     locationCity: text("location_city").default("Unknown").notNull(),
@@ -331,6 +349,7 @@ export const vehicle = sqliteTable(
   },
   (table) => [
     index("vehicle_source_idx").on(table.source),
+    index("vehicle_source_vin_idx").on(table.source, table.vin),
     index("vehicle_make_model_idx").on(table.make, table.model),
     index("vehicle_first_seen_at_idx").on(table.firstSeenAt),
     // The homepage's newest live vehicles: filter, sort, and tie-break from
@@ -407,6 +426,14 @@ export const ingestionRun = sqliteTable(
       table.source,
       table.activeSlot,
     ),
+    index("ingestion_run_active_commit_idx").on(
+      table.activeSlot,
+      table.commitStartedAt,
+      table.source,
+    ),
+    index("ingestion_run_retention_idx")
+      .on(table.completedAt)
+      .where(sql`active_slot is null`),
     index("ingestion_run_schedule_key_idx").on(table.scheduleKey),
     index("ingestion_run_search_published_at_idx").on(table.searchPublishedAt),
     index("ingestion_run_stage_idx").on(table.stage),
@@ -443,6 +470,35 @@ export const ingestionSourceRun = sqliteTable(
     index("ingestion_source_run_status_idx").on(table.status),
     // Status reads each source's recent runs.
     index("ingestion_source_run_started_at_idx").on(table.startedAt),
+  ],
+);
+
+// When vehicles left their yard. Ingestion hard-deletes a missing vehicle
+// after a few runs, so a separate capture copies each one here first; this is
+// the only lasting record of how long vehicles stay. One row per departure:
+// departed_at is the first run the vehicle was missing.
+export const vehicleDeparture = sqliteTable(
+  "vehicle_departure",
+  {
+    vin: text("vin").notNull(),
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    year: integer("year").notNull(),
+    make: text("make").notNull(),
+    model: text("model").notNull(),
+    availableDate: text("available_date"),
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
+    departedAt: integer("departed_at", { mode: "timestamp_ms" }).notNull(),
+    recordedAt: integer("recorded_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.vin, table.departedAt] }),
+    index("vehicle_departure_yard_idx").on(
+      table.source,
+      table.locationCode,
+      table.departedAt,
+    ),
+    index("vehicle_departure_departed_at_idx").on(table.departedAt),
   ],
 );
 
