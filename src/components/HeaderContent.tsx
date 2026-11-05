@@ -37,6 +37,14 @@ export function HeaderContent({ auth, statusData }: HeaderContentProps) {
               Junkyard Index
             </Link>
           </div>
+          <nav aria-label="Main" className="hidden sm:block">
+            <Link
+              href="/junkyards"
+              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+            >
+              Junkyards
+            </Link>
+          </nav>
           <div className="flex-1" />
           <div className="flex shrink-0 items-center gap-2 sm:gap-4">
             {statusData && (
