@@ -1,10 +1,17 @@
 import { eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { db } from "~/lib/db";
 import { verifyUnsubscribeToken } from "~/lib/email";
 import { savedSearch } from "~/schema";
 import { setSearchAlertChannel } from "~/server/alerts/alert-config-repository";
+
+// Personal links from alert emails; nothing here belongs in search results.
+export const metadata: Metadata = {
+  title: "Unsubscribe",
+  robots: { index: false, follow: false },
+};
 
 interface UnsubscribePageProps {
   searchParams: Promise<{ id?: string; token?: string; done?: string }>;

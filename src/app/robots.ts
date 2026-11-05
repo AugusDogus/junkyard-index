@@ -8,7 +8,8 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/", "/auth/"],
+        // Auth pages stay crawlable so crawlers can see their noindex.
+        disallow: ["/api/"],
       },
     ],
     sitemap: [
