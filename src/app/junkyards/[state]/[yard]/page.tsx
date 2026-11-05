@@ -50,6 +50,7 @@ export default async function YardPage({
         makes={data.makes}
         publishedAt={data.publishedAt}
         nearby={data.nearby}
+        chain={data.chain}
       />
     </PublicPageShell>
   );

@@ -8,6 +8,10 @@ import { withWorkflow } from "workflow/next";
 
 /** @type {import("next").NextConfig} */
 const config = {
+  async redirects() {
+    // Old directory URL that still gets visits.
+    return [{ source: "/yards", destination: "/junkyards", permanent: true }];
+  },
   images: {
     loader: "custom",
     loaderFile: "./src/lib/wsrvLoader.ts",

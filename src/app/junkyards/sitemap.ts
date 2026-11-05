@@ -3,8 +3,8 @@ import { env } from "~/env";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { YardPath } from "~/lib/yard-path";
 import {
+  getRoutedYards,
   getSourcePublishedAt,
-  getYardDirectory,
   type RoutedYard,
 } from "~/server/yard-inventory";
 
@@ -26,13 +26,10 @@ function latest(dates: readonly (string | undefined)[]): string | undefined {
  * this sitemap's /junkyards/ scope, is in the root sitemap.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [directory, publishedAt] = await Promise.all([
-    getYardDirectory(),
+  const [yards, publishedAt] = await Promise.all([
+    getRoutedYards(),
     getSourcePublishedAt(),
   ]);
-  const yards = directory.filter(
-    (yard): yard is RoutedYard => yard.path !== null,
-  );
   const yardPublishedAt = (yard: RoutedYard) =>
     isIngestionSource(yard.source) ? publishedAt[yard.source] : undefined;
   const url = (href: string) =>
