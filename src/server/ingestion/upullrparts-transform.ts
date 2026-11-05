@@ -2,7 +2,6 @@ import type { CanonicalVehicle } from "./types";
 import { normalizeCanonicalColor, normalizeRegion } from "./normalization";
 import type { UpullRPartsVehicle } from "./upullrparts-client";
 import type { UpullRPartsYard } from "./upullrparts-yard-metadata";
-import type { UpullRPartsMakeResolution } from "./upullrparts-makes";
 
 export type UpullRPartsCanonicalVehicle = CanonicalVehicle & {
   source: "upullrparts";
@@ -41,7 +40,8 @@ export function isUsableUpullRPartsVehicle(
 export function transformUpullRPartsVehicle(
   record: UpullRPartsVehicle,
   yard: UpullRPartsYard,
-  make: UpullRPartsMakeResolution,
+  /** Canonical make of the directory search that returned the row. */
+  make: string,
 ): UpullRPartsCanonicalVehicle | null {
   if (
     !isUsableUpullRPartsVehicle(record) ||
@@ -53,7 +53,7 @@ export function transformUpullRPartsVehicle(
     vin: record.VIN.trim().toUpperCase(),
     source: "upullrparts",
     year: record.Year,
-    make: make.status === "resolved" ? make.make : "Other",
+    make,
     model: record.Model.trim(),
     color: normalizeCanonicalColor(record.Color ?? null),
     stockNumber: text(record.StockNumber),

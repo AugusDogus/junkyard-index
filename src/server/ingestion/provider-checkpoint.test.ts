@@ -1,3 +1,4 @@
+import { UpullRPartsCursor } from "./upullrparts-cursor";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { readFileSync } from "node:fs";
@@ -103,10 +104,7 @@ describe("provider checkpoints", () => {
     const uprYard = findUpullRPartsYard(uprRecord.Store);
     if (!uprYard)
       throw new Error("U Pull R Parts fixture needs a configured yard");
-    const uprVehicle = transformUpullRPartsVehicle(uprRecord, uprYard, {
-      status: "resolved",
-      make: "Ford",
-    });
+    const uprVehicle = transformUpullRPartsVehicle(uprRecord, uprYard, "Ford");
     if (!wrenchVehicle || !uprVehicle)
       throw new Error("Provider fixtures must produce canonical vehicles");
     const fixtureText = (name: string) =>
@@ -182,8 +180,14 @@ describe("provider checkpoints", () => {
         yard: tapYard(tapStore, TEARAPART_SITE_CONFIG),
       },
       {
-        initial: { source: "upullrparts", catalog: 0 },
-        next: { source: "upullrparts", catalog: 1 },
+        initial: UpullRPartsCursor.initial,
+        next: {
+          source: "upullrparts",
+          phase: "crawl",
+          location: "3",
+          afterMake: null,
+          storesSeen: [1, 2],
+        },
         vehicle: uprVehicle,
         yard: uprYard,
       },

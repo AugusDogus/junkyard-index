@@ -134,12 +134,12 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamUpullRPartsInventory({
-          startCursor: cursor.catalog,
+          startCursor: cursor,
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),
       ),
-      (catalog) => ({ source: "upullrparts", catalog }),
+      (next) => next,
       context.vehiclesByVin,
       context.yardsByCode,
     ),

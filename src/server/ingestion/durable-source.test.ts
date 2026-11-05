@@ -6,6 +6,7 @@ import {
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
 } from "./durable-source";
+import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 describe("durable ingestion cursors", () => {
@@ -120,17 +121,31 @@ describe("durable ingestion cursors", () => {
         afterLocationId: 4,
       }),
     ).toBe('{"afterLocationId":4}');
+    // Checkpoints written before the make crawl still resume.
     expect(parseDurableSourceCursor("upullrparts", "0")).toEqual({
       source: "upullrparts",
-      catalog: 0,
+      phase: "crawl",
+      location: "1",
+      afterMake: null,
+      storesSeen: [],
     });
     expect(parseDurableSourceCursor("upullrparts", "1")).toEqual({
       source: "upullrparts",
-      catalog: 1,
+      phase: "complete",
+      storesSeen: [],
     });
-    expect(
-      serializeDurableSourceCursor({ source: "upullrparts", catalog: 1 }),
-    ).toBe("1");
+    const crawl: DurableCursorFor<"upullrparts"> = {
+      source: "upullrparts",
+      phase: "crawl",
+      location: "3",
+      afterMake: "Ford",
+      storesSeen: [1, 2],
+    };
+    const serialized = serializeDurableSourceCursor(crawl);
+    expect(serialized).toBe(
+      '{"phase":"crawl","location":"3","afterMake":"Ford","storesSeen":[1,2]}',
+    );
+    expect(parseDurableSourceCursor("upullrparts", serialized)).toEqual(crawl);
     expect(parseDurableSourceCursor("pullnsave", "11")).toEqual({
       source: "pullnsave",
       page: 11,
