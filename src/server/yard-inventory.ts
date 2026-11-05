@@ -5,6 +5,7 @@ import { cache } from "react";
 import { db } from "~/lib/db";
 import { Region } from "~/lib/region";
 import { calculateDistance } from "~/lib/utils";
+import { YardBrand, type Chain } from "~/lib/yard-brand";
 import type { YardPath } from "~/lib/yard-path";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { cacheInventory } from "~/lib/inventory-cache";
@@ -99,13 +100,47 @@ function isRouted(yard: DirectoryYard): yard is RoutedYard {
   return yard.path !== null;
 }
 
+/** Every yard that has a page. */
+export const getRoutedYards = cache(
+  async (): Promise<RoutedYard[]> =>
+    (await getYardDirectory()).filter(isRouted),
+);
+
+/** Brands with more than one yard, largest first. */
+export const getChains = cache(
+  async (): Promise<Chain<RoutedYard>[]> =>
+    YardBrand.chains(await getRoutedYards()),
+);
+
+/** The chain at /chains/{slug}, if there is one. */
+export const findChain = cache(
+  async (slug: string): Promise<Chain<RoutedYard> | null> =>
+    (await getChains()).find((chain) => chain.slug === slug) ?? null,
+);
+
+/**
+ * When the most recently published of these yards' sources published, or
+ * null when none has published in the freshness window.
+ */
+export async function latestPublishedAt(
+  yards: readonly { source: string }[],
+): Promise<string | null> {
+  const publishedAt = await getSourcePublishedAt();
+  return yards.reduce<string | null>((latest, yard) => {
+    const date = isIngestionSource(yard.source)
+      ? publishedAt[yard.source]
+      : undefined;
+    return date && (!latest || date > latest) ? date : latest;
+  }, null);
+}
+
 /** The region for a URL segment and its yards, or null if it has none. */
 export const findRegionYards = cache(async (regionSlug: string) => {
   const region = Region.fromSlug(regionSlug);
   if (!region) return null;
-  const yards = (await getYardDirectory())
-    .filter(isRouted)
-    .filter((yard) => yard.path.region.slug === region.slug);
+  const yards = (await getRoutedYards()).filter(
+    (yard) => yard.path.region.slug === region.slug,
+  );
   return yards.length > 0 ? { region, yards } : null;
 });
 
@@ -119,13 +154,16 @@ export const getYardPageData = cache(
   async (regionSlug: string, yardSlug: string) => {
     const yard = await findYard(regionSlug, yardSlug);
     if (!yard) return null;
-    const [vehicles, publishedAt, directory] = await Promise.all([
+    const [vehicles, publishedAt, routed, chains] = await Promise.all([
       getYardVehicles(yard.source, yard.code),
       getSourcePublishedAt(),
-      getYardDirectory(),
+      getRoutedYards(),
+      getChains(),
     ]);
-    const nearby = directory
-      .filter(isRouted)
+    const chain = chains.find((candidate) =>
+      candidate.yards.some((member) => member.path.href === yard.path.href),
+    );
+    const nearby = routed
       .filter((other) => other.path.href !== yard.path.href)
       .map((other) => ({
         yard: other,
@@ -141,6 +179,9 @@ export const getYardPageData = cache(
         ? (publishedAt[yard.source] ?? null)
         : null,
       nearby,
+      chain: chain
+        ? { name: chain.name, href: chain.href, yards: chain.yards.length }
+        : null,
     };
   },
 );
@@ -148,10 +189,8 @@ export const getYardPageData = cache(
 /** The yard at /junkyards/{regionSlug}/{yardSlug}, if one lives there. */
 export const findYard = cache(
   async (regionSlug: string, yardSlug: string): Promise<RoutedYard | null> =>
-    (await getYardDirectory())
-      .filter(isRouted)
-      .find(
-        (yard) =>
-          yard.path.region.slug === regionSlug && yard.path.slug === yardSlug,
-      ) ?? null,
+    (await getRoutedYards()).find(
+      (yard) =>
+        yard.path.region.slug === regionSlug && yard.path.slug === yardSlug,
+    ) ?? null,
 );
