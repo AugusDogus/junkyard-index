@@ -20,6 +20,7 @@ import { validateDurableSourceRuns } from "./durable-source-validation";
 import { fetchDurableSourceChunk } from "./durable-source-fetch";
 import { IngestionDay } from "./ingestion-day";
 import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
+import { InventoryCacheRefresh } from "./inventory-cache-refresh";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { BetterStackProviders } from "./better-stack-providers";
@@ -68,6 +69,13 @@ export async function prepareIngestionPass(
   return wakeup.status === "active"
     ? { status: "active", runIds: wakeup.runs.map((run) => run.runId) }
     : wakeup;
+}
+
+/** Revalidates inventory caches if a newer publication exists than they show. */
+export function refreshInventoryCaches(
+  revalidate: () => void,
+): Promise<InventoryCacheRefresh> {
+  return InventoryCacheRefresh.run({ database: db, revalidate });
 }
 
 export function listDurableIngestionCommitWaiters(): Promise<string[]> {

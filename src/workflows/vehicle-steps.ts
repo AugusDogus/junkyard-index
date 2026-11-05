@@ -13,6 +13,7 @@ import {
   claimDurableIngestionCommit,
   listDurableIngestionCommitWaiters,
   prepareIngestionPass,
+  refreshInventoryCaches,
   initializeDurableIngestion,
   markDurableSourceFailed,
   persistDurableIngestionFailure,
@@ -33,6 +34,7 @@ import {
   type SearchIndexMigrationState,
 } from "~/server/ingestion/search-index-migration";
 import type { IngestionRunReport } from "~/server/ingestion/ingestion-pass-orchestrator";
+import type { InventoryCacheRefresh } from "~/server/ingestion/inventory-cache-refresh";
 import { IngestionTokens } from "./ingestion-tokens";
 import {
   recordDurableRunFailure,
@@ -99,19 +101,29 @@ export async function reportIngestionRunStep(
   }
 }
 
-/** Shows the day's published inventory on the homepage. */
+/**
+ * Shows newly published inventory on the homepage. Every pass that completes
+ * calls this, but it revalidates only once per new publication.
+ */
 export async function refreshHomepageStep() {
   "use step";
 
+  let refresh: InventoryCacheRefresh;
   try {
-    revalidateTag(HOMEPAGE_CACHE_TAG, "max");
+    refresh = await refreshInventoryCaches(() =>
+      revalidateTag(HOMEPAGE_CACHE_TAG, "max"),
+    );
   } catch (error) {
-    // The homepage caches still expire within a day.
+    throwRetryableStepError("Refresh the homepage cache", error);
+  }
+  if (refresh.status === "failed") {
+    // The checkpoint stays behind, so the next hourly pass retries.
     console.error(
-      `[Workflow] Could not refresh the homepage cache: ${formatError(error)}`,
+      `[Workflow] Could not refresh the homepage cache for publication ${refresh.publicationSequence}; the homepage keeps the previous inventory until the next hourly pass retries: ${formatError(refresh.error)}`,
     );
   }
 }
+refreshHomepageStep.maxRetries = 2;
 
 /** Wakes runs waiting for the shared commit after it is released. */
 export async function signalCommitWaitersStep() {
