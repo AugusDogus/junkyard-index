@@ -1,6 +1,7 @@
 import { and, asc, count, eq, getTableColumns, isNull, min } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { getYardDetails } from "~/lib/yard-details";
+import { YardPath } from "~/lib/yard-path";
 import { vehicle, yard as yardTable } from "~/schema";
 
 export async function getHomepageYards(database: LibSQLDatabase) {
@@ -28,8 +29,13 @@ export async function getHomepageYards(database: LibSQLDatabase) {
     .where(isNull(vehicle.missingSinceAt))
     .groupBy(vehicle.source, vehicle.locationCode)
     .orderBy(asc(vehicle.stateAbbr), asc(vehicle.locationName));
-  return yards.map(({ metadata, inventoryUrl, ...yard }) => ({
+  const detailed = yards.map(({ metadata, inventoryUrl, ...yard }) => ({
     ...yard,
     ...getYardDetails({ ...yard, inventoryUrl }, metadata),
+  }));
+  const paths = YardPath.assign(detailed);
+  return detailed.map((yard) => ({
+    ...yard,
+    path: paths.get(YardPath.key(yard)) ?? null,
   }));
 }

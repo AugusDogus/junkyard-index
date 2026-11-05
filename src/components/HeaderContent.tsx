@@ -2,17 +2,28 @@
 
 import Link from "next/link";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
+import { SessionHeaderAuthButtons } from "./SessionHeaderAuthButtons";
 import {
   HeaderStatusIndicator,
   type HeaderStatusData,
 } from "./HeaderStatusIndicator";
 
+type HeaderUser = { name: string; email: string; image?: string | null };
+
+/**
+ * Where the header learns who is signed in: from the request while rendering,
+ * or in the browser on pages served from the CDN.
+ */
+export type HeaderAuth =
+  | { kind: "server"; user: HeaderUser | null }
+  | { kind: "client" };
+
 interface HeaderContentProps {
-  user: { name: string; email: string; image?: string | null } | null;
+  auth: HeaderAuth;
   statusData?: HeaderStatusData | null;
 }
 
-export function HeaderContent({ user, statusData }: HeaderContentProps) {
+export function HeaderContent({ auth, statusData }: HeaderContentProps) {
   return (
     <header className="bg-background sticky top-0 z-50 border-b shadow-sm">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -37,7 +48,11 @@ export function HeaderContent({ user, statusData }: HeaderContentProps) {
                 />
               </>
             )}
-            <HeaderAuthButtons user={user} />
+            {auth.kind === "server" ? (
+              <HeaderAuthButtons user={auth.user} />
+            ) : (
+              <SessionHeaderAuthButtons />
+            )}
           </div>
         </div>
       </div>

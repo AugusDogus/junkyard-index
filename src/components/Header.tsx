@@ -22,5 +22,10 @@ export async function Header() {
     }),
   ]);
 
-  return <HeaderContent user={session?.user ?? null} statusData={statusData} />;
+  return (
+    <HeaderContent
+      auth={{ kind: "server", user: session?.user ?? null }}
+      statusData={statusData}
+    />
+  );
 }
