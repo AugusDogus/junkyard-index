@@ -19,9 +19,11 @@ function latest(dates: readonly (string | undefined)[]): string | undefined {
 }
 
 /**
- * /junkyards/sitemap.xml: the directory, each region, and each yard's first
- * inventory page. lastmod is when the yard's source last published, so it
- * only moves when that inventory could have changed.
+ * /junkyards/sitemap.xml: each region and each yard's first inventory page.
+ * A yard's lastmod is when its source last published. A region's is the
+ * latest publish of any source: a removed yard also changes the region page,
+ * and its source's last date leaves with it. The directory itself, outside
+ * this sitemap's /junkyards/ scope, is in the root sitemap.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [directory, publishedAt] = await Promise.all([
@@ -40,20 +42,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(lastModified && { lastModified }),
   });
 
-  const regions = new Map<string, { href: string; dates: string[] }>();
-  for (const yard of yards) {
-    const href = YardPath.regionHref(yard.path.region);
-    const region = regions.get(href) ?? { href, dates: [] };
-    const date = yardPublishedAt(yard);
-    if (date) region.dates.push(date);
-    regions.set(href, region);
-  }
+  const newest = latest(Object.values(publishedAt));
+  const regions = new Set(
+    yards.map((yard) => YardPath.regionHref(yard.path.region)),
+  );
 
   return [
-    entry("/junkyards", latest(yards.map(yardPublishedAt))),
-    ...[...regions.values()].map(({ href, dates }) =>
-      entry(href, latest(dates)),
-    ),
+    ...[...regions].map((href) => entry(href, newest)),
     ...yards.map((yard) => entry(yard.path.href, yardPublishedAt(yard))),
   ];
 }
