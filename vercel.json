@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/vehicle-ingestion",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/vehicle-departures",
+      "schedule": "20 * * * *"
     }
   ]
 }
