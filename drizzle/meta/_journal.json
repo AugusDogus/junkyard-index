@@ -134,6 +134,13 @@
       "when": 1794871322488,
       "tag": "0018_ingestion_cost_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794992048862,
+      "tag": "0019_vehicle_departure",
+      "breakpoints": true
     }
   ]
 }
