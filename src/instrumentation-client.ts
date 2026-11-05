@@ -3,10 +3,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
-import {
-  captureRouterTransitionStart,
-  replayIntegration,
-} from "@sentry/nextjs";
+import { captureRouterTransitionStart } from "@sentry/nextjs";
 import posthog from "posthog-js";
 import { denyUrls, ignoreErrors } from "sentry-ignores";
 import { env } from "~/env";
@@ -18,30 +15,26 @@ Sentry.init({
   denyUrls,
   ignoreErrors,
 
-  // Add optional integrations for additional features
-  integrations: [replayIntegration()],
-
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
   // Enable logs to be sent to Sentry
   enableLogs: true,
-
-  // Define how likely Replay events are sampled.
-  // This sets the sample rate to be 10%. You may want this to be 100% while
-  // in development and sample at a lower rate in production
-  replaysSessionSampleRate: 0.1,
-
-  // Define how likely Replay events are sampled when an error occurs.
-  replaysOnErrorSampleRate: 1.0,
 
   // Enable sending user PII (Personally Identifiable Information)
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
 });
 
+// No session replay in either tool: nobody watches the recordings, and
+// recording the DOM cost every page about 650 ms of main-thread time on
+// mobile. Surveys and dead-click capture are off too, so their scripts never
+// load. Events, pageviews, and web vitals still report.
 posthog.init(env.NEXT_PUBLIC_POSTHOG_KEY, {
   api_host: env.NEXT_PUBLIC_POSTHOG_HOST,
   defaults: "2026-01-30",
+  disable_session_recording: true,
+  disable_surveys: true,
+  capture_dead_clicks: false,
 });
 
 export const onRouterTransitionStart = captureRouterTransitionStart;
