@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { YardName } from "~/lib/yard-name";
 import type { RoutedYard } from "~/server/yard-inventory";
-
-const count = (value: number) => value.toLocaleString("en-US");
+import { InventoryFormat } from "~/lib/inventory-format";
 
 /** Links to yards' inventory pages with their city and live count. */
 export function YardList({ yards }: { yards: readonly RoutedYard[] }) {
@@ -19,7 +18,8 @@ export function YardList({ yards }: { yards: readonly RoutedYard[] }) {
               {YardName.headline(yard.name, yard.operator)}
             </span>
             <span className="text-muted-foreground mt-1 text-xs tabular-nums">
-              {yard.city}, {yard.state} · {count(yard.vehicleCount)}{" "}
+              {yard.city}, {yard.state} ·{" "}
+              {InventoryFormat.count(yard.vehicleCount)}{" "}
               {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
             </span>
           </Link>

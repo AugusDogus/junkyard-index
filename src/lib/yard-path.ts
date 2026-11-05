@@ -47,6 +47,21 @@ function baseSlug(yard: YardIdentity): string {
 export const YardPath = {
   key,
   regionHref,
+  /** Yards grouped by region, regions in alphabetical order. */
+  byRegion<Yard extends { path: YardPath }>(
+    yards: readonly Yard[],
+  ): { region: Region; yards: Yard[] }[] {
+    const groups = new Map<string, { region: Region; yards: Yard[] }>();
+    for (const yard of yards) {
+      const { region } = yard.path;
+      const group = groups.get(region.slug) ?? { region, yards: [] };
+      group.yards.push(yard);
+      groups.set(region.slug, group);
+    }
+    return [...groups.values()].sort((a, b) =>
+      a.region.name.localeCompare(b.region.name),
+    );
+  },
   /** The URL of page `page` (1-based) of a yard's inventory. */
   pageHref(path: YardPath, page: number): string {
     return page <= 1 ? path.href : `${path.href}/page/${page}`;

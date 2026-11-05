@@ -122,6 +122,24 @@ describe("YardPath.assign", () => {
     expect(YardPath.assign([yard({ state: "??" })]).size).toBe(0);
   });
 
+  test("groups yards by region in name order", () => {
+    const paths = YardPath.assign([
+      yard({ code: "1", state: "TX", name: "A" }),
+      yard({ code: "2", state: "AL", name: "B" }),
+      yard({ code: "3", state: "TX", name: "C" }),
+    ]);
+    const routed = [...paths.values()].map((path) => ({ path }));
+    expect(
+      YardPath.byRegion(routed).map(({ region, yards }) => [
+        region.name,
+        yards.length,
+      ]),
+    ).toEqual([
+      ["Alabama", 1],
+      ["Texas", 2],
+    ]);
+  });
+
   test("pages after the first live under /page/{n}", () => {
     const path = YardPath.assign([yard({})]).get("pyp:1");
     if (!path) throw new Error("expected a path");
