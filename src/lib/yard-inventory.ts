@@ -1,3 +1,5 @@
+import { VehicleName } from "./vehicle-name";
+
 /** One live vehicle as shown on a yard's inventory pages. */
 export type YardVehicle = {
   vin: string;
@@ -25,7 +27,8 @@ export type YardInventoryPage = {
   vehicles: YardVehicle[];
 };
 
-export type MakeCount = { make: string; count: number };
+/** A make at one yard; `key` matches the national make page's. */
+export type MakeCount = { key: string; make: string; count: number };
 
 export const YARD_PAGE_SIZE = 100;
 
@@ -58,7 +61,6 @@ export const YardInventory = {
     detailsUrl: string | null;
   }): YardVehicle {
     const { availableDate, firstSeenAt, ...rest } = row;
-    const setAt = availableDate ? Date.parse(availableDate) : Number.NaN;
     return {
       ...rest,
       trim: text(rest.trim),
@@ -68,12 +70,18 @@ export const YardInventory = {
       section: text(rest.section),
       row: text(rest.row),
       space: text(rest.space),
-      addedAt: Number.isFinite(setAt) ? setAt : firstSeenAt,
+      addedAt: YardInventory.addedAt(availableDate, firstSeenAt),
     };
   },
 
+  /** The yard's set date when it parses, else when we first saw it (ms). */
+  addedAt(availableDate: string | null, firstSeenAt: number): number {
+    const setAt = availableDate ? Date.parse(availableDate) : Number.NaN;
+    return Number.isFinite(setAt) ? setAt : firstSeenAt;
+  },
+
   /** Newest first; VIN breaks ties so pages are stable between renders. */
-  sort(vehicles: readonly YardVehicle[]): YardVehicle[] {
+  sort<Vehicle extends YardVehicle>(vehicles: readonly Vehicle[]): Vehicle[] {
     return [...vehicles].sort(
       (a, b) =>
         b.addedAt - a.addedAt || (a.vin < b.vin ? -1 : a.vin > b.vin ? 1 : 0),
@@ -99,29 +107,26 @@ export const YardInventory = {
   },
 
   /**
-   * Live vehicles per make, most common first. Spellings that differ only in
-   * case count together under the mixed-case spelling when one exists.
+   * Live vehicles per make, most common first. Spellings of one make ("Vw",
+   * "Volkswagen") count together under the preferred spelling; placeholder
+   * makes such as "Other" are left out.
    */
   makeCounts(vehicles: readonly YardVehicle[]): MakeCount[] {
-    const groups = new Map<
-      string,
-      { names: Map<string, number>; count: number }
-    >();
+    const groups = new Map<string, Map<string, number>>();
     for (const { make } of vehicles) {
+      const key = VehicleName.makeKey(make);
+      if (!key) continue;
       const name = make.trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      const group = groups.get(key) ?? { names: new Map(), count: 0 };
-      group.count++;
-      group.names.set(name, (group.names.get(name) ?? 0) + 1);
-      groups.set(key, group);
+      const spellings = groups.get(key) ?? new Map<string, number>();
+      spellings.set(name, (spellings.get(name) ?? 0) + 1);
+      groups.set(key, spellings);
     }
-    return [...groups.values()]
-      .map(({ names, count }) => {
-        const spellings = [...names.entries()].sort((a, b) => b[1] - a[1]);
-        const mixed = spellings.find(([name]) => name !== name.toUpperCase());
-        return { make: (mixed ?? spellings[0])?.[0] ?? "", count };
-      })
+    return [...groups.entries()]
+      .map(([key, spellings]) => ({
+        key,
+        make: VehicleName.preferredSpelling(spellings),
+        count: [...spellings.values()].reduce((sum, n) => sum + n, 0),
+      }))
       .sort((a, b) => b.count - a.count || a.make.localeCompare(b.make));
   },
 

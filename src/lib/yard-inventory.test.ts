@@ -84,18 +84,30 @@ describe("YardInventory.page", () => {
 });
 
 describe("YardInventory.makeCounts", () => {
-  test("merges case variants under the mixed-case spelling", () => {
+  test("merges spellings of a make and drops placeholders", () => {
     const counts = YardInventory.makeCounts(
-      ["HONDA", "Honda", "HONDA", "BMW", "Ford", "Ford", "Ford", " "].map(
-        (make, index) =>
-          YardInventory.vehicle(row({ vin: String(index), make })),
+      [
+        "HONDA",
+        "Honda",
+        "HONDA",
+        "BMW",
+        "Ford",
+        "Ford",
+        "Ford",
+        " ",
+        "Other",
+        "Vw",
+        "Volkswagen",
+      ].map((make, index) =>
+        YardInventory.vehicle(row({ vin: String(index), make })),
       ),
     );
     // Equal counts read alphabetically; all-caps spellings stay as given.
     expect(counts).toEqual([
-      { make: "Ford", count: 3 },
-      { make: "Honda", count: 3 },
-      { make: "BMW", count: 1 },
+      { key: "FORD", make: "Ford", count: 3 },
+      { key: "HONDA", make: "Honda", count: 3 },
+      { key: "VOLKSWAGEN", make: "Volkswagen", count: 2 },
+      { key: "BMW", make: "BMW", count: 1 },
     ]);
   });
 });
