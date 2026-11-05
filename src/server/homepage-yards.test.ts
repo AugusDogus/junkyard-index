@@ -71,6 +71,15 @@ test("directory joins metadata by source and code without changing active invent
       vehicleCount: 1,
       phone: null,
     });
+    // Paths come from the metadata name, so legacy names don't leak into URLs.
+    expect(yards.find((entry) => entry.source === "pyp")?.path?.href).toBe(
+      "/junkyards/california/pick-your-part-sun-valley",
+    );
+    expect(
+      yards.find((entry) => entry.source === "pullapart")?.path,
+    ).toMatchObject({
+      href: "/junkyards/alabama/pull-a-part-u-pull-and-pay-montgomery",
+    });
   } finally {
     client.close();
   }

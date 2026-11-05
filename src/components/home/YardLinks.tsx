@@ -1,4 +1,5 @@
 import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
+import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import {
   Tooltip,
@@ -15,6 +16,16 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
   const phoneHref = yardPhoneHref(yard.phone);
   return (
     <div className="text-muted-foreground pointer-events-none relative z-10 flex items-center gap-3 text-xs">
+      {yard.path && (
+        <Link
+          href={yard.path.href}
+          prefetch={false}
+          aria-label={`Inventory at ${yard.name}`}
+          className={`${linkClassName} text-foreground font-medium`}
+        >
+          Inventory
+        </Link>
+      )}
       {yard.website && (
         <a
           href={yard.website.href}

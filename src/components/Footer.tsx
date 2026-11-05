@@ -3,7 +3,14 @@ import { FooterLinks } from "~/components/FooterLinks";
 import { StatusChip } from "~/components/StatusChip";
 import { env } from "~/env";
 
-export function Footer() {
+/**
+ * `live` fetches the status page's current state, cached for five minutes.
+ * Pages served from the CDN use `link`, because that fetch would cap how long
+ * the CDN may keep them.
+ */
+type FooterStatus = "live" | "link";
+
+export function Footer({ status = "live" }: { status?: FooterStatus }) {
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
 
   return (
@@ -13,11 +20,21 @@ export function Footer() {
           Junkyard Index
         </p>
         <FooterLinks />
-        {statusPageUrl && (
-          <Suspense fallback={null}>
-            <StatusChip statusPageUrl={statusPageUrl} />
-          </Suspense>
-        )}
+        {statusPageUrl &&
+          (status === "live" ? (
+            <Suspense fallback={null}>
+              <StatusChip statusPageUrl={statusPageUrl} />
+            </Suspense>
+          ) : (
+            <a
+              href={statusPageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground text-xs whitespace-nowrap transition-colors sm:ml-auto"
+            >
+              System status
+            </a>
+          ))}
       </div>
     </footer>
   );
