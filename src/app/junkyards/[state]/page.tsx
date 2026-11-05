@@ -11,6 +11,7 @@ import { StructuredData } from "~/lib/structured-data";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
 import { findRegionYards, type RoutedYard } from "~/server/yard-inventory";
+import { InventoryFormat } from "~/lib/inventory-format";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
 export const revalidate = 86400;
@@ -22,8 +23,6 @@ export function generateStaticParams(): Params[] {
   return [];
 }
 
-const count = (value: number) => value.toLocaleString("en-US");
-
 export async function generateMetadata({
   params,
 }: {
@@ -34,7 +33,7 @@ export async function generateMetadata({
   const { region, yards } = found;
   const vehicles = yards.reduce((sum, yard) => sum + yard.vehicleCount, 0);
   const title = `Junkyards in ${region.name} with Live Inventory`;
-  const description = `${count(yards.length)} salvage ${yards.length === 1 ? "yard" : "yards"} in ${region.name} with ${count(vehicles)} vehicles listed. See each yard's full inventory, checked daily.`;
+  const description = `${InventoryFormat.count(yards.length)} salvage ${yards.length === 1 ? "yard" : "yards"} in ${region.name} with ${InventoryFormat.count(vehicles)} vehicles listed. See each yard's full inventory, checked daily.`;
   const url = YardPath.regionHref(region);
   return {
     title,
@@ -96,10 +95,13 @@ export default async function RegionPage({
       </h1>
       <p className="mt-3 text-base text-pretty">
         <span className="font-medium tabular-nums">
-          {count(yards.length)} {yards.length === 1 ? "yard" : "yards"}
+          {InventoryFormat.count(yards.length)}{" "}
+          {yards.length === 1 ? "yard" : "yards"}
         </span>{" "}
         in {region.name} list{" "}
-        <span className="font-medium tabular-nums">{count(vehicles)}</span>{" "}
+        <span className="font-medium tabular-nums">
+          {InventoryFormat.count(vehicles)}
+        </span>{" "}
         vehicles. Each yard&apos;s page lists every vehicle with its VIN and
         date added, plus its row where the yard lists one. We check every
         yard&apos;s listings daily.

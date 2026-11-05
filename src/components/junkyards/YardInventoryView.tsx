@@ -21,18 +21,7 @@ import { YardPath } from "~/lib/yard-path";
 import { yardPhoneHref } from "~/lib/yard-phone";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { RoutedYard } from "~/server/yard-inventory";
-
-const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-const count = (value: number) => value.toLocaleString("en-US");
-
-const plural = (value: number, one: string, many: string) =>
-  `${count(value)} ${value === 1 ? one : many}`;
+import { InventoryFormat } from "~/lib/inventory-format";
 
 export function yardCrumbs(yard: RoutedYard): Crumb[] {
   return [
@@ -61,8 +50,8 @@ export function yardPageMetadata(
     page === 1
       ? `${headline} Inventory | ${place}`
       : `${headline} Inventory, Page ${page} | ${place}`;
-  const description = `${plural(total, "vehicle", "vehicles")} at ${headline} in ${place}, with the year, make, model, and VIN of each.${
-    publishedAt ? ` Updated ${DATE_FORMAT.format(new Date(publishedAt))}.` : ""
+  const description = `${InventoryFormat.plural(total, "vehicle", "vehicles")} at ${headline} in ${place}, with the year, make, model, and VIN of each.${
+    publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
   }`;
   const url = YardPath.pageHref(yard.path, page);
   return {
@@ -81,6 +70,7 @@ export function YardInventoryView({
   makes,
   publishedAt,
   nearby,
+  chain,
 }: {
   yard: RoutedYard;
   inventory: YardInventoryPage;
@@ -88,6 +78,8 @@ export function YardInventoryView({
   makes: MakeCount[];
   publishedAt: string | null;
   nearby: readonly NearbyYard[];
+  /** The chain the yard belongs to, when it has other yards we track. */
+  chain: { name: string; href: string; yards: number } | null;
 }) {
   const crumbs = yardCrumbs(yard);
   const headline = YardName.headline(yard.name, yard.operator);
@@ -117,17 +109,30 @@ export function YardInventoryView({
 
       <header className="border-b pb-6">
         <p className="text-muted-foreground text-sm">
-          Salvage yard
-          {yard.operator && !headline.includes(yard.operator)
-            ? ` run by ${yard.operator}`
-            : ""}
+          {chain ? (
+            <Link
+              href={chain.href}
+              prefetch={false}
+              className="hover:text-foreground underline-offset-4 hover:underline"
+            >
+              One of the {InventoryFormat.count(chain.yards)} {chain.name} yards
+              we track
+            </Link>
+          ) : (
+            <>
+              Salvage yard
+              {yard.operator && !headline.includes(yard.operator)
+                ? ` run by ${yard.operator}`
+                : ""}
+            </>
+          )}
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
           {headline} inventory
         </h1>
         <p className="mt-3 text-base text-pretty">
           <span className="font-medium tabular-nums">
-            {plural(total, "vehicle", "vehicles")}
+            {InventoryFormat.plural(total, "vehicle", "vehicles")}
           </span>{" "}
           in the yard in {yard.city}, {yard.state}.{" "}
           <Freshness publishedAt={publishedAt} />
@@ -144,7 +149,8 @@ export function YardInventoryView({
           </h2>
           {total > 0 && (
             <p className="text-muted-foreground text-sm tabular-nums">
-              {count(shownFrom)}–{count(shownTo)} of {count(total)}
+              {InventoryFormat.count(shownFrom)}–
+              {InventoryFormat.count(shownTo)} of {InventoryFormat.count(total)}
             </p>
           )}
         </div>
@@ -190,8 +196,13 @@ export function YardInventoryView({
                     {YardName.headline(other.name, other.operator)}
                   </span>
                   <span className="text-muted-foreground mt-1 block text-xs tabular-nums">
-                    {other.city}, {other.state} · {count(Math.round(miles))} mi
-                    · {plural(other.vehicleCount, "vehicle", "vehicles")}
+                    {other.city}, {other.state} ·{" "}
+                    {InventoryFormat.count(Math.round(miles))} mi ·{" "}
+                    {InventoryFormat.plural(
+                      other.vehicleCount,
+                      "vehicle",
+                      "vehicles",
+                    )}
                   </span>
                 </Link>
               </li>
@@ -215,10 +226,7 @@ function Freshness({ publishedAt }: { publishedAt: string | null }) {
   return (
     <span className="text-muted-foreground">
       Inventory updated{" "}
-      <time dateTime={publishedAt}>
-        {DATE_FORMAT.format(new Date(publishedAt))}
-      </time>
-      .
+      <time dateTime={publishedAt}>{InventoryFormat.date(publishedAt)}</time>.
     </span>
   );
 }
@@ -289,7 +297,7 @@ function MakeSummary({ makes }: { makes: readonly MakeCount[] }) {
         ))}
         {rest > 0 && (
           <li className="text-muted-foreground px-2 py-1 text-xs">
-            and {plural(rest, "more make", "more makes")}
+            and {InventoryFormat.plural(rest, "more make", "more makes")}
           </li>
         )}
       </ul>
@@ -332,7 +340,7 @@ function VehicleRow({
           {[
             vehicle.color,
             location,
-            `Added ${DATE_FORMAT.format(new Date(vehicle.addedAt))}`,
+            `Added ${InventoryFormat.date(vehicle.addedAt)}`,
             vehicle.stockNumber && `Stock #${vehicle.stockNumber}`,
           ]
             .filter(Boolean)
