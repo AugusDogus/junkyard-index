@@ -46,8 +46,8 @@ export function YardMap({
             <span className="tabular-nums">
               {yards.length.toLocaleString("en-US")}
             </span>{" "}
-            yards
-            <span className="text-muted-foreground ml-3 hidden font-normal sm:inline">
+            yards{" "}
+            <span className="text-muted-foreground ml-2 hidden font-normal sm:inline">
               <span className="tabular-nums">
                 {vehicleCount.toLocaleString("en-US")}
               </span>{" "}

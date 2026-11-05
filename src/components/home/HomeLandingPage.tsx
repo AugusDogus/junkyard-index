@@ -12,13 +12,31 @@ import { HomePricing } from "~/components/home/HomePricing";
 import { HomeFaq } from "~/components/home/HomeFaq";
 import { HomeClosingCta } from "~/components/home/HomeClosingCta";
 import { getHomepageInventory } from "~/lib/homepage-inventory";
+import { JsonLd } from "~/components/JsonLd";
+import { env } from "~/env";
 import { hasFiniteCoordinates } from "~/lib/location-preferences";
+import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+
+const HOME_TITLE = "Search Junkyard Inventory at 200+ Salvage Yards";
+const HOME_DESCRIPTION =
+  "Search live inventory at 200+ salvage yards, including LKQ Pick Your Part, Pick-n-Pull, and Pull-A-Part. Updated daily, with alerts when a match arrives.";
 
 export const HOME_METADATA: Metadata = {
-  title: "Search Salvage Yard Inventory Nationwide",
-  description:
-    "Search salvage yard inventory across LKQ, Row52, Pull-A-Part, and more. Explore junkyard locations, find donor vehicles for parts, and get alerts when new matches arrive.",
+  title: { absolute: `${HOME_TITLE} | Junkyard Index` },
+  description: HOME_DESCRIPTION,
   alternates: { canonical: "/" },
+  openGraph: {
+    ...SITE_OPEN_GRAPH,
+    type: "website",
+    url: "/",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+  },
 };
 
 export async function HomeLandingPage() {
@@ -43,7 +61,36 @@ export async function HomeLandingPage() {
     <div className="bg-background flex min-h-dvh flex-col">
       <Header />
       <main className="flex-1">
-        <h1 className="sr-only">Junkyard Index</h1>
+        <h1 className="sr-only">
+          Junkyard Index: search salvage yard inventory
+        </h1>
+        <JsonLd
+          nodes={[
+            {
+              "@type": "Organization",
+              "@id": `${env.NEXT_PUBLIC_APP_URL}/#organization`,
+              name: "Junkyard Index",
+              url: env.NEXT_PUBLIC_APP_URL,
+              logo: `${env.NEXT_PUBLIC_APP_URL}/favicon.svg`,
+              sameAs: ["https://github.com/AugusDogus/junkyard-index"],
+            },
+            {
+              "@type": "WebSite",
+              "@id": `${env.NEXT_PUBLIC_APP_URL}/#website`,
+              name: "Junkyard Index",
+              url: env.NEXT_PUBLIC_APP_URL,
+              publisher: { "@id": `${env.NEXT_PUBLIC_APP_URL}/#organization` },
+              potentialAction: {
+                "@type": "SearchAction",
+                target: {
+                  "@type": "EntryPoint",
+                  urlTemplate: `${env.NEXT_PUBLIC_APP_URL}/search?q={search_term_string}`,
+                },
+                "query-input": "required name=search_term_string",
+              },
+            },
+          ]}
+        />
         <section
           className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
           aria-label="Search junkyard inventory"
