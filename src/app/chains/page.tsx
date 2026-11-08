@@ -54,7 +54,7 @@ export default async function ChainsPage() {
         </Link>
         .
       </p>
-      <ul className="mt-6 grid gap-2 sm:grid-cols-2">
+      <ul className="mt-6 divide-y border-y">
         {chains.map((chain) => {
           const vehicles = chain.yards.reduce(
             (sum, yard) => sum + yard.vehicleCount,
@@ -65,12 +65,12 @@ export default async function ChainsPage() {
               <Link
                 href={chain.href}
                 prefetch={false}
-                className="hover:bg-muted flex h-full flex-col rounded-lg border p-3"
+                className="hover:bg-muted/60 flex items-baseline justify-between gap-4 px-1 py-3"
               >
-                <span className="text-sm font-medium">{chain.name}</span>
-                <span className="text-muted-foreground mt-1 text-xs tabular-nums">
+                <span className="font-medium">{chain.name}</span>
+                <span className="text-muted-foreground shrink-0 text-sm tabular-nums">
                   {InventoryFormat.plural(chain.yards.length, "yard", "yards")}{" "}
-                  · {InventoryFormat.plural(vehicles, "vehicle", "vehicles")}
+                  · {InventoryFormat.count(vehicles)} vehicles
                 </span>
               </Link>
             </li>
