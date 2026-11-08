@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useState } from "react";
 import { SearchField } from "~/components/search/SearchField";
 import { AnalyticsEvents } from "~/lib/analytics-events";
@@ -11,7 +11,7 @@ export function HomeSearchHero() {
   const [query, setQuery] = useState("");
   const submitSearch = (value: string) => {
     const trimmed = value.trim();
-    posthog.capture(AnalyticsEvents.LANDING_SEARCH_SUBMITTED, {
+    Analytics.capture(AnalyticsEvents.LANDING_SEARCH_SUBMITTED, {
       source_page: "home",
       query: trimmed,
       query_length: trimmed.length,

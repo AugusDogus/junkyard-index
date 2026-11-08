@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { Button } from "~/components/ui/button";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { cn } from "~/lib/utils";
@@ -28,7 +28,7 @@ export function TrackedPricingButton({
       <Link
         href={href}
         onClick={() =>
-          posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+          Analytics.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
             source_page: sourcePage,
             cta_location: ctaLocation,
           })

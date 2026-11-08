@@ -2,7 +2,7 @@
 
 import { ExternalLink, Link2Off } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -32,14 +32,14 @@ export function DiscordSettingsCard() {
   });
   const verifyInstall = api.user.verifyDiscordAppInstalled.useMutation({
     onSuccess: () => {
-      posthog.capture(AnalyticsEvents.DISCORD_APP_VERIFIED);
+      Analytics.capture(AnalyticsEvents.DISCORD_APP_VERIFIED);
       toast.success(
         "Discord notifications enabled! Check your DMs for a confirmation.",
       );
       void settings.refetch();
     },
     onError: (error) => {
-      posthog.capture(AnalyticsEvents.DISCORD_APP_VERIFY_FAILED, {
+      Analytics.capture(AnalyticsEvents.DISCORD_APP_VERIFY_FAILED, {
         error: error.message,
       });
       toast.error(error.message || "Failed to verify Discord app installation");
@@ -62,7 +62,7 @@ export function DiscordSettingsCard() {
   }, [router, searchParams, settings.refetch]);
 
   const connect = async () => {
-    posthog.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
+    Analytics.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
       context: "settings",
     });
     setIsSigningIn(true);
@@ -78,7 +78,7 @@ export function DiscordSettingsCard() {
   };
 
   const disconnectApp = () => {
-    posthog.capture(AnalyticsEvents.DISCORD_APP_DISCONNECTED, {
+    Analytics.capture(AnalyticsEvents.DISCORD_APP_DISCONNECTED, {
       source: "settings",
     });
     disconnect.mutate();

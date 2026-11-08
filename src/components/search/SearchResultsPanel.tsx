@@ -2,7 +2,7 @@
 
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import type { ReactNode } from "react";
 import {
   SaveSearchDialog,
@@ -221,7 +221,7 @@ export function SearchResultsPanel({
                 className="hover:text-foreground underline underline-offset-2"
                 onClick={() => {
                   storePendingSaveSearch(model.query, model.filters);
-                  posthog.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
+                  Analytics.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
                     source_page: "search",
                     cta_location: "no_results",
                     query: model.analyticsQuery,
@@ -238,7 +238,7 @@ export function SearchResultsPanel({
               href="/pricing"
               className="hover:text-foreground underline underline-offset-2"
               onClick={() =>
-                posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                Analytics.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                   source_page: "search",
                   cta_location: "no_results",
                   query: model.analyticsQuery,

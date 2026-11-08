@@ -14,14 +14,26 @@ import {
 } from "~/lib/pricing-plan-cta";
 import type { SubscriptionAction } from "~/lib/subscription-action";
 import { cn } from "~/lib/utils";
+import { EnsureAppProviders } from "~/components/AppProviders";
 
-export function PricingPlansSection({
-  initialIsRegistered,
-  sourcePage = "pricing",
-}: {
+type PricingPlansSectionProps = {
   initialIsRegistered: boolean;
   sourcePage?: "home" | "pricing";
-}) {
+};
+
+/** The plans and their actions; brings its own app providers where needed. */
+export function PricingPlansSection(props: PricingPlansSectionProps) {
+  return (
+    <EnsureAppProviders>
+      <PricingPlans {...props} />
+    </EnsureAppProviders>
+  );
+}
+
+function PricingPlans({
+  initialIsRegistered,
+  sourcePage = "pricing",
+}: PricingPlansSectionProps) {
   const [interval, setInterval] = useState<BillingInterval>("annual");
   const { data: session, isPending } = useSession();
   const isLoggedIn = Boolean(session?.user);
