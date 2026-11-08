@@ -100,10 +100,14 @@ function isRouted(yard: DirectoryYard): yard is RoutedYard {
   return yard.path !== null;
 }
 
+/** The directory's yards that have a page. */
+export function routedYards(yards: readonly DirectoryYard[]): RoutedYard[] {
+  return yards.filter(isRouted);
+}
+
 /** Every yard that has a page. */
 export const getRoutedYards = cache(
-  async (): Promise<RoutedYard[]> =>
-    (await getYardDirectory()).filter(isRouted),
+  async (): Promise<RoutedYard[]> => routedYards(await getYardDirectory()),
 );
 
 /** Brands with more than one yard, largest first. */
