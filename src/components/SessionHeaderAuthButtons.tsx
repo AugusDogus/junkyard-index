@@ -1,23 +1,23 @@
 "use client";
 
-import { HeaderAuthButtons } from "~/components/HeaderAuthButtons";
-import { useSession } from "~/lib/auth-client";
+import dynamic from "next/dynamic";
+import { HeaderAuthPlaceholder } from "~/components/HeaderAuthPlaceholder";
+
+// The auth client (about 66 KB with its plugins) loads after the page
+// hydrates instead of with it, so it never delays the first render.
+const SessionAuthButtons = dynamic(
+  () =>
+    import("~/components/SessionAuthButtons").then(
+      (module) => module.SessionAuthButtons,
+    ),
+  { ssr: false, loading: HeaderAuthPlaceholder },
+);
 
 /**
  * Header auth controls for pages served from the CDN, which can't read the
- * session while rendering. Until the session loads, an inert copy of the
- * signed-out controls holds their space so the header doesn't shift.
+ * session while rendering. Until the session loads, the placeholder holds
+ * the controls' space so the header doesn't shift.
  */
 export function SessionHeaderAuthButtons() {
-  const { data, isPending } = useSession();
-
-  if (isPending) {
-    return (
-      <div className="invisible" aria-hidden="true" inert>
-        <HeaderAuthButtons user={null} />
-      </div>
-    );
-  }
-
-  return <HeaderAuthButtons user={data?.user ?? null} />;
+  return <SessionAuthButtons />;
 }

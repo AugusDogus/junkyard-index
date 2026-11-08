@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { toast } from "sonner";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { AnalyticsEvents } from "~/lib/analytics-events";
@@ -50,7 +50,7 @@ export function SavedSearchWorkspace({
     api.user.getNotificationSettings.useQuery();
   const remove = api.savedSearches.delete.useMutation({
     onSuccess: () => {
-      posthog.capture(AnalyticsEvents.SAVED_SEARCH_DELETED, {
+      Analytics.capture(AnalyticsEvents.SAVED_SEARCH_DELETED, {
         search_id: search.id,
         source,
       });
@@ -66,7 +66,7 @@ export function SavedSearchWorkspace({
   );
   const update = api.savedSearches.update.useMutation({
     onSuccess: (_data, variables) => {
-      posthog.capture(AnalyticsEvents.SAVED_SEARCH_UPDATED, {
+      Analytics.capture(AnalyticsEvents.SAVED_SEARCH_UPDATED, {
         search_id: variables.id,
         has_query: variables.query.trim().length > 0,
         has_sources_filter: (variables.filters.sources?.length ?? 0) > 0,
@@ -84,7 +84,7 @@ export function SavedSearchWorkspace({
       ] as const) {
         const enabled = variables[channel.key];
         if (enabled !== undefined)
-          posthog.capture(channel.event, {
+          Analytics.capture(channel.event, {
             search_id: variables.id,
             enabled,
             source,

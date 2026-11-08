@@ -12,7 +12,7 @@ import {
   type SubscriptionIntent,
 } from "~/lib/subscription-action";
 import { subscriptionReturnTo } from "~/lib/subscription-selection";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 
 export function useSubscriptionDestination(input: {
   source: string;
@@ -34,7 +34,7 @@ export function useSubscriptionDestination(input: {
         return true;
       }
       if (action.kind === "checkout") {
-        posthog.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
+        Analytics.capture(AnalyticsEvents.CHECKOUT_INITIATED, {
           source: input.source,
           plan_tier: action.selection.tier,
           billing_interval: action.selection.interval,
@@ -43,7 +43,7 @@ export function useSubscriptionDestination(input: {
         return true;
       }
 
-      posthog.capture(AnalyticsEvents.SUBSCRIPTION_PORTAL_OPENED, {
+      Analytics.capture(AnalyticsEvents.SUBSCRIPTION_PORTAL_OPENED, {
         source: input.source,
       });
       try {

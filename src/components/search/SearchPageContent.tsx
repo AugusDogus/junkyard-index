@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -833,7 +833,7 @@ function AlgoliaSearchInner({
             <Link
               href={signUpHref}
               onClick={() =>
-                posthog.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
+                Analytics.capture(AnalyticsEvents.RESULT_CAP_SIGNUP_CLICKED, {
                   source_page: "search",
                   cta_location: "result_cap",
                   query: analyticsSearchValue,
@@ -849,7 +849,7 @@ function AlgoliaSearchInner({
             <Link
               href="/pricing"
               onClick={() =>
-                posthog.capture(AnalyticsEvents.RESULT_CAP_PRICING_CLICKED, {
+                Analytics.capture(AnalyticsEvents.RESULT_CAP_PRICING_CLICKED, {
                   source_page: "search",
                   cta_location: "result_cap",
                   query: analyticsSearchValue,
@@ -974,7 +974,7 @@ function AlgoliaSearchInner({
         }
       }
 
-      posthog.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
+      Analytics.capture(AnalyticsEvents.SORT_CHANGED, { sort_option: value });
       refineSortBy(getSearchSortIndex(value));
     },
     [
@@ -993,7 +993,7 @@ function AlgoliaSearchInner({
   );
 
   const clearAllFilters = useCallback(() => {
-    posthog.capture(AnalyticsEvents.FILTERS_CLEARED, {
+    Analytics.capture(AnalyticsEvents.FILTERS_CLEARED, {
       previous_filter_count: activeFilterCount,
     });
     clearRefinements();
@@ -1078,9 +1078,9 @@ function AlgoliaSearchInner({
     );
 
     if (nbHits === 0) {
-      posthog.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
+      Analytics.capture(AnalyticsEvents.SEARCH_EMPTY, ctx);
     } else {
-      posthog.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
+      Analytics.capture(AnalyticsEvents.SEARCH_COMPLETED, ctx);
     }
   }, [analyticsSearchValue, isSearching, error, nbHits, processingTimeMS]);
 
@@ -1090,7 +1090,7 @@ function AlgoliaSearchInner({
     if (lastTrackedResultCapQuery.current === analyticsSearchValue) return;
     lastTrackedResultCapQuery.current = analyticsSearchValue;
 
-    posthog.capture(AnalyticsEvents.RESULT_CAP_REACHED, {
+    Analytics.capture(AnalyticsEvents.RESULT_CAP_REACHED, {
       source_page: "search",
       query: analyticsSearchValue,
       query_length: analyticsSearchValue.trim().length,

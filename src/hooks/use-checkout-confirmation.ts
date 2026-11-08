@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryState } from "nuqs";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { AnalyticsEvents } from "~/lib/analytics-events";
@@ -28,7 +28,7 @@ export function useCheckoutConfirmation(planAccess: PlanAccessState): void {
       planAccess.kind === "resolved" && planAccess.tier !== "free";
     if (!isCheckoutSuccess || !hasPaidAccess) return;
 
-    posthog.capture(AnalyticsEvents.SUBSCRIPTION_ACTIVATED, {
+    Analytics.capture(AnalyticsEvents.SUBSCRIPTION_ACTIVATED, {
       source: "checkout_redirect",
     });
     toast.success(

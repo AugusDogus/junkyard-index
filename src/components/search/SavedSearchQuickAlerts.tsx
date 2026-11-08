@@ -2,7 +2,7 @@
 
 import { Bell, BellOff } from "lucide-react";
 import Link from "next/link";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useId, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
@@ -56,7 +56,7 @@ export function SavedSearchQuickAlerts({
           : item,
       ),
     );
-    posthog.capture(
+    Analytics.capture(
       channel === "email"
         ? AnalyticsEvents.SAVED_SEARCH_EMAIL_TOGGLED
         : AnalyticsEvents.SAVED_SEARCH_DISCORD_TOGGLED,

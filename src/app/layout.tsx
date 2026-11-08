@@ -3,13 +3,10 @@ import "~/styles/globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { type Metadata } from "next";
 import { Geist } from "next/font/google";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { Toaster } from "~/components/ui/sonner";
 
 import { TailwindIndicator } from "~/components/tailwind-indicator";
 import { ThemeProvider } from "~/components/theme/theme-provider";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
-import { TRPCReactProvider } from "~/trpc/react";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://junkyardindex.com";
 
@@ -68,21 +65,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <NuqsAdapter>
-          <TRPCReactProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-              <Analytics />
-              <TailwindIndicator />
-            </ThemeProvider>
-          </TRPCReactProvider>
-        </NuqsAdapter>
-        <Toaster />
+        {/* App-only state (tRPC, URL state, toasts) lives in the interactive
+        routes' layouts via AppProviders, so public pages don't ship it. */}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Analytics />
+          <TailwindIndicator />
+        </ThemeProvider>
       </body>
     </html>
   );
