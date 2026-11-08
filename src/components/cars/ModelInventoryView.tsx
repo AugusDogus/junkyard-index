@@ -232,6 +232,7 @@ export function ModelInventoryView({
                   vehicle={vehicle}
                   source={vehicle.source}
                   publishedAt={sourcePublishedAt[vehicle.source] ?? null}
+                  layout="stacked"
                   yard={
                     yard && {
                       name: YardName.headline(yard.name, yard.operator),
