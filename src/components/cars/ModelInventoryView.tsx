@@ -1,23 +1,23 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowDown, ArrowRight, ChevronRight, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
+import { VehicleRow } from "~/components/inventory/VehicleRow";
+import { YardRows } from "~/components/inventory/YardRows";
 import { AlertsCallout } from "~/components/junkyards/AlertsCallout";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { JsonLd } from "~/components/JsonLd";
+import { Button } from "~/components/ui/button";
 import { env } from "~/env";
-import { isIngestionSource } from "~/lib/ingestion-source";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory, type ModelEntry } from "~/lib/make-inventory";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
-import { VehicleDestination } from "~/lib/vehicle-destination";
 import { VehicleName } from "~/lib/vehicle-name";
-import wsrvLoader from "~/lib/wsrvLoader";
-import { YardInventory } from "~/lib/yard-inventory";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
 import type { MakeEntry, ModelArrival } from "~/server/vehicle-models";
-import type { RoutedYard } from "~/server/yard-inventory";
+import type { InventoryFreshness, RoutedYard } from "~/server/yard-inventory";
 
 function regionLabel(yards: readonly RoutedYard[]): string {
   const regions = [
@@ -53,7 +53,7 @@ export function modelPageMetadata(
 ): Metadata {
   const name = VehicleName.title(make.name, model.name);
   const title = `${name} at Junkyards: ${InventoryFormat.count(model.count)} in Stock`;
-  const description = `${InventoryFormat.plural(model.count, `${name} vehicle`, `${name} vehicles`)} at ${InventoryFormat.plural(yardCount, "salvage yard", "salvage yards")}, model years ${InventoryFormat.years(model)}, with the newest arrivals' row and VIN and every yard that has one.${
+  const description = `${InventoryFormat.plural(model.count, `${name} vehicle`, `${name} vehicles`)} at ${InventoryFormat.plural(yardCount, "salvage yard", "salvage yards")}, model years ${InventoryFormat.years(model)}, with the newest arrivals and where each sits in the yard.${
     publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
   }`;
   return {
@@ -74,26 +74,41 @@ export function modelPageMetadata(
   };
 }
 
+const TOP_YARDS = 10;
+const SIBLINGS = 12;
+
+export type ModelYard = { yard: RoutedYard; count: number; years: string };
+
 export function ModelInventoryView({
   make,
   model,
+  siblings,
   yards,
   arrivals,
-  publishedAt,
+  freshness,
+  sourcePublishedAt,
 }: {
   make: MakeEntry;
   model: ModelEntry;
-  /** Yards holding the model, in the model's order (most first). */
-  yards: readonly { yard: RoutedYard; count: number; years: string }[];
+  /** The make's other models, most first. */
+  siblings: readonly ModelEntry[];
+  /** Yards holding the model, most first. */
+  yards: readonly ModelYard[];
   arrivals: readonly ModelArrival[];
-  publishedAt: string | null;
+  freshness: InventoryFreshness;
+  /** Each source's latest update, for the "New" labels. */
+  sourcePublishedAt: Readonly<Partial<Record<string, string>>>;
 }) {
   const name = VehicleName.title(make.name, model.name);
   const crumbs = modelCrumbs(make, model);
   const byKey = new Map(
-    yards.map(({ yard }) => [`${yard.source}:${yard.code}`, yard]),
+    yards.map(({ yard }) => [YardPath.key(yard), yard] as const),
   );
   const routed = yards.map(({ yard }) => yard);
+  // A yard's page narrowed to this make keeps the visitor's context.
+  const yardHref = (yard: RoutedYard) =>
+    YardPath.makeHref(yard.path, make.slug);
+  const searchHref = `/search?q=${encodeURIComponent(name)}`;
 
   return (
     <>
@@ -109,185 +124,181 @@ export function ModelInventoryView({
         ]}
       />
       <Breadcrumbs crumbs={crumbs} />
-      <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {name} at junkyards
-      </h1>
-      <p className="mt-3 text-base text-pretty">
-        <span className="font-medium tabular-nums">
-          {InventoryFormat.plural(
-            model.count,
-            `${name} vehicle`,
-            `${name} vehicles`,
-          )}
-        </span>
-        , model years {InventoryFormat.years(model)}, at{" "}
-        {InventoryFormat.plural(yards.length, "yard", "yards")} we track in{" "}
-        {regionLabel(routed)}.{" "}
-        {publishedAt ? (
-          <span className="text-muted-foreground">
-            Inventory updated{" "}
-            <time dateTime={publishedAt}>
-              {InventoryFormat.date(publishedAt)}
-            </time>
-            .
-          </span>
-        ) : (
-          <span className="text-amber-700 dark:text-amber-400">
-            These yards&apos; inventory has not refreshed in the last 3 days, so
-            some listings may be gone.
-          </span>
+      <header>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          {name} at junkyards
+        </h1>
+        <p className="mt-3 text-base text-pretty">
+          <span className="font-semibold tabular-nums">
+            {InventoryFormat.count(model.count)}
+          </span>{" "}
+          in stock at{" "}
+          <span className="font-semibold tabular-nums">
+            {InventoryFormat.plural(yards.length, "yard", "yards")}
+          </span>{" "}
+          in {regionLabel(routed)}, model years {InventoryFormat.years(model)}.
+        </p>
+        <div className="mt-2">
+          <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href={searchHref} prefetch={false}>
+              <Search aria-hidden="true" data-icon="inline-start" />
+              Search every {name}
+            </Link>
+          </Button>
+        </div>
+      </header>
+
+      <section aria-labelledby="top-yards-title" className="mt-10">
+        <h2 id="top-yards-title" className="text-lg font-semibold">
+          Yards with the most
+        </h2>
+        <div className="mt-3">
+          <YardRows
+            rows={yards.slice(0, TOP_YARDS).map(({ yard, count, years }) => ({
+              href: yardHref(yard),
+              name: YardName.headline(yard.name, yard.operator),
+              place: `${yard.city}, ${yard.state}`,
+              figure: InventoryFormat.count(count),
+              detail: years,
+            }))}
+          />
+        </div>
+        {yards.length > TOP_YARDS && (
+          <a
+            href="#yards-title"
+            className="mt-3 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+          >
+            All {InventoryFormat.plural(yards.length, "yard", "yards")}, by
+            state <ArrowDown className="size-3.5" aria-hidden="true" />
+          </a>
         )}
-      </p>
+      </section>
 
       {arrivals.length > 0 && (
-        <section aria-labelledby="arrivals-title" className="mt-8">
-          <h2 id="arrivals-title" className="text-xl font-semibold">
-            Newest {name} arrivals
-          </h2>
-          <ul className="mt-4 divide-y rounded-lg border">
-            {arrivals.map((vehicle) => (
-              <ArrivalRow
-                key={vehicle.vin}
-                vehicle={vehicle}
-                yard={byKey.get(`${vehicle.source}:${vehicle.code}`) ?? null}
-              />
-            ))}
+        <section aria-labelledby="arrivals-title" className="mt-10">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b pb-3">
+            <h2 id="arrivals-title" className="text-lg font-semibold">
+              Newest arrivals
+            </h2>
+            <Link
+              href={searchHref}
+              prefetch={false}
+              className="inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+            >
+              All {InventoryFormat.count(model.count)} in search{" "}
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+          <ul className="divide-y">
+            {arrivals.map((vehicle) => {
+              const yard = byKey.get(`${vehicle.source}:${vehicle.code}`);
+              return (
+                <VehicleRow
+                  key={vehicle.vin}
+                  vehicle={vehicle}
+                  source={vehicle.source}
+                  publishedAt={sourcePublishedAt[vehicle.source] ?? null}
+                  yard={
+                    yard && {
+                      name: YardName.headline(yard.name, yard.operator),
+                      href: yardHref(yard),
+                      place: `${yard.city}, ${yard.state}`,
+                    }
+                  }
+                />
+              );
+            })}
           </ul>
         </section>
       )}
-
-      <section aria-labelledby="yards-title" className="mt-10">
-        <h2 id="yards-title" className="text-xl font-semibold">
-          Yards with {name} vehicles
-        </h2>
-        {YardPath.byRegion(routed).map(({ region, yards: regionYards }) => (
-          <div key={region.slug} className="mt-6">
-            <h3 className="text-muted-foreground mb-2 text-sm font-medium">
-              {region.name}
-            </h3>
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {regionYards.map((yard) => {
-                const entry = yards.find(
-                  (candidate) => candidate.yard.path.href === yard.path.href,
-                );
-                return (
-                  <li key={yard.path.href}>
-                    <Link
-                      href={yard.path.href}
-                      prefetch={false}
-                      className="hover:bg-muted flex h-full flex-col rounded-lg border p-3"
-                    >
-                      <span className="text-sm font-medium text-pretty">
-                        {YardName.headline(yard.name, yard.operator)}
-                      </span>
-                      <span className="text-muted-foreground mt-1 text-xs tabular-nums">
-                        {yard.city}, {yard.state} ·{" "}
-                        {InventoryFormat.count(entry?.count ?? 0)} {model.name}{" "}
-                        · {entry?.years}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </section>
 
       <AlertsCallout
         subject={`a new ${name} arrival shows up at any yard we track`}
         sourcePage="model"
       />
-      <p className="text-muted-foreground mt-6 text-sm">
-        More{" "}
-        <Link
-          href={make.href}
-          className="hover:text-foreground underline underline-offset-4"
-        >
-          {make.name} models at junkyards
-        </Link>
-        .
-      </p>
-    </>
-  );
-}
 
-function ArrivalRow({
-  vehicle,
-  yard,
-}: {
-  vehicle: ModelArrival;
-  yard: RoutedYard | null;
-}) {
-  const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
-    .filter(Boolean)
-    .join(" ");
-  const location = YardInventory.location(vehicle);
-  const destination = isIngestionSource(vehicle.source)
-    ? VehicleDestination.resolve({
-        source: vehicle.source,
-        detailsUrl: vehicle.detailsUrl,
-      })
-    : null;
-  return (
-    <li className="flex gap-3 p-3 sm:gap-4">
-      <div className="bg-muted relative h-16 w-20 shrink-0 overflow-hidden rounded-md sm:h-18 sm:w-24">
-        {vehicle.imageUrl && (
-          <img
-            src={wsrvLoader({ src: vehicle.imageUrl, width: 192 })}
-            alt=""
-            width={96}
-            height={72}
-            loading="lazy"
-            decoding="async"
-            className="size-full object-cover"
-          />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-medium text-pretty">{title}</h3>
-        {yard && (
-          <p className="mt-0.5 text-xs">
-            <Link
-              href={yard.path.href}
-              prefetch={false}
-              className="underline-offset-4 hover:underline"
-            >
-              {YardName.headline(yard.name, yard.operator)}
-            </Link>
-            <span className="text-muted-foreground">
-              {" "}
-              · {yard.city}, {yard.state}
-            </span>
-          </p>
-        )}
-        <p className="text-muted-foreground mt-0.5 text-xs text-pretty">
-          {[
-            vehicle.color,
-            location,
-            `Added ${InventoryFormat.date(vehicle.addedAt)}`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <p className="mt-1 font-mono text-xs break-all select-all">
-          {vehicle.vin}
-        </p>
-      </div>
-      {destination?.kind === "inventory" && (
-        <a
-          href={destination.href}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="text-muted-foreground hover:text-foreground flex shrink-0 items-start gap-1 text-xs underline-offset-4 hover:underline"
-        >
-          <span className="hidden sm:inline">At the yard</span>
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-          <span className="sr-only">
-            {destination.label} for the {title} (opens in a new tab)
-          </span>
-        </a>
+      {yards.length > TOP_YARDS && (
+        <section aria-labelledby="yards-title" className="mt-10">
+          <h2 id="yards-title" className="text-lg font-semibold">
+            Every yard with one, by state
+          </h2>
+          <div className="mt-3 divide-y border-y">
+            {YardPath.byRegion(routed).map(({ region, yards: regionYards }) => (
+              <details key={region.slug} className="group">
+                <summary className="hover:bg-muted/60 flex cursor-pointer list-none items-center justify-between gap-4 px-1 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1.5">
+                    <ChevronRight
+                      className="text-muted-foreground size-4 transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    />
+                    {region.name}
+                  </span>
+                  <span className="text-muted-foreground text-xs font-normal tabular-nums">
+                    {InventoryFormat.plural(
+                      regionYards.length,
+                      "yard",
+                      "yards",
+                    )}
+                  </span>
+                </summary>
+                <div className="pb-3">
+                  <YardRows
+                    rows={regionYards.map((yard) => {
+                      const entry = yards.find(
+                        (candidate) =>
+                          candidate.yard.path.href === yard.path.href,
+                      );
+                      return {
+                        href: yardHref(yard),
+                        name: YardName.headline(yard.name, yard.operator),
+                        place: yard.city,
+                        figure: InventoryFormat.count(entry?.count ?? 0),
+                        detail: entry?.years,
+                      };
+                    })}
+                  />
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
       )}
-    </li>
+
+      {siblings.length > 0 && (
+        <section aria-labelledby="siblings-title" className="mt-10">
+          <h2 id="siblings-title" className="text-lg font-semibold">
+            Other {make.name} models
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-1.5">
+            {siblings.slice(0, SIBLINGS).map((sibling) => (
+              <li key={sibling.key}>
+                <Link
+                  href={sibling.href}
+                  prefetch={false}
+                  className="hover:bg-muted block rounded-full border px-3 py-1 text-sm tabular-nums"
+                >
+                  {sibling.name}{" "}
+                  <span className="text-muted-foreground">
+                    {InventoryFormat.count(sibling.count)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link
+                href={make.href}
+                prefetch={false}
+                className="block px-2 py-1 text-sm font-medium underline-offset-4 hover:underline"
+              >
+                All {make.name} models
+              </Link>
+            </li>
+          </ul>
+        </section>
+      )}
+    </>
   );
 }
