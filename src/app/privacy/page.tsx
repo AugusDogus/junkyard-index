@@ -250,7 +250,7 @@ export default function PrivacyPage() {
           <p className="text-muted-foreground">
             If you have any questions about this Privacy Policy or our data
             practices, please{" "}
-            <Link href="/contact" className="text-primary hover:underline">
+            <Link href="/contact" className="text-signal hover:underline">
               contact us
             </Link>
             .

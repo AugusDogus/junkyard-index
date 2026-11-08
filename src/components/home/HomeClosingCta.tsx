@@ -23,7 +23,7 @@ export function HomeClosingCta() {
             <Button
               asChild
               size="xl"
-              className="border-ink bg-ink text-paper hover:border-signal-ink hover:bg-signal-ink hover:text-ink focus-visible:outline-signal-ink"
+              className="border-ink bg-ink text-paper hover:border-signal-ink hover:bg-signal-ink hover:text-board focus-visible:outline-signal-ink"
             >
               <Link href="/search">Search inventory</Link>
             </Button>

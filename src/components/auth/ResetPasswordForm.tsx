@@ -37,7 +37,7 @@ export function ResetPasswordForm() {
         <div className="text-center">
           <Link
             href="/auth/forgot-password"
-            className="text-primary text-sm hover:underline"
+            className="text-signal text-sm hover:underline"
           >
             Request new reset link
           </Link>
@@ -169,7 +169,7 @@ export function ResetPasswordForm() {
 
       <div className="text-muted-foreground text-center text-sm">
         Remember your password?{" "}
-        <Link href="/auth/sign-in" className="text-primary hover:underline">
+        <Link href="/auth/sign-in" className="text-signal hover:underline">
           Sign in
         </Link>
       </div>

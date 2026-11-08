@@ -161,11 +161,11 @@ export function SubscriptionCheckoutForm({
             className="text-muted-foreground block leading-5 font-normal"
           >
             I agree to the{" "}
-            <Link href="/terms" className="text-primary hover:underline">
+            <Link href="/terms" className="text-signal hover:underline">
               Terms of Service
             </Link>{" "}
             and acknowledge the{" "}
-            <Link href="/privacy" className="text-primary hover:underline">
+            <Link href="/privacy" className="text-signal hover:underline">
               Privacy Policy
             </Link>
             , including the recurring auto-renewal and cancellation terms above.
@@ -192,7 +192,7 @@ export function SubscriptionCheckoutForm({
             href="https://polar.sh/legal/checkout-buyer-terms"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary hover:underline"
+            className="text-signal hover:underline"
           >
             Polar Buyer Terms and Conditions
           </a>
