@@ -3,6 +3,7 @@ import "server-only";
 import { asc, desc, isNull } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { cacheInventory } from "~/lib/inventory-cache";
+import { RecentArrivals } from "~/lib/recent-arrivals";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { vehicle } from "~/schema";
 
@@ -22,12 +23,13 @@ async function getHomepageInventoryInternal() {
       .from(vehicle)
       .where(isNull(vehicle.missingSinceAt))
       .orderBy(desc(vehicle.firstSeenAt), asc(vehicle.vin))
-      .limit(12),
+      // A batch lists many of one model in a row; read enough to vary them.
+      .limit(80),
   ]);
 
   return {
     yards,
-    recentVehicles: recentVehicles.map((entry) => ({
+    recentVehicles: RecentArrivals.pick(recentVehicles, 12).map((entry) => ({
       ...entry,
       indexedAt: entry.indexedAt.toISOString(),
     })),
@@ -43,5 +45,5 @@ export type RecentVehicle = Awaited<
 
 export const getHomepageInventory = cacheInventory(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "yard-paths-v3"],
+  ["homepage-inventory", "varied-arrivals-v1"],
 );
