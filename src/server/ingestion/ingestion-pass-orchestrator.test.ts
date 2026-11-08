@@ -57,7 +57,7 @@ describe("runIngestionPass", () => {
       ],
     );
 
-    expect(await runIngestionPass(operations)).toBe("complete");
+    expect(await runIngestionPass(operations)).toBe("completed");
 
     expect(events).toEqual([
       "plan:active",
@@ -90,7 +90,7 @@ describe("runIngestionPass", () => {
       ],
     );
 
-    expect(await runIngestionPass(operations)).toBe("complete");
+    expect(await runIngestionPass(operations)).toBe("completed");
 
     expect(events).toEqual([
       "plan:active",
@@ -107,6 +107,16 @@ describe("runIngestionPass", () => {
       "plan:complete",
       "deliver",
     ]);
+  });
+});
+
+describe("runIngestionPass on a finished day", () => {
+  test("reports an already-complete day so hourly passes skip end-of-day work", async () => {
+    const { operations, events } = passOperations([{ status: "complete" }], []);
+
+    expect(await runIngestionPass(operations)).toBe("already-complete");
+
+    expect(events).toEqual(["plan:complete", "deliver"]);
   });
 });
 
