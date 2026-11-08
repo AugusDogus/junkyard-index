@@ -7,7 +7,10 @@ import {
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { getModelPageData } from "~/server/vehicle-models";
-import { latestPublishedAt } from "~/server/yard-inventory";
+import {
+  getSourcePublishedAt,
+  inventoryFreshness,
+} from "~/server/yard-inventory";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
 export const revalidate = 86400;
@@ -29,10 +32,13 @@ async function load(params: Promise<Params>) {
       ? [{ yard, count: entry.count, years: InventoryFormat.years(entry) }]
       : [];
   });
-  const publishedAt = await latestPublishedAt(yards.map(({ yard }) => yard));
+  const [freshness, sourcePublishedAt] = await Promise.all([
+    inventoryFreshness(yards.map(({ yard }) => yard)),
+    getSourcePublishedAt(),
+  ]);
   const canonical =
     requested.make === data.make.slug && requested.model === data.model.slug;
-  return { ...data, yards, publishedAt, canonical };
+  return { ...data, yards, freshness, sourcePublishedAt, canonical };
 }
 
 export async function generateMetadata({
@@ -46,7 +52,7 @@ export async function generateMetadata({
     data.make,
     data.model,
     data.yards.length,
-    data.publishedAt,
+    data.freshness.latest,
   );
 }
 
@@ -65,9 +71,13 @@ export default async function ModelPage({
       <ModelInventoryView
         make={data.make}
         model={data.model}
+        siblings={data.models.filter(
+          (candidate) => candidate.key !== data.model.key,
+        )}
         yards={data.yards}
         arrivals={data.arrivals}
-        publishedAt={data.publishedAt}
+        freshness={data.freshness}
+        sourcePublishedAt={data.sourcePublishedAt}
       />
     </PublicPageShell>
   );

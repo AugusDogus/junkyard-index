@@ -37,6 +37,20 @@ function modelName(make: string, model: string): string {
   return strip ? remainder : model.trim();
 }
 
+/**
+ * An all-caps name with its plain words title-cased ("CIVIC CRX" → "Civic
+ * CRX", "F-250 SUPER DUTY" → "F-250 Super Duty"). Words of three letters or
+ * fewer, and anything with digits or hyphens, keep their capitals, since
+ * those are usually initials or model codes (BMW, GMC, CR-V, MAZDA3).
+ */
+function softenCaps(name: string): string {
+  if (name !== name.toUpperCase()) return name;
+  return name.replace(
+    /\b[A-Z]{4,}\b/g,
+    (word) => word.charAt(0) + word.slice(1).toLowerCase(),
+  );
+}
+
 export const VehicleName = {
   /**
    * The make's identity across spellings ("Vw" and "Volkswagen" share one),
@@ -92,7 +106,12 @@ export const VehicleName = {
       ([name, count]) =>
         name !== name.toUpperCase() && count >= top[1] * MIXED_CASE_SHARE,
     );
-    return (mixed ?? top)[0];
+    return mixed ? mixed[0] : softenCaps(top[0]);
+  },
+
+  /** A raw make, model, or trim as displayed; see `softenCaps`. */
+  display(name: string): string {
+    return softenCaps(name);
   },
 
   slug(name: string): string {

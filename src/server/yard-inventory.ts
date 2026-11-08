@@ -138,6 +138,36 @@ export async function latestPublishedAt(
   }, null);
 }
 
+/** How current a set of yards' inventory is. */
+export type InventoryFreshness = {
+  /** The most recent update among them, or null when none is current. */
+  latest: string | null;
+  /** How many of them updated in the freshness window. */
+  current: number;
+  total: number;
+};
+
+/**
+ * How current these yards' inventory is. A page that lists several sources
+ * says how many are current instead of quoting only the newest date.
+ */
+export async function inventoryFreshness(
+  yards: readonly { source: string }[],
+): Promise<InventoryFreshness> {
+  const publishedAt = await getSourcePublishedAt();
+  let latest: string | null = null;
+  let current = 0;
+  for (const yard of yards) {
+    const date = isIngestionSource(yard.source)
+      ? publishedAt[yard.source]
+      : undefined;
+    if (!date) continue;
+    current += 1;
+    if (!latest || date > latest) latest = date;
+  }
+  return { latest, current, total: yards.length };
+}
+
 /** The region for a URL segment and its yards, or null if it has none. */
 export const findRegionYards = cache(async (regionSlug: string) => {
   const region = Region.fromSlug(regionSlug);

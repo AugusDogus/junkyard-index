@@ -1,6 +1,8 @@
 import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { VehicleDestination } from "~/lib/vehicle-destination";
+import { VehicleName } from "~/lib/vehicle-name";
 import wsrvLoader from "~/lib/wsrvLoader";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 
@@ -13,13 +15,21 @@ export function VehicleRow({
   vehicle,
   source,
   publishedAt,
+  yard,
 }: {
   vehicle: YardVehicle;
   source: string;
   /** The yard's latest inventory update, for the "New" label. */
   publishedAt: string | null;
+  /** Which yard it's at, for lists that span yards. */
+  yard?: { name: string; href: string; place: string };
 }) {
-  const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
+  const title = [
+    vehicle.year,
+    VehicleName.display(vehicle.make),
+    VehicleName.display(vehicle.model),
+    vehicle.trim && VehicleName.display(vehicle.trim),
+  ]
     .filter(Boolean)
     .join(" ");
   const location = YardInventory.location(vehicle);
@@ -64,6 +74,18 @@ export function VehicleRow({
             </span>
           )}
         </div>
+        {yard && (
+          <p className="mt-0.5 text-xs">
+            <Link
+              href={yard.href}
+              prefetch={false}
+              className="font-medium underline-offset-4 hover:underline"
+            >
+              {yard.name}
+            </Link>
+            <span className="text-muted-foreground"> · {yard.place}</span>
+          </p>
+        )}
         {location ? (
           <p className="bg-muted mt-1.5 inline-block rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums">
             {location}
