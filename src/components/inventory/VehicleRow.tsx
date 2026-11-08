@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import { cn } from "~/lib/utils";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 import { VehicleName } from "~/lib/vehicle-name";
@@ -12,15 +13,18 @@ const linkClassName =
 /**
  * One vehicle in a yard's inventory, ordered by what someone heading to the
  * yard needs: what it is and where it sits in the yard, when it arrived,
- * then the identifiers to confirm it. Where the row is wide enough (a
- * full-width yard list), those three sit side by side as columns; narrower,
- * they stack.
+ * then the identifiers to confirm it. In a full-width yard list (`columns`)
+ * those three sit side by side from the lg breakpoint; in a narrower list
+ * (`stacked`) they stack. A viewport breakpoint, not a container query: a
+ * yard page renders 100 rows, and 100 size containers cost every page view
+ * extra style and layout work.
  */
 export function VehicleRow({
   vehicle,
   source,
   publishedAt,
   yard,
+  layout,
 }: {
   vehicle: YardVehicle;
   source: string;
@@ -28,7 +32,10 @@ export function VehicleRow({
   publishedAt: string | null;
   /** Which yard it's at, for lists that span yards. */
   yard?: { name: string; href: string; place: string };
+  /** `columns` for a full-width list, `stacked` for one beside other content. */
+  layout: "columns" | "stacked";
 }) {
+  const columns = layout === "columns";
   const title = [
     vehicle.year,
     VehicleName.display(vehicle.make),
@@ -48,7 +55,7 @@ export function VehicleRow({
   ].filter((detail): detail is string => Boolean(detail));
 
   return (
-    <li className="@container flex gap-4 py-5 sm:gap-6">
+    <li className="flex gap-4 py-5 sm:gap-6">
       <div className="border-ink bg-paper-2 relative aspect-[4/3] w-24 shrink-0 self-start overflow-hidden border-2 sm:w-[8.25rem]">
         {vehicle.imageUrl ? (
           <img
@@ -66,7 +73,13 @@ export function VehicleRow({
           </span>
         )}
       </div>
-      <div className="grid min-w-0 flex-1 content-start gap-y-2 @4xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] @4xl:gap-x-6">
+      <div
+        className={cn(
+          "grid min-w-0 flex-1 content-start gap-y-2",
+          columns &&
+            "lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-x-6",
+        )}
+      >
         <div className="min-w-0">
           <div className="flex items-start gap-3">
             <h3 className="min-w-0 flex-1 text-[1.0625rem] leading-snug font-extrabold tracking-[-0.01em]">
@@ -96,12 +109,22 @@ export function VehicleRow({
             )}
           </div>
         </div>
-        <ul className="text-ink-2 flex flex-wrap gap-x-5 gap-y-0.5 text-sm tabular-nums @4xl:flex-col">
+        <ul
+          className={cn(
+            "text-ink-2 flex flex-wrap gap-x-5 gap-y-0.5 text-sm tabular-nums",
+            columns && "lg:flex-col",
+          )}
+        >
           {details.map((detail) => (
             <li key={detail}>{detail}</li>
           ))}
         </ul>
-        <div className="text-ink-3 flex flex-wrap items-center gap-x-5 gap-y-0.5 text-[0.8125rem] @4xl:flex-col @4xl:items-start">
+        <div
+          className={cn(
+            "text-ink-3 flex flex-wrap items-center gap-x-5 gap-y-0.5 text-[0.8125rem]",
+            columns && "lg:flex-col lg:items-start",
+          )}
+        >
           <span>
             VIN <span className="text-ink-2 select-all">{vehicle.vin}</span>
           </span>
