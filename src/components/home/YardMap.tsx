@@ -50,7 +50,7 @@ function YardMapContent({
     <section
       id="yards"
       aria-labelledby="yard-map-title"
-      className="border-ink scroll-mt-28 border-2"
+      className="border-ink border-2"
     >
       <div className="bg-board text-board-ink flex min-h-16 items-center justify-between gap-4 px-4 py-2 sm:px-5">
         <h2
