@@ -13,8 +13,9 @@ import {
   InventoryAnnouncement,
   type AnnouncementWindow,
 } from "~/server/inventory-announcement";
-import { getMakeModels, getMakes } from "~/server/vehicle-models";
-import { getRoutedYards, getSourcePublishedAt } from "~/server/yard-inventory";
+import { getHomepageYards } from "~/server/homepage-yards";
+import { InventorySnapshot } from "~/server/inventory-snapshot";
+import { routedYards } from "~/server/yard-inventory";
 import { vehicle, vehicleDeparture } from "~/schema";
 
 /**
@@ -69,8 +70,10 @@ export async function changedInventoryPaths(
           lte(vehicleDeparture.departedAt, window.until),
         ),
       ),
-    getRoutedYards(),
-    getMakes(),
+    // Read directly, not through the caches: right after a refresh those
+    // still hold the previous publication.
+    getHomepageYards(db).then(routedYards),
+    InventorySnapshot.makeCounts(db).then(MakeInventory.makes),
   ]);
   const changed = new Set(
     [...arrivals, ...removals, ...departures].map(
@@ -86,8 +89,6 @@ export async function changedInventoryPaths(
     paths.add(YardPath.regionHref(yard.path.region));
   }
   const changedHrefs = new Set(changedYards.map((yard) => yard.path.href));
-  // From the yards already loaded: React's cache does not dedupe outside a
-  // render, so getChains() would read the yard directory again.
   for (const chain of YardBrand.chains(yards)) {
     if (chain.yards.some((yard) => changedHrefs.has(yard.path.href))) {
       paths.add(chain.href);
@@ -111,13 +112,14 @@ export async function changedInventoryPaths(
       ? [{ make, modelKeys }]
       : [];
   });
-  // Each make's models come from its cached rollup, not its page data, which
-  // would also reread the yard directory and the make list.
   const arrivedMakeModels = await Promise.all(
     arrivedMakes.map(async ({ make, modelKeys }) => ({
       make,
       modelKeys,
-      models: await getMakeModels(make),
+      models: MakeInventory.models(
+        make,
+        await InventorySnapshot.makeModels(db, make.key),
+      ),
     })),
   );
   for (const { make, modelKeys, models } of arrivedMakeModels) {
@@ -145,21 +147,6 @@ async function unannouncedInventoryPaths(
     new Date(),
   );
   return window ? changedInventoryPaths(window) : [];
-}
-
-/**
- * Reads the inventory caches the changed pages share. Right after a refresh
- * those reads get the old data and rebuild it in the background, once, so the
- * pages regenerating later read fresh data instead of each rebuilding it.
- * Returns how many pages changed.
- */
-export async function primeChangedInventory(
-  publicationSequence: number,
-): Promise<number> {
-  const paths = await unannouncedInventoryPaths(publicationSequence);
-  // Yard pages also share the sources' publish times.
-  if (paths.length > 0) await getSourcePublishedAt();
-  return paths.length;
 }
 
 /** Requests each changed page so it regenerates with the new inventory. */

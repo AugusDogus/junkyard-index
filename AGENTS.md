@@ -42,6 +42,7 @@ bun test src         # bun test runner — all unit/integration tests
 - Uses Turso (remote libSQL) via `drizzle-orm/libsql/web`. The client in `src/lib/db.ts` uses the **HTTP** transport (`@libsql/client/web`).
 - Schema is defined in `schema.ts` at the repo root.
 - `drizzle-kit push` requires real `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (the drizzle config imports from `src/env.js` which validates).
+- Make and model pages (`/cars`, its makes and models, and their sitemap) read the `inventory_snapshot` table, never aggregate `vehicle` themselves; yard lists read `yard_inventory`. Deploys store the snapshot after migrating and each ingestion pass refreshes it. Against a fresh database, run `bun run inventory:project` once (it reads every vehicle, about a minute).
 
 ### Key gotchas
 

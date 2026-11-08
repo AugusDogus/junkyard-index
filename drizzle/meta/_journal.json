@@ -141,6 +141,13 @@
       "when": 1794992048862,
       "tag": "0019_vehicle_departure",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794992409438,
+      "tag": "0020_inventory_snapshot",
+      "breakpoints": true
     }
   ]
 }

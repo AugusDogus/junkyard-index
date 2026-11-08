@@ -302,7 +302,7 @@ test("source-scoped VIN pagination uses the source/VIN index", async () => {
   }
 });
 
-test("upgrades production through 0016 with ordered arrival, ingestion and departure migrations", async () => {
+test("upgrades production through 0016 with ordered arrival, ingestion, departure and inventory migrations", async () => {
   const client = createClient({ url: ":memory:" });
   const folder = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
   try {
@@ -332,6 +332,7 @@ test("upgrades production through 0016 with ordered arrival, ingestion and depar
       ["0017_observed_vehicle_arrival", 1794787200000],
       ["0018_ingestion_cost_indexes", 1794871322488],
       ["0019_vehicle_departure", 1794992048862],
+      ["0020_inventory_snapshot", 1794992409438],
     ]);
     for (let i = 1; i < journal.entries.length; i++) {
       const current = journal.entries[i];
@@ -377,6 +378,15 @@ test("upgrades production through 0016 with ordered arrival, ingestion and depar
       ),
     );
     expect(departure.prevId).toBe(cost.id);
+    const inventory = snapshot.parse(
+      JSON.parse(
+        await readFile(
+          join(MIGRATIONS_FOLDER, "meta/0020_snapshot.json"),
+          "utf8",
+        ),
+      ),
+    );
+    expect(inventory.prevId).toBe(departure.id);
     await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
     await writeFile(
       join(folder, "meta/_journal.json"),
