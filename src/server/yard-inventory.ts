@@ -59,7 +59,7 @@ async function loadYardVehicles(
 
 /** A yard's live vehicles, newest first. Refreshed with the daily pass. */
 export const getYardVehicles = cacheInventory(loadYardVehicles, [
-  "yard-vehicles-v1",
+  "yard-vehicles-v2",
 ]);
 
 async function loadSourcePublishedAt(): Promise<
