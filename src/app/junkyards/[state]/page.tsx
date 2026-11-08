@@ -81,28 +81,38 @@ export default async function RegionPage({
         ]}
       />
       <Breadcrumbs crumbs={crumbs} />
-      <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        Junkyards in {region.name}
-      </h1>
-      <p className="mt-3 text-base text-pretty">
-        <span className="font-semibold tabular-nums">
-          {InventoryFormat.plural(yards.length, "yard", "yards")}
-        </span>{" "}
-        listing{" "}
-        <span className="font-semibold tabular-nums">
-          {InventoryFormat.count(vehicles)}
-        </span>{" "}
-        vehicles. Each yard&apos;s page lists every vehicle, newest first, with
-        where it sits in the yard when the yard says.
-      </p>
-      <div className="mt-2">
+      <header>
+        <h1 className="text-display-s leading-[1.02] font-extrabold">
+          Junkyards in {region.name}
+        </h1>
+        <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
+          <span className="text-ink font-extrabold tabular-nums">
+            {InventoryFormat.plural(yards.length, "yard", "yards")}
+          </span>{" "}
+          listing{" "}
+          <span className="text-ink font-extrabold tabular-nums">
+            {InventoryFormat.count(vehicles)}
+          </span>{" "}
+          vehicles.
+        </p>
+      </header>
+      <div className="mt-5">
         <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
       </div>
-      <section aria-labelledby="yards-title" className="mt-8">
-        <h2 id="yards-title" className="text-lg font-semibold">
-          Yards by size
-        </h2>
-        <div className="mt-3">
+      <section aria-labelledby="yards-title" className="mt-(--space-2xl)">
+        <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
+          <h2
+            id="yards-title"
+            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
+          >
+            Yards by size
+          </h2>
+          <p className="text-lead text-ink-2 leading-[1.45] text-pretty lg:col-span-7">
+            Each yard&apos;s page lists every vehicle, newest first, with where
+            it sits in the yard when the yard says.
+          </p>
+        </div>
+        <div className="mt-(--space-xl)">
           <YardList yards={ranked} />
         </div>
       </section>

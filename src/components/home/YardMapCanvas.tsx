@@ -109,7 +109,7 @@ export default function YardMapCanvas({
   return (
     <div
       ref={containerRef}
-      className="yard-map focus-visible:ring-foreground relative h-full overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset"
+      className="yard-map focus-visible:outline-focus relative h-full overflow-hidden outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       style={{ containerType: "size" }}
       role="region"
       tabIndex={0}
@@ -197,7 +197,7 @@ export default function YardMapCanvas({
         href="https://www.openstreetmap.org/copyright"
         target="_blank"
         rel="noreferrer"
-        className="bg-background text-muted-foreground absolute right-0 bottom-0 px-1.5 py-0.5 text-[10px]"
+        className="bg-paper-3 text-ink-2 hover:text-signal focus-visible:outline-focus absolute right-0 bottom-0 px-1.5 py-0.5 text-[11px] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       >
         © OpenStreetMap contributors
       </a>
@@ -206,7 +206,7 @@ export default function YardMapCanvas({
           type="button"
           variant="outline"
           size="icon"
-          className="bg-background dark:bg-background shadow-sm"
+          className="bg-paper-3 hover:bg-ink"
           aria-label="Show all yards on the map"
           title="Show all yards"
           onClick={() => {
@@ -216,12 +216,12 @@ export default function YardMapCanvas({
         >
           <Scan aria-hidden="true" />
         </Button>
-        <div className="bg-background flex flex-col overflow-hidden rounded-md border shadow-sm">
+        <div className="bg-paper-3 border-ink flex flex-col border-2">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="rounded-none"
+            className="hover:bg-ink hover:text-paper size-8"
             aria-label="Zoom in"
             disabled={current.zoom >= 18}
             onClick={() => zoomBy(1)}
@@ -232,7 +232,7 @@ export default function YardMapCanvas({
             type="button"
             variant="ghost"
             size="icon"
-            className="rounded-none border-t"
+            className="hover:bg-ink hover:text-paper border-t-ink size-8 border-t-2"
             aria-label="Zoom out"
             disabled={current.zoom <= 1}
             onClick={() => zoomBy(-1)}
@@ -244,7 +244,7 @@ export default function YardMapCanvas({
       {(loading ? showLoading : tileError || loadError) && (
         <p
           role="status"
-          className="bg-card absolute bottom-3 left-3 max-w-60 rounded-md border p-3 text-xs"
+          className="bg-paper-3 border-ink absolute bottom-3 left-3 max-w-60 border-2 p-3 text-xs"
         >
           {loading
             ? "Loading map…"

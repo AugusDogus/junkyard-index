@@ -1,12 +1,33 @@
+/* Hallmark · shape: kept on / (search over the yard map, arrivals, FAQ, plans, close); Index on the inventory pages · genre: modern-minimal · theme: Wayfind (deal 2/3, seed search-live-inventory-self-service-fd93·e4fab0d0·2026-11-08·r0) · redesign: full · job: visit
+ * hero: kept (search over the yard map) on /, Banner on the inventory pages · nav: edge-aligned bar with a 2px ink underside · footer: mast, the wordmark over grouped links · imagery: the product (the yard map, real vehicle photographs) · signature: the arrivals board, recently indexed vehicles on the ink band with amber dates · wayfind: platform + night
+ * axes: light/mono/cool · posture: committed · modes: light+dark · contrast: pass · fold: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V3 · weakest: V, the landing page keeps its sequence by request; the variety goes into the board, the plates and the inventory pages' Index shape */
+/* Hallmark · waive 82 · the map pins are the yards' real locations on a map of real places, not a count of things · the map is the yard directory */
+/* Hallmark · waive 8 · the sequence is the owner's kept landing page · search over the yard map, arrivals, FAQ, plans and the close stay in the owner's order */
+/* Hallmark · waive 44c · the head and the search sit above the yard map, the kept layout · the map is the hero's visual and the search runs across its full width, so their centres stack */
+/* Hallmark · waive 81 · the grey blocks are VehicleImage loading skeletons under real listing photos · the arrivals board fills each one with its vehicle's photograph as it loads */
+/* Hallmark · waive 83 · the pictures are the yard map tiles and the arrivals board's listing photos · the photographs are the inventory itself, never decoration */
+/* Hallmark · waive 23 · --color-accent is shadcn's paper-2 hover surface, mapped to --accent, not Wayfind's cobalt · cobalt stays on the primary action, live markers and link hover */
+/* Hallmark · waive 39b · the yard directory rows are list rows that select a yard on the map, sized by their two lines · each row is a full-width button over its own links, not a marketing control */
+/* Hallmark · waive 72 · the yard directory is a scroll box holding all 178 yards, so its content runs past the box by design · the rows clip at the scroll edge with padding inside each row */
+/* Hallmark · waive 49b · yard names such as "Pick Your Part - Houston Wallisville" are the yards' real names and wrap to two lines at 320 · a yard name cannot shorten without losing which yard it is */
+/* Hallmark · dismissed F18 · data-slot="button" is shadcn's marker on every Button, not a picture slot */
+/* Hallmark · dismissed 77 · the inventory pages are Index pages under a Banner head, so a state or a make page holds three sections, not a landing strip */
+/* Hallmark · dismissed 28a · the yard page's LCP is its h1; the first vehicle photo sits below it and stays lazy */
+/* Hallmark · reworded "Junkyard Index: search salvage yard inventory" to "Search 178 salvage yards at once" · the h1 was screen-reader only; 44b wants it visible and the hero review named the category line, so it leads with the live yard count */
+/* Hallmark · dropped 1.png · an OpenStreetMap tile file name, not page content; the map loads other tiles at its new size */
+/* Hallmark · hero-review: fix · 5 findings · 5 resolved (markers settle aligned; amber figures at 30px on a lighter night board; the head leads with the live yard count; the line sits under the head; the search row joins edge to edge so the placeholder fits at 375) */
+/* Hallmark · finish-review: subagent · 8 findings · 7 resolved 1 partial (on a phone the yard page's first vehicle moved from y 840 to about 800: the plate is gone under sm, the make filter still sits above the list) · gap: none */
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./tokens.css";
+@import "./base.css" layer(base);
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-sans:
-    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-body);
 }
 
 @theme inline {
@@ -47,73 +68,42 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/* shadcn's names point at Wayfind's tokens, so the app screens follow the
+ * system in both modes (tokens.css swaps the values under .dark). */
+:root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --radius: 0px;
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
+  --card: var(--color-paper-3);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-paper-3);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-signal-fill);
+  --primary-foreground: var(--color-signal-ink);
+  --secondary: var(--color-paper-2);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-paper-2);
+  --muted-foreground: var(--color-ink-3);
+  --accent: var(--color-paper-2);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-error);
+  --border: var(--color-rule);
+  --input: var(--color-ink-3);
+  --ring: var(--color-focus);
+  --chart-1: var(--color-signal);
+  --chart-2: var(--color-figure);
+  --chart-3: var(--color-ink-2);
+  --chart-4: var(--color-success);
+  --chart-5: var(--color-error);
+  --sidebar: var(--color-paper-2);
+  --sidebar-foreground: var(--color-ink);
+  --sidebar-primary: var(--color-signal-fill);
+  --sidebar-primary-foreground: var(--color-signal-ink);
+  --sidebar-accent: var(--color-paper-3);
+  --sidebar-accent-foreground: var(--color-ink);
+  --sidebar-border: var(--color-rule);
+  --sidebar-ring: var(--color-focus);
 }
 
 @layer base {
@@ -161,14 +151,21 @@
 
 @utility scrollbar-thin-themed {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-muted-foreground) transparent;
+  scrollbar-color: var(--color-ink-3) transparent;
+}
+
+/* Board steps: Wayfind changes colour in one step, never a fade. */
+@utility board-step {
+  transition-property: color, background-color, border-color;
+  transition-duration: var(--dur-micro);
+  transition-timing-function: steps(1);
 }
 
 .yard-map {
   cursor: grab;
   z-index: 0;
-  background: var(--muted);
-  font-family: var(--font-sans);
+  background: var(--color-paper-2);
+  font-family: var(--font-body);
 }
 
 .yard-map:active {
@@ -177,34 +174,7 @@
 
 /* Override Pigeon's inline light background while map tiles are loading. */
 .yard-map div:has(> .yard-map-tiles) {
-  background: var(--muted) !important;
-}
-
-.pricing-plan-border-beam {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg 270deg,
-    var(--muted-foreground) 310deg,
-    var(--foreground) 340deg,
-    transparent 360deg
-  );
-  animation: pricing-plan-border 10s linear infinite paused;
-}
-
-.featured-pricing-plan[data-animated="true"] .pricing-plan-border-beam {
-  animation-play-state: running;
-}
-
-@keyframes pricing-plan-border {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pricing-plan-border-beam {
-    animation: none;
-  }
+  background: var(--color-paper-2) !important;
 }
 
 .yard-map-marker:hover,
@@ -219,33 +189,35 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
   outline: none;
 }
 
+/* A yard is a square stop on the line, the way a station sits on a map. */
 .yard-map-pin > span {
   width: 11px;
   height: 11px;
-  border: 2px solid var(--background);
-  border-radius: 50%;
-  background: var(--foreground);
-  box-shadow: 0 1px 3px #0004;
+  border: 2px solid var(--color-paper-3);
+  background: var(--color-ink);
+  box-shadow: 0 1px 3px var(--color-scrim);
   transition:
-    transform 150ms ease,
-    box-shadow 150ms ease;
+    transform var(--dur-micro) var(--ease-out),
+    background-color var(--dur-micro) steps(1);
 }
 
 @media (hover: hover) {
   .yard-map-pin:hover > span {
-    transform: scale(1.2);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--foreground) 15%, transparent);
+    transform: scale(1.25);
   }
 }
 
-.yard-map-pin:focus-visible,
-.yard-map-pin[aria-pressed="true"] {
-  outline: 2px solid var(--foreground);
-  outline-offset: -3px;
+.yard-map-pin[aria-pressed="true"] > span {
+  background: var(--color-signal);
+  transform: scale(1.35);
+}
+
+.yard-map-pin:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -284,21 +256,21 @@
 }
 
 .yard-map-tiles {
-  filter: grayscale(1);
+  filter: grayscale(1) contrast(0.92) brightness(1.02);
 }
 
 .dark .yard-map-tiles {
-  filter: grayscale(1) invert(1) brightness(0.8);
+  filter: grayscale(1) invert(1) brightness(0.72) contrast(1.1);
 }
 
-/* Reserve space for the header, search, map controls, and recent vehicles. */
+/* Reserve space for the header, the head line, search, and the map strip. */
 .homepage-map-canvas {
-  height: clamp(10rem, calc(100svh - 29rem), 24rem);
+  height: clamp(13rem, calc(100svh - 35rem), 24rem);
 }
 
 @media (min-width: 64rem) {
   .homepage-map-layout {
-    height: clamp(12rem, calc(100svh - 25rem), 32rem);
+    height: clamp(16rem, calc(100svh - 26.25rem), 48rem);
   }
 
   .homepage-map-canvas {

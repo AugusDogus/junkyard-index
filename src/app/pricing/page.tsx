@@ -27,13 +27,13 @@ export default async function PricingPage() {
     <div className="bg-background flex min-h-dvh flex-col">
       <Header />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+      <main className="shell flex-1 py-16 sm:py-24">
         <div>
-          <div className="mx-auto max-w-xl text-center">
-            <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          <div className="max-w-2xl">
+            <h1 className="text-display-s leading-[1.02] font-extrabold">
               Pricing
             </h1>
-            <p className="text-muted-foreground mt-4 text-base text-pretty">
+            <p className="text-ink-2 text-lead mt-4 text-pretty">
               Search for free. Add filters, saved searches, or alerts when you
               need them.
             </p>
@@ -45,21 +45,21 @@ export default async function PricingPage() {
             </Suspense>
           </div>
 
-          <div className="bg-muted/40 mt-16 rounded-2xl border p-8 text-center">
-            <h2 className="text-2xl font-semibold tracking-tight">
+          <div className="bg-paper-2 border-ink mt-20 grid gap-6 border-2 p-6 sm:p-10 lg:grid-cols-12 lg:items-end lg:gap-8">
+            <h2 className="text-title leading-tight font-extrabold lg:col-span-5">
               Keep searching for free.
             </h2>
-            <p className="text-muted-foreground mx-auto mt-3 max-w-2xl text-pretty">
+            <p className="text-ink-2 text-pretty lg:col-span-7">
               Every plan includes unlimited searches. Create a free account to
               see full results.
             </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row lg:col-span-12">
               <TrackedPricingButton
                 href="/auth/sign-up"
                 label="Start Free"
                 sourcePage="pricing"
                 ctaLocation="bottom_start_free"
-                size="lg"
+                size="xl"
               />
               <TrackedPricingButton
                 href="/search"
@@ -67,7 +67,7 @@ export default async function PricingPage() {
                 sourcePage="pricing"
                 ctaLocation="bottom_search"
                 variant="outline"
-                size="lg"
+                size="xl"
               />
             </div>
           </div>
