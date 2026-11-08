@@ -240,6 +240,7 @@ export function YardInventoryView({
                 vehicle={vehicle}
                 source={yard.source}
                 publishedAt={newSince}
+                layout="columns"
               />
             ))}
           </ul>
