@@ -274,6 +274,28 @@ export const yard = sqliteTable(
   (table) => [primaryKey({ columns: [table.source, table.code] })],
 );
 
+/**
+ * Live vehicles per yard, derived from `vehicle`. Ingestion rebuilds a
+ * source's rows in the same batch that publishes that source, so the
+ * homepage reads one row per yard instead of scanning inventory.
+ */
+export const yardInventory = sqliteTable(
+  "yard_inventory",
+  {
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    locationName: text("location_name").notNull(),
+    locationCity: text("location_city").notNull(),
+    stateAbbr: text("state_abbr").notNull(),
+    lat: real("lat").notNull(),
+    lng: real("lng").notNull(),
+    vehicleCount: integer("vehicle_count").notNull(),
+    inventoryUrl: text("inventory_url"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
+);
+
 export const vehicle = sqliteTable(
   "vehicle",
   {
@@ -322,6 +344,12 @@ export const vehicle = sqliteTable(
     index("vehicle_missing_since_at_idx").on(table.missingSinceAt),
     index("vehicle_missing_run_count_idx").on(table.missingRunCount),
     index("vehicle_location_code_idx").on(table.locationCode),
+    // Covers per-yard live counts for yard_inventory without reading rows.
+    index("vehicle_yard_live_idx").on(
+      table.source,
+      table.locationCode,
+      table.missingSinceAt,
+    ),
     index("vehicle_state_abbr_idx").on(table.stateAbbr),
   ],
 );

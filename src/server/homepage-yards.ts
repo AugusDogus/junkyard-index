@@ -1,33 +1,32 @@
-import { and, asc, count, eq, getTableColumns, isNull, min } from "drizzle-orm";
+import { and, asc, eq, getTableColumns } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { getYardDetails } from "~/lib/yard-details";
-import { vehicle, yard as yardTable } from "~/schema";
+import { yardInventory, yard as yardTable } from "~/schema";
 
+/** One row per yard with live vehicles, maintained by ingestion. */
 export async function getHomepageYards(database: LibSQLDatabase) {
   const yards = await database
     .select({
-      source: vehicle.source,
-      code: vehicle.locationCode,
-      name: vehicle.locationName,
-      city: vehicle.locationCity,
-      state: vehicle.stateAbbr,
-      lat: vehicle.lat,
-      lng: vehicle.lng,
-      vehicleCount: count(),
-      inventoryUrl: min(vehicle.detailsUrl),
+      source: yardInventory.source,
+      code: yardInventory.locationCode,
+      name: yardInventory.locationName,
+      city: yardInventory.locationCity,
+      state: yardInventory.stateAbbr,
+      lat: yardInventory.lat,
+      lng: yardInventory.lng,
+      vehicleCount: yardInventory.vehicleCount,
+      inventoryUrl: yardInventory.inventoryUrl,
       metadata: getTableColumns(yardTable),
     })
-    .from(vehicle)
+    .from(yardInventory)
     .leftJoin(
       yardTable,
       and(
-        eq(yardTable.source, vehicle.source),
-        eq(yardTable.code, vehicle.locationCode),
+        eq(yardTable.source, yardInventory.source),
+        eq(yardTable.code, yardInventory.locationCode),
       ),
     )
-    .where(isNull(vehicle.missingSinceAt))
-    .groupBy(vehicle.source, vehicle.locationCode)
-    .orderBy(asc(vehicle.stateAbbr), asc(vehicle.locationName));
+    .orderBy(asc(yardInventory.stateAbbr), asc(yardInventory.locationName));
   return yards.map(({ metadata, inventoryUrl, ...yard }) => ({
     ...yard,
     ...getYardDetails({ ...yard, inventoryUrl }, metadata),

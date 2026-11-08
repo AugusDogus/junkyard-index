@@ -24,6 +24,7 @@ import {
   type RunSnapshotInventory,
 } from "./run-snapshot-inventory";
 import type { CanonicalVehicle } from "./types";
+import { yardInventoryRefreshStatements } from "./yard-inventory";
 
 const RECONCILIATION_BATCH_SIZE = 500;
 const MISSING_DELETE_AFTER_RUNS = 3;
@@ -334,6 +335,21 @@ async function runUpsertBatch(
     })),
   });
   if (upserts) statements.push(upserts);
+  // A VIN taken over by a higher-priority source leaves its previous source's
+  // yard. That source is not reconciled in this run, so refresh it here.
+  const existingSource = new Map(
+    existingRows.map((row) => [row.vin, row.source] as const),
+  );
+  const reconciled: ReadonlySet<string> = inventory.acceptedSources;
+  const displacedSources = changed.flatMap(({ vehicle: next }) => {
+    const previous = existingSource.get(next.vin);
+    return previous !== undefined &&
+      previous !== next.source &&
+      !reconciled.has(previous)
+      ? [previous]
+      : [];
+  });
+  statements.push(...yardInventoryRefreshStatements(displacedSources, now));
   const checkpointIndex = statements.length;
   statements.push({
     sql: `
@@ -532,6 +548,11 @@ async function runMissingBatch(
     transitions,
   });
   if (deletes) statements.push(deletes);
+  // The last batch commits the accepted sources' yard summary with them.
+  if (finishing)
+    statements.push(
+      ...yardInventoryRefreshStatements(params.acceptedSources, now),
+    );
   const checkpointIndex = statements.length;
   const deletedCount = transitions.filter(
     (transition) => transition.changeType === "delete",
