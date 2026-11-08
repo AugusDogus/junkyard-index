@@ -1,6 +1,22 @@
 import type { TileComponentProps } from "pigeon-maps";
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
+
+/**
+ * Pigeon lays tiles out from the tile grid's first column, and that column
+ * moves when the map adopts its measured size after the server's estimate.
+ * Placing each tile with a transform instead of left/top keeps that move out
+ * of layout, so the browser does not count it as a layout shift. The picture
+ * on screen is the same either way.
+ */
+function tilePosition(tile: TileComponentProps["tile"]): CSSProperties {
+  return {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    transform: `translate(${tile.left}px, ${tile.top}px)`,
+  };
+}
 
 export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
   const loadedParts = useRef(new Set<number>());
@@ -21,7 +37,7 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
         alt=""
         onLoad={tileLoaded}
         onError={tileLoaded}
-        style={{ position: "absolute", left: tile.left, top: tile.top }}
+        style={tilePosition(tile)}
       />
     );
   }
@@ -31,9 +47,7 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
   return (
     <div
       style={{
-        position: "absolute",
-        left: tile.left,
-        top: tile.top,
+        ...tilePosition(tile),
         width: tile.width,
         height: tile.height,
       }}
