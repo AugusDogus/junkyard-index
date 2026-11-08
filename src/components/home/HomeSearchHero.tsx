@@ -23,7 +23,7 @@ export function HomeSearchHero() {
   };
 
   return (
-    <div className="w-full min-w-0 py-3">
+    <div className="w-full min-w-0">
       <form
         role="search"
         onSubmit={(event) => {

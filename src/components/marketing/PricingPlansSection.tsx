@@ -16,6 +16,12 @@ import type { SubscriptionAction } from "~/lib/subscription-action";
 import { cn } from "~/lib/utils";
 import { EnsureAppProviders } from "~/components/AppProviders";
 
+const BILLING_INTERVALS: readonly { value: BillingInterval; label: string }[] =
+  [
+    { value: "monthly", label: "Monthly" },
+    { value: "annual", label: "Annual" },
+  ];
+
 type PricingPlansSectionProps = {
   initialIsRegistered: boolean;
   sourcePage?: "home" | "pricing";
@@ -50,39 +56,29 @@ function PricingPlans({
   return (
     <div>
       <div
-        className="bg-muted/50 mx-auto flex w-fit gap-1 rounded-lg border p-1"
+        className="border-ink flex w-fit border-2"
         aria-label="Billing interval"
         role="group"
       >
-        <button
-          type="button"
-          className={cn(
-            "focus-visible:ring-ring/50 h-9 rounded-md border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-2",
-            interval === "monthly"
-              ? "bg-background border-border text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground border-transparent",
-          )}
-          aria-pressed={interval === "monthly"}
-          onClick={() => setInterval("monthly")}
-        >
-          Monthly
-        </button>
-        <button
-          type="button"
-          className={cn(
-            "focus-visible:ring-ring/50 h-9 rounded-md border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-2",
-            interval === "annual"
-              ? "bg-background border-border text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground border-transparent",
-          )}
-          aria-pressed={interval === "annual"}
-          onClick={() => setInterval("annual")}
-        >
-          Annual
-        </button>
+        {BILLING_INTERVALS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={cn(
+              "board-step focus-visible:outline-focus not-first:border-ink h-11 px-5 text-sm font-extrabold outline-none not-first:border-l-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid",
+              interval === option.value
+                ? "bg-ink text-paper"
+                : "text-ink hover:bg-paper-2",
+            )}
+            aria-pressed={interval === option.value}
+            onClick={() => setInterval(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-3 lg:gap-6">
+      <div className="mt-8 grid gap-4 md:grid-cols-3 lg:gap-8">
         {PLAN_TIERS.map((tier) => {
           const featured = tier === "lite";
           const cta = resolvePricingPlanCta({
@@ -112,7 +108,7 @@ function PricingPlans({
       </div>
 
       {interval === "annual" && (
-        <p className="text-muted-foreground mt-4 text-center text-sm">
+        <p className="text-ink-2 mt-6 text-sm">
           Annual plans are billed once per year. Manage or cancel anytime from
           your subscription portal.
         </p>
@@ -133,10 +129,16 @@ function PricingPlanCtaButton({
   onAction(action: SubscriptionAction): void;
 }) {
   const variant = featured ? "default" : "outline";
+  // On the ink plate the cobalt button flips to paper on hover, not to ink.
+  const className = cn(
+    "h-12 w-full",
+    featured &&
+      "hover:border-board-ink hover:bg-board-ink hover:text-board focus-visible:outline-figure",
+  );
   switch (cta.kind) {
     case "disabled":
       return (
-        <Button variant={variant} className="h-10 w-full rounded-lg" disabled>
+        <Button variant={variant} className={className} disabled>
           {cta.label}
         </Button>
       );
@@ -148,14 +150,14 @@ function PricingPlanCtaButton({
           sourcePage={sourcePage}
           ctaLocation="pricing_plan"
           variant={variant}
-          className="h-10 w-full rounded-lg"
+          className={className}
         />
       );
     case "checkout":
       return (
         <Button
           variant={variant}
-          className="h-10 w-full rounded-lg"
+          className={className}
           onClick={() => onAction(cta)}
         >
           Get {PLANS[cta.selection.tier].name}
@@ -166,7 +168,7 @@ function PricingPlanCtaButton({
       return (
         <Button
           variant={variant}
-          className="h-10 w-full rounded-lg"
+          className={className}
           onClick={() => onAction(cta)}
         >
           {cta.account.kind === "needs_attention"

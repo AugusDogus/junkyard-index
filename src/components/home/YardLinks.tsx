@@ -10,18 +10,18 @@ import type { HomepageYard } from "~/lib/homepage-inventory";
 import { yardPhoneHref } from "~/lib/yard-phone";
 
 const linkClassName =
-  "pointer-events-auto hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 shrink-0 items-center gap-1 rounded-sm whitespace-nowrap underline underline-offset-4 outline-none focus-visible:ring-2";
+  "board-step pointer-events-auto hover:text-signal focus-visible:outline-focus inline-flex min-h-9 shrink-0 items-center gap-1 whitespace-nowrap underline decoration-1 underline-offset-[0.3em] hover:decoration-2 outline-none focus-visible:outline-2 focus-visible:outline-solid";
 
 export function YardLinks({ yard }: { yard: HomepageYard }) {
   const phoneHref = yardPhoneHref(yard.phone);
   return (
-    <div className="text-muted-foreground pointer-events-none relative z-10 flex items-center gap-3 text-xs">
+    <div className="text-ink-2 pointer-events-none relative z-10 flex items-center gap-3.5 text-[0.8125rem]">
       {yard.path && (
         <Link
           href={yard.path.href}
           prefetch={false}
           aria-label={`Inventory at ${yard.name}`}
-          className={`${linkClassName} text-foreground font-medium`}
+          className={`${linkClassName} text-ink font-extrabold`}
         >
           Inventory
         </Link>
@@ -55,7 +55,7 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
                 asChild
                 variant="ghost"
                 size="icon"
-                className="pointer-events-auto size-8"
+                className="pointer-events-auto size-9"
               >
                 <a
                   href={phoneHref}
@@ -75,7 +75,7 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
                 asChild
                 variant="ghost"
                 size="icon"
-                className="pointer-events-auto size-8"
+                className="pointer-events-auto size-9"
               >
                 <a
                   href={`mailto:${encodeURIComponent(yard.email)}`}

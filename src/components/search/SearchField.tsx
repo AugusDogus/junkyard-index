@@ -17,16 +17,16 @@ export function SearchField({
   ...props
 }: SearchFieldProps) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center">
       <div
         className={cn(
-          "border-input bg-card focus-within:border-ring focus-within:ring-ring/30 flex h-11 min-w-0 flex-1 items-center gap-1 rounded-md border px-1 focus-within:ring-2 sm:h-10",
+          "border-ink bg-paper-3 focus-within:outline-focus flex h-12 min-w-0 flex-1 items-center gap-1 border-2 px-1 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-solid",
           props["aria-invalid"] &&
             "border-destructive focus-within:border-destructive",
         )}
       >
         <Search
-          className="text-muted-foreground ml-2 hidden size-4 shrink-0 sm:block"
+          className="text-ink-2 ml-2 hidden size-5 shrink-0 sm:block"
           aria-hidden="true"
         />
         <Input
@@ -38,7 +38,7 @@ export function SearchField({
           placeholder="Year, make, model, or VIN"
           {...props}
           className={cn(
-            "h-9 min-w-0 flex-1 rounded-none border-0 bg-transparent px-2 text-base shadow-none outline-none focus-visible:ring-0 md:text-base dark:bg-transparent [&::-webkit-search-cancel-button]:hidden",
+            "placeholder:text-ink-3 h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base outline-none focus-visible:outline-none md:text-base dark:bg-transparent [&::-webkit-search-cancel-button]:hidden",
             className,
           )}
         />
@@ -55,11 +55,7 @@ export function SearchField({
           </Button>
         )}
       </div>
-      <Button
-        type="submit"
-        variant="outline"
-        className="bg-muted/40 hover:bg-muted dark:bg-muted/40 dark:hover:bg-muted h-11 shrink-0 rounded-md px-3.5 shadow-none transition-colors sm:h-10"
-      >
+      <Button type="submit" className="h-12 shrink-0 px-3 sm:px-6">
         Search
       </Button>
     </div>

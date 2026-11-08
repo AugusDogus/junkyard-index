@@ -50,43 +50,46 @@ function YardMapContent({
     <section
       id="yards"
       aria-labelledby="yard-map-title"
-      className="scroll-mt-20"
+      className="border-ink scroll-mt-28 border-2"
     >
-      <div className="bg-card flex items-center justify-between gap-4 rounded-t-lg border border-b-0 px-4 py-3">
-        <div>
-          <h2 id="yard-map-title" className="text-sm font-medium text-balance">
-            <span className="tabular-nums">
+      <div className="bg-board text-board-ink flex min-h-16 items-center justify-between gap-4 px-4 py-2 sm:px-5">
+        <h2
+          id="yard-map-title"
+          className="flex flex-wrap items-baseline gap-x-6 gap-y-0 text-sm font-medium tracking-normal"
+        >
+          <span>
+            <span className="text-figure text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
               {yards.length.toLocaleString("en-US")}
             </span>{" "}
-            yards{" "}
-            <span className="text-muted-foreground ml-2 hidden font-normal sm:inline">
-              <span className="tabular-nums">
-                {vehicleCount.toLocaleString("en-US")}
-              </span>{" "}
-              vehicles
-            </span>
-          </h2>
-        </div>
+            yards
+          </span>
+          <span>
+            <span className="text-figure text-2xl font-extrabold tracking-[-0.03em] sm:text-3xl">
+              {vehicleCount.toLocaleString("en-US")}
+            </span>{" "}
+            vehicles
+          </span>
+        </h2>
         <Link
           href="/request-yard"
-          className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
+          className="board-step focus-visible:outline-figure flex min-h-11 items-center gap-2 text-sm whitespace-nowrap underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-2 focus-visible:outline-solid"
         >
           <span>
             <span className="hidden sm:inline">Missing a yard? </span>Request it
-          </span>{" "}
+          </span>
           <ArrowUpRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
-      <div className="homepage-map-layout bg-card grid overflow-hidden rounded-b-lg border lg:grid-cols-[1fr_300px]">
-        <div className="order-last flex min-h-0 flex-col border-t lg:border-t-0 lg:border-l">
-          <div className="flex items-center justify-between gap-2 px-4 py-3">
-            <h3 className="flex items-center gap-2 text-sm font-medium">
-              <MapPin className="text-muted-foreground size-4" />
+      <div className="homepage-map-layout border-ink grid overflow-hidden border-t-2 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="bg-paper-3 border-ink order-last flex min-h-0 flex-col border-t-2 lg:border-t-0 lg:border-l-2">
+          <div className="flex min-h-13 items-center justify-between gap-2 px-4 py-2">
+            <h3 className="flex items-center gap-2 text-[0.9375rem] font-extrabold tracking-normal">
+              <MapPin className="size-4" aria-hidden="true" />
               Yard directory
             </h3>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               className="lg:hidden"
               aria-expanded={directoryOpen}
@@ -94,7 +97,10 @@ function YardMapContent({
               onClick={() => setDirectoryOpen(!directoryOpen)}
             >
               {directoryOpen ? "Hide" : "Browse"}
-              <ChevronDown />
+              <ChevronDown
+                className={cn(directoryOpen && "rotate-180")}
+                aria-hidden="true"
+              />
             </Button>
           </div>
           <div
@@ -104,13 +110,13 @@ function YardMapContent({
               directoryOpen ? "flex" : "hidden",
             )}
           >
-            <div className="border-b px-4 pb-3">
+            <div className="border-ink border-b-2 px-4 pb-3">
               <label htmlFor="yard-filter" className="sr-only">
                 Find a yard by name, city, or state abbreviation
               </label>
               <div className="relative">
                 <Search
-                  className="text-muted-foreground absolute top-3 left-3 size-4"
+                  className="text-ink-3 absolute top-3.5 left-3 size-4"
                   aria-hidden="true"
                 />
                 <Input
@@ -118,13 +124,13 @@ function YardMapContent({
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
                   placeholder="Find a city, state, or yard"
-                  className="h-10 pl-9"
+                  className="border-ink h-11 border-2 pl-9"
                 />
               </div>
             </div>
-            <div className="max-h-52 min-h-0 flex-1 overflow-y-auto overscroll-contain lg:max-h-none">
+            <div className="max-h-64 min-h-0 flex-1 overflow-y-auto overscroll-contain lg:max-h-none">
               {filtered.length === 0 ? (
-                <p className="text-muted-foreground p-5 text-sm">
+                <p className="text-ink-2 p-5 text-sm">
                   No matching yards. Try another city or state abbreviation.
                 </p>
               ) : (
@@ -132,29 +138,34 @@ function YardMapContent({
                   <div
                     key={`${yard.source}:${yard.code}`}
                     className={cn(
-                      "hover:bg-muted focus-within:bg-muted relative border-b last:border-b-0",
-                      selected === yard && "bg-muted",
+                      "board-step border-rule hover:bg-paper-2 focus-within:bg-paper-2 relative border-b last:border-b-0",
+                      selected === yard && "bg-paper-2",
                     )}
                   >
                     <button
                       type="button"
                       onClick={() => setSelected(yard)}
                       aria-pressed={selected === yard}
-                      className="focus-visible:after:ring-ring block w-full px-4 pt-3 pb-2 text-left outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset"
+                      className="focus-visible:after:outline-focus block w-full px-4 pt-3 pb-1 text-left outline-none after:absolute after:inset-0 focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-solid"
                     >
                       <span className="block min-w-0">
                         <span
-                          className="block truncate text-sm font-medium"
+                          className={cn(
+                            "block truncate text-[0.9375rem] font-medium",
+                            selected === yard && "text-signal font-extrabold",
+                          )}
                           title={yard.name}
                         >
                           {yard.name}
                         </span>
-                        <span className="text-muted-foreground mt-1 flex items-center justify-between gap-3 text-xs">
+                        <span className="text-ink-3 mt-0.5 flex items-center justify-between gap-3 text-sm">
                           <span className="min-w-0 truncate">
                             {yard.city}, {yard.state}
                           </span>
-                          <span className="shrink-0 whitespace-nowrap tabular-nums">
-                            {yard.vehicleCount.toLocaleString("en-US")}{" "}
+                          <span className="text-ink shrink-0 whitespace-nowrap">
+                            <span className="font-extrabold">
+                              {yard.vehicleCount.toLocaleString("en-US")}
+                            </span>{" "}
                             {yard.vehicleCount === 1 ? "vehicle" : "vehicles"}
                           </span>
                         </span>
@@ -167,14 +178,14 @@ function YardMapContent({
                 ))
               )}
             </div>
-            <div className="text-muted-foreground border-t px-4 py-2 text-xs">
+            <div className="border-ink text-ink-2 border-t-2 px-4 py-1.5 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span>{location ? "Nearest first" : "By state"}</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-2 text-xs"
+                  className="h-9 px-2"
                   disabled={locating}
                   onClick={requestLocation}
                 >
@@ -182,7 +193,7 @@ function YardMapContent({
                 </Button>
               </div>
               {locationError && (
-                <p role="status" className="mt-2 text-pretty">
+                <p role="status" className="mt-2 mb-1 text-pretty">
                   {locationError}
                 </p>
               )}
@@ -197,26 +208,33 @@ function YardMapContent({
             onSelect={setSelected}
           />
           {selected && (
-            <div className="bg-card absolute top-3 right-16 left-3 z-10 rounded-lg border p-3 pr-10 shadow-sm sm:right-auto sm:max-w-80">
-              <p className="text-sm font-medium text-pretty">{selected.name}</p>
+            <div className="bg-paper-3 border-ink shadow-card absolute top-3 right-16 left-3 z-10 border-2 p-4 pr-11 sm:right-auto sm:max-w-80">
+              <p className="text-signal text-[0.9375rem] font-extrabold text-pretty">
+                {selected.name}
+              </p>
               {selected.address && (
-                <p className="text-muted-foreground mt-1 text-xs text-pretty">
+                <p className="text-ink-2 mt-1 text-sm text-pretty">
                   {selected.address}
                 </p>
               )}
-              <p className="text-muted-foreground mt-1 text-xs">
-                {selected.city}, {selected.state} ·{" "}
-                {selected.vehicleCount.toLocaleString("en-US")} vehicles
+              <p className="text-ink-2 mt-1 text-sm">
+                {selected.city}, {selected.state}
               </p>
-              <div className="mt-2">
+              <p className="mt-1 text-sm">
+                <span className="font-extrabold">
+                  {selected.vehicleCount.toLocaleString("en-US")}
+                </span>{" "}
+                vehicles
+              </p>
+              <div className="border-rule mt-2 border-t pt-1">
                 <YardLinks yard={selected} />
               </div>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 aria-label="Close yard details"
                 onClick={() => setSelected(null)}
-                className="absolute top-2 right-2 size-6 border-0 shadow-none"
+                className="absolute top-2 right-2 size-8"
               >
                 <X aria-hidden="true" />
               </Button>

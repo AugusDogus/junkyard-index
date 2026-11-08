@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 
-export function TrackedRequestYardLink() {
+export function TrackedRequestYardLink({ className }: { className?: string }) {
   return (
     <Link
       href="/request-yard"
-      className="hover:text-foreground transition-colors"
+      className={className}
       onClick={() =>
         trackRequestYardClick({
           location: "footer",

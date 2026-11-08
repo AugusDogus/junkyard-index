@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "~/lib/utils";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
 import { SessionHeaderAuthButtons } from "./SessionHeaderAuthButtons";
 
@@ -20,23 +22,21 @@ interface HeaderContentProps {
 
 export function HeaderContent({ auth }: HeaderContentProps) {
   return (
-    <header className="bg-background sticky top-0 z-50 border-b shadow-sm">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center gap-3 sm:gap-4">
-          <div className="flex shrink-0 items-center">
-            <Link
-              href="/"
-              data-brand-link
-              className="text-foreground text-xl font-bold sm:text-2xl"
-            >
-              Junkyard Index
-            </Link>
-          </div>
-          <nav aria-label="Main" className="hidden gap-5 sm:flex">
+    <header className="bg-paper border-ink sticky top-0 z-50 border-b-2">
+      <div className="shell">
+        <div className="flex h-16 items-center gap-4 sm:h-18 sm:gap-8">
+          <Link
+            href="/"
+            data-brand-link
+            className="text-ink focus-visible:outline-focus shrink-0 text-xl leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid sm:text-2xl"
+          >
+            Junkyard Index
+          </Link>
+          <nav aria-label="Main" className="hidden self-stretch sm:flex">
             <MainLinks />
           </nav>
           <div className="flex-1" />
-          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {auth.kind === "server" ? (
               <HeaderAuthButtons user={auth.user} />
             ) : (
@@ -45,7 +45,7 @@ export function HeaderContent({ auth }: HeaderContentProps) {
           </div>
         </div>
         {/* No room beside the brand and actions on phones: a slim row below. */}
-        <nav aria-label="Main" className="flex gap-5 pb-2.5 sm:hidden">
+        <nav aria-label="Main" className="-mt-1 flex h-10 sm:hidden">
           <MainLinks />
         </nav>
       </div>
@@ -56,18 +56,28 @@ export function HeaderContent({ auth }: HeaderContentProps) {
 function MainLinks() {
   return (
     <>
-      <Link
-        href="/junkyards"
-        className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-      >
-        Junkyards
-      </Link>
-      <Link
-        href="/cars"
-        className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-      >
-        Cars
-      </Link>
+      <MainLink href="/junkyards">Junkyards</MainLink>
+      <MainLink href="/cars">Cars</MainLink>
     </>
+  );
+}
+
+/** The current section carries a 2px ink bar, like a platform sign's arrow. */
+function MainLink({ href, children }: { href: string; children: string }) {
+  const pathname = usePathname();
+  const current = pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      aria-current={current ? "page" : undefined}
+      className={cn(
+        "board-step focus-visible:outline-focus flex items-center border-b-2 px-3 text-sm font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-3 sm:text-[0.9375rem]",
+        current
+          ? "border-ink text-ink"
+          : "text-ink-2 hover:text-signal border-transparent",
+      )}
+    >
+      {children}
+    </Link>
   );
 }

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, ChevronRight, Search } from "lucide-react";
+import { Minus, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
@@ -77,6 +77,24 @@ export function modelPageMetadata(
 const TOP_YARDS = 10;
 const SIBLINGS = 12;
 
+/** An underlined text link on the paper: ink, cobalt on hover. */
+const INLINE_LINK =
+  "board-step text-ink hover:text-signal focus-visible:outline-focus inline-flex min-h-11 items-center gap-2 text-[0.9375rem] font-medium underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid";
+
+/** Up to four columns, fewer for a short list, so no column holds a lone row. */
+function siblingColumns(count: number): string {
+  if (count >= 12) return "columns-2 lg:columns-4";
+  if (count >= 9) return "columns-2 lg:columns-3";
+  if (count >= 4) return "columns-2";
+  return "max-w-2xl";
+}
+
+/** A list split in two, the first half one longer when the count is odd. */
+function halves<Item>(items: readonly Item[]): [Item[], Item[]] {
+  const middle = Math.ceil(items.length / 2);
+  return [items.slice(0, middle), items.slice(middle)];
+}
+
 export type ModelYard = { yard: RoutedYard; count: number; years: string };
 
 export function ModelInventoryView({
@@ -109,6 +127,7 @@ export function ModelInventoryView({
   const yardHref = (yard: RoutedYard) =>
     YardPath.makeHref(yard.path, make.slug);
   const searchHref = `/search?q=${encodeURIComponent(name)}`;
+  const shown = siblings.slice(0, SIBLINGS);
 
   return (
     <>
@@ -125,38 +144,45 @@ export function ModelInventoryView({
       />
       <Breadcrumbs crumbs={crumbs} />
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        <h1 className="text-display-s leading-[1.02] font-extrabold">
           {name} at junkyards
         </h1>
-        <p className="mt-3 text-base text-pretty">
-          <span className="font-semibold tabular-nums">
+        <p className="text-lead text-ink-2 mt-5 max-w-[60ch] leading-[1.45]">
+          <span className="text-ink font-extrabold tabular-nums">
             {InventoryFormat.count(model.count)}
           </span>{" "}
           in stock at{" "}
-          <span className="font-semibold tabular-nums">
+          <span className="text-ink font-extrabold tabular-nums">
             {InventoryFormat.plural(yards.length, "yard", "yards")}
           </span>{" "}
           in {regionLabel(routed)}, model years {InventoryFormat.years(model)}.
         </p>
-        <div className="mt-2">
-          <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button asChild>
+        <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
+          <Button asChild size="xl" className="max-w-full">
             <Link href={searchHref} prefetch={false}>
               <Search aria-hidden="true" data-icon="inline-start" />
-              Search every {name}
+              <span className="truncate">Search every {name}</span>
             </Link>
           </Button>
+          <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
         </div>
       </header>
 
-      <section aria-labelledby="top-yards-title" className="mt-10">
-        <h2 id="top-yards-title" className="text-lg font-semibold">
+      {/* Where to go: the yards holding the most, on the board. */}
+      <section
+        aria-labelledby="top-yards-title"
+        className="bg-board text-board-ink border-ink mt-(--space-2xl) border-2 px-4 py-8 sm:p-8 lg:mt-(--space-3xl) lg:p-10"
+      >
+        <h2
+          id="top-yards-title"
+          className="text-section leading-[1.02] font-extrabold"
+        >
           Yards with the most
         </h2>
-        <div className="mt-3">
+        <div className="mt-(--space-xl)">
           <YardRows
+            tone="board"
+            columns={2}
             rows={yards.slice(0, TOP_YARDS).map(({ yard, count, years }) => ({
               href: yardHref(yard),
               name: YardName.headline(yard.name, yard.operator),
@@ -169,30 +195,35 @@ export function ModelInventoryView({
         {yards.length > TOP_YARDS && (
           <a
             href="#yards-title"
-            className="mt-3 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+            className="board-step text-board-ink focus-visible:outline-figure mt-6 inline-flex min-h-11 items-center gap-2 text-[0.9375rem] font-medium underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid"
           >
             All {InventoryFormat.plural(yards.length, "yard", "yards")}, by
-            state <ArrowDown className="size-3.5" aria-hidden="true" />
+            state
           </a>
         )}
       </section>
 
       {arrivals.length > 0 && (
-        <section aria-labelledby="arrivals-title" className="mt-10">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b pb-3">
-            <h2 id="arrivals-title" className="text-lg font-semibold">
+        <section
+          aria-labelledby="arrivals-title"
+          className="mt-(--section-gap) grid gap-y-(--space-xl) lg:grid-cols-12 lg:gap-x-8"
+        >
+          <div className="lg:sticky lg:top-28 lg:col-span-4 lg:self-start">
+            <h2
+              id="arrivals-title"
+              className="text-section leading-[1.02] font-extrabold"
+            >
               Newest arrivals
             </h2>
             <Link
               href={searchHref}
               prefetch={false}
-              className="inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
+              className={`${INLINE_LINK} mt-5`}
             >
-              All {InventoryFormat.count(model.count)} in search{" "}
-              <ArrowRight className="size-3.5" aria-hidden="true" />
+              All {InventoryFormat.count(model.count)} in search
             </Link>
           </div>
-          <ul className="divide-y">
+          <ul className="border-ink divide-rule divide-y border-t-2 lg:col-span-8">
             {arrivals.map((vehicle) => {
               const yard = byKey.get(`${vehicle.source}:${vehicle.code}`);
               return (
@@ -215,87 +246,112 @@ export function ModelInventoryView({
         </section>
       )}
 
-      <AlertsCallout
-        subject={`a new ${name} arrival shows up at any yard we track`}
-        sourcePage="model"
-      />
+      <div className="mt-(--space-2xl) lg:mt-(--section-gap-s)">
+        <AlertsCallout
+          subject={`a new ${name} arrival shows up at any yard we track`}
+          sourcePage="model"
+        />
+      </div>
 
       {yards.length > TOP_YARDS && (
-        <section aria-labelledby="yards-title" className="mt-10">
-          <h2 id="yards-title" className="text-lg font-semibold">
+        <section aria-labelledby="yards-title" className="mt-(--section-gap-s)">
+          <h2
+            id="yards-title"
+            className="text-section leading-[1.02] font-extrabold"
+          >
             Every yard with one, by state
           </h2>
-          <div className="mt-3 divide-y border-y">
-            {YardPath.byRegion(routed).map(({ region, yards: regionYards }) => (
-              <details key={region.slug} className="group">
-                <summary className="hover:bg-muted/60 flex cursor-pointer list-none items-center justify-between gap-4 px-1 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1.5">
-                    <ChevronRight
-                      className="text-muted-foreground size-4 transition-transform group-open:rotate-90"
-                      aria-hidden="true"
-                    />
-                    {region.name}
-                  </span>
-                  <span className="text-muted-foreground text-xs font-normal tabular-nums">
-                    {InventoryFormat.plural(
-                      regionYards.length,
-                      "yard",
-                      "yards",
-                    )}
-                  </span>
-                </summary>
-                <div className="pb-3">
-                  <YardRows
-                    rows={regionYards.map((yard) => {
-                      const entry = yards.find(
-                        (candidate) =>
-                          candidate.yard.path.href === yard.path.href,
-                      );
-                      return {
-                        href: yardHref(yard),
-                        name: YardName.headline(yard.name, yard.operator),
-                        place: yard.city,
-                        figure: InventoryFormat.count(entry?.count ?? 0),
-                        detail: entry?.years,
-                      };
-                    })}
-                  />
-                </div>
-              </details>
+          {/* Two independent runs of states, so opening one never moves the other. */}
+          <div className="border-ink mt-(--space-xl) grid items-start gap-x-10 border-t-2 lg:grid-cols-2">
+            {halves(YardPath.byRegion(routed)).map((half, index) => (
+              <div key={index}>
+                {half.map(({ region, yards: regionYards }) => (
+                  <details
+                    key={region.slug}
+                    className="group border-rule border-b"
+                  >
+                    <summary className="board-step hover:text-signal focus-visible:outline-focus flex list-none items-center gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+                      <span className="min-w-0 flex-1 text-[0.9375rem] font-medium">
+                        {region.name}
+                      </span>
+                      <span className="text-ink-3 text-sm tabular-nums">
+                        {InventoryFormat.plural(
+                          regionYards.length,
+                          "yard",
+                          "yards",
+                        )}
+                      </span>
+                      <span
+                        className="border-ink group-open:bg-ink group-open:text-paper grid size-8 shrink-0 place-items-center border-2"
+                        aria-hidden="true"
+                      >
+                        <Plus className="size-4 group-open:hidden" />
+                        <Minus className="hidden size-4 group-open:block" />
+                      </span>
+                    </summary>
+                    <div className="pb-4">
+                      <YardRows
+                        rows={regionYards.map((yard) => {
+                          const entry = yards.find(
+                            (candidate) =>
+                              candidate.yard.path.href === yard.path.href,
+                          );
+                          return {
+                            href: yardHref(yard),
+                            name: YardName.headline(yard.name, yard.operator),
+                            place: yard.city,
+                            figure: InventoryFormat.count(entry?.count ?? 0),
+                            detail: entry?.years,
+                          };
+                        })}
+                      />
+                    </div>
+                  </details>
+                ))}
+              </div>
             ))}
           </div>
         </section>
       )}
 
       {siblings.length > 0 && (
-        <section aria-labelledby="siblings-title" className="mt-10">
-          <h2 id="siblings-title" className="text-lg font-semibold">
-            Other {make.name} models
-          </h2>
-          <ul className="mt-3 flex flex-wrap gap-1.5">
-            {siblings.slice(0, SIBLINGS).map((sibling) => (
-              <li key={sibling.key}>
+        <section
+          aria-labelledby="siblings-title"
+          className="mt-(--section-gap)"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+            <h2
+              id="siblings-title"
+              className="text-section leading-[1.02] font-extrabold"
+            >
+              Other {make.name} models
+            </h2>
+            <Link href={make.href} prefetch={false} className={INLINE_LINK}>
+              All {make.name} models
+            </Link>
+          </div>
+          <ul
+            className={`border-ink mt-(--space-xl) gap-x-8 border-t-2 ${siblingColumns(shown.length)}`}
+          >
+            {shown.map((sibling) => (
+              <li
+                key={sibling.key}
+                className="border-rule break-inside-avoid border-b"
+              >
                 <Link
                   href={sibling.href}
                   prefetch={false}
-                  className="hover:bg-muted block rounded-full border px-3 py-1 text-sm tabular-nums"
+                  className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex items-baseline justify-between gap-3 px-2 py-3 text-[0.9375rem] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
                 >
-                  {sibling.name}{" "}
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 font-medium text-pretty">
+                    {sibling.name}
+                  </span>
+                  <span className="shrink-0 font-extrabold tabular-nums">
                     {InventoryFormat.count(sibling.count)}
                   </span>
                 </Link>
               </li>
             ))}
-            <li>
-              <Link
-                href={make.href}
-                prefetch={false}
-                className="block px-2 py-1 text-sm font-medium underline-offset-4 hover:underline"
-              >
-                All {make.name} models
-              </Link>
-            </li>
           </ul>
         </section>
       )}

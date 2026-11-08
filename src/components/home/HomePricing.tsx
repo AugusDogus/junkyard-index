@@ -12,17 +12,17 @@ export async function HomePricing() {
     <section
       id="pricing"
       aria-labelledby="home-pricing-title"
-      className="border-t"
+      className="border-ink border-t-2"
     >
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-        <div className="mx-auto mb-10 max-w-xl text-center sm:mb-12">
+      <div className="shell py-24 sm:py-32">
+        <div className="mb-10 grid gap-4 lg:grid-cols-12 lg:items-end lg:gap-8">
           <h2
             id="home-pricing-title"
-            className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
+            className="text-section leading-[1.02] font-extrabold lg:col-span-5"
           >
             Pricing
           </h2>
-          <p className="text-muted-foreground mt-4 text-base text-pretty">
+          <p className="text-ink-2 text-lead text-pretty lg:col-span-6 lg:col-start-7">
             Search for free. Add filters, saved searches, or alerts when you
             need them.
           </p>

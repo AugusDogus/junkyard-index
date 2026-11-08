@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -117,51 +117,77 @@ export default async function ChainPage({
         ]}
       />
       <Breadcrumbs crumbs={crumbs} />
-      <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {chain.name} inventory
-      </h1>
-      <p className="mt-3 text-base text-pretty">
-        <span className="font-semibold tabular-nums">
-          {InventoryFormat.plural(chain.yards.length, "yard", "yards")}
-        </span>{" "}
-        in {regions}, listing{" "}
-        <span className="font-semibold tabular-nums">
-          {InventoryFormat.count(vehicles)}
-        </span>{" "}
-        vehicles. Pick a yard to see everything it has, newest first.
-      </p>
-      <div className="mt-2">
+      <header>
+        <h1 className="text-display-s leading-[1.02] font-extrabold">
+          {chain.name} inventory
+        </h1>
+        <p className="text-lead text-ink-2 mt-5 max-w-[56ch] leading-[1.45]">
+          <span className="text-ink font-extrabold tabular-nums">
+            {InventoryFormat.plural(chain.yards.length, "yard", "yards")}
+          </span>{" "}
+          in {regions}, listing{" "}
+          <span className="text-ink font-extrabold tabular-nums">
+            {InventoryFormat.count(vehicles)}
+          </span>{" "}
+          vehicles.
+        </p>
+      </header>
+      <div className="mt-5">
         <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
       </div>
-      <section aria-labelledby="largest-title" className="mt-8">
-        <h2 id="largest-title" className="text-lg font-semibold">
-          Largest {chain.name} yards
-        </h2>
-        <div className="mt-3">
-          <YardList yards={largest} />
+
+      {/* The largest yards on the board: the one ink band on the page. */}
+      <section
+        aria-labelledby="largest-title"
+        className="bg-board text-board-ink border-ink mt-(--space-2xl) border-2 px-4 py-8 sm:p-8 lg:p-10"
+      >
+        <div className="grid gap-y-3 lg:grid-cols-12 lg:items-baseline lg:gap-x-8">
+          <h2
+            id="largest-title"
+            className="text-section leading-[1.02] font-extrabold lg:col-span-7"
+          >
+            Largest {chain.name} yards
+          </h2>
+          <p className="text-board-muted text-lead leading-[1.45] text-pretty lg:col-span-5">
+            Pick a yard to see everything it has, newest first.
+          </p>
+        </div>
+        <div className="mt-(--space-xl)">
+          <YardList yards={largest} tone="board" />
         </div>
       </section>
       {chain.yards.length > TOP_YARDS && (
-        <section aria-labelledby="states-title" className="mt-10">
-          <h2 id="states-title" className="text-lg font-semibold">
+        <section
+          aria-labelledby="states-title"
+          className="mt-(--section-gap) grid gap-y-(--space-xl) lg:grid-cols-12 lg:gap-x-8"
+        >
+          <h2
+            id="states-title"
+            className="text-section leading-[1.02] font-extrabold lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
+          >
             Every {chain.name} yard, by state
           </h2>
-          <div className="mt-3 divide-y border-y">
+          <div className="border-ink border-t-2 lg:col-span-8">
             {YardPath.byRegion(chain.yards).map(({ region, yards }) => (
-              <details key={region.slug} className="group">
-                <summary className="hover:bg-muted/60 flex cursor-pointer list-none items-center justify-between gap-4 px-1 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-1.5">
-                    <ChevronRight
-                      className="text-muted-foreground size-4 transition-transform group-open:rotate-90"
-                      aria-hidden="true"
-                    />
+              <details key={region.slug} className="group border-rule border-b">
+                <summary className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex list-none items-center justify-between gap-4 px-2 py-3 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+                  <span className="text-[0.9375rem] font-extrabold">
                     {region.name}
                   </span>
-                  <span className="text-muted-foreground text-xs font-normal tabular-nums">
-                    {InventoryFormat.plural(yards.length, "yard", "yards")}
+                  <span className="flex items-center gap-4">
+                    <span className="text-ink-2 text-sm tabular-nums">
+                      {InventoryFormat.plural(yards.length, "yard", "yards")}
+                    </span>
+                    <span
+                      className="border-ink group-open:bg-ink group-open:text-paper grid size-8 shrink-0 place-items-center border-2"
+                      aria-hidden="true"
+                    >
+                      <Plus className="size-4 group-open:hidden" />
+                      <Minus className="hidden size-4 group-open:block" />
+                    </span>
                   </span>
                 </summary>
-                <div className="pb-3">
+                <div className="pt-2 pb-8">
                   <YardList yards={yards} />
                 </div>
               </details>
@@ -169,11 +195,11 @@ export default async function ChainPage({
           </div>
         </section>
       )}
-      <p className="text-muted-foreground mt-10 text-sm">
+      <p className="text-ink-2 mt-(--section-gap-s) max-w-[65ch] text-base leading-relaxed text-pretty">
         Looking for another chain or an independent yard? See{" "}
         <Link
           href="/junkyards"
-          className="hover:text-foreground underline underline-offset-4"
+          className="board-step text-ink hover:text-signal active:text-ink focus-visible:outline-focus underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid"
         >
           every yard by state
         </Link>

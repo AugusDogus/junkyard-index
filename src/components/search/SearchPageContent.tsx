@@ -1351,7 +1351,7 @@ function AlgoliaSearchInner({
   });
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+    <main className="shell">
       <DistancePreferenceDialog
         open={showDistancePreferenceDialog}
         manualZipCode={manualZipCode}
@@ -1378,8 +1378,8 @@ function AlgoliaSearchInner({
       })}
       <h1 className="sr-only">Search inventory</h1>
 
-      <div className="bg-background sticky top-16 z-40 -mx-4 px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3">
+      <div className="bg-background sticky top-[6.375rem] z-40 -mx-(--gutter) px-(--gutter) py-3 sm:top-[4.625rem]">
+        <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3">
             <ErrorBoundary>
               <VehicleSearchInput
