@@ -81,9 +81,20 @@ describe("VehicleName.preferredSpelling", () => {
         ]),
       ),
     ).toBe("Accord");
-    expect(
-      VehicleName.preferredSpelling(new Map([["F-250 SUPER DUTY", 275]])),
-    ).toBe("F-250 SUPER DUTY");
+  });
+
+  test("title-cases plain words when every spelling is all caps", () => {
+    const only = (name: string) =>
+      VehicleName.preferredSpelling(new Map([[name, 1]]));
+    expect(only("F-250 SUPER DUTY")).toBe("F-250 Super Duty");
+    expect(only("CIVIC CRX")).toBe("Civic CRX");
+    expect(only("TOWN & COUNTRY")).toBe("Town & Country");
+    expect(only("CLARITY")).toBe("Clarity");
+    // Initials and model codes keep their capitals.
+    expect(only("BMW")).toBe("BMW");
+    expect(only("CR-V")).toBe("CR-V");
+    expect(only("MAZDA3")).toBe("MAZDA3");
+    expect(only("RX 300")).toBe("RX 300");
   });
 
   test("ignores a rare mixed-case spelling", () => {
@@ -97,6 +108,12 @@ describe("VehicleName.preferredSpelling", () => {
       ),
     ).toBe("RX 300");
   });
+});
+
+test("display softens all-caps names and leaves the rest alone", () => {
+  expect(VehicleName.display("RIVIERA")).toBe("Riviera");
+  expect(VehicleName.display("Focus")).toBe("Focus");
+  expect(VehicleName.display("SE Hatch")).toBe("SE Hatch");
 });
 
 test("sameSlug ignores hyphens and case", () => {

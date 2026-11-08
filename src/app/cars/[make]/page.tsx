@@ -1,18 +1,27 @@
+import { Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
+import { YardRows } from "~/components/inventory/YardRows";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
-import { YardList } from "~/components/junkyards/YardList";
 import { JsonLd } from "~/components/JsonLd";
+import { Button } from "~/components/ui/button";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
-import { MakeInventory } from "~/lib/make-inventory";
+import {
+  INDEXABLE_MINIMUM,
+  MakeInventory,
+  type ModelEntry,
+} from "~/lib/make-inventory";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { VehicleName } from "~/lib/vehicle-name";
 import { getMakePageData } from "~/server/vehicle-models";
-import { latestPublishedAt, type RoutedYard } from "~/server/yard-inventory";
+import { YardName } from "~/lib/yard-name";
+import { YardPath } from "~/lib/yard-path";
+import { inventoryFreshness, type RoutedYard } from "~/server/yard-inventory";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
 export const revalidate = 86400;
@@ -44,11 +53,11 @@ async function load(params: Promise<Params>) {
       return yard ? [{ yard, count }] : [];
     })
     .sort((a, b) => b.count - a.count);
-  const publishedAt = await latestPublishedAt(yards.map(({ yard }) => yard));
+  const freshness = await inventoryFreshness(yards.map(({ yard }) => yard));
   return {
     ...data,
     yards,
-    publishedAt,
+    freshness,
     canonical: requested === data.make.slug,
   };
 }
@@ -60,7 +69,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const data = await load(params);
   if (!data) return {};
-  const { make, yards, publishedAt } = data;
+  const { make, yards } = data;
+  const publishedAt = data.freshness.latest;
   const title = `${make.name} Junkyard Inventory: ${InventoryFormat.plural(make.count, "Vehicle", "Vehicles")}`;
   const description = `${InventoryFormat.plural(make.count, `${make.name} vehicle`, `${make.name} vehicles`)} at ${InventoryFormat.plural(yards.length, "salvage yard", "salvage yards")}, by model, with the yards that have the most.${
     publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
@@ -91,12 +101,14 @@ export default async function MakePage({
   const data = await load(params);
   if (!data) notFound();
   if (!data.canonical) permanentRedirect(data.make.href);
-  const { make, models, yards, publishedAt } = data;
+  const { make, models, yards, freshness } = data;
   const crumbs = [
     { name: "Home", href: "/" },
     { name: "Cars", href: "/cars" },
     { name: make.name, href: make.href },
   ];
+  const popular = models.filter((model) => MakeInventory.indexable(model));
+  const rare = models.filter((model) => !MakeInventory.indexable(model));
 
   return (
     <PublicPageShell>
@@ -117,68 +129,91 @@ export default async function MakePage({
         ]}
       />
       <Breadcrumbs crumbs={crumbs} />
-      <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        {make.name} at junkyards
-      </h1>
-      <p className="mt-3 text-base text-pretty">
-        <span className="font-medium tabular-nums">
-          {InventoryFormat.plural(
-            make.count,
-            `${make.name} vehicle`,
-            `${make.name} vehicles`,
-          )}
-        </span>{" "}
-        across {InventoryFormat.plural(models.length, "model", "models")}, at{" "}
-        {InventoryFormat.plural(yards.length, "yard", "yards")} we track.{" "}
-        {publishedAt && (
-          <span className="text-muted-foreground">
-            Inventory updated{" "}
-            <time dateTime={publishedAt}>
-              {InventoryFormat.date(publishedAt)}
-            </time>
-            .
-          </span>
-        )}
-      </p>
+      <header>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          {make.name} at junkyards
+        </h1>
+        <p className="mt-3 text-base text-pretty">
+          <span className="font-semibold tabular-nums">
+            {InventoryFormat.count(make.count)}
+          </span>{" "}
+          in stock across{" "}
+          {InventoryFormat.plural(models.length, "model", "models")}, at{" "}
+          <span className="font-semibold tabular-nums">
+            {InventoryFormat.plural(yards.length, "yard", "yards")}
+          </span>{" "}
+          we track.
+        </p>
+        <div className="mt-2">
+          <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
+        </div>
+        <div className="mt-5">
+          <Button asChild>
+            <Link
+              href={`/search?q=${encodeURIComponent(make.name)}`}
+              prefetch={false}
+            >
+              <Search aria-hidden="true" data-icon="inline-start" />
+              Search every {make.name}
+            </Link>
+          </Button>
+        </div>
+      </header>
 
-      <section aria-labelledby="models-title" className="mt-8">
-        <h2 id="models-title" className="text-xl font-semibold">
-          {make.name} models
+      <section aria-labelledby="models-title" className="mt-10">
+        <h2 id="models-title" className="text-lg font-semibold">
+          Pick a model
         </h2>
-        <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-          {models.map((model) => (
-            <li key={model.key}>
-              <Link
-                href={model.href}
-                prefetch={false}
-                className="hover:bg-muted flex h-full flex-col rounded-lg border p-3"
-              >
-                <span className="text-sm font-medium text-pretty">
-                  {model.name}
-                </span>
-                <span className="text-muted-foreground mt-1 text-xs tabular-nums">
-                  {InventoryFormat.count(model.count)} ·{" "}
-                  {InventoryFormat.years(model)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <ModelRows models={popular.length > 0 ? popular : rare} />
+        {popular.length > 0 && rare.length > 0 && (
+          <details className="mt-2">
+            <summary className="text-muted-foreground hover:text-foreground cursor-pointer py-2 text-sm">
+              {InventoryFormat.plural(rare.length, "more model", "more models")}{" "}
+              with fewer than {INDEXABLE_MINIMUM} in stock
+            </summary>
+            <ModelRows models={rare} />
+          </details>
+        )}
       </section>
 
       <section aria-labelledby="yards-title" className="mt-10">
-        <h2 id="yards-title" className="text-xl font-semibold">
+        <h2 id="yards-title" className="text-lg font-semibold">
           Yards with the most {make.name} vehicles
         </h2>
-        <div className="mt-4">
-          <YardList
-            yards={yards.slice(0, TOP_YARDS).map(({ yard, count }) => ({
-              ...yard,
-              vehicleCount: count,
+        <div className="mt-3">
+          <YardRows
+            rows={yards.slice(0, TOP_YARDS).map(({ yard, count }) => ({
+              href: YardPath.makeHref(yard.path, make.slug),
+              name: YardName.headline(yard.name, yard.operator),
+              place: `${yard.city}, ${yard.state}`,
+              figure: InventoryFormat.count(count),
             }))}
           />
         </div>
       </section>
     </PublicPageShell>
+  );
+}
+
+/** A make's models as compact rows: name, how many, and which years. */
+function ModelRows({ models }: { models: readonly ModelEntry[] }) {
+  return (
+    <ul className="mt-3 grid gap-x-8 border-t sm:grid-cols-2">
+      {models.map((model) => (
+        <li key={model.key} className="border-b">
+          <Link
+            href={model.href}
+            prefetch={false}
+            className="hover:bg-muted/60 flex items-baseline justify-between gap-4 px-1 py-2.5"
+          >
+            <span className="truncate text-sm font-medium">{model.name}</span>
+            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+              {InventoryFormat.count(model.count)} ·{" "}
+              {InventoryFormat.years(model)}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
