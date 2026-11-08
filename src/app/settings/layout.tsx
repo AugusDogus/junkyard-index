@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import { AppProviders } from "~/components/AppProviders";
 import { PageShell } from "~/components/PageShell";
 import { SettingsNav } from "~/components/settings/SettingsNav";
 import { auth } from "~/lib/auth";
@@ -22,11 +23,13 @@ export default async function SettingsLayout({
   }
 
   return (
-    <PageShell width="workspace">
-      <div className="grid min-w-0 gap-10 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-16">
-        <SettingsNav />
-        <div className="min-w-0">{children}</div>
-      </div>
-    </PageShell>
+    <AppProviders>
+      <PageShell width="workspace">
+        <div className="grid min-w-0 gap-10 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-16">
+          <SettingsNav />
+          <div className="min-w-0">{children}</div>
+        </div>
+      </PageShell>
+    </AppProviders>
   );
 }

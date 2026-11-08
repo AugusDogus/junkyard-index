@@ -11,18 +11,30 @@ import type { HomepageYard } from "~/lib/homepage-inventory";
 import { useYardLocation } from "~/hooks/use-yard-location";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
 import { cn } from "~/lib/utils";
+import { EnsureAppProviders } from "~/components/AppProviders";
 
-export function YardMap({
-  yards,
-  vehicleCount,
-  approximateLocation,
-  compactMap,
-}: {
+type YardMapProps = {
   yards: HomepageYard[];
   vehicleCount: number;
   approximateLocation: YardLocation | null;
   compactMap: boolean;
-}) {
+};
+
+/** The yard map; its saved-location lookup needs the app providers. */
+export function YardMap(props: YardMapProps) {
+  return (
+    <EnsureAppProviders>
+      <YardMapContent {...props} />
+    </EnsureAppProviders>
+  );
+}
+
+function YardMapContent({
+  yards,
+  vehicleCount,
+  approximateLocation,
+  compactMap,
+}: YardMapProps) {
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [selected, setSelected] = useState<HomepageYard | null>(null);

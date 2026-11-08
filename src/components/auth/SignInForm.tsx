@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -28,7 +28,7 @@ export function SignInForm() {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
-    posthog.capture(AnalyticsEvents.SIGN_IN_SUBMITTED, { method: "email" });
+    Analytics.capture(AnalyticsEvents.SIGN_IN_SUBMITTED, { method: "email" });
 
     try {
       const result = await signIn.email({
@@ -37,23 +37,25 @@ export function SignInForm() {
       });
 
       if (result.error) {
-        posthog.capture(AnalyticsEvents.SIGN_IN_FAILED, {
+        Analytics.capture(AnalyticsEvents.SIGN_IN_FAILED, {
           method: "email",
           error: result.error.message ?? "unknown",
         });
         setError(result.error.message || "Failed to sign in");
       } else {
-        posthog.identify(result.data?.user?.id, {
+        Analytics.identify(result.data?.user?.id, {
           email: result.data?.user?.email,
           name: result.data?.user?.name,
         });
-        posthog.capture(AnalyticsEvents.SIGN_IN_SUCCEEDED, { method: "email" });
+        Analytics.capture(AnalyticsEvents.SIGN_IN_SUCCEEDED, {
+          method: "email",
+        });
         router.push(returnTo || "/search");
         router.refresh();
       }
     } catch (err) {
       console.error("Sign in error:", err);
-      posthog.capture(AnalyticsEvents.SIGN_IN_FAILED, {
+      Analytics.capture(AnalyticsEvents.SIGN_IN_FAILED, {
         method: "email",
         error: "unexpected",
       });
@@ -66,7 +68,7 @@ export function SignInForm() {
   const handleDiscordSignIn = async () => {
     setError(null);
     setIsDiscordLoading(true);
-    posthog.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
+    Analytics.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
       context: "sign_in",
     });
 

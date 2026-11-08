@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -36,7 +36,7 @@ export function SignUpForm() {
     }
     setError(null);
     setIsLoading(true);
-    posthog.capture(AnalyticsEvents.SIGN_UP_SUBMITTED, { method: "email" });
+    Analytics.capture(AnalyticsEvents.SIGN_UP_SUBMITTED, { method: "email" });
 
     try {
       const result = await signUp.email({
@@ -47,23 +47,25 @@ export function SignUpForm() {
       });
 
       if (result.error) {
-        posthog.capture(AnalyticsEvents.SIGN_UP_FAILED, {
+        Analytics.capture(AnalyticsEvents.SIGN_UP_FAILED, {
           method: "email",
           error: result.error.message ?? "unknown",
         });
         setError(result.error.message || "Failed to sign up");
       } else {
-        posthog.identify(result.data?.user?.id, {
+        Analytics.identify(result.data?.user?.id, {
           email: result.data?.user?.email,
           name: result.data?.user?.name,
         });
-        posthog.capture(AnalyticsEvents.SIGN_UP_SUCCEEDED, { method: "email" });
+        Analytics.capture(AnalyticsEvents.SIGN_UP_SUCCEEDED, {
+          method: "email",
+        });
         router.push(returnTo || "/search");
         router.refresh();
       }
     } catch (err) {
       console.error("Sign up error:", err);
-      posthog.capture(AnalyticsEvents.SIGN_UP_FAILED, {
+      Analytics.capture(AnalyticsEvents.SIGN_UP_FAILED, {
         method: "email",
         error: "unexpected",
       });
@@ -80,7 +82,7 @@ export function SignUpForm() {
     }
     setError(null);
     setIsDiscordLoading(true);
-    posthog.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
+    Analytics.capture(AnalyticsEvents.DISCORD_SIGN_IN_INITIATED, {
       context: "sign_up",
     });
 

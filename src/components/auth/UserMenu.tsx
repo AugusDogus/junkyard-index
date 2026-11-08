@@ -16,17 +16,30 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useSubscriptionDestination } from "~/hooks/use-subscription-destination";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signOut, useSession } from "~/lib/auth-client";
 import { PLANS } from "~/lib/plans";
+import { EnsureAppProviders } from "~/components/AppProviders";
 
 interface UserMenuProps {
   user?: { name: string; email: string; image?: string | null } | null;
 }
 
-export function UserMenu({ user: initialUser }: UserMenuProps) {
+/**
+ * The signed-in user menu. It renders on public pages too, which don't load
+ * the app providers, and its billing link needs tRPC and toasts.
+ */
+export function UserMenu(props: UserMenuProps) {
+  return (
+    <EnsureAppProviders>
+      <UserMenuContent {...props} />
+    </EnsureAppProviders>
+  );
+}
+
+function UserMenuContent({ user: initialUser }: UserMenuProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const { setTheme } = useTheme();
@@ -48,8 +61,8 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
   }
 
   const handleSignOut = async () => {
-    posthog.capture(AnalyticsEvents.SIGN_OUT_CLICKED);
-    posthog.reset();
+    Analytics.capture(AnalyticsEvents.SIGN_OUT_CLICKED);
+    Analytics.reset();
     setIsSigningOut(true);
     await signOut();
     router.refresh();
@@ -105,7 +118,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
           <DropdownMenuSubContent>
             <DropdownMenuItem
               onClick={() => {
-                posthog.capture(AnalyticsEvents.THEME_CHANGED, {
+                Analytics.capture(AnalyticsEvents.THEME_CHANGED, {
                   theme: "light",
                 });
                 setTheme("light");
@@ -116,7 +129,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                posthog.capture(AnalyticsEvents.THEME_CHANGED, {
+                Analytics.capture(AnalyticsEvents.THEME_CHANGED, {
                   theme: "dark",
                 });
                 setTheme("dark");
@@ -127,7 +140,7 @@ export function UserMenu({ user: initialUser }: UserMenuProps) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                posthog.capture(AnalyticsEvents.THEME_CHANGED, {
+                Analytics.capture(AnalyticsEvents.THEME_CHANGED, {
                   theme: "system",
                 });
                 setTheme("system");

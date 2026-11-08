@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 
 /**
@@ -11,7 +11,7 @@ export type RequestYardClickInput =
   | { location: "lot_filter" };
 
 export function trackRequestYardClick(input: RequestYardClickInput): void {
-  posthog.capture(AnalyticsEvents.REQUEST_YARD_CLICKED, {
+  Analytics.capture(AnalyticsEvents.REQUEST_YARD_CLICKED, {
     cta_location: input.location,
     // no_results and lot_filter only ever fire on /search
     source_page: input.location === "footer" ? input.sourcePage : "search",
