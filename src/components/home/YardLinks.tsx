@@ -1,11 +1,7 @@
 import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "~/components/ui/tooltip";
 import type { HomepageYard } from "~/lib/homepage-inventory";
 import { yardPhoneHref } from "~/lib/yard-phone";
 
@@ -49,46 +45,66 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
       </a>
       <div className="ml-auto flex items-center gap-1">
         {phoneHref && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="ghost"
-                size="icon"
-                className="pointer-events-auto size-9"
+          <ContactTip tip={yard.phone}>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="pointer-events-auto size-9"
+            >
+              <a
+                href={phoneHref}
+                aria-label={`Call ${yard.name}: ${yard.phone}`}
               >
-                <a
-                  href={phoneHref}
-                  aria-label={`Call ${yard.name}: ${yard.phone}`}
-                >
-                  <Phone aria-hidden="true" />
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{yard.phone}</TooltipContent>
-          </Tooltip>
+                <Phone aria-hidden="true" />
+              </a>
+            </Button>
+          </ContactTip>
         )}
         {yard.email && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                variant="ghost"
-                size="icon"
-                className="pointer-events-auto size-9"
+          <ContactTip tip={yard.email}>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="pointer-events-auto size-9"
+            >
+              <a
+                href={`mailto:${encodeURIComponent(yard.email)}`}
+                aria-label={`Email ${yard.name}`}
               >
-                <a
-                  href={`mailto:${encodeURIComponent(yard.email)}`}
-                  aria-label={`Email ${yard.name}`}
-                >
-                  <Mail aria-hidden="true" />
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{yard.email}</TooltipContent>
-          </Tooltip>
+                <Mail aria-hidden="true" />
+              </a>
+            </Button>
+          </ContactTip>
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The phone number or email beside its icon: after a hover delay, at once on
+ * keyboard focus. CSS only, because the directory renders every yard's links
+ * and a script tooltip on each one cost hydration on every page view. It sits
+ * to the left of the icon so the directory's scroll box never clips it.
+ */
+function ContactTip({
+  tip,
+  children,
+}: {
+  tip: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <span className="group/tip relative">
+      {children}
+      <span
+        aria-hidden="true"
+        className="bg-ink text-paper pointer-events-none invisible absolute top-1/2 right-full z-20 mr-1 -translate-y-1/2 px-2 py-1 text-xs font-medium whitespace-nowrap opacity-0 transition-[opacity,visibility] delay-0 duration-0 group-focus-within/tip:visible group-focus-within/tip:opacity-100 group-hover/tip:visible group-hover/tip:opacity-100 group-hover/tip:delay-700"
+      >
+        {tip}
+      </span>
+    </span>
   );
 }
