@@ -100,8 +100,9 @@ export function YardRows({
             </span>
             <span
               className={cn(
-                "shrink-0 text-right leading-tight font-extrabold tabular-nums",
+                "shrink-0 text-right font-extrabold tabular-nums",
                 colours.figure,
+                "leading-tight",
               )}
             >
               {row.figure}

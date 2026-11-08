@@ -442,7 +442,7 @@ function MakeChips({
     <nav aria-label="Narrow by make">
       {/* One scrolling row on phones, so the list starts on the first
       screen; wrapped rows where there is room. */}
-      <ul className="-mx-4 flex overflow-x-auto px-4 py-1 pl-[calc(1rem+2px)] [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:py-0 sm:pt-0.5 sm:pr-0 sm:pl-0.5">
+      <ul className="-mx-4 flex overflow-x-auto px-4 pt-1.5 pb-1 pl-[calc(1rem+2px)] [scrollbar-width:thin] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:py-0 sm:pt-0.5 sm:pr-0 sm:pl-0.5">
         <li className="shrink-0">
           <Link
             href={yard.path.href}
