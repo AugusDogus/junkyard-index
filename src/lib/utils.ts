@@ -1,5 +1,20 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+/**
+ * tailwind-merge only knows Tailwind's own size names, so it would read the
+ * theme's size roles (src/styles/tokens.css) as colours and drop
+ * `text-figure` from `text-figure text-title`.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    theme: {
+      text: ["md", "display", "display-s", "section", "title", "lead"],
+      tracking: ["display"],
+      shadow: ["card"],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
