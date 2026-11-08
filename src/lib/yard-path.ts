@@ -62,6 +62,10 @@ export const YardPath = {
       a.region.name.localeCompare(b.region.name),
     );
   },
+  /** A yard's vehicles of one make, by the make's national slug. */
+  makeHref(path: YardPath, makeSlug: string): string {
+    return `${path.href}/make/${makeSlug}`;
+  },
   /** The URL of page `page` (1-based) of a yard's inventory. */
   pageHref(path: YardPath, page: number): string {
     return page <= 1 ? path.href : `${path.href}/page/${page}`;

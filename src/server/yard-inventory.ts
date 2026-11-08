@@ -39,6 +39,7 @@ async function loadYardVehicles(
       space: vehicle.space,
       availableDate: vehicle.availableDate,
       firstSeenAt: vehicle.firstSeenAt,
+      observedArrivalAt: vehicle.observedArrivalAt,
       imageUrl: vehicle.imageUrl,
       detailsUrl: vehicle.detailsUrl,
     })
@@ -51,15 +52,19 @@ async function loadYardVehicles(
       ),
     );
   return YardInventory.sort(
-    rows.map(({ firstSeenAt, ...row }) =>
-      YardInventory.vehicle({ ...row, firstSeenAt: firstSeenAt.getTime() }),
+    rows.map(({ firstSeenAt, observedArrivalAt, ...row }) =>
+      YardInventory.vehicle({
+        ...row,
+        firstSeenAt: firstSeenAt.getTime(),
+        observedArrivalAt: observedArrivalAt?.getTime() ?? null,
+      }),
     ),
   );
 }
 
 /** A yard's live vehicles, newest first. Refreshed with the daily pass. */
 export const getYardVehicles = cacheInventory(loadYardVehicles, [
-  "yard-vehicles-v1",
+  "yard-vehicles-v3",
 ]);
 
 async function loadSourcePublishedAt(): Promise<

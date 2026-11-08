@@ -74,6 +74,7 @@ describe("StructuredData", () => {
       row: null,
       space: null,
       availableDate: null,
+      observedArrivalAt: null,
       firstSeenAt: 0,
       imageUrl: null,
       detailsUrl: null,

@@ -20,6 +20,7 @@ const row = (
   row: "12",
   space: null,
   availableDate: "2026-11-01T00:00:00.000Z",
+  observedArrivalAt: null,
   firstSeenAt: Date.parse("2026-11-03T07:00:00.000Z"),
   imageUrl: null,
   detailsUrl: null,
@@ -49,6 +50,72 @@ describe("YardInventory.vehicle", () => {
     expect(
       YardInventory.vehicle(row({ availableDate: null, firstSeenAt })).addedAt,
     ).toBe(firstSeenAt);
+  });
+
+  test("says whose date it is", () => {
+    const firstSeenAt = Date.parse("2026-11-03T07:00:00.000Z");
+    const setByYard = YardInventory.vehicle(row());
+    const seenByUs = YardInventory.vehicle(
+      row({ availableDate: null, firstSeenAt }),
+    );
+    expect(setByYard.addedBy).toBe("yard");
+    expect(YardInventory.addedLabel(setByYard)).toBe(
+      "In the yard since Nov 1, 2026",
+    );
+    expect(seenByUs.addedBy).toBe("first-seen");
+    expect(YardInventory.addedLabel(seenByUs)).toBe("First seen Nov 3, 2026");
+  });
+});
+
+describe("YardInventory.isNew", () => {
+  const publishedAt = "2026-11-10T12:00:00.000Z";
+  const at = (iso: string): Pick<YardVehicle, "addedAt" | "addedBy"> => ({
+    addedAt: Date.parse(iso),
+    addedBy: "yard",
+  });
+
+  test("an undated first-crawl backlog is not a new arrival", () => {
+    const vehicle = YardInventory.vehicle(
+      row({
+        availableDate: null,
+        firstSeenAt: Date.parse("2026-11-09T00:00:00Z"),
+      }),
+    );
+    expect(YardInventory.isNew(vehicle, publishedAt)).toBe(false);
+  });
+
+  test("an observed arrival is new even when the listing was first tracked earlier", () => {
+    const vehicle = YardInventory.vehicle(
+      row({
+        availableDate: null,
+        firstSeenAt: Date.parse("2026-01-01T00:00:00Z"),
+        observedArrivalAt: Date.parse("2026-11-09T00:00:00Z"),
+      }),
+    );
+    expect(vehicle.addedAt).toBe(Date.parse("2026-11-09T00:00:00Z"));
+    expect(YardInventory.isNew(vehicle, publishedAt)).toBe(true);
+    expect(YardInventory.addedLabel(vehicle)).toBe("Seen Nov 9, 2026");
+  });
+
+  test("counts the week before the yard's latest update", () => {
+    expect(
+      YardInventory.isNew(at("2026-11-04T00:00:00.000Z"), publishedAt),
+    ).toBe(true);
+    expect(
+      YardInventory.isNew(at("2026-11-02T00:00:00.000Z"), publishedAt),
+    ).toBe(false);
+  });
+
+  test("is meaningful unless most of the yard is new", () => {
+    expect(YardInventory.newIsMeaningful(12, 677)).toBe(true);
+    expect(YardInventory.newIsMeaningful(677, 677)).toBe(false);
+    expect(YardInventory.newIsMeaningful(0, 0)).toBe(true);
+  });
+
+  test("calls nothing new when the yard's inventory is stale", () => {
+    expect(YardInventory.isNew(at("2026-11-09T00:00:00.000Z"), null)).toBe(
+      false,
+    );
   });
 });
 

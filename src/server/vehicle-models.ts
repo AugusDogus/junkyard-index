@@ -32,10 +32,10 @@ export const getMakes = cache(
   async (): Promise<MakeEntry[]> => MakeInventory.makes(await getMakeCounts()),
 );
 
-/** Each make's page, by make key, for linking from yard pages. */
-export const getMakeHrefs = cache(
+/** Each make's URL slug, by make key, for linking from yard pages. */
+export const getMakeSlugs = cache(
   async (): Promise<ReadonlyMap<string, string>> =>
-    new Map((await getMakes()).map((make) => [make.key, make.href])),
+    new Map((await getMakes()).map((make) => [make.key, make.slug])),
 );
 
 /**
@@ -76,6 +76,7 @@ async function loadModelArrivals(
       vin: vehicle.vin,
       availableDate: vehicle.availableDate,
       firstSeenAt: vehicle.firstSeenAt,
+      observedArrivalAt: vehicle.observedArrivalAt,
     })
     .from(vehicle)
     .where(
@@ -86,9 +87,13 @@ async function loadModelArrivals(
       ),
     );
   const newest = dated
-    .map(({ vin, availableDate, firstSeenAt }) => ({
+    .map(({ vin, availableDate, firstSeenAt, observedArrivalAt }) => ({
       vin,
-      addedAt: YardInventory.addedAt(availableDate, firstSeenAt.getTime()),
+      addedAt: YardInventory.addedAt(
+        availableDate,
+        firstSeenAt.getTime(),
+        observedArrivalAt?.getTime() ?? null,
+      ),
     }))
     .sort((a, b) => b.addedAt - a.addedAt || a.vin.localeCompare(b.vin))
     .slice(0, ARRIVALS)
@@ -111,14 +116,19 @@ async function loadModelArrivals(
       space: vehicle.space,
       availableDate: vehicle.availableDate,
       firstSeenAt: vehicle.firstSeenAt,
+      observedArrivalAt: vehicle.observedArrivalAt,
       imageUrl: vehicle.imageUrl,
       detailsUrl: vehicle.detailsUrl,
     })
     .from(vehicle)
     .where(inArray(vehicle.vin, newest));
   return YardInventory.sort(
-    rows.map(({ source, code, firstSeenAt, ...row }) => ({
-      ...YardInventory.vehicle({ ...row, firstSeenAt: firstSeenAt.getTime() }),
+    rows.map(({ source, code, firstSeenAt, observedArrivalAt, ...row }) => ({
+      ...YardInventory.vehicle({
+        ...row,
+        firstSeenAt: firstSeenAt.getTime(),
+        observedArrivalAt: observedArrivalAt?.getTime() ?? null,
+      }),
       source,
       code,
     })),
@@ -127,7 +137,7 @@ async function loadModelArrivals(
 
 /** One model's most recently set vehicles, across all yards. */
 const getModelArrivals = cacheInventory(loadModelArrivals, [
-  "model-arrivals-v2",
+  "model-arrivals-v4",
 ]);
 
 function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
