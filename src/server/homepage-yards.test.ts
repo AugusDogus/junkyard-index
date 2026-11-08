@@ -25,6 +25,13 @@ test("directory joins metadata by source and code without changing active invent
         ('pullapart', '3', 'Montgomery', 'Montgomery', 'AL', 32, -86, null);
       alter table vehicle add column details_url text;
     `);
+    // The migration builds yard_inventory from these vehicles.
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../drizzle/0016_yard_inventory.sql", import.meta.url),
+        "utf8",
+      ),
+    );
     const db = drizzle(client);
     await db.insert(yard).values([
       {

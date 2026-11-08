@@ -24,6 +24,13 @@ test("recovers a PYP yard website from active inventory before metadata is reing
         ('pyp', '1196', 'Pick Your Part - West Palm Beach', 'West Palm Beach', 'FL', 26.69, -80.17, 1,
          'https://www.pyp.com/inventory/other-1/2014-ford-focus/');
     `);
+    // The migration builds yard_inventory from these vehicles.
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../drizzle/0016_yard_inventory.sql", import.meta.url),
+        "utf8",
+      ),
+    );
     const yards = await getHomepageYards(drizzle(client));
     expect(yards).toHaveLength(1);
     expect(yards[0]).toMatchObject({

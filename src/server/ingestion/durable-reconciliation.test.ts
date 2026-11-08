@@ -80,7 +80,19 @@ ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.
   create unique index vehicle_change_v2_run_vin_type_idx
     on vehicle_change_v2(run_id, vin, change_type)
     where processed_at is null;
+${readFileSync(new URL("../../../drizzle/0016_yard_inventory.sql", import.meta.url), "utf8")}
 `;
+
+async function yardInventoryRows(client: ReturnType<typeof createClient>) {
+  const result = await client.execute(
+    "select source, location_code, vehicle_count from yard_inventory order by source, location_code",
+  );
+  return result.rows.map((row) => ({
+    source: row.source,
+    code: row.location_code,
+    count: row.vehicle_count,
+  }));
+}
 
 function snapshot(source: "row52" | "pyp", color: string): CanonicalVehicle {
   return {
@@ -825,6 +837,81 @@ describe("bounded durable reconciliation", () => {
       expect(firstSeen.rows.map((row) => row.first_seen_at)).toEqual([
         commitStartedAt.getTime(),
       ]);
+      // The last batch publishes the source's yard summary with it.
+      expect(await yardInventoryRows(client)).toEqual([
+        { source: "pyp", code: "yard-1", count: 1_200 },
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("moves a taken-over VIN out of its previous source's yard summary", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const startedAt = new Date("2026-08-22T07:00:00.000Z");
+      // pyp owns the VIN until a higher-priority row52 run publishes it.
+      await client.execute({
+        sql: `insert into vehicle (
+          vin, source, year, make, model, location_code, location_name,
+          location_city, state, state_abbr, lat, lng, first_seen_at,
+          last_seen_at, missing_run_count
+        ) values ('VIN-1', 'pyp', 2018, 'FORD', 'FOCUS', 'yard-1', 'Yard 1',
+          'Tulsa', 'Oklahoma', 'OK', 36.1, -95.9, ?, ?, 0)`,
+        args: [startedAt.getTime(), startedAt.getTime()],
+      });
+      await client.execute(`insert into yard_inventory values
+        ('pyp', 'yard-1', 'Yard 1', 'Tulsa', 'OK', 36.1, -95.9, 1, null, 0)`);
+      await database.insert(ingestionRun).values({
+        id: "run-row52",
+        source: "row52",
+        status: "running",
+        stage: "reconcile_upsert",
+        activeSlot: 1,
+        acceptedSources: JSON.stringify(["row52"]),
+        startedAt,
+        lastProgressAt: startedAt,
+      });
+      await database.insert(ingestionSourceRun).values({
+        id: "run-row52:row52",
+        runId: "run-row52",
+        source: "row52",
+        status: "success",
+        acceptanceStatus: "accepted",
+        uniqueVehicles: 1,
+        startedAt,
+      });
+      const snapshotStore = IngestionSnapshotStore.memory();
+      await stageSnapshots({
+        client,
+        store: snapshotStore,
+        runId: "run-row52",
+        vehicles: [snapshot("row52", "Black")],
+      });
+
+      const upsert = await reconcileDurableIngestionRun({
+        runId: "run-row52",
+        database,
+        batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
+      });
+      expect(upsert).toMatchObject({ status: "paused", phase: "missing" });
+      expect(await yardInventoryRows(client)).toEqual([]);
+
+      const completed = await reconcileDurableIngestionRun({
+        runId: "run-row52",
+        database,
+        batchClient: client,
+        snapshotStore,
+        budgetMs: 0,
+      });
+      expect(completed.status).toBe("complete");
+      expect(await yardInventoryRows(client)).toEqual([
+        { source: "row52", code: "yard-1", count: 1 },
+      ]);
     } finally {
       client.close();
     }
@@ -942,6 +1029,10 @@ describe("bounded durable reconciliation", () => {
       expect(changes.rows[0]?.change_type).toBe("upsert");
       expect(changes.rows[1]?.vin).toBe("VIN-MISSING");
       expect(changes.rows[1]?.change_type).toBe("missing");
+      // A missing vehicle leaves its yard's live count.
+      expect(await yardInventoryRows(client)).toEqual([
+        { source: "row52", code: "yard-1", count: 1 },
+      ]);
     } finally {
       client.close();
       rmSync(directory, { recursive: true });

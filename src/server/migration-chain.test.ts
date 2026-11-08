@@ -24,7 +24,14 @@ const LEGACY_SCHEMA = `
   create table saved_search (id text primary key);
   create table vehicle (
     vin text primary key,
+    source text not null default 'pyp',
     location_code text not null,
+    location_name text not null default 'Yard',
+    location_city text not null default 'Unknown',
+    state_abbr text not null default 'CA',
+    lat real not null default 0,
+    lng real not null default 0,
+    details_url text,
     first_seen_at integer not null default 0,
     missing_since_at integer
   );
