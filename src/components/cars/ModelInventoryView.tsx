@@ -344,7 +344,7 @@ export function ModelInventoryView({
                   prefetch={false}
                   className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex items-baseline justify-between gap-3 px-2 py-3 text-[0.9375rem] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
                 >
-                  <span className="min-w-0 font-medium text-pretty">
+                  <span className="min-w-0 font-medium text-pretty break-words">
                     {sibling.name}
                   </span>
                   <span className="shrink-0 font-extrabold tabular-nums">

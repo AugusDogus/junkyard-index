@@ -13,7 +13,7 @@ body {
 }
 html {
   scrollbar-color: var(--color-ink-3) var(--color-paper);
-  scroll-padding-top: var(--space-3xl);
+  scroll-padding-top: 7rem;
 }
 body {
   margin: 0;

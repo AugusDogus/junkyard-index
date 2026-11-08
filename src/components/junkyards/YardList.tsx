@@ -13,7 +13,7 @@ const TONES = {
     head: "text-ink-3",
     row: "border-rule",
     link: "hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus",
-    name: "text-ink group-hover:text-signal",
+    name: "text-ink group-hover/row:text-signal",
     meta: "text-ink-3",
     figure: "text-ink",
   },
@@ -30,7 +30,7 @@ const TONES = {
 
 /** Name, city, count: the same three tracks in the head and every row. */
 const TRACKS =
-  "sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_7rem] lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)_8rem]";
+  "sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_7rem] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_8rem]";
 
 /**
  * Links to yards' inventory pages as an index: the yard, its city and its
@@ -67,7 +67,7 @@ export function YardList({
               href={yard.path.href}
               prefetch={false}
               className={cn(
-                "group board-step grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-0.5 px-2 py-3.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid",
+                "group/row board-step grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-6 gap-y-0.5 px-2 py-3.5 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid",
                 TRACKS,
                 colours.link,
               )}

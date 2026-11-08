@@ -24,7 +24,7 @@ export function Breadcrumbs({ crumbs }: { crumbs: readonly Crumb[] }) {
               ) : (
                 <Link
                   href={crumb.href}
-                  className="board-step hover:text-signal focus-visible:outline-focus active:text-ink whitespace-nowrap underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid"
+                  className="board-step hover:text-signal focus-visible:outline-focus active:text-ink underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid"
                 >
                   {crumb.name}
                 </Link>

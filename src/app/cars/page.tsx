@@ -121,7 +121,9 @@ export default async function CarsPage() {
                   prefetch={false}
                   className="board-step hover:bg-paper-2 active:bg-paper-2 focus-visible:outline-focus flex items-baseline justify-between gap-3 px-2 py-3 text-[0.9375rem] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
                 >
-                  <span className="min-w-0 font-medium">{make.name}</span>
+                  <span className="min-w-0 font-medium break-words">
+                    {make.name}
+                  </span>
                   <span className="shrink-0 font-extrabold tabular-nums">
                     {make.count}
                   </span>
