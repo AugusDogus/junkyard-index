@@ -24,11 +24,11 @@ export function HeaderContent({ auth }: HeaderContentProps) {
   return (
     <header className="bg-paper border-ink sticky top-0 z-50 border-b-2">
       <div className="shell">
-        <div className="flex h-16 items-center gap-4 sm:h-18 sm:gap-8">
+        <div className="flex h-16 items-center gap-2 sm:h-18 sm:gap-4 md:gap-8">
           <Link
             href="/"
             data-brand-link
-            className="text-ink focus-visible:outline-focus shrink-0 text-xl leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid sm:text-2xl"
+            className="text-ink focus-visible:outline-focus shrink-0 text-lg leading-none font-extrabold tracking-[-0.03em] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid sm:text-xl md:text-2xl"
           >
             Junkyard Index
           </Link>
@@ -69,7 +69,7 @@ function MainLink({ href, children }: { href: string; children: string }) {
   return (
     <Link
       href={href}
-      aria-current={current ? "page" : undefined}
+      aria-current={pathname === href ? "page" : current ? "true" : undefined}
       className={cn(
         "board-step focus-visible:outline-focus flex items-center border-b-2 px-3 text-sm font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid first:-ml-3 sm:text-[0.9375rem]",
         current
