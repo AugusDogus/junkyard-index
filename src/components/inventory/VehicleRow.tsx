@@ -55,7 +55,19 @@ export function VehicleRow({
   ].filter((detail): detail is string => Boolean(detail));
 
   return (
-    <li className="flex gap-4 py-5 sm:gap-6">
+    <li
+      className={cn(
+        // A yard page lists 100 of these; rows off screen skip layout and
+        // paint until they scroll near. auto keeps each row's real height
+        // once it has rendered, so the scrollbar settles.
+        "flex gap-4 py-5 [content-visibility:auto] sm:gap-6",
+        // Content heights (the row less its 40px of padding), measured:
+        // 160px and 100px in columns, 224px and 158px stacked.
+        columns
+          ? "[contain-intrinsic-size:auto_10rem] lg:[contain-intrinsic-size:auto_6.25rem]"
+          : "[contain-intrinsic-size:auto_14rem] lg:[contain-intrinsic-size:auto_10rem]",
+      )}
+    >
       <div className="border-ink bg-paper-2 relative aspect-[4/3] w-24 shrink-0 self-start overflow-hidden border-2 sm:w-[8.25rem]">
         {vehicle.imageUrl ? (
           <img
