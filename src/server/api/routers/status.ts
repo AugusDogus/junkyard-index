@@ -1,8 +1,5 @@
 import { asc, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { unstable_cache } from "next/cache";
-import { env } from "~/env";
 import { db } from "~/lib/db";
-import type { IngestionSource } from "~/lib/ingestion-source";
 import {
   ingestionRun,
   savedSearch,
@@ -11,57 +8,9 @@ import {
 } from "~/schema";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { getSearchIndexCapabilities } from "~/server/ingestion/search-index-readiness";
-import { getDurableSourceFreshness } from "~/server/ingestion/durable-ingestion";
-import { providerFreshness } from "~/server/ingestion/provider-freshness";
-import { worstStatus, type IngestionStatus } from "./status-utils";
-
-type SourceKey = IngestionSource;
-
-interface ProviderStatus {
-  name: string;
-  source: SourceKey;
-  status: IngestionStatus;
-  lastPublishedAt: string | null;
-}
-
-interface StatusResponse {
-  aggregateStatus: IngestionStatus;
-  providers: ProviderStatus[];
-  statusPageUrl: string | null;
-}
-
-async function getProviderStatusInternal(): Promise<StatusResponse> {
-  const now = new Date();
-  const providers = providerFreshness(
-    await getDurableSourceFreshness(now),
-    now,
-  ).map(
-    (provider): ProviderStatus => ({
-      name: provider.name,
-      source: provider.source,
-      status: provider.fresh ? "operational" : "degraded",
-      lastPublishedAt: provider.lastPublishedAt?.toISOString() ?? null,
-    }),
-  );
-  return {
-    aggregateStatus: worstStatus(providers.map((p) => p.status)),
-    providers,
-    statusPageUrl: env.NEXT_PUBLIC_STATUS_PAGE_URL ?? null,
-  };
-}
-
-const getProviderStatus = unstable_cache(
-  getProviderStatusInternal,
-  ["provider-status"],
-  // Freshness changes only when a source publishes.
-  { revalidate: 300 },
-);
 
 export const statusRouter = createTRPCRouter({
   searchCapabilities: publicProcedure.query(getSearchIndexCapabilities),
-  providers: publicProcedure.query(async () => {
-    return getProviderStatus();
-  }),
   pipeline: publicProcedure.query(async () => {
     const now = Date.now();
     const [[active], [published], [projector], [alerts], [quarantined]] =
