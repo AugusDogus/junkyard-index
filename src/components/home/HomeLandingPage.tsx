@@ -61,9 +61,6 @@ export async function HomeLandingPage() {
     <div className="bg-background flex min-h-dvh flex-col">
       <Header />
       <main className="flex-1">
-        <h1 className="sr-only">
-          Junkyard Index: search salvage yard inventory
-        </h1>
         <JsonLd
           nodes={[
             {
@@ -92,18 +89,30 @@ export async function HomeLandingPage() {
           ]}
         />
         <section
-          className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
-          aria-label="Search junkyard inventory"
+          className="shell pt-6 pb-12 sm:pt-8"
+          aria-labelledby="home-title"
         >
+          <div className="pb-5">
+            <h1
+              id="home-title"
+              className="text-[clamp(1.75rem,1.6vw+1rem,2.5rem)] leading-[1.04] font-extrabold"
+            >
+              Search {inventory.yards.length.toLocaleString("en-US")} salvage
+              yards at once
+            </h1>
+            <p className="text-ink-2 text-lead mt-2">
+              Year, make, model, or VIN across every yard on this map.
+            </p>
+          </div>
           <HomeSearchHero />
-          <div className="pb-3">
+          <div className="mt-4">
             <Suspense
               fallback={
-                <div aria-hidden="true">
-                  <div className="bg-card h-[45px] rounded-t-lg border border-b-0" />
-                  <div className="homepage-map-layout bg-muted overflow-hidden rounded-b-lg border">
+                <div aria-hidden="true" className="border-ink border-2">
+                  <div className="bg-board h-12" />
+                  <div className="homepage-map-layout bg-paper-2 border-ink border-t-2">
                     <div className="homepage-map-canvas" />
-                    <div className="bg-card h-[57px] border-t lg:hidden" />
+                    <div className="bg-paper-3 border-ink h-[54px] border-t-2 lg:hidden" />
                   </div>
                 </div>
               }
@@ -115,7 +124,7 @@ export async function HomeLandingPage() {
                 approximateLocation={approximateLocation}
               />
             </Suspense>
-            <p className="text-muted-foreground mt-2 text-xs text-pretty">
+            <p className="text-ink-2 mt-3 text-sm text-pretty">
               Confirm vehicle availability with the yard before visiting.
             </p>
           </div>
@@ -126,8 +135,8 @@ export async function HomeLandingPage() {
               aria-hidden="true"
               className={
                 inventory.recentVehicles.length
-                  ? "h-[156px] border-y"
-                  : "h-[90px] border-y"
+                  ? "bg-board border-ink h-[31rem] border-y-2"
+                  : "bg-board border-ink h-56 border-y-2"
               }
             />
           }

@@ -1,6 +1,9 @@
 import { Minus, Plus } from "lucide-react";
 import Link from "next/link";
 
+const inlineLinkClassName =
+  "text-ink hover:text-signal whitespace-nowrap underline decoration-1 underline-offset-[0.3em] hover:decoration-2 focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-solid";
+
 const FAQ_ITEMS = [
   {
     question: "What is Junkyard Index?",
@@ -29,15 +32,15 @@ const FAQ_ITEMS = [
       <p>
         We index inventory from sources including LKQ, Row52, and Pull-A-Part.
         Browse the{" "}
-        <Link href="#yards" className="underline underline-offset-4">
+        <Link href="#yards" className={inlineLinkClassName}>
           map and yard directory
         </Link>{" "}
         above, or see{" "}
-        <Link href="/junkyards" className="underline underline-offset-4">
+        <Link href="/junkyards" className={inlineLinkClassName}>
           every yard by state
         </Link>{" "}
         with its full inventory. If a yard is missing, you can{" "}
-        <Link href="/request-yard" className="underline underline-offset-4">
+        <Link href="/request-yard" className={inlineLinkClassName}>
           request it
         </Link>
         .
@@ -62,7 +65,7 @@ const FAQ_ITEMS = [
         Yes. You can search for free, and a free account gives you full results
         with unlimited searches. Lite adds advanced filters and saved searches.
         Full adds email and Discord alerts. See the{" "}
-        <Link href="/pricing" className="underline underline-offset-4">
+        <Link href="/pricing" className={inlineLinkClassName}>
           plan comparison
         </Link>{" "}
         for details.
@@ -85,35 +88,34 @@ export function HomeFaq() {
   return (
     <section
       aria-labelledby="home-faq-title"
-      className="px-4 py-16 sm:px-6 sm:py-24 lg:px-8"
+      className="shell grid gap-10 py-24 sm:py-36 lg:grid-cols-12 lg:gap-8"
     >
-      <div className="mx-auto max-w-3xl">
-        <h2
-          id="home-faq-title"
-          className="mb-8 text-center text-3xl font-semibold tracking-tight text-balance sm:mb-12 sm:text-4xl"
-        >
-          Frequently asked questions
-        </h2>
-        <div className="border-t">
-          {FAQ_ITEMS.map(({ question, answer }) => (
-            <details key={question} className="group border-b">
-              <summary className="focus-visible:ring-ring/50 flex w-full list-none items-center justify-between gap-6 rounded-sm py-5 text-left text-base font-medium outline-none focus-visible:ring-2 sm:py-6 [&::-webkit-details-marker]:hidden">
-                <h3>{question}</h3>
-                <Plus
-                  className="text-muted-foreground size-4 shrink-0 group-open:hidden"
-                  aria-hidden="true"
-                />
-                <Minus
-                  className="text-muted-foreground hidden size-4 shrink-0 group-open:block"
-                  aria-hidden="true"
-                />
-              </summary>
-              <div className="text-muted-foreground pr-8 pb-6 text-sm leading-relaxed text-pretty">
-                {answer}
-              </div>
-            </details>
-          ))}
-        </div>
+      <h2
+        id="home-faq-title"
+        className="text-section leading-[1.02] font-extrabold lg:sticky lg:top-28 lg:col-span-4 lg:self-start"
+      >
+        Frequently asked questions
+      </h2>
+      <div className="border-ink border-t-2 lg:col-span-8">
+        {FAQ_ITEMS.map(({ question, answer }) => (
+          <details key={question} className="group border-rule border-b">
+            <summary className="board-step hover:text-signal focus-visible:outline-focus flex w-full list-none items-center justify-between gap-6 py-6 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid sm:py-7 [&::-webkit-details-marker]:hidden">
+              <h3 className="text-title leading-tight font-extrabold tracking-[-0.02em]">
+                {question}
+              </h3>
+              <span
+                className="border-ink group-open:bg-ink group-open:text-paper grid size-9 shrink-0 place-items-center border-2"
+                aria-hidden="true"
+              >
+                <Plus className="size-4 group-open:hidden" />
+                <Minus className="hidden size-4 group-open:block" />
+              </span>
+            </summary>
+            <div className="text-ink-2 max-w-[65ch] pr-12 pb-8 text-base leading-relaxed text-pretty">
+              {answer}
+            </div>
+          </details>
+        ))}
       </div>
     </section>
   );

@@ -15,12 +15,12 @@ const statusPageResponseSchema = z.object({
 // Map (not a plain object) so remote aggregate_state strings can never hit
 // Object.prototype keys like "constructor" or "__proto__".
 const STATE_STYLES = new Map<string, { dot: string; label: string }>([
-  ["operational", { dot: "bg-green-500", label: "All systems operational" }],
-  ["degraded", { dot: "bg-amber-500", label: "Degraded performance" }],
-  ["downtime", { dot: "bg-red-500", label: "Service disruption" }],
+  ["operational", { dot: "bg-success", label: "All systems operational" }],
+  ["degraded", { dot: "bg-figure", label: "Degraded performance" }],
+  ["downtime", { dot: "bg-error", label: "Service disruption" }],
 ]);
 
-const FALLBACK_STATE = { dot: "bg-gray-400", label: "System status" };
+const FALLBACK_STATE = { dot: "bg-ink-3", label: "System status" };
 
 async function getAggregateState(
   statusPageUrl: string,
@@ -55,10 +55,13 @@ export async function StatusChip({ statusPageUrl }: { statusPageUrl: string }) {
       href={statusPageUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs whitespace-nowrap transition-colors sm:ml-auto"
+      className="board-step text-ink-2 hover:text-signal focus-visible:outline-focus inline-flex min-h-11 items-center gap-2 text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-solid sm:min-h-9"
     >
       {state && (
-        <span className={`inline-block h-2 w-2 rounded-full ${state.dot}`} />
+        <span
+          aria-hidden="true"
+          className={`inline-block size-2.5 ${state.dot}`}
+        />
       )}
       {state?.label ?? FALLBACK_STATE.label}
     </a>

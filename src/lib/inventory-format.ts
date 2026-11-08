@@ -16,9 +16,9 @@ export const InventoryFormat = {
     return `${InventoryFormat.count(value)} ${value === 1 ? one : many}`;
   },
 
-  /** "1999–2011", or "2005" when the range is one year. */
+  /** "1999 to 2011", or "2005" when the range is one year. */
   years({ minYear, maxYear }: { minYear: number; maxYear: number }): string {
-    return minYear === maxYear ? String(minYear) : `${minYear}–${maxYear}`;
+    return minYear === maxYear ? String(minYear) : `${minYear} to ${maxYear}`;
   },
 
   /** "Nov 4, 2026", in UTC so the page reads the same wherever it renders. */
