@@ -8,7 +8,10 @@ const RECENT_VEHICLE_LIMIT = 12;
  * Newest vehicles by first sighting. A yard's first crawl is its existing
  * backlog, not new arrivals, so only cars first seen after that crawl count.
  */
-export async function getRecentHomepageVehicles(database: LibSQLDatabase) {
+export async function getRecentHomepageVehicles(
+  database: LibSQLDatabase,
+  limit = RECENT_VEHICLE_LIMIT,
+) {
   const rows = await database
     .select({
       year: vehicle.year,
@@ -34,7 +37,7 @@ export async function getRecentHomepageVehicles(database: LibSQLDatabase) {
       ),
     )
     .orderBy(desc(vehicle.firstSeenAt), asc(vehicle.vin))
-    .limit(RECENT_VEHICLE_LIMIT);
+    .limit(limit);
   return rows.map((entry) => ({
     ...entry,
     indexedAt: entry.indexedAt.toISOString(),
