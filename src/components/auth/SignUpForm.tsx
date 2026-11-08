@@ -176,11 +176,11 @@ export function SignUpForm() {
           className="text-muted-foreground block leading-5 font-normal"
         >
           I agree to the{" "}
-          <Link href="/terms" className="text-primary hover:underline">
+          <Link href="/terms" className="text-signal hover:underline">
             Terms of Service
           </Link>{" "}
           and acknowledge the{" "}
-          <Link href="/privacy" className="text-primary hover:underline">
+          <Link href="/privacy" className="text-signal hover:underline">
             Privacy Policy
           </Link>
           .
@@ -200,7 +200,7 @@ export function SignUpForm() {
           <span className="w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background text-muted-foreground px-2">
+          <span className="bg-background sm:bg-card text-muted-foreground px-2">
             Or continue with
           </span>
         </div>
@@ -229,7 +229,7 @@ export function SignUpForm() {
               ? `/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`
               : "/auth/sign-in"
           }
-          className="text-primary hover:underline"
+          className="text-signal hover:underline"
         >
           Sign in
         </Link>
