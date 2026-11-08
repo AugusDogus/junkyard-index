@@ -1,5 +1,7 @@
+import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { PublicPageShell } from "~/components/junkyards/PublicPageShell";
 import { YardList } from "~/components/junkyards/YardList";
@@ -8,7 +10,11 @@ import { env } from "~/env";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { YardPath } from "~/lib/yard-path";
-import { getChains, getRoutedYards } from "~/server/yard-inventory";
+import {
+  getChains,
+  getRoutedYards,
+  inventoryFreshness,
+} from "~/server/yard-inventory";
 import { InventoryFormat } from "~/lib/inventory-format";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
@@ -36,10 +42,18 @@ export default async function JunkyardsPage() {
   const [yards, chains] = await Promise.all([getRoutedYards(), getChains()]);
   const groups = YardPath.byRegion(yards);
   const vehicles = yards.reduce((sum, yard) => sum + yard.vehicleCount, 0);
+  const freshness = await inventoryFreshness(yards);
   const crumbs = [
     { name: "Home", href: "/" },
     { name: "Junkyards", href: "/junkyards" },
   ];
+  const regionRows = groups
+    .map(({ region, yards: regionYards }) => ({
+      region,
+      yards: regionYards,
+      vehicles: regionYards.reduce((sum, yard) => sum + yard.vehicleCount, 0),
+    }))
+    .sort((a, b) => b.vehicles - a.vehicles);
 
   return (
     <PublicPageShell>
@@ -51,79 +65,91 @@ export default async function JunkyardsPage() {
         Junkyards with live inventory
       </h1>
       <p className="mt-3 text-base text-pretty">
-        We track{" "}
-        <span className="font-medium tabular-nums">
+        <span className="font-semibold tabular-nums">
           {InventoryFormat.count(yards.length)}
         </span>{" "}
-        salvage yards in{" "}
-        <span className="tabular-nums">
-          {InventoryFormat.count(groups.length)}
-        </span>{" "}
-        states and provinces, listing{" "}
-        <span className="font-medium tabular-nums">
+        self-service yards in {InventoryFormat.count(groups.length)} states and
+        provinces, listing{" "}
+        <span className="font-semibold tabular-nums">
           {InventoryFormat.count(vehicles)}
         </span>{" "}
-        vehicles. Every yard has a page with its full inventory, checked daily.
+        vehicles. Pick your state, then a yard, to see everything it has.
       </p>
-      <nav aria-label="Chains" className="mt-6">
-        <h2 className="mb-2 text-sm font-medium">Chains</h2>
-        <ul className="flex flex-wrap gap-1.5">
-          {chains.map((chain) => (
-            <li key={chain.slug}>
-              <Link
-                href={chain.href}
-                prefetch={false}
-                className="hover:bg-muted inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
-              >
-                {chain.name}
-                <span className="text-muted-foreground tabular-nums">
-                  {chain.yards.length}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <nav aria-label="States and provinces" className="mt-6">
-        <h2 className="mb-2 text-sm font-medium">States and provinces</h2>
-        <ul className="flex flex-wrap gap-1.5">
-          {groups.map(({ region, yards: regionYards }) => (
-            <li key={region.slug}>
+      <div className="mt-2">
+        <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
+      </div>
+
+      <section aria-labelledby="states-title" className="mt-8">
+        <h2 id="states-title" className="text-lg font-semibold">
+          By state
+        </h2>
+        <ul className="mt-3 grid gap-x-8 border-t sm:grid-cols-2">
+          {regionRows.map(({ region, yards: regionYards, vehicles: count }) => (
+            <li key={region.slug} className="border-b">
               <Link
                 href={YardPath.regionHref(region)}
                 prefetch={false}
-                className="hover:bg-muted inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
+                className="hover:bg-muted/60 flex items-baseline justify-between gap-4 px-1 py-2.5"
               >
-                {region.name}
-                <span className="text-muted-foreground tabular-nums">
-                  {regionYards.length}
+                <span className="text-sm font-medium">{region.name}</span>
+                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                  {InventoryFormat.plural(regionYards.length, "yard", "yards")}{" "}
+                  · {InventoryFormat.count(count)} vehicles
                 </span>
               </Link>
             </li>
           ))}
         </ul>
-      </nav>
-      {groups.map(({ region, yards: regionYards }) => (
-        <section
-          key={region.slug}
-          className="mt-10"
-          aria-labelledby={`region-${region.slug}`}
-        >
-          <h2
-            id={`region-${region.slug}`}
-            className="mb-3 text-lg font-semibold"
-          >
-            <Link
-              href={YardPath.regionHref(region)}
-              prefetch={false}
-              className="underline-offset-4 hover:underline"
-            >
-              {region.name}
-            </Link>
-          </h2>
-          <YardList yards={regionYards} />
-        </section>
-      ))}
+      </section>
+
+      <section aria-labelledby="chains-title" className="mt-10">
+        <h2 id="chains-title" className="text-lg font-semibold">
+          By chain
+        </h2>
+        <ul className="mt-3 grid gap-x-8 border-t sm:grid-cols-2">
+          {chains.map((chain) => (
+            <li key={chain.slug} className="border-b">
+              <Link
+                href={chain.href}
+                prefetch={false}
+                className="hover:bg-muted/60 flex items-baseline justify-between gap-4 px-1 py-2.5"
+              >
+                <span className="text-sm font-medium">{chain.name}</span>
+                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                  {InventoryFormat.plural(chain.yards.length, "yard", "yards")}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="all-title" className="mt-10">
+        <h2 id="all-title" className="text-lg font-semibold">
+          Every yard
+        </h2>
+        <div className="mt-3 divide-y border-y">
+          {groups.map(({ region, yards: regionYards }) => (
+            <details key={region.slug} className="group">
+              <summary className="hover:bg-muted/60 flex cursor-pointer list-none items-center justify-between gap-4 px-1 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-1.5">
+                  <ChevronRight
+                    className="text-muted-foreground size-4 transition-transform group-open:rotate-90"
+                    aria-hidden="true"
+                  />
+                  {region.name}
+                </span>
+                <span className="text-muted-foreground text-xs font-normal tabular-nums">
+                  {InventoryFormat.plural(regionYards.length, "yard", "yards")}
+                </span>
+              </summary>
+              <div className="pb-3">
+                <YardList yards={regionYards} />
+              </div>
+            </details>
+          ))}
+        </div>
+      </section>
     </PublicPageShell>
   );
 }
