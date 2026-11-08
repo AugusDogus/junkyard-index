@@ -14,6 +14,7 @@
 /* Hallmark · dismissed F18 · data-slot="button" is shadcn's marker on every Button, not a picture slot */
 /* Hallmark · dismissed 77 · the inventory pages are Index pages under a Banner head, so a state or a make page holds three sections, not a landing strip */
 /* Hallmark · dismissed 28a · the yard page's LCP is its h1; the first vehicle photo sits below it and stays lazy */
+/* Hallmark · dismissed kept · vehicle rows use content-visibility: auto, so innerText skips rows off screen and the figure and word counts drop; all 100 rows stay in the HTML, the DOM and the accessibility tree (queryAXTree finds every row heading) */
 /* Hallmark · reworded "Junkyard Index: search salvage yard inventory" to "Search 178 salvage yards at once" · the h1 was screen-reader only; 44b wants it visible and the hero review named the category line, so it leads with the live yard count */
 /* Hallmark · dropped 1.png · an OpenStreetMap tile file name, not page content; the map loads other tiles at its new size */
 /* Hallmark · hero-review: fix · 5 findings · 5 resolved (markers settle aligned; amber figures at 30px on a lighter night board; the head leads with the live yard count; the line sits under the head; the search row joins edge to edge so the placeholder fits at 375) */
