@@ -109,7 +109,7 @@ export async function HomeLandingPage() {
             <Suspense
               fallback={
                 <div aria-hidden="true" className="border-ink border-2">
-                  <div className="bg-board h-12" />
+                  <div className="bg-board h-16" />
                   <div className="homepage-map-layout bg-paper-2 border-ink border-t-2">
                     <div className="homepage-map-canvas" />
                     <div className="bg-paper-3 border-ink h-[54px] border-t-2 lg:hidden" />
