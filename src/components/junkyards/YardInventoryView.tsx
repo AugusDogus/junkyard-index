@@ -1,27 +1,23 @@
-import { ArrowUpRight, MapPin, Phone } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MapPin, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
+import { VehicleRow } from "~/components/inventory/VehicleRow";
+import { AlertsCallout } from "~/components/junkyards/AlertsCallout";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
 import { JsonLd } from "~/components/JsonLd";
-import { AlertsCallout } from "~/components/junkyards/AlertsCallout";
 import { Button } from "~/components/ui/button";
 import { env } from "~/env";
+import { InventoryFormat } from "~/lib/inventory-format";
+import { MakeInventory } from "~/lib/make-inventory";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
-import { VehicleDestination } from "~/lib/vehicle-destination";
-import wsrvLoader from "~/lib/wsrvLoader";
-import {
-  YardInventory,
-  type MakeCount,
-  type YardInventoryPage,
-  type YardVehicle,
-} from "~/lib/yard-inventory";
+import { cn } from "~/lib/utils";
+import type { MakeCount, YardInventoryPage } from "~/lib/yard-inventory";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
 import { yardPhoneHref } from "~/lib/yard-phone";
-import { isIngestionSource } from "~/lib/ingestion-source";
 import type { RoutedYard } from "~/server/yard-inventory";
-import { InventoryFormat } from "~/lib/inventory-format";
 
 export function yardCrumbs(yard: RoutedYard): Crumb[] {
   return [
@@ -36,6 +32,9 @@ export function yardCrumbs(yard: RoutedYard): Crumb[] {
 }
 
 export type NearbyYard = { yard: RoutedYard; miles: number };
+
+/** A make the page is narrowed to, by its national name and slug. */
+export type YardMakeFilter = { name: string; slug: string };
 
 /** Title, description, and canonical URL for page `page` of a yard. */
 export function yardPageMetadata(
@@ -63,32 +62,84 @@ export function yardPageMetadata(
   };
 }
 
+// Fewer vehicles than this and a yard's page for one make stays out of
+// search: too thin to be worth a result of its own.
+const YARD_MAKE_INDEXABLE_MINIMUM = 5;
+
+/** Title, description, and canonical URL for one make at a yard. */
+export function yardMakeMetadata(
+  yard: RoutedYard,
+  make: YardMakeFilter,
+  total: number,
+  publishedAt: string | null,
+): Metadata {
+  const headline = YardName.headline(yard.name, yard.operator);
+  const place = `${yard.city}, ${yard.state}`;
+  const title = `${make.name} at ${headline} | ${place}`;
+  const description = `${InventoryFormat.plural(total, `${make.name} vehicle`, `${make.name} vehicles`)} at ${headline} in ${place}, with where each one sits in the yard.${
+    publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
+  }`;
+  const url = YardPath.makeHref(yard.path, make.slug);
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    robots:
+      total < YARD_MAKE_INDEXABLE_MINIMUM
+        ? { index: false, follow: true }
+        : undefined,
+    openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
+    twitter: { card: "summary", title, description },
+  };
+}
+
 export function YardInventoryView({
   yard,
   inventory,
   total,
+  newCount,
+  newIsMeaningful,
   makes,
-  makeHrefs,
+  makeSlugs,
   publishedAt,
   nearby,
   chain,
+  filter,
 }: {
   yard: RoutedYard;
   inventory: YardInventoryPage;
+  /** Vehicles in the yard, or of the filtered make. */
   total: number;
+  /** Of those, how many arrived in the week before the latest update. */
+  newCount: number;
+  /**
+   * Whether "new" means anything at this yard, judged from the whole yard
+   * (see `YardInventory.newIsMeaningful`), even on a page for one make.
+   */
+  newIsMeaningful: boolean;
+  /** Every make in the yard, for narrowing. */
   makes: MakeCount[];
-  /** Each make's national page, by make key. */
-  makeHrefs: ReadonlyMap<string, string>;
+  /** Each make's national URL slug, by make key. */
+  makeSlugs: ReadonlyMap<string, string>;
   publishedAt: string | null;
   nearby: readonly NearbyYard[];
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
+  /** The make this page is narrowed to, if any. */
+  filter: YardMakeFilter | null;
 }) {
-  const crumbs = yardCrumbs(yard);
   const headline = YardName.headline(yard.name, yard.operator);
-  const first = inventory.page === 1;
+  const crumbs: Crumb[] = filter
+    ? [
+        ...yardCrumbs(yard),
+        { name: filter.name, href: YardPath.makeHref(yard.path, filter.slug) },
+      ]
+    : yardCrumbs(yard);
   const shownFrom = inventory.firstIndex + 1;
   const shownTo = inventory.firstIndex + inventory.vehicles.length;
+  const showMakes = inventory.page === 1 && makes.length > 1;
+  // A newly tracked yard is all "new"; say nothing rather than that.
+  const newSince = newIsMeaningful ? publishedAt : null;
 
   return (
     <>
@@ -101,7 +152,7 @@ export function YardInventoryView({
             country: yard.path.region.country,
           }),
           StructuredData.vehicles(
-            `${headline} inventory`,
+            filter ? `${filter.name} at ${headline}` : `${headline} inventory`,
             total,
             inventory.firstIndex,
             inventory.vehicles,
@@ -110,47 +161,60 @@ export function YardInventoryView({
       />
       <Breadcrumbs crumbs={crumbs} />
 
-      <header className="border-b pb-6">
-        <p className="text-muted-foreground text-sm">
-          {chain ? (
-            <Link
-              href={chain.href}
-              prefetch={false}
-              className="hover:text-foreground underline-offset-4 hover:underline"
-            >
-              One of the {InventoryFormat.count(chain.yards)} {chain.name} yards
-              we track
-            </Link>
-          ) : (
-            <>
-              Salvage yard
-              {yard.operator && !headline.includes(yard.operator)
-                ? ` run by ${yard.operator}`
-                : ""}
-            </>
-          )}
-        </p>
+      <header className="pb-6">
+        {chain && (
+          <Link
+            href={chain.href}
+            prefetch={false}
+            className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+          >
+            {chain.name} · {InventoryFormat.count(chain.yards)} yards we track
+          </Link>
+        )}
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          {headline} inventory
+          {filter ? `${filter.name} at ${headline}` : headline}
         </h1>
         <p className="mt-3 text-base text-pretty">
-          <span className="font-medium tabular-nums">
-            {InventoryFormat.plural(total, "vehicle", "vehicles")}
+          <span className="font-semibold tabular-nums">
+            {InventoryFormat.plural(
+              total,
+              filter ? `${filter.name} vehicle` : "vehicle",
+              filter ? `${filter.name} vehicles` : "vehicles",
+            )}
           </span>{" "}
-          in the yard in {yard.city}, {yard.state}.{" "}
-          <Freshness publishedAt={publishedAt} />
+          in the yard in {yard.city}, {yard.state}
+          {newIsMeaningful && newCount > 0 && (
+            <>
+              ,{" "}
+              <span className="font-semibold tabular-nums">
+                {InventoryFormat.count(newCount)} new
+              </span>{" "}
+              this week
+            </>
+          )}
+          .
         </p>
+        <div className="mt-2">
+          <FreshnessBadge publishedAt={publishedAt} />
+        </div>
         <YardContact yard={yard} />
       </header>
 
-      {first && makes.length > 0 && (
-        <MakeSummary makes={makes} hrefs={makeHrefs} />
+      {showMakes && (
+        <MakeChips
+          yard={yard}
+          makes={makes}
+          makeSlugs={makeSlugs}
+          selected={filter?.slug ?? null}
+        />
       )}
 
       <section aria-labelledby="vehicles-title" className="mt-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="vehicles-title" className="text-xl font-semibold">
-            {first ? "Newest arrivals first" : `Page ${inventory.page}`}
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b pb-3">
+          <h2 id="vehicles-title" className="text-lg font-semibold">
+            {inventory.page === 1
+              ? "Newest first"
+              : `Page ${inventory.page}, newest first`}
           </h2>
           {total > 0 && (
             <p className="text-muted-foreground text-sm tabular-nums">
@@ -161,58 +225,91 @@ export function YardInventoryView({
         </div>
         {total === 0 ? (
           <p className="text-muted-foreground mt-4 text-sm">
-            This yard has no vehicles listed right now.
+            {publishedAt === null
+              ? "We couldn't confirm this yard's current inventory, so none is shown. Check the yard's website."
+              : "The yard lists no vehicles right now."}
           </p>
         ) : (
-          <ul className="mt-4 divide-y rounded-lg border">
+          <ul className="divide-y">
             {inventory.vehicles.map((vehicle) => (
               <VehicleRow
                 key={vehicle.vin}
                 vehicle={vehicle}
                 source={yard.source}
+                publishedAt={newSince}
               />
             ))}
           </ul>
         )}
         <Pagination yard={yard} inventory={inventory} />
-        <p className="text-muted-foreground mt-3 text-xs text-pretty">
+        <p className="text-muted-foreground mt-4 text-xs text-pretty">
           Listings come from the yard. Vehicles can be crushed or picked over
           between updates, so confirm with the yard before you go. We list whole
           vehicles, not individual parts.
         </p>
+        {filter && (
+          <p className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+            <Link
+              href={yard.path.href}
+              prefetch={false}
+              className="font-medium underline-offset-4 hover:underline"
+            >
+              All {InventoryFormat.count(yard.vehicleCount)} vehicles at this
+              yard
+            </Link>
+            <Link
+              href={MakeInventory.makeHref(filter.slug)}
+              prefetch={false}
+              className="inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+            >
+              {filter.name} at every yard{" "}
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
+          </p>
+        )}
       </section>
 
-      {first && (
+      {inventory.page === 1 && (
         <AlertsCallout
-          subject={`a matching vehicle shows up at ${headline} or any other yard we track`}
+          subject={
+            filter
+              ? `a ${filter.name} you're after shows up here or at any other yard we track`
+              : `a matching vehicle shows up at ${headline} or any other yard we track`
+          }
           sourcePage="yard"
         />
       )}
 
       {nearby.length > 0 && (
         <section aria-labelledby="nearby-title" className="mt-10">
-          <h2 id="nearby-title" className="text-xl font-semibold">
+          <h2 id="nearby-title" className="text-lg font-semibold">
             Other yards near {yard.city}
           </h2>
-          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+          <ul className="mt-3 divide-y border-y">
             {nearby.map(({ yard: other, miles }) => (
               <li key={other.path.href}>
                 <Link
                   href={other.path.href}
                   prefetch={false}
-                  className="hover:bg-muted block rounded-lg border p-3"
+                  className="hover:bg-muted/60 flex items-baseline justify-between gap-4 px-1 py-2.5"
                 >
-                  <span className="block text-sm font-medium">
-                    {YardName.headline(other.name, other.operator)}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {YardName.headline(other.name, other.operator)}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {other.city}, {other.state}
+                    </span>
                   </span>
-                  <span className="text-muted-foreground mt-1 block text-xs tabular-nums">
-                    {other.city}, {other.state} ·{" "}
-                    {InventoryFormat.count(Math.round(miles))} mi ·{" "}
-                    {InventoryFormat.plural(
-                      other.vehicleCount,
-                      "vehicle",
-                      "vehicles",
-                    )}
+                  <span className="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
+                    {InventoryFormat.count(Math.round(miles))} mi
+                    <span className="block">
+                      {InventoryFormat.plural(
+                        other.vehicleCount,
+                        "vehicle",
+                        "vehicles",
+                      )}
+                    </span>
                   </span>
                 </Link>
               </li>
@@ -221,23 +318,6 @@ export function YardInventoryView({
         </section>
       )}
     </>
-  );
-}
-
-function Freshness({ publishedAt }: { publishedAt: string | null }) {
-  if (publishedAt === null) {
-    return (
-      <span className="text-amber-700 dark:text-amber-400">
-        This yard&apos;s inventory has not refreshed in the last 3 days, so some
-        listings may be gone.
-      </span>
-    );
-  }
-  return (
-    <span className="text-muted-foreground">
-      Inventory updated{" "}
-      <time dateTime={publishedAt}>{InventoryFormat.date(publishedAt)}</time>.
-    </span>
   );
 }
 
@@ -253,7 +333,7 @@ function YardContact({ yard }: { yard: RoutedYard }) {
         {street}
       </address>
       <div className="flex flex-wrap gap-2">
-        <Button asChild variant="outline" size="sm">
+        <Button asChild size="sm">
           <a href={yard.mapsUrl} target="_blank" rel="noopener noreferrer">
             Directions
             <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
@@ -286,119 +366,70 @@ function YardContact({ yard }: { yard: RoutedYard }) {
   );
 }
 
-const SHOWN_MAKES = 24;
-
-function MakeSummary({
+/**
+ * Narrows the yard's inventory to one make, staying at this yard. Every make
+ * is listed: one scrolling row on phones, wrapped rows on wider screens.
+ */
+function MakeChips({
+  yard,
   makes,
-  hrefs,
+  makeSlugs,
+  selected,
 }: {
+  yard: RoutedYard;
   makes: readonly MakeCount[];
-  hrefs: ReadonlyMap<string, string>;
+  makeSlugs: ReadonlyMap<string, string>;
+  selected: string | null;
 }) {
-  const shown = makes.slice(0, SHOWN_MAKES);
-  const rest = makes.length - shown.length;
+  const linked = makes.flatMap((make) => {
+    const slug = makeSlugs.get(make.key);
+    return slug ? [{ ...make, slug }] : [];
+  });
+  const chip = (active: boolean) =>
+    cn(
+      "block rounded-full border px-3 py-1 text-sm whitespace-nowrap tabular-nums transition-colors",
+      active
+        ? "bg-foreground text-background border-foreground"
+        : "hover:bg-muted",
+    );
   return (
-    <section aria-labelledby="makes-title" className="mt-6">
-      <h2 id="makes-title" className="text-sm font-medium">
-        Makes in the yard
-      </h2>
-      <ul className="mt-2 flex flex-wrap gap-1.5">
-        {shown.map(({ key, make, count: vehicles }) => {
-          const href = hrefs.get(key);
-          const label = (
-            <>
-              {make} <span className="text-muted-foreground">{vehicles}</span>
-            </>
-          );
-          return (
-            <li key={key} className="text-xs tabular-nums">
-              {href ? (
-                <Link
-                  href={href}
-                  prefetch={false}
-                  title={`${make} vehicles at every yard`}
-                  className="bg-muted hover:bg-accent block rounded-md px-2 py-1"
-                >
-                  {label}
-                </Link>
-              ) : (
-                <span className="bg-muted block rounded-md px-2 py-1">
-                  {label}
-                </span>
-              )}
-            </li>
-          );
-        })}
-        {rest > 0 && (
-          <li className="text-muted-foreground px-2 py-1 text-xs">
-            and {InventoryFormat.plural(rest, "more make", "more makes")}
+    <nav aria-label="Narrow by make">
+      {/* One scrolling row on phones, so the list starts on the first
+      screen; wrapped rows where there is room. */}
+      <ul className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+        <li className="shrink-0">
+          <Link
+            href={yard.path.href}
+            prefetch={false}
+            aria-current={selected === null ? "page" : undefined}
+            className={chip(selected === null)}
+          >
+            All makes
+          </Link>
+        </li>
+        {linked.map((make) => (
+          <li key={make.key} className="shrink-0">
+            <Link
+              href={YardPath.makeHref(yard.path, make.slug)}
+              prefetch={false}
+              aria-current={selected === make.slug ? "page" : undefined}
+              className={chip(selected === make.slug)}
+            >
+              {make.make}{" "}
+              <span
+                className={
+                  selected === make.slug
+                    ? "opacity-70"
+                    : "text-muted-foreground"
+                }
+              >
+                {make.count}
+              </span>
+            </Link>
           </li>
-        )}
+        ))}
       </ul>
-    </section>
-  );
-}
-
-function VehicleRow({
-  vehicle,
-  source,
-}: {
-  vehicle: YardVehicle;
-  source: string;
-}) {
-  const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
-    .filter(Boolean)
-    .join(" ");
-  const location = YardInventory.location(vehicle);
-  const destination = isIngestionSource(source)
-    ? VehicleDestination.resolve({ source, detailsUrl: vehicle.detailsUrl })
-    : null;
-  return (
-    <li className="flex gap-3 p-3 sm:gap-4">
-      <div className="bg-muted relative h-16 w-20 shrink-0 overflow-hidden rounded-md sm:h-18 sm:w-24">
-        {vehicle.imageUrl && (
-          <img
-            src={wsrvLoader({ src: vehicle.imageUrl, width: 192 })}
-            alt=""
-            width={96}
-            height={72}
-            loading="lazy"
-            decoding="async"
-            className="size-full object-cover"
-          />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-medium text-pretty">{title}</h3>
-        <p className="text-muted-foreground mt-0.5 text-xs text-pretty">
-          {[
-            vehicle.color,
-            location,
-            `Added ${InventoryFormat.date(vehicle.addedAt)}`,
-            vehicle.stockNumber && `Stock #${vehicle.stockNumber}`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <p className="mt-1 font-mono text-xs break-all select-all">
-          {vehicle.vin}
-        </p>
-      </div>
-      {destination?.kind === "inventory" && (
-        <a
-          href={destination.href}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="text-muted-foreground hover:text-foreground flex shrink-0 items-start gap-1 text-xs underline-offset-4 hover:underline"
-        >
-          <span className="hidden sm:inline">At the yard</span>
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-          <span className="sr-only">
-            {destination.label} for the {title} (opens in a new tab)
-          </span>
-        </a>
-      )}
-    </li>
+    </nav>
   );
 }
 

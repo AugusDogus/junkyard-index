@@ -1,3 +1,4 @@
+import { InventoryFormat } from "./inventory-format";
 import { VehicleName } from "./vehicle-name";
 
 /** One live vehicle as shown on a yard's inventory pages. */
@@ -13,8 +14,10 @@ export type YardVehicle = {
   section: string | null;
   row: string | null;
   space: string | null;
-  /** The yard's own set date when it parses, else when we first saw it (ms). */
+  /** Yard date, observed arrival, or first indexed date (ms), in that order. */
   addedAt: number;
+  /** Whether the date proves arrival or only when the listing was indexed. */
+  addedBy: "yard" | "observed" | "first-seen";
   imageUrl: string | null;
   detailsUrl: string | null;
 };
@@ -31,6 +34,10 @@ export type YardInventoryPage = {
 export type MakeCount = { key: string; make: string; count: number };
 
 export const YARD_PAGE_SIZE = 100;
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// Above this share of a yard's vehicles, "new" stops meaning anything.
+const MOSTLY_NEW = 0.8;
 
 function text(value: string | null): string | null {
   const trimmed = value?.trim();
@@ -57,10 +64,11 @@ export const YardInventory = {
     space: string | null;
     availableDate: string | null;
     firstSeenAt: number;
+    observedArrivalAt: number | null;
     imageUrl: string | null;
     detailsUrl: string | null;
   }): YardVehicle {
-    const { availableDate, firstSeenAt, ...rest } = row;
+    const { availableDate, firstSeenAt, observedArrivalAt, ...rest } = row;
     return {
       ...rest,
       trim: text(rest.trim),
@@ -70,14 +78,74 @@ export const YardInventory = {
       section: text(rest.section),
       row: text(rest.row),
       space: text(rest.space),
-      addedAt: YardInventory.addedAt(availableDate, firstSeenAt),
+      ...YardInventory.added(availableDate, firstSeenAt, observedArrivalAt),
     };
   },
 
-  /** The yard's set date when it parses, else when we first saw it (ms). */
-  addedAt(availableDate: string | null, firstSeenAt: number): number {
+  /** Yard date or observed arrival, then first indexed date (ms). */
+  addedAt(
+    availableDate: string | null,
+    firstSeenAt: number,
+    observedArrivalAt: number | null,
+  ): number {
+    return YardInventory.added(availableDate, firstSeenAt, observedArrivalAt)
+      .addedAt;
+  },
+
+  /** `addedAt`, and whose date it is. */
+  added(
+    availableDate: string | null,
+    firstSeenAt: number,
+    observedArrivalAt: number | null,
+  ): Pick<YardVehicle, "addedAt" | "addedBy"> {
     const setAt = availableDate ? Date.parse(availableDate) : Number.NaN;
-    return Number.isFinite(setAt) ? setAt : firstSeenAt;
+    return Number.isFinite(setAt)
+      ? { addedAt: setAt, addedBy: "yard" }
+      : observedArrivalAt !== null
+        ? { addedAt: observedArrivalAt, addedBy: "observed" }
+        : { addedAt: firstSeenAt, addedBy: "first-seen" };
+  },
+
+  /** Distinguishes a yard date, observed arrival and first indexed date. */
+  addedLabel(vehicle: Pick<YardVehicle, "addedAt" | "addedBy">): string {
+    const date = InventoryFormat.date(vehicle.addedAt);
+    return vehicle.addedBy === "yard"
+      ? `In the yard since ${date}`
+      : vehicle.addedBy === "observed"
+        ? `Seen ${date}`
+        : `First seen ${date}`;
+  },
+
+  /**
+   * Whether a vehicle arrived in the week before `publishedAt`, the yard's
+   * latest inventory update. Measured from the data, not the clock, so a
+   * cached page says the same thing all day.
+   */
+  isNew(
+    vehicle: Pick<YardVehicle, "addedAt" | "addedBy">,
+    publishedAt: string | null,
+  ): boolean {
+    if (publishedAt === null || vehicle.addedBy === "first-seen") return false;
+    return vehicle.addedAt >= Date.parse(publishedAt) - WEEK_MS;
+  },
+
+  /** How many of `vehicles` are new, as `isNew` counts them. */
+  newCount(
+    vehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],
+    publishedAt: string | null,
+  ): number {
+    return vehicles.filter((vehicle) =>
+      YardInventory.isNew(vehicle, publishedAt),
+    ).length;
+  },
+
+  /**
+   * Whether "new this week" means anything for a yard. A yard we just
+   * started tracking, with no set dates of its own, has every vehicle first
+   * seen this week; flagging them all would say nothing.
+   */
+  newIsMeaningful(newCount: number, total: number): boolean {
+    return newCount <= total * MOSTLY_NEW;
   },
 
   /** Newest first; VIN breaks ties so pages are stable between renders. */
