@@ -41,7 +41,7 @@ export default function TermsPage() {
               &ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;). By
               creating an account, purchasing a subscription, or otherwise using
               the Service, you agree to these Terms and our{" "}
-              <Link href="/privacy" className="text-primary hover:underline">
+              <Link href="/privacy" className="text-signal hover:underline">
                 Privacy Policy
               </Link>
               . If you do not agree, do not use the Service.
@@ -209,7 +209,7 @@ export default function TermsPage() {
                 href="https://polar.sh/legal/checkout-buyer-terms"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-signal hover:underline"
               >
                 Polar Buyer Terms and Conditions
               </a>
@@ -368,7 +368,7 @@ export default function TermsPage() {
             <h2 className="mb-4 text-2xl font-semibold">Contact Us</h2>
             <p className="text-muted-foreground">
               Questions about these Terms may be submitted through our{" "}
-              <Link href="/contact" className="text-primary hover:underline">
+              <Link href="/contact" className="text-signal hover:underline">
                 contact page
               </Link>
               .

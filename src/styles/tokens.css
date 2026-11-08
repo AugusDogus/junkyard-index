@@ -86,6 +86,7 @@
   --color-ink-rule: oklch(45% 0.014 262);
   --color-signal: oklch(68% 0.17 264);
   --color-signal-fill: oklch(55% 0.21 264);
+  --color-error: oklch(68% 0.17 25);
   --color-focus: oklch(68% 0.17 264);
   --color-board: oklch(24% 0.022 262);
   --color-board-2: oklch(28% 0.022 262);
