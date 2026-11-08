@@ -35,7 +35,7 @@ export function SearchField({
           inputMode="search"
           enterKeyHint="search"
           autoComplete="off"
-          placeholder="Year, make, model, or VIN"
+          placeholder="Year, make, model or VIN"
           {...props}
           className={cn(
             "placeholder:text-ink-3 h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base outline-none focus-visible:outline-none md:text-base dark:bg-transparent [&::-webkit-search-cancel-button]:hidden",
