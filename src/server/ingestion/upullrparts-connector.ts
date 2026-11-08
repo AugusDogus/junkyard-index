@@ -43,7 +43,7 @@ export const UPULLRPARTS_BATCH_SIZE = 250;
  */
 export const UPULLRPARTS_MAKE_START_BUDGET_MS = 6 * 60_000;
 const STREAM_TIMEOUT = "11 minutes";
-const MAKE_CONCURRENCY = 3;
+const MAKE_CONCURRENCY = 1;
 
 export class UpullRPartsStreamError extends Data.TaggedError(
   "UpullRPartsStreamError",

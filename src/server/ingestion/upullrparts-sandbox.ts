@@ -19,10 +19,13 @@ const SETUP_VERSION = "2";
 const APP_DIR = "/vercel/sandbox/upullrparts";
 const READY_MARKER = `${APP_DIR}/.setup-v${SETUP_VERSION}`;
 const PORT = 3000;
-const WORKERS = 6;
+// Six tabs got cloud IPs blocked within ~100 searches; four passed 213.
+const WORKERS = 3;
 const SESSION_TIMEOUT_MS = 20 * 60 * 1000;
-const SEARCH_TIMEOUT_MS = 120_000;
+// Above the server's worst case: a 60 s load, a 30 s click, and 8 token attempts.
+const SEARCH_TIMEOUT_MS = 180_000;
 const HEALTH_TIMEOUT_MS = 90_000;
+const SEARCH_RETRIES = 1;
 
 const SETUP_SCRIPT = `set -euo pipefail
 mkdir -p ${APP_DIR}
@@ -175,9 +178,20 @@ export const UpullRPartsSandboxSearch = Effect.acquireRelease(
       ),
     ),
 ).pipe(
-  Effect.map(
-    (session): UpullRPartsSearch =>
-      (params) =>
-        search(session, params),
+  Effect.flatMap((session) =>
+    // The server runs WORKERS searches at a time. Keep the rest queued here
+    // so the request timeout measures a search, not time waiting for a tab.
+    Effect.map(
+      Effect.makeSemaphore(WORKERS),
+      (tabs): UpullRPartsSearch =>
+        (params) =>
+          tabs.withPermits(1)(
+            search(session, params).pipe(
+              // A tab can stall on a slow page load or token; one retry
+              // runs on a fresh page load in the server.
+              Effect.retry({ times: SEARCH_RETRIES }),
+            ),
+          ),
+    ),
   ),
 );
