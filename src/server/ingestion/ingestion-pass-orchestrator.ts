@@ -14,6 +14,15 @@ export interface IngestionRunReport {
   failed: boolean;
 }
 
+/**
+ * completed: this pass ran sources and the day is done.
+ * already-complete: the day was done before this pass started any source.
+ * The hourly cron starts a pass every hour, so this is the usual outcome
+ * after the day's work; it must not repeat end-of-day side effects.
+ * expired: the pass outlived its ingestion day.
+ */
+export type IngestionPassOutcome = "completed" | "already-complete" | "expired";
+
 export interface IngestionPassOperations {
   /** Resumes active runs and starts runs for due sources. */
   plan: () => Promise<IngestionPassPlan>;
@@ -35,7 +44,7 @@ export interface IngestionPassOperations {
  */
 export async function runIngestionPass(
   operations: IngestionPassOperations,
-): Promise<"complete" | "expired"> {
+): Promise<IngestionPassOutcome> {
   // Invoke step callbacks without serializing the operations object as `this`.
   const {
     plan,
@@ -45,6 +54,7 @@ export async function runIngestionPass(
     pauseAfterFailure,
     deliverNotifications,
   } = operations;
+  let startedRuns = false;
   while (true) {
     const next = await plan();
     if (next.status === "expired") return "expired";
@@ -54,6 +64,7 @@ export async function runIngestionPass(
       continue;
     }
     await startRuns(next.runIds);
+    startedRuns = true;
     const pending = new Set(next.runIds);
     while (pending.size > 0) {
       const report = await nextReport();
@@ -65,8 +76,10 @@ export async function runIngestionPass(
       }
     }
   }
+  // Delivery sends only undelivered intents, so a repeat is harmless and
+  // covers a pass that died between its last run and delivery.
   await deliverNotifications();
-  return "complete";
+  return startedRuns ? "completed" : "already-complete";
 }
 
 /** Claims the shared commit, waiting for a turn signal while it is busy. */

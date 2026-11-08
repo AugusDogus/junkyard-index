@@ -110,8 +110,10 @@ export async function vehicleIngestionPassWorkflow(day: string) {
     pauseAfterFailure: () => sleep(FAILED_RUN_RESUME_DELAY),
     deliverNotifications: () => deliverIngestionPassNotificationsStep(day),
   });
-  if (outcome === "complete") await refreshHomepageStep();
-  return { status: "completed" as const, day };
+  // Only the pass that ran sources refreshes the homepage. Rebuilding it
+  // scans every live vehicle, and an hourly refresh stalled the homepage.
+  if (outcome === "completed") await refreshHomepageStep();
+  return { status: outcome, day };
 }
 
 /**
