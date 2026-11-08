@@ -25,7 +25,6 @@ import {
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
   prepareIngestionPassStep,
-  primeInventoryAnnouncementStep,
   refreshHomepageStep,
   reportIngestionRunStep,
   signalCommitWaitersStep,
@@ -51,8 +50,8 @@ const COMMIT_TURN_FALLBACK = "10m";
 const COMMIT_TURN_SETTLE = "2s";
 const PASS_WATCHDOG_INTERVAL = "30m";
 const FAILED_RUN_RESUME_DELAY = "5m";
-// Time for caches and pages to finish rebuilding in the background.
-const BACKGROUND_REBUILD_DELAY = "5m";
+// Time for requested pages to finish regenerating in the background.
+const PAGE_REGENERATION_DELAY = "2m";
 
 /** Starts or resumes each source run's workflow; live ones exit at once. */
 async function startIngestionRunWorkflowsStep(
@@ -135,16 +134,14 @@ export async function vehicleIngestionPassWorkflow(day: string) {
 }
 
 /**
- * Announces the pages a publication changed once they show it. The caches
- * the pages share rebuild first, then each page regenerates, then IndexNow
- * engines hear about them, so a crawler that follows gets the new page.
+ * Announces the pages a publication changed once they show it: each page is
+ * requested so it regenerates, then IndexNow engines hear about it, so a
+ * crawler that follows gets the new page.
  */
 async function announceChangedInventoryPages(publicationSequence: number) {
-  if ((await primeInventoryAnnouncementStep(publicationSequence)) === 0) return;
-  await sleep(BACKGROUND_REBUILD_DELAY);
   const paths = await warmInventoryAnnouncementStep(publicationSequence);
   if (paths.length === 0) return;
-  await sleep(BACKGROUND_REBUILD_DELAY);
+  await sleep(PAGE_REGENERATION_DELAY);
   await announceInventoryStep(publicationSequence, paths);
 }
 

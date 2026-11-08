@@ -1,36 +1,31 @@
 import "server-only";
 
-import { and, count, inArray, isNull, max, min, sql } from "drizzle-orm";
+import { and, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
 import { cacheInventory } from "~/lib/inventory-cache";
 import {
   MakeInventory,
   type MakeEntry,
-  type MakeRollupRow,
   type ModelEntry,
 } from "~/lib/make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
+import { InventorySnapshot } from "~/server/inventory-snapshot";
 import { getRoutedYards, type RoutedYard } from "~/server/yard-inventory";
 import { vehicle } from "~/schema";
 
 // SQLite has no statistics here, so for any "live vehicles" filter it picks
 // vehicle_missing_since_at_idx and walks every live vehicle. Writing the
-// filter as `+missing_since_at` keeps it off that index, so the make and
-// model queries below read only their make's rows via vehicle_make_model_idx.
+// filter as `+missing_since_at` keeps it off that index, so the model
+// arrivals query below reads only its model's rows via vehicle_make_model_idx.
 const LIVE_BY_MAKE = sql`+${vehicle.missingSinceAt} is null`;
 
-/** Live vehicles per raw make: one pass over live vehicles a day. */
-async function loadMakeCounts(): Promise<{ make: string; count: number }[]> {
-  return db
-    .select({ make: vehicle.make, count: count() })
-    .from(vehicle)
-    .where(isNull(vehicle.missingSinceAt))
-    .groupBy(vehicle.make);
-}
-
-const getMakeCounts = cacheInventory(loadMakeCounts, ["make-counts-v1"]);
+/** Live vehicles per raw make, from the stored inventory snapshot. */
+const getMakeCounts = cacheInventory(
+  () => InventorySnapshot.makeCounts(db),
+  ["make-counts-snapshot-v1"],
+);
 
 /** Every make with live vehicles, most first. */
 export const getMakes = cache(
@@ -58,28 +53,11 @@ export const findMake = cache(
   },
 );
 
-async function loadMakeRollup(rawMakes: string[]): Promise<MakeRollupRow[]> {
-  const rows = await db
-    .select({
-      source: vehicle.source,
-      code: vehicle.locationCode,
-      make: vehicle.make,
-      model: vehicle.model,
-      count: count(),
-      minYear: min(vehicle.year),
-      maxYear: max(vehicle.year),
-    })
-    .from(vehicle)
-    .where(and(inArray(vehicle.make, rawMakes), LIVE_BY_MAKE))
-    .groupBy(vehicle.source, vehicle.locationCode, vehicle.make, vehicle.model);
-  // Every group has at least one vehicle, so its years are present.
-  return rows.flatMap(({ minYear, maxYear, ...row }) =>
-    minYear === null || maxYear === null ? [] : [{ ...row, minYear, maxYear }],
-  );
-}
-
-/** Live vehicles per yard and raw model for one make's spellings. */
-const getMakeRollup = cacheInventory(loadMakeRollup, ["make-rollup-v1"]);
+/** One make's live vehicles per yard and raw model, from the snapshot. */
+const getMakeRollup = cacheInventory(
+  (makeKey: string) => InventorySnapshot.makeModels(db, makeKey),
+  ["make-rollup-snapshot-v1"],
+);
 
 /** A model's vehicle with the yard it sits in. */
 export type ModelArrival = YardVehicle & { source: string; code: string };
@@ -158,7 +136,7 @@ function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
 
 /** A make's models, most vehicles first. */
 export async function getMakeModels(make: MakeEntry): Promise<ModelEntry[]> {
-  return MakeInventory.models(make, await getMakeRollup(make.rawMakes));
+  return MakeInventory.models(make, await getMakeRollup(make.key));
 }
 
 /** A make's models and the yard pages they link to. */

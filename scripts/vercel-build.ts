@@ -2,15 +2,19 @@ export type BuildStep = readonly [command: string, ...args: string[]];
 
 const BUILD_STEP = ["bun", "run", "build"] as const satisfies BuildStep;
 const MIGRATE_STEP = ["bun", "run", "db:migrate"] as const satisfies BuildStep;
+// Pages read the inventory snapshot; store it before they prerender.
+const PROJECT_STEP = [
+  "bun",
+  "run",
+  "inventory:project",
+] as const satisfies BuildStep;
 
 export function getVercelBuildSteps(
   vercelEnvironment: string | undefined,
 ): readonly BuildStep[] {
   const isDeployment =
     vercelEnvironment === "production" || vercelEnvironment === "preview";
-  return isDeployment
-    ? [MIGRATE_STEP, BUILD_STEP]
-    : [BUILD_STEP];
+  return isDeployment ? [MIGRATE_STEP, PROJECT_STEP, BUILD_STEP] : [BUILD_STEP];
 }
 
 async function runStep([command, ...args]: BuildStep): Promise<number> {
