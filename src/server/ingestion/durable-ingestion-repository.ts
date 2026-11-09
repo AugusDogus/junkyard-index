@@ -155,6 +155,54 @@ export function createDurableIngestionRepository(
     return deleted;
   }
 
+  /**
+   * Creates a running run for one source unless that source (or an
+   * all-source run) already has an active run. Returns the new run's id.
+   */
+  async function startSourceRun(
+    source: DurableIngestionSource,
+    scheduleKey: string,
+    now: Date,
+  ): Promise<string | null> {
+    const runId = crypto.randomUUID();
+    const [created] = await batchClient.batch(
+      [
+        {
+          sql: `
+            insert into ingestion_run (
+              id, source, schedule_key, status, stage, active_slot,
+              full_reindex_required, started_at, last_progress_at
+            )
+            select ?, ?, ?, 'running', 'sources', 1,
+              case when exists (
+                select 1 from ingestion_run
+                where full_reindex_required = 1 and active_slot is null
+              ) or not exists (
+                select 1 from ingestion_run
+                where publication_sequence is not null
+              ) then 1 else 0 end,
+              ?, ?
+            where not exists (
+              select 1 from ingestion_run
+              where active_slot = 1 and source in (?, 'all')
+            )
+          `,
+          args: [
+            runId,
+            source,
+            scheduleKey,
+            now.getTime(),
+            now.getTime(),
+            source,
+          ],
+        },
+        sourceRunInsertStatement(runId, source, now),
+      ],
+      "write",
+    );
+    return created?.rowsAffected === 1 ? runId : null;
+  }
+
   return {
     async prepareWakeup(
       now = new Date(),
@@ -212,44 +260,9 @@ export function createDurableIngestionRepository(
       }).filter((source) => !activeSources.has(source));
 
       for (const source of due) {
-        const runId = crypto.randomUUID();
-        const [created] = await batchClient.batch(
-          [
-            {
-              sql: `
-                insert into ingestion_run (
-                  id, source, schedule_key, status, stage, active_slot,
-                  full_reindex_required, started_at, last_progress_at
-                )
-                select ?, ?, ?, 'running', 'sources', 1,
-                  case when exists (
-                    select 1 from ingestion_run
-                    where full_reindex_required = 1 and active_slot is null
-                  ) or not exists (
-                    select 1 from ingestion_run
-                    where publication_sequence is not null
-                  ) then 1 else 0 end,
-                  ?, ?
-                where not exists (
-                  select 1 from ingestion_run
-                  where active_slot = 1 and source in (?, 'all')
-                )
-              `,
-              args: [
-                runId,
-                source,
-                scheduleKey,
-                now.getTime(),
-                now.getTime(),
-                source,
-              ],
-            },
-            sourceRunInsertStatement(runId, source, now),
-          ],
-          "write",
-        );
+        const runId = await startSourceRun(source, scheduleKey, now);
         // A concurrent wakeup that won the race resumes that source's run.
-        if (created?.rowsAffected === 1) runs.push({ action: "start", runId });
+        if (runId !== null) runs.push({ action: "start", runId });
       }
       if (runs.length > 0) return { status: "active", runs };
       // A source started meanwhile by a concurrent wakeup is due for a check
@@ -277,6 +290,19 @@ export function createDurableIngestionRepository(
         .where(eq(ingestionRun.activeSlot, 1))
         .limit(1);
       return startedMeanwhile ? waiting : { status: "complete" };
+    },
+
+    /**
+     * Starts one source outside the daily pass, for example after a fix
+     * lands on a day whose attempts are used up. It counts as one of the
+     * day's attempts. Busy when the source already has an active run.
+     */
+    async startManualRun(
+      source: DurableIngestionSource,
+      now = new Date(),
+    ): Promise<{ status: "started"; runId: string } | { status: "busy" }> {
+      const runId = await startSourceRun(source, IngestionDay.key(now), now);
+      return runId === null ? { status: "busy" } : { status: "started", runId };
     },
 
     /**

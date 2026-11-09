@@ -58,6 +58,10 @@ export async function prepareDurableIngestionWakeup(
   return repository.prepareWakeup(now, sources);
 }
 
+export function startManualDurableIngestionRun(source: DurableIngestionSource) {
+  return repository.startManualRun(source);
+}
+
 /** Plans the day's pass; a pass for an earlier day has expired. */
 export async function prepareIngestionPass(
   day: string,

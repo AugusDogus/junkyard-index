@@ -134,6 +134,57 @@ describe("durable ingestion repository", () => {
       testDatabase.cleanup();
     }
   });
+  test("starts a manual run on a day whose attempts are used up, once at a time", async () => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      for (const [index, hour] of [7, 9, 11].entries()) {
+        await client.execute({
+          sql: `insert into ingestion_run (
+            id, source, schedule_key, status, stage, started_at, last_progress_at
+          ) values (?, 'pyp', '2026-08-22', 'error', 'released', ?, ?)`,
+          args: [`spent-${index}`, Date.UTC(2026, 7, 22, hour), 0],
+        });
+        await client.execute({
+          sql: `insert into ingestion_source_run (
+            id, run_id, source, status, acceptance_status, started_at
+          ) values (?, ?, 'pyp', 'error', 'rejected', ?)`,
+          args: [
+            `spent-${index}:pyp`,
+            `spent-${index}`,
+            Date.UTC(2026, 7, 22, hour),
+          ],
+        });
+      }
+      const now = new Date("2026-08-22T20:00:00.000Z");
+      expect(await repository.prepareWakeup(now, ["pyp"])).toEqual({
+        status: "complete",
+      });
+
+      const manual = await repository.startManualRun("pyp", now);
+      expect(manual.status).toBe("started");
+      if (manual.status === "started") {
+        const run = await repository.getRun(manual.runId);
+        expect(run).toMatchObject({
+          source: "pyp",
+          scheduleKey: "2026-08-22",
+          status: "running",
+          activeSlot: 1,
+        });
+      }
+      expect(await repository.startManualRun("pyp", now)).toEqual({
+        status: "busy",
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
   test("makes the first v2 ingestion a full reindex without mutating legacy runs", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
