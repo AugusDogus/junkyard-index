@@ -1,6 +1,15 @@
+import { unstable_cache } from "next/cache";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { getDurableSourceFreshness } from "~/server/ingestion/durable-ingestion";
 import { providerFreshness } from "~/server/ingestion/provider-freshness";
+
+// Four monitors poll every 3 minutes, and sources publish once a day. One
+// query per 10 minutes serves them all; a stale flip lags by at most that.
+const getCachedSourceFreshness = unstable_cache(
+  () => getDurableSourceFreshness(new Date()),
+  ["durable-source-freshness"],
+  { revalidate: 600 },
+);
 
 // Better Stack monitors this endpoint for providers without a heartbeat slot:
 // 200 while the provider's inventory is fresh, 503 once it goes stale.
@@ -17,7 +26,7 @@ export async function GET(
   }
   const now = new Date();
   const provider = providerFreshness(
-    await getDurableSourceFreshness(now),
+    await getCachedSourceFreshness(),
     now,
   ).find((entry) => entry.source === source);
   return Response.json(
