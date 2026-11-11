@@ -62,6 +62,16 @@ Minimum inventory, drift, duplicate, and rejection limits remain unchanged.
 Validation must traverse the complete provider feed and run source validation,
 not start from the organizations already published in the homepage directory.
 
+The global search has a confirmed 50,000-row result ceiling. Its empty page or
+`at_end` at that boundary does not prove feed completion: organization queries
+still return inventory outside the global result. The connector fails the chunk
+when a page reaches that ceiling, even at a chunk boundary, and rejects resumed
+offsets at or above it before fetching. Source validation cannot accept that
+partial traversal, so previously published inventory is preserved. Do not resume
+the capped offset or raise validation limits. Implement and validate complete
+provider traversal before retrying; organization discovery alone does not qualify
+new yards for publication.
+
 ## Reproduction receipt
 
 Confirmed on Linux, Bun 1.4.1, against `origin/main` at
