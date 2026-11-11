@@ -29,6 +29,18 @@ import type { Database } from "./context";
 const REQUESTED_PAGE_SIZE = 400;
 const PAGE_FETCH_CONCURRENCY = 4;
 const PAGE_FETCH_CHUNK_SIZE = 10;
+// Public probes confirmed in November 2026 that the global query stops here
+// while organization queries still return inventory outside the global result.
+const GLOBAL_RESULT_CEILING = 50_000;
+
+function globalResultCeilingError(from: number) {
+  return new AutorecyclerProviderError({
+    from,
+    cause: new Error(
+      `Global inventory traversal reached the ${GLOBAL_RESULT_CEILING}-row result ceiling; feed completeness cannot be verified. Reconciliation is blocked and previously published inventory is preserved. Do not resume this offset; implement and validate complete provider traversal before retrying.`,
+    ),
+  });
+}
 
 function hitSource(
   hit: AutorecyclerMsearchHit,
@@ -180,6 +192,8 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
     const geo = createAutorecyclerOrgGeoResolver();
     const websites = new Map<string, string | null>();
     let from = Math.max(0, options.startFrom ?? 0);
+    if (from >= GLOBAL_RESULT_CEILING)
+      return yield* globalResultCeilingError(from);
     let pagesProcessed = 0;
     let totalCanonical = 0;
     let done = false;
@@ -217,6 +231,8 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         }
 
         const { r0, hits } = parsed;
+        if (requestFrom + hits.length >= GLOBAL_RESULT_CEILING)
+          return yield* globalResultCeilingError(requestFrom);
         const organizations = new Set<string>();
         for (const hit of hits) {
           const src = hitSource(hit);
