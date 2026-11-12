@@ -43,6 +43,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   joliet: 1_200,
   alln1: 900,
   millerstown: 900,
+  // Two complete native Virginia catalogs: 7,422 unique donors on 2026-11-12.
+  pickapartva: 6_500,
   // Complete finite native model/arrival union: 2,326 unique donors.
   aviation: 2_000,
   // Complete finite native model/arrival union: 1,063 unique donors.

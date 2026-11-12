@@ -23,6 +23,7 @@ import { MichigantruckCursor } from "./michigantruck-cursor";
 import { JolietCursor } from "./joliet-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { MillerstownCursor } from "./millerstown-cursor";
+import { PickapartvaCursor } from "./pickapartva-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
 import { CitymotorsCursor } from "./citymotors-cursor";
@@ -196,6 +197,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   millerstown: {
     initialCursor: MillerstownCursor.initial,
     maxPagesPerChunk: 1,
+  },
+  pickapartva: {
+    initialCursor: PickapartvaCursor.initial,
+    maxPagesPerChunk: 15,
   },
   aviation: { initialCursor: AviationCursor.initial, maxPagesPerChunk: 8 },
   chaz: { initialCursor: ChazCursor.initial, maxPagesPerChunk: 8 },

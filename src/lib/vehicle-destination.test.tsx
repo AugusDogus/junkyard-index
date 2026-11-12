@@ -189,6 +189,19 @@ describe("manual provider destinations across search, durable alerts and present
       expect(discord.description).toContain("stock number");
     },
   );
+  test("Pick-A-Part Virginia directs users to search by identity and confirm the yard", async () => {
+    const restored = roundTripNotification(vehicle("pickapartva", null));
+    const { card, email, discord } = await renderSurfaces(restored);
+    for (const html of [card, email]) {
+      expect(html).toContain("https://pickapartva.com/inventory/ANY/ANY/");
+      expect(html).toContain("Search provider inventory");
+      expect(html).toContain("VIN or stock number");
+      expect(html).toContain("confirm the matching yard");
+      expect(html).not.toContain("View vehicle");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain("confirm the matching yard");
+  });
   test("Millerstown directs users to its current donor PDF and printed identity", async () => {
     const url = "http://picapartyard.com/vehicles-on-premises/";
     const restored = roundTripNotification(vehicle("millerstown", null));
