@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   chesterfield: "Chesterfield Auto Parts",
   midway: "Midway U Pull",
   ddauto: "DD Auto & Salvage",
+  rivervalley: "River Valley Truck Parts",
   fenix: "Fenix U-Pull",
   importapart: "Importapart",
   bigtruckpage: "BigTruckPage",

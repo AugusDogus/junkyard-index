@@ -42,6 +42,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     chesterfield: 0,
     midway: 0,
     ddauto: 0,
+    rivervalley: 0,
     fenix: 0,
     importapart: 0,
     army: 0,

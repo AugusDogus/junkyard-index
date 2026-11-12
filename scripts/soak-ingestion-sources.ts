@@ -58,6 +58,8 @@ import { streamMidwayInventory } from "../src/server/ingestion/midway-connector"
 import { soakMidwayInventory } from "./soak-midway";
 import { streamDdautoInventory } from "../src/server/ingestion/ddauto-connector";
 import { soakDdautoInventory } from "./soak-ddauto";
+import { streamRivervalleyInventory } from "../src/server/ingestion/rivervalley-connector";
+import { soakRivervalleyInventory } from "./soak-rivervalley";
 import { streamFenixInventory } from "../src/server/ingestion/fenix-connector";
 import { soakFenixInventory } from "./soak-fenix";
 import { streamImportapartInventory } from "../src/server/ingestion/importapart-connector";
@@ -399,6 +401,18 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamDdautoInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "rivervalley":
+            return soakRivervalleyInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamRivervalleyInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

@@ -29,6 +29,7 @@ describe("source snapshot validation", () => {
     { source: "chesterfield", count: 2_111 },
     { source: "midway", count: 763 },
     { source: "ddauto", count: 67 },
+    { source: "rivervalley", count: 1_553 },
     { source: "fenix", count: 4_595 },
     { source: "importapart", count: 75 },
     { source: "bigtruckpage", count: 48 },

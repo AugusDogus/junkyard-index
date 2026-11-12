@@ -13,6 +13,7 @@ import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
 import { streamMidwayInventory } from "./midway-connector";
 import { streamDdautoInventory } from "./ddauto-connector";
+import { streamRivervalleyInventory } from "./rivervalley-connector";
 import { streamFenixInventory } from "./fenix-connector";
 import { streamImportapartInventory } from "./importapart-connector";
 import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
@@ -684,6 +685,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamDdautoInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  rivervalley: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamRivervalleyInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

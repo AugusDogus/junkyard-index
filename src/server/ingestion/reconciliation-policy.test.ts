@@ -80,6 +80,7 @@ describe("reconciliation policy", () => {
       "chesterfield",
       "midway",
       "ddauto",
+      "rivervalley",
       "fenix",
       "importapart",
       "army",
