@@ -82,6 +82,7 @@ const SOURCES = [
   ["ipullupull", "iPull-uPull"],
   ["upullitwa", "Washington U-Pull-It"],
   ["partsgalore", "Parts Galore"],
+  ["rtp", "RTP Pick-A-Part"],
   ["nvpap", "Nevada Pic-A-Part"],
   ["pontiac", "U-Pull and Save Pontiac"],
   ["chesterfield", "Chesterfield Auto Parts"],

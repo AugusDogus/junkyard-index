@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AutorecyclerCursorSchema } from "./autorecycler-cursor";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
+import { RtpCursorSchema } from "./rtp-cursor";
 import { NvpapCursorSchema } from "./nvpap-cursor";
 import { PontiacCursorSchema } from "./pontiac-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
@@ -461,6 +462,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
     (cursor) => cursor.catalog,
   ),
   upullitwa: defineJsonCursor("upullitwa", UpullitwaCursorSchema),
+  rtp: defineJsonCursor("rtp", RtpCursorSchema),
   nvpap: defineJsonCursor("nvpap", NvpapCursorSchema),
   pontiac: defineJsonCursor("pontiac", PontiacCursorSchema),
   aero: defineJsonCursor("aero", AeroCursorSchema),
