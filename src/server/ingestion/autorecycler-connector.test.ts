@@ -7,6 +7,10 @@ import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-conne
 import type { Yard } from "~/lib/yard";
 import { AutorecyclerSourcePolicy } from "./autorecycler-source-policy";
 
+function recordId(index: number) {
+  return `${1_700_000_000_000 - index}x1`;
+}
+
 const independentPolicy: AutorecyclerSourcePolicy = (orgs) =>
   Effect.succeed(new Map(orgs.map((org) => [org, "independent"] as const)));
 
@@ -31,23 +35,28 @@ describe("streamAutorecyclerInventory", () => {
                 vins.push(...batch.map((vehicle) => vehicle.vin));
               }),
           },
-          async () => ({
+          async (beforeId) => ({
             responses: [
               {
                 at_end: true,
                 hits: {
-                  hits: [
-                    " knade123666155428 ",
-                    "KNADE123666155428",
-                    "NOT-A-VIN",
-                  ].map((vin_text) => ({
-                    _source: {
-                      organization_custom_organization: org,
-                      inventory_id_text: "1787737161109x728407258643232400",
-                      name_text: "2006 Kia Rio",
-                      vin_text,
-                    },
-                  })),
+                  hits:
+                    beforeId !== null
+                      ? []
+                      : [
+                          " knade123666155428 ",
+                          "KNADE123666155428",
+                          "NOT-A-VIN",
+                        ].map((vin_text, index) => ({
+                          _id: recordId(index),
+                          _source: {
+                            organization_custom_organization: org,
+                            inventory_id_text:
+                              "1787737161109x728407258643232400",
+                            name_text: "2006 Kia Rio",
+                            vin_text,
+                          },
+                        })),
                 },
               },
             ],
@@ -123,35 +132,40 @@ describe("streamAutorecyclerInventory", () => {
                 yards.push(...batch);
               }),
           },
-          async () => ({
+          async (beforeId) => ({
             responses: [
               {
                 at_end: true,
                 hits: {
-                  hits: [
-                    {
-                      vin: " knade123666155428 ",
-                      name: "2006 Kia Rio",
-                      year: 2006,
-                    },
-                    {
-                      vin: "abc1234567",
-                      name: "1970 Ford Mustang",
-                      year: 1970,
-                    },
-                    { vin: "invalid", name: "2006 Kia Rio", year: 2006 },
-                    { vin: "12345", name: "2006 Kia Rio", year: 2006 },
-                    { vin: "def1234567", name: undefined, year: 1970 },
-                    { vin: "ghi1234567", name: "", year: 1970 },
-                  ].map(({ vin, name, year }) => ({
-                    _source: {
-                      organization_custom_organization: org,
-                      inventory_id_text: "1761173598052x497522696752949400",
-                      vin_text: vin,
-                      name_text: name,
-                      vehicle_year_number: year,
-                    },
-                  })),
+                  hits:
+                    beforeId !== null
+                      ? []
+                      : [
+                          {
+                            vin: " knade123666155428 ",
+                            name: "2006 Kia Rio",
+                            year: 2006,
+                          },
+                          {
+                            vin: "abc1234567",
+                            name: "1970 Ford Mustang",
+                            year: 1970,
+                          },
+                          { vin: "invalid", name: "2006 Kia Rio", year: 2006 },
+                          { vin: "12345", name: "2006 Kia Rio", year: 2006 },
+                          { vin: "def1234567", name: undefined, year: 1970 },
+                          { vin: "ghi1234567", name: "", year: 1970 },
+                        ].map(({ vin, name, year }, index) => ({
+                          _id: recordId(index),
+                          _source: {
+                            organization_custom_organization: org,
+                            inventory_id_text:
+                              "1761173598052x497522696752949400",
+                            vin_text: vin,
+                            name_text: name,
+                            vehicle_year_number: year,
+                          },
+                        })),
                 },
               },
             ],
@@ -161,7 +175,7 @@ describe("streamAutorecyclerInventory", () => {
       );
       expect(result).toMatchObject({
         status: "complete",
-        cursor: 6,
+        cursor: { source: "autorecycler", phase: "complete" },
         count: 0,
         errors: [],
         observedVins: [
@@ -259,19 +273,24 @@ describe("streamAutorecyclerInventory", () => {
               responses: [
                 {
                   hits: {
-                    hits: [
-                      {
-                        _source: {
-                          organization_custom_organization: org,
-                          inventory_id_text: "1787737161109x728407258643232400",
-                          vin_text:
-                            pages === 0
-                              ? "KNADE123666155428"
-                              : "3N1CB51D7YL308709",
-                          name_text: "2006 Kia Rio",
-                        },
-                      },
-                    ],
+                    hits:
+                      pages >= 2
+                        ? []
+                        : [
+                            {
+                              _id: recordId(pages),
+                              _source: {
+                                organization_custom_organization: org,
+                                inventory_id_text:
+                                  "1787737161109x728407258643232400",
+                                vin_text:
+                                  pages === 0
+                                    ? "KNADE123666155428"
+                                    : "3N1CB51D7YL308709",
+                                name_text: "2006 Kia Rio",
+                              },
+                            },
+                          ],
                   },
                   at_end: ++pages === 2,
                 },
@@ -305,32 +324,23 @@ describe("streamAutorecyclerInventory", () => {
     },
   );
 
-  test("fetches full pages concurrently after establishing the provider page size", async () => {
+  test("checkpoints after the last record ID at the chunk limit", async () => {
     const client = createClient({ url: ":memory:" });
-    const database = drizzle(client);
-    let activeRequests = 0;
-    let maximumActiveRequests = 0;
-
+    const requested: Array<string | null> = [];
+    let page = 0;
     try {
       const result = await Effect.runPromise(
         streamAutorecyclerInventoryWithPageFetcher(
-          {
-            onBatch: () => Effect.succeed(undefined),
-            maxPages: 4,
-          },
-          async () => {
-            activeRequests += 1;
-            maximumActiveRequests = Math.max(
-              maximumActiveRequests,
-              activeRequests,
-            );
-            await new Promise((resolve) => setTimeout(resolve, 5));
-            activeRequests -= 1;
+          { onBatch: () => Effect.void, maxPages: 4 },
+          async (beforeId) => {
+            requested.push(beforeId);
+            const start = page++ * 400;
             return {
               responses: [
                 {
                   hits: {
-                    hits: Array.from({ length: 400 }, () => ({
+                    hits: Array.from({ length: 400 }, (_, index) => ({
+                      _id: recordId(start + index),
                       _source: {},
                     })),
                   },
@@ -339,13 +349,21 @@ describe("streamAutorecyclerInventory", () => {
               ],
             };
           },
-        ).pipe(Effect.provideService(Database, database)),
+        ).pipe(Effect.provideService(Database, drizzle(client))),
       );
-
       expect(result.status).toBe("paused");
       expect(result.pagesProcessed).toBe(4);
-      expect(result.cursor).toBe(1600);
-      expect(maximumActiveRequests).toBe(3);
+      expect(result.cursor).toEqual({
+        source: "autorecycler",
+        phase: "page",
+        beforeId: recordId(1599),
+      });
+      expect(requested).toEqual([
+        null,
+        recordId(399),
+        recordId(799),
+        recordId(1199),
+      ]);
     } finally {
       client.close();
     }
@@ -385,19 +403,24 @@ describe("streamAutorecyclerInventory", () => {
                 yards.push(...batch);
               }),
           },
-          async () => ({
+          async (beforeId) => ({
             responses: [
               {
                 at_end: true,
                 hits: {
-                  hits: orgs.map((org) => ({
-                    _source: {
-                      organization_custom_organization: org,
-                      inventory_id_text: "1761173598052x497522696752949400",
-                      vin_text: "KNADE123666155428",
-                      name_text: "2006 Kia Rio",
-                    },
-                  })),
+                  hits:
+                    beforeId !== null
+                      ? []
+                      : orgs.map((org, index) => ({
+                          _id: recordId(index),
+                          _source: {
+                            organization_custom_organization: org,
+                            inventory_id_text:
+                              "1761173598052x497522696752949400",
+                            vin_text: "KNADE123666155428",
+                            name_text: "2006 Kia Rio",
+                          },
+                        })),
                 },
               },
             ],
@@ -407,7 +430,7 @@ describe("streamAutorecyclerInventory", () => {
       );
       expect(result).toMatchObject({
         status: "complete",
-        cursor: 2,
+        cursor: { source: "autorecycler", phase: "complete" },
         count: 0,
         observedVins: [],
         accounting: {
@@ -445,17 +468,23 @@ describe("streamAutorecyclerInventory", () => {
       const result = await Effect.runPromise(
         streamAutorecyclerInventoryWithPageFetcher(
           { onBatch: () => Effect.void },
-          async () => ({
+          async (beforeId) => ({
             responses: [
               {
                 at_end: true,
                 hits: {
-                  hits: [
-                    { _source: base },
-                    { _source: { ...base, vin_text: " " } },
-                    { _source: { ...base, vin_text: "NOT-A-VIN" } },
-                    { _source: {} },
-                  ],
+                  hits:
+                    beforeId !== null
+                      ? []
+                      : [
+                          { _source: base },
+                          { _source: { ...base, vin_text: " " } },
+                          { _source: { ...base, vin_text: "NOT-A-VIN" } },
+                          { _source: {} },
+                        ].map((hit, index) => ({
+                          ...hit,
+                          _id: recordId(index),
+                        })),
                 },
               },
             ],

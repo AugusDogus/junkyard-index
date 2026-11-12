@@ -183,11 +183,11 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
         streamAutorecyclerInventory({
           onBatch: context.onBatch,
           onYards: context.onYards,
-          startFrom: cursor.from,
+          startCursor: cursor,
           maxPages: context.maxPages,
         }).pipe(Effect.scoped),
       ),
-      (from) => ({ source: "autorecycler", from }),
+      (nextCursor) => nextCursor,
       context.vehiclesByVin,
       context.yardsByCode,
     ),

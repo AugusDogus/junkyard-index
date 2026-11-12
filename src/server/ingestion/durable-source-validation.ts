@@ -26,7 +26,8 @@ export type DurableSourceValidationSummary =
 function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
   if (!cursor) return false;
   try {
-    parseDurableSourceCursor(source, cursor);
+    const parsed = parseDurableSourceCursor(source, cursor);
+    if (parsed.source === "autorecycler") return parsed.phase === "complete";
     return true;
   } catch {
     return false;
