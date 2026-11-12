@@ -24,6 +24,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   chesterfield: 1_800,
   midway: 600,
   ddauto: 50,
+  rivervalley: 1_300,
   fenix: 4_000,
   importapart: 60,
   bigtruckpage: 40,
