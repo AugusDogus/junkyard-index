@@ -8,6 +8,7 @@ import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
 import { streamAeroInventory } from "./aero-connector";
 import { streamArmyInventory } from "./army-connector";
+import { streamAlln1Inventory } from "./alln1-connector";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -78,6 +79,20 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  alln1: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamAlln1Inventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   army: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

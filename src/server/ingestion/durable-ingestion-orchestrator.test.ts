@@ -37,6 +37,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     partsgalore: 0,
     aero: 0,
     army: 0,
+    alln1: 0,
   },
   errors: [],
   durationMs: 10,

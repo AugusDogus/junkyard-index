@@ -4,6 +4,7 @@ import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
+import { Alln1CursorSchema } from "./alln1-cursor";
 import {
   UpullRPartsCursor,
   UpullRPartsCursorSchema,
@@ -308,6 +309,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   upullitwa: defineJsonCursor("upullitwa", UpullitwaCursorSchema),
   aero: defineJsonCursor("aero", AeroCursorSchema),
   army: defineJsonCursor("army", ArmyCursorSchema),
+  alln1: defineJsonCursor("alln1", Alln1CursorSchema),
   partsgalore: defineScalarCursor(
     "partsgalore",
     z.object({
