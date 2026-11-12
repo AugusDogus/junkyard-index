@@ -97,6 +97,7 @@ const SOURCES = [
   ["michigantruck", "Michigan Truck Parts"],
   ["joliet", "Joliet U-Pull-It"],
   ["alln1", "All-N-1 U Pull"],
+  ["millerstown", "Millerstown Pic-A-Part"],
   ["aviation", "Aviation Auto Salvage"],
   ["chaz", "Chaz's Used Auto Parts & Towing"],
   ["citymotors", "City Motors"],

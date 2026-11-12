@@ -189,6 +189,20 @@ describe("manual provider destinations across search, durable alerts and present
       expect(discord.description).toContain("stock number");
     },
   );
+  test("Millerstown directs users to its current donor PDF and printed identity", async () => {
+    const url = "http://picapartyard.com/vehicles-on-premises/";
+    const restored = roundTripNotification(vehicle("millerstown", null));
+    const { card, email, discord } = await renderSurfaces(restored);
+    for (const html of [card, email]) {
+      expect(html).toContain(`href="${url}"`);
+      expect(html).toContain("Search provider inventory");
+      expect(html).toContain("current vehicles-on-premises PDF");
+      expect(html).toContain("VIN or serial number");
+      expect(html).not.toContain("View vehicle");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain("VIN or serial number");
+  });
   test("Chesterfield directs users to the native Pics stock without claiming a visible VIN or vehicle link", async () => {
     const url = "https://chesterfieldauto.com/search-our-inventory-by-location";
     const restored = roundTripNotification(vehicle("chesterfield", url));

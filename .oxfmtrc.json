@@ -16,6 +16,8 @@
     "src/server/ingestion/cars4parts-test-fixtures/ram.html",
     "src/server/ingestion/cars4parts-test-fixtures/results-page1.html",
     "src/server/ingestion/cars4parts-test-fixtures/retail-tow.html",
-    "src/server/ingestion/cars4parts-test-fixtures/w-series.html"
+    "src/server/ingestion/cars4parts-test-fixtures/w-series.html",
+    "src/server/ingestion/fixtures/millerstown-inventory.html",
+    "src/server/ingestion/fixtures/millerstown-root.html",
   ]
 }

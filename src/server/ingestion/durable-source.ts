@@ -22,6 +22,7 @@ import { LittletonCursor } from "./littleton-cursor";
 import { MichigantruckCursor } from "./michigantruck-cursor";
 import { JolietCursor } from "./joliet-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
+import { MillerstownCursor } from "./millerstown-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
 import { CitymotorsCursor } from "./citymotors-cursor";
@@ -192,6 +193,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
+  millerstown: {
+    initialCursor: MillerstownCursor.initial,
+    maxPagesPerChunk: 1,
+  },
   aviation: { initialCursor: AviationCursor.initial, maxPagesPerChunk: 8 },
   chaz: { initialCursor: ChazCursor.initial, maxPagesPerChunk: 8 },
   citymotors: { initialCursor: CitymotorsCursor.initial, maxPagesPerChunk: 8 },

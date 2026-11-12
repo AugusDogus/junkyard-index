@@ -20,6 +20,7 @@ import { streamLittletonInventory } from "./littleton-connector";
 import { streamMichigantruckInventory } from "./michigantruck-connector";
 import { streamJolietInventory } from "./joliet-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
+import { streamMillerstownInventory } from "./millerstown-connector";
 import { streamAviationInventory } from "./aviation-connector";
 import { streamChazInventory } from "./chaz-connector";
 import { streamCitymotorsInventory } from "./citymotors-connector";
@@ -425,6 +426,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamAviationInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  millerstown: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamMillerstownInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
