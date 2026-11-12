@@ -23,6 +23,7 @@ describe("IngestionSourceFlags.resolve", () => {
   });
   test.each([
     "aero",
+    "army",
   ] as const)(
     "requires explicit enablement for %s before rollout",
     (source) => {

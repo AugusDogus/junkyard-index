@@ -19,6 +19,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "upullitwa",
   "partsgalore",
   "aero",
+  "army",
   "autorecycler",
 ];
 

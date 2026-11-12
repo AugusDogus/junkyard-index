@@ -17,6 +17,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   partsgalore: 500,
   // Native inline table: 130 complete of 141 rows on 2026-11-11.
   aero: 100,
+  army: 200,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;
