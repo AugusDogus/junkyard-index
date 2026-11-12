@@ -64,13 +64,56 @@ not start from the organizations already published in the homepage directory.
 
 The global search has a confirmed 50,000-row result ceiling. Its empty page or
 `at_end` at that boundary does not prove feed completion: organization queries
-still return inventory outside the global result. The connector fails the chunk
-when a page reaches that ceiling, even at a chunk boundary, and rejects resumed
-offsets at or above it before fetching. Source validation cannot accept that
-partial traversal, so previously published inventory is preserved. Do not resume
-the capped offset or raise validation limits. Implement and validate complete
-provider traversal before retrying; organization discovery alone does not qualify
-new yards for publication.
+still return inventory outside the global result. Inventory queries now sort by
+the unique search record `_id` descending and request `_id` less than the last
+returned ID, always from offset zero. This covers the full visible, non-deleted
+feed, including large organizations and organization-less records. Existing
+ownership, VIN, location and quality checks still determine which rows can enter
+the canonical inventory. Newer record IDs are visited first; duplicate VINs retain
+the first usable record, as in the existing snapshot policy. This replaces the
+provider's image/date sort with a unique ordering suitable for checkpoints.
+
+Every page must have valid, strictly decreasing IDs below its checkpoint. The
+connector ignores nonempty `at_end` flags and requires an empty follow-up query
+after the final ID before marking the cursor complete. Missing, repeated or
+out-of-order IDs and malformed responses fail the chunk and preserve previously
+published inventory. Queries remain bounded to 400 rows and chunks to ten pages.
+
+Record-ID checkpoints use JSON with `phase: "page"` and `beforeId`, or
+`phase: "complete"`. Legacy numeric offset checkpoints cannot establish what
+record-ID ranges were visited and are rejected. Start a new ingestion run after
+deploying this change; do not resume a legacy run or reinterpret its offset.
+Source validation requires the explicit complete cursor. No migration or direct
+production data patch is needed, and validation limits remain unchanged.
+
+## Complete-feed validation
+
+On November 12, 2026 (Linux, Bun 1.4.1), public native queries confirmed both
+descending `_id` sorting and the strict `less than` constraint. An offset query
+at 50,000 returned no rows, while an ID-bounded query reached the immediately
+adjacent record outside that result window. Ascending and descending traversals
+both covered 106,570 visible, non-deleted records, including 1,276 records without
+an organization.
+
+The connector's descending traversal, resumed through serialized ten-page
+checkpoints, completed in 27 chunks and 268 pages. It produced 54,761 canonical
+VINs across 63 organizations. Source validation accepted the snapshot with the
+existing limits. It excluded 44,631 rows and rejected 4,709 rows under the existing
+ownership, VIN and location rules. Inventory batches were counted and discarded;
+geography used an in-memory libSQL database. No production writes were made.
+
+Focused tests cover traversal beyond 50,000 rows within a single organization,
+organization-less rows, serialized resume, explicit empty-query completion,
+ignored `at_end` hints, malformed and non-progressing responses, legacy offset
+rejection, and source validation. Existing reconciliation tests still prove
+unresolved independent VIN preservation and direct-provider mirror retirement.
+
+```sh
+bun test src/server/ingestion/autorecycler-pagination.test.ts src/server/ingestion/autorecycler-cursor.test.ts src/server/ingestion/autorecycler-validation.test.ts
+bun test src/server/ingestion/durable-reconciliation.test.ts
+bun run check
+bun test src
+```
 
 ## Reproduction receipt
 

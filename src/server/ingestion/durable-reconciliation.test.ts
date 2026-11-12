@@ -164,7 +164,7 @@ describe("bounded durable reconciliation", () => {
       },
     };
     let geoRequests = 0;
-    const offsets: number[] = [];
+    const offsets: Array<string | null> = [];
     try {
       await client.executeMultiple(`${TEST_SCHEMA}
         create table autorecycler_org_geo (
@@ -249,20 +249,30 @@ describe("bounded durable reconciliation", () => {
           name_text: "2003 Honda Accord",
         },
       }));
+      const searchId = (index: number) => `${1_700_000_000_000 - index}x1`;
       for (const startFrom of [0, 3]) {
+        const startCursor = {
+          source: "autorecycler",
+          phase: "page",
+          beforeId: startFrom === 0 ? null : searchId(startFrom - 1),
+        } as const;
         const vehicles: CanonicalVehicle[] = [];
         const result = await Effect.runPromise(
           streamAutorecyclerInventoryWithPageFetcher(
             {
-              startFrom,
+              startCursor,
               maxPages: 2,
               onBatch: (batch) =>
                 Effect.sync(() => {
                   vehicles.push(...batch);
                 }),
             },
-            async (from) => {
-              offsets.push(from);
+            async (beforeId) => {
+              offsets.push(beforeId);
+              const from =
+                beforeId === null
+                  ? 0
+                  : 1_700_000_000_000 - Number(beforeId.split("x")[0]) + 1;
               const hits =
                 from === 0
                   ? [
@@ -271,27 +281,41 @@ describe("bounded durable reconciliation", () => {
                     ]
                   : from === 2
                     ? [missing]
-                    : [
-                        missing,
-                        {
-                          _source: {
-                            ...missing._source,
-                            organization_custom_organization: mirrorOrg,
-                            vin_text: mirrorVin,
+                    : from >= 108
+                      ? []
+                      : [
+                          missing,
+                          {
+                            _source: {
+                              ...missing._source,
+                              organization_custom_organization: mirrorOrg,
+                              vin_text: mirrorVin,
+                            },
                           },
-                        },
-                        {
-                          _source: {
-                            ...missing._source,
-                            organization_custom_organization: mirrorOrg,
-                            vin_text: "1HGCM82633A000000",
+                          {
+                            _source: {
+                              ...missing._source,
+                              organization_custom_organization: mirrorOrg,
+                              vin_text: "1HGCM82633A000000",
+                            },
                           },
-                        },
-                        ...known,
-                        ...known.slice(0, 1),
-                        { _source: {} },
-                      ];
-              return { responses: [{ hits: { hits }, at_end: from === 3 }] };
+                          ...known,
+                          ...known.slice(0, 1),
+                          { _source: {} },
+                        ];
+              return {
+                responses: [
+                  {
+                    hits: {
+                      hits: hits.map((hit, index) => ({
+                        ...hit,
+                        _id: searchId(from + index),
+                      })),
+                    },
+                    at_end: from === 3,
+                  },
+                ],
+              };
             },
             (orgs) =>
               Effect.succeed(
@@ -308,7 +332,11 @@ describe("bounded durable reconciliation", () => {
           ).pipe(Effect.provideService(Database, database)),
         );
         expect(result.status).toBe(startFrom === 0 ? "paused" : "complete");
-        expect(result.cursor).toBe(startFrom === 0 ? 3 : 108);
+        expect(result.cursor).toEqual(
+          startFrom === 0
+            ? { source: "autorecycler", phase: "page", beforeId: searchId(2) }
+            : { source: "autorecycler", phase: "complete" },
+        );
         expect(result.observedVins).toEqual([presentVin]);
         expect(result.errors).toEqual([]);
         expect(result.warnings?.join(" ")).toContain(
@@ -335,9 +363,9 @@ describe("bounded durable reconciliation", () => {
         ).toBe(true);
         await repository.checkpointChunk({
           runId,
-          requestedCursor: { source: "autorecycler", from: startFrom },
+          requestedCursor: startCursor,
           fetched: {
-            cursor: { source: "autorecycler", from: result.cursor },
+            cursor: result.cursor,
             status: result.status,
             pagesProcessed: result.pagesProcessed,
             ...connectorChunkMetrics(result, vehicles.length),
@@ -348,7 +376,7 @@ describe("bounded durable reconciliation", () => {
           },
         });
       }
-      expect(offsets).toEqual([0, 2, 3]);
+      expect(offsets).toEqual([null, searchId(1), searchId(2), searchId(107)]);
       expect(geoRequests).toBe(6);
       expect(
         (
