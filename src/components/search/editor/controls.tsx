@@ -79,6 +79,7 @@ const SOURCES = [
   ["upullitwa", "Washington U-Pull-It"],
   ["partsgalore", "Parts Galore"],
   ["chesterfield", "Chesterfield Auto Parts"],
+  ["ddauto", "DD Auto & Salvage"],
   ["bigtruckpage", "BigTruckPage"],
   ["beavers", "Beaver's Car Salvage"],
   ["army", "Army's Auto Wrecking"],

@@ -27,6 +27,7 @@ describe("source snapshot validation", () => {
     { source: "upullitwa", count: 2_480 },
     { source: "partsgalore", count: 1_059 },
     { source: "chesterfield", count: 2_111 },
+    { source: "ddauto", count: 67 },
     { source: "bigtruckpage", count: 48 },
     { source: "beavers", count: 278 },
     { source: "army", count: 231 },

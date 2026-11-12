@@ -75,6 +75,7 @@ describe("reconciliation policy", () => {
       "partsgalore",
       "aero",
       "chesterfield",
+      "ddauto",
       "army",
       "alln1",
       "aviation",
