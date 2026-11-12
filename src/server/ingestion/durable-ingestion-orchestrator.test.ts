@@ -41,6 +41,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     army: 0,
     alln1: 0,
     aviation: 0,
+    chaz: 0,
     awap: 0,
     aplus: 0,
     brandywine: 0,

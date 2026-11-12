@@ -60,6 +60,8 @@ import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
 import { soakAlln1Inventory } from "./soak-alln1";
 import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
 import { soakAviationInventory } from "./soak-aviation";
+import { streamChazInventory } from "../src/server/ingestion/chaz-connector";
+import { soakChazInventory } from "./soak-chaz";
 import { streamAwapInventory } from "../src/server/ingestion/awap-connector";
 import { soakAwapInventory } from "./soak-awap";
 import { streamAplusInventory } from "../src/server/ingestion/aplus-connector";
@@ -372,6 +374,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamAviationInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "chaz":
+            return soakChazInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamChazInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

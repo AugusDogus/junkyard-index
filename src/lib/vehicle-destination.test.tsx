@@ -81,6 +81,7 @@ const manualProviders = [
 describe("manual provider destinations across search, durable alerts and presentation", () => {
   test.each([
     ["aviation", "https://aviationauto.com/used-parts/ACURA/ILX/RR116/2020"],
+    ["chaz", "https://www.chazsauto.com/parts/MITSUBISHI/MIRAGE/HXY070/2017"],
     [
       "brandywine",
       "https://www.brandywineupullit.com/veh_single/?stockno=08A455",

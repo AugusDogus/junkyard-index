@@ -10,6 +10,7 @@ import { BeaversCursor } from "./beavers-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
+import { ChazCursor } from "./chaz-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
@@ -330,6 +331,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   aviation: {
     parse: AviationCursor.parse,
     serialize: AviationCursor.serialize,
+  },
+  chaz: {
+    parse: ChazCursor.parse,
+    serialize: ChazCursor.serialize,
   },
   awap: {
     parse: AwapCursor.parse,

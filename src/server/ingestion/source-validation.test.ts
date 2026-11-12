@@ -33,6 +33,7 @@ describe("source snapshot validation", () => {
     { source: "army", count: 231 },
     { source: "alln1", count: 1_093 },
     { source: "aviation", count: 2_326 },
+    { source: "chaz", count: 1_063 },
     { source: "awap", count: 183 },
     { source: "aplus", count: 1_222 },
     { source: "brandywine", count: 1_807 },

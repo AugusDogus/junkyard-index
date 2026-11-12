@@ -1,0 +1,247 @@
+import { afterEach, expect, test } from "bun:test";
+import { Effect } from "effect";
+import { streamChazInventoryWithRequestGate } from "./chaz-connector";
+import { ChazCursor, ChazCursorSchema } from "./chaz-cursor";
+import type { ChazRecord } from "./chaz-parser";
+import type { ChazCanonicalVehicle } from "./chaz-transform";
+import {
+  CHAZ_CONTACT,
+  CHAZ_MAKES,
+  CHAZ_ORIGIN,
+  CHAZ_ROOT,
+} from "./chaz-yard-metadata";
+import {
+  chazFixtureContact,
+  chazFixtureDirectory,
+  chazFixtureMake,
+  chazFixtureModel,
+  chazFixtureModelPage,
+  chazFixtureRecord,
+  chazFixtureRoot,
+} from "./chaz-test-fixtures";
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
+function transport(
+  arrivals: ChazRecord[] = [chazFixtureRecord(1)],
+  closingArrivals = arrivals,
+) {
+  const rows = Array.from({ length: 901 }, (_, index) =>
+    chazFixtureRecord(index + 1),
+  );
+  const bodies = new Map([
+    [CHAZ_CONTACT, chazFixtureContact],
+    [CHAZ_ROOT, chazFixtureRoot(arrivals)],
+    [CHAZ_MAKES, chazFixtureDirectory([chazFixtureMake], "makes")],
+    [
+      CHAZ_ORIGIN + chazFixtureMake.path,
+      chazFixtureDirectory([chazFixtureModel], "models"),
+    ],
+    [CHAZ_ORIGIN + chazFixtureModel.path, chazFixtureModelPage(rows)],
+  ]);
+  const urls: string[] = [];
+  let roots = 0;
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      urls.push(url);
+      const body =
+        url === CHAZ_ROOT && roots++ > 0
+          ? chazFixtureRoot(closingArrivals)
+          : bodies.get(url);
+      if (body === undefined)
+        throw new Error("Unexpected native request " + url);
+      return new Response(body, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return { bodies, urls, rows };
+}
+
+test("Chaz resumes serialized chunks and quarantines late required conflicts before any callbacks", async () => {
+  const conflict = chazFixtureRecord(1);
+  conflict[2] = "ACURA RDX";
+  const arrivals = [chazFixtureRecord(2), chazFixtureRecord(902)];
+  const native = transport(arrivals, [...arrivals, conflict]);
+  let cursor: ChazCursor = ChazCursor.initial;
+  const vehicles: ChazCanonicalVehicle[] = [];
+  let yards = 0;
+  let chunks = 0;
+  while (cursor.phase !== "complete") {
+    const before = native.urls.length;
+    const result = await Effect.runPromise(
+      streamChazInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 2,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+          onYards: (rows) =>
+            Effect.sync(() => {
+              yards += rows.length;
+            }),
+        },
+        gate,
+      ),
+    );
+    expect(result.pagesProcessed).toBe(native.urls.length - before);
+    expect(result.pagesProcessed).toBeLessThanOrEqual(2);
+    if (result.status === "paused") {
+      expect(vehicles).toHaveLength(0);
+      expect(yards).toBe(0);
+      expect(result.count).toBe(0);
+      expect(result.observedVins).toHaveLength(0);
+      expect(result.accounting.recordsProcessed).toBe(0);
+    } else {
+      expect(result.accounting).toEqual({
+        recordsProcessed: 904,
+        recordsExcluded: 0,
+        recordsRejected: 2,
+        duplicateVehicles: 1,
+      });
+      expect(result.observedVins).toEqual([conflict[0]]);
+    }
+    cursor = ChazCursor.parse(ChazCursor.serialize(result.cursor));
+    chunks++;
+  }
+  expect(chunks).toBe(5);
+  expect(native.urls).toHaveLength(10);
+  expect(vehicles).toHaveLength(901);
+  expect(vehicles.some((vehicle) => vehicle.vin === conflict[0])).toBe(false);
+  expect(
+    vehicles.some((vehicle) => vehicle.vin === chazFixtureRecord(902)[0]),
+  ).toBe(true);
+  expect(yards).toBe(1);
+  expect(
+    native.urls.every(
+      (url) => !url.includes("/images/") && !/\/ST\d+\//.test(url),
+    ),
+  ).toBe(true);
+});
+
+test("Chaz rejects checksum, noncontiguous prefix and foreign graph before further fetching", async () => {
+  const native = transport();
+  const first = await Effect.runPromise(
+    streamChazInventoryWithRequestGate(
+      { maxPages: 4, onBatch: () => Effect.void },
+      gate,
+    ),
+  );
+  if (first.cursor.phase === "complete")
+    throw new Error("Expected directory checkpoint");
+  const state = first.cursor;
+  expect(() =>
+    ChazCursorSchema.parse({ ...state, requests: state.requests + 1 }),
+  ).toThrow("integrity");
+  expect(() =>
+    ChazCursor.checkpoint({ ...state, requests: state.requests + 1 }),
+  ).toThrow("request accounting");
+  expect(() =>
+    ChazCursor.checkpoint({
+      ...state,
+      makes: state.makes.map((make) => ({
+        ...make,
+        path: "https://example.com/foreign",
+      })),
+    }),
+  ).toThrow("destination");
+  expect(() =>
+    ChazCursor.checkpoint({
+      ...state,
+      phase: "models",
+      pages: [],
+      makes: [{ ...chazFixtureMake, models: null }],
+    }),
+  ).toThrow("contiguous");
+  const before = native.urls.length;
+  await expect(
+    Effect.runPromise(
+      streamChazInventoryWithRequestGate(
+        {
+          startCursor: { ...state, checksum: "0".repeat(64) },
+          onBatch: () => Effect.void,
+        },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow("integrity");
+  expect(native.urls).toHaveLength(before);
+});
+
+test("Chaz changed closing donor controls fail without callbacks or accepting a new checkpoint", async () => {
+  const native = transport();
+  const first = await Effect.runPromise(
+    streamChazInventoryWithRequestGate(
+      { maxPages: 8, onBatch: () => Effect.void },
+      gate,
+    ),
+  );
+  const wire = ChazCursor.serialize(first.cursor);
+  const changed = chazFixtureRecord(1);
+  changed[6] = "2026-10-22";
+  native.bodies.set(
+    CHAZ_ORIGIN + chazFixtureModel.path,
+    chazFixtureModelPage([changed, ...native.rows.slice(1)]),
+  );
+  let callbacks = 0;
+  const callback = () =>
+    Effect.sync(() => {
+      callbacks++;
+    });
+  await expect(
+    Effect.runPromise(
+      streamChazInventoryWithRequestGate(
+        { startCursor: first.cursor, onBatch: callback, onYards: callback },
+        gate,
+      ),
+    ),
+  ).rejects.toThrow("Closing Chaz model list");
+  expect(callbacks).toBe(0);
+  expect(ChazCursor.serialize(first.cursor)).toBe(wire);
+  expect(first.status).toBe("paused");
+});
+
+test("Chaz HTTP failures do not retry and completed cursors make no requests", async () => {
+  let requests = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      requests++;
+      return new Response("unavailable", {
+        status: 503,
+        headers: { "content-type": "text/html" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  await expect(
+    Effect.runPromise(
+      streamChazInventoryWithRequestGate({ onBatch: () => Effect.void }, gate),
+    ),
+  ).rejects.toThrow("503");
+  expect(requests).toBe(1);
+  const complete = await Effect.runPromise(
+    streamChazInventoryWithRequestGate(
+      {
+        startCursor: { source: "chaz", version: 1, phase: "complete" },
+        onBatch: () => Effect.void,
+      },
+      gate,
+    ),
+  );
+  expect(complete.status).toBe("complete");
+  expect(complete.pagesProcessed).toBe(0);
+  expect(requests).toBe(1);
+});
