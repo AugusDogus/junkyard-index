@@ -86,6 +86,7 @@ describe("reconciliation policy", () => {
       "importapart",
       "army",
       "idipull",
+      "pullsavewa",
       "littleton",
       "michigantruck",
       "joliet",
