@@ -17,6 +17,7 @@ const providerWebsites = new Map<string, string>([
   ["partsgalore", "https://parts-galore.com/"],
   ["aero", "https://aeroautosalvage.com/"],
   ["chesterfield", "https://chesterfieldauto.com/"],
+  ["importapart", "https://importapart.com/blogs/part-outs"],
   ["bigtruckpage", "https://bigtruckpage.com/"],
   ["denton", "https://dentonauto.com/"],
   ["beavers", "https://www.beaverscarsalvage.com/"],

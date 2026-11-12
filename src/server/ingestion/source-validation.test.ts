@@ -28,6 +28,7 @@ describe("source snapshot validation", () => {
     { source: "partsgalore", count: 1_059 },
     { source: "chesterfield", count: 2_111 },
     { source: "ddauto", count: 67 },
+    { source: "importapart", count: 75 },
     { source: "bigtruckpage", count: 48 },
     { source: "denton", count: 2_297 },
     { source: "chasencars", count: 661 },

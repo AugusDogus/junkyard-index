@@ -50,6 +50,8 @@ import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
 import { soakChesterfieldInventory } from "./soak-chesterfield";
 import { streamDdautoInventory } from "../src/server/ingestion/ddauto-connector";
 import { soakDdautoInventory } from "./soak-ddauto";
+import { streamImportapartInventory } from "../src/server/ingestion/importapart-connector";
+import { soakImportapartInventory } from "./soak-importapart";
 import { streamBigtruckpageInventory } from "../src/server/ingestion/bigtruckpage-connector";
 import { soakBigtruckpageInventory } from "./soak-bigtruckpage";
 import { streamBeaversInventory } from "../src/server/ingestion/beavers-connector";
@@ -387,6 +389,18 @@ async function main(): Promise<void> {
                 runProgram(
                   streamChasencarsInventoryFromProvider({
                     previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "importapart":
+            return soakImportapartInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamImportapartInventory({
                     startCursor,
                     maxPages,
                     onBatch,

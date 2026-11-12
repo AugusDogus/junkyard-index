@@ -25,6 +25,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "aero",
     "chesterfield",
     "ddauto",
+    "importapart",
     "bigtruckpage",
     "denton",
     "beavers",
