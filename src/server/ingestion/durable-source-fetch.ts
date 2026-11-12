@@ -17,6 +17,7 @@ import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamIdipullInventory } from "./idipull-connector";
 import { streamLittletonInventory } from "./littleton-connector";
+import { streamMichigantruckInventory } from "./michigantruck-connector";
 import { streamJolietInventory } from "./joliet-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
 import { streamAviationInventory } from "./aviation-connector";
@@ -452,6 +453,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamJolietInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  michigantruck: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamMichigantruckInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
