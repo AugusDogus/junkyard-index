@@ -109,6 +109,7 @@ const SOURCES = [
   ["alln1", "All-N-1 U Pull"],
   ["pickers", "Pickers Texarkana"],
   ["pipes", "Pipes U-Pull-It"],
+  ["uwrench", "Tri-State U-Wrench & Save"],
   ["millerstown", "Millerstown Pic-A-Part"],
   ["pickapartva", "Pick-A-Part Virginia"],
   ["mccauley", "McCauley's Auto"],

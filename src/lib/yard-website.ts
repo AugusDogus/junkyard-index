@@ -45,6 +45,7 @@ const providerWebsites = new Map<string, string>([
   ["alln1", "https://alln1kc.com/"],
   ["pickers", "https://pickerstxk.com/"],
   ["pipes", "https://www.pipesupullit.net/"],
+  ["uwrench", "https://uwrenchandsave.com/"],
   ["millerstown", "http://picapartyard.com/"],
   ["pickapartva", "https://pickapartva.com/"],
   ["mccauley", "https://www.mccauleysauto.com/parts-vehicles"],

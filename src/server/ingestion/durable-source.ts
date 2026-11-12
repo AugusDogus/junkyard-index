@@ -33,6 +33,7 @@ import { JolietCursor } from "./joliet-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { PickersCursor } from "./pickers-cursor";
 import { PipesCursor } from "./pipes-cursor";
+import { UwrenchCursor } from "./uwrench-cursor";
 import { MillerstownCursor } from "./millerstown-cursor";
 import { PickapartvaCursor } from "./pickapartva-cursor";
 import { MccauleyCursor } from "./mccauley-cursor";
@@ -231,6 +232,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
   pickers: { initialCursor: PickersCursor.initial, maxPagesPerChunk: 16 },
   pipes: { initialCursor: PipesCursor.initial, maxPagesPerChunk: 8 },
+  uwrench: { initialCursor: UwrenchCursor.initial, maxPagesPerChunk: 16 },
   millerstown: {
     initialCursor: MillerstownCursor.initial,
     maxPagesPerChunk: 1,
