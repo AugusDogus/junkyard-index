@@ -5,6 +5,7 @@ import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
 import { ChesterfieldCursorSchema } from "./chesterfield-cursor";
 import { DdautoCursorSchema } from "./ddauto-cursor";
+import { ImportapartCursorSchema } from "./importapart-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { DentonCursor } from "./denton-cursor";
@@ -349,6 +350,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   aero: defineJsonCursor("aero", AeroCursorSchema),
   chesterfield: defineJsonCursor("chesterfield", ChesterfieldCursorSchema),
   ddauto: defineJsonCursor("ddauto", DdautoCursorSchema),
+  importapart: defineJsonCursor("importapart", ImportapartCursorSchema),
   bigtruckpage: defineJsonCursor("bigtruckpage", BigtruckpageCursorSchema),
   army: defineJsonCursor("army", ArmyCursorSchema),
   alln1: defineJsonCursor("alln1", Alln1CursorSchema),

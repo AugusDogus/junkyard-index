@@ -20,6 +20,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Three native yards: 2,111 field-complete donors on 2026-11-11.
   chesterfield: 1_800,
   ddauto: 50,
+  importapart: 60,
   bigtruckpage: 40,
   denton: 2_000,
   // Complete native inline report: 661 accepted of 680 rows.

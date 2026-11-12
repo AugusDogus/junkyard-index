@@ -38,6 +38,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     aero: 0,
     chesterfield: 0,
     ddauto: 0,
+    importapart: 0,
     army: 0,
     alln1: 0,
     aviation: 0,

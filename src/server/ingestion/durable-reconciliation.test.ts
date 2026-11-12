@@ -16,6 +16,11 @@ import type { CanonicalVehicle } from "./types";
 import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-connector";
 import { Database } from "./context";
 import { validateDurableSourceRuns } from "./durable-source-validation";
+import {
+  getDurableSourceDefinition,
+  serializeDurableSourceCursor,
+} from "./durable-source";
+import { SourceValidationPolicy } from "./source-validation";
 
 const TEST_SCHEMA = `
 ${readFileSync(new URL("../../../drizzle/0008_vehicle_observations.sql", import.meta.url), "utf8")}

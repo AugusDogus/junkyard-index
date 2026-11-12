@@ -76,6 +76,7 @@ describe("reconciliation policy", () => {
       "aero",
       "chesterfield",
       "ddauto",
+      "importapart",
       "army",
       "alln1",
       "aviation",
@@ -102,7 +103,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 34",
+      "when 'autorecycler' then 0",
     );
   });
 
