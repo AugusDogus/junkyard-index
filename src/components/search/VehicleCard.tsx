@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, Copy, MapPin } from "lucide-react";
 import Link from "next/link";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { VehicleImage } from "~/components/search/VehicleImage";
@@ -29,7 +29,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
       : vehicle.stateAbbr || "Unknown";
 
   const handleDetailsClick = useCallback(() => {
-    posthog.capture(AnalyticsEvents.VEHICLE_DETAILS_CLICKED, {
+    Analytics.capture(AnalyticsEvents.VEHICLE_DETAILS_CLICKED, {
       vehicle_id: vehicle.id,
       year: vehicle.year,
       make: vehicle.make,

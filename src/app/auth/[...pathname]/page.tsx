@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { AuthCard } from "~/components/auth/AuthCard";
@@ -48,13 +48,13 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (pathname === "sign-in") {
-      posthog.capture(AnalyticsEvents.SIGN_IN_VIEWED, {
+      Analytics.capture(AnalyticsEvents.SIGN_IN_VIEWED, {
         source_page: "auth",
       });
     }
 
     if (pathname === "sign-up") {
-      posthog.capture(AnalyticsEvents.SIGN_UP_VIEWED, {
+      Analytics.capture(AnalyticsEvents.SIGN_UP_VIEWED, {
         source_page: "auth",
       });
     }

@@ -3,7 +3,7 @@
 import { Bookmark, Lock, Search, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -33,7 +33,7 @@ export function SavedSearchesDropdown({
   const { data: savedSearches, isLoading } = api.savedSearches.list.useQuery();
 
   const handleLoadSearch = (search: NonNullable<typeof savedSearches>[0]) => {
-    posthog.capture(AnalyticsEvents.SAVED_SEARCH_LOADED, {
+    Analytics.capture(AnalyticsEvents.SAVED_SEARCH_LOADED, {
       search_id: search.id,
       search_name: search.name,
       query: search.query,

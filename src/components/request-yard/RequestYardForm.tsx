@@ -2,7 +2,7 @@
 
 import { AlertCircle, CheckCircle, Send, Warehouse } from "lucide-react";
 import { useState } from "react";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -43,7 +43,7 @@ export function RequestYardForm({
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormState({ kind: "submitting" });
 
@@ -51,7 +51,8 @@ export function RequestYardForm({
       yardName,
       website: website.trim() || undefined,
       requesterEmail: email.trim() || undefined,
-      clientDistinctId: posthog.get_distinct_id(),
+      // Optional: a request still goes through if analytics can't load.
+      clientDistinctId: await Analytics.distinctId().catch(() => undefined),
     });
   };
 

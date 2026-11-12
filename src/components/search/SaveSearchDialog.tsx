@@ -41,7 +41,7 @@ import { DiscordIcon } from "~/components/ui/icons";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Switch } from "~/components/ui/switch";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -228,7 +228,7 @@ export function SaveSearchDialog({
         const gateFeature = isPlanGateData(error.data)
           ? error.data.planGateFeature
           : undefined;
-        posthog.capture(AnalyticsEvents.SAVED_SEARCH_LIMIT_REACHED, {
+        Analytics.capture(AnalyticsEvents.SAVED_SEARCH_LIMIT_REACHED, {
           source_page: "search",
           cta_location: "save_search_dialog",
           gate_feature: gateFeature,
@@ -237,7 +237,7 @@ export function SaveSearchDialog({
           action: {
             label: "Compare plans",
             onClick: () => {
-              posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+              Analytics.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                 source_page: "search",
                 cta_location: "saved_search_limit_to_checkout",
                 is_logged_in: true,
@@ -257,7 +257,7 @@ export function SaveSearchDialog({
       }
     },
     onSuccess: async (_data, variables) => {
-      posthog.capture(AnalyticsEvents.SAVED_SEARCH_CREATED, {
+      Analytics.capture(AnalyticsEvents.SAVED_SEARCH_CREATED, {
         has_query: variables.query.trim().length > 0,
         email_alerts_enabled: variables.emailAlertsEnabled ?? false,
         discord_alerts_enabled: variables.discordAlertsEnabled ?? false,
@@ -311,10 +311,10 @@ export function SaveSearchDialog({
 
   const handleButtonClick = () => {
     if (isLoggedIn) {
-      posthog.capture(AnalyticsEvents.SAVE_SEARCH_DIALOG_OPENED, { query });
+      Analytics.capture(AnalyticsEvents.SAVE_SEARCH_DIALOG_OPENED, { query });
       setOpen(true);
     } else {
-      posthog.capture(AnalyticsEvents.SAVED_SEARCH_AUTH_REQUIRED, { query });
+      Analytics.capture(AnalyticsEvents.SAVED_SEARCH_AUTH_REQUIRED, { query });
       setIsNavigatingToAuth(true);
       storePendingSaveSearch(query, filters);
       const returnUrl = new URL(
@@ -384,7 +384,7 @@ export function SaveSearchDialog({
               <Link
                 href="/pricing"
                 onClick={() =>
-                  posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+                  Analytics.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                     source_page: "search",
                     cta_location: "saved_search_gate",
                     is_logged_in: true,

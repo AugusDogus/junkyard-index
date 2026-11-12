@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
-import posthog from "posthog-js";
+import { Analytics } from "~/lib/analytics";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { cn } from "~/lib/utils";
 
@@ -35,7 +35,7 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           <Link
             href="/pricing"
             onClick={() =>
-              posthog.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
+              Analytics.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                 source_page: "header",
                 cta_location: "header_pricing",
                 is_logged_in: false,
