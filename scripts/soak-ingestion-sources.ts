@@ -45,6 +45,9 @@ import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-co
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
+import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
+import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
+import { soakChesterfieldInventory } from "./soak-chesterfield";
 import { streamBigtruckpageInventory } from "../src/server/ingestion/bigtruckpage-connector";
 import { soakBigtruckpageInventory } from "./soak-bigtruckpage";
 import { streamBeaversInventory } from "../src/server/ingestion/beavers-connector";
@@ -302,6 +305,22 @@ async function main(): Promise<void> {
     try {
       const sourceResult = await (() => {
         switch (source) {
+          case "chesterfield": {
+            const photoStore = DonorPhotoStore.memory();
+            return soakChesterfieldInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamChesterfieldInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                    photoStore,
+                    appUrl: "https://soak.invalid",
+                  }),
+                ),
+              config.maxPages,
+            );
+          }
           case "bigtruckpage":
             return soakBigtruckpageInventory(
               (startCursor, maxPages) =>

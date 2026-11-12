@@ -23,6 +23,7 @@ describe("IngestionSourceFlags.resolve", () => {
   });
   test.each([
     "aero",
+    "chesterfield",
     "bigtruckpage",
     "beavers",
     "army",

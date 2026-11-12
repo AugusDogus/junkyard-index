@@ -18,11 +18,14 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   upullrparts: "https://upullrparts.com/inventory/",
   partsgalore: "https://parts-galore.com/inventory/",
   aero: "https://aeroautosalvage.com/vehicle-inventory/",
+  chesterfield: "https://chesterfieldauto.com/search-our-inventory-by-location",
   army: "https://armysauto.com/self-service-inventory/",
 };
 
 function manualSearchExplanation(source: DataSource): string {
   switch (source) {
+    case "chesterfield":
+      return "Select make, model and years, find the matching yard, then open Pics and match the stock number.";
     case "aero":
     case "army":
       return "This provider has no vehicle links. Search its inventory table, then match the VIN and stock number.";

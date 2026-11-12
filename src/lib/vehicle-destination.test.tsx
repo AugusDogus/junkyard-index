@@ -125,6 +125,22 @@ describe("manual provider destinations across search, durable alerts and present
       expect(discord.description).toContain("stock number");
     },
   );
+  test("Chesterfield directs users to the native Pics stock without claiming a visible VIN or vehicle link", async () => {
+    const url = "https://chesterfieldauto.com/search-our-inventory-by-location";
+    const restored = roundTripNotification(vehicle("chesterfield", url));
+    const { card, email, discord } = await renderSurfaces(restored);
+    for (const html of [card, email]) {
+      expect(html).toContain(`href="${url}"`);
+      expect(html).toContain("Search provider inventory");
+      expect(html).toContain("open Pics and match the stock number");
+      expect(html).not.toContain("then match the VIN");
+      expect(html).not.toContain("View vehicle");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain(
+      "open Pics and match the stock number",
+    );
+  });
   test.each([
     ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
     ["army", "https://armysauto.com/self-service-inventory/"],

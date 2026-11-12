@@ -7,6 +7,7 @@ import { streamIPullUPullInventory } from "./ipullupull-connector";
 import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
 import { streamAeroInventory } from "./aero-connector";
+import { streamChesterfieldInventory } from "./chesterfield-connector";
 import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
@@ -17,6 +18,8 @@ import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
 import { streamBeaversInventory } from "./beavers-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
+import { DonorPhotoStore } from "./donor-photo-store";
+import { env } from "~/env";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -217,6 +220,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  chesterfield: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamChesterfieldInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+          photoStore: DonorPhotoStore.vercelBlob(env.BLOB_READ_WRITE_TOKEN),
+          appUrl: env.NEXT_PUBLIC_APP_URL,
         }),
       ),
       (next) => next,
