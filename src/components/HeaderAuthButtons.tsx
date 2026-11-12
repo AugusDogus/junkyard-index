@@ -30,7 +30,7 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           asChild
           variant="ghost"
           size="sm"
-          className="hidden sm:inline-flex"
+          className="hidden sm:inline-flex sm:h-11 sm:px-4"
         >
           <Link
             href="/pricing"
@@ -51,13 +51,16 @@ export function HeaderAuthButtons({ user }: HeaderAuthButtonsProps) {
           asChild
           variant="outline"
           size="sm"
-          className={cn(!hasPageSearch && "hidden sm:inline-flex")}
+          className={cn(
+            "sm:h-11 sm:px-4",
+            !hasPageSearch && "hidden sm:inline-flex",
+          )}
         >
           <Link href="/auth/sign-in">Sign in</Link>
         </Button>
       )}
       {!hasPageSearch && (
-        <Button asChild size="sm">
+        <Button asChild size="sm" className="sm:h-11 sm:px-4">
           <Link href="/search">Search</Link>
         </Button>
       )}

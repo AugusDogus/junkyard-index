@@ -60,7 +60,7 @@ export function RequestYardForm({
     <>
       <div className="mb-8 text-center">
         <div className="bg-primary/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-          <Warehouse className="text-primary h-6 w-6" />
+          <Warehouse className="text-signal h-6 w-6" />
         </div>
         <h1 className="mb-2 text-3xl font-bold tracking-tight">
           Request a Yard

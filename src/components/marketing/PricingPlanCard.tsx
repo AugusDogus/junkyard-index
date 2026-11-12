@@ -1,8 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useInView } from "motion/react";
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   PLANS,
   formatMonthlyEquivalent,
@@ -57,8 +56,6 @@ export function PricingPlanCard({
   cta: ReactNode;
   heading: "h2" | "h3";
 }) {
-  const ref = useRef<HTMLElement>(null);
-  const inView = useInView(ref);
   const plan = PLANS[tier];
   const details = PLAN_DETAILS[tier];
   const price =
@@ -66,49 +63,71 @@ export function PricingPlanCard({
       ? formatMonthlyEquivalent(tier)
       : `$${plan.monthlyPrice}`;
 
+  // The featured plan is the ink plate; its price is the amber figure.
   return (
     <article
-      ref={ref}
       className={cn(
-        "bg-border relative isolate rounded-2xl p-px",
-        featured && "featured-pricing-plan bg-foreground/20 shadow-sm",
+        "border-ink flex h-full flex-col border-2 p-6 lg:p-8",
+        featured ? "bg-board text-board-ink" : "bg-paper-3 dark:bg-paper",
       )}
-      data-animated={featured && inView}
     >
-      {featured && (
-        <div
-          className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
-          aria-hidden="true"
+      <Heading className="text-title leading-tight font-extrabold">
+        {plan.name}
+      </Heading>
+      <p
+        className={cn(
+          "mt-2 min-h-12 text-sm text-pretty",
+          featured ? "text-board-muted" : "text-ink-2",
+        )}
+      >
+        {details.description}
+      </p>
+      <p className="mt-8 flex items-baseline gap-2">
+        <span
+          className={cn(
+            "text-[3.25rem] leading-none font-extrabold tracking-[-0.04em]",
+            featured && "text-figure",
+          )}
         >
-          <div className="pricing-plan-border-beam absolute -inset-full" />
-        </div>
-      )}
-      <div className="bg-card relative flex h-full flex-col rounded-[15px] p-6 lg:p-8">
-        <Heading className="text-xl font-semibold">{plan.name}</Heading>
-        <p className="text-muted-foreground mt-2 min-h-10 text-sm text-pretty">
-          {details.description}
-        </p>
-        <p className="mt-7 flex items-baseline gap-1.5 tabular-nums">
-          <span className="text-4xl font-semibold tracking-tight">{price}</span>
-          <span className="text-muted-foreground text-sm">/ month</span>
-        </p>
-        <p className="text-muted-foreground mt-2 text-sm tabular-nums">
-          {tier === "free"
-            ? "Free to use"
-            : interval === "annual"
-              ? `$${plan.annualPrice} billed annually`
-              : `$${plan.monthlyPrice * 12} / year, billed monthly`}
-        </p>
-        <div className="mt-7">{cta}</div>
-        <ul className="mt-7 space-y-3 border-t pt-6 text-sm">
-          {details.features.map((feature) => (
-            <li key={feature} className="flex items-start gap-3">
-              <Check className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span className="text-muted-foreground">{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+          {price}
+        </span>
+        <span
+          className={cn(
+            "text-sm",
+            featured ? "text-board-muted" : "text-ink-2",
+          )}
+        >
+          / month
+        </span>
+      </p>
+      <p
+        className={cn(
+          "mt-3 text-sm",
+          featured ? "text-board-muted" : "text-ink-2",
+        )}
+      >
+        {tier === "free"
+          ? "Free to use"
+          : interval === "annual"
+            ? `$${plan.annualPrice} billed annually`
+            : `$${plan.monthlyPrice * 12} / year, billed monthly`}
+      </p>
+      <div className="mt-8">{cta}</div>
+      <ul
+        className={cn(
+          "mt-8 space-y-3 border-t-2 pt-6 text-sm",
+          featured ? "border-board-rule" : "border-ink",
+        )}
+      >
+        {details.features.map((feature) => (
+          <li key={feature} className="flex items-start gap-3">
+            <Check className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span className={featured ? "text-board-muted" : "text-ink-2"}>
+              {feature}
+            </span>
+          </li>
+        ))}
+      </ul>
     </article>
   );
 }

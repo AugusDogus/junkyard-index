@@ -1,0 +1,113 @@
+/* Wayfind tokens (Hallmark scaffold). Tailwind's own text-xs to text-3xl and
+ * ease-* stay Tailwind's so the app screens keep their sizes; the redesigned
+ * pages use the roles below. shadcn already owns --color-muted and
+ * --color-accent, so Wayfind's muted ink is --color-ink-3, its cobalt is
+ * --color-signal and its amber is --color-figure. */
+@theme static {
+  --text-md: 1rem;
+  --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.75rem);
+  --text-display: clamp(2.5rem, 4vw + 1rem, 4.75rem);
+  --text-section: clamp(2rem, 2.5vw + 1rem, 3.25rem);
+  --text-title: clamp(1.25rem, 0.75vw + 0.875rem, 1.625rem);
+  --text-lead: clamp(1.0625rem, 0.35vw + 0.95rem, 1.25rem);
+  --color-error: oklch(52% 0.19 27);
+  --color-success: oklch(50% 0.12 150);
+  --color-paper: oklch(95.5% 0.006 250);
+  --color-paper-2: oklch(91% 0.009 250);
+  --color-paper-3: oklch(99.5% 0.005 250);
+  --color-ink: oklch(16% 0.014 262);
+  --color-ink-2: oklch(29% 0.014 262);
+  --color-ink-3: oklch(47% 0.016 260);
+  --color-rule: oklch(80% 0.011 250);
+  --color-ink-rule: oklch(34% 0.014 262);
+  --color-signal: oklch(51% 0.22 264);
+  --color-signal-fill: oklch(51% 0.22 264);
+  --color-signal-ink: oklch(99.5% 0.003 250);
+  --color-figure: oklch(81% 0.16 82);
+  --color-focus: oklch(51% 0.22 264);
+  --color-board: oklch(16% 0.014 262);
+  --color-board-ink: oklch(95.5% 0.006 250);
+  --color-board-2: oklch(22% 0.014 262);
+  --color-board-muted: oklch(76% 0.012 255);
+  --color-board-rule: oklch(34% 0.014 262);
+  --color-scrim: oklch(8% 0.01 260 / 0.25);
+  --font-display: var(--font-chivo-mono), "Chivo Mono", ui-monospace, monospace;
+  --font-body: var(--font-display);
+  --font-outlier: var(--font-body);
+  --radius-card: 0;
+  --radius-pill: 999px;
+  --shadow-card: 0 24px 40px -24px oklch(8% 0.01 260 / 0.6);
+  --tracking-display: -0.03em;
+}
+:root {
+  color-scheme: light;
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+  --space-3xl: 96px;
+  --space-4xl: 144px;
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --container: 1440px;
+  --gutter: 64px;
+  --gap-columns: 32px;
+  --section-gap-s: 120px;
+  --section-gap: 144px;
+  --section-gap-l: 176px;
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-sticky-nav: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+  --rule-hair: 1px;
+  --rule-bar: 2px;
+  --display-weight: 800;
+}
+/* wayfind: night. The board stays dark; cobalt lifts for text and keeps a
+ * deeper fill so white button text holds 4.5:1. */
+.dark {
+  color-scheme: dark;
+  --color-paper: oklch(15% 0.012 262);
+  --color-paper-2: oklch(19% 0.013 262);
+  --color-paper-3: oklch(22% 0.014 262);
+  --color-ink: oklch(96% 0.005 250);
+  --color-ink-2: oklch(85% 0.008 252);
+  --color-ink-3: oklch(70% 0.016 258);
+  --color-rule: oklch(31% 0.014 262);
+  --color-ink-rule: oklch(45% 0.014 262);
+  --color-signal: oklch(68% 0.17 264);
+  --color-signal-fill: oklch(55% 0.21 264);
+  --color-error: oklch(68% 0.17 25);
+  --color-focus: oklch(68% 0.17 264);
+  --color-board: oklch(24% 0.022 262);
+  --color-board-2: oklch(28% 0.022 262);
+  --color-board-rule: oklch(40% 0.02 262);
+  --color-scrim: oklch(4% 0.01 260 / 0.5);
+  --shadow-card: 0 24px 40px -24px oklch(2% 0.01 260 / 0.9);
+}
+@media (max-width: 60rem) {
+  :root {
+    --gutter: 24px;
+    --section-gap-s: 80px;
+    --section-gap: 96px;
+    --section-gap-l: 120px;
+  }
+}
+@media (max-width: 40rem) {
+  :root {
+    --gutter: 16px;
+    --section-gap-s: 56px;
+    --section-gap: 72px;
+    --section-gap-l: 96px;
+    --gap-columns: 16px;
+  }
+}

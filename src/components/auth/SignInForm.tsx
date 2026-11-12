@@ -160,7 +160,7 @@ export function SignInForm() {
           <span className="w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background text-muted-foreground px-2">
+          <span className="bg-background sm:bg-card text-muted-foreground px-2">
             Or continue with
           </span>
         </div>
@@ -190,7 +190,7 @@ export function SignInForm() {
               ? `/auth/sign-up?returnTo=${encodeURIComponent(returnTo)}`
               : "/auth/sign-up"
           }
-          className="text-primary hover:underline"
+          className="text-signal hover:underline"
           tabIndex={6}
         >
           Sign up

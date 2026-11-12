@@ -231,7 +231,7 @@ export function VehicleSearchInput({
           if (debounceRef.current) clearTimeout(debounceRef.current);
           void commitSearchValue(inputValueRef.current);
         }}
-        placeholder="Search year, make, model, or VIN"
+        placeholder="Year, make, model or VIN"
         aria-describedby={
           displayedFeedback ? "search-query-feedback" : "search-hint"
         }

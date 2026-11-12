@@ -2,7 +2,7 @@ import "~/styles/globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 import { type Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Chivo_Mono } from "next/font/google";
 
 import { TailwindIndicator } from "~/components/tailwind-indicator";
 import { ThemeProvider } from "~/components/theme/theme-provider";
@@ -50,9 +50,11 @@ export const metadata: Metadata = {
   icons: [{ rel: "icon", url: "/favicon.svg" }],
 };
 
-const geist = Geist({
+// Wayfind sets every glyph in Chivo Mono (src/styles/tokens.css).
+const chivoMono = Chivo_Mono({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  variable: "--font-chivo-mono",
+  fallback: ["ui-monospace", "monospace"],
 });
 
 export default function RootLayout({
@@ -61,7 +63,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geist.variable} bg-background`}
+      className={`${chivoMono.variable} bg-background`}
       suppressHydrationWarning
     >
       <body>

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { FooterLinks } from "~/components/FooterLinks";
+import { FooterLinks, footerLinkClassName } from "~/components/FooterLinks";
 import { StatusChip } from "~/components/StatusChip";
 import { env } from "~/env";
 
@@ -10,31 +10,39 @@ import { env } from "~/env";
  */
 type FooterStatus = "live" | "link";
 
+/** A mast: the wordmark set large over the grouped links and the status. */
 export function Footer({ status = "live" }: { status?: FooterStatus }) {
   const statusPageUrl = env.NEXT_PUBLIC_STATUS_PAGE_URL;
 
   return (
-    <footer className="border-t px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-        <p className="text-sm font-semibold whitespace-nowrap">
+    <footer className="border-ink bg-paper border-t-2">
+      <div className="shell pt-14 pb-12 sm:pt-16">
+        <p className="text-ink text-section tracking-display leading-none font-extrabold">
           Junkyard Index
         </p>
-        <FooterLinks />
-        {statusPageUrl &&
-          (status === "live" ? (
-            <Suspense fallback={null}>
-              <StatusChip statusPageUrl={statusPageUrl} />
-            </Suspense>
-          ) : (
-            <a
-              href={statusPageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground text-xs whitespace-nowrap transition-colors sm:ml-auto"
-            >
-              System status
-            </a>
-          ))}
+        <div className="border-ink mt-8 grid gap-10 border-t-2 pt-8 lg:grid-cols-12 lg:gap-8">
+          <div className="lg:col-span-9">
+            <FooterLinks />
+          </div>
+          {statusPageUrl && (
+            <div className="lg:col-span-3 lg:justify-self-end">
+              {status === "live" ? (
+                <Suspense fallback={null}>
+                  <StatusChip statusPageUrl={statusPageUrl} />
+                </Suspense>
+              ) : (
+                <a
+                  href={statusPageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={footerLinkClassName}
+                >
+                  System status
+                </a>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </footer>
   );
