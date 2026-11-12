@@ -331,7 +331,6 @@ async function main(): Promise<void> {
             return runProgram(
               streamAutorecyclerInventory({
                 onBatch,
-                startFrom: 0,
                 maxPages: config.maxPages,
               }),
             );

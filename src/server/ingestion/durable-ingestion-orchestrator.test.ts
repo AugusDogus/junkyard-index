@@ -127,13 +127,17 @@ describe("durable ingestion source orchestration", () => {
     async ({ error, message }) => {
       const result = await ingestDurableSource({
         runId: "diagnostic-repro",
-        initialCursor: { source: "autorecycler", from: 0 },
+        initialCursor: {
+          source: "autorecycler",
+          phase: "page",
+          beforeId: null,
+        },
         operations: {
           runChunk: async () => {
             throw error;
           },
           markFailed: async (_runId, source, failure) => ({
-            cursor: { source, from: 0 },
+            cursor: { source, phase: "page", beforeId: null },
             status: "failed",
             count: 0,
             pagesProcessed: 0,
@@ -153,7 +157,11 @@ describe("durable ingestion source orchestration", () => {
     await expect(
       ingestDurableSource({
         runId: "diagnostic-repro",
-        initialCursor: { source: "autorecycler", from: 0 },
+        initialCursor: {
+          source: "autorecycler",
+          phase: "page",
+          beforeId: null,
+        },
         operations: {
           runChunk: async () => {
             throw error;

@@ -1,11 +1,18 @@
 import { autorecyclerYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import {
-  buildGlobalMsearchBody,
+  buildInventoryMsearchBody,
   postAutorecyclerElasticsearchMsearch,
   type AutorecyclerMsearchHit,
-  type AutorecyclerMsearchResponse,
 } from "./autorecycler-client";
+import {
+  AutorecyclerCursor,
+  AutorecyclerCursorSchema,
+} from "./autorecycler-cursor";
+import {
+  AUTORECYCLER_PAGE_SIZE,
+  AutorecyclerInventoryPage,
+} from "./autorecycler-inventory-page";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { createAutorecyclerOrgGeoResolver } from "./autorecycler-geo";
 import { fetchAutorecyclerYardWebsites } from "./autorecycler-website";
@@ -20,34 +27,12 @@ import { AutorecyclerProviderError } from "./errors";
 import type { PersistenceError } from "./errors";
 import type { Database } from "./context";
 
-/**
- * msearch `search.n` (requested page size). Live probe (2025-03) returns at most **400** hits
- * per response regardless of larger `n`; use 400 to match the server cap. Pagination must
- * advance `from` by **hits returned** ({@link streamAutorecyclerInventory} does this), not by
- * this constant alone, so rows are never skipped if the cap changes.
- */
-const REQUESTED_PAGE_SIZE = 400;
-const PAGE_FETCH_CONCURRENCY = 4;
-const PAGE_FETCH_CHUNK_SIZE = 10;
-// Public probes confirmed in November 2026 that the global query stops here
-// while organization queries still return inventory outside the global result.
-const GLOBAL_RESULT_CEILING = 50_000;
-
-function globalResultCeilingError(from: number) {
-  return new AutorecyclerProviderError({
-    from,
-    cause: new Error(
-      `Global inventory traversal reached the ${GLOBAL_RESULT_CEILING}-row result ceiling; feed completeness cannot be verified. Reconciliation is blocked and previously published inventory is preserved. Do not resume this offset; implement and validate complete provider traversal before retrying.`,
-    ),
-  });
-}
-
 function hitSource(
   hit: AutorecyclerMsearchHit,
 ): Record<string, unknown> | null {
   const src = hit._source;
   if (!src || typeof src !== "object") return null;
-  return src as Record<string, unknown>;
+  return src;
 }
 
 /** Same normalization as {@link transformAutorecyclerMsearchHit} (trimmed org id). */
@@ -72,89 +57,9 @@ function isVinlessCatalogRecord(src: Record<string, unknown>): boolean {
   );
 }
 
-type MsearchFirstPage =
-  | {
-      ok: true;
-      r0: { at_end?: boolean; hits: { hits: AutorecyclerMsearchHit[] } };
-      hits: AutorecyclerMsearchHit[];
-    }
-  | { ok: false; logMessage: string; detail: string };
-
-/** Runtime-validate msearch `responses[0].hits.hits` so empty/malformed payloads are not treated as EOF. */
-function parseMsearchFirstResponse(
-  json: AutorecyclerMsearchResponse,
-  from: number,
-): MsearchFirstPage {
-  const responses = json.responses;
-  if (!Array.isArray(responses)) {
-    const detail =
-      responses === undefined
-        ? "responses missing"
-        : `responses not an array (${typeof responses})`;
-    return {
-      ok: false,
-      logMessage: `[AutoRecycler] msearch malformed at from=${from}: ${detail}`,
-      detail,
-    };
-  }
-  if (responses.length < 1) {
-    const detail = "responses empty (length 0)";
-    return {
-      ok: false,
-      logMessage: `[AutoRecycler] msearch malformed at from=${from}: ${detail}`,
-      detail,
-    };
-  }
-
-  const r0 = responses[0];
-  if (
-    r0 === undefined ||
-    r0 === null ||
-    typeof r0 !== "object" ||
-    Array.isArray(r0)
-  ) {
-    const detailResponses = "responses[0] missing or not an object";
-    return {
-      ok: false,
-      logMessage: `[AutoRecycler] msearch malformed at from=${from}: ${detailResponses}`,
-      detail: detailResponses,
-    };
-  }
-
-  const hitsObj = r0.hits;
-  if (
-    hitsObj === null ||
-    typeof hitsObj !== "object" ||
-    Array.isArray(hitsObj)
-  ) {
-    const detailHits = "responses[0].hits missing or not an object";
-    return {
-      ok: false,
-      logMessage: `[AutoRecycler] msearch malformed at from=${from}: ${detailHits}`,
-      detail: detailHits,
-    };
-  }
-
-  const hitsRaw = hitsObj.hits;
-  if (!Array.isArray(hitsRaw)) {
-    const detailArr = "responses[0].hits.hits is not an array";
-    return {
-      ok: false,
-      logMessage: `[AutoRecycler] msearch malformed at from=${from}: ${detailArr}`,
-      detail: detailArr,
-    };
-  }
-
-  return {
-    ok: true,
-    r0: r0 as { at_end?: boolean; hits: { hits: AutorecyclerMsearchHit[] } },
-    hits: hitsRaw as AutorecyclerMsearchHit[],
-  };
-}
-
 export type AutorecyclerStreamResult = ConnectorChunkResult<
   "autorecycler",
-  number
+  AutorecyclerCursor
 > & {
   geoStats: ReturnType<
     ReturnType<typeof createAutorecyclerOrgGeoResolver>["getStats"]
@@ -164,14 +69,14 @@ export type AutorecyclerStreamResult = ConnectorChunkResult<
 interface AutorecyclerStreamOptions<E, R> {
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: OnYards;
-  startFrom?: number;
+  startCursor?: AutorecyclerCursor;
   maxPages?: number;
 }
 
 type AutorecyclerPageFetcher = (
-  from: number,
+  beforeId: string | null,
   pageSize: number,
-) => Promise<AutorecyclerMsearchResponse>;
+) => Promise<unknown>;
 
 /**
  * Stream AutoRecycler global inventory via encrypted `msearch`, resolve yard
@@ -191,12 +96,19 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
 
     const geo = createAutorecyclerOrgGeoResolver();
     const websites = new Map<string, string | null>();
-    let from = Math.max(0, options.startFrom ?? 0);
-    if (from >= GLOBAL_RESULT_CEILING)
-      return yield* globalResultCeilingError(from);
+    const parsedCursor = AutorecyclerCursorSchema.safeParse(
+      options.startCursor ?? AutorecyclerCursor.initial,
+    );
+    if (!parsedCursor.success)
+      return yield* new AutorecyclerProviderError({
+        from: 0,
+        cause: new Error(
+          "Invalid record-ID cursor. Restart this source with a new ingestion run; previously published inventory is preserved.",
+        ),
+      });
+    let cursor = parsedCursor.data;
     let pagesProcessed = 0;
     let totalCanonical = 0;
-    let done = false;
     const errors: string[] = [];
     const observedVins = new Set<string>();
     const seen = new Set<string>();
@@ -211,28 +123,23 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
     const maxPages = Math.max(1, options.maxPages ?? Number.MAX_SAFE_INTEGER);
 
     const processPage = (
-      requestFrom: number,
-      json: AutorecyclerMsearchResponse,
+      beforeId: string | null,
+      json: unknown,
     ): Effect.Effect<
-      { full: boolean; terminal: boolean },
+      string | null,
       AutorecyclerProviderError | PersistenceError | E,
       Database | R
     > =>
       Effect.gen(function* () {
-        const parsed = parseMsearchFirstResponse(json, requestFrom);
-        if (!parsed.ok) {
-          yield* Effect.logError(parsed.logMessage);
-          return yield* Effect.fail(
-            new AutorecyclerProviderError({
-              from: requestFrom,
-              cause: new Error(parsed.detail),
-            }),
-          );
-        }
-
-        const { r0, hits } = parsed;
-        if (requestFrom + hits.length >= GLOBAL_RESULT_CEILING)
-          return yield* globalResultCeilingError(requestFrom);
+        const parsed = AutorecyclerInventoryPage.parse(json, beforeId);
+        if (!parsed.ok)
+          return yield* new AutorecyclerProviderError({
+            from: 0,
+            cause: new Error(
+              `Inventory search beforeId=${beforeId ?? "start"}: ${parsed.detail}. Reconciliation is blocked and previously published inventory is preserved. Inspect the provider response before retrying.`,
+            ),
+          });
+        const { hits, lastId } = parsed;
         const organizations = new Set<string>();
         for (const hit of hits) {
           const src = hitSource(hit);
@@ -246,7 +153,7 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         for (const org of organizations) {
           if (!decisions.has(org))
             return yield* new AutorecyclerProviderError({
-              from: requestFrom,
+              from: 0,
               cause: new Error(
                 `Source ownership lookup omitted organization ${org}; no page inventory was emitted`,
               ),
@@ -278,7 +185,7 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
             const resolved = yield* Effect.tryPromise({
               try: () => fetchAutorecyclerYardWebsites(missingWebsites),
               catch: (cause) =>
-                new AutorecyclerProviderError({ from: requestFrom, cause }),
+                new AutorecyclerProviderError({ from: 0, cause }),
             });
             for (const [key, url] of resolved) websites.set(key, url);
           }
@@ -366,58 +273,31 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
 
         totalCanonical += pageCanonical.length;
         pagesProcessed += 1;
-        from += hits.length;
-
-        return {
-          full: hits.length === REQUESTED_PAGE_SIZE,
-          terminal: r0.at_end === true || hits.length === 0,
-        };
+        return lastId;
       });
 
-    const fetchPageEffect = (requestFrom: number) =>
-      Effect.tryPromise({
-        try: () => fetchPage(requestFrom, REQUESTED_PAGE_SIZE),
+    while (cursor.phase === "page" && pagesProcessed < maxPages) {
+      const beforeId = cursor.beforeId;
+      const json = yield* Effect.tryPromise({
+        try: () => fetchPage(beforeId, AUTORECYCLER_PAGE_SIZE),
         catch: (cause) =>
-          new AutorecyclerProviderError({ from: requestFrom, cause }),
+          new AutorecyclerProviderError({
+            from: 0,
+            cause: new Error(
+              `Inventory search beforeId=${beforeId ?? "start"} failed; previously published inventory is preserved`,
+              { cause },
+            ),
+          }),
       });
-
-    while (!done && pagesProcessed < maxPages) {
-      const firstRequestFrom = from;
-      const first = yield* fetchPageEffect(firstRequestFrom);
-      const firstResult = yield* processPage(firstRequestFrom, first);
-      if (firstResult.terminal) {
-        done = true;
-        break;
-      }
-      if (!firstResult.full || pagesProcessed >= maxPages) continue;
-
-      const tailCount = Math.min(
-        PAGE_FETCH_CHUNK_SIZE - 1,
-        maxPages - pagesProcessed,
-      );
-      const tailOffsets = Array.from(
-        { length: tailCount },
-        (_, index) => from + index * REQUESTED_PAGE_SIZE,
-      );
-      const tailPages = yield* Effect.all(
-        tailOffsets.map((requestFrom) =>
-          fetchPageEffect(requestFrom).pipe(
-            Effect.map((json) => ({ requestFrom, json })),
-          ),
-        ),
-        { concurrency: PAGE_FETCH_CONCURRENCY },
-      );
-
-      for (const page of tailPages) {
-        if (page.requestFrom !== from) break;
-        const pageResult = yield* processPage(page.requestFrom, page.json);
-        if (pageResult.terminal) {
-          done = true;
-          break;
-        }
-        if (!pageResult.full) break;
-      }
+      const lastId = yield* processPage(beforeId, json);
+      // at_end can describe a capped query, not the provider feed. A fresh
+      // query after the final unique ID must be empty before we can reconcile.
+      cursor =
+        lastId === null
+          ? { source: "autorecycler", phase: "complete" }
+          : { source: "autorecycler", phase: "page", beforeId: lastId };
     }
+    const done = cursor.phase === "complete";
 
     const warnings = [...excludedYards].map(
       ([orgLookup, count]) =>
@@ -443,7 +323,7 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
     return {
       source: "autorecycler" as const,
       status: done ? "complete" : "paused",
-      cursor: from,
+      cursor,
       count: totalCanonical,
       errors,
       pagesProcessed,
@@ -467,9 +347,11 @@ export function streamAutorecyclerInventory<E, R>(
   AutorecyclerProviderError | PersistenceError | E,
   Database | R
 > {
-  return streamAutorecyclerInventoryWithPageFetcher(options, (from, pageSize) =>
-    postAutorecyclerElasticsearchMsearch(
-      buildGlobalMsearchBody(from, pageSize),
-    ),
+  return streamAutorecyclerInventoryWithPageFetcher(
+    options,
+    (beforeId, pageSize) =>
+      postAutorecyclerElasticsearchMsearch(
+        buildInventoryMsearchBody(beforeId, pageSize),
+      ),
   );
 }

@@ -1,4 +1,5 @@
 import { UpullRPartsCursor } from "./upullrparts-cursor";
+import { AutorecyclerCursor } from "./autorecycler-cursor";
 import {
   INGESTION_SOURCES,
   type IngestionSource,
@@ -58,7 +59,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 30,
   },
   autorecycler: {
-    initialCursor: { source: "autorecycler", from: 0 },
+    initialCursor: AutorecyclerCursor.initial,
     maxPagesPerChunk: 10,
   },
   pullapart: {

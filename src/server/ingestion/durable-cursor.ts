@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AutorecyclerCursorSchema } from "./autorecycler-cursor";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import {
@@ -193,6 +194,11 @@ const PypStoreCursorSchema = z.union([
 export type PypStoreCursor = z.infer<typeof PypStoreCursorSchema>;
 export type PypActiveCursor = z.infer<typeof PypActiveCursorSchema>;
 
+const autorecyclerJsonCursor = defineJsonCursor(
+  "autorecycler",
+  AutorecyclerCursorSchema,
+);
+
 const DURABLE_CURSOR_DEFINITIONS = {
   row52: defineJsonCursor(
     "row52",
@@ -204,15 +210,18 @@ const DURABLE_CURSOR_DEFINITIONS = {
     }),
   ),
   pyp: defineJsonCursor("pyp", PypStoreCursorSchema),
-  autorecycler: defineScalarCursor(
-    "autorecycler",
-    z.object({
-      source: z.literal("autorecycler"),
-      from: NonNegativeIntegerSchema,
-    }),
-    (from) => ({ source: "autorecycler", from }),
-    (cursor) => cursor.from,
-  ),
+  // Offset checkpoints cannot prove which record-ID range has been visited.
+  // Reject legacy cursors so an old partial snapshot cannot become accepted.
+  autorecycler: {
+    ...autorecyclerJsonCursor,
+    parse: (value: string) => {
+      if (/^\d+$/.test(value))
+        throw new Error(
+          "Legacy AutoRecycler offset checkpoints cannot establish complete feed traversal. Start a new ingestion run; previously published inventory is preserved.",
+        );
+      return autorecyclerJsonCursor.parse(value);
+    },
+  },
   pullapart: definePairCursor(
     "pullapart",
     z.object({

@@ -25,6 +25,7 @@ export type AutorecyclerMsearchInner = {
 };
 
 export type AutorecyclerMsearchHit = {
+  _id?: string;
   _source?: Record<string, unknown>;
 };
 
@@ -74,6 +75,26 @@ export function buildGlobalMsearchBody(
   );
   search.from = from;
   search.n = pageSize;
+  return inner;
+}
+
+/** Always query from zero so the provider's 50,000-row offset ceiling is never reached. */
+export function buildInventoryMsearchBody(
+  beforeId: string | null,
+  pageSize: number,
+): AutorecyclerMsearchInner {
+  const inner = buildGlobalMsearchBody(0, pageSize);
+  const search = inner.searches[0];
+  if (!search || !Array.isArray(search.constraints)) {
+    throw new Error("autorecycler: msearch template missing constraints");
+  }
+  search.sorts_list = [{ sort_field: "_id", descending: true }];
+  if (beforeId !== null)
+    search.constraints.push({
+      key: "_id",
+      value: beforeId,
+      constraint_type: "less than",
+    });
   return inner;
 }
 
@@ -155,9 +176,13 @@ async function postAutorecyclerElasticsearch(
   path: string,
   innerBody: unknown,
 ): Promise<unknown> {
-  const encrypted = encryptBubbleObfuscatedBody(innerBody, AUTORECYCLER_BUBBLE_APP_NAME, {
-    timestampMs: Date.now(),
-  });
+  const encrypted = encryptBubbleObfuscatedBody(
+    innerBody,
+    AUTORECYCLER_BUBBLE_APP_NAME,
+    {
+      timestampMs: Date.now(),
+    },
+  );
   const url = `${AUTORECYCLER_ORIGIN}${path}`;
   let lastError: unknown;
 
