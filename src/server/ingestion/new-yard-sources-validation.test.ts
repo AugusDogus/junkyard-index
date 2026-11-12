@@ -1,12 +1,14 @@
 import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { vehicle } from "~/schema";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import { TEST_SCHEMA, makeVehicle } from "./durable-ingestion-test-fixtures";
 import { serializeDurableSourceCursor } from "./durable-source";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
+import { validateSourceSnapshot } from "./source-validation";
 import { BrandywineCursor } from "./brandywine-cursor";
 import {
   brandywineSavedControls,

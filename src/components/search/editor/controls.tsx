@@ -78,6 +78,7 @@ const SOURCES = [
   ["ipullupull", "iPull-uPull"],
   ["upullitwa", "Washington U-Pull-It"],
   ["partsgalore", "Parts Galore"],
+  ["chesterfield", "Chesterfield Auto Parts"],
   ["bigtruckpage", "BigTruckPage"],
   ["beavers", "Beaver's Car Salvage"],
   ["army", "Army's Auto Wrecking"],

@@ -72,13 +72,7 @@ export async function validateDurableSourceRuns(params: {
     );
   }
   const countBySource = new Map<string, number>();
-  for (const row of sourceRows) {
-    const snapshot = await loadSourceSnapshot(
-      params.snapshotStore,
-      row.snapshotChunks,
-    );
-    countBySource.set(row.source, snapshot.vehicles.size);
-  }
+  const yardErrorsBySource = new Map<string, string[]>();
 
   const validations: Array<{
     source: IngestionSource;
@@ -117,7 +111,10 @@ export async function validateDurableSourceRuns(params: {
       vehiclesProcessed: row.vehiclesProcessed,
       duplicateVehicles,
       rejectedVehicles: row.rejectedVehicles,
-      errors: parseIngestionErrors(row.errors),
+      errors: [
+        ...parseIngestionErrors(row.errors),
+        ...(yardErrorsBySource.get(row.source) ?? []),
+      ],
       previousAcceptedCount: previous?.count ?? null,
     });
     validations.push({

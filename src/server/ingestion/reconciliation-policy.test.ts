@@ -74,6 +74,7 @@ describe("reconciliation policy", () => {
       "upullitwa",
       "partsgalore",
       "aero",
+      "chesterfield",
       "army",
       "alln1",
       "aviation",
@@ -92,7 +93,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 24",
+      "when 'autorecycler' then 0",
     );
   });
 
@@ -168,7 +169,7 @@ describe("reconciliation policy", () => {
     ).toEqual(["pyp"]);
   });
 
-  test.each(["calton", "bigtruckpage"] as const)(
+  test.each([ "calton", "bigtruckpage"] as const)(
     "%s replaces an AutoRecycler mirror and retains native ownership",
     (source) => {
       const runTimestamp = new Date("2026-03-05T00:00:00.000Z");

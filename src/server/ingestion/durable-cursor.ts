@@ -3,6 +3,7 @@ import { AutorecyclerCursorSchema } from "./autorecycler-cursor";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
+import { ChesterfieldCursorSchema } from "./chesterfield-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
@@ -320,6 +321,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   ),
   upullitwa: defineJsonCursor("upullitwa", UpullitwaCursorSchema),
   aero: defineJsonCursor("aero", AeroCursorSchema),
+  chesterfield: defineJsonCursor("chesterfield", ChesterfieldCursorSchema),
   bigtruckpage: defineJsonCursor("bigtruckpage", BigtruckpageCursorSchema),
   army: defineJsonCursor("army", ArmyCursorSchema),
   alln1: defineJsonCursor("alln1", Alln1CursorSchema),
