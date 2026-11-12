@@ -54,6 +54,8 @@ import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
 import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
 import { soakChesterfieldInventory } from "./soak-chesterfield";
+import { streamUtpapInventory } from "../src/server/ingestion/utpap-connector";
+import { soakUtpapInventory } from "./soak-utpap";
 import { streamTritownInventory } from "../src/server/ingestion/tritown-connector";
 import { soakTritownInventory } from "./soak-tritown";
 import { streamMidwayInventory } from "../src/server/ingestion/midway-connector";
@@ -390,6 +392,22 @@ async function main(): Promise<void> {
     try {
       const sourceResult = await (() => {
         switch (source) {
+          case "utpap": {
+            const photoStore = DonorPhotoStore.memory();
+            return soakUtpapInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamUtpapInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                    photoStore,
+                    appOrigin: "https://soak.invalid",
+                  }),
+                ),
+              config.maxPages,
+            );
+          }
           case "chesterfield": {
             const photoStore = DonorPhotoStore.memory();
             return soakChesterfieldInventory(

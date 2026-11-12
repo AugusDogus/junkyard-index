@@ -86,6 +86,7 @@ const SOURCES = [
   ["nvpap", "Nevada Pic-A-Part"],
   ["pontiac", "U-Pull and Save Pontiac"],
   ["chesterfield", "Chesterfield Auto Parts"],
+  ["utpap", "Utah Pic-A-Part"],
   ["tritown", "Tri Town Auto Salvage"],
   ["midway", "Midway U Pull"],
   ["rightway", "Rightway Auto Recycling"],

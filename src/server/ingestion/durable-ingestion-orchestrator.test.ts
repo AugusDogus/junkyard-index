@@ -40,6 +40,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     pontiac: 0,
     aero: 0,
     chesterfield: 0,
+    utpap: 0,
     tritown: 0,
     midway: 0,
     rightway: 0,

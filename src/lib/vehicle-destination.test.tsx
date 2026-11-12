@@ -329,6 +329,11 @@ describe("working destinations", () => {
       "View matching inventory",
     ],
     [
+      "utpap",
+      "https://utpap.com/search-inventory_ogden.php?make=CHEVROLET&model=",
+      "View matching inventory",
+    ],
+    [
       "row52",
       "https://row52.com/Vehicle/Index/3N69R9M338069",
       "View inventory",
