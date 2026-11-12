@@ -82,6 +82,8 @@ import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
 import { streamIdipullInventory } from "../src/server/ingestion/idipull-connector";
 import { soakIdipullInventory } from "./soak-idipull";
+import { streamLittletonInventory } from "../src/server/ingestion/littleton-connector";
+import { soakLittletonInventory } from "./soak-littleton";
 import { streamJolietInventory } from "../src/server/ingestion/joliet-connector";
 import { soakJolietInventory } from "./soak-joliet";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
@@ -614,6 +616,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamJolietInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "littleton":
+            return soakLittletonInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamLittletonInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

@@ -210,6 +210,7 @@ describe("manual provider destinations across search, durable alerts and present
     ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
     ["army", "https://armysauto.com/self-service-inventory/"],
     ["idipull", "https://ifipull.com/inventory/"],
+    ["littleton", "https://littletonupullit.com/vehicle-inventory"],
     ["joliet", "https://www.jolietupullit.com/inventory"],
   ] as const)(
     "%s labels its searchable table honestly across all surfaces",

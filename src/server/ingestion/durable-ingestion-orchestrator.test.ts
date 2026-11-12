@@ -44,6 +44,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     importapart: 0,
     army: 0,
     idipull: 0,
+    littleton: 0,
     joliet: 0,
     alln1: 0,
     aviation: 0,
