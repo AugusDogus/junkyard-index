@@ -45,6 +45,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "millerstown",
   "pickapartva",
   "mccauley",
+  "rustyhook",
   "aviation",
   "chaz",
   "citymotors",

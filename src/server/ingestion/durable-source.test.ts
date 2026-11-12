@@ -141,6 +141,7 @@ describe("durable ingestion cursors", () => {
     },
   );
   test.each([
+    "rustyhook",
     "aviation",
     "chaz",
     "citymotors",

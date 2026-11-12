@@ -123,6 +123,7 @@ import { streamPickapartvaInventory } from "../src/server/ingestion/pickapartva-
 import { soakPickapartvaInventory } from "./soak-pickapartva";
 import { streamMccauleyInventory } from "../src/server/ingestion/mccauley-connector";
 import { soakMccauleyInventory } from "./soak-mccauley";
+import { streamRustyhookInventory } from "../src/server/ingestion/rustyhook-connector";
 import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
 import { soakAviationInventory } from "./soak-aviation";
 import { streamChazInventory } from "../src/server/ingestion/chaz-connector";
@@ -141,6 +142,7 @@ import { streamCoutuInventory } from "../src/server/ingestion/coutu-connector";
 import { soakCoutuInventory } from "./soak-coutu";
 import { streamKodakInventory } from "../src/server/ingestion/kodak-connector";
 import { soakKodakInventory } from "./soak-kodak";
+import { soakRustyhookInventory } from "./soak-rustyhook";
 import { streamRohnerInventory } from "../src/server/ingestion/rohner-connector";
 import { soakRohnerInventory } from "./soak-rohner";
 import { streamPrattInventoryFromProvider } from "../src/server/ingestion/pratt-connector";
@@ -719,6 +721,14 @@ async function main(): Promise<void> {
                   streamMccauleyInventory({ startCursor, maxPages, onBatch }),
                 ),
               Math.min(config.maxPages ?? 104, 104),
+            );
+          case "rustyhook":
+            return soakRustyhookInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamRustyhookInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
             );
           case "aviation":
             return soakAviationInventory(

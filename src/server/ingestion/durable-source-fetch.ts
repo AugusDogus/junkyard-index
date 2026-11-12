@@ -34,6 +34,7 @@ import { streamUwrenchInventory } from "./uwrench-connector";
 import { streamMillerstownInventory } from "./millerstown-connector";
 import { streamPickapartvaInventory } from "./pickapartva-connector";
 import { streamMccauleyInventory } from "./mccauley-connector";
+import { streamRustyhookInventory } from "./rustyhook-connector";
 import { streamAviationInventory } from "./aviation-connector";
 import { streamChazInventory } from "./chaz-connector";
 import { streamCitymotorsInventory } from "./citymotors-connector";
@@ -550,6 +551,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamAviationInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  rustyhook: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamRustyhookInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

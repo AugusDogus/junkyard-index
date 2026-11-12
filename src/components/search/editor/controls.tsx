@@ -113,6 +113,7 @@ const SOURCES = [
   ["millerstown", "Millerstown Pic-A-Part"],
   ["pickapartva", "Pick-A-Part Virginia"],
   ["mccauley", "McCauley's Auto"],
+  ["rustyhook", "Rusty Hook Auto Salvage"],
   ["aviation", "Aviation Auto Salvage"],
   ["chaz", "Chaz's Used Auto Parts & Towing"],
   ["citymotors", "City Motors"],
