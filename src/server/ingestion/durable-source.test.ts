@@ -11,6 +11,19 @@ import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 describe("durable ingestion cursors", () => {
+  test.each([...INGESTION_SOURCES])(
+    "round trips the registered %s initial checkpoint and rejects malformed input",
+    (source) => {
+      const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
+      expect(
+        parseDurableSourceCursor(source, serializeDurableSourceCursor(initial)),
+      ).toEqual(initial);
+      expect(() =>
+        parseDurableSourceCursor(source, '{"phase":"invalid"}'),
+      ).toThrow();
+    },
+  );
+
   test.each(["ipullupull", "partsgalore"] as const)(
     "round trips %s atomic catalog checkpoints",
     (source) => {

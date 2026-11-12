@@ -61,6 +61,38 @@ describe("source snapshot validation", () => {
     });
   });
 
+  test.each([
+  ] as const)(
+    "$source preserves its floor and existing raw rejection guard",
+    ({ source, minimum, accepted, rejected }) => {
+      expect(SourceValidationPolicy.minimumUniqueInventory[source]).toBe(
+        minimum,
+      );
+      const measured = {
+        ...healthyRow52(),
+        source,
+        uniqueVehicles: accepted,
+        vehiclesProcessed: accepted + rejected,
+        rejectedVehicles: rejected,
+      };
+      expect(validateSourceSnapshot(measured).status).toBe("accepted");
+      expect(
+        validateSourceSnapshot({
+          ...measured,
+          uniqueVehicles: minimum - 1,
+          rejectedVehicles: 0,
+        }).status,
+      ).toBe("rejected");
+      expect(
+        validateSourceSnapshot({ ...measured, rejectedVehicles: accepted })
+          .status,
+      ).toBe("rejected");
+      expect(
+        validateSourceSnapshot({ ...measured, duplicateVehicles: accepted })
+          .status,
+      ).toBe("rejected");
+    },
+  );
   test("rejects clean-empty and truncated provider results", () => {
     const empty = validateSourceSnapshot({
       ...healthyRow52(),
