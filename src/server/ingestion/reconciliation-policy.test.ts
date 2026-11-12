@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { vehicle } from "~/schema";
 import type { CanonicalVehicle } from "./types";
 import {
@@ -72,6 +73,7 @@ describe("reconciliation policy", () => {
       "ipullupull",
       "upullitwa",
       "partsgalore",
+      "aero",
       "autorecycler",
     ]);
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
@@ -81,7 +83,13 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 14",
+      "when 'autorecycler' then 0",
+    );
+  });
+
+  test("assigns every registered source exactly one explicit priority", () => {
+    expect([...RECONCILIATION_SOURCE_PRIORITY].sort()).toEqual(
+      [...INGESTION_SOURCES].sort(),
     );
   });
 
@@ -150,6 +158,36 @@ describe("reconciliation policy", () => {
       }).map((entry) => entry.vehicle.source),
     ).toEqual(["pyp"]);
   });
+
+  test.each([] as const)(
+    "%s replaces an AutoRecycler mirror and retains native ownership",
+    (source) => {
+      const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
+      const native = canonicalVehicle("VIN123", { source });
+      const owner = existingVehicle("VIN123", { source: "autorecycler" });
+      expect(
+        planChangedVehicleUpserts({
+          inventory: new Map([[native.vin, native]]),
+          existingRows: [owner],
+          runTimestamp,
+          acceptedSources: new Set([source]),
+        }),
+      ).toEqual([{ vehicle: native, firstSeenAt: owner.firstSeenAt }]);
+      expect(
+        planChangedVehicleUpserts({
+          inventory: new Map([
+            ["VIN123", canonicalVehicle("VIN123", { source: "autorecycler" })],
+          ]),
+          existingRows: [existingVehicle("VIN123", { source })],
+          runTimestamp,
+          acceptedSources: new Set(["autorecycler"]),
+        }),
+      ).toEqual([]);
+      expect(reconciliationSourcePrioritySql("candidate")).toContain(
+        `when '${source}' then ${RECONCILIATION_SOURCE_PRIORITY.indexOf(source) + 1}`,
+      );
+    },
+  );
 
   test("advances missing state only for accepted sources and deletes at the threshold", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");

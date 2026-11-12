@@ -17,7 +17,17 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   tearapart: "https://tearapart.com/inventory/",
   upullrparts: "https://upullrparts.com/inventory/",
   partsgalore: "https://parts-galore.com/inventory/",
+  aero: "https://aeroautosalvage.com/vehicle-inventory/",
 };
+
+function manualSearchExplanation(source: DataSource): string {
+  switch (source) {
+    case "aero":
+      return "This provider has no vehicle links. Search its inventory table, then match the VIN and stock number.";
+    default:
+      return "This provider has no vehicle links. Select make/model on its inventory page, then match the VIN and yard.";
+  }
+}
 
 function resolve(
   vehicle: Pick<SearchVehicle, "source" | "detailsUrl">,
@@ -29,8 +39,7 @@ function resolve(
       kind: "manual-search",
       href: manualSearchUrl,
       label: "Search provider inventory",
-      explanation:
-        "This provider has no vehicle links. Select make/model on its inventory page, then match the VIN and yard.",
+      explanation: manualSearchExplanation(vehicle.source),
     };
   }
 

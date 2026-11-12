@@ -6,6 +6,7 @@ import { streamUpullRPartsInventory } from "./upullrparts-connector";
 import { streamIPullUPullInventory } from "./ipullupull-connector";
 import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
+import { streamAeroInventory } from "./aero-connector";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -76,6 +77,20 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  aero: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamAeroInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   ipullupull: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

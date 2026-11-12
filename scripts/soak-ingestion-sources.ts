@@ -44,6 +44,7 @@ import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-
 import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-connector";
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
+import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -65,6 +66,9 @@ interface SourceResult {
   pages: number;
   vehicles: number;
   batches: number;
+  uniqueEmittedVins: number;
+  duplicateEmissions: number;
+  vehiclesByYard: Record<string, number>;
   durationSeconds: number;
   requests: number | null;
   rateLimitedResponses: number | null;
@@ -243,10 +247,18 @@ async function main(): Promise<void> {
     const networkErrorsBefore = before.networkErrors;
     let batches = 0;
     let batchVehicles = 0;
+    const emittedVins = new Set<string>();
+    const yardVins = new Map<string, Set<string>>();
     const onBatch = (vehicles: CanonicalVehicle[]) =>
       Effect.sync(() => {
         batches += 1;
         batchVehicles += vehicles.length;
+        for (const vehicle of vehicles) {
+          emittedVins.add(vehicle.vin);
+          const vins = yardVins.get(vehicle.locationCode) ?? new Set<string>();
+          vins.add(vehicle.vin);
+          yardVins.set(vehicle.locationCode, vins);
+        }
       });
     const sourceStartedAt = Date.now();
     console.log(
@@ -271,6 +283,8 @@ async function main(): Promise<void> {
     try {
       const sourceResult = await (() => {
         switch (source) {
+          case "aero":
+            return runProgram(streamAeroInventory({ onBatch }));
           case "ipullupull":
             return runProgram(streamIPullUPullInventory({ onBatch }));
           case "upullitwa":
@@ -331,6 +345,8 @@ async function main(): Promise<void> {
             return runProgram(
               streamAutorecyclerInventory({
                 onBatch,
+                startCursor:
+                  DURABLE_SOURCE_DEFINITIONS.autorecycler.initialCursor,
                 maxPages: config.maxPages,
               }),
             );
@@ -428,6 +444,11 @@ async function main(): Promise<void> {
         pages: sourceResult.pagesProcessed,
         vehicles: sourceResult.count,
         batches,
+        uniqueEmittedVins: emittedVins.size,
+        duplicateEmissions: batchVehicles - emittedVins.size,
+        vehiclesByYard: Object.fromEntries(
+          [...yardVins].map(([code, vins]) => [code, vins.size]),
+        ),
         durationSeconds: (Date.now() - sourceStartedAt) / 1000,
         // PYP uses curl, which bypasses the fetch instrumentation below.
         requests: source === "pyp" ? null : after.requests - requestsBefore,
@@ -446,6 +467,8 @@ async function main(): Promise<void> {
       };
       allResults.push(result);
       console.log("[soak] complete", result);
+      if ("accounting" in sourceResult)
+        console.log("[soak] accounting", sourceResult.accounting);
     } catch (error) {
       const after = requestMetrics.metricsFor(source);
       const result: SourceResult = {
@@ -455,6 +478,11 @@ async function main(): Promise<void> {
         pages: 0,
         vehicles: batchVehicles,
         batches,
+        uniqueEmittedVins: emittedVins.size,
+        duplicateEmissions: batchVehicles - emittedVins.size,
+        vehiclesByYard: Object.fromEntries(
+          [...yardVins].map(([code, vins]) => [code, vins.size]),
+        ),
         durationSeconds: (Date.now() - sourceStartedAt) / 1000,
         requests: source === "pyp" ? null : after.requests - requestsBefore,
         rateLimitedResponses:

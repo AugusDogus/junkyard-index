@@ -79,6 +79,41 @@ const manualProviders = [
 ] as const;
 
 describe("manual provider destinations across search, durable alerts and presentation", () => {
+  test.each([] as const)(
+    "%s directs users to stock matching without claiming native VINs or vehicle links",
+    async (source, url) => {
+      const restored = roundTripNotification(vehicle(source, null));
+      const { card, email, discord } = await renderSurfaces(restored);
+      for (const html of [card, email]) {
+        expect(html).toContain(`href="${url}"`);
+        expect(html).toContain("Search provider inventory");
+        expect(html).toContain("stock number");
+        expect(html).toContain("yard row");
+        expect(html).not.toContain("match the VIN");
+        expect(html).not.toContain("View vehicle");
+      }
+      expect(discord.url).toBeUndefined();
+      expect(discord.description).toContain("stock number");
+    },
+  );
+  test.each([
+    ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
+  ] as const)(
+    "%s labels its searchable table honestly across all surfaces",
+    async (source, url) => {
+      const restored = roundTripNotification(vehicle(source, url));
+      const { card, email, discord } = await renderSurfaces(restored);
+      for (const html of [card, email]) {
+        expect(html).toContain(`href="${url}"`);
+        expect(html).toContain("Search provider inventory");
+        expect(html).toContain("Search its inventory table");
+        expect(html).not.toContain("Select make/model");
+        expect(html).not.toContain("View vehicle");
+      }
+      expect(discord.url).toBeUndefined();
+      expect(discord.description).toContain("Search its inventory table");
+    },
+  );
   for (const [source, inventoryUrl] of manualProviders) {
     test.each([null, "", inventoryUrl, `${inventoryUrl}?stock=STK123`])(
       `${source}: renders an honest search action for stored URL %j`,

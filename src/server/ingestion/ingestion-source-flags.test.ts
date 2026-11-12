@@ -1,9 +1,67 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { Reason } from "@vercel/flags-core";
-import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 
 describe("IngestionSourceFlags.resolve", () => {
+  test("preserves exactly the fourteen established default-enabled sources", () => {
+    expect(IngestionSourceFlags.resolve({})).toEqual([
+      "row52",
+      "pyp",
+      "autorecycler",
+      "pullapart",
+      "upullitne",
+      "upullitdavie",
+      "gopullit",
+      "pullnsave",
+      "tearapart",
+      "wrenchapart",
+      "upullrparts",
+      "ipullupull",
+      "upullitwa",
+      "partsgalore",
+    ]);
+  });
+  test.each([
+    "aero",
+  ] as const)(
+    "requires explicit enablement for %s before rollout",
+    (source) => {
+      expect(IngestionSourceFlags.resolve({})).not.toContain(source);
+      expect(
+        IngestionSourceFlags.resolve({
+          [`ingestion-source-${source}`]: {
+            value: true,
+            variantId: "on",
+            reason: Reason.FALLTHROUGH,
+          },
+        }),
+      ).toContain(source);
+      const consoleError = spyOn(console, "error").mockImplementation(() => {});
+      try {
+        expect(
+          IngestionSourceFlags.resolve({
+            [`ingestion-source-${source}`]: {
+              value: "true",
+              variantId: "malformed",
+              reason: Reason.FALLTHROUGH,
+            },
+          }),
+        ).not.toContain(source);
+        expect(
+          IngestionSourceFlags.resolve({
+            [`ingestion-source-${source}`]: {
+              value: true,
+              variantId: null,
+              reason: Reason.ERROR,
+              errorMessage: "Failed to get OIDC token",
+            },
+          }),
+        ).not.toContain(source);
+      } finally {
+        consoleError.mockRestore();
+      }
+    },
+  );
   test("leaves out sources whose flag serves false", () => {
     expect(
       IngestionSourceFlags.resolve({
@@ -18,7 +76,11 @@ describe("IngestionSourceFlags.resolve", () => {
           reason: Reason.FALLTHROUGH,
         },
       }),
-    ).toEqual(INGESTION_SOURCES.filter((source) => source !== "upullrparts"));
+    ).toEqual(
+      IngestionSourceFlags.resolve({}).filter(
+        (source) => source !== "upullrparts",
+      ),
+    );
   });
 
   test("keeps sources enabled when their flag is missing or unreadable", () => {
@@ -38,7 +100,7 @@ describe("IngestionSourceFlags.resolve", () => {
             reason: Reason.FALLTHROUGH,
           },
         }),
-      ).toEqual([...INGESTION_SOURCES]);
+      ).toEqual(IngestionSourceFlags.resolve({}));
       expect(consoleError).toHaveBeenCalledTimes(2);
     } finally {
       consoleError.mockRestore();
