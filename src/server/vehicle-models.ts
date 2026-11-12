@@ -32,10 +32,10 @@ export const getMakes = cache(
   async (): Promise<MakeEntry[]> => MakeInventory.makes(await getMakeCounts()),
 );
 
-/** Each make's page, by make key, for linking from yard pages. */
-export const getMakeHrefs = cache(
+/** Each make's URL slug, by make key, for linking from yard pages. */
+export const getMakeSlugs = cache(
   async (): Promise<ReadonlyMap<string, string>> =>
-    new Map((await getMakes()).map((make) => [make.key, make.href])),
+    new Map((await getMakes()).map((make) => [make.key, make.slug])),
 );
 
 /**
@@ -127,7 +127,7 @@ async function loadModelArrivals(
 
 /** One model's most recently set vehicles, across all yards. */
 const getModelArrivals = cacheInventory(loadModelArrivals, [
-  "model-arrivals-v2",
+  "model-arrivals-v3",
 ]);
 
 function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
