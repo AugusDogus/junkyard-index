@@ -54,6 +54,8 @@ import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
 import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
 import { soakChesterfieldInventory } from "./soak-chesterfield";
+import { streamTritownInventory } from "../src/server/ingestion/tritown-connector";
+import { soakTritownInventory } from "./soak-tritown";
 import { streamMidwayInventory } from "../src/server/ingestion/midway-connector";
 import { soakMidwayInventory } from "./soak-midway";
 import { streamRightwayInventory } from "../src/server/ingestion/rightway-connector";
@@ -404,6 +406,14 @@ async function main(): Promise<void> {
               config.maxPages,
             );
           }
+          case "tritown":
+            return soakTritownInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamTritownInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
           case "midway":
             return soakMidwayInventory(
               (startCursor, maxPages) =>

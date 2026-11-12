@@ -27,6 +27,7 @@ describe("source snapshot validation", () => {
     { source: "upullitwa", count: 2_480 },
     { source: "partsgalore", count: 1_059 },
     { source: "chesterfield", count: 2_111 },
+    { source: "tritown", count: 470 },
     { source: "midway", count: 763 },
     { source: "rightway", count: 543 },
     { source: "ddauto", count: 67 },
@@ -94,7 +95,7 @@ describe("source snapshot validation", () => {
       expect(
         validateSourceSnapshot({
           ...measured,
-          previousAcceptedCount: count * 3,
+          previousAcceptedCount: Math.max(4, count * 3),
         }).status,
       ).toBe("rejected");
     },

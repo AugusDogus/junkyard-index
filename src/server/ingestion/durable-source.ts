@@ -3,6 +3,7 @@ import { PontiacCursor } from "./pontiac-cursor";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { ChesterfieldCursor } from "./chesterfield-cursor";
+import { TritownCursor } from "./tritown-cursor";
 import { MidwayCursor } from "./midway-cursor";
 import { RightwayCursor } from "./rightway-cursor";
 import { DdautoCursor } from "./ddauto-cursor";
@@ -198,6 +199,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: ChesterfieldCursor.initial,
     maxPagesPerChunk: 16,
   },
+  tritown: { initialCursor: TritownCursor.initial, maxPagesPerChunk: 16 },
   midway: { initialCursor: MidwayCursor.initial, maxPagesPerChunk: 2 },
   rightway: { initialCursor: RightwayCursor.initial, maxPagesPerChunk: 1 },
   ddauto: { initialCursor: DdautoCursor.initial, maxPagesPerChunk: 1 },

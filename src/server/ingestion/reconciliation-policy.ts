@@ -23,6 +23,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "pontiac",
   "aero",
   "chesterfield",
+  "tritown",
   "midway",
   "rightway",
   "ddauto",

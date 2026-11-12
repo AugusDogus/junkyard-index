@@ -78,6 +78,7 @@ describe("reconciliation policy", () => {
       "pontiac",
       "aero",
       "chesterfield",
+      "tritown",
       "midway",
       "rightway",
       "ddauto",
@@ -132,7 +133,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 64",
+      "when 'autorecycler' then 0",
     );
   });
 

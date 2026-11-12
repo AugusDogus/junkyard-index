@@ -140,17 +140,20 @@ describe("durable ingestion cursors", () => {
       }
     },
   );
-  test.each(["aviation", "chaz", "citymotors", "aplus", "coutu"] as const)(
-    "%s rejects oversized wire before JSON decoding",
-    (source) => {
-      for (const wire of [
-        "x".repeat(1024 * 1024 + 1),
-        '"' + "é".repeat(600_000) + '"',
-      ]) {
-        expect(() => parseDurableSourceCursor(source, wire)).toThrow(/1 MiB/);
-      }
-    },
-  );
+  test.each([
+    "aviation",
+    "chaz",
+    "citymotors",
+    "aplus",
+    "coutu",
+  ] as const)("%s rejects oversized wire before JSON decoding", (source) => {
+    for (const wire of [
+      "x".repeat(1024 * 1024 + 1),
+      '"' + "é".repeat(600_000) + '"',
+    ]) {
+      expect(() => parseDurableSourceCursor(source, wire)).toThrow(/1 MiB/);
+    }
+  });
   test.each([...INGESTION_SOURCES])(
     "round trips the registered %s initial checkpoint and rejects malformed input",
     (source) => {
@@ -163,7 +166,7 @@ describe("durable ingestion cursors", () => {
       ).toThrow();
     },
   );
-  test.each(["kodak"] as const)(
+  test.each(["kodak",] as const)(
     "%s preserves strict source/version and complete checkpoint codecs",
     (source) => {
       const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
@@ -223,7 +226,7 @@ describe("durable ingestion cursors", () => {
       ),
     ).toThrow("Invalid rtp ingestion cursor");
   });
-  test.each(["pickers", "pipes"] as const)(
+  test.each(["pickers", "pipes",] as const)(
     "%s preserves its bounded source-specific wire codec",
     (source) => {
       const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
