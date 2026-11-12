@@ -22,6 +22,7 @@ describe("IngestionSourceFlags.resolve", () => {
     ]);
   });
   test.each([
+    "nvpap",
     "aero",
     "chesterfield",
     "ddauto",

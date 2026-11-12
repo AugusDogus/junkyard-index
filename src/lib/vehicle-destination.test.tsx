@@ -118,6 +118,7 @@ const manualProviders = [
   ["tearapart", "https://tearapart.com/inventory/"],
   ["upullrparts", "https://upullrparts.com/inventory/"],
   ["partsgalore", "https://parts-galore.com/inventory/"],
+  ["nvpap", "https://nvpap.com/part-interchange.html"],
 ] as const;
 
 describe("manual provider destinations across search, durable alerts and presentation", () => {
