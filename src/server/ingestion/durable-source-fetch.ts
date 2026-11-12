@@ -11,6 +11,7 @@ import { streamNvpapInventory } from "./nvpap-connector";
 import { streamPontiacInventory } from "./pontiac-connector";
 import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
+import { streamUtpapInventory } from "./utpap-connector";
 import { streamTritownInventory } from "./tritown-connector";
 import { streamMidwayInventory } from "./midway-connector";
 import { streamRightwayInventory } from "./rightway-connector";
@@ -831,6 +832,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  utpap: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamUtpapInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+          photoStore: DonorPhotoStore.vercelBlob(env.BLOB_READ_WRITE_TOKEN),
+          appOrigin: env.NEXT_PUBLIC_APP_URL,
         }),
       ),
       (next) => next,

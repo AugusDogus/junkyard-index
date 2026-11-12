@@ -93,7 +93,8 @@ function resolve(
       vehicle.source === "wrenchapart"
         ? "View vehicle"
         : vehicle.source === "ipullupull" ||
-            vehicle.source === "upullitwa"
+            vehicle.source === "upullitwa" ||
+            vehicle.source === "utpap"
           ? "View matching inventory"
           : "View inventory",
   };
