@@ -9,6 +9,7 @@ import { AeroCursorSchema } from "./aero-cursor";
 import { ChesterfieldCursorSchema } from "./chesterfield-cursor";
 import { UtpapCursorSchema } from "./utpap-cursor";
 import { TritownCursorSchema } from "./tritown-cursor";
+import { WhitebradstreetCursorSchema } from "./whitebradstreet-cursor";
 import { MidwayCursorSchema } from "./midway-cursor";
 import { RightwayCursorSchema } from "./rightway-cursor";
 import { DdautoCursorSchema } from "./ddauto-cursor";
@@ -481,6 +482,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   chesterfield: defineJsonCursor("chesterfield", ChesterfieldCursorSchema),
   utpap: defineJsonCursor("utpap", UtpapCursorSchema),
   tritown: defineJsonCursor("tritown", TritownCursorSchema),
+  whitebradstreet: defineJsonCursor(
+    "whitebradstreet",
+    WhitebradstreetCursorSchema,
+  ),
   midway: defineJsonCursor("midway", MidwayCursorSchema),
   rightway: defineJsonCursor("rightway", RightwayCursorSchema),
   ddauto: defineJsonCursor("ddauto", DdautoCursorSchema),

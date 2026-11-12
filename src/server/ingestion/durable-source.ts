@@ -5,6 +5,7 @@ import { AeroCursor } from "./aero-cursor";
 import { ChesterfieldCursor } from "./chesterfield-cursor";
 import { UtpapCursor } from "./utpap-cursor";
 import { TritownCursor } from "./tritown-cursor";
+import { WhitebradstreetCursor } from "./whitebradstreet-cursor";
 import { MidwayCursor } from "./midway-cursor";
 import { RightwayCursor } from "./rightway-cursor";
 import { DdautoCursor } from "./ddauto-cursor";
@@ -202,6 +203,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   utpap: { initialCursor: UtpapCursor.initial, maxPagesPerChunk: 16 },
   tritown: { initialCursor: TritownCursor.initial, maxPagesPerChunk: 16 },
+  whitebradstreet: {
+    initialCursor: WhitebradstreetCursor.initial,
+    maxPagesPerChunk: 8,
+  },
   midway: { initialCursor: MidwayCursor.initial, maxPagesPerChunk: 2 },
   rightway: { initialCursor: RightwayCursor.initial, maxPagesPerChunk: 1 },
   ddauto: { initialCursor: DdautoCursor.initial, maxPagesPerChunk: 1 },

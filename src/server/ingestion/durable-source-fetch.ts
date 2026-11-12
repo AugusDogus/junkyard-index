@@ -13,6 +13,7 @@ import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
 import { streamUtpapInventory } from "./utpap-connector";
 import { streamTritownInventory } from "./tritown-connector";
+import { streamWhitebradstreetInventory } from "./whitebradstreet-connector";
 import { streamMidwayInventory } from "./midway-connector";
 import { streamRightwayInventory } from "./rightway-connector";
 import { streamDdautoInventory } from "./ddauto-connector";
@@ -772,6 +773,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamTritownInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  whitebradstreet: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamWhitebradstreetInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

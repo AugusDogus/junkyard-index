@@ -26,6 +26,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   utpap: 1_500,
   // Complete native catalogs audited under the existing required-field contract.
   tritown: 400,
+  whitebradstreet: 350,
   midway: 600,
   rightway: 450,
   ddauto: 50,
