@@ -30,6 +30,7 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   littleton: "https://littletonupullit.com/vehicle-inventory",
   joliet: "https://www.jolietupullit.com/inventory",
   pickers: "https://pickerstxk.com/Home/Inventory",
+  pipes: "https://www.pipesupullit.net/Home/Inventory",
   millerstown: "http://picapartyard.com/vehicles-on-premises/",
   pickapartva: "https://pickapartva.com/inventory/ANY/ANY/?k=1&id=ANY",
 };
@@ -43,6 +44,7 @@ function manualSearchExplanation(source: DataSource): string {
     case "chesterfield":
       return "Select make, model and years, find the matching yard, then open Pics and match the stock number.";
     case "pickers":
+    case "pipes":
       return "Select the vehicle's make, then match its stock number and yard row in the inventory table.";
     case "millerstown":
       return "Open the current vehicles-on-premises PDF, then match the VIN or serial number, year, make, model and stock number.";

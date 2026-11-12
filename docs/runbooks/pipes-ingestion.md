@@ -1,0 +1,25 @@
+# Pipes U-Pull-It ingestion
+
+Pipes is registered and disabled by default. Production enablement requires an explicit rollout of `ingestion-source-pipes`.
+
+Shared snapshot acceptance requires at least 500 unique vehicles. The existing 10% rejection, 25% duplicate and 50% prior-count guards remain in force.
+
+Source `pipes` covers one self-service yard, `shreveport`, at 806 Aero Drive, Shreveport LA 71107. The exact approved map coordinate is 32.5299208, -93.773648. Aero707 and UAPI809 are separate businesses. The manual destination is <https://www.pipesupullit.net/Home/Inventory>.
+
+The native website supplies the complete make directory and stock-bound donor rows. For each published make, the connector posts the literal `VehicleMake` and blank `VehicleModel` to `/Home/Inventory`. Blank model rows remain required-field rejects. Native complete year, make and model are authoritative as a whole. Native row, color, engine-like REFERENCE and owned stock-bound photo URLs are retained. No photo bytes are fetched.
+
+The website's published alert destination resolves the public inventory API owner `tri_state_iron_metal` and exact child `pipes_shreveport`. Only nonblank native make/model pairs are sent to `/searchVehicleHttp`, with null year bounds, English language and that exact location. The other three Texas Pickers locations are excluded. API VIN/serial and `dateAdded` enrich native donors. API YMM differences remain evidence and never replace native YMM. No blank API models, wildcard selectors, aliases or administrative routes are used.
+
+A valid explicit-offset `dateAdded` retains its full literal timestamp and offset. A valid offsetless timestamp becomes its calendar date. Invalid dates become null. Native arrival dates and `recencyAnchor` never substitute for `dateAdded`. UNKNOWN colors, SHELL references and phone references become null. Transmission, trim, section, space and parts/prices destinations remain null.
+
+The verified saved census has 39 makes, 549 native rows and 194 qualifying literal selectors. API responses contain 594 appearances, 548 unique stocks and 46 stable repeats. The final disposition is 535 vehicles, 14 required rejects, zero exclusions and zero duplicate vehicles. Two genuine identities on rejected native blank-model rows provide presence only. API-only owned extras are quarantined as active-scope-unproven, adding one processed record and one reject each. Missing API identities become native required rejects. Native/API year conflicts, contradictory repeated records and valid VIN reuse across distinct stocks fail the run.
+
+Every run gathers four opening ownership/context controls, the full native census, all literal enrichment queries, a second complete native census, exact first/last query bookends and four closing context controls. The current census requires 282 HTTP controls. Exact query bookends include `daysInYard`; repeat-stock comparisons exclude only this derived value. Physical ownership, menu, native rows and resolved public child must remain stable before callbacks run.
+
+The default and maximum chunk budget is eight HTTP controls, minimum one. Every request counts against that budget, including context and closing reads. Requests have no retries or redirects. Each complete body is limited to 4 MiB and shares one 20-second deadline with its request. The production gate waits 1600 ms after body completion. A chunk stops starting controls with less than 25 seconds of its three-minute budget remaining. The run is limited to 512 controls, 32 MiB of bodies, 64 makes, 1024 selectors, 2000 native/union stocks and 2000 matches per API response. The connector reserves the full per-response allowance before starting another control.
+
+The source codec bounds the serialized UTF-8 checkpoint at one MiB before JSON parsing and before serialization acceptance. The wire payload omits its fixed source tag. Checksums cover every stored field, including API optional fields, `daysInYard`, response fingerprints and native stock/photo associations. Complete prefix evidence is revalidated on resume. Checksums detect corruption; they do not authenticate a caller who can rewrite the whole checkpoint.
+
+Nonterminal chunks have zero vehicle count, zero accounting, empty observed identities and no callbacks. The terminal chunk emits one vehicle batch and the yard after all closing controls pass. Callback failure returns no advanced checkpoint. Prior inventory remains intact on failed validation. Retain the last validated checkpoint, inspect the named control and rerun after confirming the source is complete and stable. Do not bypass scope, rejection-ratio or completeness guards.
+
+`soakPipesInventory` in `scripts/soak-pipes.ts` accepts a caller-supplied chunk runner. It verifies progress and aggregates the HTTP budget without opening network connections itself. Use the shared read-only soak dispatcher for an explicitly authorized live run. Saved-response qualification alone does not enable production ingestion or authorize a live sweep.
