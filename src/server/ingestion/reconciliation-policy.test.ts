@@ -80,6 +80,7 @@ describe("reconciliation policy", () => {
       "alln1",
       "aviation",
       "chaz",
+      "citymotors",
       "awap",
       "aplus",
       "brandywine",

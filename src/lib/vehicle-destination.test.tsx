@@ -82,6 +82,7 @@ describe("manual provider destinations across search, durable alerts and present
   test.each([
     ["aviation", "https://aviationauto.com/used-parts/ACURA/ILX/RR116/2020"],
     ["chaz", "https://www.chazsauto.com/parts/MITSUBISHI/MIRAGE/HXY070/2017"],
+    ["citymotors", "https://citymotorsparts.com/cars/2025-bmw-m2-2/"],
     [
       "brandywine",
       "https://www.brandywineupullit.com/veh_single/?stockno=08A455",

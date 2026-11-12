@@ -1,0 +1,252 @@
+import { afterEach, expect, test } from "bun:test";
+import { Effect } from "effect";
+import { fetchCitymotorsPage } from "./citymotors-client";
+import { streamCitymotorsInventoryWithRequestGate } from "./citymotors-connector";
+import { CitymotorsCursor, CitymotorsCursorSchema } from "./citymotors-cursor";
+import type { CitymotorsCanonicalVehicle } from "./citymotors-transform";
+import { CITYMOTORS_CATALOG } from "./citymotors-yard-metadata";
+import {
+  citymotorsFixtureCatalog,
+  citymotorsFixtureDetail,
+  citymotorsFixturePost,
+} from "./citymotors-test-fixtures";
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
+function mockInventory(
+  options: {
+    rejected?: number;
+    duplicates?: number;
+    changedClosing?: boolean;
+    changedPhoto?: boolean;
+    response?: ResponseInit;
+    networkFailure?: boolean;
+    redirected?: boolean;
+  } = {},
+) {
+  const posts = Array.from({ length: 10 }, (_, index) => ({
+    ...citymotorsFixturePost,
+    url: citymotorsFixturePost.url.replace(/\/$/, `-${index}/`),
+  }));
+  const requests: string[] = [];
+  let listings = 0;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      requests.push(url);
+      if (options.networkFailure) throw new TypeError("Network unavailable");
+      let body: string;
+      if (url === CITYMOTORS_CATALOG) {
+        listings++;
+        const visible =
+          options.changedClosing && listings > 1 ? posts.slice(1) : posts;
+        body = citymotorsFixtureCatalog(
+          options.changedPhoto && listings > 1
+            ? visible.map((post) => ({
+                ...post,
+                imageUrl: post.imageUrl.replace("IMG_9541", "IMG_9542"),
+              }))
+            : visible,
+        );
+      } else {
+        const index = posts.findIndex((post) => post.url === url);
+        if (index < 0) throw new Error("Unexpected native request " + url);
+        const rejected = index >= 10 - (options.rejected ?? 0);
+        const donor =
+          !rejected && index >= 10 - (options.duplicates ?? 0) ? 0 : index;
+        body = citymotorsFixtureDetail({
+          url,
+          vin: "5UXCW2C09L9" + String(100000 + donor),
+          model: index >= 10 - (options.rejected ?? 0) ? "X5" : "X7",
+        });
+      }
+      const response = new Response(
+        body,
+        options.response ?? { headers: { "content-type": "text/html" } },
+      );
+      if (options.redirected)
+        Object.defineProperty(response, "url", {
+          value: "https://example.com/",
+        });
+      return response;
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  return requests;
+}
+function run<E = never>(
+  cursor: CitymotorsCursor = CitymotorsCursor.initial,
+  maxPages = 32,
+  onBatch: (
+    vehicles: CitymotorsCanonicalVehicle[],
+  ) => Effect.Effect<void, E> = () => Effect.void,
+) {
+  return Effect.runPromise(
+    streamCitymotorsInventoryWithRequestGate(
+      { startCursor: cursor, maxPages, onBatch },
+      gate,
+    ),
+  );
+}
+
+test("City Motors emits only a closed complete snapshot, preserves rejects and counts benign duplicates", async () => {
+  const requests = mockInventory({ rejected: 1, duplicates: 2 });
+  const result = await run();
+  expect(result).toMatchObject({
+    status: "complete",
+    count: 8,
+    pagesProcessed: 12,
+    observedVins: ["5UXCW2C09L9100009"],
+    accounting: {
+      recordsProcessed: 10,
+      recordsRejected: 1,
+      recordsExcluded: 0,
+      duplicateVehicles: 1,
+    },
+  });
+  expect(requests).toHaveLength(12);
+});
+
+test("City Motors pause/serialize/resume retains exact prefixes and emits nothing early", async () => {
+  const requests = mockInventory({ rejected: 1 });
+  let cursor: CitymotorsCursor = CitymotorsCursor.initial;
+  let callbacks = 0;
+  let total = 0;
+  for (let chunk = 0; chunk < 20; chunk++) {
+    const result = await run(cursor, 2, (vehicles) =>
+      Effect.sync(() => {
+        callbacks++;
+        total += vehicles.length;
+      }),
+    );
+    cursor = CitymotorsCursor.parse(CitymotorsCursor.serialize(result.cursor));
+    if (result.status === "complete") break;
+    expect(result.count).toBe(0);
+    expect(result.accounting.recordsProcessed).toBe(0);
+    expect(result.observedVins).toEqual([]);
+    expect(callbacks).toBe(0);
+  }
+  expect(cursor.phase).toBe("complete");
+  expect(callbacks).toBe(1);
+  expect(total).toBe(9);
+  expect(requests).toHaveLength(12);
+  expect((await run(cursor)).pagesProcessed).toBe(0);
+  expect(requests).toHaveLength(12);
+});
+
+test("City Motors rejects late catalog drift and excessive required loss before callbacks", async () => {
+  let callbacks = 0;
+  for (const options of [
+    { changedClosing: true },
+    { rejected: 2 },
+    { duplicates: 3 },
+  ]) {
+    mockInventory(options);
+    await expect(
+      run(undefined, 32, () =>
+        Effect.sync(() => {
+          callbacks++;
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(callbacks).toBe(0);
+  }
+});
+
+test("City Motors optional closing photo drift becomes null", async () => {
+  mockInventory({ changedPhoto: true });
+  const emitted: CitymotorsCanonicalVehicle[] = [];
+  const result = await run(undefined, 32, (vehicles) =>
+    Effect.sync(() => {
+      emitted.push(...vehicles);
+    }),
+  );
+  expect(result.count).toBe(10);
+  expect(emitted.every((vehicle) => vehicle.imageUrl === null)).toBe(true);
+});
+
+test.each<ResponseInit>([
+  { status: 403, headers: { "content-type": "text/html" } },
+  { status: 206, headers: { "content-type": "text/html" } },
+  { headers: { "content-type": "application/json" } },
+  {
+    headers: { "content-type": "text/html", "content-range": "bytes 0-1/100" },
+  },
+  { headers: { "content-type": "text/html", "content-length": "1" } },
+])(
+  "City Motors stops partial or non-HTML transport without retry (%#)",
+  async (response) => {
+    const requests = mockInventory({ response });
+    await expect(run()).rejects.toThrow("prior inventory is preserved");
+    expect(requests).toHaveLength(1);
+  },
+);
+
+test("City Motors rejects redirects, network failures and foreign destinations without fallback", async () => {
+  for (const options of [{ redirected: true }, { networkFailure: true }]) {
+    const requests = mockInventory(options);
+    await expect(run()).rejects.toThrow("prior inventory is preserved");
+    expect(requests).toHaveLength(1);
+  }
+  const requests = mockInventory();
+  await expect(
+    Effect.runPromise(
+      fetchCitymotorsPage("https://example.com/cars/vehicle/", gate),
+    ),
+  ).rejects.toThrow("outside");
+  expect(requests).toHaveLength(0);
+});
+
+test("City Motors validates checkpoint integrity, native order and request budgets before HTTP", async () => {
+  const requests = mockInventory();
+  for (const budget of [0, 33, 1.5])
+    await expect(run(undefined, budget)).rejects.toThrow("request budget");
+  expect(requests).toHaveLength(0);
+  const partial = await run(undefined, 2);
+  expect(partial.cursor.phase).toBe("details");
+  if (partial.cursor.phase !== "details")
+    throw new Error("Expected native detail checkpoint");
+  const cursor = partial.cursor;
+  expect(() =>
+    CitymotorsCursor.checkpoint({
+      ...cursor,
+      records: cursor.records.map((record) => ({
+        ...record,
+        status: "Sold whole",
+      })),
+    }),
+  ).toThrow();
+  expect(() =>
+    CitymotorsCursor.checkpoint({
+      ...cursor,
+      records: cursor.records.map((record) => ({
+        ...record,
+        description: "Not our vehicle. Foreign supplier.",
+      })),
+    }),
+  ).toThrow();
+  expect(
+    CitymotorsCursorSchema.safeParse({ ...partial.cursor, pages: [] }).success,
+  ).toBe(false);
+  expect(
+    CitymotorsCursorSchema.safeParse({ ...partial.cursor, records: [] })
+      .success,
+  ).toBe(false);
+  expect(() =>
+    CitymotorsCursor.checkpoint({
+      ...cursor,
+      records: [...cursor.records, ...cursor.records],
+    }),
+  ).toThrow();
+  expect(() => CitymotorsCursor.parse(" ".repeat(1024 * 1024 + 1))).toThrow(
+    "1 MiB",
+  );
+  const wire = CitymotorsCursor.serialize(partial.cursor);
+  await expect(
+    run(partial.cursor, 32, () => Effect.fail(new Error("Caller unavailable"))),
+  ).rejects.toThrow("Caller unavailable");
+  expect(CitymotorsCursor.serialize(partial.cursor)).toBe(wire);
+});

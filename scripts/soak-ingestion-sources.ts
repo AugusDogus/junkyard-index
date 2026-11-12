@@ -62,6 +62,8 @@ import { streamAviationInventory } from "../src/server/ingestion/aviation-connec
 import { soakAviationInventory } from "./soak-aviation";
 import { streamChazInventory } from "../src/server/ingestion/chaz-connector";
 import { soakChazInventory } from "./soak-chaz";
+import { streamCitymotorsInventory } from "../src/server/ingestion/citymotors-connector";
+import { soakCitymotorsInventory } from "./soak-citymotors";
 import { streamAwapInventory } from "../src/server/ingestion/awap-connector";
 import { soakAwapInventory } from "./soak-awap";
 import { streamAplusInventory } from "../src/server/ingestion/aplus-connector";
@@ -382,6 +384,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamChazInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "citymotors":
+            return soakCitymotorsInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamCitymotorsInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );
