@@ -107,6 +107,8 @@ import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
 import { soakAlln1Inventory } from "./soak-alln1";
 import { streamPickersInventory } from "../src/server/ingestion/pickers-connector";
 import { soakPickersInventory } from "./soak-pickers";
+import { streamPipesInventory } from "../src/server/ingestion/pipes-connector";
+import { soakPipesInventory } from "./soak-pipes";
 import { streamMillerstownInventory } from "../src/server/ingestion/millerstown-connector";
 import { soakMillerstownInventory } from "./soak-millerstown";
 import { streamPickapartvaInventory } from "../src/server/ingestion/pickapartva-connector";
@@ -615,6 +617,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamPickersInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "pipes":
+            return soakPipesInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamPipesInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

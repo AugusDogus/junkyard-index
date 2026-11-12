@@ -210,7 +210,7 @@ describe("durable ingestion cursors", () => {
       ),
     ).toThrow("Invalid rtp ingestion cursor");
   });
-  test.each(["pickers",] as const)(
+  test.each(["pickers", "pipes"] as const)(
     "%s preserves its bounded source-specific wire codec",
     (source) => {
       const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
