@@ -39,6 +39,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     army: 0,
     alln1: 0,
     aviation: 0,
+    awap: 0,
   },
   errors: [],
   durationMs: 10,

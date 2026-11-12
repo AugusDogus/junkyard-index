@@ -10,6 +10,7 @@ import { streamAeroInventory } from "./aero-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
 import { streamAviationInventory } from "./aviation-connector";
+import { streamAwapInventory } from "./awap-connector";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -80,6 +81,20 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  awap: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamAwapInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   aviation: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
