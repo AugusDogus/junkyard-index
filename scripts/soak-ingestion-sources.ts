@@ -94,6 +94,8 @@ import { streamMillerstownInventory } from "../src/server/ingestion/millerstown-
 import { soakMillerstownInventory } from "./soak-millerstown";
 import { streamPickapartvaInventory } from "../src/server/ingestion/pickapartva-connector";
 import { soakPickapartvaInventory } from "./soak-pickapartva";
+import { streamMccauleyInventory } from "../src/server/ingestion/mccauley-connector";
+import { soakMccauleyInventory } from "./soak-mccauley";
 import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
 import { soakAviationInventory } from "./soak-aviation";
 import { streamChazInventory } from "../src/server/ingestion/chaz-connector";
@@ -564,6 +566,14 @@ async function main(): Promise<void> {
                   }),
                 ),
               config.maxPages,
+            );
+          case "mccauley":
+            return soakMccauleyInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamMccauleyInventory({ startCursor, maxPages, onBatch }),
+                ),
+              Math.min(config.maxPages ?? 104, 104),
             );
           case "aviation":
             return soakAviationInventory(

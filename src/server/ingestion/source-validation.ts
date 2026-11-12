@@ -45,6 +45,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   millerstown: 900,
   // Two complete native Virginia catalogs: 7,422 unique donors on 2026-11-12.
   pickapartva: 6_500,
+  // Complete native Parts Vehicles census: 24 unique donors on 2026-11-12.
+  mccauley: 20,
   // Complete finite native model/arrival union: 2,326 unique donors.
   aviation: 2_000,
   // Complete finite native model/arrival union: 1,063 unique donors.

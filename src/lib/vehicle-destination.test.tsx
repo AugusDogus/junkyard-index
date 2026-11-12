@@ -124,6 +124,14 @@ const manualProviders = [
 
 describe("manual provider destinations across search, durable alerts and presentation", () => {
   test.each([
+    [
+      "mccauley",
+      "http://mccauleysautocom.fatcow.com/mccauleysauto/parts-2003-acura-mdx.html",
+    ],
+    [
+      "mccauley",
+      "https://www.mccauleysauto.com/pick-a-part-list-of-parts-vehicles",
+    ],
     ["aviation", "https://aviationauto.com/used-parts/ACURA/ILX/RR116/2020"],
     ["chaz", "https://www.chazsauto.com/parts/MITSUBISHI/MIRAGE/HXY070/2017"],
     ["citymotors", "https://citymotorsparts.com/cars/2025-bmw-m2-2/"],
