@@ -143,6 +143,7 @@ describe("manual provider destinations across search, durable alerts and present
   });
   test.each([
     ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
+    ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
     ["army", "https://armysauto.com/self-service-inventory/"],
   ] as const)(
     "%s labels its searchable table honestly across all surfaces",

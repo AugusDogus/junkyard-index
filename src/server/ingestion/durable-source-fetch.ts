@@ -8,6 +8,7 @@ import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
 import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
+import { streamDdautoInventory } from "./ddauto-connector";
 import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
@@ -216,6 +217,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamArmyInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  ddauto: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamDdautoInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

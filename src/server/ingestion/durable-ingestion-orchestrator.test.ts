@@ -37,6 +37,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     partsgalore: 0,
     aero: 0,
     chesterfield: 0,
+    ddauto: 0,
     army: 0,
     alln1: 0,
     aviation: 0,

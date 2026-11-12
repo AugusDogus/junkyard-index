@@ -19,6 +19,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   aero: 100,
   // Three native yards: 2,111 field-complete donors on 2026-11-11.
   chesterfield: 1_800,
+  ddauto: 50,
   bigtruckpage: 40,
   beavers: 240,
   army: 200,
