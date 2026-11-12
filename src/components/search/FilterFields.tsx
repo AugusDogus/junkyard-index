@@ -50,6 +50,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   alln1: "All-N-1 U Pull",
   millerstown: "Millerstown Pic-A-Part",
   pickapartva: "Pick-A-Part Virginia",
+  mccauley: "McCauley's Auto",
   aviation: "Aviation Auto Salvage",
   chaz: "Chaz's Used Auto Parts & Towing",
   citymotors: "City Motors",

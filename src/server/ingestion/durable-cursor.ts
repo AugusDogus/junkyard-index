@@ -27,6 +27,7 @@ import { JolietCursorSchema } from "./joliet-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { MillerstownCursorSchema } from "./millerstown-cursor";
 import { PickapartvaCursorSchema } from "./pickapartva-cursor";
+import { MccauleyCursorSchema } from "./mccauley-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
 import { CitymotorsCursor } from "./citymotors-cursor";
@@ -443,6 +444,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   alln1: defineJsonCursor("alln1", Alln1CursorSchema),
   millerstown: defineJsonCursor("millerstown", MillerstownCursorSchema),
   pickapartva: defineJsonCursor("pickapartva", PickapartvaCursorSchema),
+  mccauley: defineJsonCursor("mccauley", MccauleyCursorSchema),
   aviation: {
     parse: AviationCursor.parse,
     serialize: AviationCursor.serialize,
