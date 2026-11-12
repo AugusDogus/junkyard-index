@@ -187,6 +187,29 @@ describe("durable ingestion cursors", () => {
     for (const wire of ["x".repeat(4097), '"' + "é".repeat(2048) + '"'])
       expect(() => parseDurableSourceCursor("kodak", wire)).toThrow("4 KiB");
   });
+  test("round trips RTP per-yard ordering and quality counters", () => {
+    const cursor: DurableCursorFor<"rtp"> = {
+      source: "rtp",
+      phase: "page",
+      yardCode: "595",
+      offset: 100,
+      total: 413,
+      lastStock: "000000109287",
+      emitted: 94,
+      rejected: 5,
+      excluded: 1,
+    };
+    expect(
+      parseDurableSourceCursor("rtp", serializeDurableSourceCursor(cursor)),
+    ).toEqual(cursor);
+    expect(DURABLE_SOURCE_DEFINITIONS.rtp.maxPagesPerChunk).toBe(2);
+    expect(() =>
+      parseDurableSourceCursor(
+        "rtp",
+        JSON.stringify({ ...cursor, rejected: 0 }),
+      ),
+    ).toThrow("Invalid rtp ingestion cursor");
+  });
 
   test.each(["ipullupull", "partsgalore"] as const)(
     "round trips %s atomic catalog checkpoints",

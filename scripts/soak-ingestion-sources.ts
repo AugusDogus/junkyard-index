@@ -44,6 +44,8 @@ import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-
 import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-connector";
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
+import { streamRtpInventory } from "../src/server/ingestion/rtp-connector";
+import { soakRtpInventory } from "./soak-rtp";
 import { streamNvpapInventory } from "../src/server/ingestion/nvpap-connector";
 import { soakNvpapInventory } from "./soak-nvpap";
 import { streamPontiacInventory } from "../src/server/ingestion/pontiac-connector";
@@ -772,6 +774,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamNvpapInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "rtp":
+            return soakRtpInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamRtpInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

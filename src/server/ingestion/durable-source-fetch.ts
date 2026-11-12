@@ -6,6 +6,7 @@ import { streamUpullRPartsInventory } from "./upullrparts-connector";
 import { streamIPullUPullInventory } from "./ipullupull-connector";
 import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
+import { streamRtpInventory } from "./rtp-connector";
 import { streamNvpapInventory } from "./nvpap-connector";
 import { streamPontiacInventory } from "./pontiac-connector";
 import { streamAeroInventory } from "./aero-connector";
@@ -741,6 +742,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamNvpapInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  rtp: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamRtpInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

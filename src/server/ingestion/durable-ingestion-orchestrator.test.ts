@@ -35,6 +35,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     ipullupull: 0,
     upullitwa: 0,
     partsgalore: 0,
+    rtp: 0,
     nvpap: 0,
     pontiac: 0,
     aero: 0,

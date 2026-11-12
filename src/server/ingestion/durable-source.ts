@@ -174,6 +174,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: { source: "partsgalore", catalog: 0 },
     maxPagesPerChunk: 1,
   },
+  rtp: {
+    initialCursor: { source: "rtp", phase: "start", yardCode: "595" },
+    maxPagesPerChunk: 2,
+  },
   nvpap: {
     initialCursor: { source: "nvpap", phase: "start", yardCode: "1074" },
     maxPagesPerChunk: 16,

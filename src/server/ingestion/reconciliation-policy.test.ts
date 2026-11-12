@@ -73,6 +73,7 @@ describe("reconciliation policy", () => {
       "ipullupull",
       "upullitwa",
       "partsgalore",
+      "rtp",
       "nvpap",
       "pontiac",
       "aero",
