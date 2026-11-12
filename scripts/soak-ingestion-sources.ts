@@ -64,6 +64,8 @@ import { streamChasencarsInventoryFromProvider } from "../src/server/ingestion/c
 import { soakChasencarsInventory } from "./soak-chasencars";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
+import { streamIdipullInventory } from "../src/server/ingestion/idipull-connector";
+import { soakIdipullInventory } from "./soak-idipull";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
 import { soakAlln1Inventory } from "./soak-alln1";
 import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
@@ -423,6 +425,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamArmyInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "idipull":
+            return soakIdipullInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamIdipullInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );
