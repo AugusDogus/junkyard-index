@@ -49,6 +49,7 @@ const providerWebsites = new Map<string, string>([
   ["millerstown", "http://picapartyard.com/"],
   ["pickapartva", "https://pickapartva.com/"],
   ["mccauley", "https://www.mccauleysauto.com/parts-vehicles"],
+  ["rustyhook", "http://salvage.rustyhooktowing.com/"],
   ["aviation", "https://aviationauto.com/"],
   ["chaz", "https://www.chazsauto.com/"],
   ["citymotors", "https://citymotorsparts.com/"],

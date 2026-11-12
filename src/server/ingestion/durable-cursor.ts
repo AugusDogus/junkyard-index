@@ -41,6 +41,7 @@ import { UwrenchCursor } from "./uwrench-cursor";
 import { MillerstownCursorSchema } from "./millerstown-cursor";
 import { PickapartvaCursorSchema } from "./pickapartva-cursor";
 import { MccauleyCursorSchema } from "./mccauley-cursor";
+import { RustyhookCursor } from "./rustyhook-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
 import { CitymotorsCursor } from "./citymotors-cursor";
@@ -507,6 +508,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   millerstown: defineJsonCursor("millerstown", MillerstownCursorSchema),
   pickapartva: defineJsonCursor("pickapartva", PickapartvaCursorSchema),
   mccauley: defineJsonCursor("mccauley", MccauleyCursorSchema),
+  rustyhook: {
+    parse: RustyhookCursor.parse,
+    serialize: RustyhookCursor.serialize,
+  },
   aviation: {
     parse: AviationCursor.parse,
     serialize: AviationCursor.serialize,

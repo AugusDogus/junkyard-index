@@ -132,6 +132,10 @@ describe("manual provider destinations across search, durable alerts and present
       "mccauley",
       "https://www.mccauleysauto.com/pick-a-part-list-of-parts-vehicles",
     ],
+    [
+      "rustyhook",
+      "http://salvage.rustyhooktowing.com/index.php?E=Detail&ID=25",
+    ],
     ["aviation", "https://aviationauto.com/used-parts/ACURA/ILX/RR116/2020"],
     ["chaz", "https://www.chazsauto.com/parts/MITSUBISHI/MIRAGE/HXY070/2017"],
     ["citymotors", "https://citymotorsparts.com/cars/2025-bmw-m2-2/"],

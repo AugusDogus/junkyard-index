@@ -62,6 +62,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     millerstown: 0,
     pickapartva: 0,
     mccauley: 0,
+    rustyhook: 0,
     aviation: 0,
     chaz: 0,
     citymotors: 0,

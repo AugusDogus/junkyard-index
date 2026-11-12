@@ -60,6 +60,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "millerstown",
     "pickapartva",
     "mccauley",
+    "rustyhook",
     "aviation",
     "chaz",
     "citymotors",
