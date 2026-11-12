@@ -3,6 +3,7 @@ import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { ChesterfieldCursor } from "./chesterfield-cursor";
 import { DdautoCursor } from "./ddauto-cursor";
+import { FenixCursor } from "./fenix-cursor";
 import { ImportapartCursor } from "./importapart-cursor";
 import { BigtruckpageCursor } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
@@ -158,6 +159,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 16,
   },
   ddauto: { initialCursor: DdautoCursor.initial, maxPagesPerChunk: 1 },
+  fenix: { initialCursor: FenixCursor.initial, maxPagesPerChunk: 16 },
   importapart: {
     initialCursor: ImportapartCursor.initial,
     maxPagesPerChunk: 16,
