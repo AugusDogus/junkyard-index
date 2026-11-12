@@ -51,6 +51,7 @@ describe("source snapshot validation", () => {
     { source: "michigantruck", count: 173 },
     { source: "joliet", count: 1_392 },
     { source: "alln1", count: 1_093 },
+    { source: "pickers", count: 540 },
     { source: "millerstown", count: 1_087 },
     { source: "pickapartva", count: 7_422 },
     { source: "mccauley", count: 24 },

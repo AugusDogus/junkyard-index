@@ -28,6 +28,7 @@ import { LittletonCursor } from "./littleton-cursor";
 import { MichigantruckCursor } from "./michigantruck-cursor";
 import { JolietCursor } from "./joliet-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
+import { PickersCursor } from "./pickers-cursor";
 import { MillerstownCursor } from "./millerstown-cursor";
 import { PickapartvaCursor } from "./pickapartva-cursor";
 import { MccauleyCursor } from "./mccauley-cursor";
@@ -213,6 +214,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
+  pickers: { initialCursor: PickersCursor.initial, maxPagesPerChunk: 16 },
   millerstown: {
     initialCursor: MillerstownCursor.initial,
     maxPagesPerChunk: 1,
