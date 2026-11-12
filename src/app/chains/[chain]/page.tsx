@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,13 +12,20 @@ import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData } from "~/lib/structured-data";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
-import { findChain, latestPublishedAt } from "~/server/yard-inventory";
+import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
+import {
+  findChain,
+  inventoryFreshness,
+  latestPublishedAt,
+} from "~/server/yard-inventory";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
 export const revalidate = 86400;
 export const dynamicParams = true;
 
 type Params = { chain: string };
+
+const TOP_YARDS = 10;
 
 export function generateStaticParams(): Params[] {
   return [];
@@ -80,7 +88,10 @@ export default async function ChainPage({
   const chain = await findChain((await params).chain);
   if (!chain) notFound();
   const { vehicles, regions } = summarize(chain.yards);
-  const publishedAt = await latestPublishedAt(chain.yards);
+  const freshness = await inventoryFreshness(chain.yards);
+  const largest = [...chain.yards]
+    .sort((a, b) => b.vehicleCount - a.vehicleCount)
+    .slice(0, TOP_YARDS);
   const crumbs = [
     { name: "Home", href: "/" },
     { name: "Chains", href: "/chains" },
@@ -110,46 +121,54 @@ export default async function ChainPage({
         {chain.name} inventory
       </h1>
       <p className="mt-3 text-base text-pretty">
-        We track{" "}
-        <span className="font-medium tabular-nums">
-          {InventoryFormat.count(chain.yards.length)}
+        <span className="font-semibold tabular-nums">
+          {InventoryFormat.plural(chain.yards.length, "yard", "yards")}
         </span>{" "}
-        {chain.name} yards in {regions}, listing{" "}
-        <span className="font-medium tabular-nums">
+        in {regions}, listing{" "}
+        <span className="font-semibold tabular-nums">
           {InventoryFormat.count(vehicles)}
         </span>{" "}
-        vehicles. Pick a yard to see every vehicle there with its VIN and date
-        added, newest first.{" "}
-        {publishedAt ? (
-          <span className="text-muted-foreground">
-            Inventory updated{" "}
-            <time dateTime={publishedAt}>
-              {InventoryFormat.date(publishedAt)}
-            </time>
-            .
-          </span>
-        ) : (
-          <span className="text-amber-700 dark:text-amber-400">
-            This inventory has not refreshed in the last 3 days, so some
-            listings may be gone.
-          </span>
-        )}
+        vehicles. Pick a yard to see everything it has, newest first.
       </p>
-      {YardPath.byRegion(chain.yards).map(({ region, yards }) => (
-        <section
-          key={region.slug}
-          className="mt-8"
-          aria-labelledby={`region-${region.slug}`}
-        >
-          <h2
-            id={`region-${region.slug}`}
-            className="mb-3 text-lg font-semibold"
-          >
-            {chain.name} in {region.name}
+      <div className="mt-2">
+        <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
+      </div>
+      <section aria-labelledby="largest-title" className="mt-8">
+        <h2 id="largest-title" className="text-lg font-semibold">
+          Largest {chain.name} yards
+        </h2>
+        <div className="mt-3">
+          <YardList yards={largest} />
+        </div>
+      </section>
+      {chain.yards.length > TOP_YARDS && (
+        <section aria-labelledby="states-title" className="mt-10">
+          <h2 id="states-title" className="text-lg font-semibold">
+            Every {chain.name} yard, by state
           </h2>
-          <YardList yards={yards} />
+          <div className="mt-3 divide-y border-y">
+            {YardPath.byRegion(chain.yards).map(({ region, yards }) => (
+              <details key={region.slug} className="group">
+                <summary className="hover:bg-muted/60 flex cursor-pointer list-none items-center justify-between gap-4 px-1 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-1.5">
+                    <ChevronRight
+                      className="text-muted-foreground size-4 transition-transform group-open:rotate-90"
+                      aria-hidden="true"
+                    />
+                    {region.name}
+                  </span>
+                  <span className="text-muted-foreground text-xs font-normal tabular-nums">
+                    {InventoryFormat.plural(yards.length, "yard", "yards")}
+                  </span>
+                </summary>
+                <div className="pb-3">
+                  <YardList yards={yards} />
+                </div>
+              </details>
+            ))}
+          </div>
         </section>
-      ))}
+      )}
       <p className="text-muted-foreground mt-10 text-sm">
         Looking for another chain or an independent yard? See{" "}
         <Link

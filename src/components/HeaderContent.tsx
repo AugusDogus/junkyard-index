@@ -32,13 +32,8 @@ export function HeaderContent({ auth }: HeaderContentProps) {
               Junkyard Index
             </Link>
           </div>
-          <nav aria-label="Main" className="hidden sm:block">
-            <Link
-              href="/junkyards"
-              className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-            >
-              Junkyards
-            </Link>
+          <nav aria-label="Main" className="hidden gap-5 sm:flex">
+            <MainLinks />
           </nav>
           <div className="flex-1" />
           <div className="flex shrink-0 items-center gap-2 sm:gap-4">
@@ -49,7 +44,30 @@ export function HeaderContent({ auth }: HeaderContentProps) {
             )}
           </div>
         </div>
+        {/* No room beside the brand and actions on phones: a slim row below. */}
+        <nav aria-label="Main" className="flex gap-5 pb-2.5 sm:hidden">
+          <MainLinks />
+        </nav>
       </div>
     </header>
+  );
+}
+
+function MainLinks() {
+  return (
+    <>
+      <Link
+        href="/junkyards"
+        className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+      >
+        Junkyards
+      </Link>
+      <Link
+        href="/cars"
+        className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+      >
+        Cars
+      </Link>
+    </>
   );
 }
