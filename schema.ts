@@ -446,6 +446,35 @@ export const ingestionSourceRun = sqliteTable(
   ],
 );
 
+// When vehicles left their yard. Ingestion hard-deletes a missing vehicle
+// after a few runs, so a separate capture copies each one here first; this is
+// the only lasting record of how long vehicles stay. One row per departure:
+// departed_at is the first run the vehicle was missing.
+export const vehicleDeparture = sqliteTable(
+  "vehicle_departure",
+  {
+    vin: text("vin").notNull(),
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+    year: integer("year").notNull(),
+    make: text("make").notNull(),
+    model: text("model").notNull(),
+    availableDate: text("available_date"),
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull(),
+    departedAt: integer("departed_at", { mode: "timestamp_ms" }).notNull(),
+    recordedAt: integer("recorded_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.vin, table.departedAt] }),
+    index("vehicle_departure_yard_idx").on(
+      table.source,
+      table.locationCode,
+      table.departedAt,
+    ),
+    index("vehicle_departure_departed_at_idx").on(table.departedAt),
+  ],
+);
+
 // Presence evidence for inventory records that cannot yet become full snapshots.
 export const vehicleObservation = sqliteTable(
   "vehicle_observation",

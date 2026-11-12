@@ -120,6 +120,13 @@
       "when": 1794107008473,
       "tag": "0016_yard_inventory",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1794108533628,
+      "tag": "0017_vehicle_departure",
+      "breakpoints": true
     }
   ]
 }
