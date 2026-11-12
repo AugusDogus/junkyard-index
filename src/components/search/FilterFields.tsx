@@ -28,6 +28,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   upullitwa: "Washington U-Pull-It",
   partsgalore: "Parts Galore",
   army: "Army's Auto Wrecking",
+  alln1: "All-N-1 U Pull",
   aero: "Aero Auto Parts",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",

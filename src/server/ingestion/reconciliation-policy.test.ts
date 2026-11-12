@@ -75,6 +75,7 @@ describe("reconciliation policy", () => {
       "partsgalore",
       "aero",
       "army",
+      "alln1",
       "autorecycler",
     ]);
     expect(reconciliationSourcePrioritySql("candidate")).toContain(

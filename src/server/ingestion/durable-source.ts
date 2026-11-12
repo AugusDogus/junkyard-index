@@ -2,6 +2,7 @@ import type { ConnectorChunkStatus } from "./connector-chunk";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { ArmyCursor } from "./army-cursor";
+import { Alln1Cursor } from "./alln1-cursor";
 import { UpullRPartsCursor } from "./upullrparts-cursor";
 import {
   INGESTION_SOURCES,
@@ -128,6 +129,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   aero: { initialCursor: AeroCursor.initial, maxPagesPerChunk: 1 },
   army: { initialCursor: ArmyCursor.initial, maxPagesPerChunk: 1 },
+  alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
 };
 
 export function getDurableSourceDefinition<
