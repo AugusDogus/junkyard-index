@@ -37,6 +37,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   chasencars: "Chase N Cars",
   army: "Army's Auto Wrecking",
   idipull: "Idaho Falls I-Pull",
+  joliet: "Joliet U-Pull-It",
   alln1: "All-N-1 U Pull",
   aviation: "Aviation Auto Salvage",
   chaz: "Chaz's Used Auto Parts & Towing",
