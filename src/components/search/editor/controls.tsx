@@ -94,6 +94,7 @@ const SOURCES = [
   ["army", "Army's Auto Wrecking"],
   ["idipull", "Idaho Falls I-Pull"],
   ["littleton", "Littleton U-Pull-It"],
+  ["michigantruck", "Michigan Truck Parts"],
   ["joliet", "Joliet U-Pull-It"],
   ["alln1", "All-N-1 U Pull"],
   ["aviation", "Aviation Auto Salvage"],

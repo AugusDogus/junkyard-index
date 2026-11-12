@@ -84,6 +84,8 @@ import { streamIdipullInventory } from "../src/server/ingestion/idipull-connecto
 import { soakIdipullInventory } from "./soak-idipull";
 import { streamLittletonInventory } from "../src/server/ingestion/littleton-connector";
 import { soakLittletonInventory } from "./soak-littleton";
+import { streamMichigantruckInventory } from "../src/server/ingestion/michigantruck-connector";
+import { soakMichigantruckInventory } from "./soak-michigantruck";
 import { streamJolietInventory } from "../src/server/ingestion/joliet-connector";
 import { soakJolietInventory } from "./soak-joliet";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
@@ -616,6 +618,18 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamJolietInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "michigantruck":
+            return soakMichigantruckInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamMichigantruckInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

@@ -83,6 +83,7 @@ describe("reconciliation policy", () => {
       "army",
       "idipull",
       "littleton",
+      "michigantruck",
       "joliet",
       "alln1",
       "aviation",
