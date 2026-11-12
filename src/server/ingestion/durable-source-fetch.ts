@@ -20,6 +20,7 @@ import { streamImportapartInventory } from "./importapart-connector";
 import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamIdipullInventory } from "./idipull-connector";
+import { streamPullsavewaInventory } from "./pullsavewa-connector";
 import { streamLittletonInventory } from "./littleton-connector";
 import { streamMichigantruckInventory } from "./michigantruck-connector";
 import { streamJolietInventory } from "./joliet-connector";
@@ -602,6 +603,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamIdipullInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  pullsavewa: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamPullsavewaInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

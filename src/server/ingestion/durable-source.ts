@@ -23,6 +23,7 @@ import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
+import { PullsavewaCursor } from "./pullsavewa-cursor";
 import { LittletonCursor } from "./littleton-cursor";
 import { MichigantruckCursor } from "./michigantruck-cursor";
 import { JolietCursor } from "./joliet-cursor";
@@ -204,6 +205,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   army: { initialCursor: ArmyCursor.initial, maxPagesPerChunk: 1 },
   idipull: { initialCursor: IdipullCursor.initial, maxPagesPerChunk: 1 },
+  pullsavewa: { initialCursor: PullsavewaCursor.initial, maxPagesPerChunk: 1 },
   littleton: { initialCursor: LittletonCursor.initial, maxPagesPerChunk: 16 },
   michigantruck: {
     initialCursor: MichigantruckCursor.initial,

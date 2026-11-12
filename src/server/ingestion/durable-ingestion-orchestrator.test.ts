@@ -48,6 +48,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     importapart: 0,
     army: 0,
     idipull: 0,
+    pullsavewa: 0,
     littleton: 0,
     michigantruck: 0,
     joliet: 0,

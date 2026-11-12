@@ -27,6 +27,7 @@ import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
+import { PullsavewaCursorSchema } from "./pullsavewa-cursor";
 import { LittletonCursorSchema } from "./littleton-cursor";
 import { MichigantruckCursorSchema } from "./michigantruck-cursor";
 import { JolietCursorSchema } from "./joliet-cursor";
@@ -478,6 +479,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   bigtruckpage: defineJsonCursor("bigtruckpage", BigtruckpageCursorSchema),
   army: defineJsonCursor("army", ArmyCursorSchema),
   idipull: defineJsonCursor("idipull", IdipullCursorSchema),
+  pullsavewa: defineJsonCursor("pullsavewa", PullsavewaCursorSchema),
   littleton: defineJsonCursor("littleton", LittletonCursorSchema),
   michigantruck: defineJsonCursor("michigantruck", MichigantruckCursorSchema),
   joliet: defineJsonCursor("joliet", JolietCursorSchema),
