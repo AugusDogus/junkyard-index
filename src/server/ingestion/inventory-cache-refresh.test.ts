@@ -32,6 +32,13 @@ async function publish(...sequences: Array<number | null>) {
   }
 }
 
+async function latestPublication(): Promise<number> {
+  const result = await client.execute(
+    "select coalesce(max(publication_sequence), 0) as latest from ingestion_run",
+  );
+  return Number(result.rows[0]?.latest ?? 0);
+}
+
 async function refreshedSequence() {
   const result = await client.execute(
     "select last_processed_change_id from ingestion_projector_checkpoint where name = 'inventory-cache-refresh'",
@@ -39,36 +46,53 @@ async function refreshedSequence() {
   return result.rows[0]?.last_processed_change_id ?? null;
 }
 
-function refresh() {
-  let revalidations = 0;
+/** A refresh whose stored data starts out reflecting `projected`. */
+function refresh(
+  options: {
+    projected?: number;
+    project?: () => Promise<void>;
+    revalidate?: () => void;
+  } = {},
+) {
+  let projected = options.projected ?? 0;
+  const calls: Array<"project" | "revalidate"> = [];
   return {
     run: () =>
       InventoryCacheRefresh.run({
         database: drizzle(client),
+        source: {
+          projectedThrough: async () => projected,
+          project: async () => {
+            calls.push("project");
+            await options.project?.();
+            projected = await latestPublication();
+          },
+        },
         revalidate: () => {
-          revalidations += 1;
+          calls.push("revalidate");
+          options.revalidate?.();
         },
       }),
-    revalidations: () => revalidations,
+    calls: () => calls,
   };
 }
 
 describe("InventoryCacheRefresh.run", () => {
-  test("skips revalidation when the caches already show the latest publication", async () => {
+  test("does nothing when the caches and their data show the latest publication", async () => {
     await publish(1, 2, null);
     await InventoryCacheRefresh.record(drizzle(client), 2);
-    const caches = refresh();
+    const caches = refresh({ projected: 2 });
 
     expect(await caches.run()).toEqual({ status: "current" });
 
-    expect(caches.revalidations()).toBe(0);
+    expect(caches.calls()).toEqual([]);
     expect(await refreshedSequence()).toBe(2);
   });
 
-  test("revalidates once for a newer publication, then skips until another one", async () => {
+  test("stores the data, then revalidates once for a newer publication", async () => {
     await publish(1, 2);
     await InventoryCacheRefresh.record(drizzle(client), 1);
-    const caches = refresh();
+    const caches = refresh({ projected: 1 });
 
     expect(await caches.run()).toEqual({
       status: "refreshed",
@@ -76,8 +100,32 @@ describe("InventoryCacheRefresh.run", () => {
     });
     expect(await caches.run()).toEqual({ status: "current" });
 
-    expect(caches.revalidations()).toBe(1);
+    expect(caches.calls()).toEqual(["project", "revalidate"]);
     expect(await refreshedSequence()).toBe(2);
+  });
+
+  test("only revalidates when a deploy already stored the newer data", async () => {
+    await publish(1, 2);
+    await InventoryCacheRefresh.record(drizzle(client), 1);
+    const caches = refresh({ projected: 2 });
+
+    expect(await caches.run()).toEqual({
+      status: "refreshed",
+      publicationSequence: 2,
+    });
+    expect(caches.calls()).toEqual(["revalidate"]);
+  });
+
+  test("stores the data when another deployment refreshed the caches without it", async () => {
+    await publish(1, 2);
+    await InventoryCacheRefresh.record(drizzle(client), 2);
+    const caches = refresh({ projected: 1 });
+
+    expect(await caches.run()).toEqual({
+      status: "refreshed",
+      publicationSequence: 2,
+    });
+    expect(caches.calls()).toEqual(["project", "revalidate"]);
   });
 
   test("starts the checkpoint on the first refresh", async () => {
@@ -89,7 +137,7 @@ describe("InventoryCacheRefresh.run", () => {
       publicationSequence: 1,
     });
 
-    expect(caches.revalidations()).toBe(1);
+    expect(caches.calls()).toEqual(["project", "revalidate"]);
     expect(await refreshedSequence()).toBe(1);
   });
 
@@ -99,31 +147,57 @@ describe("InventoryCacheRefresh.run", () => {
 
     expect(await caches.run()).toEqual({ status: "current" });
 
-    expect(caches.revalidations()).toBe(0);
+    expect(caches.calls()).toEqual([]);
     expect(await refreshedSequence()).toBeNull();
   });
 
-  test("leaves the checkpoint behind when revalidation fails, so the next pass retries", async () => {
+  test("reports a failed store without revalidating, leaving the checkpoint behind", async () => {
+    await publish(1, 2);
+    await InventoryCacheRefresh.record(drizzle(client), 1);
+    const failure = new Error("Turso is unavailable");
+    const caches = refresh({
+      projected: 1,
+      project: async () => {
+        throw failure;
+      },
+    });
+
+    expect(await caches.run()).toEqual({
+      status: "failed",
+      stage: "project",
+      publicationSequence: 2,
+      error: failure,
+    });
+    expect(caches.calls()).toEqual(["project"]);
+    expect(await refreshedSequence()).toBe(1);
+  });
+
+  test("retries only the revalidation after it fails, without storing the data again", async () => {
     await publish(1, 2);
     await InventoryCacheRefresh.record(drizzle(client), 1);
     const failure = new Error("revalidateTag is unavailable");
+    let fail = true;
+    const caches = refresh({
+      projected: 1,
+      revalidate: () => {
+        if (fail) throw failure;
+      },
+    });
 
-    expect(
-      await InventoryCacheRefresh.run({
-        database: drizzle(client),
-        revalidate: () => {
-          throw failure;
-        },
-      }),
-    ).toEqual({ status: "failed", publicationSequence: 2, error: failure });
+    expect(await caches.run()).toEqual({
+      status: "failed",
+      stage: "revalidate",
+      publicationSequence: 2,
+      error: failure,
+    });
     expect(await refreshedSequence()).toBe(1);
 
-    const caches = refresh();
+    fail = false;
     expect(await caches.run()).toEqual({
       status: "refreshed",
       publicationSequence: 2,
     });
-    expect(caches.revalidations()).toBe(1);
+    expect(caches.calls()).toEqual(["project", "revalidate", "revalidate"]);
   });
 });
 

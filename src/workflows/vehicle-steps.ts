@@ -2,11 +2,12 @@ import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import { db } from "~/lib/db";
 import {
   announceInventoryPaths,
-  primeChangedInventory,
   warmChangedInventory,
 } from "~/server/indexnow";
+import { InventorySnapshot } from "~/server/inventory-snapshot";
 import * as Sentry from "@sentry/nextjs";
 import { deliverDurableAlertIntentsBatch } from "~/server/alerts/durable-alert-delivery-runtime";
 import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-alerts";
@@ -107,45 +108,42 @@ export async function reportIngestionRunStep(
 }
 
 /**
- * Shows newly published inventory on the homepage and inventory pages. Every
- * pass that completes calls this, but it revalidates only once per new
- * publication. Returns the publication it refreshed the pages for, or null
- * when they were already current or could not be refreshed.
+ * Shows newly published inventory on the homepage and inventory pages: stores
+ * the inventory snapshot those pages read, then revalidates them. The pass
+ * that runs the day's sources calls this, and it does so only once per new
+ * publication.
+ * Returns the publication it refreshed the pages for, or null when they were
+ * already current or could not be refreshed.
  */
 export async function refreshHomepageStep(): Promise<number | null> {
   "use step";
 
   let refresh: InventoryCacheRefresh;
   try {
-    refresh = await refreshInventoryCaches(() =>
-      revalidateTag(INVENTORY_CACHE_TAG, "max"),
-    );
+    refresh = await refreshInventoryCaches({
+      source: {
+        projectedThrough: () => InventorySnapshot.projectedThrough(db),
+        project: () => InventorySnapshot.project(db, new Date()),
+      },
+      revalidate: () => revalidateTag(INVENTORY_CACHE_TAG, "max"),
+    });
   } catch (error) {
     throwRetryableStepError("Refresh the inventory caches", error);
   }
   if (refresh.status === "failed") {
-    // The checkpoint stays behind, so the next hourly pass retries.
+    // Not retried here: storing the snapshot reads every vehicle, so a
+    // failure that repeats should cost one attempt per pass, not three. The
+    // checkpoint stays behind, so the next pass that runs sources retries.
     console.error(
-      `[Workflow] Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the next hourly pass retries: ${formatError(refresh.error)}`,
+      refresh.stage === "project"
+        ? `[Workflow] Could not store the inventory snapshot for publication ${refresh.publicationSequence}; the homepage and inventory pages keep the previous inventory until the next pass that runs sources retries; vehicle data is unaffected: ${formatError(refresh.error)}`
+        : `[Workflow] Could not revalidate the "${INVENTORY_CACHE_TAG}" cache tag for publication ${refresh.publicationSequence}; the snapshot is stored, and the homepage and inventory pages keep the previous inventory until the next pass that runs sources retries the revalidation: ${formatError(refresh.error)}`,
     );
     return null;
   }
   return refresh.status === "refreshed" ? refresh.publicationSequence : null;
 }
 refreshHomepageStep.maxRetries = 2;
-
-/**
- * Starts announcing a publication's changed pages to IndexNow: lists the
- * pages changed since the last announcement, which also starts rebuilding the
- * inventory caches they share. Returns how many pages changed.
- */
-export async function primeInventoryAnnouncementStep(
-  publicationSequence: number,
-): Promise<number> {
-  "use step";
-
-  return primeChangedInventory(publicationSequence);
-}
 
 /** Requests each changed page so it regenerates, and returns the pages. */
 export async function warmInventoryAnnouncementStep(

@@ -475,6 +475,16 @@ export const vehicleDeparture = sqliteTable(
   ],
 );
 
+// Make and model aggregates that pages list: live vehicles per make, and each
+// make's models per yard. Computing them reads every vehicle, so they are
+// computed once per publication and stored here, and pages, sitemaps and
+// builds read a row by key. `data` is JSON, validated on read.
+export const inventorySnapshot = sqliteTable("inventory_snapshot", {
+  key: text("key").primaryKey(),
+  data: text("data").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 // Presence evidence for inventory records that cannot yet become full snapshots.
 export const vehicleObservation = sqliteTable(
   "vehicle_observation",

@@ -3,10 +3,11 @@ import { getVercelBuildSteps } from "../../../scripts/vercel-build";
 
 describe("Vercel build policy", () => {
   test.each(["production", "preview"])(
-    "migrates before a %s build",
+    "migrates and stores the inventory snapshot before a %s build",
     (environment) => {
       expect(getVercelBuildSteps(environment)).toEqual([
         ["bun", "run", "db:migrate"],
+        ["bun", "run", "inventory:project"],
         ["bun", "run", "build"],
       ]);
     },

@@ -22,6 +22,7 @@
     "test:ingestion": "bun test tests/ingestion",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
+    "inventory:project": "bun scripts/project-inventory.ts",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
