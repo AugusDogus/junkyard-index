@@ -29,6 +29,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "chesterfield",
     "utpap",
     "tritown",
+    "whitebradstreet",
     "midway",
     "rightway",
     "ddauto",

@@ -58,6 +58,8 @@ import { streamUtpapInventory } from "../src/server/ingestion/utpap-connector";
 import { soakUtpapInventory } from "./soak-utpap";
 import { streamTritownInventory } from "../src/server/ingestion/tritown-connector";
 import { soakTritownInventory } from "./soak-tritown";
+import { streamWhitebradstreetInventory } from "../src/server/ingestion/whitebradstreet-connector";
+import { soakWhitebradstreetInventory } from "./soak-whitebradstreet";
 import { streamMidwayInventory } from "../src/server/ingestion/midway-connector";
 import { soakMidwayInventory } from "./soak-midway";
 import { streamRightwayInventory } from "../src/server/ingestion/rightway-connector";
@@ -429,6 +431,18 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamTritownInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "whitebradstreet":
+            return soakWhitebradstreetInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamWhitebradstreetInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

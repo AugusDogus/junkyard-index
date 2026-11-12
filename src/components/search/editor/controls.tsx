@@ -88,6 +88,7 @@ const SOURCES = [
   ["chesterfield", "Chesterfield Auto Parts"],
   ["utpap", "Utah Pic-A-Part"],
   ["tritown", "Tri Town Auto Salvage"],
+  ["whitebradstreet", "White & Bradstreet"],
   ["midway", "Midway U Pull"],
   ["rightway", "Rightway Auto Recycling"],
   ["ddauto", "DD Auto & Salvage"],

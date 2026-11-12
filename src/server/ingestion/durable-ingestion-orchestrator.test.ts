@@ -42,6 +42,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     chesterfield: 0,
     utpap: 0,
     tritown: 0,
+    whitebradstreet: 0,
     midway: 0,
     rightway: 0,
     ddauto: 0,
