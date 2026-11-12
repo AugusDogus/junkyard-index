@@ -1,0 +1,57 @@
+{
+  "purpose": "Saved native bodies and independently prepared183-row oracle, no provider requests.",
+  "inputs": [
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/about-identity.body",
+      "bytes": 135013,
+      "sha256": "e15df16fe88ad33be6ba2161a849d4bf2bd7136a53f116ba79ef66394382855f"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-al-ms-la/evidence/awap-cars-at-yard.body",
+      "bytes": 295715,
+      "sha256": "0554a55dfb1f12706b2679201d3fd685bfa7bf7accc3d31fa5e1cdc39d679539"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-02.body",
+      "bytes": 303991,
+      "sha256": "1d31eb97e94cd3c91620b8dcad1fa3cd82a69ef9aefd68efdb9bdbef3ac1e999"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-03.body",
+      "bytes": 291935,
+      "sha256": "131a0646aacfd287b89dee5a9b86bc0298218b726657840f389f362144b6a0f7"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-04.body",
+      "bytes": 282153,
+      "sha256": "110d8bd608c015cf67c1db0048ad589bb4ea8f94f7f58f391c227d38c7274fdb"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-05.body",
+      "bytes": 288788,
+      "sha256": "ba7d4b7eeabe4164266f0cf71bb15816e71c54e6320d372545305d96093a24ad"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-06.body",
+      "bytes": 281667,
+      "sha256": "b6624d2ea84fcd39e47f1ddb7f714837a7dfef935543e8ddb05f6bbc99da6551"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-07.body",
+      "bytes": 286308,
+      "sha256": "fee3ea7215e5eaca8279e5490b420d88d2fa32f5be5ecf7c4a2a5e3f27698d6a"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-me-nh-vt/al-native-discovery01/awap-census01/page-08.body",
+      "bytes": 232949,
+      "sha256": "5640f67572a8d3b3a7bfbacd271f9620953471b62fc70229b2f93caf8f9b6b8e"
+    },
+    {
+      "file": ".scratchpad/coverage/parallel-mi-oh-wi/awap-application-review01/source183-oracle.json",
+      "bytes": 210057,
+      "sha256": "30d6db4a91b33164ab4d47e55d9003fc5236e9eb0fe7aaa200ec0f3a64532da9"
+    }
+  ],
+  "fixtureSha256": "1ae90937bd405db814d26866f8dd0abaedab7e4e147aa5cfd51146977a6ca3b8",
+  "nativeBodyBytesVerified": 9
+}

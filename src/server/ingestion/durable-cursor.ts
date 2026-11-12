@@ -6,6 +6,7 @@ import { AeroCursorSchema } from "./aero-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
+import { AwapCursor } from "./awap-cursor";
 import {
   UpullRPartsCursor,
   UpullRPartsCursorSchema,
@@ -314,6 +315,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   aviation: {
     parse: AviationCursor.parse,
     serialize: AviationCursor.serialize,
+  },
+  awap: {
+    parse: AwapCursor.parse,
+    serialize: AwapCursor.serialize,
   },
   partsgalore: defineScalarCursor(
     "partsgalore",

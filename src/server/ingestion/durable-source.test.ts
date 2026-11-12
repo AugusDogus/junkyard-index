@@ -11,6 +11,22 @@ import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 describe("durable ingestion cursors", () => {
+  test.each([
+    ["awap", 2],
+  ] as const)(
+    "%s preserves its source-specific wire byte guard",
+    (source, limitMiB) => {
+      const maximumBytes = limitMiB * 1024 * 1024;
+      for (const wire of [
+        "x".repeat(maximumBytes + 1),
+        '"' + "é".repeat(maximumBytes / 2 + 1) + '"',
+      ]) {
+        expect(() => parseDurableSourceCursor(source, wire)).toThrow(
+          new RegExp(`${limitMiB} ?MiB`),
+        );
+      }
+    },
+  );
   test.each(["aviation",] as const)(
     "%s rejects oversized wire before JSON decoding",
     (source) => {

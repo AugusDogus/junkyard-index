@@ -4,6 +4,7 @@ import { AeroCursor } from "./aero-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
+import { AwapCursor } from "./awap-cursor";
 import { UpullRPartsCursor } from "./upullrparts-cursor";
 import {
   INGESTION_SOURCES,
@@ -132,6 +133,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   army: { initialCursor: ArmyCursor.initial, maxPagesPerChunk: 1 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
   aviation: { initialCursor: AviationCursor.initial, maxPagesPerChunk: 8 },
+  awap: { initialCursor: AwapCursor.initial, maxPagesPerChunk: 8 },
 };
 
 export function getDurableSourceDefinition<

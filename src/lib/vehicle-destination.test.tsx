@@ -81,6 +81,10 @@ const manualProviders = [
 describe("manual provider destinations across search, durable alerts and presentation", () => {
   test.each([
     ["aviation", "https://aviationauto.com/used-parts/ACURA/ILX/RR116/2020"],
+    [
+      "awap",
+      "https://www.alwholesaleautoparts.com/cars-at-yard/2014-hyundai-santa-fe/",
+    ],
   ] as const)(
     "%s preserves the source-linked donor destination",
     async (source, url) => {
