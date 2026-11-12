@@ -46,6 +46,8 @@ import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-conn
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
 import { streamNvpapInventory } from "../src/server/ingestion/nvpap-connector";
 import { soakNvpapInventory } from "./soak-nvpap";
+import { streamPontiacInventory } from "../src/server/ingestion/pontiac-connector";
+import { soakPontiacInventory } from "./soak-pontiac";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
 import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
@@ -754,6 +756,14 @@ async function main(): Promise<void> {
                     maxPages,
                     onBatch,
                   }),
+                ),
+              config.maxPages,
+            );
+          case "pontiac":
+            return soakPontiacInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamPontiacInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );
