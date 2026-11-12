@@ -186,6 +186,7 @@ describe("manual provider destinations across search, durable alerts and present
   test.each([
     ["pickers", "https://pickerstxk.com/Home/Inventory"],
     ["pipes", "https://www.pipesupullit.net/Home/Inventory"],
+    ["uwrench", "https://uwrenchandsave.com/inventory/"],
   ] as const)(
     "%s directs users to stock matching without claiming native VINs or vehicle links",
     async (source, url) => {

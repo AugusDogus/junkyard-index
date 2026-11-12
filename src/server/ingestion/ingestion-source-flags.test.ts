@@ -56,6 +56,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "alln1",
     "pickers",
     "pipes",
+    "uwrench",
     "millerstown",
     "pickapartva",
     "mccauley",

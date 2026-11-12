@@ -96,6 +96,7 @@ describe("reconciliation policy", () => {
       "alln1",
       "pickers",
       "pipes",
+      "uwrench",
       "millerstown",
       "pickapartva",
       "mccauley",
