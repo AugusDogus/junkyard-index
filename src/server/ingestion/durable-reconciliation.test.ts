@@ -149,7 +149,7 @@ async function stageSnapshots(params: {
 }
 
 describe("bounded durable reconciliation", () => {
-  test.each(["hagerman", "kandr", "jimsimport"] as const)(
+  test.each([ "hagerman", "kandr", "jimsimport"] as const)(
     "%s cannot publish staged inventory from a successful nonterminal cursor",
     async (source) => {
       const client = createClient({ url: ":memory:" });

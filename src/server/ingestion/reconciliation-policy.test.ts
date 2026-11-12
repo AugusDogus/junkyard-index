@@ -73,6 +73,7 @@ describe("reconciliation policy", () => {
       "ipullupull",
       "upullitwa",
       "partsgalore",
+      "nvpap",
       "aero",
       "chesterfield",
       "ddauto",
@@ -112,7 +113,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 44",
+      "when 'autorecycler' then 0",
     );
   });
 

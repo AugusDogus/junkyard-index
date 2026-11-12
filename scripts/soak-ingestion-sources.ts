@@ -44,6 +44,8 @@ import { streamUpullRPartsInventory } from "../src/server/ingestion/upullrparts-
 import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-connector";
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
+import { streamNvpapInventory } from "../src/server/ingestion/nvpap-connector";
+import { soakNvpapInventory } from "./soak-nvpap";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
 import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
@@ -71,6 +73,7 @@ import { KANDR_CONTRACT } from "../src/server/ingestion/kandr-configuration";
 import { soakKandrInventory } from "./soak-kandr";
 import { streamJimsimportInventoryFromProvider } from "../src/server/ingestion/jimsimport-connector";
 import { soakJimsimportInventory } from "./soak-jimsimport";
+import { SourceValidationPolicy } from "../src/server/ingestion/source-validation";
 import { streamIndianriverInventoryFromProvider } from "../src/server/ingestion/indianriver-connector";
 import { soakIndianriverInventory } from "./soak-indianriver";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
@@ -642,6 +645,14 @@ async function main(): Promise<void> {
                     maxPages,
                     onBatch,
                   }),
+                ),
+              config.maxPages,
+            );
+          case "nvpap":
+            return soakNvpapInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamNvpapInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

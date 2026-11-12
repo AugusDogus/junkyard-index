@@ -76,6 +76,7 @@
     "p-limit": "^6.2.0",
     "p-map": "^7.0.4",
     "p-retry": "^7.1.1",
+    "pdf-lib": "1.17.1",
     "pigeon-maps": "0.22.1",
     "playwright-core": "^1.58.2",
     "posthog-js": "^1.352.0",

@@ -6,6 +6,7 @@ import { streamUpullRPartsInventory } from "./upullrparts-connector";
 import { streamIPullUPullInventory } from "./ipullupull-connector";
 import { streamUpullitwaInventory } from "./upullitwa-connector";
 import { streamPartsGaloreInventory } from "./partsgalore-connector";
+import { streamNvpapInventory } from "./nvpap-connector";
 import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
 import { streamDdautoInventory } from "./ddauto-connector";
@@ -39,6 +40,7 @@ import { streamKandrInventoryFromProvider } from "./kandr-connector";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { KANDR_YARD } from "./kandr-snapshot";
 import { streamJimsimportInventoryFromProvider } from "./jimsimport-connector";
+import { SourceValidationPolicy } from "./source-validation";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
 import { env } from "~/env";
@@ -562,6 +564,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamAeroInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  nvpap: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamNvpapInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
