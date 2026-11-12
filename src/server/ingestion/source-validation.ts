@@ -28,6 +28,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   chasencars: 550,
   beavers: 240,
   army: 200,
+  idipull: 450,
   alln1: 900,
   // Complete finite native model/arrival union: 2,326 unique donors.
   aviation: 2_000,

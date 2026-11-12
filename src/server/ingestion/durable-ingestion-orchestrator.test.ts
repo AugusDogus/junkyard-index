@@ -41,6 +41,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     fenix: 0,
     importapart: 0,
     army: 0,
+    idipull: 0,
     alln1: 0,
     aviation: 0,
     chaz: 0,

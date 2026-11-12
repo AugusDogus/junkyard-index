@@ -22,6 +22,7 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   chesterfield: "https://chesterfieldauto.com/search-our-inventory-by-location",
   ddauto: "https://dd-auto-parts-cars.glide.page/dl/17171d",
   army: "https://armysauto.com/self-service-inventory/",
+  idipull: "https://ifipull.com/inventory/",
 };
 
 function manualSearchExplanation(source: DataSource): string {
@@ -33,6 +34,7 @@ function manualSearchExplanation(source: DataSource): string {
     case "aero":
     case "ddauto":
     case "army":
+    case "idipull":
       return "This provider has no vehicle links. Search its inventory table, then match the VIN and stock number.";
     default:
       return "This provider has no vehicle links. Select make/model on its inventory page, then match the VIN and yard.";

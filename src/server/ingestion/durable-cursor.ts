@@ -12,6 +12,7 @@ import { BeaversCursor } from "./beavers-cursor";
 import { DentonCursor } from "./denton-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
+import { IdipullCursorSchema } from "./idipull-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
@@ -355,6 +356,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   importapart: defineJsonCursor("importapart", ImportapartCursorSchema),
   bigtruckpage: defineJsonCursor("bigtruckpage", BigtruckpageCursorSchema),
   army: defineJsonCursor("army", ArmyCursorSchema),
+  idipull: defineJsonCursor("idipull", IdipullCursorSchema),
   alln1: defineJsonCursor("alln1", Alln1CursorSchema),
   aviation: {
     parse: AviationCursor.parse,

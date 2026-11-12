@@ -86,6 +86,7 @@ const SOURCES = [
   ["denton", "Denton Auto Parts"],
   ["beavers", "Beaver's Car Salvage"],
   ["army", "Army's Auto Wrecking"],
+  ["idipull", "Idaho Falls I-Pull"],
   ["alln1", "All-N-1 U Pull"],
   ["aviation", "Aviation Auto Salvage"],
   ["chaz", "Chaz's Used Auto Parts & Towing"],

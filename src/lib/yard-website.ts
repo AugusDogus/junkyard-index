@@ -24,6 +24,7 @@ const providerWebsites = new Map<string, string>([
   ["beavers", "https://www.beaverscarsalvage.com/"],
   ["chasencars", "https://chasencarsauto.com/"],
   ["army", "https://armysauto.com/self-service-inventory/"],
+  ["idipull", "https://ifipull.com/inventory/"],
   ["alln1", "https://alln1kc.com/"],
   ["aviation", "https://aviationauto.com/"],
   ["chaz", "https://www.chazsauto.com/"],
