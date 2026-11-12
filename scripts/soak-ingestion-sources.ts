@@ -66,6 +66,8 @@ import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
 import { streamIdipullInventory } from "../src/server/ingestion/idipull-connector";
 import { soakIdipullInventory } from "./soak-idipull";
+import { streamJolietInventory } from "../src/server/ingestion/joliet-connector";
+import { soakJolietInventory } from "./soak-joliet";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
 import { soakAlln1Inventory } from "./soak-alln1";
 import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
@@ -509,6 +511,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamCoutuInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "joliet":
+            return soakJolietInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamJolietInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

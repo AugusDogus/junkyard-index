@@ -11,6 +11,7 @@ import { DentonCursor } from "./denton-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
+import { JolietCursor } from "./joliet-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
@@ -167,6 +168,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   army: { initialCursor: ArmyCursor.initial, maxPagesPerChunk: 1 },
   idipull: { initialCursor: IdipullCursor.initial, maxPagesPerChunk: 1 },
+  joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
   aviation: { initialCursor: AviationCursor.initial, maxPagesPerChunk: 8 },
   chaz: { initialCursor: ChazCursor.initial, maxPagesPerChunk: 8 },

@@ -14,6 +14,7 @@ import { streamImportapartInventory } from "./importapart-connector";
 import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamIdipullInventory } from "./idipull-connector";
+import { streamJolietInventory } from "./joliet-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
 import { streamAviationInventory } from "./aviation-connector";
 import { streamChazInventory } from "./chaz-connector";
@@ -321,6 +322,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamAlln1Inventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  joliet: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamJolietInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
