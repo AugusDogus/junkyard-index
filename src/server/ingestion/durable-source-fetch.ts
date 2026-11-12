@@ -16,6 +16,7 @@ import { streamAviationInventory } from "./aviation-connector";
 import { streamChazInventory } from "./chaz-connector";
 import { streamCitymotorsInventory } from "./citymotors-connector";
 import { streamAwapInventory } from "./awap-connector";
+import { streamClearsalvageInventory } from "./clearsalvage-connector";
 import { streamAplusInventory } from "./aplus-connector";
 import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
@@ -149,6 +150,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamAplusInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  clearsalvage: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamClearsalvageInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

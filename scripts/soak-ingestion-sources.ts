@@ -66,6 +66,8 @@ import { streamCitymotorsInventory } from "../src/server/ingestion/citymotors-co
 import { soakCitymotorsInventory } from "./soak-citymotors";
 import { streamAwapInventory } from "../src/server/ingestion/awap-connector";
 import { soakAwapInventory } from "./soak-awap";
+import { streamClearsalvageInventory } from "../src/server/ingestion/clearsalvage-connector";
+import { soakClearsalvageInventory } from "./soak-clearsalvage";
 import { streamAplusInventory } from "../src/server/ingestion/aplus-connector";
 import { soakAplusInventory } from "./soak-aplus";
 import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
@@ -400,6 +402,18 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamAwapInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "clearsalvage":
+            return soakClearsalvageInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamClearsalvageInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

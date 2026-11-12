@@ -82,6 +82,7 @@ describe("reconciliation policy", () => {
       "chaz",
       "citymotors",
       "awap",
+      "clearsalvage",
       "aplus",
       "brandywine",
       "calton",

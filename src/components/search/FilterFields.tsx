@@ -37,6 +37,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   chaz: "Chaz's Used Auto Parts & Towing",
   citymotors: "City Motors",
   awap: "Alabama Wholesale Auto Parts",
+  clearsalvage: "Clear Salvage",
   aplus: "A Plus Auto",
   brandywine: "Brandywine U-Pull-It",
   calton: "Calton Auto Parts Recyclers",
