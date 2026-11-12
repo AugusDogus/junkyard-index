@@ -98,6 +98,7 @@ const SOURCES = [
   ["joliet", "Joliet U-Pull-It"],
   ["alln1", "All-N-1 U Pull"],
   ["millerstown", "Millerstown Pic-A-Part"],
+  ["pickapartva", "Pick-A-Part Virginia"],
   ["aviation", "Aviation Auto Salvage"],
   ["chaz", "Chaz's Used Auto Parts & Towing"],
   ["citymotors", "City Motors"],
