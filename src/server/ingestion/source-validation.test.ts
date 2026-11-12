@@ -26,6 +26,7 @@ describe("source snapshot validation", () => {
     { source: "ipullupull", count: 4_009 },
     { source: "upullitwa", count: 2_480 },
     { source: "partsgalore", count: 1_059 },
+    { source: "army", count: 231 },
   ] as const)(
     "accepts the measured $source catalog but rejects a collapsed snapshot",
     ({ source, count }) => {

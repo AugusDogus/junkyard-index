@@ -45,6 +45,8 @@ import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-co
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
+import { streamArmyInventory } from "../src/server/ingestion/army-connector";
+import { soakArmyInventory } from "./soak-army";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -283,6 +285,14 @@ async function main(): Promise<void> {
     try {
       const sourceResult = await (() => {
         switch (source) {
+          case "army":
+            return soakArmyInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamArmyInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
           case "aero":
             return runProgram(streamAeroInventory({ onBatch }));
           case "ipullupull":

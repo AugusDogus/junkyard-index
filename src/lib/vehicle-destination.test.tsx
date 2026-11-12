@@ -98,6 +98,7 @@ describe("manual provider destinations across search, durable alerts and present
   );
   test.each([
     ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
+    ["army", "https://armysauto.com/self-service-inventory/"],
   ] as const)(
     "%s labels its searchable table honestly across all surfaces",
     async (source, url) => {
