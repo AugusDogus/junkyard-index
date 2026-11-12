@@ -13,6 +13,7 @@ import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
 import { CitymotorsCursor } from "./citymotors-cursor";
 import { AwapCursor } from "./awap-cursor";
+import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
@@ -344,6 +345,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   awap: {
     parse: AwapCursor.parse,
     serialize: AwapCursor.serialize,
+  },
+  clearsalvage: {
+    parse: ClearsalvageCursor.parse,
+    serialize: ClearsalvageCursor.serialize,
   },
   aplus: {
     parse: AplusCursor.parse,

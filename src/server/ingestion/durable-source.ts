@@ -11,6 +11,7 @@ import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
 import { CitymotorsCursor } from "./citymotors-cursor";
 import { AwapCursor } from "./awap-cursor";
+import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
@@ -154,6 +155,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   chaz: { initialCursor: ChazCursor.initial, maxPagesPerChunk: 8 },
   citymotors: { initialCursor: CitymotorsCursor.initial, maxPagesPerChunk: 8 },
   awap: { initialCursor: AwapCursor.initial, maxPagesPerChunk: 8 },
+  clearsalvage: {
+    initialCursor: ClearsalvageCursor.initial,
+    maxPagesPerChunk: 8,
+  },
   aplus: { initialCursor: AplusCursor.initial, maxPagesPerChunk: 8 },
   brandywine: {
     initialCursor: BrandywineCursor.initial(null),

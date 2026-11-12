@@ -36,6 +36,7 @@ describe("source snapshot validation", () => {
     { source: "chaz", count: 1_063 },
     { source: "citymotors", count: 171 },
     { source: "awap", count: 183 },
+    { source: "clearsalvage", count: 177 },
     { source: "aplus", count: 1_222 },
     { source: "brandywine", count: 1_807 },
   ] as const)(

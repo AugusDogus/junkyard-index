@@ -87,6 +87,7 @@ describe("manual provider destinations across search, durable alerts and present
       "brandywine",
       "https://www.brandywineupullit.com/veh_single/?stockno=08A455",
     ],
+    ["clearsalvage", "https://clearsalvage.com/inventory/ford/"],
     ["aplus", "https://aplusauto.parts/parts/ACURA/ILX/ST1/2003"],
     [
       "awap",

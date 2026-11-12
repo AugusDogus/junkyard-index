@@ -32,6 +32,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   citymotors: 150,
   // Complete eight-page native catalog: 183 unique donors.
   awap: 160,
+  // Complete native roster and primary details: 177 unique donors.
+  clearsalvage: 150,
   // Complete finite native model/arrival union: 1,222 unique donors.
   aplus: 1_000,
   // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
