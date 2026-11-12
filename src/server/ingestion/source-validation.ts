@@ -16,6 +16,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   upullitwa: 1_500,
   partsgalore: 500,
   nvpap: 2_500,
+  pontiac: 1_000,
   // Native inline table: 130 complete of 141 rows on 2026-11-11.
   aero: 100,
   // Three native yards: 2,111 field-complete donors on 2026-11-11.

@@ -28,6 +28,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   upullitwa: "Washington U-Pull-It",
   partsgalore: "Parts Galore",
   nvpap: "Nevada Pic-A-Part",
+  pontiac: "U-Pull and Save Pontiac",
   chesterfield: "Chesterfield Auto Parts",
   midway: "Midway U Pull",
   ddauto: "DD Auto & Salvage",

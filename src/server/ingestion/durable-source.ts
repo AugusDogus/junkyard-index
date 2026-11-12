@@ -1,4 +1,5 @@
 import type { ConnectorChunkStatus } from "./connector-chunk";
+import { PontiacCursor } from "./pontiac-cursor";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { ChesterfieldCursor } from "./chesterfield-cursor";
@@ -177,6 +178,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: { source: "nvpap", phase: "start", yardCode: "1074" },
     maxPagesPerChunk: 16,
   },
+  pontiac: { initialCursor: PontiacCursor.initial, maxPagesPerChunk: 16 },
   aero: { initialCursor: AeroCursor.initial, maxPagesPerChunk: 1 },
   chesterfield: {
     initialCursor: ChesterfieldCursor.initial,
