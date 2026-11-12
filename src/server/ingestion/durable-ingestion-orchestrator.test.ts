@@ -41,6 +41,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     aero: 0,
     chesterfield: 0,
     midway: 0,
+    rightway: 0,
     ddauto: 0,
     rivervalley: 0,
     fenix: 0,

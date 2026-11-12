@@ -28,6 +28,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "aero",
     "chesterfield",
     "midway",
+    "rightway",
     "ddauto",
     "rivervalley",
     "fenix",

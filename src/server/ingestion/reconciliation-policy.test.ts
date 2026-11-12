@@ -79,6 +79,7 @@ describe("reconciliation policy", () => {
       "aero",
       "chesterfield",
       "midway",
+      "rightway",
       "ddauto",
       "rivervalley",
       "fenix",

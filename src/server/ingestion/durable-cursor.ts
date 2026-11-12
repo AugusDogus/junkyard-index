@@ -8,6 +8,7 @@ import { PontiacCursorSchema } from "./pontiac-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
 import { ChesterfieldCursorSchema } from "./chesterfield-cursor";
 import { MidwayCursorSchema } from "./midway-cursor";
+import { RightwayCursorSchema } from "./rightway-cursor";
 import { DdautoCursorSchema } from "./ddauto-cursor";
 import { RivervalleyCursorSchema } from "./rivervalley-cursor";
 import { FenixCursorSchema } from "./fenix-cursor";
@@ -469,6 +470,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   aero: defineJsonCursor("aero", AeroCursorSchema),
   chesterfield: defineJsonCursor("chesterfield", ChesterfieldCursorSchema),
   midway: defineJsonCursor("midway", MidwayCursorSchema),
+  rightway: defineJsonCursor("rightway", RightwayCursorSchema),
   ddauto: defineJsonCursor("ddauto", DdautoCursorSchema),
   rivervalley: defineJsonCursor("rivervalley", RivervalleyCursorSchema),
   fenix: defineJsonCursor("fenix", FenixCursorSchema),
