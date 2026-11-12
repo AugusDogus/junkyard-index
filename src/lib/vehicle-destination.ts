@@ -22,6 +22,7 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   nvpap: "https://nvpap.com/part-interchange.html",
   aero: "https://aeroautosalvage.com/vehicle-inventory/",
   chesterfield: "https://chesterfieldauto.com/search-our-inventory-by-location",
+  midway: "https://midwayupull.com/inventory/",
   ddauto: "https://dd-auto-parts-cars.glide.page/dl/17171d",
   army: "https://armysauto.com/self-service-inventory/",
   idipull: "https://ifipull.com/inventory/",

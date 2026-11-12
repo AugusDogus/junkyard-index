@@ -119,6 +119,7 @@ const manualProviders = [
   ["upullrparts", "https://upullrparts.com/inventory/"],
   ["partsgalore", "https://parts-galore.com/inventory/"],
   ["nvpap", "https://nvpap.com/part-interchange.html"],
+  ["midway", "https://midwayupull.com/inventory/"],
 ] as const;
 
 describe("manual provider destinations across search, durable alerts and presentation", () => {

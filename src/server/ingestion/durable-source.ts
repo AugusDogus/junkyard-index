@@ -2,6 +2,7 @@ import type { ConnectorChunkStatus } from "./connector-chunk";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { ChesterfieldCursor } from "./chesterfield-cursor";
+import { MidwayCursor } from "./midway-cursor";
 import { DdautoCursor } from "./ddauto-cursor";
 import { FenixCursor } from "./fenix-cursor";
 import { ImportapartCursor } from "./importapart-cursor";
@@ -173,6 +174,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: ChesterfieldCursor.initial,
     maxPagesPerChunk: 16,
   },
+  midway: { initialCursor: MidwayCursor.initial, maxPagesPerChunk: 2 },
   ddauto: { initialCursor: DdautoCursor.initial, maxPagesPerChunk: 1 },
   fenix: { initialCursor: FenixCursor.initial, maxPagesPerChunk: 16 },
   importapart: {

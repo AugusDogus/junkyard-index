@@ -38,6 +38,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     nvpap: 0,
     aero: 0,
     chesterfield: 0,
+    midway: 0,
     ddauto: 0,
     fenix: 0,
     importapart: 0,
