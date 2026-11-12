@@ -87,6 +87,7 @@ const SOURCES = [
   ["pontiac", "U-Pull and Save Pontiac"],
   ["chesterfield", "Chesterfield Auto Parts"],
   ["midway", "Midway U Pull"],
+  ["rightway", "Rightway Auto Recycling"],
   ["ddauto", "DD Auto & Salvage"],
   ["rivervalley", "River Valley Truck Parts"],
   ["fenix", "Fenix U-Pull"],

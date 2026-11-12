@@ -23,6 +23,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Three native yards: 2,111 field-complete donors on 2026-11-11.
   chesterfield: 1_800,
   midway: 600,
+  rightway: 450,
   ddauto: 50,
   rivervalley: 1_300,
   fenix: 4_000,

@@ -56,6 +56,8 @@ import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
 import { soakChesterfieldInventory } from "./soak-chesterfield";
 import { streamMidwayInventory } from "../src/server/ingestion/midway-connector";
 import { soakMidwayInventory } from "./soak-midway";
+import { streamRightwayInventory } from "../src/server/ingestion/rightway-connector";
+import { soakRightwayInventory } from "./soak-rightway";
 import { streamDdautoInventory } from "../src/server/ingestion/ddauto-connector";
 import { soakDdautoInventory } from "./soak-ddauto";
 import { streamRivervalleyInventory } from "../src/server/ingestion/rivervalley-connector";
@@ -393,6 +395,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamMidwayInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "rightway":
+            return soakRightwayInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamRightwayInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );
