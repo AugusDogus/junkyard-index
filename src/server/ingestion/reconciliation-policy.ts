@@ -21,6 +21,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "aero",
   "chesterfield",
   "ddauto",
+  "fenix",
   "importapart",
   "army",
   "alln1",
