@@ -11,6 +11,7 @@ import { ArmyCursorSchema } from "./army-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { ChazCursor } from "./chaz-cursor";
+import { CitymotorsCursor } from "./citymotors-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
@@ -335,6 +336,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   chaz: {
     parse: ChazCursor.parse,
     serialize: ChazCursor.serialize,
+  },
+  citymotors: {
+    parse: CitymotorsCursor.parse,
+    serialize: CitymotorsCursor.serialize,
   },
   awap: {
     parse: AwapCursor.parse,

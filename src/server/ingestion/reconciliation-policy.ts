@@ -25,6 +25,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "alln1",
   "aviation",
   "chaz",
+  "citymotors",
   "awap",
   "aplus",
   "brandywine",
