@@ -1,0 +1,64 @@
+import { MidwayCursor } from "../src/server/ingestion/midway-cursor";
+import type { MidwayStreamResult } from "../src/server/ingestion/midway-connector";
+
+/** Count and discard callbacks in the caller; this harness has no persistence. */
+export async function soakMidwayInventory(
+  runChunk: (
+    cursor: MidwayCursor,
+    maxPages: number,
+  ) => Promise<MidwayStreamResult>,
+  maxPages = 2,
+): Promise<MidwayStreamResult> {
+  if (!Number.isSafeInteger(maxPages) || maxPages < 1)
+    throw new Error("Midway soak requires a positive integer yard-page budget");
+  const summary: MidwayStreamResult = {
+    source: "midway",
+    status: "paused",
+    cursor: MidwayCursor.initial,
+    count: 0,
+    pagesProcessed: 0,
+    errors: [],
+    warnings: [],
+    observedVins: [],
+    accounting: {
+      recordsProcessed: 0,
+      recordsExcluded: 0,
+      recordsRejected: 0,
+      duplicateVehicles: 0,
+    },
+  };
+  const observed = new Set<string>();
+  while (summary.pagesProcessed < maxPages) {
+    const chunk = await runChunk(
+      summary.cursor,
+      Math.min(2, maxPages - summary.pagesProcessed),
+    );
+    if (
+      chunk.status === "paused" &&
+      (chunk.pagesProcessed === 0 ||
+        JSON.stringify(chunk.cursor) === JSON.stringify(summary.cursor))
+    )
+      throw new Error(
+        "Midway soak made no progress; retain the last validated checkpoint and inspect the source",
+      );
+    summary.count += chunk.count;
+    summary.pagesProcessed += chunk.pagesProcessed;
+    summary.errors.push(...chunk.errors);
+    summary.warnings = [
+      ...new Set([...(summary.warnings ?? []), ...(chunk.warnings ?? [])]),
+    ];
+    for (const vin of chunk.observedVins ?? []) observed.add(vin);
+    if (summary.accounting && chunk.accounting) {
+      summary.accounting.recordsProcessed += chunk.accounting.recordsProcessed;
+      summary.accounting.recordsExcluded += chunk.accounting.recordsExcluded;
+      summary.accounting.recordsRejected += chunk.accounting.recordsRejected;
+      summary.accounting.duplicateVehicles +=
+        chunk.accounting.duplicateVehicles;
+    }
+    summary.cursor = chunk.cursor;
+    summary.status = chunk.status;
+    summary.observedVins = [...observed];
+    if (chunk.status !== "paused") break;
+  }
+  return summary;
+}

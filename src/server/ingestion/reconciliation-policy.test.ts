@@ -76,6 +76,7 @@ describe("reconciliation policy", () => {
       "nvpap",
       "aero",
       "chesterfield",
+      "midway",
       "ddauto",
       "fenix",
       "importapart",

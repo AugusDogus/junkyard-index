@@ -5,6 +5,7 @@ import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import { NvpapCursorSchema } from "./nvpap-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
 import { ChesterfieldCursorSchema } from "./chesterfield-cursor";
+import { MidwayCursorSchema } from "./midway-cursor";
 import { DdautoCursorSchema } from "./ddauto-cursor";
 import { FenixCursorSchema } from "./fenix-cursor";
 import { ImportapartCursorSchema } from "./importapart-cursor";
@@ -425,6 +426,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   nvpap: defineJsonCursor("nvpap", NvpapCursorSchema),
   aero: defineJsonCursor("aero", AeroCursorSchema),
   chesterfield: defineJsonCursor("chesterfield", ChesterfieldCursorSchema),
+  midway: defineJsonCursor("midway", MidwayCursorSchema),
   ddauto: defineJsonCursor("ddauto", DdautoCursorSchema),
   fenix: defineJsonCursor("fenix", FenixCursorSchema),
   importapart: defineJsonCursor("importapart", ImportapartCursorSchema),
