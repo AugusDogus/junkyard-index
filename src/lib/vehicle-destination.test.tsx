@@ -79,6 +79,26 @@ const manualProviders = [
 ] as const;
 
 describe("manual provider destinations across search, durable alerts and presentation", () => {
+  test.each([
+    ["aviation", "https://aviationauto.com/used-parts/ACURA/ILX/RR116/2020"],
+  ] as const)(
+    "%s preserves the source-linked donor destination",
+    async (source, url) => {
+      const restored = roundTripNotification(vehicle(source, url));
+      const { card, email, discord } = await renderSurfaces(restored);
+      expect(VehicleDestination.resolve(restored)).toEqual({
+        kind: "inventory",
+        href: url,
+        label: "View inventory",
+      });
+      for (const html of [card, email]) {
+        expect(html).toContain(`href="${url.replaceAll("&", "&amp;")}"`);
+        expect(html).toContain("View inventory");
+        expect(html).not.toContain("Search provider inventory");
+      }
+      expect(discord.url).toBe(url);
+    },
+  );
   test.each([] as const)(
     "%s directs users to stock matching without claiming native VINs or vehicle links",
     async (source, url) => {
