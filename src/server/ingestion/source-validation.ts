@@ -42,6 +42,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   michigantruck: 150,
   joliet: 1_200,
   alln1: 900,
+  millerstown: 900,
   // Complete finite native model/arrival union: 2,326 unique donors.
   aviation: 2_000,
   // Complete finite native model/arrival union: 1,063 unique donors.

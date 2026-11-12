@@ -90,6 +90,8 @@ import { streamJolietInventory } from "../src/server/ingestion/joliet-connector"
 import { soakJolietInventory } from "./soak-joliet";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
 import { soakAlln1Inventory } from "./soak-alln1";
+import { streamMillerstownInventory } from "../src/server/ingestion/millerstown-connector";
+import { soakMillerstownInventory } from "./soak-millerstown";
 import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
 import { soakAviationInventory } from "./soak-aviation";
 import { streamChazInventory } from "../src/server/ingestion/chaz-connector";
@@ -536,6 +538,18 @@ async function main(): Promise<void> {
                   streamAlln1Inventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
+            );
+          case "millerstown":
+            return soakMillerstownInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamMillerstownInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              1,
             );
           case "aviation":
             return soakAviationInventory(
