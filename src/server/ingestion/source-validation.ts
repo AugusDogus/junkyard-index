@@ -26,6 +26,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   alln1: 900,
   // Complete finite native model/arrival union: 2,326 unique donors.
   aviation: 2_000,
+  // Complete finite native model/arrival union: 1,063 unique donors.
+  chaz: 900,
   // Complete eight-page native catalog: 183 unique donors.
   awap: 160,
   // Complete finite native model/arrival union: 1,222 unique donors.

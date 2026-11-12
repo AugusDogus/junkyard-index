@@ -1,0 +1,153 @@
+# Chaz's Used Auto Parts & Towing
+
+Disabled local source `chaz`, yard `taneytown`, supplier `MD08`. Qualification
+and application verification use saved public captures. No production flags,
+inventory, database, Algolia, deploys, pushes or pull requests were changed.
+
+## Published scope
+
+The finite known source is every literal make/model route published under
+`https://www.chazsauto.com/parts/makes/`, unioned with the native
+`/recent-arrivals/` cards. Native copy includes vehicles awaiting part-out.
+The recent feed alone is partial. Neither the published graph nor its badge
+sums establish an unseen backend census or an atomic inventory snapshot.
+
+The November 12, 2026 model capture contains 36 makes, 248 models and 1,106
+native donor cards. Nine model pages explicitly report no results. Captures
+include 35 newly read make pages, 247 newly read model pages, the saved
+Mitsubishi make and Mirage model, the saved make directory, contact and 60-card
+recent surface. No native pagination or network continuation was found. The
+visible model filters only hide cards already present in the returned DOM.
+
+The strict union has 1,166 observations: 1,063 accepted unique donors, 54 benign
+duplicate observations and 49 rejected observations. Rejections comprise 43
+missing or invalid VIN observations and six occurrences of three conflicting
+VINs. Required rejection is 4.20%; benign duplication is 4.63%. All occurrences
+of the three `NISSAN/DATSUN` versus `NISSAN` conflicts are rejected. Their valid
+VINs remain independent presence evidence. No alias or preferred winner is
+introduced. Three accepted VINs occur only in the recent surface.
+
+Model labels and routes retain native display variants and punctuation.
+Descriptive YMM comes from labelled native fields, never a VIN decoder or
+decoded URL tokens. A repeated brand in an inquiry label is accepted only as
+literal repetition or the published make/model control composite. A genuine
+same-card inquiry contradiction stops the source before callbacks. Badge
+differences remain diagnostics and never filter rows or supply the quality
+denominator.
+
+## Yard provenance
+
+Native contact publishes 6035 Taneytown Pike, Taneytown, MD 21787,
+410-876-7815 and toll-free 888-212-8775. No email is supplied. Website:
+`https://www.chazsauto.com/`.
+
+The point 39.6747856, -77.2116775 is the matching named-business ASYD/Google
+place point, with accuracy unstated. The alternative ARA point
+39.6644591, -77.1840029 remains in qualification evidence. The native iframe's
+longitude is a viewport center and is not used as a yard point. The native
+named-business map corroborates ownership and location. Comparison with 255
+accepted yards found no name, address, phone, domain or 500-meter overlap.
+The nearest accepted yard was Mount Airy, about 35.5 km away.
+
+## Runtime contract
+
+The connector reads official contact, recent arrivals, the make directory,
+every literal make link and every literal model link. Only owned HTTPS browse
+URLs are allowed. It never requests donor details, images, hidden routes,
+part searches or an inferred model route. Supplier declarations must all agree
+on `MD08`. Complete document, native owner, address and phone checks apply.
+Redirects, partial content, non-HTML responses and request failures stop the run
+without automatic retry.
+
+Closing controls repeat contact, the make directory, every make directory,
+the first and last model, every model with a badge/card discrepancy, and every
+published model missing an opening recent VIN. A final recent refresh joins
+the observation union. Changed directory/list fingerprints stop the run before
+emission. Nonempty model destinations must match the requested literal model
+parent. Explicit empty pages must retain their native model heading, including
+the captured Chrysler display variant. These checks do not claim simultaneous
+stability of unrefetched model pages.
+
+Chunks perform at most eight serial GETs with a three-minute deadline. Each
+request and complete body share a 20-second deadline. Transport waits 1.6 seconds
+after body consumption on success and failure, including across chunk boundaries.
+Runs stop at 1,024 GETs. Accepted HTML is bounded to 2 MiB; checkpoints are bounded
+to 1 MiB, 64 makes, 512 models, 1,000 cards per page and 10,000 model rows.
+Exceeding a bound preserves prior inventory and the last validated checkpoint.
+
+`ChazCursor.initial`, `.parse` and `.serialize` preserve a strict source-tagged,
+checksummed contiguous traversal prefix. The wire bound is checked before JSON
+decoding. Checkpoints hold native tuples, controls and semantic fingerprints,
+without HTML or materialized canonical arrays. The checksum detects corruption;
+it is not authentication.
+
+VIN or supported older serial, year, make, model, owned native destination and
+verified yard identity are required. Destinations bind the native year and any
+usable supplied stock. Missing or invalid optional stock, image, date, color
+and yard-position values are nullable. Images must be same-stock references
+under the MD08 CloudFront image prefix. Hidden gallery photographs are not
+competing primary images. Optional metadata disagreements become null, including
+disagreements across recent refreshes when a model agrees with one refresh.
+
+All required VIN/YMM conflicts and destination collisions are classified before
+callbacks. Paused chunks return zero vehicles, accounting and VIN presence.
+Completion supplies disjoint accounting and independently valid rejected VIN
+presence. Callback failure supplies no completed checkpoint. The 900-donor
+floor, existing 10% rejection, 25% duplicate and 50% downstream drift guards
+apply. Shared enablement defaults off.
+
+## Evidence and verification
+
+Source packet: `.scratchpad/coverage/parallel-pa-md-wv/chaz-stage-a01/` and
+`chaz-stage-b01/`. `frozen-union-report.json` pins the disjoint audit. Independent
+reviews are `parallel-ny-nj-de/chaz-union-review01/report.json` and
+`parallel-wa-or-id/chaz-source-semantics-review01/report.json`.
+
+The application replay receipt is
+`parallel-pa-md-wv/chaz-application01/offline-replay-report.json`. The real
+parser, snapshot and connector read all 287 saved native bodies and reproduce
+1,166 processed, 1,063 accepted, 49 rejected and 54 duplicate observations,
+with three independently preserved rejected VINs. It performs 376 mocked
+requests over 47 serialized eight-request chunks, with a peak 180,001-byte
+checkpoint and only terminal callbacks for 1,063 donors and one yard.
+All 1,063 VIN/YMM/destination identities and optional stock, image and date
+values match the independently frozen candidate oracle after existing make
+normalization.
+
+Parent validation at `parent-chaz/replay-report.json` repeats the actual soak,
+shared cursor codec, repository checkpoints, durable source validation and
+reconciliation using saved bodies, in-memory libSQL and memory snapshot storage.
+All 1,063 persisted donors match required and optional canonical fields. Three
+seeded prior records whose valid VINs are independently observed remain intact;
+one seeded absent record retires under the existing missing-inventory policy.
+The resulting 1,066 live test rows include those three prior records, not three
+additional accepted donors. Yard metadata and inventory counts persist together.
+This proves local behavior, not remote database or checkpoint capacity.
+
+The parent full suite passed 2,711 tests across 249 files. A subsequent tuple
+annotation fixes a test-only TypeScript error; its four parser tests and the
+workspace lint/typecheck pass. Source and shared-file formatting and diff checks
+pass. The local admission is `chaz-local-admission.json`, with code and receipt
+pins in `parent-chaz-application-validation.json`. Enablement remains off.
+
+The independent application review at
+`parallel-wa-or-id/chaz-application-review01/report.json` passed with no open
+findings. Its shared-cursor replay matches these totals. Actual final
+`onYards` and `onBatch` failures preserve the original error and return no
+successful result or completed checkpoint for `Effect.fail`, `Effect.die`
+and synchronous throws.
+
+Replay closing requests reuse their captured opening bodies. They are mocked
+closing controls, not fresh live closure evidence. A future authorized live run
+must execute the runtime controls. No additional HTTP is required for this
+offline qualification.
+
+```sh
+bun test src/server/ingestion/chaz-*.test.ts
+```
+
+Focused tests cover native parsing, explicit empties, display variants, strict
+all-occurrence conflicts, optional metadata, source-quality bounds, serialized
+resumption, premature callback prevention, malformed checkpoints, changed closing
+controls and transport failure. `scripts/soak-chaz.ts` counts and discards results
+while round-tripping production cursors. It owns neither transport nor admission.

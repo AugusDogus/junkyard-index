@@ -79,6 +79,7 @@ describe("reconciliation policy", () => {
       "army",
       "alln1",
       "aviation",
+      "chaz",
       "awap",
       "aplus",
       "brandywine",
