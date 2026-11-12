@@ -19,6 +19,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   aero: 100,
   army: 200,
   alln1: 900,
+  // Complete finite native model/arrival union: 2,326 unique donors.
+  aviation: 2_000,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;

@@ -49,6 +49,8 @@ import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
 import { soakAlln1Inventory } from "./soak-alln1";
+import { streamAviationInventory } from "../src/server/ingestion/aviation-connector";
+import { soakAviationInventory } from "./soak-aviation";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -300,6 +302,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamAlln1Inventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "aviation":
+            return soakAviationInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamAviationInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

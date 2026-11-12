@@ -80,6 +80,7 @@ const SOURCES = [
   ["partsgalore", "Parts Galore"],
   ["army", "Army's Auto Wrecking"],
   ["alln1", "All-N-1 U Pull"],
+  ["aviation", "Aviation Auto Salvage"],
   ["aero", "Aero Auto Parts"],
   ["row52", "Row52 / Pick-n-Pull"],
   ["autorecycler", "AutoRecycler.io"],

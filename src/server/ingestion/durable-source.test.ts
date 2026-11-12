@@ -11,6 +11,17 @@ import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 describe("durable ingestion cursors", () => {
+  test.each(["aviation",] as const)(
+    "%s rejects oversized wire before JSON decoding",
+    (source) => {
+      for (const wire of [
+        "x".repeat(1024 * 1024 + 1),
+        '"' + "é".repeat(600_000) + '"',
+      ]) {
+        expect(() => parseDurableSourceCursor(source, wire)).toThrow(/1 MiB/);
+      }
+    },
+  );
   test.each([...INGESTION_SOURCES])(
     "round trips the registered %s initial checkpoint and rejects malformed input",
     (source) => {
