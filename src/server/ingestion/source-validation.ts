@@ -50,6 +50,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   michigantruck: 150,
   joliet: 1_200,
   alln1: 900,
+  pickers: 450,
   millerstown: 900,
   // Two complete native Virginia catalogs: 7,422 unique donors on 2026-11-12.
   pickapartva: 6_500,

@@ -181,6 +181,25 @@ describe("manual provider destinations across search, durable alerts and present
       expect(discord.url).toBe(url);
     },
   );
+  test.each([
+    ["pickers", "https://pickerstxk.com/Home/Inventory"],
+  ] as const)(
+    "%s directs users to stock matching without claiming native VINs or vehicle links",
+    async (source, url) => {
+      const restored = roundTripNotification(vehicle(source, null));
+      const { card, email, discord } = await renderSurfaces(restored);
+      for (const html of [card, email]) {
+        expect(html).toContain(`href="${url}"`);
+        expect(html).toContain("Search provider inventory");
+        expect(html).toContain("stock number");
+        expect(html).toContain("yard row");
+        expect(html).not.toContain("match the VIN");
+        expect(html).not.toContain("View vehicle");
+      }
+      expect(discord.url).toBeUndefined();
+      expect(discord.description).toContain("stock number");
+    },
+  );
   test("Pick-A-Part Virginia directs users to search by identity and confirm the yard", async () => {
     const restored = roundTripNotification(vehicle("pickapartva", null));
     const { card, email, discord } = await renderSurfaces(restored);

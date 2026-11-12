@@ -210,6 +210,29 @@ describe("durable ingestion cursors", () => {
       ),
     ).toThrow("Invalid rtp ingestion cursor");
   });
+  test.each(["pickers",] as const)(
+    "%s preserves its bounded source-specific wire codec",
+    (source) => {
+      const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
+      const wire = serializeDurableSourceCursor(initial);
+      const payload: unknown = JSON.parse(wire);
+      expect(payload).not.toHaveProperty("source");
+      expect(parseDurableSourceCursor(source, wire)).toEqual(initial);
+      expect(() =>
+        parseDurableSourceCursor(
+          source,
+          wire.slice(0, -1) + ',"source":"row52"}',
+        ),
+      ).toThrow();
+      // Invalid oversized JSON must fail the byte guard before decoding.
+      expect(() =>
+        parseDurableSourceCursor(source, "x".repeat(1024 * 1024 + 1)),
+      ).toThrow(/MiB/);
+      expect(() =>
+        parseDurableSourceCursor(source, '"' + "é".repeat(600_000) + '"'),
+      ).toThrow(/MiB/);
+    },
+  );
 
   test.each(["ipullupull", "partsgalore"] as const)(
     "round trips %s atomic catalog checkpoints",
