@@ -26,6 +26,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "aplus",
   "brandywine",
   "calton",
+  "bigtruckpage",
   "autorecycler",
 ];
 

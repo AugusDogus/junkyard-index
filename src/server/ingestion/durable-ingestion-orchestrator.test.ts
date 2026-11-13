@@ -43,6 +43,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     aplus: 0,
     brandywine: 0,
     calton: 0,
+    bigtruckpage: 0,
   },
   errors: [],
   durationMs: 10,
