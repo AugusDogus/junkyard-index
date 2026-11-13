@@ -14,6 +14,7 @@ export class RetryableHttpStatusError extends Data.TaggedError(
 )<{
   context: string;
   status: number;
+  retryAfterMs: number;
 }> {
   override get message() {
     return `${this.context} returned retryable HTTP status ${this.status}`;
