@@ -70,6 +70,7 @@ describe("source snapshot validation", () => {
     { source: "cars4parts", count: 71 },
     { source: "meeks", count: 1_415 },
     { source: "brandywine", count: 1_807 },
+    { source: "rmmdtp", count: 103 },
   ] as const)(
     "accepts the measured $source catalog but rejects a collapsed snapshot",
     ({ source, count }) => {
@@ -122,6 +123,7 @@ describe("source snapshot validation", () => {
     { source: "cars4parts", minimum: 56, accepted: 71, rejected: 4 },
     { source: "meeks", minimum: 1_200, accepted: 1_415, rejected: 15 },
     { source: "brandywine", minimum: 1_500, accepted: 1_807, rejected: 11 },
+    { source: "rmmdtp", minimum: 80, accepted: 103, rejected: 1 },
   ] as const)(
     "$source preserves its floor and existing raw rejection guard",
     ({ source, minimum, accepted, rejected }) => {

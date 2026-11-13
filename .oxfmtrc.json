@@ -31,5 +31,16 @@
     "src/server/ingestion/pratt-test-fixtures/model-smart.html",
     "src/server/ingestion/pratt-test-fixtures/models-lexus.html",
     "src/server/ingestion/pratt-test-fixtures/root.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/closing-1.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/closing-2.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/closing-3.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/closing-4.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/closing-5.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/opening-1.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/opening-2.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/opening-3.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/opening-4.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/opening-5.html",
+    "src/server/ingestion/rmmdtp-test-fixtures/canonical-reference.json"
   ]
 }

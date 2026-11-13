@@ -140,6 +140,7 @@ describe("manual provider destinations across search, durable alerts and present
       "brandywine",
       "https://www.brandywineupullit.com/veh_single/?stockno=08A455",
     ],
+    ["rmmdtp", "https://rmmdtp.com/truck-description/?truck=196423"],
     ["oemgarage", "https://oe-mgarage.com/collections/donor-636"],
     ["jimsimport", "https://jimsimport.com/used-parts/ACURA/ILX/21F104/2020"],
     [

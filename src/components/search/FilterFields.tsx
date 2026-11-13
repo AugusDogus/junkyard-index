@@ -74,6 +74,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   cars4parts: "Cars 4 Parts",
   meeks: "Meeks Pic-N-Pull",
   brandywine: "Brandywine U-Pull-It",
+  rmmdtp: "Rocky Mountain Medium Duty Truck Parts",
   calton: "Calton Auto Parts Recyclers",
   aero: "Aero Auto Parts",
   row52: "Row52 / Pick-n-Pull",

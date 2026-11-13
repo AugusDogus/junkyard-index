@@ -85,6 +85,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   meeks: 1_200,
   // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
   brandywine: 1_500,
+  // Complete five-page Corinne census: 103 donors, one reject, two sale exclusions.
+  rmmdtp: 80,
   // Complete 630-model native graph and arrivals union, qualified locally only.
   calton: 11_000,
 };

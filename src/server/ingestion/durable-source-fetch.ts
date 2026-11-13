@@ -46,6 +46,8 @@ import { streamCars4PartsInventoryFromProvider } from "./cars4parts-connector";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { streamMeeksInventory } from "./meeks-connector";
 import { streamBrandywineInventory } from "./brandywine-connector";
+import { streamRmmdtpInventoryFromProvider } from "./rmmdtp-connector";
+import { RMMDTP_CONTRACT } from "./rmmdtp-configuration";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
 import { streamBeaversInventory } from "./beavers-connector";
 import { streamIndianriverInventoryFromProvider } from "./indianriver-connector";
@@ -329,6 +331,23 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
               : Effect.void,
           ),
         ),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  rmmdtp: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamRmmdtpInventoryFromProvider({
+          contract: RMMDTP_CONTRACT,
+          // Durable validation checks the previous published count before reconciliation.
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
       ),
       (next) => next,
       context.vehiclesByVin,

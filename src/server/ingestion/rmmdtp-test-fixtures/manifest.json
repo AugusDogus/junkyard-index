@@ -1,0 +1,72 @@
+[
+  {
+    "fixture": "opening-1.html",
+    "url": "https://rmmdtp.com/trucks/",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/ut-co-ok-specialized-native35/native-stage01/control012.body",
+    "bytes": 279589,
+    "sha256": "dc6b698143645410aba16e86f60e64706939101205341db326d531b9f6963719"
+  },
+  {
+    "fixture": "opening-2.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=2",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control001.body",
+    "bytes": 280916,
+    "sha256": "4695e8672a24c29842097011d6f7c9d54e76a49c8a5732ba85480655f334a988"
+  },
+  {
+    "fixture": "opening-3.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=3",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control002.body",
+    "bytes": 284609,
+    "sha256": "a221a9a72bdae2a41d2b4a6309d12d1074fa1831a53cffdd9fdbbbb08c272ed0"
+  },
+  {
+    "fixture": "opening-4.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=4",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control003.body",
+    "bytes": 285246,
+    "sha256": "51a6dd462fc1d0932153f1e851c1111d28a0289f3dbc4932b971abf53f68b4d9"
+  },
+  {
+    "fixture": "opening-5.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=5",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control004.body",
+    "bytes": 126656,
+    "sha256": "a9b300f04720cb899306acebb2835c7caa013ec0b2348df8e1ceec2059b37172"
+  },
+  {
+    "fixture": "closing-1.html",
+    "url": "https://rmmdtp.com/trucks/",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control008.body",
+    "bytes": 279589,
+    "sha256": "dc6b698143645410aba16e86f60e64706939101205341db326d531b9f6963719"
+  },
+  {
+    "fixture": "closing-2.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=2",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control009.body",
+    "bytes": 280916,
+    "sha256": "4695e8672a24c29842097011d6f7c9d54e76a49c8a5732ba85480655f334a988"
+  },
+  {
+    "fixture": "closing-3.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=3",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control010.body",
+    "bytes": 284609,
+    "sha256": "a221a9a72bdae2a41d2b4a6309d12d1074fa1831a53cffdd9fdbbbb08c272ed0"
+  },
+  {
+    "fixture": "closing-4.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=4",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control011.body",
+    "bytes": 285246,
+    "sha256": "51a6dd462fc1d0932153f1e851c1111d28a0289f3dbc4932b971abf53f68b4d9"
+  },
+  {
+    "fixture": "closing-5.html",
+    "url": "https://rmmdtp.com/trucks/?page_number=5",
+    "source": ".scratchpad/coverage/parallel-ut-co-ok/rmm-corinne-qualification36/native-stage01/control012.body",
+    "bytes": 126656,
+    "sha256": "a9b300f04720cb899306acebb2835c7caa013ec0b2348df8e1ceec2059b37172"
+  }
+]

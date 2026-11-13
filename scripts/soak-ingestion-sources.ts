@@ -144,6 +144,9 @@ import { soakCars4PartsInventory } from "./soak-cars4parts";
 import { streamMeeksInventory } from "../src/server/ingestion/meeks-connector";
 import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
 import { soakBrandywineInventory } from "./soak-brandywine";
+import { streamRmmdtpInventoryFromProvider } from "../src/server/ingestion/rmmdtp-connector";
+import { RMMDTP_CONTRACT } from "../src/server/ingestion/rmmdtp-configuration";
+import { soakRmmdtpInventory } from "./soak-rmmdtp";
 import { streamCaltonInventoryFromProvider } from "../src/server/ingestion/calton-connector";
 import { CALTON_CONTRACT } from "../src/server/ingestion/calton-configuration";
 import { soakCaltonInventory } from "./soak-calton";
@@ -817,6 +820,20 @@ async function main(): Promise<void> {
                 runProgram(
                   streamCaltonInventoryFromProvider({
                     contract: CALTON_CONTRACT,
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "rmmdtp":
+            return soakRmmdtpInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamRmmdtpInventoryFromProvider({
+                    contract: RMMDTP_CONTRACT,
                     previousUniqueInventory: null,
                     startCursor,
                     maxPages,
