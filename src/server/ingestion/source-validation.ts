@@ -40,6 +40,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   central: 5_000,
   // Complete finite native vehicle-tab census: 1,254 unique donors.
   coutu: 1_000,
+  // Complete native four-page catalog:69 Heyworth and2 Armington donors.
+  cars4parts: 56,
   // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
   brandywine: 1_500,
   // Complete 630-model native graph and arrivals union, qualified locally only.

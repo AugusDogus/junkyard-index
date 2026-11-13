@@ -40,6 +40,7 @@ describe("source snapshot validation", () => {
     { source: "aplus", count: 1_222 },
     { source: "central", count: 5_957 },
     { source: "coutu", count: 1_254 },
+    { source: "cars4parts", count: 71 },
     { source: "brandywine", count: 1_807 },
   ] as const)(
     "accepts the measured $source catalog but rejects a collapsed snapshot",
@@ -78,6 +79,7 @@ describe("source snapshot validation", () => {
 
   test.each([
     { source: "beavers", minimum: 240, accepted: 278, rejected: 12 },
+    { source: "cars4parts", minimum: 56, accepted: 71, rejected: 4 },
     { source: "brandywine", minimum: 1_500, accepted: 1_807, rejected: 11 },
   ] as const)(
     "$source preserves its floor and existing raw rejection guard",

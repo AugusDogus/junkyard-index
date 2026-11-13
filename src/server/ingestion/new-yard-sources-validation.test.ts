@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { vehicle } from "~/schema";
+import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
+import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import { TEST_SCHEMA, makeVehicle } from "./durable-ingestion-test-fixtures";
 import { serializeDurableSourceCursor } from "./durable-source";
@@ -31,6 +33,20 @@ const schema = `${TEST_SCHEMA}
     missing_since_at integer, missing_run_count integer
   );
 `;
+
+const initialCars = Cars4PartsCursor.initial(CARS4PARTS_CONTRACT);
+const completeCars = Cars4PartsCursor.checkpoint(
+  {
+    source: "cars4parts",
+    version: 1,
+    phase: "complete",
+    scope: initialCars.scope,
+    requests: 87,
+    bytes: 20_000_000,
+  },
+  CARS4PARTS_CONTRACT,
+);
+if (!completeCars.ok) throw new Error(completeCars.error.message);
 
 const completeBrandywine = BrandywineCursor.checkpoint({
   ...BrandywineCursor.initial(null),
@@ -68,6 +84,12 @@ const sources = [
     minimum: CALTON_CONTRACT.minimumUniqueInventory,
     initial: initialCalton.value,
     complete: completeCalton.value,
+  },
+  {
+    source: "cars4parts",
+    minimum: 56,
+    initial: initialCars,
+    complete: completeCars.value,
   },
   {
     source: "brandywine",
@@ -147,3 +169,105 @@ for (const { source, minimum, initial, complete } of sources) {
     },
   );
 }
+
+test.each([
+  { previousArmington: 5, retiringArmington: 0, accepted: false },
+  { previousArmington: 4, retiringArmington: 0, accepted: true },
+  { previousArmington: 4, retiringArmington: 6, accepted: true },
+])(
+  "Cars4Parts enforces per-yard drift before reconciliation: prior Armington=$previousArmington",
+  async ({ previousArmington, retiringArmington, accepted }) => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(schema);
+      const database = drizzle(client);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
+      await repository.initialize("yard-drift", async () => ["cars4parts"]);
+      const donors = (code: string, count: number) =>
+        Array.from({ length: count }, (_, index) => ({
+          ...makeVehicle(`${code}-${index}`),
+          source: "cars4parts" as const,
+          locationCode: code,
+        }));
+      const prior = [
+        ...donors("heyworth", 69),
+        ...donors("armington", previousArmington),
+      ];
+      expect(
+        validateSourceSnapshot({
+          source: "cars4parts",
+          terminal: true,
+          uniqueVehicles: 71,
+          vehiclesProcessed: 75,
+          duplicateVehicles: 0,
+          rejectedVehicles: 4,
+          errors: [],
+          previousAcceptedCount: prior.length,
+        }),
+      ).toEqual({ status: "accepted", errors: [] });
+      await database.insert(vehicle).values(
+        prior.map((donor) => ({
+          ...donor,
+          firstSeenAt: new Date(0),
+          lastSeenAt: new Date(0),
+        })),
+      );
+      if (retiringArmington > 0)
+        await database.insert(vehicle).values(
+          donors("armington", retiringArmington).map((donor) => ({
+            ...donor,
+            vin: `retiring-${donor.vin}`,
+            firstSeenAt: new Date(0),
+            lastSeenAt: new Date(0),
+            missingSinceAt: new Date(1),
+          })),
+        );
+      const pathname = await snapshotStore.put({
+        runId: "yard-drift",
+        source: "cars4parts",
+        chunk: {
+          vehicles: [...donors("heyworth", 69), ...donors("armington", 2)],
+          observedVins: [],
+        },
+      });
+      await client.execute({
+        sql: "update ingestion_source_run set status = 'success', vehicles_processed = 71, next_cursor = ?, snapshot_chunks = ? where source = 'cars4parts'",
+        args: [
+          serializeDurableSourceCursor(completeCars.value),
+          JSON.stringify([pathname]),
+        ],
+      });
+      const result = await validateDurableSourceRuns({
+        runId: "yard-drift",
+        database,
+        batchClient: client,
+        snapshotStore,
+      });
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") throw new Error("Validation was skipped");
+      expect(result.acceptedSources).toEqual(accepted ? ["cars4parts"] : []);
+      expect(result.rejectedSources).toEqual(
+        accepted
+          ? []
+          : [
+              {
+                source: "cars4parts",
+                errors: [
+                  "cars4parts armington inventory fell from 5 to 2, below the 50% yard drift limit; previously published inventory is preserved. Inspect the complete yard catalog before retrying.",
+                ],
+              },
+            ],
+      );
+      expect(await database.select().from(vehicle)).toHaveLength(
+        prior.length + retiringArmington,
+      );
+    } finally {
+      client.close();
+    }
+  },
+);

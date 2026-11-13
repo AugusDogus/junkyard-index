@@ -7,6 +7,15 @@
     "src/server/ingestion/beavers-test-fixtures/first.html",
     "src/server/ingestion/beavers-test-fixtures/last.html",
     "src/server/ingestion/beavers-test-fixtures/missing-make.html",
-    "src/server/ingestion/beavers-test-fixtures/second.html"
+    "src/server/ingestion/beavers-test-fixtures/second.html",
+    "src/server/ingestion/cars4parts-test-fixtures/aspen.html",
+    "src/server/ingestion/cars4parts-test-fixtures/cadillac-ext.html",
+    "src/server/ingestion/cars4parts-test-fixtures/inventory.html",
+    "src/server/ingestion/cars4parts-test-fixtures/mazda3.html",
+    "src/server/ingestion/cars4parts-test-fixtures/quest.html",
+    "src/server/ingestion/cars4parts-test-fixtures/ram.html",
+    "src/server/ingestion/cars4parts-test-fixtures/results-page1.html",
+    "src/server/ingestion/cars4parts-test-fixtures/retail-tow.html",
+    "src/server/ingestion/cars4parts-test-fixtures/w-series.html"
   ]
 }

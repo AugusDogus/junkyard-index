@@ -1,0 +1,56 @@
+[
+  {
+    "fixture": "inventory.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/native04.body",
+    "bytes": 94370,
+    "sha256": "734d9e03dcf99fdf472bcd34d42027aa1e68aea7c048fd498253689a1a9b66e4"
+  },
+  {
+    "fixture": "results-page1.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-native-results01/native01.body",
+    "bytes": 51244,
+    "sha256": "23aecf87998963e8e532df85e0a863d483705d9178f15c65e4c552244abd4ed4"
+  },
+  {
+    "fixture": "cadillac-ext.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-published-leaf-census01/leaf03.body",
+    "bytes": 275572,
+    "sha256": "addff14617b56aa3a9e0ade6dee68c5740d90a59ba323dbeeaeac8e7f831172e"
+  },
+  {
+    "fixture": "mazda3.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-published-leaf-census01/leaf13.body",
+    "bytes": 408635,
+    "sha256": "c43446d0cf280db0c373d10d7a9868495cfc49da8b9ea5261ebd84c2963988d1"
+  },
+  {
+    "fixture": "ram.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-published-leaf-census01/leaf18.body",
+    "bytes": 327030,
+    "sha256": "930a069b2389b10e5e3fea4bc7cf1f1ec27b38711c74a2e564fb2c4089407fcd"
+  },
+  {
+    "fixture": "quest.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/native06.body",
+    "bytes": 433307,
+    "sha256": "f0690c8d68c70c4fc83701e5e936f154d8084a55023d884f9fc1aff7b13f2a57"
+  },
+  {
+    "fixture": "aspen.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-published-leaf-addendum02/leaf34.body",
+    "bytes": 244951,
+    "sha256": "f761e15910490f225b17675cfb74c026dbb23cfd7a8fde7331438c3d6f7a21f6"
+  },
+  {
+    "fixture": "w-series.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-role-leaf-addendum03/leaf01.body",
+    "bytes": 364333,
+    "sha256": "41139e97f0d447f3a9f096584a6828a63c82295d4e53524165e4577007c08d2c"
+  },
+  {
+    "fixture": "retail-tow.html",
+    "source": ".scratchpad/coverage/parallel-mt-wy-nd/il-fresh-own-yard-frontier06/cars4parts-role-leaf-addendum03/leaf03.body",
+    "bytes": 223949,
+    "sha256": "482c6a42f612be332cbede8028de92b682f808478e4b2b58a83a49875c97abb2"
+  }
+]
