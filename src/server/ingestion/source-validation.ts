@@ -25,6 +25,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   awap: 160,
   // Complete finite native model/arrival union: 1,222 unique donors.
   aplus: 1_000,
+  // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
+  brandywine: 1_500,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;

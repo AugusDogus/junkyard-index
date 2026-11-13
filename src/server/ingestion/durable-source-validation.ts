@@ -28,6 +28,7 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
   try {
     const parsed = parseDurableSourceCursor(source, cursor);
     if (parsed.source === "autorecycler") return parsed.phase === "complete";
+    if (parsed.source === "brandywine") return parsed.phase === "complete";
     return true;
   } catch {
     return false;

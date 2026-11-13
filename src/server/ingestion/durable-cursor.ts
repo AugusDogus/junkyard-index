@@ -8,6 +8,7 @@ import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { AplusCursor } from "./aplus-cursor";
+import { BrandywineCursor } from "./brandywine-cursor";
 import {
   UpullRPartsCursor,
   UpullRPartsCursorSchema,
@@ -324,6 +325,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   aplus: {
     parse: AplusCursor.parse,
     serialize: AplusCursor.serialize,
+  },
+  brandywine: {
+    parse: BrandywineCursor.parse,
+    serialize: BrandywineCursor.serialize,
   },
   partsgalore: defineScalarCursor(
     "partsgalore",

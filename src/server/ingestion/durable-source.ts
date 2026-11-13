@@ -6,6 +6,7 @@ import { Alln1Cursor } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { AplusCursor } from "./aplus-cursor";
+import { BrandywineCursor } from "./brandywine-cursor";
 import { UpullRPartsCursor } from "./upullrparts-cursor";
 import {
   INGESTION_SOURCES,
@@ -136,6 +137,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   aviation: { initialCursor: AviationCursor.initial, maxPagesPerChunk: 8 },
   awap: { initialCursor: AwapCursor.initial, maxPagesPerChunk: 8 },
   aplus: { initialCursor: AplusCursor.initial, maxPagesPerChunk: 8 },
+  brandywine: {
+    initialCursor: BrandywineCursor.initial(null),
+    maxPagesPerChunk: 3,
+  },
 };
 
 export function getDurableSourceDefinition<

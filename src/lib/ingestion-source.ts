@@ -19,6 +19,7 @@ export const INGESTION_SOURCES = [
   "aviation",
   "awap",
   "aplus",
+  "brandywine",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
@@ -44,6 +45,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   aviation: "Aviation Auto Salvage",
   awap: "Alabama Wholesale Auto Parts",
   aplus: "A Plus Auto",
+  brandywine: "Brandywine U-Pull-It",
 } as const satisfies Record<IngestionSource, string>;
 
 export function mapIngestionSources<Value>(
@@ -70,6 +72,7 @@ export function mapIngestionSources<Value>(
     aviation: transform("aviation"),
     awap: transform("awap"),
     aplus: transform("aplus"),
+    brandywine: transform("brandywine"),
   };
 }
 
