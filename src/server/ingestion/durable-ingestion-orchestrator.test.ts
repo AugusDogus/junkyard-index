@@ -46,6 +46,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     awap: 0,
     clearsalvage: 0,
     aplus: 0,
+    central: 0,
     brandywine: 0,
     calton: 0,
     bigtruckpage: 0,
