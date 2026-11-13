@@ -117,6 +117,7 @@ import { soakKodakInventory } from "./soak-kodak";
 import { streamCars4PartsInventoryFromProvider } from "../src/server/ingestion/cars4parts-connector";
 import { CARS4PARTS_CONTRACT } from "../src/server/ingestion/cars4parts-configuration";
 import { soakCars4PartsInventory } from "./soak-cars4parts";
+import { streamMeeksInventory } from "../src/server/ingestion/meeks-connector";
 import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
 import { soakBrandywineInventory } from "./soak-brandywine";
 import { streamCaltonInventoryFromProvider } from "../src/server/ingestion/calton-connector";
@@ -681,6 +682,8 @@ async function main(): Promise<void> {
             );
           case "aero":
             return runProgram(streamAeroInventory({ onBatch }));
+          case "meeks":
+            return runProgram(streamMeeksInventory({ onBatch }));
           case "brandywine":
             return soakBrandywineInventory(
               (startCursor, maxPages) =>

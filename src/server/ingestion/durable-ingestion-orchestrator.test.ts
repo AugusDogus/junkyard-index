@@ -61,6 +61,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     coutu: 0,
     kodak: 0,
     cars4parts: 0,
+    meeks: 0,
     brandywine: 0,
     calton: 0,
     bigtruckpage: 0,

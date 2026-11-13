@@ -10,6 +10,7 @@ import { serializeDurableSourceCursor } from "./durable-source";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
+import { MeeksCursor } from "./meeks-cursor";
 import { validateSourceSnapshot } from "./source-validation";
 import { BrandywineCursor } from "./brandywine-cursor";
 import {
@@ -133,6 +134,12 @@ const sources = [
     minimum: 56,
     initial: initialCars,
     complete: completeCars.value,
+  },
+  {
+    source: "meeks",
+    minimum: 1_200,
+    initial: MeeksCursor.initial,
+    complete: { source: "meeks", phase: "complete" },
   },
   {
     source: "brandywine",

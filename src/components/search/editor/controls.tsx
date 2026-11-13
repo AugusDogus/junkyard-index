@@ -110,6 +110,7 @@ const SOURCES = [
   ["coutu", "Truck Country"],
   ["kodak", "Kodak Auto"],
   ["cars4parts", "Cars 4 Parts"],
+  ["meeks", "Meeks Pic-N-Pull"],
   ["brandywine", "Brandywine U-Pull-It"],
   ["aero", "Aero Auto Parts"],
   ["row52", "Row52 / Pick-n-Pull"],

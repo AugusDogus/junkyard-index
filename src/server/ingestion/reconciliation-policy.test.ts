@@ -99,6 +99,7 @@ describe("reconciliation policy", () => {
       "coutu",
       "kodak",
       "cars4parts",
+      "meeks",
       "brandywine",
       "calton",
       "bigtruckpage",
@@ -195,7 +196,7 @@ describe("reconciliation policy", () => {
     ).toEqual(["pyp"]);
   });
 
-  test.each(["cars4parts", "calton", "bigtruckpage"] as const)(
+  test.each(["cars4parts", "meeks", "calton", "bigtruckpage"] as const)(
     "%s replaces an AutoRecycler mirror and retains native ownership",
     (source) => {
       const runTimestamp = new Date("2026-03-05T00:00:00.000Z");

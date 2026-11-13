@@ -67,6 +67,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   kodak: 30,
   // Complete native four-page catalog:69 Heyworth and2 Armington donors.
   cars4parts: 56,
+  // Complete full inventory with its secondary view checked:1,415 donors.
+  meeks: 1_200,
   // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
   brandywine: 1_500,
   // Complete 630-model native graph and arrivals union, qualified locally only.
