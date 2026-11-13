@@ -45,6 +45,8 @@ import { streamIPullUPullInventory } from "../src/server/ingestion/ipullupull-co
 import { streamUpullitwaInventory } from "../src/server/ingestion/upullitwa-connector";
 import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-connector";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
+import { streamBigtruckpageInventory } from "../src/server/ingestion/bigtruckpage-connector";
+import { soakBigtruckpageInventory } from "./soak-bigtruckpage";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
@@ -298,6 +300,18 @@ async function main(): Promise<void> {
     try {
       const sourceResult = await (() => {
         switch (source) {
+          case "bigtruckpage":
+            return soakBigtruckpageInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamBigtruckpageInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
           case "army":
             return soakArmyInventory(
               (startCursor, maxPages) =>
