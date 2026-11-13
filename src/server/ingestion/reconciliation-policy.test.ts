@@ -119,6 +119,7 @@ describe("reconciliation policy", () => {
       "rmmdtp",
       "calton",
       "bigtruckpage",
+      "speedys",
       "denton",
       "beavers",
       "indianriver",
@@ -221,6 +222,7 @@ describe("reconciliation policy", () => {
     "meeks",
     "calton",
     "bigtruckpage",
+    "speedys",
   ] as const)(
     "%s replaces an AutoRecycler mirror and retains native ownership",
     (source) => {

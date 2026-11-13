@@ -43,5 +43,12 @@
     "src/server/ingestion/rmmdtp-test-fixtures/opening-5.html",
     "src/server/ingestion/rmmdtp-test-fixtures/canonical-reference.json",
     "src/server/ingestion/six03-test-fixtures/manifest.json",
+    "src/server/ingestion/speedys-test-fixtures/all.html",
+    "src/server/ingestion/speedys-test-fixtures/closing-all.html",
+    "src/server/ingestion/speedys-test-fixtures/closing-detail.html",
+    "src/server/ingestion/speedys-test-fixtures/default.html",
+    "src/server/ingestion/speedys-test-fixtures/detail.html",
+    "src/server/ingestion/speedys-test-fixtures/nissan.html",
+    "src/server/ingestion/speedys-test-fixtures/provenance.json"
   ]
 }

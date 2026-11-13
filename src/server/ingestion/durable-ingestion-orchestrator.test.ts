@@ -81,6 +81,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     rmmdtp: 0,
     calton: 0,
     bigtruckpage: 0,
+    speedys: 0,
     denton: 0,
     beavers: 0,
     indianriver: 0,

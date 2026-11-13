@@ -21,6 +21,7 @@ import { streamRivervalleyInventory } from "./rivervalley-connector";
 import { streamFenixInventory } from "./fenix-connector";
 import { streamImportapartInventory } from "./importapart-connector";
 import { streamBigtruckpageInventory } from "./bigtruckpage-connector";
+import { streamSpeedysInventory } from "./speedys-connector";
 import { streamArmyInventory } from "./army-connector";
 import { streamIdipullInventory } from "./idipull-connector";
 import { streamPullsavewaInventory } from "./pullsavewa-connector";
@@ -776,6 +777,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamBigtruckpageInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  speedys: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamSpeedysInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
