@@ -44,6 +44,7 @@ import { streamAplusInventory } from "./aplus-connector";
 import { streamCentralInventory } from "./central-connector";
 import { streamCoutuInventory } from "./coutu-connector";
 import { streamKodakInventory } from "./kodak-connector";
+import { streamSix03Inventory } from "./six03-connector";
 import { streamRohnerInventory } from "./rohner-connector";
 import { streamPrattInventoryFromProvider } from "./pratt-connector";
 import { PRATT_CONTRACT } from "./pratt-configuration";
@@ -439,6 +440,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamKodakInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  six03: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamSix03Inventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

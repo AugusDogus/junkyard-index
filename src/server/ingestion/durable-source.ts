@@ -47,6 +47,7 @@ import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
+import { Six03Cursor } from "./six03-cursor";
 import { RohnerCursor } from "./rohner-cursor";
 import { PrattCursor } from "./pratt-cursor";
 import { PRATT_CONTRACT } from "./pratt-configuration";
@@ -256,6 +257,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   central: { initialCursor: CentralCursor.initial, maxPagesPerChunk: 8 },
   coutu: { initialCursor: CoutuCursor.initial, maxPagesPerChunk: 8 },
   kodak: { initialCursor: KodakCursor.initial, maxPagesPerChunk: 2 },
+  six03: { initialCursor: Six03Cursor.initial, maxPagesPerChunk: 8 },
   rohner: { initialCursor: RohnerCursor.initial, maxPagesPerChunk: 3 },
   pratt: {
     initialCursor: PrattCursor.initial(PRATT_CONTRACT),

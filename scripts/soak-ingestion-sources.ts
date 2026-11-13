@@ -142,6 +142,8 @@ import { streamCoutuInventory } from "../src/server/ingestion/coutu-connector";
 import { soakCoutuInventory } from "./soak-coutu";
 import { streamKodakInventory } from "../src/server/ingestion/kodak-connector";
 import { soakKodakInventory } from "./soak-kodak";
+import { streamSix03Inventory } from "../src/server/ingestion/six03-connector";
+import { soakSix03Inventory } from "./soak-six03";
 import { soakRustyhookInventory } from "./soak-rustyhook";
 import { streamRohnerInventory } from "../src/server/ingestion/rohner-connector";
 import { soakRohnerInventory } from "./soak-rohner";
@@ -803,6 +805,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamKodakInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "six03":
+            return soakSix03Inventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamSix03Inventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

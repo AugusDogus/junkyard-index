@@ -123,6 +123,7 @@ const SOURCES = [
   ["central", "Central Auto Liquidators"],
   ["coutu", "Truck Country"],
   ["kodak", "Kodak Auto"],
+  ["six03", "603 Auto Salvage"],
   ["rohner", "Rohner's Auto Parts"],
   ["pratt", "Pratt's Auto Salvage"],
   ["cars4parts", "Cars 4 Parts"],
