@@ -16,6 +16,7 @@ import { AwapCursor } from "./awap-cursor";
 import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
+import { CoutuCursor } from "./coutu-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
@@ -358,6 +359,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   central: {
     parse: CentralCursor.parse,
     serialize: CentralCursor.serialize,
+  },
+  coutu: {
+    parse: CoutuCursor.parse,
+    serialize: CoutuCursor.serialize,
   },
   brandywine: {
     parse: BrandywineCursor.parse,
