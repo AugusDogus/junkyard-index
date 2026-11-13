@@ -36,6 +36,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "clearsalvage",
     "aplus",
     "central",
+    "coutu",
     "brandywine",
     "calton",
   ] as const)(

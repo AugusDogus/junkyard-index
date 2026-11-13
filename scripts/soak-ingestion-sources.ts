@@ -72,6 +72,8 @@ import { streamAplusInventory } from "../src/server/ingestion/aplus-connector";
 import { soakAplusInventory } from "./soak-aplus";
 import { streamCentralInventory } from "../src/server/ingestion/central-connector";
 import { soakCentralInventory } from "./soak-central";
+import { streamCoutuInventory } from "../src/server/ingestion/coutu-connector";
+import { soakCoutuInventory } from "./soak-coutu";
 import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
 import { soakBrandywineInventory } from "./soak-brandywine";
 import { streamCaltonInventoryFromProvider } from "../src/server/ingestion/calton-connector";
@@ -432,6 +434,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamCentralInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "coutu":
+            return soakCoutuInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamCoutuInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

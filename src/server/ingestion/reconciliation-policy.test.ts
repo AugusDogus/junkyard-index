@@ -85,6 +85,7 @@ describe("reconciliation policy", () => {
       "clearsalvage",
       "aplus",
       "central",
+      "coutu",
       "brandywine",
       "calton",
       "bigtruckpage",
