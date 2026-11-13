@@ -46,6 +46,7 @@ import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
+import { RohnerCursor } from "./rohner-cursor";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { MeeksCursorSchema } from "./meeks-cursor";
@@ -526,6 +527,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   kodak: {
     parse: KodakCursor.parse,
     serialize: KodakCursor.serialize,
+  },
+  rohner: {
+    parse: RohnerCursor.parse,
+    serialize: RohnerCursor.serialize,
   },
   cars4parts: {
     parse: (value: string) => {

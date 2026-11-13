@@ -9,6 +9,7 @@ import {
 } from "./durable-source";
 import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { RohnerCursor } from "./rohner-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
@@ -98,6 +99,18 @@ describe("durable ingestion cursors", () => {
       initialCursor: OemCursor.initial(),
       maxPagesPerChunk: 8,
     });
+  });
+  test("registers Rohner with three bounded native requests per checkpoint", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("rohner", {
+      initialCursor: RohnerCursor.initial,
+      maxPagesPerChunk: 3,
+    });
+    expect(() =>
+      parseDurableSourceCursor(
+        "rohner",
+        JSON.stringify({ source: "rohner", version: 1, phase: "complete" }),
+      ),
+    ).toThrow();
   });
   test.each([
     ["awap", 2],

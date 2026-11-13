@@ -42,6 +42,7 @@ import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
+import { RohnerCursor } from "./rohner-cursor";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { MeeksCursor } from "./meeks-cursor";
@@ -238,6 +239,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   central: { initialCursor: CentralCursor.initial, maxPagesPerChunk: 8 },
   coutu: { initialCursor: CoutuCursor.initial, maxPagesPerChunk: 8 },
   kodak: { initialCursor: KodakCursor.initial, maxPagesPerChunk: 2 },
+  rohner: { initialCursor: RohnerCursor.initial, maxPagesPerChunk: 3 },
   cars4parts: {
     initialCursor: Cars4PartsCursor.initial(CARS4PARTS_CONTRACT),
     maxPagesPerChunk: 8,

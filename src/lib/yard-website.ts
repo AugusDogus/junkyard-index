@@ -55,6 +55,7 @@ const providerWebsites = new Map<string, string>([
   ["central", "https://centralautoliq.com/"],
   ["coutu", "https://www.truckcountry.us/"],
   ["kodak", "https://kodakauto.co/"],
+  ["rohner", "https://rohnersautoparts.com/"],
   ["cars4parts", "https://cars4parts.carzrus1.com/"],
   ["meeks", "https://meeksrecycling.com/"],
   ["brandywine", "https://www.brandywineupullit.com/"],
