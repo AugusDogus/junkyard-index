@@ -7,6 +7,7 @@ import { ArmyCursorSchema } from "./army-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
 import { AwapCursor } from "./awap-cursor";
+import { AplusCursor } from "./aplus-cursor";
 import {
   UpullRPartsCursor,
   UpullRPartsCursorSchema,
@@ -319,6 +320,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   awap: {
     parse: AwapCursor.parse,
     serialize: AwapCursor.serialize,
+  },
+  aplus: {
+    parse: AplusCursor.parse,
+    serialize: AplusCursor.serialize,
   },
   partsgalore: defineScalarCursor(
     "partsgalore",
