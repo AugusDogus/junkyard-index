@@ -23,6 +23,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   aviation: 2_000,
   // Complete eight-page native catalog: 183 unique donors.
   awap: 160,
+  // Complete finite native model/arrival union: 1,222 unique donors.
+  aplus: 1_000,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;

@@ -27,6 +27,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "alln1",
     "aviation",
     "awap",
+    "aplus",
   ] as const)(
     "requires explicit enablement for %s before rollout",
     (source) => {

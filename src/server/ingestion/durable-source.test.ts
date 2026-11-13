@@ -27,7 +27,7 @@ describe("durable ingestion cursors", () => {
       }
     },
   );
-  test.each(["aviation",] as const)(
+  test.each(["aviation", "aplus"] as const)(
     "%s rejects oversized wire before JSON decoding",
     (source) => {
       for (const wire of [
