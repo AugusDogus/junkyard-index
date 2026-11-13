@@ -24,6 +24,7 @@ import { streamClearsalvageInventory } from "./clearsalvage-connector";
 import { streamAplusInventory } from "./aplus-connector";
 import { streamCentralInventory } from "./central-connector";
 import { streamCoutuInventory } from "./coutu-connector";
+import { streamKodakInventory } from "./kodak-connector";
 import { streamCars4PartsInventoryFromProvider } from "./cars4parts-connector";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { streamBrandywineInventory } from "./brandywine-connector";
@@ -196,6 +197,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           // Durable validation checks source history and persisted per-yard drift
           // before allowing reconciliation. Standalone callers supply counts.
           previousUniqueInventory: { heyworth: null, armington: null },
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  kodak: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamKodakInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

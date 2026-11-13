@@ -86,6 +86,8 @@ import { streamCentralInventory } from "../src/server/ingestion/central-connecto
 import { soakCentralInventory } from "./soak-central";
 import { streamCoutuInventory } from "../src/server/ingestion/coutu-connector";
 import { soakCoutuInventory } from "./soak-coutu";
+import { streamKodakInventory } from "../src/server/ingestion/kodak-connector";
+import { soakKodakInventory } from "./soak-kodak";
 import { streamCars4PartsInventoryFromProvider } from "../src/server/ingestion/cars4parts-connector";
 import { CARS4PARTS_CONTRACT } from "../src/server/ingestion/cars4parts-configuration";
 import { soakCars4PartsInventory } from "./soak-cars4parts";
@@ -511,6 +513,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamCoutuInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "kodak":
+            return soakKodakInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamKodakInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

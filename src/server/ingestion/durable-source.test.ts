@@ -62,6 +62,43 @@ describe("durable ingestion cursors", () => {
       ).toThrow();
     },
   );
+  test.each(["kodak"] as const)(
+    "%s preserves strict source/version and complete checkpoint codecs",
+    (source) => {
+      const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;
+      const wire = serializeDurableSourceCursor(initial);
+      expect(parseDurableSourceCursor(source, wire)).toEqual(initial);
+      expect(() =>
+        parseDurableSourceCursor(
+          source,
+          wire.replace('"version":1', '"version":2'),
+        ),
+      ).toThrow();
+      expect(() =>
+        parseDurableSourceCursor(
+          source,
+          wire.replace(`"source":"${source}"`, '"source":"row52"'),
+        ),
+      ).toThrow();
+      expect(() =>
+        parseDurableSourceCursor(
+          source,
+          wire.slice(0, -1) + ',"extra":"field"}',
+        ),
+      ).toThrow();
+      const complete = { source, version: 1, phase: "complete" } as const;
+      expect(
+        parseDurableSourceCursor(
+          source,
+          serializeDurableSourceCursor(complete),
+        ),
+      ).toEqual(complete);
+    },
+  );
+  test("Kodak applies its native 4 KiB wire guard before JSON parsing", () => {
+    for (const wire of ["x".repeat(4097), '"' + "é".repeat(2048) + '"'])
+      expect(() => parseDurableSourceCursor("kodak", wire)).toThrow("4 KiB");
+  });
 
   test.each(["ipullupull", "partsgalore"] as const)(
     "round trips %s atomic catalog checkpoints",
