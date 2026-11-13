@@ -50,6 +50,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "central",
   "coutu",
   "kodak",
+  "rohner",
   "cars4parts",
   "meeks",
   "brandywine",
