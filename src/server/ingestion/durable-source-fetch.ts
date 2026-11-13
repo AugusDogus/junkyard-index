@@ -20,6 +20,8 @@ import { streamClearsalvageInventory } from "./clearsalvage-connector";
 import { streamAplusInventory } from "./aplus-connector";
 import { streamCentralInventory } from "./central-connector";
 import { streamCoutuInventory } from "./coutu-connector";
+import { streamCars4PartsInventoryFromProvider } from "./cars4parts-connector";
+import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
 import { streamBeaversInventory } from "./beavers-connector";
@@ -138,6 +140,24 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamBrandywineInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  cars4parts: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamCars4PartsInventoryFromProvider({
+          contract: CARS4PARTS_CONTRACT,
+          // Durable validation checks source history and persisted per-yard drift
+          // before allowing reconciliation. Standalone callers supply counts.
+          previousUniqueInventory: { heyworth: null, armington: null },
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

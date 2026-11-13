@@ -74,6 +74,9 @@ import { streamCentralInventory } from "../src/server/ingestion/central-connecto
 import { soakCentralInventory } from "./soak-central";
 import { streamCoutuInventory } from "../src/server/ingestion/coutu-connector";
 import { soakCoutuInventory } from "./soak-coutu";
+import { streamCars4PartsInventoryFromProvider } from "../src/server/ingestion/cars4parts-connector";
+import { CARS4PARTS_CONTRACT } from "../src/server/ingestion/cars4parts-configuration";
+import { soakCars4PartsInventory } from "./soak-cars4parts";
 import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
 import { soakBrandywineInventory } from "./soak-brandywine";
 import { streamCaltonInventoryFromProvider } from "../src/server/ingestion/calton-connector";
@@ -462,6 +465,23 @@ async function main(): Promise<void> {
                   streamCaltonInventoryFromProvider({
                     contract: CALTON_CONTRACT,
                     previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "cars4parts":
+            return soakCars4PartsInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamCars4PartsInventoryFromProvider({
+                    contract: CARS4PARTS_CONTRACT,
+                    previousUniqueInventory: {
+                      heyworth: null,
+                      armington: null,
+                    },
                     startCursor,
                     maxPages,
                     onBatch,

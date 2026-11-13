@@ -8,6 +8,7 @@ import { ingestionRun, ingestionSourceRun } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { loadSourceSnapshot } from "./run-snapshot-inventory";
+import { validateCars4PartsPublishedYardInventory } from "./cars4parts-published-inventory";
 import {
   parseAcceptedSources,
   parseDurableRunStage,
@@ -28,6 +29,7 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
   try {
     const parsed = parseDurableSourceCursor(source, cursor);
     if (parsed.source === "autorecycler") return parsed.phase === "complete";
+    if (parsed.source === "cars4parts") return parsed.phase === "complete";
     if (parsed.source === "brandywine") return parsed.phase === "complete";
     if (parsed.source === "calton") return parsed.phase === "complete";
     if (parsed.source === "bigtruckpage") return parsed.phase === "complete";
@@ -73,6 +75,25 @@ export async function validateDurableSourceRuns(params: {
   }
   const countBySource = new Map<string, number>();
   const yardErrorsBySource = new Map<string, string[]>();
+  for (const row of sourceRows) {
+    const snapshot = await loadSourceSnapshot(
+      params.snapshotStore,
+      row.snapshotChunks,
+    );
+    countBySource.set(row.source, snapshot.vehicles.size);
+    if (
+      row.source === "cars4parts" &&
+      row.status === "success" &&
+      hasTerminalCursor(row.source, row.nextCursor)
+    )
+      yardErrorsBySource.set(
+        row.source,
+        await validateCars4PartsPublishedYardInventory(
+          params.database,
+          snapshot.vehicles.values(),
+        ),
+      );
+  }
 
   const validations: Array<{
     source: IngestionSource;

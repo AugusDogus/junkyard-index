@@ -17,6 +17,8 @@ import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
+import { Cars4PartsCursor } from "./cars4parts-cursor";
+import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
@@ -363,6 +365,19 @@ const DURABLE_CURSOR_DEFINITIONS = {
   coutu: {
     parse: CoutuCursor.parse,
     serialize: CoutuCursor.serialize,
+  },
+  cars4parts: {
+    parse: (value: string) => {
+      const payload: unknown = JSON.parse(value);
+      const parsed = Cars4PartsCursor.parse(payload, CARS4PARTS_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.value;
+    },
+    serialize: (cursor: Cars4PartsCursor) => {
+      const parsed = Cars4PartsCursor.parse(cursor, CARS4PARTS_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return JSON.stringify(parsed.value);
+    },
   },
   brandywine: {
     parse: BrandywineCursor.parse,

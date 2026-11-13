@@ -92,6 +92,7 @@ const SOURCES = [
   ["aplus", "A Plus Auto"],
   ["central", "Central Auto Liquidators"],
   ["coutu", "Truck Country"],
+  ["cars4parts", "Cars 4 Parts"],
   ["brandywine", "Brandywine U-Pull-It"],
   ["aero", "Aero Auto Parts"],
   ["row52", "Row52 / Pick-n-Pull"],
