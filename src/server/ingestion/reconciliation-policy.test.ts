@@ -80,6 +80,7 @@ describe("reconciliation policy", () => {
       "awap",
       "aplus",
       "brandywine",
+      "calton",
       "autorecycler",
     ]);
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
@@ -165,7 +166,7 @@ describe("reconciliation policy", () => {
     ).toEqual(["pyp"]);
   });
 
-  test.each([] as const)(
+  test.each(["calton",] as const)(
     "%s replaces an AutoRecycler mirror and retains native ownership",
     (source) => {
       const runTimestamp = new Date("2026-03-05T00:00:00.000Z");

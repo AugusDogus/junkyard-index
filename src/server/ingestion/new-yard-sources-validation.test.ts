@@ -12,6 +12,8 @@ import {
   brandywineSavedControls,
   brandywineSavedDetails,
 } from "./brandywine-test-fixtures";
+import { CaltonCursor } from "./calton-cursor";
+import { CALTON_CONTRACT } from "./calton-configuration";
 
 const schema = `${TEST_SCHEMA}
   create table vehicle (
@@ -36,7 +38,28 @@ const completeBrandywine = BrandywineCursor.checkpoint({
   closing: brandywineSavedControls("closing"),
 });
 
+const initialCalton = CaltonCursor.initial(CALTON_CONTRACT);
+if (!initialCalton.ok) throw new Error(initialCalton.error.message);
+const completeCalton = CaltonCursor.checkpoint(
+  {
+    source: "calton",
+    version: 1,
+    phase: "complete",
+    scope: initialCalton.value.scope,
+    requests: 679,
+    bytes: 142_370_116,
+  },
+  CALTON_CONTRACT,
+);
+if (!completeCalton.ok) throw new Error(completeCalton.error.message);
+
 const sources = [
+  {
+    source: "calton",
+    minimum: CALTON_CONTRACT.minimumUniqueInventory,
+    initial: initialCalton.value,
+    complete: completeCalton.value,
+  },
   {
     source: "brandywine",
     minimum: 1_500,

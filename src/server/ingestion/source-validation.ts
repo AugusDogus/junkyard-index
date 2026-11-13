@@ -27,6 +27,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   aplus: 1_000,
   // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
   brandywine: 1_500,
+  // Complete 630-model native graph and arrivals union, qualified locally only.
+  calton: 11_000,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;

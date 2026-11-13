@@ -57,6 +57,9 @@ import { streamAplusInventory } from "../src/server/ingestion/aplus-connector";
 import { soakAplusInventory } from "./soak-aplus";
 import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
 import { soakBrandywineInventory } from "./soak-brandywine";
+import { streamCaltonInventoryFromProvider } from "../src/server/ingestion/calton-connector";
+import { CALTON_CONTRACT } from "../src/server/ingestion/calton-configuration";
+import { soakCaltonInventory } from "./soak-calton";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -342,6 +345,20 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamBrandywineInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "calton":
+            return soakCaltonInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamCaltonInventoryFromProvider({
+                    contract: CALTON_CONTRACT,
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

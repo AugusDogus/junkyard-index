@@ -9,6 +9,8 @@ import { AviationCursor } from "./aviation-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
+import { CaltonCursor } from "./calton-cursor";
+import { CALTON_CONTRACT } from "./calton-configuration";
 import {
   UpullRPartsCursor,
   UpullRPartsCursorSchema,
@@ -329,6 +331,18 @@ const DURABLE_CURSOR_DEFINITIONS = {
   brandywine: {
     parse: BrandywineCursor.parse,
     serialize: BrandywineCursor.serialize,
+  },
+  calton: {
+    parse: (value: string) => {
+      const parsed = CaltonCursor.fromWire(value, CALTON_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.value;
+    },
+    serialize: (cursor: CaltonCursor) => {
+      const serialized = CaltonCursor.serialize(cursor, CALTON_CONTRACT);
+      if (!serialized.ok) throw new Error(serialized.error.message);
+      return serialized.value;
+    },
   },
   partsgalore: defineScalarCursor(
     "partsgalore",
