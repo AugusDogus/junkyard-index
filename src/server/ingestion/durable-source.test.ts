@@ -14,6 +14,7 @@ describe("durable ingestion cursors", () => {
   test.each([
     ["awap", 2],
     ["clearsalvage", 4],
+    ["central", 2],
     ["beavers", 2],
   ] as const)(
     "%s preserves its source-specific wire byte guard",

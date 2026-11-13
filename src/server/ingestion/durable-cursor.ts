@@ -15,6 +15,7 @@ import { CitymotorsCursor } from "./citymotors-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
+import { CentralCursor } from "./central-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
@@ -353,6 +354,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   aplus: {
     parse: AplusCursor.parse,
     serialize: AplusCursor.serialize,
+  },
+  central: {
+    parse: CentralCursor.parse,
+    serialize: CentralCursor.serialize,
   },
   brandywine: {
     parse: BrandywineCursor.parse,

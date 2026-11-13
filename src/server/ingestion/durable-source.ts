@@ -13,6 +13,7 @@ import { CitymotorsCursor } from "./citymotors-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
+import { CentralCursor } from "./central-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
@@ -160,6 +161,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 8,
   },
   aplus: { initialCursor: AplusCursor.initial, maxPagesPerChunk: 8 },
+  central: { initialCursor: CentralCursor.initial, maxPagesPerChunk: 8 },
   brandywine: {
     initialCursor: BrandywineCursor.initial(null),
     maxPagesPerChunk: 3,

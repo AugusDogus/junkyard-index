@@ -84,6 +84,7 @@ describe("reconciliation policy", () => {
       "awap",
       "clearsalvage",
       "aplus",
+      "central",
       "brandywine",
       "calton",
       "bigtruckpage",

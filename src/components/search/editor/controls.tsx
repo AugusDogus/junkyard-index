@@ -90,6 +90,7 @@ const SOURCES = [
   ["awap", "Alabama Wholesale Auto Parts"],
   ["clearsalvage", "Clear Salvage"],
   ["aplus", "A Plus Auto"],
+  ["central", "Central Auto Liquidators"],
   ["brandywine", "Brandywine U-Pull-It"],
   ["aero", "Aero Auto Parts"],
   ["row52", "Row52 / Pick-n-Pull"],
