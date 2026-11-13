@@ -13,6 +13,8 @@ import { streamAviationInventory } from "./aviation-connector";
 import { streamAwapInventory } from "./awap-connector";
 import { streamAplusInventory } from "./aplus-connector";
 import { streamBrandywineInventory } from "./brandywine-connector";
+import { streamCaltonInventoryFromProvider } from "./calton-connector";
+import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import {
   connectorChunkMetrics,
   type ConnectorChunkResult,
@@ -83,6 +85,28 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  calton: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamCaltonInventoryFromProvider({
+          contract: CALTON_CONTRACT,
+          // Durable validation checks the previous published count before reconciliation.
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+        }).pipe(
+          Effect.tap((result) =>
+            result.status === "complete"
+              ? context.onYards([CALTON_YARD])
+              : Effect.void,
+          ),
+        ),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   brandywine: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

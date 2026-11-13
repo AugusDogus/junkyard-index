@@ -7,6 +7,8 @@ import { AviationCursor } from "./aviation-cursor";
 import { AwapCursor } from "./awap-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
+import { CaltonCursor } from "./calton-cursor";
+import { CALTON_CONTRACT } from "./calton-configuration";
 import { UpullRPartsCursor } from "./upullrparts-cursor";
 import {
   INGESTION_SOURCES,
@@ -57,6 +59,9 @@ type DurableSourceRegistry = {
 
 export const DURABLE_INGESTION_SOURCES: readonly DurableIngestionSource[] =
   INGESTION_SOURCES;
+
+const initialCalton = CaltonCursor.initial(CALTON_CONTRACT);
+if (!initialCalton.ok) throw new Error(initialCalton.error.message);
 
 export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   row52: {
@@ -140,6 +145,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   brandywine: {
     initialCursor: BrandywineCursor.initial(null),
     maxPagesPerChunk: 3,
+  },
+  calton: {
+    initialCursor: initialCalton.value,
+    maxPagesPerChunk: 8,
   },
 };
 

@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   awap: "Alabama Wholesale Auto Parts",
   aplus: "A Plus Auto",
   brandywine: "Brandywine U-Pull-It",
+  calton: "Calton Auto Parts Recyclers",
   aero: "Aero Auto Parts",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",
