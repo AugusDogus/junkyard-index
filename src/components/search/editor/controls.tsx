@@ -96,6 +96,7 @@ const SOURCES = [
   ["fenix", "Fenix U-Pull"],
   ["importapart", "Importapart"],
   ["bigtruckpage", "BigTruckPage"],
+  ["speedys", "Speedy's Transmission"],
   ["denton", "Denton Auto Parts"],
   ["beavers", "Beaver's Car Salvage"],
   ["indianriver", "Indian River U-Pull-It"],

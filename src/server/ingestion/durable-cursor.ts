@@ -17,6 +17,7 @@ import { RivervalleyCursorSchema } from "./rivervalley-cursor";
 import { FenixCursorSchema } from "./fenix-cursor";
 import { ImportapartCursorSchema } from "./importapart-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
+import { SpeedysCursor } from "./speedys-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
@@ -496,6 +497,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   fenix: defineJsonCursor("fenix", FenixCursorSchema),
   importapart: defineJsonCursor("importapart", ImportapartCursorSchema),
   bigtruckpage: defineJsonCursor("bigtruckpage", BigtruckpageCursorSchema),
+  speedys: SpeedysCursor,
   army: defineJsonCursor("army", ArmyCursorSchema),
   idipull: defineJsonCursor("idipull", IdipullCursorSchema),
   pullsavewa: defineJsonCursor("pullsavewa", PullsavewaCursorSchema),

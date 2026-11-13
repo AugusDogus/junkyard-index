@@ -1,0 +1,47 @@
+{
+  "source": "AL93 complete saved native responses, no fixture body edits",
+  "responses": [
+    {
+      "fixture": "default.html",
+      "nativeBody": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native05-body.raw",
+      "nativeReceipt": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native05-result.json",
+      "bytes": 5782,
+      "sha256": "bc51ab476dfaf336a430f04674f0f61b52b8b93852ac3b1b7e202e6ff23a89db"
+    },
+    {
+      "fixture": "all.html",
+      "nativeBody": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native07-body.raw",
+      "nativeReceipt": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native07-result.json",
+      "bytes": 5782,
+      "sha256": "81f9be049e753d9e865066571b0eb994ec51a725c5e5da201cc516cd54d262fd"
+    },
+    {
+      "fixture": "nissan.html",
+      "nativeBody": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native08-body.raw",
+      "nativeReceipt": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native08-result.json",
+      "bytes": 5782,
+      "sha256": "b83e9dd84a1ea87e17d82b7ffcb9a2b06aa64e91e2a8022fd9a1ab19c52e85b4"
+    },
+    {
+      "fixture": "detail.html",
+      "nativeBody": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native06-body.raw",
+      "nativeReceipt": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native06-result.json",
+      "bytes": 288391,
+      "sha256": "26117ba1f4f33c8e7377624e9b3d59be0e30ffb19b4f86d7b5c9a1732a938f3a"
+    },
+    {
+      "fixture": "closing-all.html",
+      "nativeBody": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native11-body.raw",
+      "nativeReceipt": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native11-result.json",
+      "bytes": 5782,
+      "sha256": "d0824071f55a8ffc2f80ab09e156388a35e54f3f7a47ad22bf7864bb2ffbeae4"
+    },
+    {
+      "fixture": "closing-detail.html",
+      "nativeBody": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native12-body.raw",
+      "nativeReceipt": ".scratchpad/coverage/parallel-al-ms-la/va-speedys-refill93/native12-result.json",
+      "bytes": 288391,
+      "sha256": "74e73530e3a93c90896007e07876639eed6a37755db6f74eef03701af2520e87"
+    }
+  ]
+}

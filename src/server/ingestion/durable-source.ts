@@ -13,6 +13,7 @@ import { RivervalleyCursor } from "./rivervalley-cursor";
 import { FenixCursor } from "./fenix-cursor";
 import { ImportapartCursor } from "./importapart-cursor";
 import { BigtruckpageCursor } from "./bigtruckpage-cursor";
+import { SpeedysCursor } from "./speedys-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
@@ -282,6 +283,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   bigtruckpage: {
     initialCursor: BigtruckpageCursor.initial,
+    maxPagesPerChunk: 2,
+  },
+  speedys: {
+    initialCursor: SpeedysCursor.initial,
     maxPagesPerChunk: 2,
   },
   denton: {

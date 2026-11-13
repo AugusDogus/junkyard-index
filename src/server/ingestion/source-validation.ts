@@ -34,6 +34,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   fenix: 4_000,
   importapart: 60,
   bigtruckpage: 40,
+  // Complete native parting-out catalog: one active donor on 2026-11-13.
+  speedys: 1,
   denton: 2_000,
   // Complete native model/arrivals union: 2,158 accepted donors.
   oem: 1_800,
