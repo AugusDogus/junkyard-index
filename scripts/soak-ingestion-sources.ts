@@ -55,6 +55,8 @@ import { streamAwapInventory } from "../src/server/ingestion/awap-connector";
 import { soakAwapInventory } from "./soak-awap";
 import { streamAplusInventory } from "../src/server/ingestion/aplus-connector";
 import { soakAplusInventory } from "./soak-aplus";
+import { streamBrandywineInventory } from "../src/server/ingestion/brandywine-connector";
+import { soakBrandywineInventory } from "./soak-brandywine";
 import { UpullitDavieCursorState } from "../src/server/ingestion/durable-cursor";
 import { streamUpullitDavieInventory } from "../src/server/ingestion/upullit-davie-connector";
 import type { CanonicalVehicle } from "../src/server/ingestion/types";
@@ -335,6 +337,14 @@ async function main(): Promise<void> {
             );
           case "aero":
             return runProgram(streamAeroInventory({ onBatch }));
+          case "brandywine":
+            return soakBrandywineInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamBrandywineInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
           case "ipullupull":
             return runProgram(streamIPullUPullInventory({ onBatch }));
           case "upullitwa":

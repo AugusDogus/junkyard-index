@@ -21,6 +21,7 @@ const providerWebsites = new Map<string, string>([
   ["aviation", "https://aviationauto.com/"],
   ["awap", "https://www.alwholesaleautoparts.com/"],
   ["aplus", "https://aplusauto.parts/"],
+  ["brandywine", "https://www.brandywineupullit.com/"],
   ["upullitdavie", "https://upullitdavie.com/"],
 ]);
 

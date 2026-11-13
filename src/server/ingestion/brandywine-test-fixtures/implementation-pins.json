@@ -1,0 +1,122 @@
+{
+  "source": "brandywine",
+  "status": "disabled-local-slice-ready-for-independent-review",
+  "validation": {
+    "focusedTests": 34,
+    "failures": 0,
+    "assertions": 166,
+    "lint": "0 warnings, 0 errors",
+    "format": "all owned files pass",
+    "typecheck": "bun run typecheck passed"
+  },
+  "files": [
+    {
+      "file": "src/server/ingestion/brandywine-catalog.ts",
+      "bytes": 11441,
+      "sha256": "5391c151939a1b7b1c5a7f9f72b88a503702e1566b376638e8ac8391eaecdd2c"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-client.test.ts",
+      "bytes": 7868,
+      "sha256": "7e5cdc30020e6f546bd2152089ad5bad3e8365eb3d665ccb85c4d0226c149d91"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-client.ts",
+      "bytes": 5303,
+      "sha256": "0e3b2ce4473dc6f734356ecbc45703ca1c571102f04e7c523acc389067e8b7e2"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-connector.test.ts",
+      "bytes": 13183,
+      "sha256": "1637d7d0104c0b3221e33103b18546456c020b5a49da65439ce37dd2e643e1ab"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-connector.ts",
+      "bytes": 10275,
+      "sha256": "d91c0edabfe662ba01b6f2de287153f3ff32042b776bf28cd9759e64338437fc"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-cursor.ts",
+      "bytes": 11078,
+      "sha256": "b6f18a089c330bf4aeef79973e2680ca1a6617092de96e12fc824afbdbcb0420"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-html.ts",
+      "bytes": 7067,
+      "sha256": "9834da0ebf3a336b71ae2b9633efe94534d9b5864f2c2ee483ceafc8f1d72f8f"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-parser.test.ts",
+      "bytes": 8960,
+      "sha256": "31c5c72f8e607570d0afe0ceb786be1ef1795ac5207841f34672c9d3b9d4ff4f"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-parser.ts",
+      "bytes": 8880,
+      "sha256": "3a2d385784ad461f25628ddf90dd1aafae0bea8206558d192b8b02cc5a8f5e45"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-record.ts",
+      "bytes": 2083,
+      "sha256": "12a3bdcf990c47ae5e1749dbed98a71c79a9afebaf4ac046943046b60268feb2"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-snapshot.test.ts",
+      "bytes": 3829,
+      "sha256": "505e9785de3c11361626b563e77aee5d421c030a69312c14ecbe796c64bc7eba"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-snapshot.ts",
+      "bytes": 2572,
+      "sha256": "31ab247785f891631f027bc15162798a7defcf888de6d4bd345cd876f24c1a42"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-test-fixtures.ts",
+      "bytes": 3893,
+      "sha256": "c0627c6c627313455457609c5f59e7cb7e29031dbec2905c5e49930292452b0b"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-transform.ts",
+      "bytes": 2907,
+      "sha256": "d1da200b1ae22017c3d3110890928686990e7161b9126afee3f1b27b2caf263f"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-yard-metadata.ts",
+      "bytes": 1095,
+      "sha256": "eaa021bbed3ac83694a4d35eb3b3980677b9c6d12adce2274db7738b6966a0bb"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-test-fixtures/native-samples.json.gz",
+      "bytes": 439815,
+      "sha256": "5e0eb28d3049178013be8e00e5592ed5b1d6fabfe4c6b100e71fcbee8c247ade"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-test-fixtures/original-evidence-map.json.gz",
+      "bytes": 289512,
+      "sha256": "e45f097c13726796a4598b6f503e0447c766a51adfa888e7929300bb17d8036a"
+    },
+    {
+      "file": "src/server/ingestion/brandywine-test-fixtures/reference.json.gz",
+      "bytes": 77304,
+      "sha256": "a6f839c02f39ea3496bf8ba8cb1783e5d0a94037a5cf112ba993fba145e04721"
+    },
+    {
+      "file": "docs/runbooks/brandywine-ingestion.md",
+      "bytes": 11996,
+      "sha256": "2aee14a8e1fb698978d2668d68ecb5135e0fcdc4da1a3f4fb1bafac696d22279"
+    }
+  ],
+  "parentStatusCueFix": {
+    "scope": "Reject NOT AVAILABLE, NO LONGER IN YARD and INACTIVE while preserving genuine VIN presence; frozen corpus count unchanged",
+    "red": ".scratchpad/coverage/parent-brandywine-local01/status-cue-red.log",
+    "finalAffected": "/tmp/coverage-brandywine-rmm-final-affected.log",
+    "finalAffectedTests": 76,
+    "finalAffectedFailures": 0,
+    "lintAndTypecheck": "/tmp/coverage-brandywine-rmm-final-check.log",
+    "fullSuiteBeforeFinalStatusDelta": {
+      "passed": 3368,
+      "failed": 0,
+      "file": "/tmp/coverage-brandywine-rmm-suite.log"
+    }
+  }
+}
