@@ -9,6 +9,8 @@ import {
 } from "./durable-source";
 import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { KodakCursor } from "./kodak-cursor";
+import { Six03Cursor } from "./six03-cursor";
 import { RohnerCursor } from "./rohner-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
@@ -112,6 +114,16 @@ describe("durable ingestion cursors", () => {
       ),
     ).toThrow();
   });
+  test("registers Kodak and six03 with their frozen native request budgets", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("kodak", {
+      initialCursor: KodakCursor.initial,
+      maxPagesPerChunk: 2,
+    });
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("six03", {
+      initialCursor: Six03Cursor.initial,
+      maxPagesPerChunk: 8,
+    });
+  });
   test.each([
     ["awap", 2],
     ["clearsalvage", 4],
@@ -147,6 +159,7 @@ describe("durable ingestion cursors", () => {
     "citymotors",
     "aplus",
     "coutu",
+    "six03",
   ] as const)("%s rejects oversized wire before JSON decoding", (source) => {
     for (const wire of [
       "x".repeat(1024 * 1024 + 1),
@@ -167,7 +180,7 @@ describe("durable ingestion cursors", () => {
       ).toThrow();
     },
   );
-  test.each(["kodak",] as const)(
+  test.each(["kodak", "six03"] as const)(
     "%s preserves strict source/version and complete checkpoint codecs",
     (source) => {
       const initial = DURABLE_SOURCE_DEFINITIONS[source].initialCursor;

@@ -70,6 +70,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "central",
     "coutu",
     "kodak",
+    "six03",
     "rohner",
     "pratt",
     "cars4parts",

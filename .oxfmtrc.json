@@ -41,6 +41,7 @@
     "src/server/ingestion/rmmdtp-test-fixtures/opening-3.html",
     "src/server/ingestion/rmmdtp-test-fixtures/opening-4.html",
     "src/server/ingestion/rmmdtp-test-fixtures/opening-5.html",
-    "src/server/ingestion/rmmdtp-test-fixtures/canonical-reference.json"
+    "src/server/ingestion/rmmdtp-test-fixtures/canonical-reference.json",
+    "src/server/ingestion/six03-test-fixtures/manifest.json",
   ]
 }

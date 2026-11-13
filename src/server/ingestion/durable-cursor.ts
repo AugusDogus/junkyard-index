@@ -51,6 +51,7 @@ import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
+import { Six03Cursor } from "./six03-cursor";
 import { RohnerCursor } from "./rohner-cursor";
 import { PrattCursor } from "./pratt-cursor";
 import { PRATT_CONTRACT } from "./pratt-configuration";
@@ -547,6 +548,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   kodak: {
     parse: KodakCursor.parse,
     serialize: KodakCursor.serialize,
+  },
+  six03: {
+    parse: Six03Cursor.parse,
+    serialize: Six03Cursor.serialize,
   },
   rohner: {
     parse: RohnerCursor.parse,

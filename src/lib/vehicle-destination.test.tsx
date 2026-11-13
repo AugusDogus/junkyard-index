@@ -164,6 +164,7 @@ describe("manual provider destinations across search, durable alerts and present
     ["central", "https://centralautoliq.com/used-parts/ACURA/ILX/ST1/2003"],
     ["coutu", "https://www.truckcountry.us/browse/vehicle/fixture"],
     ["kodak", "https://kodakauto.co/pull-a-part"],
+    ["six03", "https://603autosalvage.com/parts-vehicles/2020-honda-civic/"],
     ["rohner", "https://rohnersautoparts.com/shop/aa0268/"],
     [
       "awap",

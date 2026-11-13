@@ -83,6 +83,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   coutu: 1_000,
   // Complete finite native roster: 38 unique donors.
   kodak: 30,
+  // Complete native donor article census: 973 unique donors.
+  six03: 800,
   // Complete native census: 286 active donors, one explicitly sold vehicle.
   rohner: 240,
   // Complete saved 468-model census: 5,930 clean candidates before arrivals union.
