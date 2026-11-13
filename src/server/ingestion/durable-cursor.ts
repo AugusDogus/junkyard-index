@@ -53,6 +53,8 @@ import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { MeeksCursorSchema } from "./meeks-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
+import { RmmdtpCursor } from "./rmmdtp-cursor";
+import { RMMDTP_CONTRACT } from "./rmmdtp-configuration";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
 import {
@@ -563,6 +565,21 @@ const DURABLE_CURSOR_DEFINITIONS = {
   brandywine: {
     parse: BrandywineCursor.parse,
     serialize: BrandywineCursor.serialize,
+  },
+  rmmdtp: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 8 * 1024 * 1024)
+        throw new Error("RMMDTP serialized checkpoint exceeds 8 MiB");
+      const payload: unknown = JSON.parse(value);
+      const parsed = RmmdtpCursor.parse(payload, RMMDTP_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.value;
+    },
+    serialize: (cursor: RmmdtpCursor) => {
+      const parsed = RmmdtpCursor.parse(cursor, RMMDTP_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return JSON.stringify(parsed.value);
+    },
   },
   calton: {
     parse: (value: string) => {

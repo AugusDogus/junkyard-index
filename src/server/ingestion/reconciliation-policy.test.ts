@@ -110,6 +110,7 @@ describe("reconciliation policy", () => {
       "cars4parts",
       "meeks",
       "brandywine",
+      "rmmdtp",
       "calton",
       "bigtruckpage",
       "denton",
@@ -131,7 +132,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 0",
+      "when 'autorecycler' then 64",
     );
   });
 

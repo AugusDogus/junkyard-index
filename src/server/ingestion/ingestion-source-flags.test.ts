@@ -70,6 +70,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "cars4parts",
     "meeks",
     "brandywine",
+    "rmmdtp",
     "calton",
   ] as const)(
     "requires explicit enablement for %s before rollout",

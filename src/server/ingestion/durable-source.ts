@@ -49,6 +49,8 @@ import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { MeeksCursor } from "./meeks-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
+import { RmmdtpCursor } from "./rmmdtp-cursor";
+import { RMMDTP_CONTRACT } from "./rmmdtp-configuration";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
 import { UpullRPartsCursor } from "./upullrparts-cursor";
@@ -254,6 +256,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   brandywine: {
     initialCursor: BrandywineCursor.initial(null),
     maxPagesPerChunk: 3,
+  },
+  rmmdtp: {
+    initialCursor: RmmdtpCursor.initial(RMMDTP_CONTRACT),
+    maxPagesPerChunk: 8,
   },
   calton: {
     initialCursor: initialCalton.value,

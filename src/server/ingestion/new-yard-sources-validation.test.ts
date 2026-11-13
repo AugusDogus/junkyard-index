@@ -17,6 +17,10 @@ import {
   brandywineSavedControls,
   brandywineSavedDetails,
 } from "./brandywine-test-fixtures";
+import { RmmdtpCursor } from "./rmmdtp-cursor";
+import { RMMDTP_CONTRACT } from "./rmmdtp-configuration";
+import { rmmdtpAdvance } from "./rmmdtp-traversal";
+import { rmmdtpFixture } from "./rmmdtp-test-fixtures";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
 import { BeaversCursor } from "./beavers-cursor";
@@ -62,6 +66,24 @@ const completeBrandywine = BrandywineCursor.checkpoint({
   details: brandywineSavedDetails(),
   closing: brandywineSavedControls("closing"),
 });
+let rmmdtp = RmmdtpCursor.initial(RMMDTP_CONTRACT);
+for (const stage of ["opening", "closing"] as const)
+  for (let page = 1; page <= 5; page++) {
+    const next = rmmdtpAdvance(
+      rmmdtp,
+      rmmdtpFixture(stage, page),
+      RMMDTP_CONTRACT,
+    );
+    if (!next.ok) throw new Error(next.error.message);
+    rmmdtp = next.value;
+  }
+if (rmmdtp.phase !== "ready")
+  throw new Error("Saved RMMDTP closing graph is incomplete");
+const completeRmmdtp = RmmdtpCursor.checkpoint(
+  { ...rmmdtp, phase: "complete" },
+  RMMDTP_CONTRACT,
+);
+if (!completeRmmdtp.ok) throw new Error(completeRmmdtp.error.message);
 
 const initialCalton = CaltonCursor.initial(CALTON_CONTRACT);
 if (!initialCalton.ok) throw new Error(initialCalton.error.message);
@@ -160,6 +182,12 @@ const sources = [
     minimum: 1_500,
     initial: BrandywineCursor.initial(null),
     complete: completeBrandywine,
+  },
+  {
+    source: "rmmdtp",
+    minimum: 80,
+    initial: RmmdtpCursor.initial(RMMDTP_CONTRACT),
+    complete: completeRmmdtp.value,
   },
 ] as const;
 
