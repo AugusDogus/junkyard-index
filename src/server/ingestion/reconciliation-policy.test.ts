@@ -106,6 +106,7 @@ describe("reconciliation policy", () => {
       "coutu",
       "kodak",
       "rohner",
+      "pratt",
       "cars4parts",
       "meeks",
       "brandywine",
@@ -208,6 +209,7 @@ describe("reconciliation policy", () => {
 
   test.each([
     "rohner",
+    "pratt",
     "cars4parts",
     "meeks",
     "calton",

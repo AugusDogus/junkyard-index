@@ -1,0 +1,56 @@
+[
+  {
+    "fixture": "model-lexus.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-make-model-stage02/native/get-44.body",
+    "bytes": 139874,
+    "sha256": "b28382181a1fee2b3011adca42080369fa6d805d11c53283018d7f14beb6abca"
+  },
+  {
+    "fixture": "model-smart.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-make-model-stage02/native/get-45.body",
+    "bytes": 141088,
+    "sha256": "3abf7c070571144ba30c132a0f1db6fe9d27e7ce4a80ebd59a5d3185f039dbc2"
+  },
+  {
+    "fixture": "model-nissan.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-make-model-stage02/native/get-46.body",
+    "bytes": 141032,
+    "sha256": "f1e03b56907eb9bf84287e8ce3a3d52c417258bab9efbf357ccc3c9c1e5735e7"
+  },
+  {
+    "fixture": "models-lexus.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-make-model-stage02/native/get-20.body",
+    "bytes": 131364,
+    "sha256": "98342d69aab5526310ad47c0faf34d62651563003ae1de419e00ad6ecc7d2b8b"
+  },
+  {
+    "fixture": "makes.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/evidence/pratts-parts-makes.html",
+    "bytes": 146217,
+    "sha256": "e067e10e2ca8cb216233977258c550002dd5bfa6d63ce851d279613fd572f4bb"
+  },
+  {
+    "fixture": "arrivals.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/evidence/pratts-ar-arrivals.html",
+    "bytes": 1381062,
+    "sha256": "d2433d143e125caedc4c0799bafcd0b387ae73892352cecada2520edee8e339e"
+  },
+  {
+    "fixture": "root.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/evidence/pratts-ar-root.html",
+    "bytes": 185843,
+    "sha256": "2e0fb886b21597468065b3cde43fa3c332f4a1c27fab9547094ee90d84f593c2"
+  },
+  {
+    "fixture": "empty-chrysler.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-model-census03/native/get-119.body",
+    "bytes": 135999,
+    "sha256": "9cd3d3e7c3664bf6eacfd90ce8ced80adee91cb5967dc7781db9d5ba1ec9bb05"
+  },
+  {
+    "fixture": "model-corvette.html",
+    "source": ".scratchpad/coverage/parallel-ky-tn-ar/ar-positive-frontier10/pratt-model-census03/native/get-078.body",
+    "bytes": 147689,
+    "sha256": "7b688064a57ea9f480c4806a4569a8c1f0a82a200fe160c2b3b95e039cb33516"
+  }
+]

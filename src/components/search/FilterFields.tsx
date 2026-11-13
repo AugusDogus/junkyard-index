@@ -70,6 +70,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   coutu: "Truck Country",
   kodak: "Kodak Auto",
   rohner: "Rohner's Auto Parts",
+  pratt: "Pratt's Auto Salvage",
   cars4parts: "Cars 4 Parts",
   meeks: "Meeks Pic-N-Pull",
   brandywine: "Brandywine U-Pull-It",

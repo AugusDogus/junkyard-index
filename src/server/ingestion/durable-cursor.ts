@@ -47,6 +47,8 @@ import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
 import { RohnerCursor } from "./rohner-cursor";
+import { PrattCursor } from "./pratt-cursor";
+import { PRATT_CONTRACT } from "./pratt-configuration";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { MeeksCursorSchema } from "./meeks-cursor";
@@ -531,6 +533,18 @@ const DURABLE_CURSOR_DEFINITIONS = {
   rohner: {
     parse: RohnerCursor.parse,
     serialize: RohnerCursor.serialize,
+  },
+  pratt: {
+    parse: (value: string) => {
+      const parsed = PrattCursor.fromWire(value, PRATT_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.value;
+    },
+    serialize: (cursor: PrattCursor) => {
+      const serialized = PrattCursor.serialize(cursor, PRATT_CONTRACT);
+      if (!serialized.ok) throw new Error(serialized.error.message);
+      return serialized.value;
+    },
   },
   cars4parts: {
     parse: (value: string) => {
