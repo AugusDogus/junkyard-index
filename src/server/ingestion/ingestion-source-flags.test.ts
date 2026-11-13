@@ -57,6 +57,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "coutu",
     "kodak",
     "cars4parts",
+    "meeks",
     "brandywine",
     "calton",
   ] as const)(

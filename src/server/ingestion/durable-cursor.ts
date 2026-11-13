@@ -39,6 +39,7 @@ import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
+import { MeeksCursorSchema } from "./meeks-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
@@ -494,6 +495,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
       return JSON.stringify(parsed.value);
     },
   },
+  meeks: defineJsonCursor("meeks", MeeksCursorSchema),
   brandywine: {
     parse: BrandywineCursor.parse,
     serialize: BrandywineCursor.serialize,

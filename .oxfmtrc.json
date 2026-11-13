@@ -19,5 +19,8 @@
     "src/server/ingestion/cars4parts-test-fixtures/w-series.html",
     "src/server/ingestion/fixtures/millerstown-inventory.html",
     "src/server/ingestion/fixtures/millerstown-root.html",
+    "src/server/ingestion/meeks-test-fixtures/full-inventory.html",
+    "src/server/ingestion/meeks-test-fixtures/inventory.html",
+    "src/server/ingestion/meeks-test-fixtures/owner.html"
   ]
 }

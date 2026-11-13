@@ -242,6 +242,7 @@ describe("manual provider destinations across search, durable alerts and present
   });
   test.each([
     ["aero", "https://aeroautosalvage.com/vehicle-inventory/"],
+    ["meeks", "https://meeksrecycling.com/pic-and-pull/"],
     ["ddauto", "https://dd-auto-parts-cars.glide.page/dl/17171d"],
     ["army", "https://armysauto.com/self-service-inventory/"],
     ["idipull", "https://ifipull.com/inventory/"],

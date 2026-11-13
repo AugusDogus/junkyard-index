@@ -36,6 +36,7 @@ import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
+import { MeeksCursor } from "./meeks-cursor";
 import { BrandywineCursor } from "./brandywine-cursor";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
@@ -220,6 +221,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: Cars4PartsCursor.initial(CARS4PARTS_CONTRACT),
     maxPagesPerChunk: 8,
   },
+  meeks: { initialCursor: MeeksCursor.initial, maxPagesPerChunk: 1 },
   brandywine: {
     initialCursor: BrandywineCursor.initial(null),
     maxPagesPerChunk: 3,

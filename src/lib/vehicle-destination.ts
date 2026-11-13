@@ -21,6 +21,7 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   partsgalore: "https://parts-galore.com/inventory/",
   nvpap: "https://nvpap.com/part-interchange.html",
   aero: "https://aeroautosalvage.com/vehicle-inventory/",
+  meeks: "https://meeksrecycling.com/pic-and-pull/",
   chesterfield: "https://chesterfieldauto.com/search-our-inventory-by-location",
   midway: "https://midwayupull.com/inventory/",
   ddauto: "https://dd-auto-parts-cars.glide.page/dl/17171d",
@@ -45,6 +46,7 @@ function manualSearchExplanation(source: DataSource): string {
     case "pickapartva":
       return "Search the inventory by VIN or stock number, then confirm the matching yard.";
     case "aero":
+    case "meeks":
     case "ddauto":
     case "army":
     case "idipull":
