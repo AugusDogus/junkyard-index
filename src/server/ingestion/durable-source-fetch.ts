@@ -40,6 +40,8 @@ import { streamCentralInventory } from "./central-connector";
 import { streamCoutuInventory } from "./coutu-connector";
 import { streamKodakInventory } from "./kodak-connector";
 import { streamRohnerInventory } from "./rohner-connector";
+import { streamPrattInventoryFromProvider } from "./pratt-connector";
+import { PRATT_CONTRACT } from "./pratt-configuration";
 import { streamCars4PartsInventoryFromProvider } from "./cars4parts-connector";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { streamMeeksInventory } from "./meeks-connector";
@@ -368,6 +370,23 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamMeeksInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  pratt: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamPrattInventoryFromProvider({
+          contract: PRATT_CONTRACT,
+          // Durable source validation checks the previous published count.
+          previousUniqueInventory: null,
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

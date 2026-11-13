@@ -21,6 +21,15 @@
     "src/server/ingestion/fixtures/millerstown-root.html",
     "src/server/ingestion/meeks-test-fixtures/full-inventory.html",
     "src/server/ingestion/meeks-test-fixtures/inventory.html",
-    "src/server/ingestion/meeks-test-fixtures/owner.html"
+    "src/server/ingestion/meeks-test-fixtures/owner.html",
+    "src/server/ingestion/pratt-test-fixtures/arrivals.html",
+    "src/server/ingestion/pratt-test-fixtures/empty-chrysler.html",
+    "src/server/ingestion/pratt-test-fixtures/makes.html",
+    "src/server/ingestion/pratt-test-fixtures/model-corvette.html",
+    "src/server/ingestion/pratt-test-fixtures/model-lexus.html",
+    "src/server/ingestion/pratt-test-fixtures/model-nissan.html",
+    "src/server/ingestion/pratt-test-fixtures/model-smart.html",
+    "src/server/ingestion/pratt-test-fixtures/models-lexus.html",
+    "src/server/ingestion/pratt-test-fixtures/root.html",
   ]
 }

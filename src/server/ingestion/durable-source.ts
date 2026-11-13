@@ -43,6 +43,8 @@ import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
 import { RohnerCursor } from "./rohner-cursor";
+import { PrattCursor } from "./pratt-cursor";
+import { PRATT_CONTRACT } from "./pratt-configuration";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { MeeksCursor } from "./meeks-cursor";
@@ -240,6 +242,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   coutu: { initialCursor: CoutuCursor.initial, maxPagesPerChunk: 8 },
   kodak: { initialCursor: KodakCursor.initial, maxPagesPerChunk: 2 },
   rohner: { initialCursor: RohnerCursor.initial, maxPagesPerChunk: 3 },
+  pratt: {
+    initialCursor: PrattCursor.initial(PRATT_CONTRACT),
+    maxPagesPerChunk: 8,
+  },
   cars4parts: {
     initialCursor: Cars4PartsCursor.initial(CARS4PARTS_CONTRACT),
     maxPagesPerChunk: 8,

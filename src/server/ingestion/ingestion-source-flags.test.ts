@@ -66,6 +66,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "coutu",
     "kodak",
     "rohner",
+    "pratt",
     "cars4parts",
     "meeks",
     "brandywine",
