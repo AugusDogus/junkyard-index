@@ -90,6 +90,7 @@ describe("reconciliation policy", () => {
       "aplus",
       "central",
       "coutu",
+      "kodak",
       "cars4parts",
       "brandywine",
       "calton",

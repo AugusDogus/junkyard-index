@@ -23,6 +23,7 @@ import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
 import { CoutuCursor } from "./coutu-cursor";
+import { KodakCursor } from "./kodak-cursor";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { BrandywineCursor } from "./brandywine-cursor";
@@ -391,6 +392,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   coutu: {
     parse: CoutuCursor.parse,
     serialize: CoutuCursor.serialize,
+  },
+  kodak: {
+    parse: KodakCursor.parse,
+    serialize: KodakCursor.serialize,
   },
   cars4parts: {
     parse: (value: string) => {

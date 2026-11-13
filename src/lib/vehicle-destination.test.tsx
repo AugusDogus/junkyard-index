@@ -121,6 +121,7 @@ describe("manual provider destinations across search, durable alerts and present
     ["aplus", "https://aplusauto.parts/parts/ACURA/ILX/ST1/2003"],
     ["central", "https://centralautoliq.com/used-parts/ACURA/ILX/ST1/2003"],
     ["coutu", "https://www.truckcountry.us/browse/vehicle/fixture"],
+    ["kodak", "https://kodakauto.co/pull-a-part"],
     [
       "awap",
       "https://www.alwholesaleautoparts.com/cars-at-yard/2014-hyundai-santa-fe/",
