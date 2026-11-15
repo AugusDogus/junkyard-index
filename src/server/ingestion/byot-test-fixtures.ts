@@ -1,4 +1,4 @@
-import { ByotCursor, type ByotCache } from "./byot-cursor";
+import { ByotCursor, byotQueryKey, type ByotCache } from "./byot-cursor";
 import { BYOT_DAILY_QUERIES, BYOT_QUERIES } from "./byot-directory";
 import { ByotRecordSchema } from "./byot-record";
 import { readFileSync } from "node:fs";
@@ -60,9 +60,10 @@ export function byotTerminal(
     if (!yard) throw new Error("Missing fixture yard");
     for (let i = 0; i < BYOT_DAILY_QUERIES; i++) {
       const index = (offset + i) % BYOT_QUERIES.length;
-      const existing = yard.findIndex((bucket) => bucket.index === index);
+      const query = byotQueryKey(index);
+      const existing = yard.findIndex((bucket) => bucket.query === query);
       if (existing >= 0) yard.splice(existing, 1);
-      yard.push({ index, checkedAt: at, records: [] });
+      yard.push({ query, checkedAt: at, records: [] });
     }
   }
   return byotValue(
@@ -70,6 +71,7 @@ export function byotTerminal(
       source: "byot",
       version: 1,
       scope: initial.scope,
+      directory: initial.directory,
       phase: "complete",
       completedAt: at,
       nextOffset: (offset + BYOT_DAILY_QUERIES) % BYOT_QUERIES.length,

@@ -4,8 +4,9 @@ import { streamByotInventory } from "./byot-connector";
 import {
   ByotCursor,
   BYOT_RUN_REQUESTS,
-  BYOT_CACHE_MAX_AGE_MS,
   byotHash,
+  byotQueryKey,
+  BYOT_RETIRED_QUERY_MAX_AGE_MS,
 } from "./byot-cursor";
 import {
   BYOT_DAILY_QUERIES,
@@ -19,6 +20,7 @@ import {
   byotMissingF150,
   byotTerminal as terminal,
 } from "./byot-test-fixtures";
+import { byotSnapshot } from "./byot-snapshot";
 import { ByotResult } from "./byot-result";
 import type { CanonicalVehicle } from "./types";
 const now = Date.UTC(2026, 10, 15);
@@ -91,12 +93,12 @@ describe("BYOT bounded durable daily slice", () => {
     if (begin.phase !== "arrivals") throw new Error("Missing daily cursor");
     expect(begin.cache[0]).toHaveLength(BYOT_DAILY_QUERIES);
   });
-  test("expired evidence is pruned at a new run, failed evidence never seeds progress, tampering and forged completion fail", () => {
+  test("active queries survive long outages, failed evidence never seeds progress, tampering and forged completion fail", () => {
     const previous = terminal(0);
-    const begin = byotValue(
-      ByotCursor.begin(previous, now + BYOT_CACHE_MAX_AGE_MS + 1),
-    );
-    expect(begin).toMatchObject({ cache: [[], [], [], [], []] });
+    const begin = byotValue(ByotCursor.begin(previous, now + 30 * 86400000));
+    if (begin.phase !== "arrivals" || previous.phase !== "complete")
+      throw new Error("Missing sweep fixture");
+    expect(begin.cache).toEqual(previous.cache);
     expect(ByotCursor.begin(begin, now).ok).toBe(false);
     expect(ByotCursor.parse({ ...previous, nextOffset: 0 }).ok).toBe(false);
     const forged = {
@@ -199,4 +201,86 @@ test("BYOT stops an overdue resumed daily run before dispatch or emission", asyn
   );
   expect(result._tag).toBe("Left");
   expect(calls).toBe(0);
+});
+
+test("a three-day outage retains unphotographed stock until its own sweep slice re-runs", () => {
+  let previous = terminal(0);
+  if (previous.phase !== "complete") throw new Error("Missing terminal cursor");
+  const seeded = previous.cache[0]?.find(
+    (entry) => entry.query === byotQueryKey(100),
+  );
+  if (!seeded) throw new Error("Missing bucket");
+  seeded.records = [byotMissingF150];
+  previous = byotValue(ByotCursor.checkpoint(previous));
+  for (const day of [1, 2, 3, 4, 5, 9, 10]) {
+    const begin = byotValue(ByotCursor.begin(previous, now + day * 86400000));
+    if (begin.phase !== "arrivals") throw new Error("Missing daily cursor");
+    expect(
+      byotSnapshot(
+        BYOT_YARDS.map((yard) => byotFixtureFeeds[yard.code] ?? []),
+        begin.cache,
+      ).vehicles.some((row) => row.stockNumber === byotMissingF150.StockId),
+    ).toBe(true);
+    previous = terminal(begin.sweepStart, begin.startedAt, begin.cache);
+    if (previous.phase !== "complete")
+      throw new Error("Missing terminal cursor");
+    const snapshot = byotSnapshot(
+      BYOT_YARDS.map((yard) => byotFixtureFeeds[yard.code] ?? []),
+      previous.cache,
+      previous.yardCounts,
+    );
+    expect(snapshot.validation.ok).toBe(true);
+    expect(
+      snapshot.vehicles.some(
+        (row) => row.stockNumber === byotMissingF150.StockId,
+      ),
+    ).toBe(day !== 10);
+  }
+});
+
+test("only retired queries expire after 21 days, while directory changes preserve matching buckets", () => {
+  const prior = terminal(0);
+  if (prior.phase !== "complete") throw new Error("Missing terminal cursor");
+  const retired = byotHash({ make: "REMOVED", model: "QUERY" });
+  const directory = [...prior.directory, retired];
+  const previous = byotValue(
+    ByotCursor.checkpoint({
+      ...prior,
+      directory,
+      scope: byotHash({ yards: BYOT_YARDS, queries: directory }),
+      cache: prior.cache.map((yard) => [
+        ...yard,
+        { query: retired, checkedAt: now, records: [byotMissingF150] },
+      ]),
+    }),
+  );
+  const retained = byotValue(
+    ByotCursor.begin(previous, now + BYOT_RETIRED_QUERY_MAX_AGE_MS),
+  );
+  const expired = byotValue(
+    ByotCursor.begin(previous, now + BYOT_RETIRED_QUERY_MAX_AGE_MS + 1),
+  );
+  if (retained.phase !== "arrivals" || expired.phase !== "arrivals")
+    throw new Error("Missing daily cursor");
+  expect(retained.sweepStart).toBe(0);
+  expect(retained.cache[0]?.some((entry) => entry.query === retired)).toBe(
+    true,
+  );
+  expect(expired.cache[0]?.some((entry) => entry.query === retired)).toBe(
+    false,
+  );
+  expect(expired.cache).toEqual(prior.cache);
+  expect(
+    ByotCursor.parse({
+      ...retained,
+      scope: previous.scope,
+      directory: previous.directory,
+      checksum: byotHash({
+        ...retained,
+        scope: previous.scope,
+        directory: previous.directory,
+        checksum: undefined,
+      }),
+    }).ok,
+  ).toBe(false);
 });
