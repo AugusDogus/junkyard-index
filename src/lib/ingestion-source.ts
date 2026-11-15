@@ -79,6 +79,7 @@ export const INGESTION_SOURCES = [
   "hollanderstores",
   "cstruck",
   "allied",
+  "byot",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
@@ -164,6 +165,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   hollanderstores: "Hollander Stores",
   cstruck: "C&S Truck Sales & Salvage",
   allied: "Allied Auto Wrecking",
+  byot: "BYOT Auto Parts",
 } as const satisfies Record<IngestionSource, string>;
 
 export function mapIngestionSources<Value>(
@@ -250,6 +252,7 @@ export function mapIngestionSources<Value>(
     hollanderstores: transform("hollanderstores"),
     cstruck: transform("cstruck"),
     allied: transform("allied"),
+    byot: transform("byot"),
   };
 }
 

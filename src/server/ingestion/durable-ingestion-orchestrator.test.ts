@@ -101,6 +101,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     alshned: 0,
     hollanderstores: 0,
     allied: 0,
+    byot: 0,
   },
   errors: [],
   durationMs: 10,

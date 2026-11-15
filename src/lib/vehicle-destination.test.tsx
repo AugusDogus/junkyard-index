@@ -482,3 +482,20 @@ describe("absent or unusable destinations", () => {
     },
   );
 });
+
+test.each([
+  "waco",
+  "bryan-college-station",
+  "beaumont",
+  "baton-rouge",
+  "jackson-ms",
+])("BYOT %s preserves its yard-specific native search destination", (slug) => {
+  const href = `https://www.byotautoparts.com/locations/${slug}/inventory/`;
+  expect(
+    VehicleDestination.resolve({ source: "byot", detailsUrl: href }),
+  ).toMatchObject({
+    kind: "manual-search",
+    href,
+    label: "Search provider inventory",
+  });
+});

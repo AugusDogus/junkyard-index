@@ -55,6 +55,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "hollanderstores",
     "alshned",
     "allied",
+    "byot",
     "army",
     "idipull",
     "pullsavewa",

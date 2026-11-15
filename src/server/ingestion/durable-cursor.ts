@@ -1,4 +1,5 @@
 import { CstruckCursor } from "./cstruck-cursor";
+import { ByotCursor } from "./byot-cursor";
 import { AlliedCursor } from "./allied-cursor";
 import { ALLIED_CONTRACT } from "./allied-configuration";
 import { z } from "zod";
@@ -617,6 +618,18 @@ const DURABLE_CURSOR_DEFINITIONS = {
   rohner: {
     parse: RohnerCursor.parse,
     serialize: RohnerCursor.serialize,
+  },
+  byot: {
+    parse: (value: string) => {
+      const result = ByotCursor.fromWire(value);
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value;
+    },
+    serialize: (cursor: ByotCursor) => {
+      const result = ByotCursor.serialize(cursor);
+      if (!result.ok) throw new Error(result.error.message);
+      return result.value;
+    },
   },
   allied: {
     parse: (value: string) => {
