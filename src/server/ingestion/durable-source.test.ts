@@ -16,6 +16,7 @@ import { ScottsCursor } from "./scotts-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { WeberbrothersCursor } from "./weberbrothers-cursor";
 import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
@@ -85,6 +86,16 @@ describe("durable ingestion cursors", () => {
       ),
     ).toThrow();
   });
+  test("registers Weber Brothers with ten native GETs and a validated resumable cursor", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("weberbrothers", {
+      initialCursor: WeberbrothersCursor.initial,
+      maxPagesPerChunk: 10,
+    });
+    const wire = serializeDurableSourceCursor(WeberbrothersCursor.initial);
+    expect(parseDurableSourceCursor("weberbrothers", wire)).toEqual(
+      WeberbrothersCursor.initial,
+    );
+  });
   test("registers Chase N Cars with six physical GETs per checkpoint", () => {
     expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("chasencars", {
       initialCursor: ChasencarsCursor.initial(null),
@@ -143,6 +154,7 @@ describe("durable ingestion cursors", () => {
     ["oem", 4],
     ["dutchers", 8],
     ["chasencars", 2],
+    ["weberbrothers", 8],
     ["oemgarage", 4],
     ["hagerman", 2],
     ["kandr", 4],

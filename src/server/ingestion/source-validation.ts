@@ -47,6 +47,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   dutchers: 500,
   // Complete native inline report: 661 accepted of 680 rows.
   chasencars: 550,
+  // Complete native catalog: 5,760 unique donors, 63 rejects, two duplicates.
+  weberbrothers: 5_000,
   oemgarage: 200,
   hagerman: 5,
   kandr: 40,
