@@ -97,6 +97,7 @@ describe("reconciliation policy", () => {
       "bigtruckpage",
       "denton",
       "beavers",
+      "indianriver",
       "chasencars",
       "autorecycler",
     ]);

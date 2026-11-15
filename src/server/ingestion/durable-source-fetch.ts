@@ -30,6 +30,7 @@ import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
 import { streamBeaversInventory } from "./beavers-connector";
+import { streamIndianriverInventoryFromProvider } from "./indianriver-connector";
 import { streamDentonInventoryFromProvider } from "./denton-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
@@ -116,6 +117,28 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  indianriver: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamIndianriverInventoryFromProvider({
+          // Durable validation checks the previous published count before reconciliation.
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,

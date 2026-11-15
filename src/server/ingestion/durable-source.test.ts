@@ -23,6 +23,7 @@ describe("durable ingestion cursors", () => {
     ["clearsalvage", 4],
     ["central", 2],
     ["beavers", 2],
+    ["indianriver", 8],
     ["denton", 16],
     ["chasencars", 2],
   ] as const)(

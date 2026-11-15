@@ -27,6 +27,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Complete native inline report: 661 accepted of 680 rows.
   chasencars: 550,
   beavers: 240,
+  indianriver: 900,
   army: 200,
   idipull: 450,
   joliet: 1_200,
