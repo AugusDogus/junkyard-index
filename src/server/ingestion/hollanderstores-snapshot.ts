@@ -84,7 +84,7 @@ export function hollanderstoresSnapshot(
       const vin = hollanderstoresVin(row.vin),
         year = hollanderstoresYear(row.displayYear);
       const native = required(row.make) ? row.make : null;
-      const lookup = decoded[row.vin];
+      const lookup = vin ? decoded[vin] : null;
       const make = native ?? (required(lookup) ? lookup : null);
       if (
         native &&
