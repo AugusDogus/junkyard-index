@@ -328,3 +328,45 @@ describe("provider HTTP JSON decoding", () => {
     ).rejects.toThrow("Example inventory returned invalid data");
   });
 });
+
+describe("provider HTTP redirect policy", () => {
+  test.each(["manual", "error"] as const)(
+    "%s prevents a request to the redirect destination",
+    async (redirect) => {
+      const paths: string[] = [];
+      const server = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch(request) {
+          const path = new URL(request.url).pathname;
+          paths.push(path);
+          return path === "/inventory"
+            ? Response.redirect(new URL("/other-yard", request.url), 302)
+            : new Response("Foreign inventory");
+        },
+      });
+      try {
+        const result = await Effect.runPromise(
+          fetchProviderResponse({
+            url: new URL("/inventory", server.url).href,
+            context: "Owned public inventory",
+            redirect,
+            retry: { retryLimit: 0 },
+          }).pipe(Effect.either),
+        );
+        expect(paths).toEqual(["/inventory"]);
+        if (redirect === "manual") {
+          expect(result._tag).toBe("Right");
+          if (result._tag === "Right") {
+            expect(result.right.status).toBe(302);
+            await result.right.body?.cancel();
+          }
+        } else {
+          expect(result._tag).toBe("Left");
+        }
+      } finally {
+        await server.stop(true);
+      }
+    },
+  );
+});
