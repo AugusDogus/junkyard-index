@@ -1,0 +1,58 @@
+[
+  {
+    "code": "piperautoparts",
+    "opening": 571,
+    "closing": 570,
+    "archived": "piperautoparts-initial.html.gz",
+    "replacement": "piperautoparts.html.gz"
+  },
+  {
+    "code": "spilmanautopart",
+    "opening": 493,
+    "closing": 491,
+    "archived": "spilmanautopart-initial.html.gz",
+    "replacement": "spilmanautopart.html.gz"
+  },
+  {
+    "code": "aabcoautoparts",
+    "opening": 5336,
+    "closing": 5333,
+    "archived": "aabcoautoparts-initial.html.gz",
+    "replacement": "aabcoautoparts.html.gz"
+  },
+  {
+    "code": "okautoms",
+    "opening": 5666,
+    "closing": 5666,
+    "archived": "okautoms-initial.html.gz",
+    "replacement": "okautoms.html.gz"
+  },
+  {
+    "code": "rogersauto",
+    "opening": 679,
+    "closing": 677,
+    "archived": "rogersauto-initial.html.gz",
+    "replacement": "rogersauto.html.gz"
+  },
+  {
+    "code": "bandmauto",
+    "opening": 56,
+    "closing": 55,
+    "archived": "bandmauto-initial.html.gz",
+    "replacement": "bandmauto.html.gz"
+  },
+  {
+    "code": "okautoms",
+    "opening": 5666,
+    "closing": 5666,
+    "archived": "okautoms-superseded-6.html.gz",
+    "replacement": "okautoms.html.gz"
+  },
+  {
+    "code": "okautoms",
+    "opening": 5666,
+    "closing": 5666,
+    "archived": "okautoms-superseded-7.html.gz",
+    "replacement": "okautoms.html.gz"
+  }
+]

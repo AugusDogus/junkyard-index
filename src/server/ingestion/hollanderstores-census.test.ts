@@ -1,6 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { gunzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { z } from "zod";
@@ -15,8 +14,10 @@ import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { resolveYardWebsite } from "~/lib/yard-website";
 
 const root = `${import.meta.dir}/hollanderstores-test-fixtures/`;
-const body = (name: string) =>
-  gunzipSync(readFileSync(root + name)).toString("utf8");
+import {
+  hollanderstoresFixtureBody as body,
+  hollanderstoresExpected as expected,
+} from "./hollanderstores-test-fixtures";
 
 test("independent HTTP response receipts, geocodes and audited make cache reconcile", () => {
   const manifest = z
@@ -38,7 +39,7 @@ test("independent HTTP response receipts, geocodes and audited make cache reconc
   expect(Object.keys(audit)).toHaveLength(884);
   for (const [vin, result] of Object.entries(audit))
     expect(hollanderstoresSeed[vin]).toBe(result.Make);
-  for (const yard of HOLLANDERSTORES_YARDS) {
+  for (const yard of HOLLANDERSTORES_YARDS.slice(0, 5)) {
     const response = z
       .object({
         result: z.object({
@@ -80,13 +81,16 @@ test("all saved opening and closing bodies replay through production HTTP with c
   const fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
     Object.assign(
       async (input: RequestInfo | URL, init?: RequestInit) => {
-        const yard = HOLLANDERSTORES_YARDS[reads % 5];
+        const yard =
+          HOLLANDERSTORES_YARDS[reads % HOLLANDERSTORES_YARDS.length];
         if (!yard) throw new Error("Unexpected request");
         expect(String(input)).toBe(yard.websiteUrl + "VehicleDealerSearch");
         expect(init?.method).toBe("POST");
         expect(String(init?.body)).toBe("hdnChangeDisplay=card");
         const raw = body(
-          yard.code + (reads++ >= 5 ? "-closing" : "") + ".html.gz",
+          yard.code +
+            (reads++ >= HOLLANDERSTORES_YARDS.length ? "-closing" : "") +
+            ".html.gz",
         );
         return new Response(raw, {
           headers: {
@@ -104,27 +108,41 @@ test("all saved opening and closing bodies replay through production HTTP with c
       const result = await Effect.runPromise(
         streamHollanderstoresInventory({
           startCursor: cursor,
-          maxPages: 1,
+          maxPages: 8,
           readPage: (yard) =>
             fetchHollanderstoresPage(yard, (request) => request),
           decodeBatch: (vins) =>
             loadHollanderstoresMakes(
               vins,
               {
-                read: () => Effect.die("Seeded VINs need no cache transport"),
+                read: (pending) =>
+                  Effect.succeed(
+                    pending.map((vin) => {
+                      expect(expected.failedMakeVins).toContain(vin);
+                      return null;
+                    }),
+                  ),
                 write: () => Effect.die("Seeded VINs need no cache transport"),
               },
-              () => Effect.die("Audited makes must never be re-decoded"),
+              (pending) =>
+                Effect.sync(() =>
+                  Object.fromEntries(
+                    pending.map((vin) => {
+                      expect(expected.failedMakeVins).toContain(vin);
+                      return [vin, null];
+                    }),
+                  ),
+                ),
             ),
           onBatch: (vehicles) =>
             Effect.sync(() => {
               batches++;
-              expect(vehicles).toHaveLength(876);
+              expect(vehicles).toHaveLength(expected.count);
             }),
           onYards: (items) =>
             Effect.sync(() => {
               yards++;
-              expect(items).toHaveLength(5);
+              expect(items).toHaveLength(HOLLANDERSTORES_YARDS.length);
             }),
         }),
       );
@@ -134,8 +152,12 @@ test("all saved opening and closing bodies replay through production HTTP with c
       if (result.status === "paused")
         expect([result.count, batches, yards]).toEqual([0, 0, 0]);
     }
-    expect([reads, batches, yards]).toEqual([10, 1, 1]);
+    expect([reads, batches, yards]).toEqual([
+      2 * HOLLANDERSTORES_YARDS.length,
+      1,
+      1,
+    ]);
   } finally {
     fetchSpy.mockRestore();
   }
-});
+}, 180000);

@@ -1,0 +1,50 @@
+[
+  {
+    "file": "piper-physical.html.gz",
+    "url": "https://www.piperautoparts.com/contact/",
+    "capturedAt": "2026-11-15T02:03:36.720170+00:00",
+    "bytes": 157563,
+    "sha256": "f107e6ee59ddbb016639713cc4f8e1a9a7e8b3904aa78101c1943ccc2175dd35",
+    "reused": true
+  },
+  {
+    "file": "spilman-physical.html.gz",
+    "url": "https://www.iowaautomotiverecyclers.com/Direct-Members.html",
+    "capturedAt": "2026-11-15T01:49:16.080629+00:00",
+    "bytes": 114174,
+    "sha256": "093b3bc225aaded2bc43f37547763fa8211597e9ceb1e62dbab28846cb455853",
+    "reused": true
+  },
+  {
+    "file": "windyhill-physical.html.gz",
+    "url": "http://www.windyhillautoparts.com/",
+    "capturedAt": null,
+    "bytes": 9591,
+    "sha256": "157cd6d941e47509302dc5e8b7094b7c546bad9e2f88810f984a3785759bde36",
+    "reused": true
+  },
+  {
+    "file": "ok-physical.html.gz",
+    "url": "https://okautopartsms.com/contact-ok-auto-parts-ms/",
+    "capturedAt": null,
+    "bytes": 69613,
+    "sha256": "a1d66912ee3df78ddd94f70eabc61a2fbe8c035ede97d1dba3f0557e3ab07ab9",
+    "reused": true
+  },
+  {
+    "file": "rogers-physical.html.gz",
+    "url": "https://www.usedautopartsdealers.com/states/mississippi.php?start=80",
+    "capturedAt": null,
+    "bytes": 24239,
+    "sha256": "64e9d87236103c22db2868452b9eae3536175ab2db44fcee8111b34958d78bef",
+    "reused": true
+  },
+  {
+    "file": "rockitop-physical.html.gz",
+    "url": "https://rockitopauto.com/",
+    "capturedAt": null,
+    "bytes": 357152,
+    "sha256": "4c81b7256f65f83899b6f22c985d311cbcb00b4fe93d72b2547f34357b7ec7d6",
+    "reused": true
+  }
+]

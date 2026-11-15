@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
+import {
+  hollanderstoresExpected as expected,
+  hollanderstoresFixture as body,
+} from "./hollanderstores-test-fixtures";
 import { parseHollanderstoresRoster } from "./hollanderstores-parser";
 import {
   HOLLANDERSTORES_YARDS,
@@ -34,6 +38,15 @@ test("native AAA list view has 20 rows, no make column and a checked next page",
     url: "https://aaaparts.hollanderstores.com/VehicleDealerShowParts/69/1119522",
   });
   expect(page.rows.every((row) => row.make === null)).toBe(true);
+  const second = parseHollanderstoresRoster(body("aaaparts-page-2"), aaa, 2);
+  // The independently captured second page already reports one fewer donor.
+  // Production traversal rejects this drift instead of combining the two totals.
+  expect(second.total).toBe(17883);
+  expect(second.nextPage).toBe(3);
+  expect(second.rows).toHaveLength(20);
+  expect(
+    second.rows.some((row) => page.rows.some((first) => first.url === row.url)),
+  ).toBe(false);
 });
 
 test("paged grammar rejects wrong positions, next links, row loss, foreign destinations and truncation", () => {
@@ -60,12 +73,6 @@ test("list pages resume durably and release inventory only after the closing ros
     await import("./hollanderstores-connector");
   const { parseHollanderstoresPage } = await import("./hollanderstores-parser");
   const { hollanderstoresSeed } = await import("./hollanderstores-client");
-  const body = (code: string) =>
-    gunzipSync(
-      readFileSync(
-        `${import.meta.dir}/hollanderstores-test-fixtures/${code}.html.gz`,
-      ),
-    ).toString();
   const leblanc = HOLLANDERSTORES_YARDS[0];
   const roster = parseHollanderstoresPage(body(leblanc.code), 0);
   const escape = (value: string) =>
@@ -106,7 +113,7 @@ test("list pages resume durably and release inventory only after the closing ros
       const result = await Effect.runPromise(
         streamHollanderstoresInventory({
           startCursor: cursor,
-          maxPages: 1,
+          maxPages: cursor.requests === 0 ? 1 : 8,
           readPage: (yard, page) =>
             Effect.sync(() => {
               reads++;
@@ -121,7 +128,7 @@ test("list pages resume durably and release inventory only after the closing ros
           onBatch: (vehicles) =>
             Effect.sync(() => {
               emitted++;
-              expect(vehicles).toHaveLength(876);
+              expect(vehicles).toHaveLength(expected.count);
             }),
         }),
       );
@@ -131,6 +138,23 @@ test("list pages resume durably and release inventory only after the closing ros
       if (cursor.requests === 1) {
         expect(cursor.pages).toHaveLength(0);
         expect(cursor.pending?.rows).toHaveLength(20);
+        const drift = await Effect.runPromiseExit(
+          streamHollanderstoresInventory({
+            startCursor: cursor,
+            maxPages: 1,
+            readPage: (_yard, page) =>
+              Effect.succeed(
+                list(page).replace(
+                  `Showing ${roster.total}`,
+                  `Showing ${roster.total + 1}`,
+                ),
+              ),
+            decodeBatch: () =>
+              Effect.die("No decoding during a partial roster"),
+            onBatch: () => Effect.die("Drift cannot release inventory"),
+          }),
+        );
+        expect(drift._tag).toBe("Failure");
         const pending = cursor.pending;
         if (!pending) throw new Error("Expected a partial list roster");
         const { checksum, ...state } = cursor;
@@ -154,10 +178,12 @@ test("list pages resume durably and release inventory only after the closing ros
       }
       if (result.status === "paused") expect(emitted).toBe(0);
     } while (cursor.phase !== "complete");
-    expect(reads).toBe(2 * (Math.ceil(roster.total / 20) + 4));
+    expect(reads).toBe(
+      2 * (Math.ceil(roster.total / 20) + HOLLANDERSTORES_YARDS.length - 1),
+    );
     expect(emitted).toBe(1);
   } finally {
     mode.mockRestore();
     count.mockRestore();
   }
-}, 30000);
+}, 180000);
