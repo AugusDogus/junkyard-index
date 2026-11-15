@@ -76,16 +76,23 @@ function parseEntry(
     return {
       ...receipt,
       kind: "detail",
-      seller: urgiisDetailSeller(raw, tenant),
+      seller: urgiisDetailSeller(raw, tenant, task),
     };
-  const page = iisCards(raw, tenant);
-  if (page.capped || (page.nativeEmpty && task.model.count >= 500))
+  const page = iisCards(
+    raw,
+    tenant,
+    task.kind === "arrivals" ? "arrivals" : "model",
+  );
+  if (
+    page.capped ||
+    (task.kind === "model" && page.nativeEmpty && task.model.count >= 500)
+  )
     throw new Error(
       "Native 500-card boundary or empty large model reached at " +
         task.url +
         "; narrow by the published year controls before emission",
     );
-  return { ...receipt, kind: "model", records: page.records };
+  return { ...receipt, kind: task.kind, records: page.records };
 }
 const boundary = <T>(operation: string, run: () => T) =>
   Effect.try({ try: run, catch: (cause) => urgiisError(operation, cause) });
@@ -138,13 +145,20 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
               hash: urgiisFingerprint(entry.records),
             });
         });
+        const cursorEntries = cursor.entries;
         const sellers = new Map(
           cursor.entries.flatMap((entry) =>
             entry.kind === "detail" ? [[entry.url, entry.seller] as const] : [],
           ),
         );
         const snapshot = yield* boundary("snapshot " + tenant.code, () => {
-          const snapshot = urgiisSnapshot(pages, tenant, sellers);
+          const arrivals = cursorEntries.find((e) => e.kind === "arrivals");
+          const snapshot = urgiisSnapshot(
+            pages,
+            tenant,
+            sellers,
+            arrivals && "records" in arrivals ? arrivals.records : [],
+          );
           validateUrgiisSnapshot(snapshot, tenant);
           return snapshot;
         });
@@ -201,7 +215,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           ),
         );
       const closingTasks = tasks.filter(
-        (t) => t.kind !== "model" && t.kind !== "detail",
+        (t) => t.kind === "owner" || t.kind === "makes" || t.kind === "menu",
       );
       const task =
         cursor.phase === "closing"

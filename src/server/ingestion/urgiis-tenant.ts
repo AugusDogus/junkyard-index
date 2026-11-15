@@ -1,17 +1,25 @@
 import type { Yard } from "~/lib/yard";
 import type { UrgiisSite } from "./urgiis-schema";
-export type UrgiisYard = Omit<Yard, "source" | "lat" | "lng"> & {
+export type UrgiisYard = Omit<
+  Yard,
+  "source" | "lat" | "lng" | "address" | "postalCode" | "websiteUrl"
+> & {
   source: "urgiis";
+  address: string;
+  postalCode: string;
+  websiteUrl: string;
   lat: number;
   lng: number;
 };
 export interface UrgiisTenant extends UrgiisSite {
   code: string;
   makesPath: string;
+  arrivalsPath: string | null;
   ownerPath: string;
   ownerClaims: readonly string[];
   cookie: string | null;
   pacingMs: number;
+  requestTimeoutMs: number;
   minimumInventory: number;
   photoCodes: readonly string[];
   skipBlankVin: boolean;

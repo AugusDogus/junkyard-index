@@ -140,8 +140,23 @@ export function iisDirectory(
     );
   return controls;
 }
-export function iisCards(raw: string, site: UrgiisSite) {
-  const html = inventory(raw, site);
+export function iisCards(
+  raw: string,
+  site: UrgiisSite,
+  surface: "model" | "arrivals" = "model",
+) {
+  const html =
+    surface === "model" ? inventory(raw, site) : iisDocument(raw, site);
+  if (surface === "arrivals") {
+    const titles = elements(html, "title");
+    if (
+      titles.length !== 1 ||
+      !/\b(?:recent|latest)(?: vehicle)? arrivals\b/i.test(
+        text(titles[0]?.body ?? ""),
+      )
+    )
+      throw new Error("IIS native arrivals title is missing or changed");
+  }
   terminal(html);
   const premium = elements(html, "div", (t) => cls(t, "aps-la-card-premium"));
   const blocks = premium.length

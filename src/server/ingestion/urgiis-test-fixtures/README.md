@@ -1,3 +1,7 @@
 These Brotli archives retain public URG Inventory InSite HTML captured on November 15, 2026. `probes.json.br` is a JSON array of model and detail responses used to verify template variants, shared suppliers, missing VINs, the 500-card boundary and empty large models. It includes unsuccessful qualification leads so parser changes cannot hide their failure modes.
 
 All tests read local files. They never contact a yard, URG, Census or a geocoder. Census receipts and complete qualifying catalogs are retained separately as they qualify. The runbook records admission counts, exclusions, coordinate sources and live request totals.
+
+`eagle.json.br` preserves the full 37-make, 284-model catalog and six arrivals, with separate closing owner and directory responses. It replays 363 native responses: 1,448 accepted unique donors, 127 rejected observations, 143 explicit part-bin exclusions and five duplicates. Among the 1,717 model cards, 257 have blank VINs. Older numeric stocks remain rejects. The exclusion whitelist covers observed generic part-bin codes only when both native VIN claims and yard photographs are absent; the saved `166C` detail probe lists quarter-extension parts under that shared stock.
+
+Replay archives order responses for the connector. Opening make directories were acquired alongside model pages during qualification; closing responses were fetched separately. The HTTP receipt ledger retains acquisition order. `eagle-geocode.json` is the US Census match for the published Martinsburg address.

@@ -1,7 +1,7 @@
 import { Effect, Schedule } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
-import type { UrgiisTenant } from "./urgiis-snapshot";
+import type { UrgiisTenant } from "./urgiis-tenant";
 
 export interface UrgiisError {
   tag: "UrgiisError";
@@ -22,7 +22,9 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
   const owned = iisOwnedUrl(url, tenant);
   if (
     !owned ||
-    (![tenant.ownerPath, tenant.makesPath].includes(owned.pathname) &&
+    (![tenant.ownerPath, tenant.makesPath, tenant.arrivalsPath].includes(
+      owned.pathname,
+    ) &&
       !iisBrowsePath(url, 1, tenant) &&
       !iisBrowsePath(url, 2, tenant) &&
       !(tenant.attribution.kind === "seller" && iisBrowsePath(url, 4, tenant)))
@@ -36,7 +38,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
   return Effect.suspend(() => {
     const request = Effect.tryPromise({
       try: async (signal) => {
-        const timeout = AbortSignal.timeout(40_000);
+        const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
         const combined = AbortSignal.any([signal, timeout]);
         const response = await fetch(url, {
           signal: combined,

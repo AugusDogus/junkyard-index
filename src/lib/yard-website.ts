@@ -1,6 +1,16 @@
 import { normalizeRegion } from "~/server/ingestion/normalization";
 import { HOLLANDERSTORES_YARDS } from "~/server/ingestion/hollanderstores-yard-metadata";
 import { Yard } from "./yard";
+import { URGIIS_TENANTS } from "~/server/ingestion/urgiis-configuration";
+import { UrgiisTenant } from "~/server/ingestion/urgiis-tenant";
+
+const urgiisYardWebsites = new Map(
+  URGIIS_TENANTS.flatMap((tenant) =>
+    UrgiisTenant.yards(tenant).map(
+      (yard) => [yard.code, yard.websiteUrl] as const,
+    ),
+  ),
+);
 
 export type YardWebsite = { kind: "yard" | "provider"; href: string };
 
@@ -188,6 +198,10 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
         kind: "yard",
         href: `https://vinplus.texnrewards.com/parts/${slug}`,
       };
+  }
+  if (yard.source === "urgiis") {
+    const href = Yard.website(urgiisYardWebsites.get(yard.code) ?? null);
+    return href ? { kind: "yard", href } : null;
   }
   const provider = providerWebsites.get(yard.source);
   return provider ? { kind: "provider", href: provider } : null;

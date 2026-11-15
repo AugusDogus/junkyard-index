@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { UrgiisTenant } from "./urgiis-snapshot";
+import type { UrgiisTenant } from "./urgiis-tenant";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import {
   UrgiisEntrySchema,
@@ -89,7 +89,7 @@ function checkpoint(
       validateUrgiisEntry(entry, task, tenant);
     });
     const closingTasks = tasks.filter(
-      (t) => t.kind !== "model" && t.kind !== "detail",
+      (t) => t.kind === "owner" || t.kind === "makes" || t.kind === "menu",
     );
     if (
       (state.phase === "closing" && state.closed >= closingTasks.length) ||

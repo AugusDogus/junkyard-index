@@ -24,10 +24,12 @@ const tenant: UrgiisTenant = {
   urgid: "NJ12,II08",
   pathStyle: "parts",
   makesPath: "/parts/makes/",
+  arrivalsPath: "/recent-arrivals/",
   ownerPath: "/",
   ownerClaims: ["Lentini"],
   cookie: null,
   pacingMs: 2200,
+  requestTimeoutMs: 40_000,
   minimumInventory: 2,
   photoCodes: ["nj12"],
   skipBlankVin: false,
@@ -40,17 +42,18 @@ const tenant: UrgiisTenant = {
     minimumByYard: { ringoes: 1, "port-murray": 1 },
   },
 };
+const expected = { stock: "23C012", year: "2015" };
 const document = (body: string) =>
-  `<html><body><script>var urgid='NJ12,II08';</script>${body}</body></html>`;
+  `<html><body><script>var urgid='NJ12,II08';</script><input name="stockno" value="23C012"><input name="yearin" value="2015">${body}</body></html>`;
 
 test("URG IIS assigns multi-yard donors from agreeing native seller and SKU evidence", () => {
   const raw = document(
     '<input name="sellingurgid" value="II08"><li class="iis-lisku">SKU: II081234</li>',
   );
-  expect(urgiisDetailSeller(raw, tenant)).toBe("II08");
+  expect(urgiisDetailSeller(raw, tenant, expected)).toBe("II08");
   expect(UrgiisTenant.yardForSeller(tenant, "II08")?.code).toBe("port-murray");
   expect(
-    urgiisDetailSeller(raw.replace("II081234", "NJ121234"), tenant),
+    urgiisDetailSeller(raw.replace("II081234", "NJ121234"), tenant, expected),
   ).toBeNull();
   expect(
     urgiisDetailSeller(
@@ -58,10 +61,26 @@ test("URG IIS assigns multi-yard donors from agreeing native seller and SKU evid
         .replace('value="II08"', 'value="OTHER"')
         .replace("II081234", "OTHER1234"),
       tenant,
+      expected,
     ),
   ).toBeNull();
-  expect(urgiisDetailSeller(document("No Results"), tenant)).toBeNull();
+  expect(
+    urgiisDetailSeller(document("No Results"), tenant, expected),
+  ).toBeNull();
   expect(UrgiisTenant.yardForSeller(tenant, null)).toBeNull();
+  expect(
+    urgiisDetailSeller(raw, tenant, { ...expected, year: "2017" }),
+  ).toBeNull();
+  expect(
+    urgiisDetailSeller(raw, tenant, { ...expected, stock: "OTHER" }),
+  ).toBeNull();
+  expect(
+    urgiisDetailSeller(
+      raw.replace('<li class="iis-lisku">SKU: II081234</li>', ""),
+      tenant,
+      expected,
+    ),
+  ).toBeNull();
 });
 
 test("URG IIS derives detail tasks only from a completed native model frontier", () => {
@@ -78,6 +97,12 @@ test("URG IIS derives detail tasks only from a completed native model frontier",
     },
     {
       ...receipt,
+      kind: "arrivals",
+      url: tenant.origin + tenant.arrivalsPath,
+      records: [],
+    },
+    {
+      ...receipt,
       kind: "menu",
       url: tenant.origin + make.path,
       controls: [model],
@@ -86,6 +111,7 @@ test("URG IIS derives detail tasks only from a completed native model frontier",
   expect(urgiisTasks(prefix, tenant).map((t) => t.kind)).toEqual([
     "owner",
     "makes",
+    "arrivals",
     "menu",
     "model",
   ]);

@@ -59,6 +59,7 @@ const expectedCards: Readonly<Record<number, number>> = {
   16: 84,
   17: 30,
   18: 137,
+  19: 0,
   20: 55,
   21: 85,
 };
@@ -66,7 +67,10 @@ for (const probe of probes) {
   if (probe.kind !== "model") continue;
   test(`URG IIS parses the saved ${probe.name} donor template`, () => {
     const page = iisCards(probe.html, probe.site);
-    expect(page.records.length).toBe(expectedCards[probe.i]);
+    const expected = expectedCards[probe.i];
+    if (expected === undefined)
+      throw new Error("Missing independent probe count");
+    expect(page.records.length).toBe(expected);
     expect(page.capped).toBe(page.records.length >= 500);
     expect(page.nativeEmpty).toBe(page.records.length === 0);
     for (const record of page.records) {

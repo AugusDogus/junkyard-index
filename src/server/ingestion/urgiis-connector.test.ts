@@ -16,10 +16,12 @@ const tenant: UrgiisTenant = {
   urgid: "AA01",
   pathStyle: "parts",
   makesPath: "/parts/makes/",
+  arrivalsPath: "/recent-arrivals/",
   ownerPath: "/",
   ownerClaims: ["Test Yard", "123 Main St"],
   cookie: null,
   pacingMs: 2200,
+  requestTimeoutMs: 40_000,
   minimumInventory: 1,
   photoCodes: ["aa01"],
   skipBlankVin: false,
@@ -44,7 +46,7 @@ const tenant: UrgiisTenant = {
 const make = { path: "/parts/ACURA", label: "ACURA", count: 1 };
 const model = { path: "/parts/ACURA/ILX/", label: "ILX", count: 1 };
 const document = (body: string) =>
-  `<html><body><script>var urgid = 'AA01';</script>Test Yard 123 Main St<div id="iiscont">${body}</div></body></html>`;
+  `<html><head><title>Recent Arrivals</title></head><body><script>var urgid = 'AA01';</script>Test Yard 123 Main St<div id="iiscont">${body}</div></body></html>`;
 const link = (path: string, label: string, count: number) =>
   `<a href="${path}">${label}<span class="badge">${count}</span></a>`;
 const makes = document(
@@ -56,7 +58,16 @@ const menu = document(
 const card = (vin = "19UDE2F70GA016398", year = "2016", stock = "JC8438") =>
   `<div class="card-price"><div class="card-img"><img src="https://da8h1v3w8q6n5.cloudfront.net/aa01/images/${stock}/a.jpg"></div><div class="car-details"><b>Stock:</b>${stock}<br><b>Year:</b>${year}<br><b>Make/Model:</b>ACURA ILX<br><b>VIN:</b>${vin}<br></div><a href="/parts/ACURA/ILX/${stock}/${year}">See Parts</a><button data-vehicle="${year} ACURA ILX - VIN ${vin}">Inquire</button></div>`;
 const page = document(`<div class="card-deck">${card()}</div>`);
-const responses = [document(""), makes, menu, page, document(""), makes, menu];
+const responses = [
+  document(""),
+  makes,
+  document("No Results Found. Try Browsing Our Parts Or Search Again"),
+  menu,
+  page,
+  document(""),
+  makes,
+  menu,
+];
 
 test("URG IIS resumes tenants, requires closing evidence, and never refetches a complete cursor", async () => {
   let reads = 0;
@@ -65,6 +76,7 @@ test("URG IIS resumes tenants, requires closing evidence, and never refetches a 
   const urls = [
     "/",
     "/parts/makes/",
+    "/recent-arrivals/",
     make.path,
     model.path,
     "/",
@@ -87,7 +99,7 @@ test("URG IIS resumes tenants, requires closing evidence, and never refetches a 
         readPage: reader,
         onBatch: (vs) =>
           Effect.sync(() => {
-            expect(reads).toBe(7);
+            expect(reads).toBe(8);
             expect(vs).toHaveLength(1);
             expect(vs[0]?.stateAbbr).toBe("MA");
             batches++;
@@ -100,7 +112,7 @@ test("URG IIS resumes tenants, requires closing evidence, and never refetches a 
     );
   }
   expect(batches).toBe(1);
-  expect(reads).toBe(7);
+  expect(reads).toBe(8);
   await Effect.runPromise(
     streamUrgiisInventory({
       tenants: [tenant],
@@ -113,12 +125,12 @@ test("URG IIS resumes tenants, requires closing evidence, and never refetches a 
     }),
   );
   expect(batches).toBe(1);
-  expect(reads).toBe(7);
+  expect(reads).toBe(8);
 });
 test("URG IIS fails closed on directory drift, source mixing, caps and corrupt checkpoints", async () => {
   for (const [changedIndex, changed] of [
-    [5, makes.replace(">1<", ">2<")],
-    [3, document(`<div class="card-deck">${card().repeat(500)}</div>`)],
+    [6, makes.replace(">1<", ">2<")],
+    [4, document(`<div class="card-deck">${card().repeat(500)}</div>`)],
   ] as const) {
     let reads = 0;
     let batches = 0;

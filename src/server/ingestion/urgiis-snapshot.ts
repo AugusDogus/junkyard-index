@@ -19,13 +19,21 @@ export function urgiisSnapshot(
   pages: readonly UrgiisModelPage[],
   tenant: UrgiisTenant,
   sellers: ReadonlyMap<string, string | null> = new Map(),
+  arrivals: readonly UrgiisRecord[] = [],
 ) {
-  const all = pages.flatMap((p) =>
-    p.records.map((record) => ({
+  const all = [
+    ...pages.flatMap((p) =>
+      p.records.map((record) => ({
+        record,
+        context: { kind: "model" as const, make: p.make, model: p.model },
+      })),
+    ),
+    ...arrivals.map((record) => ({
       record,
-      context: { kind: "model" as const, make: p.make, model: p.model },
+      context: { kind: "arrivals" as const },
     })),
-  );
+  ];
+  const published = pages.map(({ make, model }) => ({ make, model }));
   // Explicitly qualified generic part-bin stocks are not donor cars. A real
   // VIN or yard photograph overrides this exclusion and enters normal validation.
   const rows = all.filter(({ record }) => {
@@ -33,6 +41,7 @@ export function urgiisSnapshot(
       record.stock !== null &&
       tenant.placeholderStocks.includes(record.stock) &&
       !record.vins.some((v) => v.trim()) &&
+      !record.inquiries.some((q) => /\bVIN\b[\s:]*[A-Z0-9]/i.test(q)) &&
       !record.image?.includes("cloudfront.net/")
     )
       return false;
@@ -49,11 +58,16 @@ export function urgiisSnapshot(
     return true;
   });
   const assessments = rows.map(({ record, context }) =>
-    assessIisRecord(record, context, {
-      ownedUrl: (raw) => iisOwnedUrl(raw, tenant),
-      pathStyle: tenant.pathStyle,
-      requireInquiry: false,
-    }),
+    assessIisRecord(
+      record,
+      context,
+      {
+        ownedUrl: (raw) => iisOwnedUrl(raw, tenant),
+        pathStyle: tenant.pathStyle,
+        requireInquiry: false,
+      },
+      published,
+    ),
   );
   const { quarantine } = quarantineIisClaims(assessments);
   const accounting: ConnectorChunkAccounting = {
