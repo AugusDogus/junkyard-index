@@ -1,5 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
 import { Effect, Fiber, TestClock, TestContext } from "effect";
+import { fetchHtpPage } from "./heavytruckparts-connector";
+import { HTP_SUPPLIERS, htpStoreUrl } from "./heavytruckparts-yard-metadata";
 import { fetchCstruckPage } from "./cstruck-client";
 import { fetchDutchersPage } from "./dutchers-client";
 import { CSTRUCK_STORE, cstruckRangeUrl } from "./cstruck-yard-metadata";
@@ -30,7 +32,7 @@ test("HTTP allowlist rejects foreign suppliers, range page links, inquiries and 
 });
 
 test.each([200, 403, 429])(
-  "both HTP suppliers share one serial gate and four completed seconds after HTTP %i",
+  "all three HTP sources share one serial gate and four completed seconds after HTTP %i",
   async (status) => {
     const fetcher = spyOn(globalThis, "fetch").mockImplementation(
       Object.assign(
@@ -51,12 +53,21 @@ test.each([200, 403, 429])(
           const second = yield* Effect.fork(
             Effect.either(fetchDutchersPage(DUTCHERS_STORE, pass)),
           );
+          const third = yield* Effect.fork(
+            Effect.either(fetchHtpPage(htpStoreUrl(HTP_SUPPLIERS[0]))),
+          );
           yield* TestClock.adjust("3999 millis");
           expect(fetcher).toHaveBeenCalledTimes(1);
           yield* TestClock.adjust("1 millis");
           expect(fetcher).toHaveBeenCalledTimes(2);
           yield* TestClock.adjust("4 seconds");
-          const results = [yield* Fiber.join(first), yield* Fiber.join(second)];
+          expect(fetcher).toHaveBeenCalledTimes(3);
+          yield* TestClock.adjust("4 seconds");
+          const results = [
+            yield* Fiber.join(first),
+            yield* Fiber.join(second),
+            yield* Fiber.join(third),
+          ];
           expect(
             results.every(
               (result) => result._tag === (status === 200 ? "Right" : "Left"),

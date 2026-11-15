@@ -1,3 +1,4 @@
+import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
 import type { ConnectorChunkStatus } from "./connector-chunk";
 import { CstruckCursor } from "./cstruck-cursor";
 import { ByotCursor } from "./byot-cursor";
@@ -379,6 +380,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 1,
   },
   cstruck: { initialCursor: CstruckCursor.initial(), maxPagesPerChunk: 8 },
+  heavytruckparts: {
+    initialCursor: HeavytruckpartsCursor.initial(),
+    maxPagesPerChunk: 8,
+  },
   allied: {
     initialCursor: AlliedCursor.initial(ALLIED_CONTRACT),
     maxPagesPerChunk: 4,

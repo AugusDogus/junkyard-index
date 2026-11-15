@@ -1,3 +1,4 @@
+import { streamHeavytruckpartsInventory } from "./heavytruckparts-connector";
 import { streamCstruckInventory } from "./cstruck-connector";
 import { streamByotInventoryFromProvider } from "./byot-connector";
 import { loadByotPublishedCursor } from "./byot-history";
@@ -177,6 +178,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamLonestarimportsInventoryFromProvider({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  heavytruckparts: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamHeavytruckpartsInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           // Shared validation compares the prior published complete count.

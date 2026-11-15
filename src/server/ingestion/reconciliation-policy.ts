@@ -87,6 +87,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "cstruck",
   "allied",
   "byot",
+  "heavytruckparts",
   "autorecycler",
 ];
 

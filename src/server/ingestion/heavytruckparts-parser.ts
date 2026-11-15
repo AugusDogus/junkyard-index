@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { inventoryHtmlAttribute } from "./inventory-html";
 import {
   heavyTruckPartsAnchors,
@@ -6,53 +5,15 @@ import {
   heavyTruckPartsText,
 } from "./heavytruckparts-html";
 
-/** Exact supplier/store/category controls, shared by the two HTP yards. */
-export interface HeavyTruckPartsSupplier {
-  supplier: string;
-  itemCategory: "Complete-Vehicle" | "Vehicle-For-Sale";
-  title: "Complete Vehicle" | "Vehicle For Sale";
-  location: string;
-  attributes: "vin-only" | "vehicle-specs";
-}
+import {
+  heavyTruckPartsRecord,
+  type HeavyTruckPartsRecord,
+  type HeavyTruckPartsSupplier,
+} from "./heavytruckparts-record";
+export type { HeavyTruckPartsRecord } from "./heavytruckparts-record";
 export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
-  function itemId(raw: string): string | null {
-    return (
-      new RegExp(
-        `^https://www\\.heavytruckparts\\.net/item/[A-Za-z0-9%()_-]+/[A-Za-z0-9%()_-]+/${config.itemCategory}/${config.supplier}/1/([1-9]\\d{0,9})$`,
-      ).exec(raw)?.[1] ?? null
-    );
-  }
-  function boundImage(raw: string, id: string): boolean {
-    return new RegExp(
-      `^https://webp\\.heavytruckparts\\.net/image/[A-Za-z0-9%()_-]+_${config.itemCategory}_${config.supplier}_1_${id}_1\\.webp$`,
-      "i",
-    ).test(raw);
-  }
-  const recordSchema = z
-    .object({
-      id: z.string().regex(/^[1-9]\d{0,9}$/),
-      url: z
-        .string()
-        .max(1000)
-        .refine((url) => itemId(url) !== null),
-      year: z.string().max(10),
-      make: z.string().max(200),
-      model: z.string().max(300),
-      vin: z.string().max(100),
-      description: z.string().max(2000),
-      imageUrl: z.string().max(2000).nullable(),
-      engine: z.string().max(300).nullable().optional(),
-      transmission: z.string().max(300).nullable().optional(),
-    })
-    .strict()
-    .refine(
-      (r) =>
-        itemId(r.url) === r.id &&
-        (r.imageUrl === null || boundImage(r.imageUrl, r.id)) &&
-        (config.attributes !== "vin-only" ||
-          (!Object.hasOwn(r, "engine") && !Object.hasOwn(r, "transmission"))),
-      "HeavyTruckParts native item or photo join changed",
-    );
+  const store = config.store ?? "1";
+  const { itemId, boundImage, recordSchema } = heavyTruckPartsRecord(config);
   function cards(region: string): HeavyTruckPartsRecord[] {
     const records = heavyTruckPartsDivs(region, "product").map(
       (card): HeavyTruckPartsRecord => {
@@ -74,7 +35,10 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
           );
         const headings = [...card.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>/gi)];
         const title = heavyTruckPartsText(headings[0]?.[1] ?? "");
-        const year = /^(\d{4}) /.exec(title)?.[1] ?? "";
+        const year =
+          (config.attributes === "marketplace" ? /^(\d+) / : /^(\d{4}) /).exec(
+            title,
+          )?.[1] ?? "";
         const controls = [...card.matchAll(/<button\b[^>]*>/gi)].flatMap(
           ([tag]) => {
             const call = inventoryHtmlAttribute(tag, "onclick");
@@ -84,7 +48,7 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
           },
         );
         const claim = new RegExp(
-          `^create_estimate\\(${config.supplier}, (\\d+), 1, 9000, '([^']*)', '([^']*)', 'empty'\\)$`,
+          `^create_estimate\\(${config.supplier}, (\\d+), ${store}, 9000, '([^']*)', '([^']*)', 'empty'\\)$`,
         ).exec(controls[0] ?? "");
         const make = claim?.[2]?.trim() ?? "",
           model = claim?.[3]?.trim() ?? "";
@@ -92,7 +56,10 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
           headings.length !== 1 ||
           controls.length !== 1 ||
           claim?.[1] !== id ||
-          title !== `${year} ${make} ${model} ${config.title}`.trim()
+          title !==
+            (config.attributes === "marketplace"
+              ? heavyTruckPartsText(`${year} ${make} ${model} ${config.title}`)
+              : `${year} ${make} ${model} ${config.title}`.trim())
         )
           throw new Error(
             "HeavyTruckParts native title, item ID and make/model control do not join",
@@ -105,7 +72,9 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
         const attrValues = attrs.map((m) => heavyTruckPartsText(m[2] ?? ""));
         const vins = attrValues.filter((value) => value.startsWith("VIN #:"));
         if (
-          vins.length !== 1 ||
+          (config.attributes === "marketplace"
+            ? vins.length > 1
+            : vins.length !== 1) ||
           (config.attributes === "vin-only" && attrs.length !== 1)
         )
           throw new Error(
@@ -116,6 +85,8 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
           const values = attrValues.filter((value) =>
             value.startsWith(label + ":"),
           );
+          if (values.length > 1 && config.attributes === "marketplace")
+            return null;
           if (values.length > 1)
             throw new Error("HeavyTruckParts repeated " + label + " attribute");
           return values[0]?.slice(label.length + 1).trim() || null;
@@ -165,8 +136,20 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
           model,
           vin: attrText.slice("VIN #:".length).trim(),
           description,
+          ...(config.attributes === "marketplace"
+            ? {
+                price: paragraphs
+                  .filter(
+                    (p) =>
+                      inventoryHtmlAttribute(p.tag, "class") ===
+                      "product-price",
+                  )
+                  .map((p) => p.text)
+                  .join(" "),
+              }
+            : {}),
           imageUrl: acceptedImage,
-          ...(config.attributes === "vehicle-specs"
+          ...(config.attributes !== "vin-only"
             ? {
                 engine: specification("Engine"),
                 transmission: specification("Transmission"),
@@ -179,6 +162,3 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
   }
   return { itemId, recordSchema, cards };
 }
-export type HeavyTruckPartsRecord = z.infer<
-  ReturnType<typeof heavyTruckPartsParser>["recordSchema"]
->;

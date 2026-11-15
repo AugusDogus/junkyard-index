@@ -1,3 +1,4 @@
+import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
 import { CstruckCursor } from "./cstruck-cursor";
 import { ByotCursor } from "./byot-cursor";
 import { AlliedCursor } from "./allied-cursor";
@@ -287,6 +288,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
     parse: (value: string) => LonestarimportsCursor.fromWire(value),
     serialize: (cursor: LonestarimportsCursor) =>
       LonestarimportsCursor.serialize(cursor),
+  },
+  heavytruckparts: {
+    parse: HeavytruckpartsCursor.fromWire,
+    serialize: HeavytruckpartsCursor.serialize,
   },
   cstruck: {
     parse: CstruckCursor.fromWire,

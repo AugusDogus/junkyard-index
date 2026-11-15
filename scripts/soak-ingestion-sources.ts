@@ -3,6 +3,8 @@ import { streamModernmuscleInventory } from "../src/server/ingestion/modernmuscl
 import { HawaiipartsCursor } from "../src/server/ingestion/hawaiiparts-cursor";
 import { ModernmuscleCursor } from "../src/server/ingestion/modernmuscle-cursor";
 import { soakShopifyYard } from "./soak-shopify-yard";
+import { streamHeavytruckpartsInventory } from "../src/server/ingestion/heavytruckparts-connector";
+import { soakHeavytruckpartsInventory } from "./soak-heavytruckparts";
 import { streamCstruckInventory } from "../src/server/ingestion/cstruck-connector";
 import { soakCstruckInventory } from "./soak-cstruck";
 /**
@@ -606,6 +608,19 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamHollanderstoresInventoryFromProvider({
+                    previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "heavytruckparts":
+            return soakHeavytruckpartsInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamHeavytruckpartsInventory({
                     previousAcceptedCount: null,
                     startCursor,
                     maxPages,
