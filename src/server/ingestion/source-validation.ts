@@ -4,6 +4,7 @@ import { BUDGET_MINIMUM } from "./budget-yard-metadata";
 import { URGIIS_MINIMUM_INVENTORY } from "./urgiis-configuration";
 import { VANDERHAAGS_MINIMUM } from "./vanderhaags-yards";
 import type { IngestionSource } from "~/lib/ingestion-source";
+import type { CanonicalVehicle } from "./types";
 
 const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   row52: 10_000,
@@ -148,6 +149,13 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;
 const MAXIMUM_DUPLICATE_RATIO = 0.25;
 const MAXIMUM_REJECTION_RATIO = 0.1;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// A yard adds cars every week. A feed whose newest car is older than this has
+// stopped updating even if it still answers, so its snapshot is not current.
+const MAXIMUM_INVENTORY_AGE_DAYS = 30;
+// Provider dates can be zoneless local times; anything past this is a bad
+// value, not an arrival, and must not make a frozen feed look current.
+const FUTURE_DATE_TOLERANCE_MS = DAY_MS;
 
 export interface SourceValidationInput {
   source: IngestionSource;
@@ -159,6 +167,14 @@ export interface SourceValidationInput {
   errors: string[];
   previousAcceptedCount: number | null;
   minimumUniqueInventory?: number;
+  /**
+   * The newest parseable vehicle date in the snapshot, from
+   * newestVehicleArrival. Null when no vehicle carries one, which skips the
+   * age check: undated providers and feeds that drop or reformat dates skip this check.
+   */
+  newestVehicleDate: Date | null;
+  /** When the run started; the age check measures from here. */
+  validatedAt: Date;
 }
 
 export type SourceValidationResult =
@@ -167,6 +183,25 @@ export type SourceValidationResult =
 
 function ratio(numerator: number, denominator: number): number {
   return denominator <= 0 ? 0 : numerator / denominator;
+}
+
+/**
+ * The newest availableDate among `vehicles`, ignoring missing, unparseable,
+ * and future-dated values. Null when none remains.
+ */
+export function newestVehicleArrival(
+  vehicles: Iterable<Pick<CanonicalVehicle, "availableDate">>,
+  validatedAt: Date,
+): Date | null {
+  const latestAllowed = validatedAt.getTime() + FUTURE_DATE_TOLERANCE_MS;
+  let newest: number | null = null;
+  for (const { availableDate } of vehicles) {
+    if (!availableDate) continue;
+    const time = Date.parse(availableDate);
+    if (Number.isNaN(time) || time > latestAllowed) continue;
+    if (newest === null || time > newest) newest = time;
+  }
+  return newest === null ? null : new Date(newest);
 }
 
 export function validateSourceSnapshot(
@@ -195,6 +230,18 @@ export function validateSourceSnapshot(
     );
   }
 
+  if (input.newestVehicleDate !== null) {
+    const ageDays = Math.floor(
+      (input.validatedAt.getTime() - input.newestVehicleDate.getTime()) /
+        DAY_MS,
+    );
+    if (ageDays > MAXIMUM_INVENTORY_AGE_DAYS) {
+      errors.push(
+        `${input.source} newest vehicle arrived ${input.newestVehicleDate.toISOString().slice(0, 10)}, ${ageDays} days before this run; a feed with nothing newer than ${MAXIMUM_INVENTORY_AGE_DAYS} days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system.`,
+      );
+    }
+  }
+
   const observed =
     input.uniqueVehicles + input.duplicateVehicles + input.rejectedVehicles;
   const duplicateRatio = ratio(input.duplicateVehicles, observed);
@@ -220,4 +267,5 @@ export const SourceValidationPolicy = {
   minimumPreviousRunRatio: MINIMUM_PREVIOUS_RUN_RATIO,
   maximumDuplicateRatio: MAXIMUM_DUPLICATE_RATIO,
   maximumRejectionRatio: MAXIMUM_REJECTION_RATIO,
+  maximumInventoryAgeDays: MAXIMUM_INVENTORY_AGE_DAYS,
 } as const;

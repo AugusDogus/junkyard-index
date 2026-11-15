@@ -1,7 +1,10 @@
 import type { Client, InStatement, InValue } from "@libsql/client";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import { mapIngestionSources } from "~/lib/ingestion-source";
+import {
+  mapIngestionSources,
+  RETIRED_INGESTION_SOURCES,
+} from "~/lib/ingestion-source";
 import { ingestionRun, ingestionSourceRun, vehicle } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type {
@@ -42,6 +45,18 @@ interface ReconciliationContext {
   batchClient: BatchClient;
   /** Loads the run's staged inventory at most once per step. */
   inventory: () => Promise<RunSnapshotInventory>;
+}
+
+/**
+ * Sources whose existing rows this run reconciles: its accepted sources, plus
+ * retired sources, which never run again and so reconcile as if every run
+ * accepted an empty snapshot of them. Their rows go missing then deleted, and
+ * a source that still lists one of their VINs takes it over.
+ */
+function reconciledSources(
+  acceptedSources: Iterable<string>,
+): ReadonlySet<string> {
+  return new Set([...acceptedSources, ...RETIRED_INGESTION_SOURCES]);
 }
 
 /** Index of the first VIN after the cursor in ascending VIN order. */
@@ -302,11 +317,12 @@ async function runUpsertBatch(
           .select()
           .from(vehicle)
           .where(inArray(vehicle.vin, vins));
+  const reconciled = reconciledSources(inventory.acceptedSources);
   const changed = planChangedVehicleUpserts({
     inventory: finalInventory,
     existingRows,
     runTimestamp: params.runTimestamp,
-    acceptedSources: inventory.acceptedSources,
+    acceptedSources: reconciled,
   });
   const nextCursor = rows.at(-1)?.vin ?? params.cursor;
   const nextStage =
@@ -340,7 +356,6 @@ async function runUpsertBatch(
   const existingSource = new Map(
     existingRows.map((row) => [row.vin, row.source] as const),
   );
-  const reconciled: ReadonlySet<string> = inventory.acceptedSources;
   const displacedSources = changed.flatMap(({ vehicle: next }) => {
     const previous = existingSource.get(next.vin);
     return previous !== undefined &&
@@ -497,7 +512,7 @@ async function runMissingBatch(
         (row.missingSinceAt !== null || (row.missingRunCount ?? 0) !== 0),
     )
     .map((row) => row.vin);
-  const acceptedSources = new Set(params.acceptedSources);
+  const reconciled = reconciledSources(params.acceptedSources);
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
@@ -508,7 +523,7 @@ async function runMissingBatch(
           !inventory.preservedAutorecyclerYards.has(row.locationCode)),
     ),
     runTimestamp: params.runTimestamp,
-    acceptedSources,
+    acceptedSources: reconciled,
     deleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
     deleteAfterMs: MISSING_DELETE_AFTER_MS,
   });
@@ -556,11 +571,9 @@ async function runMissingBatch(
     transitions,
   });
   if (deletes) statements.push(deletes);
-  // The last batch commits the accepted sources' yard summary with them.
+  // The last batch commits the reconciled sources' yard summary with them.
   if (finishing)
-    statements.push(
-      ...yardInventoryRefreshStatements(params.acceptedSources, now),
-    );
+    statements.push(...yardInventoryRefreshStatements([...reconciled], now));
   const checkpointIndex = statements.length;
   const deletedCount = transitions.filter(
     (transition) => transition.changeType === "delete",

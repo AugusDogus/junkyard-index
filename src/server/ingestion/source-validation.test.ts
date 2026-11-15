@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  newestVehicleArrival,
   SourceValidationPolicy,
   validateSourceSnapshot,
 } from "./source-validation";
@@ -14,6 +15,8 @@ function healthyRow52() {
     rejectedVehicles: 0,
     errors: [],
     previousAcceptedCount: null,
+    newestVehicleDate: new Date("2026-11-14T00:00:00Z"),
+    validatedAt: new Date("2026-11-15T07:44:11Z"),
   };
 }
 
@@ -201,6 +204,66 @@ describe("source snapshot validation", () => {
       previousAcceptedCount: 100_000,
     });
     expect(truncated).toMatchObject({ status: "rejected" });
+  });
+
+  test("rejects a frozen feed whose newest vehicle is 3.5 months old", () => {
+    const frozen = validateSourceSnapshot({
+      ...healthyRow52(),
+      source: "upullitne",
+      uniqueVehicles: 2_536,
+      vehiclesProcessed: 2_536,
+      newestVehicleDate: new Date("2026-08-05T13:01:00Z"),
+      validatedAt: new Date("2026-11-15T07:44:11Z"),
+    });
+    expect(frozen).toEqual({
+      status: "rejected",
+      errors: [
+        "upullitne newest vehicle arrived 2026-08-05, 101 days before this run; a feed with nothing newer than 30 days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system.",
+      ],
+    });
+  });
+
+  test("allows inventory up to 30 whole days old", () => {
+    const validatedAt = new Date("2026-11-15T07:44:11Z");
+    const daysOld = (days: number, extraMs = 0) =>
+      validateSourceSnapshot({
+        ...healthyRow52(),
+        newestVehicleDate: new Date(
+          validatedAt.getTime() - days * 86_400_000 - extraMs,
+        ),
+        validatedAt,
+      }).status;
+    expect(daysOld(30, 86_399_999)).toBe("accepted");
+    expect(daysOld(31)).toBe("rejected");
+  });
+
+  test("skips the age check when no vehicle carries a date", () => {
+    expect(
+      validateSourceSnapshot({ ...healthyRow52(), newestVehicleDate: null }),
+    ).toEqual({ status: "accepted", errors: [] });
+  });
+
+  test("finds the newest parseable, non-future vehicle date", () => {
+    const validatedAt = new Date("2026-11-15T07:44:11Z");
+    expect(
+      newestVehicleArrival(
+        [
+          { availableDate: null },
+          { availableDate: "" },
+          { availableDate: "not a date" },
+          { availableDate: "2099-01-01T00:00:00Z" },
+          { availableDate: "2026-08-05T13:01:00Z" },
+          { availableDate: "2026-07-31T00:00:00Z" },
+        ],
+        validatedAt,
+      ),
+    ).toEqual(new Date("2026-08-05T13:01:00Z"));
+    expect(
+      newestVehicleArrival(
+        [{ availableDate: null }, { availableDate: "2099-01-01" }],
+        validatedAt,
+      ),
+    ).toBeNull();
   });
 
   test("rejects duplicate-heavy, rejection-heavy, and nonterminal results", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { Reason, type EvaluationResult } from "@vercel/flags-core";
-import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { ACTIVE_INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 
 describe("IngestionSourceFlags.resolve", () => {
@@ -18,7 +18,9 @@ describe("IngestionSourceFlags.resolve", () => {
           reason: Reason.FALLTHROUGH,
         },
       }),
-    ).toEqual(INGESTION_SOURCES.filter((source) => source !== "upullrparts"));
+    ).toEqual(
+      ACTIVE_INGESTION_SOURCES.filter((source) => source !== "upullrparts"),
+    );
   });
 
   test("keeps sources enabled when their flag is missing or unreadable", () => {
@@ -38,15 +40,27 @@ describe("IngestionSourceFlags.resolve", () => {
             reason: Reason.FALLTHROUGH,
           },
         }),
-      ).toEqual([...INGESTION_SOURCES]);
+      ).toEqual([...ACTIVE_INGESTION_SOURCES]);
       expect(consoleError).toHaveBeenCalledTimes(2);
     } finally {
       consoleError.mockRestore();
     }
   });
+
+  test("leaves out a retired source even when its flag serves true", () => {
+    const enabled = IngestionSourceFlags.resolve({
+      "ingestion-source-upullitne": {
+        value: true,
+        variantId: "on",
+        reason: Reason.FALLTHROUGH,
+      },
+    });
+    expect(enabled).not.toContain("upullitne");
+    expect(enabled).toContain("tearapart");
+  });
 });
 
-test.each([...INGESTION_SOURCES])(
+test.each([...ACTIVE_INGESTION_SOURCES])(
   "%s runs by default and only a false flag pauses it",
   (source) => {
     const key = IngestionSourceFlags.key(source);

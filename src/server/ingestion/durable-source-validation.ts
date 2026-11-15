@@ -19,7 +19,10 @@ import {
   parseDurableRunStage,
 } from "./durable-run-state";
 import { parseDurableSourceCursor } from "./durable-source";
-import { validateSourceSnapshot } from "./source-validation";
+import {
+  newestVehicleArrival,
+  validateSourceSnapshot,
+} from "./source-validation";
 
 export type DurableSourceValidationSummary =
   | { status: "stopped" }
@@ -115,7 +118,10 @@ export async function validateDurableSourceRuns(params: {
       `Cannot validate ingestion run ${params.runId} before every source is terminal.`,
     );
   }
-  const countBySource = new Map<string, number>();
+  const snapshotBySource = new Map<
+    string,
+    { uniqueVehicles: number; newestVehicleDate: Date | null }
+  >();
   const yardErrorsBySource = new Map<string, string[]>();
   const urgiisLimits = new Map<string, { minimum: number; previous: number }>();
   const autorecyclerBaselines = new Map<string, number>();
@@ -124,7 +130,13 @@ export async function validateDurableSourceRuns(params: {
       params.snapshotStore,
       row.snapshotChunks,
     );
-    countBySource.set(row.source, snapshot.vehicles.size);
+    snapshotBySource.set(row.source, {
+      uniqueVehicles: snapshot.vehicles.size,
+      newestVehicleDate: newestVehicleArrival(
+        snapshot.vehicles.values(),
+        run.startedAt,
+      ),
+    });
     if (
       row.source === "autorecycler" &&
       row.status === "success" &&
@@ -247,7 +259,8 @@ export async function validateDurableSourceRuns(params: {
       )
       .orderBy(desc(ingestionRun.searchPublishedAt))
       .limit(1);
-    const uniqueVehicles = countBySource.get(row.source) ?? 0;
+    const snapshot = snapshotBySource.get(row.source);
+    const uniqueVehicles = snapshot?.uniqueVehicles ?? 0;
     const duplicateVehicles = Math.max(
       row.duplicateVehicles,
       row.vehiclesProcessed - uniqueVehicles - row.rejectedVehicles,
@@ -271,6 +284,8 @@ export async function validateDurableSourceRuns(params: {
         autorecyclerBaselines.get(row.source) ??
         previous?.count ??
         null,
+      newestVehicleDate: snapshot?.newestVehicleDate ?? null,
+      validatedAt: run.startedAt,
     });
     validations.push({
       source: row.source,

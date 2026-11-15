@@ -271,6 +271,8 @@ describe("Pull-N-Save catalog streaming", () => {
         rejectedVehicles,
         previousAcceptedCount: 11721,
         errors: [],
+        newestVehicleDate: null,
+        validatedAt: new Date(),
       });
       expect(validation.status).toBe("rejected");
       expect(vehiclesProcessed).toBe(12000);
