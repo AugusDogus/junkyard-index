@@ -6,6 +6,7 @@ import {
   JolietStockSchema,
   jolietHash,
 } from "./joliet-parser";
+import { VinplusYearSchema } from "./vinplus-protocol";
 
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const vin = z
@@ -18,6 +19,7 @@ const vin = z
   );
 const stockFields = {
   stock: JolietStockSchema,
+  year: VinplusYearSchema,
   hash,
   firstQuery: z
     .number()
@@ -53,6 +55,7 @@ function progressHash(progress: JolietProgress): string {
     pairCount: progress.pairCount,
     seen: progress.seen.map((entry) => ({
       stock: entry.stock,
+      year: entry.year,
       hash: entry.hash,
       firstQuery: entry.firstQuery,
       status: entry.status,
@@ -82,13 +85,13 @@ export const JolietCursorSchema = z
           .min(1)
           .max(JOLIET_MAX_QUERIES - 1),
         pairCount: z.number().int().min(2).max(JOLIET_MAX_QUERIES),
-        seen: z.array(seenSchema).min(1).max(JOLIET_MAX_STOCKS),
+        seen: z.array(seenSchema).max(JOLIET_MAX_STOCKS),
         receipts: z
           .array(
             z
               .object({
                 hash,
-                count: z.number().int().positive().max(JOLIET_MAX_STOCKS),
+                count: z.number().int().nonnegative().max(JOLIET_MAX_STOCKS),
                 newStocks: z
                   .number()
                   .int()

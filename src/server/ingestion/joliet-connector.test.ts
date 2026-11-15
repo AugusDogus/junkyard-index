@@ -2,9 +2,16 @@ import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { z } from "zod";
 import { soakJolietInventory } from "../../../scripts/soak-joliet";
+import { fetchJolietContext } from "./joliet-client";
 import { streamJolietInventoryWithRequestGate } from "./joliet-connector";
 import { JolietCursor, JolietCursorSchema } from "./joliet-cursor";
-import { jolietPairKey, type JolietRecord } from "./joliet-parser";
+import {
+  jolietPairKey,
+  parseJolietInventory,
+  parseJolietSearch,
+  parseJolietAnalytics,
+  type JolietRecord,
+} from "./joliet-parser";
 import {
   jolietTestAnalytics,
   jolietTestConfig,
@@ -13,6 +20,7 @@ import {
   jolietTestOwner,
   jolietTestRecord,
   jolietTestSearch,
+  jolietDisagreementFixture,
 } from "./joliet-test-fixtures";
 import type { JolietCanonicalVehicle } from "./joliet-transform";
 import {
@@ -134,6 +142,216 @@ const run = (
       gate,
     ),
   );
+
+function disagreementReplay(extraMissing = 0, allSavedDifferences = false) {
+  const saved = jolietDisagreementFixture();
+  const table = parseJolietInventory(saved.inventory);
+  const f150 = parseJolietSearch(saved.f150, { make: "FORD", model: "F-150" });
+  const sonata = parseJolietSearch(saved.sonata, {
+    make: "HYUNDAI",
+    model: "SONATA",
+  });
+  // Only the F-150 query and API-only Sonata are captured evidence. Supply
+  // synthetic agreeing API identities for the remaining HTML stocks, rather
+  // than presenting the bounded saved investigation as a complete API census.
+  const captured = new Map(f150.map((record) => [record.stock, record]));
+  const namedMissing = new Set(["STK077444", "STK077649"]);
+  const agreeing = table.rows
+    .slice(extraMissing)
+    .filter((row) =>
+      allSavedDifferences
+        ? row.make !== "FORD" ||
+          row.model !== "F-150" ||
+          captured.has(row.stock)
+        : !namedMissing.has(row.stock),
+    )
+    .map((row, index) => {
+      const record = captured.get(row.stock);
+      if (record) return record;
+      const [month, day, year] = (row.sourceSetDate ?? "08.19.26").split(".");
+      return {
+        ...jolietTestRecord,
+        stock: row.stock,
+        year: row.year,
+        make: row.make,
+        model: row.model,
+        vehicleRow: row.row,
+        dateAdded: `20${year}-${month}-${day}T09:00:00`,
+        vin: "1FAHP2J89EG" + String(400000 + index),
+      };
+    });
+  const api = [
+    ...agreeing,
+    ...(allSavedDifferences
+      ? f150.filter(
+          (record) => !table.rows.some((row) => row.stock === record.stock),
+        )
+      : []),
+    ...sonata,
+  ];
+  const searches = new Map(
+    table.pairs.map((pair) => [
+      jolietPairKey(pair),
+      api.filter(
+        (record) => record.make === pair.make && record.model === pair.model,
+      ),
+    ]),
+  );
+  if (allSavedDifferences)
+    searches.set(jolietPairKey({ make: "FORD", model: "F-150" }), f150);
+  mock({
+    searches,
+    rewrite: (body, kind) =>
+      kind === "inventory"
+        ? saved.inventory
+        : kind === "analytics"
+          ? jolietTestAnalytics(api)
+          : body,
+  });
+  return { table, api, saved };
+}
+
+test("Joliet excludes and reports the three named saved stocks across durable chunks", async () => {
+  const { table, api, saved } = disagreementReplay();
+  expect(table.rows).toHaveLength(1411);
+  expect(api).toHaveLength(1410);
+  expect(parseJolietAnalytics(saved.analytics).count).toBe(1410);
+  const vehicles: JolietCanonicalVehicle[] = [];
+  const summary = await soakJolietInventory((cursor, budget) =>
+    run(
+      JolietCursorSchema.parse(JSON.parse(JSON.stringify(cursor))),
+      budget,
+      (batch) =>
+        Effect.sync(() => {
+          vehicles.push(...batch);
+        }),
+    ),
+  );
+  expect(summary.status).toBe("complete");
+  expect(summary.count).toBe(1409);
+  expect(summary.accounting).toEqual({
+    recordsProcessed: 1412,
+    recordsExcluded: 3,
+    recordsRejected: 0,
+    duplicateVehicles: 0,
+  });
+  expect(vehicles).toHaveLength(1409);
+  for (const stock of ["STK077444", "STK077649", "STK076107"]) {
+    expect(vehicles.some((vehicle) => vehicle.stockNumber === stock)).toBe(
+      false,
+    );
+    expect(summary.warnings?.join(" ")).toContain(stock);
+  }
+  expect(summary.observedVins).not.toContain("5NPEC4AC8DH776155");
+});
+
+test("Joliet also accepts all eleven stock differences in the saved F-150 and Sonata evidence", async () => {
+  disagreementReplay(0, true);
+  const result = await soakJolietInventory((cursor, budget) =>
+    run(cursor, budget),
+  );
+  expect(result.status).toBe("complete");
+  expect(result.count).toBe(1405);
+  expect(result.accounting).toEqual({
+    recordsProcessed: 1417,
+    recordsExcluded: 12,
+    recordsRejected: 0,
+    duplicateVehicles: 0,
+  });
+  for (const stock of [
+    "STK077444",
+    "STK077649",
+    "STK077716",
+    "STK077745",
+    "STK077759",
+    "STK077764",
+    "STK076417",
+    "STK076493",
+    "STK076391",
+    "STK076477",
+    "STK076107",
+  ])
+    expect(result.warnings?.join(" ")).toContain(stock);
+});
+
+test("Joliet rejects the saved analytics' 25 year-count differences despite a net count difference of one", async () => {
+  const saved = jolietDisagreementFixture();
+  mock({
+    rewrite: (body, kind) =>
+      kind === "inventory"
+        ? saved.inventory
+        : kind === "analytics"
+          ? saved.analytics
+          : body,
+  });
+  await expect(Effect.runPromise(fetchJolietContext(gate))).rejects.toThrow(
+    "1% disagreement",
+  );
+});
+
+test("Joliet fails when the stock disagreement exceeds 1% even with reconciling API counts", async () => {
+  disagreementReplay(12); // 15 / 1,411 exceeds 1%; net count difference is only 13.
+  await expect(
+    soakJolietInventory((cursor, budget) => run(cursor, budget)),
+  ).rejects.toThrow("Stocks exceed the 1% disagreement limit");
+});
+
+test("Joliet accepts exactly 1% disagreement and resumes an empty own-query receipt", async () => {
+  const records = Array.from({ length: 100 }, (_, index) => ({
+    ...jolietTestRecord,
+    stock: "STK" + String(75000 + index).padStart(6, "0"),
+    vin: "1FAHP2J89EG" + String(117500 + index),
+    model: index === 0 ? "A" : "Z",
+  }));
+  mock({
+    records,
+    searches: new Map([[jolietPairKey({ make: "FORD", model: "A" }), []]]),
+    rewrite: (body, kind) =>
+      kind === "analytics" ? jolietTestAnalytics(records.slice(1)) : body,
+  });
+  const first = await run(undefined, 1);
+  expect(first.count).toBe(0);
+  expect(first.cursor).toMatchObject({
+    phase: "queries",
+    seen: [],
+    receipts: [{ count: 0, newStocks: 0 }],
+  });
+  const last = await run(
+    JolietCursorSchema.parse(JSON.parse(JSON.stringify(first.cursor))),
+    1,
+  );
+  expect(last.status).toBe("complete");
+  expect(last.count).toBe(99);
+  expect(last.accounting).toEqual({
+    recordsProcessed: 100,
+    recordsExcluded: 1,
+    recordsRejected: 0,
+    duplicateVehicles: 0,
+  });
+  expect(last.warnings?.join(" ")).toContain("STK075000");
+});
+
+test("Joliet still requires the complete API union to reconcile exactly with analytics", async () => {
+  const records = Array.from({ length: 100 }, (_, index) => ({
+    ...jolietTestRecord,
+    stock: "STK" + String(75000 + index).padStart(6, "0"),
+    vin: "1FAHP2J89EG" + String(117500 + index),
+  }));
+  mock({
+    records,
+    rewrite: (body, kind) =>
+      kind === "analytics" ? jolietTestAnalytics(records.slice(1)) : body,
+  });
+  let callbacks = 0;
+  await expect(
+    run(undefined, 16, () =>
+      Effect.sync(() => {
+        callbacks++;
+      }),
+    ),
+  ).rejects.toThrow("Terminal API stock union does not reconcile");
+  expect(callbacks).toBe(0);
+});
 
 test("Joliet resumes serialized own-pair coverage and excludes only agreeing cross-query hits", async () => {
   const requests = mock({

@@ -24,6 +24,7 @@ import {
 
 export const JOLIET_MAX_STOCKS = 10_000;
 export const JOLIET_MAX_QUERIES = 2_000;
+export const JOLIET_MAX_DISAGREEMENT_RATIO = 0.01;
 export const JolietStockSchema = z.string().regex(/^STK\d{6}$/);
 export type JolietPair = VinplusPair;
 export type JolietRecord = VinplusRecord;
@@ -42,6 +43,20 @@ const nativeScope = {
 };
 export const jolietHash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
+export function jolietYearCounts(rows: Iterable<{ year: number }>) {
+  const years = new Map<number, number>();
+  let count = 0;
+  for (const row of rows) {
+    years.set(row.year, (years.get(row.year) ?? 0) + 1);
+    count++;
+  }
+  return {
+    count,
+    years: [...years]
+      .map(([year, count]) => ({ year, count }))
+      .sort((a, b) => a.year - b.year),
+  };
+}
 export const jolietPairKey = (pair: JolietPair): string =>
   JSON.stringify([pair.make, pair.model]);
 export const jolietQuery = (pair: JolietPair) =>

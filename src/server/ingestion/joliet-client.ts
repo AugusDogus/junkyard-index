@@ -6,6 +6,8 @@ import {
 } from "./provider-http-client";
 import {
   jolietHash,
+  jolietYearCounts,
+  JOLIET_MAX_DISAGREEMENT_RATIO,
   jolietQuery,
   parseJolietAnalytics,
   parseJolietConfig,
@@ -132,18 +134,23 @@ export function fetchJolietContext(gate: ProviderRequestGate) {
     return yield* validateJoliet(
       "official stock/year and native count reconciliation",
       () => {
-        const years = new Map<number, number>();
-        for (const row of table.rows)
-          years.set(row.year, (years.get(row.year) ?? 0) + 1);
-        const tableYears = [...years]
-          .map(([year, count]) => ({ year, count }))
-          .sort((a, b) => a.year - b.year);
-        if (
-          counts.count !== table.rows.length ||
-          JSON.stringify(counts.years) !== JSON.stringify(tableYears)
-        )
+        const years = new Map(
+          jolietYearCounts(table.rows).years.map((row) => [
+            row.year,
+            row.count,
+          ]),
+        );
+        for (const row of counts.years)
+          years.set(row.year, (years.get(row.year) ?? 0) - row.count);
+        // Year-count differences are a lower bound. Reconcile the exact API
+        // stock union and its year counts after traversal, including API-only stocks.
+        const difference = [...years.values()].reduce(
+          (sum, count) => sum + Math.abs(count),
+          0,
+        );
+        if (difference / table.rows.length > JOLIET_MAX_DISAGREEMENT_RATIO)
           throw new Error(
-            "Official complete stock/year table does not reconcile with native active inventory counts",
+            "Official stock/year table and native active counts exceed the 1% disagreement limit",
           );
         return {
           ...table,
