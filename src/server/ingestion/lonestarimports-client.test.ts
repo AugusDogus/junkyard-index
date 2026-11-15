@@ -67,7 +67,7 @@ test("all actual bodies replay through bounded production HTTP and durable eight
             onBatch: (items) =>
               Effect.sync(() => {
                 batches++;
-                expect(items).toHaveLength(2532);
+                expect(items).toHaveLength(2531);
               }),
           },
           gate,
@@ -82,7 +82,7 @@ test("all actual bodies replay through bounded production HTTP and durable eight
         expect(result.accounting).toEqual({
           recordsProcessed: 2560,
           recordsRejected: 9,
-          recordsExcluded: 19,
+          recordsExcluded: 20,
           duplicateVehicles: 0,
         });
       else expect(result.count).toBe(0);

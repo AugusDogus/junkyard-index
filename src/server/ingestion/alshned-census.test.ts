@@ -167,3 +167,31 @@ test("conflicting active and removed claims quarantine the whole donor identity"
   );
   expect(snapshot.observedVins).toContain(first.vin);
 });
+
+test("sold donors are absent from presence and do not count as rejected", () => {
+  const donors = actual.donors.map((d, i) =>
+    i < 3 ? { ...d, active: false } : d,
+  );
+  const snapshot = validateAlshnedSnapshot(
+    alshnedSnapshot(actual.pages, donors),
+  );
+  expect(snapshot.accounting).toMatchObject({
+    recordsExcluded: 3,
+    recordsRejected: 2,
+  });
+  expect(snapshot.vehicles).toHaveLength(38);
+  for (const donor of donors.slice(0, 3))
+    expect(snapshot.observedVins).not.toContain(donor.vin);
+});
+test("excluded donors cannot dilute active rejection ratios", () => {
+  const donors = actual.donors.map((d, i) =>
+    i < 25
+      ? { ...d, active: false }
+      : i < 28
+        ? { ...d, vin: "", jsonVin: "", vinClaims: [] }
+        : d,
+  );
+  expect(() =>
+    validateAlshnedSnapshot(alshnedSnapshot(actual.pages, donors)),
+  ).toThrow("rejection");
+});

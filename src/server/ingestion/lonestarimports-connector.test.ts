@@ -47,7 +47,7 @@ test("one-GET durable chunks serialize every complete opening/closing step and e
         onBatch: (vehicles) =>
           Effect.sync(() => {
             batches++;
-            expect(vehicles).toHaveLength(2532);
+            expect(vehicles).toHaveLength(2531);
           }),
         onYards: (items) =>
           Effect.sync(() => {
@@ -67,11 +67,11 @@ test("one-GET durable chunks serialize every complete opening/closing step and e
       ]).toEqual([0, 0, 0, 0, 0]);
       expect(Object.values(result.accounting)).toEqual([0, 0, 0, 0]);
     } else {
-      expect(result.count).toBe(2532);
+      expect(result.count).toBe(2531);
       expect(result.accounting).toEqual({
         recordsProcessed: 2560,
         recordsRejected: 9,
-        recordsExcluded: 19,
+        recordsExcluded: 20,
         duplicateVehicles: 0,
       });
       expect(result.observedVins).toEqual(["1GAHG39R6Y1138058"]);
@@ -170,10 +170,10 @@ test("cumulative source floor, active rejection, duplicate and prior drift guard
       null,
     ).errors,
   ).toContain("Lonestar active duplicate ratio exceeds25%");
-  expect(lonestarimportsSnapshot(rows, 5066).errors).toContain(
+  expect(lonestarimportsSnapshot(rows, 5064).errors).toContain(
     "Lonestar prior accepted inventory drift exceeds50%",
   );
-  expect(lonestarimportsSnapshot(rows, 5065).errors).toEqual([]);
+  expect(lonestarimportsSnapshot(rows, 5063).errors).toEqual([]);
 });
 test("rejected and conflicting modern/older identities remain protected independently of required metadata", () => {
   const rejected = lonestarimportsSnapshot(

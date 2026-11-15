@@ -19,7 +19,7 @@ export function lonestarimportsInactive(row: LonestarimportsRecord): boolean {
     /\bCRUSH(?:ED)?\b/.test(description) ||
     /^SOLD\b/.test(description) ||
     /(?:^|[,\s])-SOLD-+(?:$|\s)/.test(description) ||
-    /\bVIN#\s+[A-Z0-9]{5,17}\s+SOLD\s+\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(
+    /\bVIN#\s+[A-Z0-9]{5,17}\s+SOLD\s*\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(
       description,
     )
   );
