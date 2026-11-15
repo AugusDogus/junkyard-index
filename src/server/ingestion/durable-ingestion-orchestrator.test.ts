@@ -100,6 +100,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     jimsimport: 0,
     lonestarimports: 0,
     cstruck: 59,
+    heavytruckparts: 500,
     alshned: 0,
     hollanderstores: 0,
     allied: 0,

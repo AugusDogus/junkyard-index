@@ -1,0 +1,1568 @@
+[
+  {
+    "key": "robots",
+    "url": "https://www.heavytruckparts.net/robots.txt",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/robots.txt",
+    "started": 1794776352.2282407,
+    "finished": 1794776352.4825876,
+    "bytes": 192
+  },
+  {
+    "key": "vendors",
+    "url": "https://www.heavytruckparts.net/vendors.php",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/vendors.php",
+    "started": 1794776356.6826754,
+    "finished": 1794776357.2430573,
+    "bytes": 603867
+  },
+  {
+    "key": "rydemore-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=4594927&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=4594927&store=1",
+    "started": 1794776361.4431446,
+    "finished": 1794776362.0133977,
+    "bytes": 553512
+  },
+  {
+    "key": "rydemore-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year",
+    "started": 1794776366.2134829,
+    "finished": 1794776366.8801217,
+    "bytes": 682766
+  },
+  {
+    "key": "westside-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=7641244&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=7641244&store=1",
+    "started": 1794776371.0801933,
+    "finished": 1794776371.628566,
+    "bytes": 560029
+  },
+  {
+    "key": "westside-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year",
+    "started": 1794776375.8286421,
+    "finished": 1794776376.5607374,
+    "bytes": 668069
+  },
+  {
+    "key": "bw-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=1586091&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=1586091&store=1",
+    "started": 1794776380.7608078,
+    "finished": 1794776381.3124611,
+    "bytes": 558242
+  },
+  {
+    "key": "bw-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year",
+    "started": 1794776385.5125353,
+    "finished": 1794776386.403873,
+    "bytes": 657415
+  },
+  {
+    "key": "highmountain-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=210814&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=210814&store=1",
+    "started": 1794776390.6039593,
+    "finished": 1794776391.1632361,
+    "bytes": 562337
+  },
+  {
+    "key": "highmountain-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=210814&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=210814&store=1&SortBy=year",
+    "started": 1794776395.36332,
+    "finished": 1794776395.9266915,
+    "bytes": 570573
+  },
+  {
+    "key": "allcounty-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=7712369&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=7712369&store=1",
+    "started": 1794776400.1267605,
+    "finished": 1794776400.727929,
+    "bytes": 548172
+  },
+  {
+    "key": "allcounty-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year",
+    "started": 1794776404.928003,
+    "finished": 1794776405.6402514,
+    "bytes": 653967
+  },
+  {
+    "key": "vriens-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=5166545&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=5166545&store=1",
+    "started": 1794776409.840312,
+    "finished": 1794776410.4133024,
+    "bytes": 562593
+  },
+  {
+    "key": "vriens-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year",
+    "started": 1794776414.613373,
+    "finished": 1794776415.2449229,
+    "bytes": 657682
+  },
+  {
+    "key": "crest-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=2251343&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=2251343&store=1",
+    "started": 1794776419.445018,
+    "finished": 1794776420.0398939,
+    "bytes": 555115
+  },
+  {
+    "key": "crest-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year",
+    "started": 1794776424.2399747,
+    "finished": 1794776424.952054,
+    "bytes": 647664
+  },
+  {
+    "key": "vanderkc-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=5",
+    "started": 1794776429.1521282,
+    "finished": 1794776429.71525,
+    "bytes": 562875
+  },
+  {
+    "key": "vanderkc-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=5&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=5&SortBy=year",
+    "started": 1794776433.9153218,
+    "finished": 1794776434.469171,
+    "bytes": 628655
+  },
+  {
+    "key": "catruck-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=297005&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=297005&store=1",
+    "started": 1794776438.6692567,
+    "finished": 1794776439.2128544,
+    "bytes": 553010
+  },
+  {
+    "key": "catruck-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=297005&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=297005&store=1&SortBy=year",
+    "started": 1794776443.412924,
+    "finished": 1794776444.0046613,
+    "bytes": 569687
+  },
+  {
+    "key": "cohen-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=2691298&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=2691298&store=1",
+    "started": 1794776448.2047458,
+    "finished": 1794776448.7522478,
+    "bytes": 546753
+  },
+  {
+    "key": "cohen-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year",
+    "started": 1794776452.9523187,
+    "finished": 1794776453.7873225,
+    "bytes": 675459
+  },
+  {
+    "key": "american-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=3857491&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=3857491&store=1",
+    "started": 1794776457.9874072,
+    "finished": 1794776458.5354226,
+    "bytes": 559917
+  },
+  {
+    "key": "american-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year",
+    "started": 1794776462.7354927,
+    "finished": 1794776463.472485,
+    "bytes": 669840
+  },
+  {
+    "key": "bobby-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=2141372&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=2141372&store=1",
+    "started": 1794776467.672557,
+    "finished": 1794776468.221327,
+    "bytes": 553052
+  },
+  {
+    "key": "bobby-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2141372&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2141372&store=1&SortBy=year",
+    "started": 1794776472.4214094,
+    "finished": 1794776472.98412,
+    "bytes": 571975
+  },
+  {
+    "key": "rydemore-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year&page=2",
+    "started": 1794776491.0969977,
+    "finished": 1794776491.8995402,
+    "bytes": 655511
+  },
+  {
+    "key": "rydemore-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year&Order=asc",
+    "started": 1794776496.099612,
+    "finished": 1794776496.710058,
+    "bytes": 680586
+  },
+  {
+    "key": "rydemore-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4594927&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776500.91013,
+    "finished": 1794776501.5439603,
+    "bytes": 657788
+  },
+  {
+    "key": "rydemore-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=4594927&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=4594927&store=1",
+    "started": 1794776505.744043,
+    "finished": 1794776506.549823,
+    "bytes": 553519
+  },
+  {
+    "key": "bw-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year&page=2",
+    "started": 1794776510.7499044,
+    "finished": 1794776511.3204741,
+    "bytes": 576934
+  },
+  {
+    "key": "bw-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year&Order=asc",
+    "started": 1794776515.5205579,
+    "finished": 1794776516.3339312,
+    "bytes": 656824
+  },
+  {
+    "key": "bw-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1586091&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776520.5340154,
+    "finished": 1794776521.0558574,
+    "bytes": 577933
+  },
+  {
+    "key": "bw-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=1586091&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=1586091&store=1",
+    "started": 1794776525.2559297,
+    "finished": 1794776525.7825522,
+    "bytes": 558242
+  },
+  {
+    "key": "allcounty-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year&page=2",
+    "started": 1794776529.9826221,
+    "finished": 1794776530.720064,
+    "bytes": 620209
+  },
+  {
+    "key": "allcounty-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year&Order=asc",
+    "started": 1794776534.9201472,
+    "finished": 1794776535.5602744,
+    "bytes": 653667
+  },
+  {
+    "key": "allcounty-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7712369&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776539.7603602,
+    "finished": 1794776540.3171508,
+    "bytes": 620968
+  },
+  {
+    "key": "allcounty-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=7712369&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=7712369&store=1",
+    "started": 1794776544.5172343,
+    "finished": 1794776545.046921,
+    "bytes": 548182
+  },
+  {
+    "key": "vriens-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=2",
+    "started": 1794776549.2470067,
+    "finished": 1794776549.996885,
+    "bytes": 657339
+  },
+  {
+    "key": "vriens-desc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=3",
+    "started": 1794776554.196969,
+    "finished": 1794776554.8914366,
+    "bytes": 656950
+  },
+  {
+    "key": "vriens-desc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=4",
+    "started": 1794776559.0915186,
+    "finished": 1794776559.6900568,
+    "bytes": 657232
+  },
+  {
+    "key": "vriens-desc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=5",
+    "started": 1794776563.8901393,
+    "finished": 1794776564.6017404,
+    "bytes": 656000
+  },
+  {
+    "key": "vriens-desc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=6",
+    "started": 1794776568.8018253,
+    "finished": 1794776569.4611983,
+    "bytes": 656948
+  },
+  {
+    "key": "vriens-desc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&page=7",
+    "started": 1794776573.6612697,
+    "finished": 1794776574.245343,
+    "bytes": 615448
+  },
+  {
+    "key": "vriens-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc",
+    "started": 1794776578.4454138,
+    "finished": 1794776579.0608876,
+    "bytes": 656963
+  },
+  {
+    "key": "vriens-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776583.2609568,
+    "finished": 1794776583.902084,
+    "bytes": 657301
+  },
+  {
+    "key": "vriens-asc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=3",
+    "started": 1794776588.1021712,
+    "finished": 1794776588.7143939,
+    "bytes": 657155
+  },
+  {
+    "key": "vriens-asc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=4",
+    "started": 1794776592.9144661,
+    "finished": 1794776593.5251753,
+    "bytes": 657466
+  },
+  {
+    "key": "vriens-asc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=5",
+    "started": 1794776597.7252493,
+    "finished": 1794776598.3682055,
+    "bytes": 656783
+  },
+  {
+    "key": "vriens-asc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=6",
+    "started": 1794776602.5690064,
+    "finished": 1794776603.2694569,
+    "bytes": 657476
+  },
+  {
+    "key": "vriens-asc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5166545&store=1&SortBy=year&Order=asc&page=7",
+    "started": 1794776607.4695275,
+    "finished": 1794776608.0226238,
+    "bytes": 616451
+  },
+  {
+    "key": "vriens-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=5166545&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=5166545&store=1",
+    "started": 1794776612.2226975,
+    "finished": 1794776612.7538588,
+    "bytes": 562658
+  },
+  {
+    "key": "crest-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=2",
+    "started": 1794776616.953931,
+    "finished": 1794776617.7379332,
+    "bytes": 648836
+  },
+  {
+    "key": "crest-desc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=3",
+    "started": 1794776621.9380043,
+    "finished": 1794776622.59988,
+    "bytes": 649347
+  },
+  {
+    "key": "crest-desc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=4",
+    "started": 1794776626.7999654,
+    "finished": 1794776627.5578861,
+    "bytes": 648825
+  },
+  {
+    "key": "crest-desc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=5",
+    "started": 1794776631.7579703,
+    "finished": 1794776632.453549,
+    "bytes": 649085
+  },
+  {
+    "key": "crest-desc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=6",
+    "started": 1794776636.6536248,
+    "finished": 1794776637.342861,
+    "bytes": 649121
+  },
+  {
+    "key": "crest-desc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=7",
+    "started": 1794776641.5429442,
+    "finished": 1794776642.358706,
+    "bytes": 648624
+  },
+  {
+    "key": "crest-desc-8",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=8",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=8",
+    "started": 1794776646.5587907,
+    "finished": 1794776647.278664,
+    "bytes": 647921
+  },
+  {
+    "key": "crest-desc-9",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=9",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=9",
+    "started": 1794776651.478747,
+    "finished": 1794776652.1779602,
+    "bytes": 647787
+  },
+  {
+    "key": "crest-desc-10",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=10",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&page=10",
+    "started": 1794776656.3780286,
+    "finished": 1794776656.959952,
+    "bytes": 603637
+  },
+  {
+    "key": "crest-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc",
+    "started": 1794776661.1600232,
+    "finished": 1794776661.7948074,
+    "bytes": 648431
+  },
+  {
+    "key": "crest-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776665.994877,
+    "finished": 1794776667.0276709,
+    "bytes": 648290
+  },
+  {
+    "key": "crest-asc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=3",
+    "started": 1794776671.2277453,
+    "finished": 1794776674.207137,
+    "bytes": 649041
+  },
+  {
+    "key": "crest-asc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=4",
+    "started": 1794776678.4072092,
+    "finished": 1794776679.2692547,
+    "bytes": 649665
+  },
+  {
+    "key": "crest-asc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=5",
+    "started": 1794776683.469325,
+    "finished": 1794776684.563506,
+    "bytes": 649012
+  },
+  {
+    "key": "crest-asc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=6",
+    "started": 1794776688.7635734,
+    "finished": 1794776689.4926376,
+    "bytes": 648956
+  },
+  {
+    "key": "crest-asc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=7",
+    "started": 1794776693.6927078,
+    "finished": 1794776694.5402179,
+    "bytes": 649180
+  },
+  {
+    "key": "crest-asc-8",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=8",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=8",
+    "started": 1794776698.7402875,
+    "finished": 1794776699.7196293,
+    "bytes": 649632
+  },
+  {
+    "key": "crest-asc-9",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=9",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=9",
+    "started": 1794776703.919881,
+    "finished": 1794776704.6115763,
+    "bytes": 648223
+  },
+  {
+    "key": "crest-asc-10",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=10",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2251343&store=1&SortBy=year&Order=asc&page=10",
+    "started": 1794776708.811646,
+    "finished": 1794776709.5441873,
+    "bytes": 603329
+  },
+  {
+    "key": "crest-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=2251343&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=2251343&store=1",
+    "started": 1794776713.7442596,
+    "finished": 1794776714.296354,
+    "bytes": 555101
+  },
+  {
+    "key": "catruck-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=297005&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=297005&store=1&SortBy=year&Order=asc",
+    "started": 1794776718.4964237,
+    "finished": 1794776719.1512496,
+    "bytes": 569895
+  },
+  {
+    "key": "catruck-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=297005&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=297005&store=1",
+    "started": 1794776723.3513188,
+    "finished": 1794776723.8852277,
+    "bytes": 553024
+  },
+  {
+    "key": "cohen-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year&page=2",
+    "started": 1794776728.0853012,
+    "finished": 1794776729.126583,
+    "bytes": 554864
+  },
+  {
+    "key": "cohen-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year&Order=asc",
+    "started": 1794776733.3266532,
+    "finished": 1794776735.056463,
+    "bytes": 674659
+  },
+  {
+    "key": "cohen-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2691298&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776739.256548,
+    "finished": 1794776740.2805643,
+    "bytes": 556057
+  },
+  {
+    "key": "cohen-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=2691298&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=2691298&store=1",
+    "started": 1794776744.480636,
+    "finished": 1794776745.028583,
+    "bytes": 546732
+  },
+  {
+    "key": "bobby-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2141372&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=2141372&store=1&SortBy=year&Order=asc",
+    "started": 1794776749.228665,
+    "finished": 1794776749.7953768,
+    "bytes": 571996
+  },
+  {
+    "key": "bobby-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=2141372&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=2141372&store=1",
+    "started": 1794776753.9954515,
+    "finished": 1794776754.5816154,
+    "bytes": 553066
+  },
+  {
+    "key": "american-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=2",
+    "started": 1794776758.7816923,
+    "finished": 1794776760.0795133,
+    "bytes": 674090
+  },
+  {
+    "key": "american-desc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=3",
+    "started": 1794776764.279586,
+    "finished": 1794776765.1111863,
+    "bytes": 680867
+  },
+  {
+    "key": "american-desc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=4",
+    "started": 1794776769.311286,
+    "finished": 1794776771.051007,
+    "bytes": 687220
+  },
+  {
+    "key": "american-desc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=5",
+    "started": 1794776775.2510908,
+    "finished": 1794776775.9981527,
+    "bytes": 674507
+  },
+  {
+    "key": "american-desc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=6",
+    "started": 1794776780.1982281,
+    "finished": 1794776780.8995273,
+    "bytes": 671537
+  },
+  {
+    "key": "american-desc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=7",
+    "started": 1794776785.099599,
+    "finished": 1794776785.910287,
+    "bytes": 670933
+  },
+  {
+    "key": "american-desc-8",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=8",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&page=8",
+    "started": 1794776790.1103692,
+    "finished": 1794776790.64397,
+    "bytes": 565491
+  },
+  {
+    "key": "american-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc",
+    "started": 1794776794.8440423,
+    "finished": 1794776795.6012874,
+    "bytes": 671008
+  },
+  {
+    "key": "american-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776799.8013592,
+    "finished": 1794776800.4492486,
+    "bytes": 672138
+  },
+  {
+    "key": "american-asc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=3",
+    "started": 1794776804.6493208,
+    "finished": 1794776805.3285978,
+    "bytes": 679713
+  },
+  {
+    "key": "american-asc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=4",
+    "started": 1794776809.528681,
+    "finished": 1794776810.2191327,
+    "bytes": 682688
+  },
+  {
+    "key": "american-asc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=5",
+    "started": 1794776814.419206,
+    "finished": 1794776815.10079,
+    "bytes": 679104
+  },
+  {
+    "key": "american-asc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=6",
+    "started": 1794776819.3008692,
+    "finished": 1794776820.0082338,
+    "bytes": 678556
+  },
+  {
+    "key": "american-asc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=7",
+    "started": 1794776824.2083073,
+    "finished": 1794776824.877926,
+    "bytes": 667705
+  },
+  {
+    "key": "american-asc-8",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=8",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3857491&store=1&SortBy=year&Order=asc&page=8",
+    "started": 1794776829.0780153,
+    "finished": 1794776829.6649349,
+    "bytes": 565494
+  },
+  {
+    "key": "american-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=3857491&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=3857491&store=1",
+    "started": 1794776833.8650212,
+    "finished": 1794776834.450206,
+    "bytes": 559903
+  },
+  {
+    "key": "westside-desc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=2",
+    "started": 1794776838.6502771,
+    "finished": 1794776839.6009624,
+    "bytes": 668921
+  },
+  {
+    "key": "westside-desc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=3",
+    "started": 1794776843.8010051,
+    "finished": 1794776844.6269376,
+    "bytes": 668509
+  },
+  {
+    "key": "westside-desc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=4",
+    "started": 1794776848.8270013,
+    "finished": 1794776849.626677,
+    "bytes": 669161
+  },
+  {
+    "key": "westside-desc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=5",
+    "started": 1794776853.8267488,
+    "finished": 1794776854.4825382,
+    "bytes": 668860
+  },
+  {
+    "key": "westside-desc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=6",
+    "started": 1794776858.6829984,
+    "finished": 1794776859.422281,
+    "bytes": 669106
+  },
+  {
+    "key": "westside-desc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=7",
+    "started": 1794776863.622366,
+    "finished": 1794776864.3146677,
+    "bytes": 669565
+  },
+  {
+    "key": "westside-desc-8",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=8",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=8",
+    "started": 1794776868.5147383,
+    "finished": 1794776869.2264376,
+    "bytes": 668842
+  },
+  {
+    "key": "westside-desc-9",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=9",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=9",
+    "started": 1794776873.4265141,
+    "finished": 1794776874.5344129,
+    "bytes": 669072
+  },
+  {
+    "key": "westside-desc-10",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=10",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=10",
+    "started": 1794776878.7344866,
+    "finished": 1794776879.5217192,
+    "bytes": 668814
+  },
+  {
+    "key": "westside-desc-11",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=11",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=11",
+    "started": 1794776883.7217896,
+    "finished": 1794776884.425625,
+    "bytes": 669184
+  },
+  {
+    "key": "westside-desc-12",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=12",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=12",
+    "started": 1794776888.6256974,
+    "finished": 1794776889.270376,
+    "bytes": 669229
+  },
+  {
+    "key": "westside-desc-13",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=13",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=13",
+    "started": 1794776893.4704616,
+    "finished": 1794776894.185536,
+    "bytes": 669583
+  },
+  {
+    "key": "westside-desc-14",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=14",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=14",
+    "started": 1794776898.3856046,
+    "finished": 1794776899.0559573,
+    "bytes": 669330
+  },
+  {
+    "key": "westside-desc-15",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=15",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=15",
+    "started": 1794776903.2560427,
+    "finished": 1794776904.0256426,
+    "bytes": 669156
+  },
+  {
+    "key": "westside-desc-16",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=16",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=16",
+    "started": 1794776908.2257118,
+    "finished": 1794776908.964526,
+    "bytes": 669646
+  },
+  {
+    "key": "westside-desc-17",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=17",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=17",
+    "started": 1794776913.165013,
+    "finished": 1794776913.8707821,
+    "bytes": 669415
+  },
+  {
+    "key": "westside-desc-18",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=18",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=18",
+    "started": 1794776918.070859,
+    "finished": 1794776918.7932992,
+    "bytes": 668705
+  },
+  {
+    "key": "westside-desc-19",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=19",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=19",
+    "started": 1794776922.9933853,
+    "finished": 1794776923.746248,
+    "bytes": 668618
+  },
+  {
+    "key": "westside-desc-20",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=20",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=20",
+    "started": 1794776927.9463315,
+    "finished": 1794776928.7278962,
+    "bytes": 668837
+  },
+  {
+    "key": "westside-desc-21",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=21",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=21",
+    "started": 1794776932.9279907,
+    "finished": 1794776933.6313133,
+    "bytes": 668805
+  },
+  {
+    "key": "westside-desc-22",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=22",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=22",
+    "started": 1794776937.831382,
+    "finished": 1794776938.6065643,
+    "bytes": 668371
+  },
+  {
+    "key": "westside-desc-23",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=23",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=23",
+    "started": 1794776942.806633,
+    "finished": 1794776943.600022,
+    "bytes": 668548
+  },
+  {
+    "key": "westside-desc-24",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=24",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=24",
+    "started": 1794776947.8001058,
+    "finished": 1794776948.543868,
+    "bytes": 668264
+  },
+  {
+    "key": "westside-desc-25",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=25",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&page=25",
+    "started": 1794776952.7439542,
+    "finished": 1794776953.447349,
+    "bytes": 645602
+  },
+  {
+    "key": "westside-asc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc",
+    "started": 1794776957.6474197,
+    "finished": 1794776958.3478594,
+    "bytes": 667901
+  },
+  {
+    "key": "westside-asc-2",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=2",
+    "started": 1794776962.54793,
+    "finished": 1794776963.27959,
+    "bytes": 669160
+  },
+  {
+    "key": "westside-asc-3",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=3",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=3",
+    "started": 1794776967.47967,
+    "finished": 1794776968.1644628,
+    "bytes": 668844
+  },
+  {
+    "key": "westside-asc-4",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=4",
+    "started": 1794776972.364535,
+    "finished": 1794776973.3075583,
+    "bytes": 668874
+  },
+  {
+    "key": "westside-asc-5",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=5",
+    "started": 1794776977.5076306,
+    "finished": 1794776978.1932135,
+    "bytes": 669000
+  },
+  {
+    "key": "westside-asc-6",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=6",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=6",
+    "started": 1794776982.3932867,
+    "finished": 1794776983.182474,
+    "bytes": 668657
+  },
+  {
+    "key": "westside-asc-7",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=7",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=7",
+    "started": 1794776987.3825462,
+    "finished": 1794776988.0426612,
+    "bytes": 669053
+  },
+  {
+    "key": "westside-asc-8",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=8",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=8",
+    "started": 1794776992.2427356,
+    "finished": 1794776992.9060178,
+    "bytes": 669192
+  },
+  {
+    "key": "westside-asc-9",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=9",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=9",
+    "started": 1794776997.1070013,
+    "finished": 1794776997.7772503,
+    "bytes": 669710
+  },
+  {
+    "key": "westside-asc-10",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=10",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=10",
+    "started": 1794777001.9773214,
+    "finished": 1794777002.7352152,
+    "bytes": 669383
+  },
+  {
+    "key": "westside-asc-11",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=11",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=11",
+    "started": 1794777006.935291,
+    "finished": 1794777007.5606341,
+    "bytes": 669799
+  },
+  {
+    "key": "westside-asc-12",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=12",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=12",
+    "started": 1794777011.7607198,
+    "finished": 1794777012.4318879,
+    "bytes": 669406
+  },
+  {
+    "key": "westside-asc-13",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=13",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=13",
+    "started": 1794777016.6319733,
+    "finished": 1794777017.3463497,
+    "bytes": 670023
+  },
+  {
+    "key": "westside-asc-14",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=14",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=14",
+    "started": 1794777021.546421,
+    "finished": 1794777022.2121093,
+    "bytes": 669193
+  },
+  {
+    "key": "westside-asc-15",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=15",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=15",
+    "started": 1794777026.4121792,
+    "finished": 1794777027.1275432,
+    "bytes": 668903
+  },
+  {
+    "key": "westside-asc-16",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=16",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=16",
+    "started": 1794777031.3276155,
+    "finished": 1794777032.042666,
+    "bytes": 669414
+  },
+  {
+    "key": "westside-asc-17",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=17",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=17",
+    "started": 1794777036.242738,
+    "finished": 1794777037.8664372,
+    "bytes": 669482
+  },
+  {
+    "key": "westside-asc-18",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=18",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=18",
+    "started": 1794777042.0665123,
+    "finished": 1794777042.7601573,
+    "bytes": 669344
+  },
+  {
+    "key": "westside-asc-19",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=19",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=19",
+    "started": 1794777046.9602346,
+    "finished": 1794777047.5795965,
+    "bytes": 669308
+  },
+  {
+    "key": "westside-asc-20",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=20",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=20",
+    "started": 1794777051.7796807,
+    "finished": 1794777052.424466,
+    "bytes": 670005
+  },
+  {
+    "key": "westside-asc-21",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=21",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=21",
+    "started": 1794777056.624536,
+    "finished": 1794777057.265703,
+    "bytes": 669357
+  },
+  {
+    "key": "westside-asc-22",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=22",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=22",
+    "started": 1794777061.4657726,
+    "finished": 1794777062.135469,
+    "bytes": 669086
+  },
+  {
+    "key": "westside-asc-23",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=23",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=23",
+    "started": 1794777066.3355384,
+    "finished": 1794777067.0452113,
+    "bytes": 668728
+  },
+  {
+    "key": "westside-asc-24",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=24",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=24",
+    "started": 1794777071.2452843,
+    "finished": 1794777071.9620051,
+    "bytes": 668280
+  },
+  {
+    "key": "westside-asc-25",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=25",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7641244&store=1&SortBy=year&Order=asc&page=25",
+    "started": 1794777076.1620765,
+    "finished": 1794777076.7340422,
+    "bytes": 646115
+  },
+  {
+    "key": "westside-store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=7641244&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=7641244&store=1",
+    "started": 1794777080.9341128,
+    "finished": 1794777081.4772618,
+    "bytes": 560046
+  },
+  {
+    "key": "vanderkc-parts",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=5",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=5",
+    "started": 1794777085.6773572,
+    "finished": 1794777086.2322433,
+    "bytes": 562939
+  },
+  {
+    "key": "vanderdm-parts",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=2",
+    "started": 1794777090.4323123,
+    "finished": 1794777090.997862,
+    "bytes": 562805
+  },
+  {
+    "key": "vanderdm-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=2",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=2",
+    "started": 1794777095.198001,
+    "finished": 1794777095.7930841,
+    "bytes": 562785
+  },
+  {
+    "key": "vanderdm-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=2&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=2&SortBy=year",
+    "started": 1794777099.9931571,
+    "finished": 1794777100.686677,
+    "bytes": 679803
+  },
+  {
+    "key": "vandercb-parts",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=4",
+    "started": 1794777104.8867643,
+    "finished": 1794777105.449218,
+    "bytes": 562625
+  },
+  {
+    "key": "vandercb-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=4",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=4",
+    "started": 1794777109.649291,
+    "finished": 1794777110.1916063,
+    "bytes": 562626
+  },
+  {
+    "key": "vandercb-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=4&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=4&SortBy=year",
+    "started": 1794777114.391689,
+    "finished": 1794777114.9543936,
+    "bytes": 609568
+  },
+  {
+    "key": "vandersp-parts",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Parts-Unit?fltpc=1821960&store=1",
+    "started": 1794777119.1544654,
+    "finished": 1794777119.7184205,
+    "bytes": 562924
+  },
+  {
+    "key": "vandersp-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=1821960&store=1",
+    "started": 1794777123.9185085,
+    "finished": 1794777124.4901433,
+    "bytes": 562756
+  },
+  {
+    "key": "vandersp-desc-1",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=1&SortBy=year",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=1821960&store=1&SortBy=year",
+    "started": 1794777128.690215,
+    "finished": 1794777129.4377682,
+    "bytes": 712098
+  },
+  {
+    "key": "rydemore-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=88+BENSON+STREET%2C+Fitchburg%2C+MA+01420&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=88+BENSON+STREET%2C+Fitchburg%2C+MA+01420&benchmark=Public_AR_Current&format=json",
+    "started": 1794777154.5594857,
+    "finished": 1794777154.9359076,
+    "bytes": 642
+  },
+  {
+    "key": "westside-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=1120+Crabtree+ave.%2C+Owensboro%2C+KY+42301&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=1120+Crabtree+ave.%2C+Owensboro%2C+KY+42301&benchmark=Public_AR_Current&format=json",
+    "started": 1794777159.135999,
+    "finished": 1794777159.5173337,
+    "bytes": 657
+  },
+  {
+    "key": "bw-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=278+Jefferson+Davis+Hwy%2C+Aiken%2C+SC+29801&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=278+Jefferson+Davis+Hwy%2C+Aiken%2C+SC+29801&benchmark=Public_AR_Current&format=json",
+    "started": 1794777163.7174063,
+    "finished": 1794777164.08556,
+    "bytes": 663
+  },
+  {
+    "key": "allcounty-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=1073+Hooker+Rd%2C+Chattanooga%2C+TN+37407&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=1073+Hooker+Rd%2C+Chattanooga%2C+TN+37407&benchmark=Public_AR_Current&format=json",
+    "started": 1794777168.2856429,
+    "finished": 1794777168.6583788,
+    "bytes": 654
+  },
+  {
+    "key": "crest-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640+Joe+Frank+Harris+Parkway%2C+Cartersville%2C+GA+30120&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640+Joe+Frank+Harris+Parkway%2C+Cartersville%2C+GA+30120&benchmark=Public_AR_Current&format=json",
+    "started": 1794777172.8585162,
+    "finished": 1794777173.2547848,
+    "bytes": 262
+  },
+  {
+    "key": "catruck-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=13480+Cairo+Lane%2C+Opa-Locka%2C+FL+33054&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=13480+Cairo+Lane%2C+Opa-Locka%2C+FL+33054&benchmark=Public_AR_Current&format=json",
+    "started": 1794777177.4548557,
+    "finished": 1794777177.8303134,
+    "bytes": 652
+  },
+  {
+    "key": "american-census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=2850+West+Broadway+Road%2C+Phoenix%2C+AZ+85041&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=2850+West+Broadway+Road%2C+Phoenix%2C+AZ+85041&benchmark=Public_AR_Current&format=json",
+    "started": 1794777182.0303648,
+    "finished": 1794777182.445296,
+    "bytes": 252
+  },
+  {
+    "key": "crest-nominatim",
+    "url": "https://nominatim.openstreetmap.org/search?q=640%20Joe%20Frank%20Harris%20Parkway%2C%20Cartersville%2C%20GA&format=jsonv2&addressdetails=1&limit=3",
+    "status": 429,
+    "final": "https://nominatim.openstreetmap.org/search?q=640%20Joe%20Frank%20Harris%20Parkway%2C%20Cartersville%2C%20GA&format=jsonv2&addressdetails=1&limit=3",
+    "started": 1794777201.2615101,
+    "finished": 1794777202.89192,
+    "bytes": 437
+  },
+  {
+    "key": "american-nominatim",
+    "url": "https://nominatim.openstreetmap.org/search?q=2850%20West%20Broadway%20Road%2C%20Phoenix%2C%20AZ&format=jsonv2&addressdetails=1&limit=3",
+    "status": 429,
+    "final": "https://nominatim.openstreetmap.org/search?q=2850%20West%20Broadway%20Road%2C%20Phoenix%2C%20AZ&format=jsonv2&addressdetails=1&limit=3",
+    "started": 1794777207.093023,
+    "finished": 1794777208.7990596,
+    "bytes": 437
+  },
+  {
+    "key": "crest-census-se",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640%20Joe%20Frank%20Harris%20Pkwy%20SE%2C%20Cartersville%2C%20GA%2030120&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640%20Joe%20Frank%20Harris%20Pkwy%20SE%2C%20Cartersville%2C%20GA%2030120&benchmark=Public_AR_Current&format=json",
+    "started": 1794777240.9864407,
+    "finished": 1794777241.3813846,
+    "bytes": 262
+  },
+  {
+    "key": "american-census-short",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=2850%20W%20Broadway%20Rd%2C%20Phoenix%2C%20AZ&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=2850%20W%20Broadway%20Rd%2C%20Phoenix%2C%20AZ&benchmark=Public_AR_Current&format=json",
+    "started": 1794777245.5815165,
+    "finished": 1794777245.9802408,
+    "bytes": 648
+  },
+  {
+    "key": "crest-nominatim-name",
+    "url": "https://nominatim.openstreetmap.org/search?q=Crest%20Truck%20Parts%2C%20Cartersville%2C%20Georgia&format=jsonv2&addressdetails=1&limit=3",
+    "status": 200,
+    "final": "https://nominatim.openstreetmap.org/search?q=Crest%20Truck%20Parts%2C%20Cartersville%2C%20Georgia&format=jsonv2&addressdetails=1&limit=3",
+    "started": 1794777281.9256387,
+    "finished": 1794777282.5618126,
+    "bytes": 2
+  },
+  {
+    "key": "crest-census-pkwy",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640%20Joe%20Frank%20Harris%20Parkway%2C%20Cartersville%2C%20GA&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640%20Joe%20Frank%20Harris%20Parkway%2C%20Cartersville%2C%20GA&benchmark=Public_AR_Current&format=json",
+    "started": 1794777286.7620454,
+    "finished": 1794777287.1531558,
+    "bytes": 256
+  },
+  {
+    "key": "crest-nominatim-address",
+    "url": "https://nominatim.openstreetmap.org/search?street=640%20Joe%20Frank%20Harris%20Parkway&city=Cartersville&state=Georgia&country=United%20States&format=jsonv2&addressdetails=1&limit=3",
+    "status": 200,
+    "final": "https://nominatim.openstreetmap.org/search?street=640%20Joe%20Frank%20Harris%20Parkway&city=Cartersville&state=Georgia&country=United%20States&format=jsonv2&addressdetails=1&limit=3",
+    "started": 1794777316.2671275,
+    "finished": 1794777316.8443615,
+    "bytes": 717
+  },
+  {
+    "key": "american-nominatim-address",
+    "url": "https://nominatim.openstreetmap.org/search?street=2850%20West%20Broadway%20Road&city=Phoenix&state=Arizona&country=United%20States&format=jsonv2&addressdetails=1&limit=3",
+    "status": 200,
+    "final": "https://nominatim.openstreetmap.org/search?street=2850%20West%20Broadway%20Road&city=Phoenix&state=Arizona&country=United%20States&format=jsonv2&addressdetails=1&limit=3",
+    "started": 1794777321.044449,
+    "finished": 1794777321.7074995,
+    "bytes": 710
+  },
+  {
+    "key": "crest-census-emerson",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640%20Joe%20Frank%20Harris%20Pkwy%20SE%2C%20Emerson%2C%20GA%2030137&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=640%20Joe%20Frank%20Harris%20Pkwy%20SE%2C%20Emerson%2C%20GA%2030137&benchmark=Public_AR_Current&format=json",
+    "started": 1794777325.9076056,
+    "finished": 1794777326.2804015,
+    "bytes": 257
+  },
+  {
+    "key": "american-census-structured",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/address?street=2850%20W%20Broadway%20Rd&city=Phoenix&state=AZ&zip=85041&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "final": "https://geocoding.geo.census.gov/geocoder/locations/address?street=2850%20W%20Broadway%20Rd&city=Phoenix&state=AZ&zip=85041&benchmark=Public_AR_Current&format=json",
+    "started": 1794777330.4804733,
+    "finished": 1794777330.8587348,
+    "bytes": 271
+  },
+  {
+    "key": "client-smoke-store",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=4594927&store=1",
+    "status": 200,
+    "final": "https://www.heavytruckparts.net/search.php?fltpc=4594927&store=1",
+    "started": 1794777518.781,
+    "finished": 1794777519.269,
+    "bytes": 553512
+  }
+]

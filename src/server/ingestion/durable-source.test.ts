@@ -24,7 +24,12 @@ import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 
 describe("durable ingestion cursors", () => {
-  test.each(["lonestarimports", "alshned", "cstruck"] as const)(
+  test.each([
+    "lonestarimports",
+    "alshned",
+    "cstruck",
+    "heavytruckparts",
+  ] as const)(
     "%s registers a checked resumable cursor and rejects false completion",
     (source) => {
       const definition = DURABLE_SOURCE_DEFINITIONS[source];
