@@ -70,6 +70,7 @@ const SOURCES = [
   ["hagerman", "Hagerman"],
   ["kandr", "K&R Truck Parts"],
   ["jimsimport", "Jim's Import Auto Salvage"],
+  ["lonestarimports", "Lonestar Imports"],
   ["alshned", "Alshned Auto Parts"],
   ["pyp", "Pick Your Part"],
   ["pullapart", "Pull-A-Part"],

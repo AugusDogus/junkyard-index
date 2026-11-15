@@ -96,6 +96,8 @@ import { KANDR_CONTRACT } from "../src/server/ingestion/kandr-configuration";
 import { soakKandrInventory } from "./soak-kandr";
 import { streamJimsimportInventoryFromProvider } from "../src/server/ingestion/jimsimport-connector";
 import { soakJimsimportInventory } from "./soak-jimsimport";
+import { streamLonestarimportsInventoryFromProvider } from "../src/server/ingestion/lonestarimports-connector";
+import { soakLonestarimportsInventory } from "./soak-lonestarimports";
 import { streamAlshnedInventory } from "../src/server/ingestion/alshned-connector";
 import { soakAlshnedInventory } from "./soak-alshned";
 import { streamWeberbrothersInventory } from "../src/server/ingestion/weberbrothers-connector";
@@ -566,6 +568,19 @@ async function main(): Promise<void> {
                       SourceValidationPolicy.minimumUniqueInventory
                         .weberbrothers,
                     previousUniqueInventory: null,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "lonestarimports":
+            return soakLonestarimportsInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamLonestarimportsInventoryFromProvider({
+                    previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
                   }),
                 ),
               config.maxPages,
