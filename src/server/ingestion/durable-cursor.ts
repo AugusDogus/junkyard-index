@@ -32,6 +32,7 @@ import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
+import { AlshnedCursor, ALSHNED_MAX_CURSOR_BYTES } from "./alshned-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
 import { PullsavewaCursorSchema } from "./pullsavewa-cursor";
@@ -268,6 +269,16 @@ const oemJsonCursor = defineJsonCursor("oem", OemCursorSchema);
 const hagermanJsonCursor = defineJsonCursor("hagerman", HagermanCursorSchema);
 
 const DURABLE_CURSOR_DEFINITIONS = {
+  alshned: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > ALSHNED_MAX_CURSOR_BYTES)
+        throw new Error("Alshned serialized checkpoint exceeds 8 MiB");
+      const payload: unknown = JSON.parse(value);
+      return AlshnedCursor.parse(payload);
+    },
+    serialize: (cursor: AlshnedCursor) =>
+      JSON.stringify(AlshnedCursor.parse(cursor)),
+  },
   jimsimport: {
     parse: (value: string) => {
       if (Buffer.byteLength(value) > 8 * 1024 * 1024)
