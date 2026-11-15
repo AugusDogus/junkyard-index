@@ -150,7 +150,7 @@ export function fetchJolietContext(gate: ProviderRequestGate) {
         );
         if (difference / table.rows.length > JOLIET_MAX_DISAGREEMENT_RATIO)
           throw new Error(
-            "Official stock/year table and native active counts exceed the 1% disagreement limit",
+            "Official stock/year table and native active counts exceed the 5% disagreement limit",
           );
         return {
           ...table,

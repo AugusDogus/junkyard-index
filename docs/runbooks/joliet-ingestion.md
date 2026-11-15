@@ -161,3 +161,9 @@ The new pure `vinplus-protocol.ts` shares only strict native envelopes, exact
 query encoding, analytics and primitive text/calendar-date parsing. Joliet's
 owner, selectors, metadata exclusions, config, HTTP, cursor and join/accounting
 policy stay explicit. No Littleton implementation or frozen artifact is changed.
+
+The November 15 saved HTML and analytics differ by 25 absolute year-count
+entries across 1,411 HTML stocks (1.77%), despite a net count difference of one.
+The disagreement limit is 5% of the HTML inventory. Only agreeing stocks are
+published; HTML-only and API-only stocks are excluded and reported. Exact API
+union-to-analytics reconciliation and all other quality guards still apply.
