@@ -1,3 +1,4 @@
+import { HOLLANDERSTORES_MAX_REQUESTS } from "../src/server/ingestion/hollanderstores-limits";
 import type { HollanderstoresStreamResult } from "../src/server/ingestion/hollanderstores-connector";
 import { HollanderstoresCursor } from "../src/server/ingestion/hollanderstores-cursor";
 
@@ -7,7 +8,7 @@ export async function soakHollanderstoresInventory(
     cursor: HollanderstoresCursor,
     maxPages: number,
   ) => Promise<HollanderstoresStreamResult>,
-  maxRequests = 210,
+  maxRequests = HOLLANDERSTORES_MAX_REQUESTS,
 ): Promise<HollanderstoresStreamResult> {
   if (!Number.isSafeInteger(maxRequests) || maxRequests < 1)
     throw new Error(

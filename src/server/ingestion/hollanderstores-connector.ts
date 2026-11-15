@@ -10,7 +10,10 @@ import {
   hollanderstoresMissing,
   type HollanderstoresState,
 } from "./hollanderstores-cursor";
-import { parseHollanderstoresPage } from "./hollanderstores-parser";
+import {
+  parseHollanderstoresRoster,
+  HollanderstoresPageSchema,
+} from "./hollanderstores-parser";
 import {
   hollanderstoresSnapshot,
   type HollanderstoresVehicle,
@@ -27,6 +30,7 @@ export interface HollanderstoresOptions<E, R> {
   previousAcceptedCount?: number | null;
   readPage?: (
     yard: HollanderstoresYard,
+    pageNumber: number,
   ) => Effect.Effect<string, HollanderstoresProviderError>;
   decodeBatch: (
     vins: readonly string[],
@@ -108,6 +112,7 @@ export function streamHollanderstoresInventory<E, R>(
         startedAt: current.startedAt || Date.now(),
         previousAcceptedCount: current.previousAcceptedCount,
         pages: current.pages,
+        pending: current.pending,
         decoded: current.decoded,
         requests: current.requests + 1,
       };
@@ -156,27 +161,59 @@ export function streamHollanderstoresInventory<E, R>(
               cause: "Missing ordered yard",
             }),
           );
-        const raw = yield* (options.readPage ?? fetchHollanderstoresPage)(yard);
+        const pageNumber = current.pending
+          ? current.pending.rows.length / 20 + 1
+          : 1;
+        const raw = yield* options.readPage
+          ? options.readPage(yard, pageNumber)
+          : fetchHollanderstoresPage(yard, undefined, pageNumber);
         next = yield* hollanderstoresAttempt(
           "complete native card view " + yard.code,
           (): HollanderstoresState => {
-            const page = parseHollanderstoresPage(raw, index);
+            const slice = parseHollanderstoresRoster(raw, yard, pageNumber);
+            if (current.pending && current.pending.total !== slice.total)
+              throw new Error(
+                "Hollander Stores published total changed between list pages",
+              );
+            const combined = {
+              yard: yard.code,
+              total: slice.total,
+              rows: [...(current.pending?.rows ?? []), ...slice.rows],
+            };
+            if (
+              new Set(combined.rows.map((row) => row.url)).size !==
+              combined.rows.length
+            )
+              throw new Error(
+                "Hollander Stores repeated a destination between list pages",
+              );
+            if (slice.nextPage !== null)
+              return current.phase === "opening"
+                ? { ...common, phase: "opening", pending: combined }
+                : {
+                    ...common,
+                    phase: "closing",
+                    closed: current.closed,
+                    pending: combined,
+                  };
+            const page = HollanderstoresPageSchema.parse(combined);
+            const completed = { ...common, pending: null };
             if (current.phase === "opening") {
               const pages = [...current.pages, page];
               if (pages.length < HOLLANDERSTORES_YARDS.length)
-                return { ...common, pages, phase: "opening" };
+                return { ...completed, pages, phase: "opening" };
               return hollanderstoresMissing({ pages }).length
-                ? { ...common, pages, phase: "decoding" }
-                : { ...common, pages, phase: "closing", closed: 0 };
+                ? { ...completed, pages, phase: "decoding" }
+                : { ...completed, pages, phase: "closing", closed: 0 };
             }
             if (JSON.stringify(page) !== JSON.stringify(current.pages[index]))
               throw new Error(
                 "Closing census changed published count, fields, identities or destinations",
               );
             const closed = index + 1;
-            return closed === 5
-              ? { ...common, phase: "ready", closed: 5 }
-              : { ...common, phase: "closing", closed };
+            return closed === HOLLANDERSTORES_YARDS.length
+              ? { ...completed, phase: "ready", closed }
+              : { ...completed, phase: "closing", closed };
           },
         );
       }
@@ -226,6 +263,7 @@ export function streamHollanderstoresInventory<E, R>(
         startedAt: ready.startedAt,
         previousAcceptedCount: ready.previousAcceptedCount,
         pages: ready.pages,
+        pending: null,
         decoded: ready.decoded,
         requests: ready.requests,
         phase: "complete",
@@ -244,12 +282,12 @@ export function streamHollanderstoresInventory<E, R>(
     };
   }).pipe(
     Effect.timeoutFail({
-      duration: "8 minutes",
+      duration: "20 minutes",
       onTimeout: () =>
         new HollanderstoresProviderError({
           operation: "chunk deadline",
           cause:
-            "Eight-minute deadline exceeded; retain the previous checkpoint",
+            "Twenty-minute deadline exceeded; retain the previous checkpoint",
         }),
     }),
   );

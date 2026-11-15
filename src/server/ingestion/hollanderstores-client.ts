@@ -1,9 +1,13 @@
 import { Data, Effect, Schedule } from "effect";
 import { z } from "zod";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { readIPullUPullResponseText } from "./ipullupull-response-text";
-import type { HollanderstoresYard } from "./hollanderstores-yard-metadata";
+import { readBoundedResponseText } from "./ipullupull-response-text";
+import {
+  hollanderstoresUsesPaging,
+  type HollanderstoresYard,
+} from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
+import { HOLLANDERSTORES_MAX_BODY_BYTES } from "./hollanderstores-limits";
 import seed from "./hollanderstores-vpic-seed.json";
 
 // Previously verified NHTSA batch responses, November 15, 2026. The seed also
@@ -35,7 +39,8 @@ function request(
 ) {
   const attempt = Effect.suspend(() => {
     const lifetime = new AbortController();
-    const deadline = AbortSignal.timeout(120_000);
+    const timeoutMs = mime === "text/html" ? 300_000 : 120_000;
+    const deadline = AbortSignal.timeout(timeoutMs);
     let pending: Promise<string> | null = null;
     return Effect.tryPromise({
       try: (interrupted) => {
@@ -74,10 +79,13 @@ function request(
               `Expected complete HTTP 200 ${mime}; received ${response.status}`,
             );
           }
-          return await readIPullUPullResponseText(
+          return await readBoundedResponseText(
             response,
             "Hollander Stores " + url,
             signal,
+            mime === "text/html"
+              ? HOLLANDERSTORES_MAX_BODY_BYTES
+              : 4 * 1024 * 1024,
           );
         })();
         return pending;
@@ -96,11 +104,11 @@ function request(
         }),
       ),
       Effect.timeoutFail({
-        duration: "120 seconds",
+        duration: `${timeoutMs} millis`,
         onTimeout: () =>
           new HollanderstoresProviderError({
             operation: url,
-            cause: "Combined transport/body deadline exceeded 120 seconds",
+            cause: `Combined transport/body deadline exceeded ${timeoutMs / 1000} seconds`,
           }),
       }),
     );
@@ -114,10 +122,15 @@ function request(
 export function fetchHollanderstoresPage(
   yard: HollanderstoresYard,
   gate = hollanderstoresRequestGate,
+  pageNumber = 1,
 ) {
   return request(
-    yard.websiteUrl + "VehicleDealerSearch",
-    new URLSearchParams({ hdnChangeDisplay: "card" }),
+    yard.websiteUrl +
+      "VehicleDealerSearch" +
+      (hollanderstoresUsesPaging(yard) ? `?page=${pageNumber}` : ""),
+    new URLSearchParams({
+      hdnChangeDisplay: hollanderstoresUsesPaging(yard) ? "list" : "card",
+    }),
     "text/html",
     gate,
   );

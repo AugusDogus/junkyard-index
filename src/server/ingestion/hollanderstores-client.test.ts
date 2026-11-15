@@ -231,11 +231,40 @@ test("a stalled response body times out, cancels and unlocks before retry", asyn
       const fiber = yield* Effect.fork(
         fetchHollanderstoresPage(HOLLANDERSTORES_YARDS[0], gate),
       );
-      yield* TestClock.adjust("140 seconds");
+      yield* TestClock.adjust("320 seconds");
       return yield* Fiber.join(fiber);
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
   expect(result).toBe("complete");
   expect(signal?.aborted).toBe(true);
   expect(calls).toBe(2);
+});
+
+test("large HTML responses stream past 4 MiB while native list requests specify a page", async () => {
+  const large = "x".repeat(5 * 1024 * 1024);
+  const yard = {
+    ...HOLLANDERSTORES_YARDS[0],
+    code: "aaaparts",
+    websiteUrl: "https://aaaparts.hollanderstores.com/",
+  };
+  fetchMock = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          yard.websiteUrl + "VehicleDealerSearch?page=2",
+        );
+        expect(String(init?.body)).toBe("hdnChangeDisplay=list");
+        return new Response(large, {
+          headers: {
+            "content-type": "text/html",
+            "content-length": String(large.length),
+          },
+        });
+      },
+      { preconnect: globalThis.fetch.preconnect },
+    ),
+  );
+  expect(await Effect.runPromise(fetchHollanderstoresPage(yard, gate, 2))).toBe(
+    large,
+  );
 });
