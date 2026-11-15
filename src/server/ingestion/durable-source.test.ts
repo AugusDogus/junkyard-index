@@ -16,6 +16,7 @@ describe("durable ingestion cursors", () => {
     ["clearsalvage", 4],
     ["central", 2],
     ["beavers", 2],
+    ["denton", 16],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {
