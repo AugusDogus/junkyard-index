@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { matchCanonicalMakePrefix } from "./normalization";
 import { beaversClass, beaversElements, beaversText } from "./beavers-html";
 import {
   inventoryHtmlAttribute,
@@ -78,13 +79,13 @@ export function parseHollanderstoresPage(
     const heading = (headings[0]?.body ?? "").trim().replace(/^&#39;/, "'");
     const match = /^('\d{2}) (.*)$/.exec(heading);
     const remainder = match?.[2] ?? "";
-    const fields = remainder.startsWith(" ")
+    const blankMake = remainder.startsWith(" ");
+    const fields = blankMake
       ? null
-      : /^(AMERICAN MOTORS|LAND ROVER|ALFA ROMEO|[A-Z-]+)\s+(.+)$/.exec(
-          remainder,
-        );
-    if (!match || (!remainder.startsWith(" ") && !fields))
-      throw new Error("Hollander Stores make/model fields changed");
+      : matchCanonicalMakePrefix(beaversText(remainder));
+    if (!match) throw new Error("Hollander Stores make/model fields changed");
+    // Unknown prefixes remain row rejects, rather than guessing at the first word.
+    const text = beaversText(remainder);
     const items = beaversElements(region, "li").map(({ body }) =>
       beaversText(body),
     );
@@ -103,8 +104,8 @@ export function parseHollanderstoresPage(
       throw new Error("Hollander Stores card destination changed");
     return {
       displayYear: match[1],
-      make: fields?.[1] ?? null,
-      model: beaversText(fields?.[2] ?? remainder),
+      make: fields ? text.slice(0, fields.end).trim() : null,
+      model: fields ? text.slice(fields.end).trim() : blankMake ? text : "",
       vin: field("VIN "),
       stock: field("Stock# "),
       url: new URL(

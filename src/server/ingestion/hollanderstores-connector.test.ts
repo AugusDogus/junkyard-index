@@ -7,7 +7,10 @@ import {
   hollanderstoresSeed,
   HollanderstoresProviderError,
 } from "./hollanderstores-client";
-import { HollanderstoresCursor } from "./hollanderstores-cursor";
+import {
+  hollanderstoresMissing,
+  HollanderstoresCursor,
+} from "./hollanderstores-cursor";
 import { parseHollanderstoresPage } from "./hollanderstores-parser";
 import { hollanderstoresSnapshot } from "./hollanderstores-snapshot";
 import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
@@ -276,4 +279,46 @@ describe("Hollander Stores saved complete census", () => {
     expect(result._tag).toBe("Failure");
     expect(emitted).toBe(false);
   });
+});
+
+test("missing-make lookups use normalized VINs for decoding and row assessment", () => {
+  const modified = pages();
+  const row = modified[0]?.rows.find(
+    (row) => row.make === null && hollanderstoresVin(row.vin),
+  );
+  if (!row) throw new Error("Missing valid blank-make fixture row");
+  const normalized = row.vin.toUpperCase();
+  row.vin = row.vin.toLowerCase();
+  expect(hollanderstoresMissing({ pages: modified })).toContain(normalized);
+  expect(hollanderstoresMissing({ pages: modified })).not.toContain(row.vin);
+  const snapshot = hollanderstoresSnapshot(modified, hollanderstoresSeed);
+  expect(snapshot.vehicles.some((v) => v.vin === normalized)).toBe(true);
+  expect(snapshot.errors).toEqual([]);
+});
+test.each([
+  ["ASTON MARTIN DB9", "ASTON MARTIN", "DB9"],
+  ["ROLLS ROYCE PHANTOM", "ROLLS ROYCE", "PHANTOM"],
+  ["LAND ROVER DISCOVERY", "LAND ROVER", "DISCOVERY"],
+])("matches the complete known make prefix in %s", (heading, make, model) => {
+  const raw = fixture("leblancsauto").replace("AMERICAN MOTORS H3", heading);
+  const row = parseHollanderstoresPage(raw, 0).rows.find(
+    (r) => r.vin === "5GTEN13E788122266",
+  );
+  expect(row).toMatchObject({ make, model });
+});
+test("unknown native make prefixes reject one row without publishing a guessed make", () => {
+  const modified = pages();
+  modified[0] = parseHollanderstoresPage(
+    fixture("leblancsauto").replace(
+      "AMERICAN MOTORS H3",
+      "UNLISTED BRAND MODEL",
+    ),
+    0,
+  );
+  const snapshot = hollanderstoresSnapshot(modified, hollanderstoresSeed);
+  expect(snapshot.vehicles.some((r) => r.vin === "5GTEN13E788122266")).toBe(
+    false,
+  );
+  expect(snapshot.accounting.recordsRejected).toBe(9);
+  expect(snapshot.errors).toEqual([]);
 });
