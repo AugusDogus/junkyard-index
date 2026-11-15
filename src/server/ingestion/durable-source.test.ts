@@ -9,6 +9,7 @@ import {
 } from "./durable-source";
 import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 
 describe("durable ingestion cursors", () => {
@@ -18,6 +19,12 @@ describe("durable ingestion cursors", () => {
       maxPagesPerChunk: 6,
     });
   });
+  test("registers Dutcher with eight bounded native GETs per checkpoint", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("dutchers", {
+      initialCursor: DutchersCursor.initial(),
+      maxPagesPerChunk: 8,
+    });
+  });
   test.each([
     ["awap", 2],
     ["clearsalvage", 4],
@@ -25,6 +32,7 @@ describe("durable ingestion cursors", () => {
     ["beavers", 2],
     ["indianriver", 8],
     ["denton", 16],
+    ["dutchers", 8],
     ["chasencars", 2],
   ] as const)(
     "%s preserves its source-specific wire byte guard",

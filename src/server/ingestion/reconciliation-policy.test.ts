@@ -98,6 +98,7 @@ describe("reconciliation policy", () => {
       "denton",
       "beavers",
       "indianriver",
+      "dutchers",
       "chasencars",
       "autorecycler",
     ]);

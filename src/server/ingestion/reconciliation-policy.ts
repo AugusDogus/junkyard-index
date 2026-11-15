@@ -43,6 +43,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "denton",
   "beavers",
   "indianriver",
+  "dutchers",
   "chasencars",
   "autorecycler",
 ];

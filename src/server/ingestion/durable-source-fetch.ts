@@ -32,6 +32,7 @@ import { streamCaltonInventoryFromProvider } from "./calton-connector";
 import { streamBeaversInventory } from "./beavers-connector";
 import { streamIndianriverInventoryFromProvider } from "./indianriver-connector";
 import { streamDentonInventoryFromProvider } from "./denton-connector";
+import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
@@ -112,6 +113,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
         streamChasencarsInventoryFromProvider({
           // Durable validation checks the prior published count before reconciliation.
           previousAcceptedCount: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  dutchers: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamDutchersInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
