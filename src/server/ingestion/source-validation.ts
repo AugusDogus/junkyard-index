@@ -150,9 +150,37 @@ const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;
 const MAXIMUM_DUPLICATE_RATIO = 0.25;
 const MAXIMUM_REJECTION_RATIO = 0.1;
 const DAY_MS = 24 * 60 * 60 * 1000;
-// A yard adds cars every week. A feed whose newest car is older than this has
-// stopped updating even if it still answers, so its snapshot is not current.
-const MAXIMUM_INVENTORY_AGE_DAYS = 30;
+
+/** How old a source's newest vehicle may be before its feed counts as frozen. */
+export type InventoryAgeLimit =
+  | { kind: "days"; days: number }
+  | { kind: "unchecked" };
+
+// A typical yard adds cars every week. A feed whose newest car is older than
+// this has stopped updating even if it still answers, so its snapshot is not
+// current inventory.
+const DEFAULT_INVENTORY_AGE_LIMIT: InventoryAgeLimit = {
+  kind: "days",
+  days: 30,
+};
+
+// Slow-turnover sources, such as heavy-truck or small full-service yards, can
+// go months without a new arrival. Give them a longer limit, or "unchecked",
+// here. Every other source uses the default. See
+// docs/runbooks/source-validation.md.
+const INVENTORY_AGE_LIMITS: Partial<
+  Record<IngestionSource, InventoryAgeLimit>
+> = {};
+
+function inventoryAgeLimit(
+  source: IngestionSource,
+  limits: Partial<
+    Record<IngestionSource, InventoryAgeLimit>
+  > = INVENTORY_AGE_LIMITS,
+): InventoryAgeLimit {
+  return limits[source] ?? DEFAULT_INVENTORY_AGE_LIMIT;
+}
+
 // Provider dates can be zoneless local times; anything past this is a bad
 // value, not an arrival, and must not make a frozen feed look current.
 const FUTURE_DATE_TOLERANCE_MS = DAY_MS;
@@ -206,6 +234,9 @@ export function newestVehicleArrival(
 
 export function validateSourceSnapshot(
   input: SourceValidationInput,
+  inventoryAgeLimits: Partial<
+    Record<IngestionSource, InventoryAgeLimit>
+  > = INVENTORY_AGE_LIMITS,
 ): SourceValidationResult {
   const errors = [...input.errors];
   if (!input.terminal) {
@@ -230,13 +261,14 @@ export function validateSourceSnapshot(
     );
   }
 
-  if (input.newestVehicleDate !== null) {
+  const ageLimit = inventoryAgeLimit(input.source, inventoryAgeLimits);
+  if (input.newestVehicleDate !== null && ageLimit.kind === "days") {
     const ageMs =
       input.validatedAt.getTime() - input.newestVehicleDate.getTime();
-    if (ageMs > MAXIMUM_INVENTORY_AGE_DAYS * DAY_MS) {
+    if (ageMs > ageLimit.days * DAY_MS) {
       const ageDays = Math.floor(ageMs / DAY_MS);
       errors.push(
-        `${input.source} newest vehicle arrived ${input.newestVehicleDate.toISOString().slice(0, 10)}, ${ageDays} days before this run; a feed with nothing newer than ${MAXIMUM_INVENTORY_AGE_DAYS} days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system.`,
+        `${input.source} newest vehicle arrived ${input.newestVehicleDate.toISOString().slice(0, 10)}, ${ageDays} days before this run; a feed with nothing newer than ${ageLimit.days} days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system, or set a longer limit for a slow-turnover source in INVENTORY_AGE_LIMITS.`,
       );
     }
   }
@@ -266,5 +298,6 @@ export const SourceValidationPolicy = {
   minimumPreviousRunRatio: MINIMUM_PREVIOUS_RUN_RATIO,
   maximumDuplicateRatio: MAXIMUM_DUPLICATE_RATIO,
   maximumRejectionRatio: MAXIMUM_REJECTION_RATIO,
-  maximumInventoryAgeDays: MAXIMUM_INVENTORY_AGE_DAYS,
+  defaultInventoryAgeLimit: DEFAULT_INVENTORY_AGE_LIMIT,
+  inventoryAgeLimit,
 } as const;

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import {
   newestVehicleArrival,
   SourceValidationPolicy,
@@ -218,7 +219,7 @@ describe("source snapshot validation", () => {
     expect(frozen).toEqual({
       status: "rejected",
       errors: [
-        "upullitne newest vehicle arrived 2026-08-05, 101 days before this run; a feed with nothing newer than 30 days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system.",
+        "upullitne newest vehicle arrived 2026-08-05, 101 days before this run; a feed with nothing newer than 30 days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system, or set a longer limit for a slow-turnover source in INVENTORY_AGE_LIMITS.",
       ],
     });
   });
@@ -235,6 +236,50 @@ describe("source snapshot validation", () => {
       }).status;
     expect(daysOld(30)).toBe("accepted");
     expect(daysOld(30, 1)).toBe("rejected");
+  });
+
+  test("keeps every current source on the 30-day default", () => {
+    for (const source of INGESTION_SOURCES)
+      expect(SourceValidationPolicy.inventoryAgeLimit(source)).toEqual({
+        kind: "days",
+        days: 30,
+      });
+  });
+
+  test("applies a per-source age limit override", () => {
+    const slowYard = {
+      ...healthyRow52(),
+      source: "tearapart" as const,
+      uniqueVehicles: 1_671,
+      vehiclesProcessed: 1_671,
+      newestVehicleDate: new Date("2026-08-05T13:01:00Z"),
+      validatedAt: new Date("2026-11-15T07:44:11Z"),
+    };
+    expect(validateSourceSnapshot(slowYard).status).toBe("rejected");
+    expect(
+      validateSourceSnapshot(slowYard, {
+        tearapart: { kind: "days", days: 120 },
+      }).status,
+    ).toBe("accepted");
+    expect(
+      validateSourceSnapshot(slowYard, {
+        tearapart: { kind: "days", days: 90 },
+      }).errors,
+    ).toEqual([
+      expect.stringContaining(
+        "nothing newer than 90 days is treated as frozen",
+      ),
+    ]);
+    expect(
+      validateSourceSnapshot(slowYard, { tearapart: { kind: "unchecked" } }),
+    ).toEqual({ status: "accepted", errors: [] });
+    // An override for one source leaves the others on the default.
+    expect(
+      validateSourceSnapshot(
+        { ...slowYard, source: "upullitne" },
+        { tearapart: { kind: "unchecked" } },
+      ).status,
+    ).toBe("rejected");
   });
 
   test("skips the age check when no vehicle carries a date", () => {
