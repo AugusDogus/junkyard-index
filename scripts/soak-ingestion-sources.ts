@@ -75,7 +75,10 @@ import { KANDR_CONTRACT } from "../src/server/ingestion/kandr-configuration";
 import { soakKandrInventory } from "./soak-kandr";
 import { streamJimsimportInventoryFromProvider } from "../src/server/ingestion/jimsimport-connector";
 import { soakJimsimportInventory } from "./soak-jimsimport";
+import { streamOemInventoryFromProvider } from "../src/server/ingestion/oem-connector";
+import { OEM_LOCATION } from "../src/server/ingestion/oem-yard-metadata";
 import { SourceValidationPolicy } from "../src/server/ingestion/source-validation";
+import { soakOemInventory } from "./soak-oem";
 import { streamIndianriverInventoryFromProvider } from "../src/server/ingestion/indianriver-connector";
 import { soakIndianriverInventory } from "./soak-indianriver";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
@@ -492,6 +495,22 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamDutchersInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "oem":
+            return soakOemInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamOemInventoryFromProvider({
+                    location: OEM_LOCATION,
+                    minimumUniqueInventory:
+                      SourceValidationPolicy.minimumUniqueInventory.oem,
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

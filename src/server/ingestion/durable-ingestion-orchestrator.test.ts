@@ -68,6 +68,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     denton: 0,
     beavers: 0,
     indianriver: 0,
+    oem: 0,
     dutchers: 0,
     chasencars: 0,
     hagerman: 0,

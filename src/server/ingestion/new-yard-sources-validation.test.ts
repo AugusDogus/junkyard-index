@@ -21,6 +21,7 @@ import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
+import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor, chasencarsAdvance } from "./chasencars-cursor";
 import { chasencarsFixture } from "./chasencars-test-fixtures";
@@ -104,6 +105,19 @@ const sources = [
     complete: DutchersCursor.checkpoint({
       ...DutchersCursor.initial(),
       phase: "complete",
+    }),
+  },
+  {
+    source: "oem",
+    minimum: 1_800,
+    initial: OemCursor.initial(),
+    // Synthetic terminal marker tests shared gating, not native qualification.
+    complete: OemCursor.checkpoint({
+      source: "oem",
+      version: 1,
+      requests: 541,
+      bytes: 80_049_010,
+      state: { phase: "complete" },
     }),
   },
   {

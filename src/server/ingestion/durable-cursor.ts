@@ -13,6 +13,7 @@ import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
+import { OemCursorSchema, type OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
@@ -239,6 +240,8 @@ const autorecyclerJsonCursor = defineJsonCursor(
   "autorecycler",
   AutorecyclerCursorSchema,
 );
+
+const oemJsonCursor = defineJsonCursor("oem", OemCursorSchema);
 const hagermanJsonCursor = defineJsonCursor("hagerman", HagermanCursorSchema);
 
 const DURABLE_CURSOR_DEFINITIONS = {
@@ -296,6 +299,19 @@ const DURABLE_CURSOR_DEFINITIONS = {
       const wire = JSON.stringify(DutchersCursor.parse(cursor));
       if (Buffer.byteLength(wire) > 8 * 1024 * 1024)
         throw new Error("Dutcher serialized checkpoint exceeds 8 MiB");
+      return wire;
+    },
+  },
+  oem: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 4 * 1024 * 1024)
+        throw new Error("OEM serialized checkpoint exceeds 4 MiB");
+      return oemJsonCursor.parse(value);
+    },
+    serialize: (cursor: OemCursor) => {
+      const wire = oemJsonCursor.serialize(cursor);
+      if (Buffer.byteLength(wire) > 4 * 1024 * 1024)
+        throw new Error("OEM serialized checkpoint exceeds 4 MiB");
       return wire;
     },
   },

@@ -47,6 +47,8 @@ import { streamKandrInventoryFromProvider } from "./kandr-connector";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { KANDR_YARD } from "./kandr-snapshot";
 import { streamJimsimportInventoryFromProvider } from "./jimsimport-connector";
+import { streamOemInventoryFromProvider } from "./oem-connector";
+import { OEM_LOCATION, OEM_YARD } from "./oem-yard-metadata";
 import { SourceValidationPolicy } from "./source-validation";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
@@ -200,6 +202,30 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  oem: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamOemInventoryFromProvider({
+          location: OEM_LOCATION,
+          minimumUniqueInventory:
+            SourceValidationPolicy.minimumUniqueInventory.oem,
+          // Durable validation checks previous published inventory before reconciliation.
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+        }).pipe(
+          Effect.tap((result) =>
+            result.status === "complete" && result.count > 0
+              ? context.onYards([OEM_YARD])
+              : Effect.void,
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,
