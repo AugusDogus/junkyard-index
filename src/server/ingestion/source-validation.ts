@@ -21,6 +21,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   chesterfield: 1_800,
   ddauto: 50,
   bigtruckpage: 40,
+  denton: 2_000,
   beavers: 240,
   army: 200,
   alln1: 900,

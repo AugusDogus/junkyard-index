@@ -29,6 +29,7 @@ describe("source snapshot validation", () => {
     { source: "chesterfield", count: 2_111 },
     { source: "ddauto", count: 67 },
     { source: "bigtruckpage", count: 48 },
+    { source: "denton", count: 2_297 },
     { source: "beavers", count: 278 },
     { source: "army", count: 231 },
     { source: "alln1", count: 1_093 },
@@ -78,6 +79,7 @@ describe("source snapshot validation", () => {
   });
 
   test.each([
+    { source: "denton", minimum: 2_000, accepted: 2_297, rejected: 83 },
     { source: "beavers", minimum: 240, accepted: 278, rejected: 12 },
     { source: "cars4parts", minimum: 56, accepted: 71, rejected: 4 },
     { source: "brandywine", minimum: 1_500, accepted: 1_807, rejected: 11 },

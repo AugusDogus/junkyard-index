@@ -81,6 +81,7 @@ const SOURCES = [
   ["chesterfield", "Chesterfield Auto Parts"],
   ["ddauto", "DD Auto & Salvage"],
   ["bigtruckpage", "BigTruckPage"],
+  ["denton", "Denton Auto Parts"],
   ["beavers", "Beaver's Car Salvage"],
   ["army", "Army's Auto Wrecking"],
   ["alln1", "All-N-1 U Pull"],

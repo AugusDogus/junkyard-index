@@ -5,6 +5,7 @@ import { ChesterfieldCursor } from "./chesterfield-cursor";
 import { DdautoCursor } from "./ddauto-cursor";
 import { BigtruckpageCursor } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
+import { DentonCursor } from "./denton-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
@@ -73,6 +74,8 @@ export const DURABLE_INGESTION_SOURCES: readonly DurableIngestionSource[] =
 
 const initialCalton = CaltonCursor.initial(CALTON_CONTRACT);
 if (!initialCalton.ok) throw new Error(initialCalton.error.message);
+const initialDenton = DentonCursor.initial(null);
+if (!initialDenton.ok) throw new Error(initialDenton.error.message);
 
 export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   row52: {
@@ -181,6 +184,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   bigtruckpage: {
     initialCursor: BigtruckpageCursor.initial,
     maxPagesPerChunk: 2,
+  },
+  denton: {
+    initialCursor: initialDenton.value,
+    maxPagesPerChunk: 8,
   },
   beavers: {
     initialCursor: BeaversCursor.initial,

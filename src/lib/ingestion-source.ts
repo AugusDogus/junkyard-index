@@ -30,6 +30,7 @@ export const INGESTION_SOURCES = [
   "brandywine",
   "calton",
   "bigtruckpage",
+  "denton",
   "beavers",
 ] as const;
 
@@ -67,6 +68,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   brandywine: "Brandywine U-Pull-It",
   calton: "Calton Auto Parts Recyclers",
   bigtruckpage: "BigTruckPage",
+  denton: "Denton Auto Parts",
   beavers: "Beaver's Car Salvage",
 } as const satisfies Record<IngestionSource, string>;
 
@@ -105,6 +107,7 @@ export function mapIngestionSources<Value>(
     brandywine: transform("brandywine"),
     calton: transform("calton"),
     bigtruckpage: transform("bigtruckpage"),
+    denton: transform("denton"),
     beavers: transform("beavers"),
   };
 }
