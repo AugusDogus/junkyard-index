@@ -38,6 +38,7 @@ describe("source snapshot validation", () => {
     { source: "importapart", count: 75 },
     { source: "bigtruckpage", count: 48 },
     { source: "speedys", count: 1 },
+    { source: "sandw", count: 624 },
     { source: "denton", count: 2_297 },
     { source: "oem", count: 2_158 },
     { source: "dutchers", count: 579 },
@@ -115,6 +116,7 @@ describe("source snapshot validation", () => {
 
   test.each([
     { source: "speedys", minimum: 1, accepted: 1, rejected: 0 },
+    { source: "sandw", minimum: 500, accepted: 624, rejected: 0 },
     { source: "denton", minimum: 2_000, accepted: 2_297, rejected: 83 },
     { source: "oem", minimum: 1_800, accepted: 2_158, rejected: 43 },
     { source: "dutchers", minimum: 500, accepted: 579, rejected: 7 },

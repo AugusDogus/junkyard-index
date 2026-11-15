@@ -76,6 +76,7 @@ import { streamBigtruckpageInventory } from "../src/server/ingestion/bigtruckpag
 import { soakBigtruckpageInventory } from "./soak-bigtruckpage";
 import { streamSpeedysInventory } from "../src/server/ingestion/speedys-connector";
 import { soakSpeedysInventory } from "./soak-speedys";
+import { streamSandwInventoryFromProvider } from "../src/server/ingestion/sandw-connector";
 import { streamBeaversInventory } from "../src/server/ingestion/beavers-connector";
 import { soakBeaversInventory } from "./soak-beavers";
 import { streamDentonInventoryFromProvider } from "../src/server/ingestion/denton-connector";
@@ -517,6 +518,14 @@ async function main(): Promise<void> {
                   streamSpeedysInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
+            );
+          case "sandw":
+            return runProgram(
+              streamSandwInventoryFromProvider({
+                previousUniqueInventory: null,
+                maxPages: Math.min(config.maxPages ?? 5, 5),
+                onBatch,
+              }),
             );
           case "beavers":
             return soakBeaversInventory(

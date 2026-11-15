@@ -23,6 +23,7 @@ import { rmmdtpAdvance } from "./rmmdtp-traversal";
 import { rmmdtpFixture } from "./rmmdtp-test-fixtures";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
+import { SandwCursor } from "./sandw-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { OemCursor } from "./oem-cursor";
@@ -158,6 +159,17 @@ const sources = [
     minimum: 240,
     initial: BeaversCursor.initial,
     complete: { source: "beavers", version: 1, phase: "complete" },
+  },
+  {
+    source: "sandw",
+    minimum: 500,
+    initial: SandwCursor.initial(),
+    complete: SandwCursor.checkpoint({
+      source: "sandw",
+      version: 1,
+      scope: SandwCursor.initial().scope,
+      phase: "complete",
+    }),
   },
   {
     source: "calton",

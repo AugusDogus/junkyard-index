@@ -56,6 +56,7 @@ import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamRmmdtpInventoryFromProvider } from "./rmmdtp-connector";
 import { RMMDTP_CONTRACT } from "./rmmdtp-configuration";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
+import { streamSandwInventoryFromProvider } from "./sandw-connector";
 import { streamBeaversInventory } from "./beavers-connector";
 import { streamIndianriverInventoryFromProvider } from "./indianriver-connector";
 import { streamDentonInventoryFromProvider } from "./denton-connector";
@@ -316,6 +317,28 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  sandw: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamSandwInventoryFromProvider({
+          // Durable validation checks the previous published count before reconciliation.
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,

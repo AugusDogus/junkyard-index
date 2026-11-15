@@ -128,6 +128,7 @@ describe("durable ingestion cursors", () => {
     ["awap", 2],
     ["clearsalvage", 4],
     ["central", 2],
+    ["sandw", 4],
     ["beavers", 2],
     ["indianriver", 8],
     ["denton", 16],
