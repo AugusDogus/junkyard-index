@@ -24,6 +24,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   importapart: 60,
   bigtruckpage: 40,
   denton: 2_000,
+  // Complete dual-sort native catalog: 579 accepted of 587 items.
+  dutchers: 500,
   // Complete native inline report: 661 accepted of 680 rows.
   chasencars: 550,
   beavers: 240,

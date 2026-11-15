@@ -11,6 +11,7 @@ import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
+import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
@@ -231,6 +232,20 @@ const DURABLE_CURSOR_DEFINITIONS = {
   chasencars: {
     parse: ChasencarsCursor.fromWire,
     serialize: ChasencarsCursor.serialize,
+  },
+  dutchers: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 8 * 1024 * 1024)
+        throw new Error("Dutcher serialized checkpoint exceeds 8 MiB");
+      const payload: unknown = JSON.parse(value);
+      return DutchersCursor.parse(payload);
+    },
+    serialize: (cursor: DutchersCursor) => {
+      const wire = JSON.stringify(DutchersCursor.parse(cursor));
+      if (Buffer.byteLength(wire) > 8 * 1024 * 1024)
+        throw new Error("Dutcher serialized checkpoint exceeds 8 MiB");
+      return wire;
+    },
   },
   indianriver: {
     parse: (value: string) => {

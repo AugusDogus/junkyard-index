@@ -38,6 +38,7 @@ export const INGESTION_SOURCES = [
   "denton",
   "beavers",
   "indianriver",
+  "dutchers",
   "chasencars",
 ] as const;
 
@@ -83,6 +84,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   denton: "Denton Auto Parts",
   beavers: "Beaver's Car Salvage",
   indianriver: "Indian River U-Pull-It",
+  dutchers: "Dutcher's Inc. Heavy Truck Division",
   chasencars: "Chase N Cars",
 } as const satisfies Record<IngestionSource, string>;
 
@@ -129,6 +131,7 @@ export function mapIngestionSources<Value>(
     denton: transform("denton"),
     beavers: transform("beavers"),
     indianriver: transform("indianriver"),
+    dutchers: transform("dutchers"),
     chasencars: transform("chasencars"),
   };
 }

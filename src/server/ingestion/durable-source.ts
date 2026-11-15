@@ -9,6 +9,7 @@ import { BigtruckpageCursor } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
+import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
@@ -210,6 +211,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   indianriver: {
     initialCursor: IndianriverCursor.initial(),
+    maxPagesPerChunk: 8,
+  },
+  dutchers: {
+    initialCursor: DutchersCursor.initial(),
     maxPagesPerChunk: 8,
   },
   chasencars: {
