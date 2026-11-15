@@ -50,3 +50,114 @@ test("paged grammar rejects wrong positions, next links, row loss, foreign desti
   ])
     expect(() => parseHollanderstoresRoster(changed, aaa)).toThrow();
 });
+
+test("list pages resume durably and release inventory only after the closing roster", async () => {
+  const { spyOn } = await import("bun:test");
+  const { Effect } = await import("effect");
+  const metadata = await import("./hollanderstores-yard-metadata");
+  const { HollanderstoresCursor } = await import("./hollanderstores-cursor");
+  const { streamHollanderstoresInventory } =
+    await import("./hollanderstores-connector");
+  const { parseHollanderstoresPage } = await import("./hollanderstores-parser");
+  const { hollanderstoresSeed } = await import("./hollanderstores-client");
+  const body = (code: string) =>
+    gunzipSync(
+      readFileSync(
+        `${import.meta.dir}/hollanderstores-test-fixtures/${code}.html.gz`,
+      ),
+    ).toString();
+  const leblanc = HOLLANDERSTORES_YARDS[0];
+  const roster = parseHollanderstoresPage(body(leblanc.code), 0);
+  const escape = (value: string) =>
+    value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll('"', "&quot;");
+  const list = (page: number) => {
+    const rows = roster.rows
+      .slice((page - 1) * 20, page * 20)
+      .map(
+        (row) =>
+          `<tr><td>${row.displayYear}</td><td>${escape(row.model)}</td><td>${escape(row.stock)}</td><td></td><td></td><td>${row.vin}</td><td>1</td><td><a href="${new URL(row.url).pathname}">View Parts</a></td></tr>`,
+      )
+      .join("");
+    const last = Math.ceil(roster.total / 20);
+    return raw
+      .replace("aaa auto parts</a>", `${leblanc.logo}</a>`)
+      .replace("Showing 17884", `Showing ${roster.total}`)
+      .replace(/<tbody>[\s\S]*?<\/tbody>/, `<tbody>${rows}</tbody>`)
+      .replace(
+        /<tfoot>[\s\S]*?<\/tfoot>/,
+        `<tfoot><tr><td>${page}${page < last ? ` <a href="/VehicleDealerSearch?page=${page + 1}">&gt;</a>` : ""}</td></tr></tfoot>`,
+      );
+  };
+  // Exercise the native 20-row grammar with a smaller already-audited yard.
+  const mode = spyOn(metadata, "hollanderstoresUsesPaging").mockImplementation(
+    (yard) => yard.code === leblanc.code,
+  );
+  const count = spyOn(metadata, "hollanderstoresPageCount").mockImplementation(
+    (yard, total) => (yard.code === leblanc.code ? Math.ceil(total / 20) : 1),
+  );
+  let emitted = 0,
+    reads = 0;
+  try {
+    let cursor = HollanderstoresCursor.initial();
+    do {
+      const result = await Effect.runPromise(
+        streamHollanderstoresInventory({
+          startCursor: cursor,
+          maxPages: 1,
+          readPage: (yard, page) =>
+            Effect.sync(() => {
+              reads++;
+              return yard.code === leblanc.code ? list(page) : body(yard.code);
+            }),
+          decodeBatch: (vins) =>
+            Effect.succeed(
+              Object.fromEntries(
+                vins.map((vin) => [vin, hollanderstoresSeed[vin] ?? null]),
+              ),
+            ),
+          onBatch: (vehicles) =>
+            Effect.sync(() => {
+              emitted++;
+              expect(vehicles).toHaveLength(876);
+            }),
+        }),
+      );
+      cursor = HollanderstoresCursor.fromWire(
+        HollanderstoresCursor.serialize(result.cursor),
+      );
+      if (cursor.requests === 1) {
+        expect(cursor.pages).toHaveLength(0);
+        expect(cursor.pending?.rows).toHaveLength(20);
+        const pending = cursor.pending;
+        if (!pending) throw new Error("Expected a partial list roster");
+        const { checksum, ...state } = cursor;
+        expect(checksum).toMatch(/^[0-9a-f]{8}$/);
+        expect(HollanderstoresCursor.checkpoint(state)).toEqual(cursor);
+        expect(() =>
+          HollanderstoresCursor.checkpoint({
+            ...state,
+            pending: { ...pending, total: 20 },
+          }),
+        ).toThrow();
+        expect(() =>
+          HollanderstoresCursor.checkpoint({
+            ...state,
+            pending: {
+              ...pending,
+              rows: [...pending.rows.slice(0, -1), pending.rows[0]],
+            },
+          }),
+        ).toThrow();
+      }
+      if (result.status === "paused") expect(emitted).toBe(0);
+    } while (cursor.phase !== "complete");
+    expect(reads).toBe(2 * (Math.ceil(roster.total / 20) + 4));
+    expect(emitted).toBe(1);
+  } finally {
+    mode.mockRestore();
+    count.mockRestore();
+  }
+}, 30000);
