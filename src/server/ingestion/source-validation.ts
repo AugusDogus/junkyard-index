@@ -22,6 +22,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   ddauto: 50,
   bigtruckpage: 40,
   denton: 2_000,
+  // Complete native inline report: 661 accepted of 680 rows.
+  chasencars: 550,
   beavers: 240,
   army: 200,
   alln1: 900,

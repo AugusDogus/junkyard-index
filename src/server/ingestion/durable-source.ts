@@ -6,6 +6,7 @@ import { DdautoCursor } from "./ddauto-cursor";
 import { BigtruckpageCursor } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { DentonCursor } from "./denton-cursor";
+import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
@@ -192,6 +193,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   beavers: {
     initialCursor: BeaversCursor.initial,
     maxPagesPerChunk: 8,
+  },
+  chasencars: {
+    initialCursor: ChasencarsCursor.initial(null),
+    maxPagesPerChunk: 6,
   },
 };
 

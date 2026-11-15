@@ -10,6 +10,35 @@ import { algoliaHitToSearchVehicle } from "./search-vehicles";
 import type { DataSource, SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
+test.each([
+  null,
+  "",
+  "https://chasencarsauto.com/inventory/",
+  "https://chasencarsauto.com/inventory/?stock=STK123",
+])(
+  "Chase N Cars uses VIN and stock matching for stored URL %j",
+  async (detailsUrl) => {
+    const restored = roundTripNotification(vehicle("chasencars", detailsUrl));
+    const { card, email, discord } = await renderSurfaces(restored);
+    expect(VehicleDestination.resolve(restored)).toMatchObject({
+      kind: "manual-search",
+      href: "https://chasencarsauto.com/inventory/",
+      explanation: expect.stringContaining("VIN or stock number"),
+    });
+    for (const html of [card, email]) {
+      expect(html).toContain('href="https://chasencarsauto.com/inventory/"');
+      expect(html).toContain("Search provider inventory");
+      expect(html).toContain("VIN or stock number");
+      expect(html).not.toContain("View inventory");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain(
+      "[Search provider inventory](https://chasencarsauto.com/inventory/)",
+    );
+    expect(discord.description).toContain("VIN or stock number");
+  },
+);
+
 function vehicle(source: DataSource, detailsUrl: unknown): SearchVehicle {
   const result = algoliaHitToSearchVehicle({
     objectID: "vehicle-1",
