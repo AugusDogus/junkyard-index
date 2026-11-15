@@ -26,6 +26,7 @@ import { ScottsCursor } from "./scotts-cursor";
 import { OemCursorSchema, type OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { WeberbrothersCursor } from "./weberbrothers-cursor";
 import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
@@ -319,6 +320,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
         throw new Error("oeM Garage serialized checkpoint exceeds 4 MiB");
       return wire;
     },
+  },
+  weberbrothers: {
+    parse: WeberbrothersCursor.parse,
+    serialize: WeberbrothersCursor.serialize,
   },
   chasencars: {
     parse: ChasencarsCursor.fromWire,

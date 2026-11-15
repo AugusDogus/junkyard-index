@@ -168,6 +168,10 @@ describe("manual provider destinations across search, durable alerts and present
       "https://hagermanparts.com/item/international/9200/dismantled-vehicles/1125862/1/8012/",
     ],
     [
+      "weberbrothers",
+      "https://www.weberbrothersauto.com/product/2025-nissan-murano-b2b370/",
+    ],
+    [
       "dutchers",
       "https://www.heavytruckparts.net/item/Mack/Gu713/Complete-Vehicle/3987345/1/10961",
     ],

@@ -31,6 +31,13 @@ import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor, chasencarsAdvance } from "./chasencars-cursor";
 import { chasencarsFixture } from "./chasencars-test-fixtures";
+import { WeberbrothersCursor } from "./weberbrothers-cursor";
+import { parseWeberbrothersCatalog } from "./weberbrothers-parser";
+import {
+  weberbrothersFixtureListing,
+  weberbrothersFixtureRoot,
+  weberbrothersFixtureRecord,
+} from "./weberbrothers-test-fixtures";
 
 const schema = `${TEST_SCHEMA}
   create table vehicle (
@@ -114,7 +121,26 @@ for (const name of [
   chasencars = chasencarsAdvance(chasencars, chasencarsFixture(name));
 const completeChasencars = ChasencarsCursor.complete(chasencars);
 
+// Reduced fixture membership verifies shared terminal gating, not qualification.
+const weberPage = parseWeberbrothersCatalog(
+  weberbrothersFixtureListing(),
+  weberbrothersFixtureRoot,
+);
+const completeWeber = WeberbrothersCursor.checkpoint({
+  ...WeberbrothersCursor.initial,
+  phase: "complete",
+  pages: [weberPage],
+  records: [weberbrothersFixtureRecord()],
+  closing: [weberPage],
+});
+
 const sources = [
+  {
+    source: "weberbrothers",
+    minimum: 5_000,
+    initial: WeberbrothersCursor.initial,
+    complete: completeWeber,
+  },
   {
     source: "chasencars",
     minimum: 550,

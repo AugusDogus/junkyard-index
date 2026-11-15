@@ -63,6 +63,7 @@ import { streamDentonInventoryFromProvider } from "./denton-connector";
 import { streamScottsInventory } from "./scotts-connector";
 import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
+import { streamWeberbrothersInventory } from "./weberbrothers-connector";
 import { streamOemgarageInventoryFromProvider } from "./oemgarage-connector";
 import { streamHagermanInventory } from "./hagerman-connector";
 import { streamKandrInventoryFromProvider } from "./kandr-connector";
@@ -205,6 +206,24 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
         streamOemgarageInventoryFromProvider({
           startCursor: cursor,
           maxPages: context.maxPages,
+          // Durable validation compares the prior published complete count.
+          previousUniqueInventory: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  weberbrothers: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamWeberbrothersInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          minimumUniqueInventory:
+            SourceValidationPolicy.minimumUniqueInventory.weberbrothers,
           // Durable validation compares the prior published complete count.
           previousUniqueInventory: null,
           onBatch: context.onBatch,
