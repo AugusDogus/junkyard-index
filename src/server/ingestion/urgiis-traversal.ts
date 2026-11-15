@@ -4,7 +4,7 @@ import {
   UrgiisRecordSchema,
   type UrgiisControl,
 } from "./urgiis-schema";
-import type { UrgiisTenant } from "./urgiis-snapshot";
+import type { UrgiisTenant } from "./urgiis-tenant";
 
 /** Pure checksum for workflow-safe checkpoint imports. This detects corruption,
  * not hostile signatures. Owned routes and the complete task prefix are validated separately. */
@@ -43,7 +43,7 @@ export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
   z
     .object({
       ...receipt,
-      kind: z.literal("model"),
+      kind: z.enum(["model", "arrivals"]),
       records: z.array(UrgiisRecordSchema).max(499),
     })
     .strict(),
@@ -53,6 +53,7 @@ export type UrgiisTask =
   | { kind: "detail"; url: string; stock: string; year: string }
   | { kind: "owner"; url: string }
   | { kind: "makes"; url: string }
+  | { kind: "arrivals"; url: string }
   | { kind: "menu"; url: string; make: UrgiisControl }
   | { kind: "model"; url: string; make: UrgiisControl; model: UrgiisControl };
 export function urgiisTasks(
@@ -62,6 +63,14 @@ export function urgiisTasks(
   const fixed: UrgiisTask[] = [
     { kind: "owner", url: tenant.origin + tenant.ownerPath },
     { kind: "makes", url: tenant.origin + tenant.makesPath },
+    ...(tenant.arrivalsPath
+      ? [
+          {
+            kind: "arrivals" as const,
+            url: tenant.origin + tenant.arrivalsPath,
+          },
+        ]
+      : []),
   ];
   const makes = entries[1];
   if (makes?.kind !== "makes") return fixed;
@@ -72,7 +81,7 @@ export function urgiisTasks(
   }));
   const models: UrgiisTask[] = [];
   for (const [i, make] of makes.controls.entries()) {
-    const menu = entries[i + 2];
+    const menu = entries[i + fixed.length];
     if (menu?.kind !== "menu") return [...fixed, ...menus];
     models.push(
       ...menu.controls.map(
@@ -88,10 +97,19 @@ export function urgiisTasks(
   const prefix = [...fixed, ...menus, ...models];
   if (tenant.attribution.kind !== "seller") return prefix;
   const details = new Map<string, UrgiisTask>();
-  for (let i = fixed.length + menus.length; i < prefix.length; i++) {
+  for (const i of [
+    ...(tenant.arrivalsPath ? [2] : []),
+    ...models.map((_, i) => fixed.length + menus.length + i),
+  ]) {
     const entry = entries[i];
     const task = prefix[i];
-    if (entry?.kind !== "model" || task?.kind !== "model") return prefix;
+    if (
+      !entry ||
+      !task ||
+      !("records" in entry) ||
+      (task.kind !== "model" && task.kind !== "arrivals")
+    )
+      return prefix;
     for (const record of entry.records) {
       if (!record.vins.some((v) => v.trim())) continue;
       const destination = [...new Set(record.destinations)];
@@ -100,6 +118,9 @@ export function urgiisTasks(
       const year = record.years.length === 1 ? record.years[0] : undefined;
       if (
         !url ||
+        destination[0]?.includes("\\") ||
+        url.pathname.split("/").filter(Boolean).length !== 5 ||
+        !url.pathname.startsWith("/" + tenant.pathStyle + "/") ||
         url.origin !== tenant.origin ||
         url.search ||
         url.hash ||
@@ -108,7 +129,13 @@ export function urgiisTasks(
         !year ||
         !record.stock ||
         url.pathname !==
-          task.model.path.replace(/\/$/, "") + "/" + record.stock + "/" + year
+          (task.kind === "model"
+            ? task.model.path.replace(/\/$/, "")
+            : url.pathname.split("/").slice(0, 4).join("/")) +
+            "/" +
+            record.stock +
+            "/" +
+            year
       )
         continue;
       details.set(url.href, {
@@ -127,7 +154,7 @@ export function urgiisEntryFingerprint(entry: UrgiisEntry) {
       ? entry.identity
       : "controls" in entry
         ? entry.controls
-        : entry.kind === "model"
+        : "records" in entry
           ? entry.records
           : entry.seller,
   );

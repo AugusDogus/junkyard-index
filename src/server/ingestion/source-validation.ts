@@ -1,3 +1,4 @@
+import { URGIIS_MINIMUM_INVENTORY } from "./urgiis-configuration";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
 const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
@@ -68,7 +69,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   heavytruckparts: 700,
   // Complete 45-make, 482-model census: 2,507 accepted, 86 rejects, 778 exclusions.
   allied: 2_000,
-  urgiis: 1,
+  urgiis: URGIIS_MINIMUM_INVENTORY,
   byot: 4_350,
   vinplus: 5_250,
   beavers: 240,
