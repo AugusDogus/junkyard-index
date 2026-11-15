@@ -149,6 +149,71 @@ async function stageSnapshots(params: {
 }
 
 describe("bounded durable reconciliation", () => {
+  test.each(["hagerman",] as const)(
+    "%s cannot publish staged inventory from a successful nonterminal cursor",
+    async (source) => {
+      const client = createClient({ url: ":memory:" });
+      try {
+        await client.executeMultiple(TEST_SCHEMA);
+        const database = drizzle(client);
+        const snapshotStore = IngestionSnapshotStore.memory();
+        const repository = createDurableIngestionRepository(
+          database,
+          client,
+          snapshotStore,
+        );
+        const runId = "run-nonterminal-" + source;
+        await repository.initialize(runId, async () => [source]);
+        const count = SourceValidationPolicy.minimumUniqueInventory[source];
+        const vehicles: CanonicalVehicle[] = Array.from(
+          { length: count },
+          (_, index) => ({
+            ...snapshot("pyp", "Blue"),
+            source,
+            vin: "1HGCM82633A" + String(index).padStart(6, "0"),
+          }),
+        );
+        const chunk = await snapshotStore.put({
+          runId,
+          source,
+          chunk: { vehicles, observedVins: [] },
+        });
+        await database
+          .update(ingestionSourceRun)
+          .set({
+            status: "success",
+            vehiclesProcessed: count,
+            uniqueVehicles: count,
+            nextCursor: serializeDurableSourceCursor(
+              getDurableSourceDefinition(source).initialCursor,
+            ),
+            snapshotChunks: JSON.stringify([chunk]),
+          })
+          .where(eq(ingestionSourceRun.id, runId + ":" + source));
+        const validation = await validateDurableSourceRuns({
+          runId,
+          database,
+          batchClient: client,
+          snapshotStore,
+        });
+        expect(validation.status).toBe("ready");
+        if (validation.status !== "ready")
+          throw new Error("Expected completed source validation");
+        expect(validation.acceptedSources).toEqual([]);
+        expect(validation.rejectedSources).toHaveLength(1);
+        expect(validation.rejectedSources[0]?.source).toBe(source);
+        expect(validation.rejectedSources[0]?.errors.join(" ")).toContain(
+          "terminal",
+        );
+        expect(
+          (await client.execute("select count(*) as count from vehicle"))
+            .rows[0]?.count,
+        ).toBe(0);
+      } finally {
+        client.close();
+      }
+    },
+  );
   test("AutoRecycler preserves unresolved independent VINs across resume but lets excluded mirror VINs retire", async () => {
     const client = createClient({ url: ":memory:" });
     const originalFetch = globalThis.fetch;

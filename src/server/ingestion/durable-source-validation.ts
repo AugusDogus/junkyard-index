@@ -38,6 +38,7 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
     if (parsed.source === "denton") return parsed.phase === "complete";
     if (parsed.source === "dutchers") return parsed.phase === "complete";
     if (parsed.source === "chasencars") return parsed.phase === "complete";
+    if (parsed.source === "hagerman") return parsed.phase === "complete";
     return true;
   } catch {
     return false;

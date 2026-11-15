@@ -13,6 +13,7 @@ import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
 import { JolietCursorSchema } from "./joliet-cursor";
@@ -227,8 +228,22 @@ const autorecyclerJsonCursor = defineJsonCursor(
   "autorecycler",
   AutorecyclerCursorSchema,
 );
+const hagermanJsonCursor = defineJsonCursor("hagerman", HagermanCursorSchema);
 
 const DURABLE_CURSOR_DEFINITIONS = {
+  hagerman: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 2 * 1024 * 1024)
+        throw new Error("Hagerman serialized checkpoint exceeds 2 MiB");
+      return hagermanJsonCursor.parse(value);
+    },
+    serialize: (cursor: HagermanCursor) => {
+      const wire = hagermanJsonCursor.serialize(cursor);
+      if (Buffer.byteLength(wire) > 2 * 1024 * 1024)
+        throw new Error("Hagerman serialized checkpoint exceeds 2 MiB");
+      return wire;
+    },
+  },
   chasencars: {
     parse: ChasencarsCursor.fromWire,
     serialize: ChasencarsCursor.serialize,
