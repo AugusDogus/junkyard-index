@@ -24,6 +24,9 @@ export interface ConnectorChunkResult<
   warnings?: string[];
   /** VINs seen in inventory without enough metadata to emit a full vehicle. */
   observedVins?: string[];
+  /** Opaque, validated provider progress, stored privately with this checkpoint.
+   * Cursors using this protocol have a statePath field replaced atomically. */
+  checkpointState?: unknown;
 }
 
 export function connectorChunkMetrics(

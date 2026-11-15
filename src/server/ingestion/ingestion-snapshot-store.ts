@@ -13,6 +13,7 @@ import type { CanonicalVehicle } from "./types";
 export interface IngestionSnapshotChunk {
   vehicles: CanonicalVehicle[];
   observedVins: string[];
+  checkpointState?: unknown;
 }
 
 export interface IngestionSnapshotStore {
@@ -57,6 +58,7 @@ const CanonicalVehicleSchema = z.object({
 const SnapshotChunkSchema = z.object({
   vehicles: z.array(CanonicalVehicleSchema),
   observedVins: z.array(z.string().min(1)),
+  checkpointState: z.unknown().optional(),
 });
 
 const BLOB_PREFIX = "ingestion-runs";

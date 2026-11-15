@@ -19,16 +19,48 @@ The public SPA bundle exposes a browser publishable key and the anonymous
 `search-inventory` edge function on `zqfzqcyteuemzbnwtmcr.supabase.co`.
 The current search response includes VINs; the detail endpoint returns the same
 VIN and is not needed per vehicle. Vehicle links use `/search?yard=SLUG&inv=ID`.
-The client discovers the public bundle/key each chunk, makes serial requests
-2.2 seconds apart, and fails on HTTP or schema errors, including rate limits.
-No credentials or privileged Supabase access are used.
+The client discovers the public bundle/key once per run and saves the session and
+yard directory in private snapshot storage. Requests are serial and paced at least
+2.2 seconds apart, including across chunk boundaries. No credentials or privileged
+Supabase access are used.
 
-Each Ario chunk reads one complete yard with 100-rank windows. Counts and yard
-identity must remain stable, and an independently fetched opening page must
-match before anything is emitted. Ario suppresses some rows after ranking:
-short or empty windows and `next_offset` do not prove completion. Every window
-through the declared rank bound is read. Suppressed and removed rows are explicit
-exclusions; malformed VINs or missing required fields are rejections.
+Ario explicitly rejects `per_yard_limit` 500 and 1,000 with a maximum of 100.
+Use **100 ranks per yard**, grouping all twenty allowlisted yards into each search
+and omitting yards once their declared rank bound is exhausted. Read every rank
+window, including short or empty windows, because suppressed rows leave holes.
+The grouped response's top-level `total` describes its first yard, not the sum;
+validate each yard's own metadata. One grouped closing read must match every
+yard's opening count and items before any inventory is emitted. Publishing then
+replays the saved windows through the existing per-yard validator. Suppressed and
+removed rows are exclusions; malformed VINs or required fields are rejections.
+
+The November 15 census needs **37 Ario requests per daily run**: two for SPA/key
+discovery, one directory read, 33 grouped search windows (largest yard: Santa
+Maria, 3,297 ranks), and one grouped closing check. This includes the stale yard
+so it can return automatically. All nineteen current yards together need only
+15 windows, but the stale yard still requires complete enumeration. Legacy Bubble
+reads are separate and do not consume this Ario budget.
+
+The earlier research reached HTTP 429 on its 98th search call (request 102
+of 108 mixed requests recorded in that session). Ario returned `search_inventory_ip_yard_per_hour`, so this is an
+observed hourly restriction, not proof of an exact global 108-request quota.
+Use a conservative **48 total Ario requests per rolling hour** cap, including
+discovery and failed calls, leaving 11 requests of local headroom on the measured
+census and more than half the observed research traffic unused. Larger inventories
+pause at that cap instead of bursting through it. Five paced follow-up probes
+confirmed the larger-limit rejection and stable grouped 100-rank windows without
+hitting 429. Do not probe the quota to exhaustion in production.
+
+Each successful grouped window and the next offset checkpoint together using the
+existing private snapshot store. A 429 saves that progress without source errors
+or failure attempts. The cursor records `retryAt`, and the ingestion workflow uses
+its existing durable `sleep(Date)` before the next chunk. Honor a valid Retry-After
+(seconds or HTTP date); absent or malformed headers wait one hour from the 429.
+The local cap waits until its hour ends with a one-second margin. After waking,
+only the unfinished window is retried; bundle discovery, directory reads and
+completed windows are reused. The closing stability check remains mandatory even
+after a long pause. If inventory changed, fail validation and preserve the prior
+published inventory. Snapshot cleanup also removes these private progress blobs.
 
 A yard qualifies only if a usable vehicle has an added date within the previous
 60 days, inclusive, and no later than the run's fixed clock. Sync timestamps,

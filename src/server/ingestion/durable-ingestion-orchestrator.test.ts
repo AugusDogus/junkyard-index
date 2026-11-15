@@ -572,3 +572,54 @@ describe("durable ingestion failure recording", () => {
     expect(failures).toEqual(["Durable ingestion failed: Turso unavailable"]);
   });
 });
+
+test("a persisted provider retry time sleeps before the first resumed chunk", async () => {
+  const retryAt = Date.now() + 3_600_000;
+  const cursor = {
+    source: "autorecycler",
+    phase: "ario-read",
+    offset: 200,
+    closing: false,
+    statePath: "private-snapshot",
+    retryAt,
+    freshness: { asOf: Date.now(), legacy: {}, eligibleYards: [] },
+  } as const;
+  let release = () => {};
+  let requests = 0;
+  const waits: number[] = [];
+  const pending = ingestDurableSource({
+    runId: "resumed-provider",
+    initialCursor: {
+      ...cursor,
+      freshness: { ...cursor.freshness, eligibleYards: [] },
+    },
+    operations: {
+      sleepUntil: async function (this: unknown, time) {
+        expect(this).toBeUndefined();
+        waits.push(time);
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      },
+      runChunk: async () => {
+        requests++;
+        return {
+          cursor: { source: "autorecycler", phase: "complete" },
+          status: "complete",
+          count: 0,
+          pagesProcessed: 0,
+          errors: [],
+        };
+      },
+      markFailed: async () => {
+        throw new Error("Provider waiting must not fail the source");
+      },
+    },
+  });
+  await Promise.resolve();
+  expect(waits).toEqual([retryAt]);
+  expect(requests).toBe(0);
+  release();
+  expect((await pending).status).toBe("complete");
+  expect(requests).toBe(1);
+});

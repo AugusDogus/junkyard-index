@@ -58,7 +58,7 @@ function isRetryableError(error: Error, policy: ProviderRetryPolicy): boolean {
   );
 }
 
-function parseRetryAfterMs(value: string | null, now: number): number {
+export function parseRetryAfterMs(value: string | null, now: number): number {
   if (value === null) return 0;
   if (/^\d+$/.test(value)) {
     const delayMs = Number(value) * 1_000;

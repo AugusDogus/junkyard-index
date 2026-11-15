@@ -16,3 +16,11 @@ Beyond-bound empty windows were captured for most yards, but are not used to
 prove completion. Live collection stopped when Ario returned its hourly quota.
 All in-bound windows and closing pages are captured responses. Tests never
 contact Ario.
+
+Follow-up rate-budget probes are recorded in `followup-requests.json`.
+`limit-500.json` and `limit-1000.json` preserve Ario's explicit maximum-100
+validation. The three `group-*.json.gz` captures show stable opening/closing
+items and disjoint 100-rank windows for Samson and Foss Havelock. These five
+requests used the previously captured public key, were paced 2.3 seconds apart,
+and returned two HTTP 400s and three HTTP 200s, with no 429. No quota-exhaustion
+probe was attempted. Tests replay these responses without network access.

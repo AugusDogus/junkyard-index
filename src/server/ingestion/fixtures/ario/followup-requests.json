@@ -1,0 +1,52 @@
+[
+  {
+    "fixture": "limit-1000",
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["samson-auto-salvage"],
+      "per_yard_limit": 1000,
+      "item_rank_offset": 0
+    },
+    "status": 400
+  },
+  {
+    "fixture": "limit-500",
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["samson-auto-salvage"],
+      "per_yard_limit": 500,
+      "item_rank_offset": 0
+    },
+    "status": 400
+  },
+  {
+    "fixture": "group-opening",
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["samson-auto-salvage", "foss-havelock"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200
+  },
+  {
+    "fixture": "group-next",
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["samson-auto-salvage", "foss-havelock"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 100
+    },
+    "status": 200
+  },
+  {
+    "fixture": "group-closing",
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["samson-auto-salvage", "foss-havelock"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "error": "Invalid input parameters",
+  "details": [
+    {
+      "code": "too_big",
+      "maximum": 100,
+      "type": "number",
+      "inclusive": true,
+      "exact": false,
+      "message": "Number must be less than or equal to 100",
+      "path": ["per_yard_limit"]
+    }
+  ],
+  "received": {
+    "yard_list": ["samson-auto-salvage"],
+    "per_yard_limit": 1000,
+    "item_rank_offset": 0
+  },
+  "items": [],
+  "total": 0
+}

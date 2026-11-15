@@ -70,6 +70,7 @@ export interface FetchedDurableSourceChunk<
   vehicles: CanonicalVehicle[];
   yards: Yard[];
   observedVins?: string[];
+  checkpointState?: unknown;
 }
 
 export type DurableReconciliationBatchResult =

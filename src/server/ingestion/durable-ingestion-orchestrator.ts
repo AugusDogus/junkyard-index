@@ -16,6 +16,7 @@ import type {
 export interface DurableSourceOperations<
   Source extends DurableIngestionSource,
 > {
+  sleepUntil?: (time: number) => Promise<void>;
   runChunk: (
     runId: string,
     cursor: DurableCursorFor<Source>,
@@ -28,6 +29,7 @@ export interface DurableSourceOperations<
 }
 
 export interface DurableIngestionOperations {
+  sleepUntil?: (time: number) => Promise<void>;
   runChunk: <Source extends DurableIngestionSource>(
     runId: string,
     cursor: DurableCursorFor<Source>,
@@ -96,11 +98,22 @@ export async function ingestDurableSource<
   operations: DurableSourceOperations<NoInfer<Source>>;
 }): Promise<DurableSourceChunkResult<Source>> {
   // Workflow step proxies serialize method receivers, including sibling callbacks.
-  const { runChunk, markFailed } = params.operations;
+  const { runChunk, markFailed, sleepUntil } = params.operations;
   let cursor = params.initialCursor;
   const source = cursor.source;
   try {
     while (true) {
+      if (
+        "retryAt" in cursor &&
+        typeof cursor.retryAt === "number" &&
+        cursor.retryAt > Date.now()
+      ) {
+        if (!sleepUntil)
+          throw new Error(
+            `Source ${source} needs a durable provider wait before its next chunk`,
+          );
+        await sleepUntil(cursor.retryAt);
+      }
       const result = await runChunk(params.runId, cursor);
       if (result.cursor.source !== source) {
         throw new Error(
