@@ -223,7 +223,7 @@ export function streamDutchersInventoryWithRequestGate<E, R>(
 }
 export function streamDutchersInventory<E, R>(options: DutchersOptions<E, R>) {
   return Effect.scoped(
-    RateLimiter.make({ limit: 1, interval: "3500 millis" }).pipe(
+    RateLimiter.make({ limit: 1, interval: "4 seconds" }).pipe(
       Effect.flatMap((gate) =>
         streamDutchersInventoryWithRequestGate(options, gate),
       ),
