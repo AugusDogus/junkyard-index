@@ -761,7 +761,10 @@ export const PickersCursor = {
       .parse(value);
     return PickersCursorSchema.parse({ ...payload, source: "pickers" });
   },
-  serialize(cursor: PickersCursor): string {
+  serialize(
+    cursor: PickersCursor,
+    maxPlainBytes = PICKERS_MAX_CURSOR_BYTES,
+  ): string {
     const parsed = PickersCursorSchema.parse(cursor);
     const payload = Object.fromEntries(
       Object.entries(parsed).filter(([key]) => key !== "source"),
@@ -774,7 +777,7 @@ export const PickersCursor = {
     // Keep the durable 1 MiB limit and every original field. Larger yards need
     // compression, with a separate bounded decode to reject compressed bombs.
     return bounded(
-      Buffer.byteLength(wire) <= PICKERS_MAX_CURSOR_BYTES
+      Buffer.byteLength(wire) <= maxPlainBytes
         ? wire
         : JSON.stringify({
             encoding: "gzip-base64",
