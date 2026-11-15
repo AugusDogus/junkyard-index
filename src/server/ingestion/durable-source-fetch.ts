@@ -1,4 +1,6 @@
 import { streamCstruckInventory } from "./cstruck-connector";
+import { streamAlliedInventoryFromProvider } from "./allied-connector";
+import { ALLIED_CONTRACT } from "./allied-configuration";
 import type { Yard } from "~/lib/yard";
 import type { OnYards } from "./yard-metadata";
 import { Effect } from "effect";
@@ -526,6 +528,29 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  allied: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamAlliedInventoryFromProvider({
+          contract: ALLIED_CONTRACT,
+          // Durable source validation checks the previous published count.
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }).pipe(
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const warning of result.warnings) console.warn(warning);
+            }),
+          ),
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,

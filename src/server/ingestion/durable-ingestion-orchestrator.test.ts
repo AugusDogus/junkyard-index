@@ -100,6 +100,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     cstruck: 59,
     alshned: 0,
     hollanderstores: 0,
+    allied: 0,
   },
   errors: [],
   durationMs: 10,

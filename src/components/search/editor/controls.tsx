@@ -74,6 +74,7 @@ const SOURCES = [
   ["alshned", "Alshned Auto Parts"],
   ["hollanderstores", "Hollander Stores"],
   ["cstruck", "C&S Truck Sales & Salvage"],
+  ["allied", "Allied Auto Wrecking"],
   ["pyp", "Pick Your Part"],
   ["pullapart", "Pull-A-Part"],
   ["upullitne", "U Pull-It (NE/IA)"],

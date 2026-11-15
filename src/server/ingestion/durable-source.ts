@@ -1,5 +1,7 @@
 import type { ConnectorChunkStatus } from "./connector-chunk";
 import { CstruckCursor } from "./cstruck-cursor";
+import { AlliedCursor } from "./allied-cursor";
+import { ALLIED_CONTRACT } from "./allied-configuration";
 import { PontiacCursor } from "./pontiac-cursor";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
@@ -366,6 +368,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 1,
   },
   cstruck: { initialCursor: CstruckCursor.initial(), maxPagesPerChunk: 8 },
+  allied: {
+    initialCursor: AlliedCursor.initial(ALLIED_CONTRACT),
+    maxPagesPerChunk: 4,
+  },
 };
 
 export function getDurableSourceDefinition<

@@ -104,6 +104,9 @@ import { streamHollanderstoresInventoryFromProvider } from "../src/server/ingest
 import { soakHollanderstoresInventory } from "./soak-hollanderstores";
 import { streamAlshnedInventory } from "../src/server/ingestion/alshned-connector";
 import { soakAlshnedInventory } from "./soak-alshned";
+import { streamAlliedInventoryFromProvider } from "../src/server/ingestion/allied-connector";
+import { ALLIED_CONTRACT } from "../src/server/ingestion/allied-configuration";
+import { soakAlliedInventory } from "./soak-allied";
 import { streamWeberbrothersInventory } from "../src/server/ingestion/weberbrothers-connector";
 import { soakWeberbrothersInventory } from "./soak-weberbrothers";
 import { streamOemInventoryFromProvider } from "../src/server/ingestion/oem-connector";
@@ -930,6 +933,20 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamSix03Inventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "allied":
+            return soakAlliedInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamAlliedInventoryFromProvider({
+                    contract: ALLIED_CONTRACT,
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

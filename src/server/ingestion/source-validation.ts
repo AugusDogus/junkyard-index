@@ -62,6 +62,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   hollanderstores: 700,
   // Complete C&S native store: 59 accepted of 64 items.
   cstruck: 50,
+  // Complete 45-make, 482-model census: 2,507 accepted, 86 rejects, 778 exclusions.
+  allied: 2_000,
   beavers: 240,
   indianriver: 900,
   army: 200,
