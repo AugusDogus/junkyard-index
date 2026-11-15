@@ -10,6 +10,19 @@ import { algoliaHitToSearchVehicle } from "./search-vehicles";
 import type { DataSource, SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
+test("Indian River uses the searchable catalog instead of shared paperwork URLs", () => {
+  expect(
+    VehicleDestination.resolve({
+      source: "indianriver",
+      detailsUrl: "https://indianriverautosalvage.com/inventory/title-",
+    }),
+  ).toMatchObject({
+    kind: "manual-search",
+    href: "https://indianriverautosalvage.com/inventory-3/",
+    explanation: expect.stringContaining("VIN or serial number"),
+  });
+});
+
 test.each([
   null,
   "",

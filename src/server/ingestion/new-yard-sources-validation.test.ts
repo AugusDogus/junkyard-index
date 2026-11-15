@@ -19,6 +19,7 @@ import {
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
 import { BeaversCursor } from "./beavers-cursor";
+import { IndianriverCursor } from "./indianriver-cursor";
 import { ChasencarsCursor, chasencarsAdvance } from "./chasencars-cursor";
 import { chasencarsFixture } from "./chasencars-test-fixtures";
 
@@ -92,6 +93,17 @@ const sources = [
     minimum: 550,
     initial: ChasencarsCursor.initial(null),
     complete: completeChasencars,
+  },
+  {
+    source: "indianriver",
+    minimum: 900,
+    initial: IndianriverCursor.initial(),
+    complete: IndianriverCursor.checkpoint({
+      source: "indianriver",
+      version: 1,
+      scope: IndianriverCursor.initial().scope,
+      phase: "complete",
+    }),
   },
   {
     source: "beavers",

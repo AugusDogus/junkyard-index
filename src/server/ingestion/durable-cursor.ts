@@ -9,6 +9,7 @@ import { FenixCursorSchema } from "./fenix-cursor";
 import { ImportapartCursorSchema } from "./importapart-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
+import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
@@ -230,6 +231,16 @@ const DURABLE_CURSOR_DEFINITIONS = {
   chasencars: {
     parse: ChasencarsCursor.fromWire,
     serialize: ChasencarsCursor.serialize,
+  },
+  indianriver: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 8 * 1024 * 1024)
+        throw new Error("Indian River serialized checkpoint exceeds 8 MiB");
+      const payload: unknown = JSON.parse(value);
+      return IndianriverCursor.parse(payload);
+    },
+    serialize: (cursor: IndianriverCursor) =>
+      JSON.stringify(IndianriverCursor.parse(cursor)),
   },
   denton: {
     parse: (value: string) => {

@@ -59,6 +59,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     bigtruckpage: 0,
     denton: 0,
     beavers: 0,
+    indianriver: 0,
     chasencars: 0,
   },
   errors: [],

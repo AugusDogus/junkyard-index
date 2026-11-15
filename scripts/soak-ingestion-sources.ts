@@ -62,6 +62,8 @@ import { streamDentonInventoryFromProvider } from "../src/server/ingestion/dento
 import { soakDentonInventory } from "./soak-denton";
 import { streamChasencarsInventoryFromProvider } from "../src/server/ingestion/chasencars-connector";
 import { soakChasencarsInventory } from "./soak-chasencars";
+import { streamIndianriverInventoryFromProvider } from "../src/server/ingestion/indianriver-connector";
+import { soakIndianriverInventory } from "./soak-indianriver";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
 import { streamIdipullInventory } from "../src/server/ingestion/idipull-connector";
@@ -405,6 +407,19 @@ async function main(): Promise<void> {
                 runProgram(
                   streamChasencarsInventoryFromProvider({
                     previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "indianriver":
+            return soakIndianriverInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamIndianriverInventoryFromProvider({
+                    previousUniqueInventory: null,
                     startCursor,
                     maxPages,
                     onBatch,

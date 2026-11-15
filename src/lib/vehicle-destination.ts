@@ -13,6 +13,7 @@ export type VehicleDestination =
 // Verified public entry points, not vehicle permalinks. See docs/runbooks/provider-media-links.md.
 const manualSearchUrls: Partial<Record<DataSource, string>> = {
   chasencars: "https://chasencarsauto.com/inventory/",
+  indianriver: "https://indianriverautosalvage.com/inventory-3/",
   upullitne: "https://upullitne.com/search-inventory/",
   pullnsave: "https://www.pullnsave.com/inventory/",
   tearapart: "https://tearapart.com/inventory/",
@@ -30,6 +31,8 @@ function manualSearchExplanation(source: DataSource): string {
   switch (source) {
     case "chasencars":
       return "Search the yard inventory by VIN or stock number, then match the year, make, model and yard row.";
+    case "indianriver":
+      return "Search the inventory by VIN or serial number and match the year, make and model. This provider's Row column contains vehicle identities.";
     case "chesterfield":
       return "Select make, model and years, find the matching yard, then open Pics and match the stock number.";
     case "aero":
