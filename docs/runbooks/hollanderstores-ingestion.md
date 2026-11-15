@@ -1,6 +1,6 @@
 # Hollander Stores ingestion
 
-The `hollanderstores` source ships disabled. It covers 26 separate businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI and AR. The November 15 expansion adds 21 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
+The `hollanderstores` source ships disabled. It covers 35 physical yard locations belonging to 27 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR and IN. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
 
 ## Initial five-yard qualification on November 15, 2026
 
@@ -20,7 +20,7 @@ LeBlanc's published inventory contains 461/541 vehicle IDs below 68.24 million, 
 
 ## November 15 coverage expansion
 
-The 21 added yards publish 30,624 records: 30,321 accepted and 303 rejected. The complete 26-yard source accepts 31,197 records. Every added yard stays below the 10% rejection guard. New accepted floors are 80% of the verified published count, rounded down, with a minimum of one. Source validation requires at least 30,000 accepted vehicles. Rejected structurally valid VINs continue to protect prior presence. No make is inferred from a model name, and a populated native make is retained even when a cached VIN decode disagrees.
+The 21 added yards publish 30,624 records: 30,321 accepted and 303 rejected. Before the Paul's addition, this capture accepted 31,197 records across 26 locations. Every added yard stays below the 10% rejection guard. New accepted floors are 80% of the verified published count, rounded down, with a minimum of one. Source validation requires at least 30,000 accepted vehicles. Rejected structurally valid VINs continue to protect prior presence. No make is inferred from a model name, and a populated native make is retained even when a cached VIN decode disagrees.
 
 | Yard                     | City         | State | Published | Accepted | Rejected |
 | ------------------------ | ------------ | ----- | --------: | -------: | -------: |
@@ -90,6 +90,30 @@ This expansion made 327 logical live requests: 80 Hollander requests, 200 vPIC P
 
 The 200 new vPIC POSTs covered 9,975 unique check-digit-valid VINs with missing native makes, at most 50 per request. Successful results extend the existing permanent VIN seed; failed lookups remain explicit rejects and are not seeded. Tests replay compressed HTTP bodies, check byte counts and SHA-256 receipts, and never contact Hollander, vPIC, Census, OSM or Redis. Every opening and closing roster must match in all parsed fields and destinations before acceptance.
 
+## Paul's Auto Yard: nine Indiana locations
+
+Paul's is one business with nine separately registered physical locations. Its own [inventory page](https://www.paulsautosalvage.com/used-auto-parts-inventory) links each of these tenants. The legacy AutoRecycler inventory stopped updating in October 2025. No old AutoRecycler arrival dates are copied: Hollander publishes no arrival date, and `availableDate` stays null.
+
+These nine rosters publish 10,010 records: 9,673 accepted and 337 rejected. Each location independently satisfies the existing VIN, complete-enumeration, 10% rejection, accepted-floor, duplicate, and opening/closing drift guards. The complete source now accepts 40,870 vehicles across 35 locations. Every Paul's location has the shared operator `Paul's Auto Yard`, a distinct location name, its own tenant-bound vehicle links, street address and coordinates.
+
+| Location                         | Tenant           | Physical address                        | Coordinates (lat, lng)  | Accepted | Rejected |
+| -------------------------------- | ---------------- | --------------------------------------- | ----------------------- | -------: | -------: |
+| Paul's Auto Yard - South Bend    | paulsouin / 8559 | 3300 S Main Street, South Bend IN 46614 | 41.6418300, -86.2514900 |      742 |       37 |
+| Paul's Auto Yard - Fort Wayne    | paulsfwin / 8504 | 2901 Brooklyn Ave, Fort Wayne IN 46809  | 41.0582100, -85.1647300 |    2,033 |       40 |
+| Paul's Auto Yard - Westville     | paulswvin / 8517 | 651 W State Road 2, Westville IN 46391  | 41.5273300, -86.9395100 |    1,560 |       59 |
+| Paul's Auto Yard - Merrillville  | paulmerin / 8370 | 6530 Broadway, Merrillville IN 46410    | 41.4997900, -87.3362400 |    1,279 |       52 |
+| Paul's Auto Yard - Lake Station  | paulslkin / 8818 | 1501 Lake St, Lake Station IN 46405     | 41.5870090, -87.2660551 |    1,314 |       86 |
+| Paul's Auto Yard - Elkhart North | paulelkin / 8554 | 29332 County Road 10, Elkhart IN 46514  | 41.7149400, -86.0314000 |    1,040 |       25 |
+| Paul's Auto Yard - DeMotte       | pauldemin / 8518 | 901 Orchid Street, DeMotte IN 46310     | 41.1942800, -87.1769300 |      732 |       20 |
+| Paul's Auto Yard - Knox          | paulsknox / 8511 | 10775 IN-8, Knox IN 46534               | 41.2877157, -86.4902489 |      457 |        8 |
+| Paul's Auto Yard - Logansport    | paullogin / 8634 | 1834 18th Street, Logansport IN 46947   | 40.7446100, -86.3455300 |      516 |       10 |
+
+Logansport's Hollander About Us profile publishes PO Box 49 in Westville, which is a mailing address. Paul's own [Logansport contact page](https://www.paulsautosalvage.com/logansport-in) publishes 1834 18th Street, Logansport IN 46947 and 574-753-3644. These replace the mailing address, city and phone. Elkhart North is the 29332 County Road 10 location linked from Paul's inventory page. It is distinct from the Elkhart South location on Lusher Avenue.
+
+Eight points come from explicit map markers on Paul's own contact pages, each tied to the full physical address and an enabled marker icon. Knox's own map names only E IN-8 without a house number and places a generic road marker about 9 km from the exact-address Census match. Knox therefore uses the US Census Public_AR_Current point for 10775 IN-8; its two road-name aliases have exactly the same coordinates. All nine Census responses are retained as cross-checks. Westville's Census match changes the published W direction to E, so its matching business-published street address and marker are preferred. An independent Nominatim business-name lookup returned no match and is retained as evidence.
+
+Paul's qualification made 101 additional serial live requests with three-second gaps, including 53 vPIC POSTs for 2,627 unique valid VINs with missing native makes that were absent from the previous seed. Prior successful makes were reused. One exploratory contact URL returned HTTP 404; the actual Logansport page linked by the business succeeded. Every successful decode extends the permanent seed. Opening, closing, address, Census, empty Nominatim, vPIC and error responses are saved under `hollanderstores-test-fixtures/pauls`, with exact byte counts and SHA-256 receipts. Tests replay all responses offline.
+
 ## Identity, location and links
 
 Each tenant's `hpdcLogo` must match its verified business name, and each native per-vehicle link must remain on that tenant and its numeric tenant ID. Phone evidence from the investigation ties each tenant to its business. [Monster's website](https://monsterjunkyard.com/) publishes 1745 Page Blvd, resolving conflicting directory numbers. [Kirchhayn's website](https://www.kirchhayn.com/) publishes W4726 County Road A. [Petrillo's website](https://petrillosauto.com/) links its Hollander tenant. LeBlanc's published address and Standard's published address were verified in the supplied investigation.
@@ -110,7 +134,7 @@ If a published make contradicts an available decoded make, retain the published 
 
 POST `/VehicleDealerSearch` with `hdnChangeDisplay=card`, the site's own Card View form, once per configured yard for the opening pass and once per yard for the closing pass. Each configured tenant currently uses the complete card view. Reuse Beaver's HTML parsing helpers and the shared complete-response reader. Reconcile the published count against every card and enforce exact tenant destinations. Missing or duplicate destinations, truncation, changed identity or opening/closing drift stop acceptance.
 
-The durable state machine gathers all 26 yards, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 26 yards. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
+The durable state machine gathers all 35 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 35 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
 
 The module-wide semaphore allows one Hollander/vPIC request at a time and holds through cancellation, response cleanup and a three-second gap, including failures. Use current browser headers, manual redirects, a combined five-minute HTML transport/body deadline, a two-minute vPIC deadline, and a 40 MiB HTML response cap (vPIC remains 4 MiB). Temporary `/Message` redirects and transport failures retry twice, with 20 seconds between attempts. A durable chunk permits one logical operation by default and has a twenty-minute deadline. A decode batch satisfied by cache still advances one logical operation. Maximum census size is 25,000 rows per yard, 100,000 rows overall and 5,000 logical operations, each allowing at most three physical attempts. Parser and quality failures do not retry within a chunk.
 
