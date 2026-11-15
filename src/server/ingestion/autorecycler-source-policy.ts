@@ -9,6 +9,22 @@ import { AutorecyclerProviderError } from "./errors";
 // Verified operator identity, not a yard-name heuristic. The direct pullapart
 // connector owns availability for this organization's Pull-A-Part/U-Pull-&-Pay yards.
 const PULLAPART_ORGANIZATION = "1761169592468x394558876247902400";
+// One-time October 2024 LKQ imports. The pyp source reads these yards live.
+const DIRECT_PROVIDER_ORGANIZATIONS = new Set([
+  PULLAPART_ORGANIZATION,
+  "1729734766990x950099823086187300", // LKQ - CHATTANOOGA
+  "1729734766093x340198914988167880", // LKQ - NASHVILLE
+  "1729734766535x427413633759663500", // LKQ - CHARLOTTE
+  "1729734765104x535405133894433660", // LKQ - SAVANNAH
+  "1729734768283x592117435094416500", // LKQ - MEMPHIS
+  "1729734764662x232536945531569570", // LKQ - GREER
+  "1729734764195x109900838604892300", // LKQ - DURHAM
+  "1729734763657x870281075279977200", // LKQ - GREENSBORO
+  "1729734765576x140464582636548050", // LKQ - FAYETTEVILLE
+  "1729734763257x684941304085489500", // Pick Your Part - Greenville
+  "1729734767394x763899678894703500", // LKQ - EAST NC
+  "1729734767860x176607785988997630", // LKQ - CHARLESTON
+]);
 const reference = z
   .string()
   .trim()
@@ -88,10 +104,11 @@ export const AutorecyclerSourcePolicy = {
               }
               decisions.set(
                 doc._id,
-                doc._id === PULLAPART_ORGANIZATION ||
+                DIRECT_PROVIDER_ORGANIZATIONS.has(doc._id) ||
                   (doc.found &&
-                    doc._source.parent_organization_custom_organization ===
-                      PULLAPART_ORGANIZATION)
+                    DIRECT_PROVIDER_ORGANIZATIONS.has(
+                      doc._source.parent_organization_custom_organization ?? "",
+                    ))
                   ? "direct-provider"
                   : doc.found
                     ? "independent"
