@@ -78,6 +78,7 @@ export function urgiisSnapshot(
   };
   const vehicles = new Map<string, CanonicalVehicle>();
   const observedVins = new Set<string>();
+  const modeledVins = new Set<string>();
   const metadata = new Map<
     string,
     {
@@ -108,6 +109,7 @@ export function urgiisSnapshot(
       observedVins.add(a.vin);
       return;
     }
+    if (rows[index]?.context.kind === "model") modeledVins.add(a.vin);
     const record = a.record;
     const image = record.image === null ? null : URL.parse(record.image);
     const imageUrl =
@@ -179,6 +181,7 @@ export function urgiisSnapshot(
   return {
     vehicles: [...vehicles.values()],
     observedVins: [...observedVins],
+    modeledVehicles: modeledVins.size,
     accounting,
   };
 }
@@ -201,6 +204,7 @@ export function validateUrgiisSnapshot(
     }
   }
   if (
+    snapshot.modeledVehicles === 0 ||
     vehicles.length < tenant.minimumInventory ||
     a.recordsRejected >
       eligible * SourceValidationPolicy.maximumRejectionRatio ||
@@ -209,6 +213,6 @@ export function validateUrgiisSnapshot(
     vehicles.length + a.recordsRejected + a.duplicateVehicles !== eligible
   )
     throw new Error(
-      `IIS ${tenant.code} failed admission: ${vehicles.length} accepted (minimum ${tenant.minimumInventory}), ${a.recordsRejected}/${eligible} rejected, ${a.duplicateVehicles} duplicates. Prior inventory is preserved; inspect saved responses.`,
+      `IIS ${tenant.code} failed admission: ${vehicles.length} accepted (minimum ${tenant.minimumInventory}; ${snapshot.modeledVehicles} from model pages), ${a.recordsRejected}/${eligible} rejected, ${a.duplicateVehicles} duplicates. Prior inventory is preserved; inspect saved responses.`,
     );
 }

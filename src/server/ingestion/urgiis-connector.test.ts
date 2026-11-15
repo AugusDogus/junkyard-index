@@ -395,3 +395,18 @@ test("URG IIS enforces rejection and duplicate limits independently of floors an
   expect(duplicated.accounting.duplicateVehicles).toBe(4);
   expect(() => validateUrgiisSnapshot(duplicated, tenant)).toThrow("admission");
 });
+
+test("URG IIS cannot qualify an arrivals window without admitted own-yard model donors", () => {
+  const arrivals = iisCards(page, tenant).records;
+  const snapshot = urgiisSnapshot(
+    [{ make, model, records: [], hash: "" }],
+    tenant,
+    new Map(),
+    arrivals,
+  );
+  expect(snapshot.vehicles).toHaveLength(1);
+  expect(snapshot.modeledVehicles).toBe(0);
+  expect(() => validateUrgiisSnapshot(snapshot, tenant)).toThrow(
+    "0 from model pages",
+  );
+});
