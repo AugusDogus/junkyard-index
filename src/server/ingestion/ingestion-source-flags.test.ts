@@ -35,6 +35,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "chasencars",
     "hagerman",
     "kandr",
+    "jimsimport",
     "army",
     "idipull",
     "joliet",

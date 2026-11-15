@@ -68,6 +68,7 @@ const LABELS: Record<FilterKey, string> = {
 const SOURCES = [
   ["hagerman", "Hagerman"],
   ["kandr", "K&R Truck Parts"],
+  ["jimsimport", "Jim's Import Auto Salvage"],
   ["pyp", "Pick Your Part"],
   ["pullapart", "Pull-A-Part"],
   ["upullitne", "U Pull-It (NE/IA)"],

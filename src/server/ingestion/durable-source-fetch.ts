@@ -38,6 +38,7 @@ import { streamHagermanInventory } from "./hagerman-connector";
 import { streamKandrInventoryFromProvider } from "./kandr-connector";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { KANDR_YARD } from "./kandr-snapshot";
+import { streamJimsimportInventoryFromProvider } from "./jimsimport-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
 import { env } from "~/env";
@@ -111,6 +112,22 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  jimsimport: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamJimsimportInventoryFromProvider({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousUniqueInventory: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   kandr: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

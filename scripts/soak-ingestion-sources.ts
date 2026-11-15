@@ -69,6 +69,8 @@ import { soakHagermanInventory } from "./soak-hagerman";
 import { streamKandrInventoryFromProvider } from "../src/server/ingestion/kandr-connector";
 import { KANDR_CONTRACT } from "../src/server/ingestion/kandr-configuration";
 import { soakKandrInventory } from "./soak-kandr";
+import { streamJimsimportInventoryFromProvider } from "../src/server/ingestion/jimsimport-connector";
+import { soakJimsimportInventory } from "./soak-jimsimport";
 import { streamIndianriverInventoryFromProvider } from "../src/server/ingestion/indianriver-connector";
 import { soakIndianriverInventory } from "./soak-indianriver";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
@@ -401,6 +403,19 @@ async function main(): Promise<void> {
                 runProgram(
                   streamDentonInventoryFromProvider({
                     previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "jimsimport":
+            return soakJimsimportInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamJimsimportInventoryFromProvider({
+                    previousUniqueInventory: null,
                     startCursor,
                     maxPages,
                     onBatch,

@@ -14,8 +14,24 @@ import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
+import { JimsimportCursor } from "./jimsimport-cursor";
 
 describe("durable ingestion cursors", () => {
+  test("registers Jim's Import with eight native GETs and a checked durable cursor", () => {
+    const initial = JimsimportCursor.initial();
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("jimsimport", {
+      initialCursor: initial,
+      maxPagesPerChunk: 8,
+    });
+    const wire = serializeDurableSourceCursor(initial);
+    expect(parseDurableSourceCursor("jimsimport", wire)).toEqual(initial);
+    expect(() =>
+      parseDurableSourceCursor(
+        "jimsimport",
+        wire.replace('"owner"', '"complete"'),
+      ),
+    ).toThrow();
+  });
   test("registers K&R with eight native GETs and a checked durable cursor", () => {
     const initial = KandrCursor.initial(KANDR_CONTRACT);
     if (!initial.ok) throw new Error(initial.error.message);
@@ -71,6 +87,7 @@ describe("durable ingestion cursors", () => {
     ["chasencars", 2],
     ["hagerman", 2],
     ["kandr", 4],
+    ["jimsimport", 8],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {
