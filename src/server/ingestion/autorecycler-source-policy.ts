@@ -60,6 +60,7 @@ const responseSchema = z.object({
 });
 
 export type AutorecyclerSourceDecision =
+  | "stale"
   | "independent"
   | "direct-provider"
   | "unresolved";

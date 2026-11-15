@@ -1,0 +1,68 @@
+{
+  "docs": [
+    {
+      "_version": 23519656,
+      "found": true,
+      "_source": {
+        "_id": "1672882562847x152496749538181120",
+        "address_city_text": "PASO ROBLES",
+        "phone_text": "8052383545",
+        "address_state_text": "CA",
+        "address_zip_text": "93446",
+        "name_text": "A-1 METALS & AUTO SALVAGE INC",
+        "street_address_text": "5795 STOCKDALE ROAD",
+        "address1_geographic_address": {
+          "lat": 35.6854552,
+          "lng": -120.6981688,
+          "address": "5795 Stockdale Rd, Paso Robles, CA 93446, USA",
+          "components": {
+            "city": "Paso Robles",
+            "state": "California",
+            "county": "San Luis Obispo County",
+            "street": "Stockdale Road",
+            "country": "United States",
+            "zip code": "93446",
+            "state code": "CA",
+            "country code": "US",
+            "street number": "5795"
+          }
+        },
+        "_type": "custom.organization"
+      },
+      "_type": "custom.organization",
+      "_id": "1672882562847x152496749538181120"
+    },
+    {
+      "_version": 23519875,
+      "found": true,
+      "_source": {
+        "_id": "1727808874603x499378618447920300",
+        "address_city_text": "MAYSVILLE",
+        "phone_text": "9103820221",
+        "address_state_text": "NC",
+        "address_zip_text": "28555",
+        "name_text": "JDM AUTOMOTIVE & RECYCLING",
+        "street_address_text": "1731 BELGRADE-SWANSBORO RD",
+        "address1_geographic_address": {
+          "lat": 34.8013318,
+          "lng": -77.2165843,
+          "address": "1731 Belgrade-Swansboro Rd, Maysville, NC 28555, USA",
+          "components": {
+            "city": "Maysville",
+            "state": "North Carolina",
+            "county": "Onslow County",
+            "street": "Belgrade-Swansboro Road",
+            "country": "United States",
+            "zip code": "28555",
+            "state code": "NC",
+            "country code": "US",
+            "street number": "1731"
+          }
+        },
+        "_type": "custom.organization"
+      },
+      "_type": "custom.organization",
+      "_id": "1727808874603x499378618447920300"
+    }
+  ]
+}

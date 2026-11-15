@@ -322,6 +322,19 @@ describe("bounded durable reconciliation", () => {
       );
       const runId = "run-autorecycler-quarantine";
       await repository.initialize(runId);
+      const freshness = {
+        asOf: Date.now(),
+        legacy: {},
+        eligibleYards: [org, knownOrg],
+      };
+      // This test starts after the freshness and Ario stages, at the legacy traversal.
+      await client.execute({
+        sql: "update ingestion_source_run set next_cursor = ? where run_id = ? and source = 'autorecycler'",
+        args: [
+          JSON.stringify({ phase: "page", beforeId: null, freshness }),
+          runId,
+        ],
+      });
       const known = Array.from({ length: 100 }, (_, index) => ({
         _source: {
           organization_custom_organization: knownOrg,
@@ -336,6 +349,7 @@ describe("bounded durable reconciliation", () => {
           source: "autorecycler",
           phase: "page",
           beforeId: startFrom === 0 ? null : searchId(startFrom - 1),
+          freshness,
         } as const;
         const vehicles: CanonicalVehicle[] = [];
         const result = await Effect.runPromise(
@@ -415,8 +429,13 @@ describe("bounded durable reconciliation", () => {
         expect(result.status).toBe(startFrom === 0 ? "paused" : "complete");
         expect(result.cursor).toEqual(
           startFrom === 0
-            ? { source: "autorecycler", phase: "page", beforeId: searchId(2) }
-            : { source: "autorecycler", phase: "complete" },
+            ? {
+                source: "autorecycler",
+                phase: "page",
+                beforeId: searchId(2),
+                freshness,
+              }
+            : { source: "autorecycler", phase: "complete", freshness },
         );
         expect(result.observedVins).toEqual([presentVin]);
         expect(result.errors).toEqual([]);

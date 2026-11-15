@@ -1254,5 +1254,261 @@
     },
     "status": 429,
     "bytes": 168
+  },
+  {
+    "url": "https://app.autorecycler.io/elasticsearch/msearch",
+    "body": {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "searches": [
+        {
+          "appname": "autoscrapzen",
+          "app_version": "live",
+          "type": "custom.inventorysearch",
+          "constraints": [
+            {
+              "key": "deleted_boolean",
+              "value": true,
+              "constraint_type": "not equal"
+            },
+            {
+              "key": "visible_boolean",
+              "value": true,
+              "constraint_type": "equals"
+            },
+            {
+              "key": "added_date_date",
+              "constraint_type": "greater than",
+              "value": 1789595699999
+            },
+            {
+              "key": "added_date_date",
+              "constraint_type": "less than",
+              "value": 1794779700001
+            }
+          ],
+          "sorts_list": [
+            {
+              "sort_field": "_id",
+              "descending": true
+            }
+          ],
+          "from": 0,
+          "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
+          "situation": "initial search",
+          "n": 400
+        }
+      ]
+    },
+    "status": 200
+  },
+  {
+    "url": "https://app.autorecycler.io/elasticsearch/msearch",
+    "body": {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "searches": [
+        {
+          "appname": "autoscrapzen",
+          "app_version": "live",
+          "type": "custom.inventorysearch",
+          "constraints": [
+            {
+              "key": "deleted_boolean",
+              "value": true,
+              "constraint_type": "not equal"
+            },
+            {
+              "key": "visible_boolean",
+              "value": true,
+              "constraint_type": "equals"
+            },
+            {
+              "key": "_id",
+              "value": "1729834905078x201403720937345360",
+              "constraint_type": "less than"
+            },
+            {
+              "key": "added_date_date",
+              "constraint_type": "greater than",
+              "value": 1789595699999
+            },
+            {
+              "key": "added_date_date",
+              "constraint_type": "less than",
+              "value": 1794779700001
+            }
+          ],
+          "sorts_list": [
+            {
+              "sort_field": "_id",
+              "descending": true
+            }
+          ],
+          "from": 0,
+          "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
+          "situation": "initial search",
+          "n": 400
+        }
+      ]
+    },
+    "status": 200
+  },
+  {
+    "url": "https://app.autorecycler.io/elasticsearch/msearch",
+    "body": {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "searches": [
+        {
+          "appname": "autoscrapzen",
+          "app_version": "live",
+          "type": "custom.inventorysearch",
+          "constraints": [
+            {
+              "key": "deleted_boolean",
+              "value": true,
+              "constraint_type": "not equal"
+            },
+            {
+              "key": "visible_boolean",
+              "value": true,
+              "constraint_type": "equals"
+            },
+            {
+              "key": "organization_custom_organization",
+              "constraint_type": "in",
+              "value": [
+                "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+                "1348695171700984260__LOOKUP__1727808874603x499378618447920300"
+              ]
+            }
+          ],
+          "sorts_list": [
+            {
+              "sort_field": "_id",
+              "descending": true
+            }
+          ],
+          "from": 0,
+          "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
+          "situation": "initial search",
+          "n": 400
+        }
+      ]
+    },
+    "status": 200
+  },
+  {
+    "url": "https://app.autorecycler.io/elasticsearch/msearch",
+    "body": {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "searches": [
+        {
+          "appname": "autoscrapzen",
+          "app_version": "live",
+          "type": "custom.inventorysearch",
+          "constraints": [
+            {
+              "key": "deleted_boolean",
+              "value": true,
+              "constraint_type": "not equal"
+            },
+            {
+              "key": "visible_boolean",
+              "value": true,
+              "constraint_type": "equals"
+            },
+            {
+              "key": "_id",
+              "value": "1727809226737x731103776680710700",
+              "constraint_type": "less than"
+            },
+            {
+              "key": "organization_custom_organization",
+              "constraint_type": "in",
+              "value": [
+                "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+                "1348695171700984260__LOOKUP__1727808874603x499378618447920300"
+              ]
+            }
+          ],
+          "sorts_list": [
+            {
+              "sort_field": "_id",
+              "descending": true
+            }
+          ],
+          "from": 0,
+          "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
+          "situation": "initial search",
+          "n": 400
+        }
+      ]
+    },
+    "status": 200
+  },
+  {
+    "url": "https://app.autorecycler.io/elasticsearch/msearch",
+    "body": {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "searches": [
+        {
+          "appname": "autoscrapzen",
+          "app_version": "live",
+          "type": "custom.inventorysearch",
+          "constraints": [
+            {
+              "key": "deleted_boolean",
+              "value": true,
+              "constraint_type": "not equal"
+            },
+            {
+              "key": "visible_boolean",
+              "value": true,
+              "constraint_type": "equals"
+            },
+            {
+              "key": "_id",
+              "value": "1673833341069x970452480016910700",
+              "constraint_type": "less than"
+            },
+            {
+              "key": "organization_custom_organization",
+              "constraint_type": "in",
+              "value": [
+                "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+                "1348695171700984260__LOOKUP__1727808874603x499378618447920300"
+              ]
+            }
+          ],
+          "sorts_list": [
+            {
+              "sort_field": "_id",
+              "descending": true
+            }
+          ],
+          "from": 0,
+          "search_path": "{\"constructor_name\":\"DataSource\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0.%p.%ds\"},{\"type\":\"node\",\"value\":{\"constructor_name\":\"State\",\"args\":[{\"type\":\"json\",\"value\":\"%p3.cmPMV0.%el.cmPDS.%el.cmVXt0.%el.cmVXv0.%el.cmPMe0.%s.0\"}]}},{\"type\":\"raw\",\"value\":\"Search\"}]}",
+          "situation": "initial search",
+          "n": 400
+        }
+      ]
+    },
+    "status": 200
+  },
+  {
+    "url": "https://app.autorecycler.io/elasticsearch/mget",
+    "body": {
+      "appname": "autoscrapzen",
+      "app_version": "live",
+      "ids": [
+        "1672882562847x152496749538181120",
+        "1727808874603x499378618447920300"
+      ]
+    },
+    "status": 200
   }
 ]

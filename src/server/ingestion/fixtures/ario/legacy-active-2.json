@@ -1,0 +1,14 @@
+{
+  "responses": [
+    {
+      "hits": {
+        "hits": [],
+        "total": 0
+      },
+      "extras": [],
+      "at_end": true,
+      "search_version": 1794779585861
+    }
+  ],
+  "bulk_watch_results": []
+}

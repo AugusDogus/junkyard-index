@@ -78,11 +78,12 @@ export async function readArioYard(client: ArioClient, yard: ArioCustomerYard) {
         `Ario ${yard.slug} returned missing or changing pagination evidence; retry the complete yard`,
       );
     total ??= page.total;
+    let previousRank = offset;
     for (const item of page.items) {
       if (
         item.yard !== yard.slug ||
         item.yard_id !== yard.id ||
-        item.item_rank <= offset ||
+        item.item_rank <= previousRank ||
         item.item_rank > offset + 100 ||
         item.total_yard_inventory !== total ||
         items.has(item.id)
@@ -90,6 +91,7 @@ export async function readArioYard(client: ArioClient, yard: ArioCustomerYard) {
         throw new Error(
           `Ario ${yard.slug} returned contradictory ownership, rank or duplicate item ${item.id}`,
         );
+      previousRank = item.item_rank;
       items.set(item.id, item);
     }
     if (offset === 0) first = JSON.stringify(page.items);
