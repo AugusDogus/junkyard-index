@@ -15,13 +15,13 @@ import {
   CSTRUCK_STORE,
   CSTRUCK_YARD,
   cstruckRangeUrl,
-  type CstruckRange,
+  type CstruckQuery,
 } from "./cstruck-yard-metadata";
 
 const scope = heavyTruckPartsHash([
   CSTRUCK_YARD,
   CSTRUCK_RANGES,
-  "salvage-yard-complete-vehicle-policy-v1-double-range-census",
+  "salvage-yard-complete-vehicle-policy-v2-double-range-and-unfiltered-census",
 ]);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const common = {
@@ -39,7 +39,7 @@ const common = {
 };
 const census = {
   total: z.number().int().min(1).max(375),
-  pages: z.array(CstruckPageSchema).max(15),
+  pages: z.array(CstruckPageSchema).max(19),
 };
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...common, phase: z.literal("store-opening") }).strict(),
@@ -49,7 +49,7 @@ const schema = z.discriminatedUnion("phase", [
       ...common,
       ...census,
       phase: z.literal("closing"),
-      nextPage: z.number().int().min(0).max(14),
+      nextPage: z.number().int().min(0).max(18),
     })
     .strict(),
   z
@@ -60,23 +60,24 @@ const schema = z.discriminatedUnion("phase", [
 ]);
 type State = z.infer<typeof schema>;
 export type CstruckCursor = State & { checksum: string };
-/** Reconstruct the exact frontier from every response, including capped parent
- * ranges. No serialized queue can skip a year or pretend a capped page is done. */
-export function cstruckFrontier(pages: readonly CstruckPage[]): CstruckRange[] {
-  const pending: CstruckRange[] = [...CSTRUCK_RANGES];
+/** Reconstruct range splits and the unfiltered page chain from native responses.
+ * No serialized queue can skip a range or a published Next page. */
+export function cstruckFrontier(pages: readonly CstruckPage[]): CstruckQuery[] {
+  const pending: CstruckQuery[] = [...CSTRUCK_RANGES, { page: 1 }];
   for (const page of pages) {
     const expected = pending.shift();
     if (
       !expected ||
       heavyTruckPartsHash(page.range) !== heavyTruckPartsHash(expected) ||
-      page.range[0] > page.range[1] ||
+      (!("page" in page.range) && page.range[0] > page.range[1]) ||
       page.capped !== (page.records.length === 25) ||
       (page.hasMore && !page.capped) ||
       new Set(page.records.map((r) => r.id)).size !== page.records.length ||
       page.records.some(
         (r) =>
-          Number(r.year) < page.range[0] ||
-          Number(r.year) > page.range[1] ||
+          (!("page" in page.range) &&
+            (Number(r.year) < page.range[0] ||
+              Number(r.year) > page.range[1])) ||
           (r.description !== "CAB & CHASSIS" &&
             !(r.make === "TRAILER" && r.description === "FLATBED")),
       )
@@ -84,7 +85,13 @@ export function cstruckFrontier(pages: readonly CstruckPage[]): CstruckRange[] {
       throw new Error(
         "C&S checkpoint lost its exact range frontier or native page controls",
       );
-    if (page.capped) {
+    if ("page" in expected) {
+      if (page.hasMore) {
+        if (expected.page >= 15)
+          throw new Error("C&S unfiltered census exceeds 15 pages");
+        pending.unshift({ page: expected.page + 1 });
+      }
+    } else if (page.capped) {
       if (expected[0] === expected[1])
         throw new Error(
           "C&S single year hits the 25-row cap; retain prior inventory and review enumeration",
@@ -98,7 +105,20 @@ export function cstruckFrontier(pages: readonly CstruckPage[]): CstruckRange[] {
 export function cstruckRoster(pages: readonly CstruckPage[], total: number) {
   if (cstruckFrontier(pages).length)
     throw new Error("C&S census still has unvisited year ranges");
-  const records = pages.filter((p) => !p.capped).flatMap((p) => p.records);
+  const records = pages
+    .filter((p) => "page" in p.range)
+    .flatMap((p) => p.records);
+  const byId = new Map(records.map((r) => [r.id, heavyTruckPartsHash(r)]));
+  if (
+    pages
+      .filter((p) => !("page" in p.range) && !p.capped)
+      .some((p) =>
+        p.records.some((r) => byId.get(r.id) !== heavyTruckPartsHash(r)),
+      )
+  )
+    throw new Error(
+      "C&S year ranges disagree with the unfiltered native census",
+    );
   if (
     records.length !== total ||
     new Set(records.map((r) => r.id)).size !== total
@@ -194,7 +214,7 @@ export function cstruckAdvance(
     bytes > CSTRUCK_MAX_BYTES ||
     cursor.requests >= CSTRUCK_MAX_REQUESTS
   )
-    throw new Error("C&S physical response or 32-request bound exceeded");
+    throw new Error("C&S physical response or 40-request bound exceeded");
   const { checksum: _checksum, ...state } = cursor;
   void _checksum;
   const next = {

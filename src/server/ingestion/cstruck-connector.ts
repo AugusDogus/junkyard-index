@@ -56,6 +56,7 @@ export function streamCstruckInventory<E, R>(
     );
     const read = options.readPage ?? ((url) => fetchCstruckPage(url, gate));
     let pagesProcessed = 0;
+    const started = Date.now();
     while (cursor.phase !== "complete") {
       if (cursor.phase === "ready") {
         const ready = cursor;
@@ -85,7 +86,7 @@ export function streamCstruckInventory<E, R>(
           ),
         };
       }
-      if (pagesProcessed >= budget) break;
+      if (pagesProcessed >= budget || Date.now() - started >= 60_000) break;
       if (
         cursor.startedAt &&
         (Date.now() < cursor.startedAt ||

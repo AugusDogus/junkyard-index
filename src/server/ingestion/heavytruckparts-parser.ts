@@ -92,7 +92,7 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
           headings.length !== 1 ||
           controls.length !== 1 ||
           claim?.[1] !== id ||
-          title !== `${year} ${make} ${model} ${config.title}`
+          title !== `${year} ${make} ${model} ${config.title}`.trim()
         )
           throw new Error(
             "HeavyTruckParts native title, item ID and make/model control do not join",

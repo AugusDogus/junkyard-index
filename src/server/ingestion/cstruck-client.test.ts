@@ -7,7 +7,7 @@ import { DUTCHERS_STORE } from "./dutchers-yard-metadata";
 import { cstruckFixture } from "./cstruck-test-fixtures";
 
 const pass = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
-test("HTTP allowlist rejects foreign suppliers, page links, inquiries and out-of-range years before fetching", async () => {
+test("HTTP allowlist rejects foreign suppliers, range page links, inquiries and unsupported controls before fetching", async () => {
   const fetcher = spyOn(globalThis, "fetch").mockRejectedValue(
     new Error("Unexpected network"),
   );
@@ -17,6 +17,8 @@ test("HTTP allowlist rejects foreign suppliers, page links, inquiries and out-of
       cstruckRangeUrl([1970, 1998]) + "&page=2",
       "https://www.heavytruckparts.net/partinquiry.php?partid=5528&productcode=7131988&store=1",
       cstruckRangeUrl([1970, 1998]).replace("1970", "1900"),
+      cstruckRangeUrl({ page: 2 }).replace("page=2", "page=16"),
+      cstruckRangeUrl({ page: 2 }).replace("SortBy=year", "SortBy=model"),
     ])
       await expect(Effect.runPromise(fetchCstruckPage(url))).rejects.toThrow(
         "outside",
@@ -88,6 +90,31 @@ test.each([
           yield* TestClock.adjust("4 seconds");
           const result = yield* Fiber.join(fiber);
           expect(result._tag).toBe("Left");
+          expect(fetcher).toHaveBeenCalledTimes(1);
+        }).pipe(Effect.provide(TestContext.TestContext)),
+      );
+    } finally {
+      fetcher.mockRestore();
+    }
+  },
+);
+
+test.each([1, 2, 15])(
+  "HTTP allowlist accepts exact unfiltered native page %i",
+  async (page) => {
+    const fetcher = spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(cstruckFixture("unfiltered-1"), {
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.fork(
+            fetchCstruckPage(cstruckRangeUrl({ page })),
+          );
+          yield* TestClock.adjust("4 seconds");
+          expect(yield* Fiber.join(fiber)).toContain("C&S Truck Sales");
           expect(fetcher).toHaveBeenCalledTimes(1);
         }).pipe(Effect.provide(TestContext.TestContext)),
       );

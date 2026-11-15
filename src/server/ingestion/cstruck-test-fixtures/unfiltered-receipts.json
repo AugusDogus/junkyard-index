@@ -1,0 +1,29 @@
+{
+  "note": "Production HeavyTruckParts client with existing headers and a completed four-second gap. Timestamps are Unix milliseconds; completion includes the gap.",
+  "requests": [
+    {
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&SortBy=year&Order=asc",
+      "startedAt": 1794743659263,
+      "bytes": 652590,
+      "key": "unfiltered-1",
+      "status": 200,
+      "completedWithGapAt": 1794743664393
+    },
+    {
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&SortBy=year&Order=asc&page=2",
+      "startedAt": 1794743664393,
+      "bytes": 653453,
+      "key": "unfiltered-2",
+      "status": 200,
+      "completedWithGapAt": 1794743669397
+    },
+    {
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&SortBy=year&Order=asc&page=3",
+      "startedAt": 1794743669397,
+      "bytes": 607052,
+      "key": "unfiltered-3",
+      "status": 200,
+      "completedWithGapAt": 1794743674084
+    }
+  ]
+}

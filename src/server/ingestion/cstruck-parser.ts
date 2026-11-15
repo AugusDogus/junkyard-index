@@ -10,7 +10,7 @@ import {
 import {
   CSTRUCK_CATALOG,
   cstruckRangeUrl,
-  type CstruckRange,
+  type CstruckQuery,
 } from "./cstruck-yard-metadata";
 
 const parser = heavyTruckPartsParser({
@@ -25,9 +25,12 @@ export const CstruckRecordSchema = parser.recordSchema;
 export type CstruckRecord = z.infer<typeof CstruckRecordSchema>;
 export const CstruckPageSchema = z
   .object({
-    range: z.tuple([
-      z.number().int().min(1970).max(2027),
-      z.number().int().min(1970).max(2027),
+    range: z.union([
+      z.tuple([
+        z.number().int().min(1970).max(2027),
+        z.number().int().min(1970).max(2027),
+      ]),
+      z.object({ page: z.number().int().min(1).max(15) }).strict(),
     ]),
     capped: z.boolean(),
     hasMore: z.boolean(),
@@ -64,7 +67,7 @@ export function parseCstruckStore(raw: string): number {
 }
 export function parseCstruckPage(
   raw: string,
-  range: CstruckRange,
+  range: CstruckQuery,
 ): CstruckPage {
   const html = heavyTruckPartsDocument(raw),
     regions = heavyTruckPartsDivs(html, "search_result_div"),
@@ -77,9 +80,15 @@ export function parseCstruckPage(
       .filter((a) => a.text === "Next")
       .map((a) => a.href),
   );
+  const nextUrl =
+    "page" in range
+      ? next.size
+        ? cstruckRangeUrl({ page: range.page + 1 })
+        : null
+      : cstruckRangeUrl(range) + "&page=2";
   if (
     next.size > 1 ||
-    (next.size === 1 && !next.has(cstruckRangeUrl(range) + "&page=2"))
+    (next.size === 1 && (nextUrl === null || !next.has(nextUrl)))
   )
     throw new Error(
       "C&S pagination changed supplier, range or next-page control",
@@ -90,8 +99,8 @@ export function parseCstruckPage(
     new Set(records.map((r) => r.id)).size !== records.length ||
     records.some(
       (r) =>
-        Number(r.year) < range[0] ||
-        Number(r.year) > range[1] ||
+        (!("page" in range) &&
+          (Number(r.year) < range[0] || Number(r.year) > range[1])) ||
         (r.description !== "CAB & CHASSIS" &&
           !(r.make === "TRAILER" && r.description === "FLATBED")),
     )
@@ -113,9 +122,9 @@ export function parseCstruckPage(
         "C&S empty inventory lacks the native no-matches control",
       );
   }
-  // Even exactly 25 without Next is ambiguous. Split rather than assume complete.
+  // A full range page requires splitting. Unfiltered pages also reconcile to the store total.
   return CstruckPageSchema.parse({
-    range: [...range],
+    range: "page" in range ? range : [...range],
     records,
     capped: records.length === 25,
     hasMore: next.size === 1,

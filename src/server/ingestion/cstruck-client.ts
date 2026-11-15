@@ -37,6 +37,9 @@ export function fetchCstruckPage(
     end = Number(match?.[2]);
   const allowed =
     url === CSTRUCK_STORE ||
+    Array.from({ length: 15 }, (_, index) =>
+      cstruckRangeUrl({ page: index + 1 }),
+    ).includes(url) ||
     (match !== null &&
       start >= 1970 &&
       start <= end &&

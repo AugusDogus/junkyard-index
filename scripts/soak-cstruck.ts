@@ -1,3 +1,4 @@
+import { CSTRUCK_MAX_REQUESTS } from "../src/server/ingestion/cstruck-yard-metadata";
 import type { CstruckStreamResult } from "../src/server/ingestion/cstruck-connector";
 import { CstruckCursor } from "../src/server/ingestion/cstruck-cursor";
 
@@ -7,7 +8,7 @@ export async function soakCstruckInventory(
     cursor: CstruckCursor,
     maxPages: number,
   ) => Promise<CstruckStreamResult>,
-  maxRequests = 32,
+  maxRequests = CSTRUCK_MAX_REQUESTS,
 ): Promise<CstruckStreamResult> {
   if (!Number.isSafeInteger(maxRequests) || maxRequests < 1)
     throw new Error(

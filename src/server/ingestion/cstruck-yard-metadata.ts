@@ -5,7 +5,7 @@ export const CSTRUCK_CATALOG =
   CSTRUCK_ORIGIN + "/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1";
 export const CSTRUCK_STORE =
   CSTRUCK_ORIGIN + "/search.php?fltpc=7131988&store=1";
-export const CSTRUCK_MAX_REQUESTS = 32;
+export const CSTRUCK_MAX_REQUESTS = 40;
 export const CSTRUCK_MAX_BYTES = 2 * 1024 * 1024;
 export const CSTRUCK_MAX_CURSOR_BYTES = 4 * 1024 * 1024;
 export const CSTRUCK_RANGES = [
@@ -15,6 +15,7 @@ export const CSTRUCK_RANGES = [
   [2007, 2027],
 ] as const;
 export type CstruckRange = readonly [number, number];
+export type CstruckQuery = CstruckRange | { page: number };
 export const CSTRUCK_YARD = {
   source: "cstruck",
   code: "pukwana",
@@ -32,7 +33,13 @@ export const CSTRUCK_YARD = {
   lng: -99.182783487055,
   websiteUrl: "https://candstrucksales.com/",
 } as const satisfies Yard;
-export function cstruckRangeUrl([start, end]: CstruckRange): string {
+export function cstruckRangeUrl(query: CstruckQuery): string {
+  if ("page" in query) {
+    if (!Number.isSafeInteger(query.page) || query.page < 1 || query.page > 15)
+      throw new Error("C&S unfiltered page must be between 1 and 15");
+    return `${CSTRUCK_CATALOG}&SortBy=year&Order=asc${query.page === 1 ? "" : `&page=${query.page}`}`;
+  }
+  const [start, end] = query;
   if (
     !Number.isSafeInteger(start) ||
     !Number.isSafeInteger(end) ||
