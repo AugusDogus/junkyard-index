@@ -272,3 +272,78 @@ test("URG IIS excludes qualified part bins without hiding identifiable or numeri
   expect(snapshot.accounting.recordsExcluded).toBe(1);
   expect(snapshot.accounting.recordsRejected).toBe(2);
 });
+
+test("URG IIS preserves the completed tenant prefix across yard boundaries", async () => {
+  const second: UrgiisTenant = {
+    ...tenant,
+    code: "second",
+    yard: { ...tenant.yard, code: "second" },
+  };
+  const tenants = [tenant, second];
+  let cursor = UrgiisCursor.initial(tenants);
+  const emitted: string[] = [];
+  let reads = 0;
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants,
+        startCursor: cursor,
+        maxPages: 3,
+        readPage: () =>
+          Effect.succeed(responses[reads++ % responses.length] ?? ""),
+        onBatch: (vehicles) =>
+          Effect.sync(() => {
+            emitted.push(...vehicles.map((v) => v.locationCode));
+          }),
+      }),
+    );
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(result.cursor, tenants),
+      tenants,
+    );
+    if (emitted.length === 1) {
+      expect(cursor.completed).toEqual([{ code: "fixture", accepted: 1 }]);
+      expect(cursor.phase).not.toBe("complete");
+    }
+  }
+  expect(emitted).toEqual(["fixture", "second"]);
+  expect(reads).toBe(16);
+  expect(cursor.completed).toEqual([
+    { code: "fixture", accepted: 1 },
+    { code: "second", accepted: 1 },
+  ]);
+});
+
+test("URG IIS refuses an empty model at the known native cap boundary", async () => {
+  let reads = 0;
+  let emitted = false;
+  let cursor = UrgiisCursor.initial([tenant]);
+  const capped = [
+    document(""),
+    makes,
+    document("No Results Found. Try Browsing Our Parts Or Search Again"),
+    menu.replace(">1<", ">500<"),
+    document("No Results Found. Try Browsing Our Parts Or Search Again"),
+  ];
+  await expect(
+    (async () => {
+      while (cursor.phase !== "complete") {
+        const result = await Effect.runPromise(
+          streamUrgiisInventory({
+            tenants: [tenant],
+            startCursor: cursor,
+            maxPages: 3,
+            readPage: () => Effect.succeed(capped[reads++] ?? ""),
+            onBatch: () =>
+              Effect.sync(() => {
+                emitted = true;
+              }),
+          }),
+        );
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow("empty large model");
+  expect(reads).toBe(5);
+  expect(emitted).toBe(false);
+});
