@@ -18,6 +18,7 @@ import { SandwCursor } from "./sandw-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
+import { ScottsCursor } from "./scotts-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
@@ -305,6 +306,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   indianriver: {
     initialCursor: IndianriverCursor.initial(),
     maxPagesPerChunk: 8,
+  },
+  scotts: {
+    initialCursor: ScottsCursor.initial,
+    maxPagesPerChunk: 6,
   },
   oem: {
     initialCursor: OemCursor.initial(),

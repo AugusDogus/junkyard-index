@@ -39,6 +39,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Complete native Lithonia U-Pull report: 624 unique donors on 2026-11-15 UTC.
   sandw: 500,
   denton: 2_000,
+  // Complete native make/model census: 976 accepted of 1,064 cards.
+  scotts: 800,
   // Complete native model/arrivals union: 2,158 accepted donors.
   oem: 1_800,
   // Complete dual-sort native catalog: 579 accepted of 587 items.

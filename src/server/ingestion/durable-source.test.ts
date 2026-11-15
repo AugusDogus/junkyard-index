@@ -12,6 +12,7 @@ import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { KodakCursor } from "./kodak-cursor";
 import { Six03Cursor } from "./six03-cursor";
 import { RohnerCursor } from "./rohner-cursor";
+import { ScottsCursor } from "./scotts-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
@@ -102,6 +103,12 @@ describe("durable ingestion cursors", () => {
       maxPagesPerChunk: 8,
     });
   });
+  test("registers Scott's with six bounded native GETs per checkpoint", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("scotts", {
+      initialCursor: ScottsCursor.initial,
+      maxPagesPerChunk: 6,
+    });
+  });
   test("registers Rohner with three bounded native requests per checkpoint", () => {
     expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("rohner", {
       initialCursor: RohnerCursor.initial,
@@ -132,6 +139,7 @@ describe("durable ingestion cursors", () => {
     ["beavers", 2],
     ["indianriver", 8],
     ["denton", 16],
+    ["scotts", 2],
     ["oem", 4],
     ["dutchers", 8],
     ["chasencars", 2],
