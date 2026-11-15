@@ -92,14 +92,14 @@ export const HOLLANDERSTORES_YARDS = [
     websiteUrl: "https://kirchhaynautopa.hollanderstores.com/",
     minimum: 90,
   },
-] as const satisfies readonly (Yard & {
-  tenant: string;
-  logo: string;
-  minimum: number;
-})[];
+] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {
   source: "hollanderstores";
   websiteUrl: string;
+  address: string;
+  postalCode: string;
+  lat: number;
+  lng: number;
   tenant: string;
   logo: string;
   minimum: number;
