@@ -54,6 +54,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   kandr: 40,
   // Complete native NN38 model graph: 3,649 accepted among 4,016 rows.
   jimsimport: 3_000,
+  // Complete 43-donor native catalog and details: 41 accepted, two rejects.
+  alshned: 35,
   beavers: 240,
   indianriver: 900,
   army: 200,

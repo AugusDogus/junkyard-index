@@ -96,6 +96,8 @@ import { KANDR_CONTRACT } from "../src/server/ingestion/kandr-configuration";
 import { soakKandrInventory } from "./soak-kandr";
 import { streamJimsimportInventoryFromProvider } from "../src/server/ingestion/jimsimport-connector";
 import { soakJimsimportInventory } from "./soak-jimsimport";
+import { streamAlshnedInventory } from "../src/server/ingestion/alshned-connector";
+import { soakAlshnedInventory } from "./soak-alshned";
 import { streamWeberbrothersInventory } from "../src/server/ingestion/weberbrothers-connector";
 import { soakWeberbrothersInventory } from "./soak-weberbrothers";
 import { streamOemInventoryFromProvider } from "../src/server/ingestion/oem-connector";
@@ -564,6 +566,19 @@ async function main(): Promise<void> {
                       SourceValidationPolicy.minimumUniqueInventory
                         .weberbrothers,
                     previousUniqueInventory: null,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "alshned":
+            return soakAlshnedInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamAlshnedInventory({
+                    previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
                   }),
                 ),
               config.maxPages,

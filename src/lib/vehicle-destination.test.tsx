@@ -160,6 +160,10 @@ describe("manual provider destinations across search, durable alerts and present
     ["oemgarage", "https://oe-mgarage.com/collections/donor-636"],
     ["jimsimport", "https://jimsimport.com/used-parts/ACURA/ILX/21F104/2020"],
     [
+      "alshned",
+      "https://alshnedauto.com/products/donor-vehicle-2016-nissan-murano-platinum-brown",
+    ],
+    [
       "kandr",
       "https://kandrtruckparts.com/results-page/?page_number=1&keywords=&part_type=99994&manufacturer=&model=&category=&year_start=0&year_end=0&sortby=price&sortorder=DESC&zip=&distance=&result_size=25&more=6483483%2F1%2F2441426",
     ],

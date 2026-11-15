@@ -70,6 +70,7 @@ import { streamKandrInventoryFromProvider } from "./kandr-connector";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { KANDR_YARD } from "./kandr-snapshot";
 import { streamJimsimportInventoryFromProvider } from "./jimsimport-connector";
+import { streamAlshnedInventory } from "./alshned-connector";
 import { streamOemInventoryFromProvider } from "./oem-connector";
 import { OEM_LOCATION, OEM_YARD } from "./oem-yard-metadata";
 import { SourceValidationPolicy } from "./source-validation";
@@ -146,6 +147,22 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  alshned: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamAlshnedInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   jimsimport: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

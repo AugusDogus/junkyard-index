@@ -40,6 +40,7 @@ const providerWebsites = new Map<string, string>([
   ["hagerman", "https://hagermanparts.com/"],
   ["kandr", "https://kandrtruckparts.com/"],
   ["jimsimport", "https://jimsimport.com/"],
+  ["alshned", "https://alshnedauto.com/"],
   ["army", "https://armysauto.com/self-service-inventory/"],
   ["idipull", "https://ifipull.com/inventory/"],
   ["pullsavewa", "http://www.pullandsave.com/home.htm"],
