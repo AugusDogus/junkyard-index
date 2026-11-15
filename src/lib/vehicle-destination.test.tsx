@@ -182,6 +182,7 @@ describe("manual provider destinations across search, durable alerts and present
     ],
     ["rmmdtp", "https://rmmdtp.com/truck-description/?truck=196423"],
     ["oemgarage", "https://oe-mgarage.com/collections/donor-636"],
+    ["allied", "https://alliedautowrecking.com/parts/HONDA/CIVIC/21D078/2017"],
     ["jimsimport", "https://jimsimport.com/used-parts/ACURA/ILX/21F104/2020"],
     [
       "lonestarimports",

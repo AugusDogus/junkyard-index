@@ -179,6 +179,7 @@ describe("durable ingestion cursors", () => {
     ["lonestarimports", 16],
     ["alshned", 8],
     ["cstruck", 4],
+    ["allied", 8],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {

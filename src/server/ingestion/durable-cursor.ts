@@ -1,4 +1,6 @@
 import { CstruckCursor } from "./cstruck-cursor";
+import { AlliedCursor } from "./allied-cursor";
+import { ALLIED_CONTRACT } from "./allied-configuration";
 import { z } from "zod";
 import { AutorecyclerCursorSchema } from "./autorecycler-cursor";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
@@ -615,6 +617,18 @@ const DURABLE_CURSOR_DEFINITIONS = {
   rohner: {
     parse: RohnerCursor.parse,
     serialize: RohnerCursor.serialize,
+  },
+  allied: {
+    parse: (value: string) => {
+      const parsed = AlliedCursor.fromWire(value, ALLIED_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.value;
+    },
+    serialize: (cursor: AlliedCursor) => {
+      const serialized = AlliedCursor.serialize(cursor, ALLIED_CONTRACT);
+      if (!serialized.ok) throw new Error(serialized.error.message);
+      return serialized.value;
+    },
   },
   pratt: {
     parse: (value: string) => {
