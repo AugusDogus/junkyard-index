@@ -35,6 +35,9 @@ import { streamDentonInventoryFromProvider } from "./denton-connector";
 import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { streamHagermanInventory } from "./hagerman-connector";
+import { streamKandrInventoryFromProvider } from "./kandr-connector";
+import { KANDR_CONTRACT } from "./kandr-configuration";
+import { KANDR_YARD } from "./kandr-snapshot";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
 import { env } from "~/env";
@@ -108,6 +111,28 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  kandr: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamKandrInventoryFromProvider({
+          contract: KANDR_CONTRACT,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousUniqueInventory: null,
+          onBatch: context.onBatch,
+        }).pipe(
+          Effect.tap((result) =>
+            result.status === "complete" && result.count > 0
+              ? context.onYards([KANDR_YARD])
+              : Effect.void,
+          ),
+        ),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   hagerman: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

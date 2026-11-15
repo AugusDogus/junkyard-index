@@ -63,6 +63,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     dutchers: 0,
     chasencars: 0,
     hagerman: 0,
+    kandr: 0,
   },
   errors: [],
   durationMs: 10,

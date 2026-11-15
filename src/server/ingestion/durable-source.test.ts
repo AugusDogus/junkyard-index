@@ -12,8 +12,26 @@ import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
+import { KandrCursor } from "./kandr-cursor";
+import { KANDR_CONTRACT } from "./kandr-configuration";
 
 describe("durable ingestion cursors", () => {
+  test("registers K&R with eight native GETs and a checked durable cursor", () => {
+    const initial = KandrCursor.initial(KANDR_CONTRACT);
+    if (!initial.ok) throw new Error(initial.error.message);
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("kandr", {
+      initialCursor: initial.value,
+      maxPagesPerChunk: 8,
+    });
+    const wire = serializeDurableSourceCursor(initial.value);
+    expect(parseDurableSourceCursor("kandr", wire)).toEqual(initial.value);
+    expect(() =>
+      parseDurableSourceCursor(
+        "kandr",
+        wire.replace('"collecting"', '"complete"'),
+      ),
+    ).toThrow();
+  });
   test("registers Hagerman with twelve native GETs and a validated durable cursor", () => {
     expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("hagerman", {
       initialCursor: HagermanCursor.initial,
@@ -52,6 +70,7 @@ describe("durable ingestion cursors", () => {
     ["dutchers", 8],
     ["chasencars", 2],
     ["hagerman", 2],
+    ["kandr", 4],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {
