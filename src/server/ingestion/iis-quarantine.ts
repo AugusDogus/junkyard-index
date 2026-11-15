@@ -41,7 +41,7 @@ export function quarantineIisClaims(assessments: readonly IisAssessment[]) {
         const row = assessments[index];
         if (!row)
           throw new Error(
-            "Allied native conflict group references a missing assessed row",
+            "IIS native conflict group references a missing assessed row",
           );
         for (const key of [
           "years",

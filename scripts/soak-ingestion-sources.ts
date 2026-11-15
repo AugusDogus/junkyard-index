@@ -7,6 +7,8 @@ import { streamHeavytruckpartsInventory } from "../src/server/ingestion/heavytru
 import { soakHeavytruckpartsInventory } from "./soak-heavytruckparts";
 import { streamVinplusInventory } from "../src/server/ingestion/vinplus-connector";
 import { soakVinplusInventory } from "./soak-vinplus";
+import { streamUrgiisInventoryFromProvider } from "../src/server/ingestion/urgiis-connector";
+import { soakUrgiisInventory } from "./soak-urgiis";
 import { streamCstruckInventory } from "../src/server/ingestion/cstruck-connector";
 import { soakCstruckInventory } from "./soak-cstruck";
 /**
@@ -1002,6 +1004,18 @@ async function main(): Promise<void> {
                 runProgram(
                   streamByotInventoryFromProvider({
                     startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "urgiis":
+            return soakUrgiisInventory(
+              (cursor, maxPages) =>
+                runProgram(
+                  streamUrgiisInventoryFromProvider({
+                    startCursor: cursor,
                     maxPages,
                     onBatch,
                   }),

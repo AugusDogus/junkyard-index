@@ -1,5 +1,6 @@
 import { streamHeavytruckpartsInventory } from "./heavytruckparts-connector";
 import { streamVinplusInventory } from "./vinplus-connector";
+import { streamUrgiisInventoryFromProvider } from "./urgiis-connector";
 import { streamCstruckInventory } from "./cstruck-connector";
 import { streamByotInventoryFromProvider } from "./byot-connector";
 import { loadByotPublishedCursor } from "./byot-history";
@@ -622,6 +623,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
             }),
           ),
         ),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  urgiis: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamUrgiisInventoryFromProvider({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
       ),
       (next) => next,
       context.vehiclesByVin,

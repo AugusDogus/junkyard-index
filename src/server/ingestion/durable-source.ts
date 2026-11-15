@@ -1,5 +1,6 @@
 import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
 import { VinplusCursor } from "./vinplus-cursor";
+import { UrgiisCursor } from "./urgiis-cursor";
 import type { ConnectorChunkStatus } from "./connector-chunk";
 import { CstruckCursor } from "./cstruck-cursor";
 import { ByotCursor } from "./byot-cursor";
@@ -394,6 +395,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   byot: { initialCursor: ByotCursor.initial(), maxPagesPerChunk: 8 },
   vinplus: { initialCursor: VinplusCursor.initial(), maxPagesPerChunk: 8 },
+  urgiis: { initialCursor: UrgiisCursor.initial(), maxPagesPerChunk: 3 },
 };
 
 export function getDurableSourceDefinition<

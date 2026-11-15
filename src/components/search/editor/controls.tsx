@@ -80,6 +80,7 @@ const SOURCES = [
   ["byot", "BYOT Auto Parts"],
   ["vinplus", "VinPlus app yards"],
   ["allied", "Allied Auto Wrecking"],
+  ["urgiis", "Independent URG yards"],
   ["pyp", "Pick Your Part"],
   ["pullapart", "Pull-A-Part"],
   ["upullitne", "U Pull-It (NE/IA)"],
