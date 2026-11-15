@@ -28,6 +28,7 @@ import { HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
+import { LonestarimportsCursor } from "./lonestarimports-cursor";
 import { AlshnedCursor } from "./alshned-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
@@ -343,6 +344,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   jimsimport: {
     initialCursor: JimsimportCursor.initial(),
+    maxPagesPerChunk: 8,
+  },
+  lonestarimports: {
+    initialCursor: LonestarimportsCursor.initial(null),
     maxPagesPerChunk: 8,
   },
   alshned: {

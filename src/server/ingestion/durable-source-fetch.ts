@@ -70,6 +70,7 @@ import { streamKandrInventoryFromProvider } from "./kandr-connector";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { KANDR_YARD } from "./kandr-snapshot";
 import { streamJimsimportInventoryFromProvider } from "./jimsimport-connector";
+import { streamLonestarimportsInventoryFromProvider } from "./lonestarimports-connector";
 import { streamAlshnedInventory } from "./alshned-connector";
 import { streamOemInventoryFromProvider } from "./oem-connector";
 import { OEM_LOCATION, OEM_YARD } from "./oem-yard-metadata";
@@ -147,6 +148,22 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  lonestarimports: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamLonestarimportsInventoryFromProvider({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   alshned: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

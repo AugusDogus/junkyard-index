@@ -24,12 +24,12 @@ import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 
 describe("durable ingestion cursors", () => {
-  test.each([ "alshned"] as const)(
+  test.each(["lonestarimports", "alshned"] as const)(
     "%s registers a checked resumable cursor and rejects false completion",
     (source) => {
       const definition = DURABLE_SOURCE_DEFINITIONS[source];
       expect(definition.maxPagesPerChunk).toBe(
-        12,
+        source === "lonestarimports" ? 8 : 12,
       );
       const wire = serializeDurableSourceCursor(definition.initialCursor);
       expect(parseDurableSourceCursor(source, wire)).toEqual(
@@ -178,6 +178,7 @@ describe("durable ingestion cursors", () => {
     ["hagerman", 2],
     ["kandr", 4],
     ["jimsimport", 8],
+    ["lonestarimports", 16],
     ["alshned", 8],
   ] as const)(
     "%s preserves its source-specific wire byte guard",

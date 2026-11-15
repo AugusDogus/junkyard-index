@@ -160,6 +160,10 @@ describe("manual provider destinations across search, durable alerts and present
     ["oemgarage", "https://oe-mgarage.com/collections/donor-636"],
     ["jimsimport", "https://jimsimport.com/used-parts/ACURA/ILX/21F104/2020"],
     [
+      "lonestarimports",
+      "https://www.lonestarimport.com/new-arrivals?stock=LS11016",
+    ],
+    [
       "alshned",
       "https://alshnedauto.com/products/donor-vehicle-2016-nissan-murano-platinum-brown",
     ],
