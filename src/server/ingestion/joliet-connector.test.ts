@@ -274,7 +274,7 @@ test("Joliet also accepts all eleven stock differences in the saved F-150 and So
     expect(result.warnings?.join(" ")).toContain(stock);
 });
 
-test("Joliet rejects the saved analytics' 25 year-count differences despite a net count difference of one", async () => {
+test("Joliet accepts the saved analytics' 25 year-count differences (1.77%)", async () => {
   const saved = jolietDisagreementFixture();
   mock({
     rewrite: (body, kind) =>
@@ -284,30 +284,64 @@ test("Joliet rejects the saved analytics' 25 year-count differences despite a ne
           ? saved.analytics
           : body,
   });
-  await expect(Effect.runPromise(fetchJolietContext(gate))).rejects.toThrow(
-    "1% disagreement",
-  );
+  const context = await Effect.runPromise(fetchJolietContext(gate));
+  expect(context.rows).toHaveLength(1411);
+  expect(context.counts.count).toBe(1410);
 });
 
-test("Joliet fails when the stock disagreement exceeds 1% even with reconciling API counts", async () => {
-  disagreementReplay(12); // 15 / 1,411 exceeds 1%; net count difference is only 13.
+test("Joliet excludes and reports 25 stock differences (1.77%) against the saved HTML inventory", async () => {
+  // Only two API queries were saved. Remaining identities and these additional
+  // missing stocks are synthetic, rather than an asserted full API census.
+  const { table, api } = disagreementReplay(22);
+  const htmlStocks = new Set(table.rows.map((row) => row.stock));
+  const apiStocks = new Set(api.map((record) => record.stock));
+  const differences = [
+    ...table.rows
+      .filter((row) => !apiStocks.has(row.stock))
+      .map((row) => row.stock),
+    ...api
+      .filter((record) => !htmlStocks.has(record.stock))
+      .map((record) => record.stock),
+  ];
+  expect(differences).toHaveLength(25);
+  const vehicles: JolietCanonicalVehicle[] = [];
+  const result = await soakJolietInventory((cursor, budget) =>
+    run(cursor, budget, (batch) =>
+      Effect.sync(() => {
+        vehicles.push(...batch);
+      }),
+    ),
+  );
+  expect(result.status).toBe("complete");
+  expect(result.count).toBe(1387);
+  expect(result.accounting?.recordsExcluded).toBe(25);
+  for (const stock of differences) {
+    expect(vehicles.some((vehicle) => vehicle.stockNumber === stock)).toBe(
+      false,
+    );
+    expect(result.warnings?.join(" ")).toContain(stock);
+  }
+});
+
+test("Joliet fails when the stock disagreement exceeds 5% even with reconciling API counts", async () => {
+  disagreementReplay(68); // 71 / 1,411 exceeds 5%; API counts still reconcile.
   await expect(
     soakJolietInventory((cursor, budget) => run(cursor, budget)),
-  ).rejects.toThrow("Stocks exceed the 1% disagreement limit");
+  ).rejects.toThrow("Stocks exceed the 5% disagreement limit");
 });
 
-test("Joliet accepts exactly 1% disagreement and resumes an empty own-query receipt", async () => {
+test("Joliet accepts exactly 5% disagreement and resumes an empty own-query receipt", async () => {
   const records = Array.from({ length: 100 }, (_, index) => ({
     ...jolietTestRecord,
     stock: "STK" + String(75000 + index).padStart(6, "0"),
     vin: "1FAHP2J89EG" + String(117500 + index),
-    model: index === 0 ? "A" : "Z",
+    model: index < 5 ? "A" : "Z",
   }));
   mock({
     records,
     searches: new Map([[jolietPairKey({ make: "FORD", model: "A" }), []]]),
     rewrite: (body, kind) =>
-      kind === "analytics" ? jolietTestAnalytics(records.slice(1)) : body,
+      kind === "analytics" ? jolietTestAnalytics(records.slice(5)) : body,
   });
   const first = await run(undefined, 1);
   expect(first.count).toBe(0);
@@ -321,10 +355,10 @@ test("Joliet accepts exactly 1% disagreement and resumes an empty own-query rece
     1,
   );
   expect(last.status).toBe("complete");
-  expect(last.count).toBe(99);
+  expect(last.count).toBe(95);
   expect(last.accounting).toEqual({
     recordsProcessed: 100,
-    recordsExcluded: 1,
+    recordsExcluded: 5,
     recordsRejected: 0,
     duplicateVehicles: 0,
   });

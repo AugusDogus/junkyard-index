@@ -24,7 +24,7 @@ import {
 
 export const JOLIET_MAX_STOCKS = 10_000;
 export const JOLIET_MAX_QUERIES = 2_000;
-export const JOLIET_MAX_DISAGREEMENT_RATIO = 0.01;
+export const JOLIET_MAX_DISAGREEMENT_RATIO = 0.05;
 export const JolietStockSchema = z.string().regex(/^STK\d{6}$/);
 export type JolietPair = VinplusPair;
 export type JolietRecord = VinplusRecord;

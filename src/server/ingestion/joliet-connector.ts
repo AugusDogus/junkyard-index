@@ -267,7 +267,7 @@ export function streamJolietInventoryWithRequestGate<E, R>(
           JOLIET_MAX_DISAGREEMENT_RATIO
         )
           throw new Error(
-            "Stocks exceed the 1% disagreement limit; HTML-only: " +
+            "Stocks exceed the 5% disagreement limit; HTML-only: " +
               htmlOnly.join(", ") +
               "; API-only: " +
               apiOnly.join(", "),
