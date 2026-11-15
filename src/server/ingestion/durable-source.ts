@@ -12,6 +12,8 @@ import { DentonCursor } from "./denton-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
+import { KandrCursor } from "./kandr-cursor";
+import { KANDR_CONTRACT } from "./kandr-configuration";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
 import { JolietCursor } from "./joliet-cursor";
@@ -83,6 +85,8 @@ export const DURABLE_INGESTION_SOURCES: readonly DurableIngestionSource[] =
 
 const initialCalton = CaltonCursor.initial(CALTON_CONTRACT);
 if (!initialCalton.ok) throw new Error(initialCalton.error.message);
+const initialKandr = KandrCursor.initial(KANDR_CONTRACT);
+if (!initialKandr.ok) throw new Error(initialKandr.error.message);
 const initialDenton = DentonCursor.initial(null);
 if (!initialDenton.ok) throw new Error(initialDenton.error.message);
 
@@ -225,6 +229,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   hagerman: {
     initialCursor: HagermanCursor.initial,
     maxPagesPerChunk: 12,
+  },
+  kandr: {
+    initialCursor: initialKandr.value,
+    maxPagesPerChunk: 8,
   },
 };
 

@@ -14,6 +14,8 @@ import { DentonCursor } from "./denton-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
+import { KandrCursor } from "./kandr-cursor";
+import { KANDR_CONTRACT } from "./kandr-configuration";
 import { ArmyCursorSchema } from "./army-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
 import { JolietCursorSchema } from "./joliet-cursor";
@@ -231,6 +233,18 @@ const autorecyclerJsonCursor = defineJsonCursor(
 const hagermanJsonCursor = defineJsonCursor("hagerman", HagermanCursorSchema);
 
 const DURABLE_CURSOR_DEFINITIONS = {
+  kandr: {
+    parse: (value: string) => {
+      const parsed = KandrCursor.fromWire(value, KANDR_CONTRACT);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.value;
+    },
+    serialize: (cursor: KandrCursor) => {
+      const serialized = KandrCursor.serialize(cursor, KANDR_CONTRACT);
+      if (!serialized.ok) throw new Error(serialized.error.message);
+      return serialized.value;
+    },
+  },
   hagerman: {
     parse: (value: string) => {
       if (Buffer.byteLength(value) > 2 * 1024 * 1024)

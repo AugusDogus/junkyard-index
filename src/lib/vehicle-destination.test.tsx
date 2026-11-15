@@ -131,6 +131,10 @@ describe("manual provider destinations across search, durable alerts and present
       "https://www.brandywineupullit.com/veh_single/?stockno=08A455",
     ],
     [
+      "kandr",
+      "https://kandrtruckparts.com/results-page/?page_number=1&keywords=&part_type=99994&manufacturer=&model=&category=&year_start=0&year_end=0&sortby=price&sortorder=DESC&zip=&distance=&result_size=25&more=6483483%2F1%2F2441426",
+    ],
+    [
       "hagerman",
       "https://hagermanparts.com/item/international/9200/dismantled-vehicles/1125862/1/8012/",
     ],

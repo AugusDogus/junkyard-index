@@ -41,6 +41,7 @@ export const INGESTION_SOURCES = [
   "dutchers",
   "chasencars",
   "hagerman",
+  "kandr",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
@@ -88,6 +89,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   dutchers: "Dutcher's Inc. Heavy Truck Division",
   chasencars: "Chase N Cars",
   hagerman: "Hagerman",
+  kandr: "K&R Truck Parts",
 } as const satisfies Record<IngestionSource, string>;
 
 export function mapIngestionSources<Value>(
@@ -136,6 +138,7 @@ export function mapIngestionSources<Value>(
     dutchers: transform("dutchers"),
     chasencars: transform("chasencars"),
     hagerman: transform("hagerman"),
+    kandr: transform("kandr"),
   };
 }
 
