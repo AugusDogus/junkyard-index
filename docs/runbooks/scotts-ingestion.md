@@ -1,0 +1,15 @@
+# Scott's Used Parts
+
+The default-off `scotts` source covers Scott's Used Parts / Scott's Auto Recyclers at 938 West Willox Lane, Fort Collins CO 80524. Native contact and operational pages, CC68 donor photos and VIN-matching component destinations bind the catalog to this Colorado provider. An unrelated Mark's template footer is retained in evidence. Wyoming delivery marketing adds no state credit.
+
+The November 15 UTC census follows all 34 makes and 221 model controls: 1,064 cards, 976 accepted donors, 88 required rejects and zero duplicates or identity conflicts. Badges total 1,058. The six differing model memberships stayed unchanged on closing. The 44 closing controls include ownership, makes, every model directory, first/last model memberships and all six discrepancies. The historical arrivals timeout remains unresolved and was never retried. Qualification covers the independently published make/model catalog.
+
+Required fields use existing VIN/serial and year/make/model validation. Optional stock, images, color, dates and position remain nullable. Valid rejected identities remain presence evidence, and required identity/destination conflicts are quarantined. Shared validation retains the 800-donor minimum, 10% rejection, 25% duplicate and 50% previous-count drift guards.
+
+The collector uses serial requests with five-second completed spacing, no retries, six GETs per chunk, a three-minute chunk deadline and a 2 MiB serialized checkpoint bound. It emits inventory and yard metadata only after closing and quality checks. Failed callbacks cannot return terminal completion. Shared durable validation checks previous inventory before reconciliation. Nothing is enabled or published.
+
+Actual receipts and complete offline replay are under `.scratchpad/provider-coverage/nov14-provider-goal/research/mt_wy_id_ut_co/refill-02/`. The read-only soak discards inventory callbacks and retains incomplete status at a request cap:
+
+```sh
+bun run soak:sources -- --sources=scotts --cycles=1
+```

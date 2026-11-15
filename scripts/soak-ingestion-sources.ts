@@ -81,6 +81,8 @@ import { streamBeaversInventory } from "../src/server/ingestion/beavers-connecto
 import { soakBeaversInventory } from "./soak-beavers";
 import { streamDentonInventoryFromProvider } from "../src/server/ingestion/denton-connector";
 import { soakDentonInventory } from "./soak-denton";
+import { streamScottsInventory } from "../src/server/ingestion/scotts-connector";
+import { soakScottsInventory } from "./soak-scotts";
 import { streamDutchersInventory } from "../src/server/ingestion/dutchers-connector";
 import { soakDutchersInventory } from "./soak-dutchers";
 import { streamChasencarsInventoryFromProvider } from "../src/server/ingestion/chasencars-connector";
@@ -635,6 +637,14 @@ async function main(): Promise<void> {
                     maxPages,
                     onBatch,
                   }),
+                ),
+              config.maxPages,
+            );
+          case "scotts":
+            return soakScottsInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamScottsInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

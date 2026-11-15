@@ -124,6 +124,7 @@ describe("reconciliation policy", () => {
       "denton",
       "beavers",
       "indianriver",
+      "scotts",
       "oem",
       "dutchers",
       "chasencars",

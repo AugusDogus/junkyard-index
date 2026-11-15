@@ -26,6 +26,7 @@ import { CALTON_CONTRACT } from "./calton-configuration";
 import { SandwCursor } from "./sandw-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
+import { ScottsCursor } from "./scotts-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor, chasencarsAdvance } from "./chasencars-cursor";
@@ -142,6 +143,12 @@ const sources = [
       bytes: 80_049_010,
       state: { phase: "complete" },
     }),
+  },
+  {
+    source: "scotts",
+    minimum: 800,
+    initial: ScottsCursor.initial,
+    complete: { source: "scotts", version: 1, phase: "complete" },
   },
   {
     source: "indianriver",

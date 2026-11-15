@@ -60,6 +60,7 @@ import { streamSandwInventoryFromProvider } from "./sandw-connector";
 import { streamBeaversInventory } from "./beavers-connector";
 import { streamIndianriverInventoryFromProvider } from "./indianriver-connector";
 import { streamDentonInventoryFromProvider } from "./denton-connector";
+import { streamScottsInventory } from "./scotts-connector";
 import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { streamOemgarageInventoryFromProvider } from "./oemgarage-connector";
@@ -263,6 +264,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
               : Effect.void,
           ),
         ),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  scotts: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamScottsInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
       ),
       (next) => next,
       context.vehiclesByVin,
