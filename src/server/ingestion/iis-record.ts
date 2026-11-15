@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { inventoryVinWithCheckDigit as inventoryVin } from "./inventory-vin-check-digit";
-import { iisRouteLabel as alliedRouteLabel } from "./iis-html";
+import { iisRouteLabel } from "./iis-html";
 
 export const IisControlSchema = z
   .object({
@@ -93,7 +93,7 @@ export function assessIisRecord(
     context.kind === "model"
       ? context.make.label
       : (known?.make.label ??
-        (parts[2] ? alliedRouteLabel(parts[2]) : (publishedParent ?? "")));
+        (parts[2] ? iisRouteLabel(parts[2]) : (publishedParent ?? "")));
   // Arrival labels supply the complete YMM independently. Delimit that label
   // once using its native parent, never fill a missing model from a route token.
   const arrivalLeaf = record.inquiries.includes(

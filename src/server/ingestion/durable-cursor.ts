@@ -1,5 +1,6 @@
 import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
 import { VinplusCursor } from "./vinplus-cursor";
+import { UrgiisCursor } from "./urgiis-cursor";
 import { CstruckCursor } from "./cstruck-cursor";
 import { ByotCursor } from "./byot-cursor";
 import { AlliedCursor } from "./allied-cursor";
@@ -651,6 +652,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
       return result.value;
     },
   },
+  urgiis: { parse: UrgiisCursor.fromWire, serialize: UrgiisCursor.serialize },
   allied: {
     parse: (value: string) => {
       const parsed = AlliedCursor.fromWire(value, ALLIED_CONTRACT);

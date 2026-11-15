@@ -1,4 +1,5 @@
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
+import { validatePublishedYardInventory } from "./published-yard-inventory";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
@@ -62,6 +63,7 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
     if (parsed.source === "alshned") return parsed.phase === "complete";
     if (parsed.source === "byot") return parsed.phase === "complete";
     if (parsed.source === "vinplus") return parsed.phase === "complete";
+    if (parsed.source === "urgiis") return parsed.phase === "complete";
     if (parsed.source === "allied") return parsed.phase === "complete";
     return true;
   } catch {
@@ -140,6 +142,19 @@ export async function validateDurableSourceRuns(params: {
         await validateCars4PartsPublishedYardInventory(
           params.database,
           snapshot.vehicles.values(),
+        ),
+      );
+    if (
+      row.source === "urgiis" &&
+      row.status === "success" &&
+      hasTerminalCursor(row.source, row.nextCursor)
+    )
+      yardErrorsBySource.set(
+        row.source,
+        await validatePublishedYardInventory(
+          params.database,
+          snapshot.vehicles.values(),
+          "urgiis",
         ),
       );
   }
