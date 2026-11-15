@@ -23,6 +23,7 @@ export type AlshnedAssessment = {
 } & (
   | { status: "accepted"; vehicle: AlshnedVehicle }
   | { status: "rejected"; reasons: string[] }
+  | { status: "excluded" }
 );
 const optional = (v: string | null | undefined): string | null => {
   const s = v?.trim() ?? "";
@@ -69,7 +70,6 @@ export function assessAlshnedDonor(donor: AlshnedDonor): AlshnedAssessment {
     reasons.push("conflicting-native-heading");
   if (donor.brand.toLowerCase() !== donor.card.vendor.toLowerCase())
     reasons.push("conflicting-native-vendor");
-  if (!donor.active) reasons.push("inactive-native-donor");
   const common = {
     donor,
     observedVins,
@@ -81,6 +81,7 @@ export function assessAlshnedDonor(donor: AlshnedDonor): AlshnedAssessment {
       donor.active,
     ]),
   };
+  if (!donor.active) return { ...common, status: "excluded" };
   if (reasons.length || !vin) return { ...common, status: "rejected", reasons };
   const vehicle: AlshnedVehicle = {
     source: "alshned",
@@ -139,9 +140,16 @@ export function alshnedSnapshot(
   const vehicles = new Map<string, AlshnedVehicle>();
   const rejections: { handle: string; reasons: string[] }[] = [];
   let duplicateVehicles = 0;
+  let recordsExcluded = 0;
+  const observedVins = new Set<string>();
   for (const a of assessments) {
     const conflict = a.observedVins.some((v) => conflicts.has(v));
-    if (a.status === "rejected" || conflict)
+    if (a.status === "excluded" && !conflict) {
+      recordsExcluded++;
+      continue;
+    }
+    for (const vin of a.observedVins) observedVins.add(vin);
+    if (a.status !== "accepted" || conflict)
       rejections.push({
         handle: a.donor.card.handle,
         reasons: [
@@ -157,11 +165,11 @@ export function alshnedSnapshot(
     accounting: {
       recordsProcessed: donors.length,
       recordsRejected: rejections.length,
-      recordsExcluded: 0,
+      recordsExcluded,
       duplicateVehicles,
     },
     rejections,
-    observedVins: [...groups.keys()].sort(),
+    observedVins: [...observedVins].sort(),
     conflictingVins: [...conflicts].sort(),
   };
 }
@@ -170,7 +178,8 @@ export function validateAlshnedSnapshot(
   previousAcceptedCount: number | null = null,
 ) {
   const a = snapshot.accounting,
-    n = snapshot.vehicles.length;
+    n = snapshot.vehicles.length,
+    active = a.recordsProcessed - a.recordsExcluded;
   if (
     (previousAcceptedCount !== null &&
       (!Number.isSafeInteger(previousAcceptedCount) ||
@@ -178,9 +187,8 @@ export function validateAlshnedSnapshot(
     !n ||
     a.recordsProcessed !==
       n + a.recordsRejected + a.recordsExcluded + a.duplicateVehicles ||
-    a.recordsRejected / a.recordsProcessed >
-      SourceValidationPolicy.maximumRejectionRatio ||
-    a.duplicateVehicles / a.recordsProcessed >
+    a.recordsRejected / active > SourceValidationPolicy.maximumRejectionRatio ||
+    a.duplicateVehicles / active >
       SourceValidationPolicy.maximumDuplicateRatio ||
     (previousAcceptedCount !== null &&
       n <

@@ -44,7 +44,7 @@ test("actual Ram/Dodge and F150/F-150 conflicts remain required rejects", () => 
     reasons: ["conflicting-native-heading"],
   });
 });
-test("missing optional values pass while required identity conflicts and inactive donor fail", () => {
+test("missing optional values pass while required identity conflicts fail", () => {
   const d = donor(1);
   expect(
     assessAlshnedDonor({ ...d, stock: null, imageUrl: null, fields: {} })
@@ -53,7 +53,6 @@ test("missing optional values pass while required identity conflicts and inactiv
   for (const changed of [
     { ...d, vin: "" },
     { ...d, jsonVin: "1FTEX1EPXKFB32261" },
-    { ...d, active: false },
     { ...d, title: "Donor vehicle 2017 Nissan Murano Platinum Brown" },
   ])
     expect(assessAlshnedDonor(changed).status).toBe("rejected");
@@ -77,4 +76,10 @@ test("foreign optional images become null without changing required acceptance",
   if (a.status !== "accepted")
     throw new Error("Required donor unexpectedly rejected");
   expect(a.vehicle.imageUrl).toBeNull();
+});
+
+test("inactive native donors are excluded", () => {
+  expect(assessAlshnedDonor({ ...donor(1), active: false }).status).toBe(
+    "excluded",
+  );
 });
