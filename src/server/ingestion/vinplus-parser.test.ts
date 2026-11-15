@@ -20,7 +20,8 @@ test.each([
   { index: 1, accepted: 1406, processed: 1423, rejected: 17, serials: 21 },
   { index: 2, accepted: 1083, processed: 1084, rejected: 1, serials: 5 },
   { index: 3, accepted: 479, processed: 490, rejected: 11, serials: 0 },
-  { index: 4, accepted: 1095, processed: 1097, rejected: 2, serials: 7 },
+  { index: 4, accepted: 1572, processed: 1575, rejected: 3, serials: 2 },
+  { index: 5, accepted: 1095, processed: 1097, rejected: 2, serials: 7 },
 ])(
   "complete frozen yard census: tenant=$index",
   ({ index, accepted, processed, rejected, serials }) => {
@@ -44,29 +45,49 @@ test.each([
   },
 );
 
-test("excluded Killeen's frozen census fails exact year reconciliation", () => {
-  const { killeen } = z
+test("Killeen qualifies with six unreachable rows reported after closing replay", () => {
+  const tenant = VINPLUS_TENANTS[4];
+  const opening = z
+    .object({ killeen: z.object({ bodies: z.array(z.string()) }) })
+    .parse(vinplusQualification()).killeen.bodies;
+  if (!tenant) throw new Error("Missing Killeen");
+  expect(inspectVinplusEvidence(tenant, opening).kind).toBe("pending");
+  const result = inspectVinplusEvidence(tenant, vinplusCensus()[4] ?? []);
+  if (result.kind !== "complete") throw new Error("Missing closing replay");
+  expect(result.warnings).toHaveLength(1);
+  expect(result.warnings.join(" ")).toContain(
+    "6 unreachable advertised vehicles / 1581 (0.379507%)",
+  );
+  expect(result.warnings.join(" ")).toContain("2006: 4, 2007: 1, 2008: 1");
+});
+
+test("Killeen fails its own 1% limit even when the other yards are complete", () => {
+  const tenant = VINPLUS_TENANTS[4];
+  if (!tenant) throw new Error("Missing Killeen");
+  const evidence = [
+    ...z
+      .object({ killeen: z.object({ bodies: z.array(z.string()) }) })
+      .parse(vinplusQualification()).killeen.bodies,
+  ];
+  const counts = z
     .object({
-      killeen: z.object({
-        tenant: z.object({
-          yardId: z.string(),
-          slug: z.string(),
-          label: z.string(),
-          timezone: z.string(),
-          hiddenSearch: z.boolean(),
-          inventory: z.object({
-            kind: z.literal("crush"),
-            stockDigits: z.literal(5),
-          }),
-        }),
-        bodies: z.array(z.string()),
+      success: z.literal(true),
+      data: z.object({
+        current_count: z.number(),
+        by_year: z.array(z.object({ year: z.string(), count: z.number() })),
       }),
     })
-    .parse(vinplusQualification());
-  expect(() =>
-    inspectVinplusEvidence({ ...first(), ...killeen.tenant }, killeen.bodies),
-  ).toThrow("1575 of 1581");
+    .parse(JSON.parse(evidence[2] ?? ""));
+  const year = counts.data.by_year.find((row) => row.year === "2006");
+  if (!year) throw new Error("Missing unresolved year");
+  year.count += 10;
+  counts.data.current_count += 10;
+  evidence[2] = JSON.stringify(counts);
+  expect(() => inspectVinplusEvidence(tenant, evidence)).toThrow(
+    "16 unreachable advertised vehicles / 1591",
+  );
 });
+
 describe("frozen public VinPlus protocol", () => {
   test("enumerates Pocatello including public inventory behind hidden search", () => {
     const result = inspectVinplusEvidence(first(), vinplusCensus()[0] ?? []);
@@ -88,17 +109,17 @@ describe("frozen public VinPlus protocol", () => {
       ),
     ).toBe(true);
   });
-  test("rejects silent truncation even when match_count equals matches.length", () => {
+  test("rejects truncation above 1% even when match_count equals matches.length", () => {
     const evidence = [...(vinplusCensus()[0] ?? [])];
     const page = z
       .object({ matches: z.array(z.unknown()), match_count: z.number() })
       .passthrough()
       .parse(JSON.parse(evidence[3] ?? ""));
-    page.matches.pop();
-    page.match_count--;
+    page.matches.splice(-8);
+    page.match_count -= 8;
     evidence[3] = JSON.stringify(page);
     expect(() => inspectVinplusEvidence(first(), evidence)).toThrow(
-      "reconcile",
+      "exceeds the 1% limit",
     );
   });
   test("rejects wrong tenant, stock repeats, out-of-range years and unknown fields", () => {
