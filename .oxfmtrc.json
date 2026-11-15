@@ -2,5 +2,11 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "experimentalTailwindcss": {},
   "printWidth": 80,
-  "ignorePatterns": []
+  "ignorePatterns": [
+    "src/server/ingestion/beavers-test-fixtures/donor.html",
+    "src/server/ingestion/beavers-test-fixtures/first.html",
+    "src/server/ingestion/beavers-test-fixtures/last.html",
+    "src/server/ingestion/beavers-test-fixtures/missing-make.html",
+    "src/server/ingestion/beavers-test-fixtures/second.html"
+  ]
 }

@@ -27,6 +27,7 @@ describe("source snapshot validation", () => {
     { source: "upullitwa", count: 2_480 },
     { source: "partsgalore", count: 1_059 },
     { source: "bigtruckpage", count: 48 },
+    { source: "beavers", count: 278 },
     { source: "army", count: 231 },
     { source: "alln1", count: 1_093 },
     { source: "aviation", count: 2_326 },
@@ -69,6 +70,7 @@ describe("source snapshot validation", () => {
   });
 
   test.each([
+    { source: "beavers", minimum: 240, accepted: 278, rejected: 12 },
     { source: "brandywine", minimum: 1_500, accepted: 1_807, rejected: 11 },
   ] as const)(
     "$source preserves its floor and existing raw rejection guard",

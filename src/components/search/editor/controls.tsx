@@ -79,6 +79,7 @@ const SOURCES = [
   ["upullitwa", "Washington U-Pull-It"],
   ["partsgalore", "Parts Galore"],
   ["bigtruckpage", "BigTruckPage"],
+  ["beavers", "Beaver's Car Salvage"],
   ["army", "Army's Auto Wrecking"],
   ["alln1", "All-N-1 U Pull"],
   ["aviation", "Aviation Auto Salvage"],

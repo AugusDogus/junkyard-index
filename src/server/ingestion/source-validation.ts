@@ -18,6 +18,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Native inline table: 130 complete of 141 rows on 2026-11-11.
   aero: 100,
   bigtruckpage: 40,
+  beavers: 240,
   army: 200,
   alln1: 900,
   // Complete finite native model/arrival union: 2,326 unique donors.

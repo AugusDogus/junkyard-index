@@ -14,6 +14,7 @@ import {
 } from "./brandywine-test-fixtures";
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
+import { BeaversCursor } from "./beavers-cursor";
 
 const schema = `${TEST_SCHEMA}
   create table vehicle (
@@ -54,6 +55,12 @@ const completeCalton = CaltonCursor.checkpoint(
 if (!completeCalton.ok) throw new Error(completeCalton.error.message);
 
 const sources = [
+  {
+    source: "beavers",
+    minimum: 240,
+    initial: BeaversCursor.initial,
+    complete: { source: "beavers", version: 1, phase: "complete" },
+  },
   {
     source: "calton",
     minimum: CALTON_CONTRACT.minimumUniqueInventory,

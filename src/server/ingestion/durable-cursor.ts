@@ -4,6 +4,7 @@ import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
+import { BeaversCursor } from "./beavers-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
@@ -210,6 +211,10 @@ const autorecyclerJsonCursor = defineJsonCursor(
 );
 
 const DURABLE_CURSOR_DEFINITIONS = {
+  beavers: {
+    parse: BeaversCursor.parse,
+    serialize: BeaversCursor.serialize,
+  },
   row52: defineJsonCursor(
     "row52",
     z.object({

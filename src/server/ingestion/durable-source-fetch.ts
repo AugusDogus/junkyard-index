@@ -15,6 +15,7 @@ import { streamAwapInventory } from "./awap-connector";
 import { streamAplusInventory } from "./aplus-connector";
 import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
+import { streamBeaversInventory } from "./beavers-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import {
   connectorChunkMetrics,
@@ -86,6 +87,22 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  beavers: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamBeaversInventory({
+          // Durable validation checks the previous published count before reconciliation.
+          previousAcceptedCount: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   calton: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

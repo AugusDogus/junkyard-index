@@ -13,6 +13,7 @@ import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 describe("durable ingestion cursors", () => {
   test.each([
     ["awap", 2],
+    ["beavers", 2],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {

@@ -2,6 +2,7 @@ import type { ConnectorChunkStatus } from "./connector-chunk";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { BigtruckpageCursor } from "./bigtruckpage-cursor";
+import { BeaversCursor } from "./beavers-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
@@ -154,6 +155,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   bigtruckpage: {
     initialCursor: BigtruckpageCursor.initial,
     maxPagesPerChunk: 2,
+  },
+  beavers: {
+    initialCursor: BeaversCursor.initial,
+    maxPagesPerChunk: 8,
   },
 };
 
