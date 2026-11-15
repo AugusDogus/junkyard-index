@@ -1,3 +1,8 @@
+import { streamHawaiipartsInventory } from "../src/server/ingestion/hawaiiparts-connector";
+import { streamModernmuscleInventory } from "../src/server/ingestion/modernmuscle-connector";
+import { HawaiipartsCursor } from "../src/server/ingestion/hawaiiparts-cursor";
+import { ModernmuscleCursor } from "../src/server/ingestion/modernmuscle-cursor";
+import { soakShopifyYard } from "./soak-shopify-yard";
 import { streamCstruckInventory } from "../src/server/ingestion/cstruck-connector";
 import { soakCstruckInventory } from "./soak-cstruck";
 /**
@@ -668,6 +673,34 @@ async function main(): Promise<void> {
                 runProgram(
                   streamHagermanInventory({
                     previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "hawaiiparts":
+            return soakShopifyYard(
+              HawaiipartsCursor.initial(),
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamHawaiipartsInventory({
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "modernmuscle":
+            return soakShopifyYard(
+              ModernmuscleCursor.initial(),
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamModernmuscleInventory({
+                    previousUniqueInventory: null,
                     startCursor,
                     maxPages,
                     onBatch,

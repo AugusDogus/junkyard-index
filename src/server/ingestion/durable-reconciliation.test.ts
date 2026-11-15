@@ -150,6 +150,8 @@ async function stageSnapshots(params: {
 
 describe("bounded durable reconciliation", () => {
   test.each([
+    "hawaiiparts",
+    "modernmuscle",
     "oemgarage",
     "hagerman",
     "kandr",

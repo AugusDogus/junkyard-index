@@ -71,6 +71,8 @@ import { streamScottsInventory } from "./scotts-connector";
 import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { streamWeberbrothersInventory } from "./weberbrothers-connector";
+import { streamHawaiipartsInventory } from "./hawaiiparts-connector";
+import { streamModernmuscleInventory } from "./modernmuscle-connector";
 import { streamOemgarageInventoryFromProvider } from "./oemgarage-connector";
 import { streamHagermanInventory } from "./hagerman-connector";
 import { streamKandrInventoryFromProvider } from "./kandr-connector";
@@ -265,6 +267,36 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           maxPages: context.maxPages,
           // Shared validation compares the prior published complete count.
           previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  hawaiiparts: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamHawaiipartsInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          previousUniqueInventory: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  modernmuscle: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamModernmuscleInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          previousUniqueInventory: null,
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),
