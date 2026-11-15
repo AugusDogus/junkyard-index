@@ -181,6 +181,11 @@ describe("manual provider destinations across search, durable alerts and present
       "https://www.heavytruckparts.net/item/Peterbilt/379/Vehicle-For-Sale/7131988/1/5528",
     ],
     ["rmmdtp", "https://rmmdtp.com/truck-description/?truck=196423"],
+    ["hawaiiparts", "https://aloha.parts/pages/yard#car-4t1bf1fk8fu473924"],
+    [
+      "modernmuscle",
+      "https://modernmusclesalvage.com/pages/shop-by-vehicle?stock=2247",
+    ],
     ["oemgarage", "https://oe-mgarage.com/collections/donor-636"],
     ["allied", "https://alliedautowrecking.com/parts/HONDA/CIVIC/21D078/2017"],
     ["jimsimport", "https://jimsimport.com/used-parts/ACURA/ILX/21F104/2020"],

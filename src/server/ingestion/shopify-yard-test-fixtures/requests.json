@@ -1,0 +1,164 @@
+[
+  {
+    "url": "https://aloha.parts/pages/yard",
+    "status": 200,
+    "bytes": 211,
+    "time": 1794776344.301277
+  },
+  {
+    "url": "https://modernmusclesalvage.com/pages/shop-by-vehicle",
+    "status": 200,
+    "bytes": 282,
+    "time": 1794776350.5835307
+  },
+  {
+    "url": "https://hooks.modernmusclesalvage.com/api/storefront/vehicles",
+    "status": 200,
+    "bytes": 527176,
+    "time": 1794776357.6988246
+  },
+  {
+    "url": "https://mypartdepot.com/collections/part-outs/products.json?limit=250&page=1",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776363.9922397
+  },
+  {
+    "url": "https://cncautoworkstowing.com/collections/parts-vehicle/products.json?limit=250&page=1",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776370.2315364
+  },
+  {
+    "url": "https://aloha.parts/pages/yard",
+    "status": 200,
+    "bytes": 382005,
+    "time": 1794776394.3242197
+  },
+  {
+    "url": "https://modernmusclesalvage.com/pages/shop-by-vehicle",
+    "status": 200,
+    "bytes": 164229,
+    "time": 1794776404.7175138
+  },
+  {
+    "url": "https://modernmusclesalvage.com/policies/contact-information",
+    "status": 200,
+    "bytes": 140292,
+    "time": 1794776415.1258776
+  },
+  {
+    "url": "https://aloha.parts/",
+    "status": 200,
+    "bytes": 334155,
+    "time": 1794776425.8002179
+  },
+  {
+    "url": "https://mypartdepot.com/collections/part-outs",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776458.3378708
+  },
+  {
+    "url": "https://mypartdepot.com/collections/part-outs/products.json?limit=250&page=1",
+    "status": 200,
+    "bytes": 359342,
+    "time": 1794776471.1717644
+  },
+  {
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=91-222%20Olai%20St%20Kapolei%20HI%2096707&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "bytes": 644,
+    "time": 1794776483.6049054
+  },
+  {
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=15980%2032%20Mile%20Rd%20Ray%20MI%2048096&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "bytes": 635,
+    "time": 1794776495.9861798
+  },
+  {
+    "url": "https://mypartdepot.com/products/2010-mercury-milan-2-5l-parts-vehicle-stock-240002",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776582.8435245
+  },
+  {
+    "url": "https://cncautoworkstowing.com/collections/parts-vehicle/products.json?limit=250&page=1",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776655.0557
+  },
+  {
+    "url": "https://mypartdepot.com/collections/part-outs/products.json?limit=250&page=2",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776727.3230052
+  },
+  {
+    "url": "https://mypartdepot.com/products/2010-mercury-milan-2-5l-parts-vehicle-stock-240002",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776836.2895837
+  },
+  {
+    "url": "https://cncautoworkstowing.com/collections/parts-vehicle/products.json?limit=250&page=1",
+    "status": 429,
+    "retryAfter": "60",
+    "time": 1794776908.5548189
+  },
+  {
+    "url": "https://aloha.parts/",
+    "time": 1794777018.913,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://aloha.parts/",
+    "time": 1794777091.535,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://aloha.parts/pages/yard",
+    "time": 1794777104.198,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://aloha.parts/pages/yard",
+    "time": 1794777117.228,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://aloha.parts/",
+    "time": 1794777129.69,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://modernmusclesalvage.com/policies/contact-information",
+    "time": 1794777143.191,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://hooks.modernmusclesalvage.com/api/storefront/vehicles",
+    "time": 1794777155.528,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://hooks.modernmusclesalvage.com/api/storefront/vehicles",
+    "time": 1794777168.41,
+    "kind": "connector-attempt",
+    "status": 200
+  },
+  {
+    "url": "https://modernmusclesalvage.com/policies/contact-information",
+    "time": 1794777181.195,
+    "kind": "connector-attempt",
+    "status": 200
+  }
+]

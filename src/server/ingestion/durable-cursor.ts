@@ -31,6 +31,8 @@ import { OemCursorSchema, type OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { WeberbrothersCursor } from "./weberbrothers-cursor";
+import { HawaiipartsCursor } from "./hawaiiparts-cursor";
+import { ModernmuscleCursor } from "./modernmuscle-cursor";
 import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
@@ -338,6 +340,14 @@ const DURABLE_CURSOR_DEFINITIONS = {
         throw new Error("Hagerman serialized checkpoint exceeds 2 MiB");
       return wire;
     },
+  },
+  hawaiiparts: {
+    parse: HawaiipartsCursor.fromWire,
+    serialize: HawaiipartsCursor.serialize,
+  },
+  modernmuscle: {
+    parse: ModernmuscleCursor.fromWire,
+    serialize: ModernmuscleCursor.serialize,
   },
   oemgarage: {
     parse: (value: string) => {
