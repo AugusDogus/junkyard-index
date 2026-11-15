@@ -1,3 +1,4 @@
+import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
@@ -28,7 +29,8 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
   if (!cursor) return false;
   try {
     const parsed = parseDurableSourceCursor(source, cursor);
-    if (parsed.source === "autorecycler") return parsed.phase === "complete";
+    if (parsed.source === "autorecycler")
+      return parsed.phase === "complete" && parsed.freshness !== undefined;
     if (parsed.source === "rohner") return parsed.phase === "complete";
     if (parsed.source === "pratt") return parsed.phase === "complete";
     if (parsed.source === "cars4parts") return parsed.phase === "complete";
@@ -102,12 +104,32 @@ export async function validateDurableSourceRuns(params: {
   }
   const countBySource = new Map<string, number>();
   const yardErrorsBySource = new Map<string, string[]>();
+  const autorecyclerBaselines = new Map<string, number>();
   for (const row of sourceRows) {
     const snapshot = await loadSourceSnapshot(
       params.snapshotStore,
       row.snapshotChunks,
     );
     countBySource.set(row.source, snapshot.vehicles.size);
+    if (
+      row.source === "autorecycler" &&
+      row.status === "success" &&
+      hasTerminalCursor(row.source, row.nextCursor)
+    ) {
+      const cursor = parseDurableSourceCursor(
+        "autorecycler",
+        row.nextCursor ?? "",
+      );
+      if (cursor.phase === "complete" && cursor.freshness) {
+        const validation = await validateAutorecyclerPublishedInventory(
+          params.database,
+          snapshot.vehicles.values(),
+          cursor.freshness.eligibleYards,
+        );
+        yardErrorsBySource.set(row.source, validation.errors);
+        autorecyclerBaselines.set(row.source, validation.previousEligibleCount);
+      }
+    }
     if (
       row.source === "cars4parts" &&
       row.status === "success" &&
@@ -163,7 +185,8 @@ export async function validateDurableSourceRuns(params: {
         ...parseIngestionErrors(row.errors),
         ...(yardErrorsBySource.get(row.source) ?? []),
       ],
-      previousAcceptedCount: previous?.count ?? null,
+      previousAcceptedCount:
+        autorecyclerBaselines.get(row.source) ?? previous?.count ?? null,
     });
     validations.push({
       source: row.source,

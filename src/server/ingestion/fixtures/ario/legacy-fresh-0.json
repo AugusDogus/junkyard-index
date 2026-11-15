@@ -1,0 +1,456 @@
+{
+  "responses": [
+    {
+      "hits": {
+        "hits": [
+          {
+            "_version": 23582488,
+            "found": true,
+            "_source": {
+              "added_date_date": 1794588141290,
+              "inventory_id_text": "1794588141162x650978902937436200",
+              "name_text": "2000 Honda Civic",
+              "exterior_color_text": "Silver ",
+              "engine_size_text": "1.589545208L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1794588086336x178640298010058100/IMG_20261113_084111.jpg",
+              "vin_text": "2HGEJ6619YH556757",
+              "vehicle_year_number": 2000,
+              "stock_number_text": "361049",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1794588142296x173106369092023580"
+          },
+          {
+            "_version": 23526005,
+            "found": true,
+            "_source": {
+              "added_date_date": 1794436537720,
+              "inventory_id_text": "1794436537718x173998022479839230",
+              "name_text": "2011 Ford Edge",
+              "exterior_color_text": "White ",
+              "engine_size_text": "3.5L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1794435828245x799550727345232500/IMG_20261111_142330.jpg",
+              "vin_text": "2FMDK3JC8BBB27808",
+              "vehicle_year_number": 2011,
+              "stock_number_text": "360628",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "Impound "
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1794436538764x639155669385915500"
+          },
+          {
+            "_version": 23498639,
+            "found": true,
+            "_source": {
+              "added_date_date": 1793983113989,
+              "inventory_id_text": "1793983113956x645783492016472000",
+              "name_text": "2005 Chevrolet Colorado",
+              "exterior_color_text": "White ",
+              "engine_size_text": "3.5L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1793982521865x886203534335671600/IMG_20261106_082807.jpg",
+              "vin_text": "1GCDS196558132320",
+              "vehicle_year_number": 2005,
+              "stock_number_text": "359010",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "Pad"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1793983115113x254245293481597540"
+          },
+          {
+            "_version": 23483256,
+            "found": true,
+            "_source": {
+              "added_date_date": 1793631211576,
+              "inventory_id_text": "1793631211564x911190697768910800",
+              "name_text": "1995 Buick Roadmaster",
+              "engine_size_text": "5.7L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1793631074316x475150676708191900/IMG_7470.jpeg",
+              "vin_text": "1G4BN52P8SR426868",
+              "vehicle_year_number": 1995,
+              "stock_number_text": "10162026",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1727808874603x499378618447920300",
+              "row_text": "FL"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1793631213290x501647646736844900"
+          },
+          {
+            "_version": 23475283,
+            "found": true,
+            "_source": {
+              "added_date_date": 1793403437649,
+              "inventory_id_text": "1793403437616x562286717917986800",
+              "name_text": "2013 Ford Escape",
+              "exterior_color_text": "Silver",
+              "engine_size_text": "1.6L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1793403213427x978946896357420800/IMG_7699.jpeg",
+              "vin_text": "1FMCU0HX6DUB98919",
+              "vehicle_year_number": 2013,
+              "stock_number_text": "10302026",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1727808874603x499378618447920300",
+              "row_text": "FL"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1793403438175x601713758095443100"
+          },
+          {
+            "_version": 23470727,
+            "found": true,
+            "_source": {
+              "added_date_date": 1793297970032,
+              "inventory_id_text": "1793297969966x179988952445878270",
+              "name_text": "2009 Lincoln MKZ",
+              "exterior_color_text": "red",
+              "engine_size_text": "3.5L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1793298026190x173436954435197680/81490576475__7644A79E-EA85-40F6-9733-3D286FC6AD6A.jpeg",
+              "vin_text": "3LNHM26T09R613877",
+              "vehicle_year_number": 2009,
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1727808874603x499378618447920300"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1793297974759x639742624967913200"
+          },
+          {
+            "_version": 23453201,
+            "found": true,
+            "_source": {
+              "added_date_date": 1792688928454,
+              "inventory_id_text": "1792688927820x141611750974816260",
+              "name_text": "1990 Ford E-150 Econoline",
+              "exterior_color_text": "White ",
+              "engine_size_text": "5L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1792688785412x401164942073253060/IMG_20261022_100609.jpg",
+              "vin_text": "1FTES14N3LHA14640",
+              "vehicle_year_number": 1990,
+              "stock_number_text": "354796",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "9R"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1792688928910x335559168321762240"
+          },
+          {
+            "_version": 23444707,
+            "found": true,
+            "_source": {
+              "added_date_date": 1792514029504,
+              "inventory_id_text": "1792514029473x795305891657678800",
+              "name_text": "2009 Cadillac CTS",
+              "exterior_color_text": "Black ",
+              "engine_size_text": "3.6L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1792513793114x644141460667824900/IMG_20261020_092912.jpg",
+              "vin_text": "1G6DV57V090171557",
+              "vehicle_year_number": 2009,
+              "stock_number_text": "354144",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "Impound "
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1792514030619x417860196405732030"
+          },
+          {
+            "_version": 23502918,
+            "found": true,
+            "_source": {
+              "added_date_date": 1792513548349,
+              "inventory_id_text": "1792513548317x583869882498809900",
+              "name_text": "1999 Toyota Tacoma",
+              "exterior_color_text": "Green ",
+              "engine_size_text": "2.4L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1792512053686x200620022867079580/IMG_20261020_090016.jpg",
+              "vin_text": "4TAVL52N1XZ448977",
+              "vehicle_year_number": 1999,
+              "stock_number_text": "354155",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1792513549177x547396375530744240"
+          },
+          {
+            "_version": 23436971,
+            "found": true,
+            "_source": {
+              "added_date_date": 1792432312025,
+              "inventory_id_text": "1792432311845x861405063205093400",
+              "name_text": "2008 Nissan Quest",
+              "exterior_color_text": "Blue ",
+              "engine_size_text": "3.5L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1792432263878x566376735024668000/IMG_20261019_104949.jpg",
+              "vin_text": "5N1BV28U48N103610",
+              "vehicle_year_number": 2008,
+              "stock_number_text": "353377",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1792432313062x651256347323612200"
+          },
+          {
+            "_version": 23428099,
+            "found": true,
+            "_source": {
+              "added_date_date": 1792164652039,
+              "inventory_id_text": "1792164651893x300713622826909700",
+              "name_text": "2005 Honda Element",
+              "exterior_color_text": "Silver ",
+              "engine_size_text": "2.4L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1792164590932x114755613249014850/IMG_20261016_082917.jpg",
+              "vin_text": "5J6YH28665L030443",
+              "vehicle_year_number": 2005,
+              "stock_number_text": "352864",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1792164653242x954914136152211800"
+          },
+          {
+            "_version": 23420229,
+            "found": true,
+            "_source": {
+              "added_date_date": 1791996484028,
+              "inventory_id_text": "1791996483986x944874221732626400",
+              "name_text": "2000 Toyota Solara",
+              "exterior_color_text": "Silver ",
+              "engine_size_text": "3L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1791996245129x334089153761207200/IMG_20261014_094352.jpg",
+              "vin_text": "2T1CF28P4YC299406",
+              "vehicle_year_number": 2000,
+              "stock_number_text": "352080",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "Impound "
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1791996485850x163634264214014940"
+          },
+          {
+            "_version": 23419608,
+            "found": true,
+            "_source": {
+              "added_date_date": 1791233160709,
+              "inventory_id_text": "1791233160582x549961761913307140",
+              "name_text": "2011 Ford F-350",
+              "exterior_color_text": "White ",
+              "engine_size_text": "L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1791232786244x100150682047747570/IMG_20261005_133923.jpg",
+              "vin_text": "1FDRF3HT7BEC77073",
+              "vehicle_year_number": 2011,
+              "stock_number_text": "349374",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1791233161595x929906209001551100"
+          },
+          {
+            "_version": 23381458,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790982089061,
+              "inventory_id_text": "1790982088931x464763223945773060",
+              "name_text": "1996 Chrysler Sebring",
+              "exterior_color_text": "Green ",
+              "engine_size_text": "2.5L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790981491178x507540931741034200/IMG_20261002_155013.jpg",
+              "vin_text": "3C3EL55H0TT302036",
+              "vehicle_year_number": 1996,
+              "stock_number_text": "348931",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790982090233x471014830775414100"
+          },
+          {
+            "_version": 23364935,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790784052901,
+              "inventory_id_text": "1790784052834x891982535691337700",
+              "name_text": "1986 Nissan Pickup",
+              "exterior_color_text": "Gray ",
+              "engine_size_text": "3L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790783969634x849637624146043000/IMG_20260930_085919.jpg",
+              "vin_text": "JN6HD16S8GW006347",
+              "vehicle_year_number": 1986,
+              "stock_number_text": "348005",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790784054962x352759290841008000"
+          },
+          {
+            "_version": 23358148,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790637133365,
+              "inventory_id_text": "1790637133313x918020290691727400",
+              "name_text": "2004 Mazda 3",
+              "exterior_color_text": "Silver ",
+              "engine_size_text": "2.3L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790637069621x142299646090236370/IMG_20260928_161045.jpg",
+              "vin_text": "JM1BK343141217856",
+              "vehicle_year_number": 2004,
+              "stock_number_text": "347549",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790637134053x820921579123143800"
+          },
+          {
+            "_version": 23355416,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790615841176,
+              "inventory_id_text": "1790615841028x920096760887509000",
+              "name_text": "2006 Ford Fusion",
+              "exterior_color_text": "Silver ",
+              "engine_size_text": "2.3L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790615777924x535301299263854600/IMG_20260928_101546.jpg",
+              "vin_text": "3FAHP06Z76R210338",
+              "vehicle_year_number": 2006,
+              "stock_number_text": "347355",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "7"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790615842225x232041595654486340"
+          },
+          {
+            "_version": 23353555,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790448806078,
+              "inventory_id_text": "1790448806021x459616216725585900",
+              "name_text": "2006 Jeep Grand Cherokee",
+              "exterior_color_text": "Gray ",
+              "engine_size_text": "5.7L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790448635529x596837951868464400/IMG_20260926_115007.jpg",
+              "vin_text": "1J8HS68276C302259",
+              "vehicle_year_number": 2006,
+              "stock_number_text": "347196",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "5"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790448807054x337126465416730940"
+          },
+          {
+            "_version": 23353205,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790448234454,
+              "inventory_id_text": "1790448234395x272948385525268480",
+              "name_text": "1999 Nissan Maxima",
+              "exterior_color_text": "Gold ",
+              "engine_size_text": "3L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790447206034x219701851372434020/IMG_20260926_112636.jpg",
+              "vin_text": "JN1CA21D6XM405521",
+              "vehicle_year_number": 1999,
+              "stock_number_text": "347035",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "Impound "
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790448235508x596436949095793700"
+          },
+          {
+            "_version": 23346746,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790437391969,
+              "inventory_id_text": "1790437391944x734500055883186200",
+              "name_text": "2000 Toyota Celica",
+              "exterior_color_text": "Silver ",
+              "engine_size_text": "1.8L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790436293142x372496855480945600/IMG_20260926_082440.jpg",
+              "vin_text": "JTDDR32TXY0042199",
+              "vehicle_year_number": 2000,
+              "stock_number_text": "347005",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790437393042x749900217099396500"
+          },
+          {
+            "_version": 23333401,
+            "found": true,
+            "_source": {
+              "added_date_date": 1790197463472,
+              "inventory_id_text": "1790197463364x605164804577427500",
+              "name_text": "2005 Ford Focus",
+              "exterior_color_text": "Gray ",
+              "engine_size_text": "2L",
+              "preview_image_image": "//9868ca324016b659551139193b5094e3.cdn.bubble.io/f1790197118764x870258513280359800/IMG_20260923_135741.jpg",
+              "vin_text": "1FAFP34N95W181168",
+              "vehicle_year_number": 2005,
+              "stock_number_text": "346116",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+              "row_text": "P"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1790197465196x321474913995696500"
+          },
+          {
+            "_version": 2694002,
+            "found": true,
+            "_source": {
+              "added_date_date": 1791331200000,
+              "inventory_id_text": "1729834852176x348260222973245900",
+              "name_text": "2001 GMC SIERRA ",
+              "vehicle_year_number": 2001,
+              "stock_number_text": "GS55278",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1729734769636x889632182003287000",
+              "row_text": "T-10"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1729834915408x123001885577574960"
+          },
+          {
+            "_version": 2693999,
+            "found": true,
+            "_source": {
+              "added_date_date": 1791331200000,
+              "inventory_id_text": "1729834852153x851038989094199800",
+              "name_text": "2000 CHEVY SILVERADO ",
+              "vehicle_year_number": 2000,
+              "stock_number_text": "GS55280",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1729734769636x889632182003287000",
+              "row_text": "T-10"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1729834915309x646010349366729100"
+          },
+          {
+            "_version": 2693766,
+            "found": true,
+            "_source": {
+              "added_date_date": 1794009600000,
+              "inventory_id_text": "1729834852263x979201798625162000",
+              "name_text": "2009 JEEP GRAND ",
+              "vehicle_year_number": 2009,
+              "stock_number_text": "GS55262",
+              "organization_custom_organization": "1348695171700984260__LOOKUP__1729734769636x889632182003287000",
+              "row_text": "C-11"
+            },
+            "_type": "custom.inventorysearch",
+            "_id": "1729834905078x201403720937345360"
+          }
+        ],
+        "total": 24
+      },
+      "extras": [],
+      "at_end": true,
+      "search_version": 1794779575543
+    }
+  ],
+  "bulk_watch_results": []
+}

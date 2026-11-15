@@ -155,8 +155,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   autorecycler: {
     initialCursor: {
       source: "autorecycler",
-      phase: "ario",
-      yardIndex: 0,
+      phase: "freshness",
     } satisfies AutorecyclerCursor,
     maxPagesPerChunk: 10,
   },

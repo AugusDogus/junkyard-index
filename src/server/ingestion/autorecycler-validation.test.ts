@@ -13,13 +13,27 @@ describe("AutoRecycler terminal validation", () => {
       cursor: '{"phase":"page","beforeId":"1700000000000x1"}',
       accepted: false,
     },
-    { cursor: '{"phase":"complete"}', accepted: true },
+    { cursor: '{"phase":"complete"}', accepted: false },
+    {
+      cursor: JSON.stringify({
+        phase: "complete",
+        freshness: {
+          asOf: Date.parse("2026-11-15T12:00:00Z"),
+          legacy: {},
+          eligibleYards: ["yard-1"],
+        },
+      }),
+      accepted: true,
+    },
   ])(
     "requires an explicitly complete record-ID traversal (%j)",
     async ({ cursor, accepted }) => {
       const client = createClient({ url: ":memory:" });
       try {
         await client.executeMultiple(TEST_SCHEMA);
+        await client.execute(
+          "create table vehicle (source text, location_code text, missing_since_at integer)",
+        );
         const database = drizzle(client);
         const snapshotStore = IngestionSnapshotStore.memory();
         const repository = createDurableIngestionRepository(

@@ -1,4 +1,146 @@
-# AutoRecycler owned location refresh
+# AutoRecycler inventory and owned locations
+
+## Ario migration and freshness, November 15, 2026
+
+Most AutoRecycler customers moved from the Bubble feed to Ario in August 2026.
+The old feed still serves frozen rows, including a one-time October 2024 copy
+of twelve LKQ yards. Only A-1 Metals (CA) and JDM (NC) still add vehicles there.
+The twelve LKQ organization IDs and their children are excluded by the same
+ownership policy as Pull-A-Part. Their live inventory belongs to `pyp`.
+
+The `autorecycler` source now reads Ario for twenty verified customer yards,
+with nineteen currently fresh. Santa Maria is present but its newest addition
+is August 24, so it is hidden. Shelby (November 6) and Lincolnton (November 5)
+are current. The 263-yard Ario marketplace also mirrors Pick-N-Pull, Pick Your
+Part and Pull-A-Part. Those copies are not AutoRecycler customers and are not
+in the explicit customer allowlist. Do not broaden it based on name matches.
+
+The public SPA bundle exposes a browser publishable key and the anonymous
+`search-inventory` edge function on `zqfzqcyteuemzbnwtmcr.supabase.co`.
+The current search response includes VINs; the detail endpoint returns the same
+VIN and is not needed per vehicle. Vehicle links use `/search?yard=SLUG&inv=ID`.
+The client discovers the public bundle/key each chunk, makes serial requests
+2.2 seconds apart, and fails on HTTP or schema errors, including rate limits.
+No credentials or privileged Supabase access are used.
+
+Each Ario chunk reads one complete yard with 100-rank windows. Counts and yard
+identity must remain stable, and an independently fetched opening page must
+match before anything is emitted. Ario suppresses some rows after ranking:
+short or empty windows and `next_offset` do not prove completion. Every window
+through the declared rank bound is read. Suppressed and removed rows are explicit
+exclusions; malformed VINs or missing required fields are rejections.
+
+A yard qualifies only if a usable vehicle has an added date within the previous
+60 days, inclusive, and no later than the run's fixed clock. Sync timestamps,
+modification timestamps, missing dates and future additions cannot qualify it.
+All inventory from a qualifying yard is included, not only its recent arrivals.
+Fresh legacy yards are discovered by a bounded date-filtered keyset traversal
+before the Ario reads. If both feeds have a yard, the feed with the newest valid
+addition wins, with Ario winning ties. The existing organization location key is
+preserved. A stale yard emits neither metadata, vehicles nor VIN observations;
+its old vehicles enter normal missing-vehicle reconciliation and it returns
+automatically after a recent addition. No production data patch is required.
+
+The 100-vehicle overall floor, 10% rejection cap, 25% duplicate cap and 50% drift
+ratio remain unchanged. Drift now compares AutoRecycler against the published
+inventory of the still-eligible yards. It also checks the 50% limit per eligible
+yard, including a yard that unexpectedly emits zero vehicles. This permits
+intentional removal of stale or duplicate yards without weakening protection
+against a collapsed current yard. The measured eligible baseline is 19,582
+vehicles and the new snapshot has 19,544. Comparing to all 54,988 old rows would
+incorrectly block the intentional retirements. Old complete checkpoints without
+the freshness manifest are rejected. Start a new ingestion run after deployment.
+
+On the saved November 15 census, nineteen Ario yards supply 18,805 valid unique
+vehicles, and the two legacy yards supply 739, for 19,544 total. The supplied
+published baseline is 54,988. Reconciliation will retire roughly 35,406 rows
+from other yards: 16,819 LKQ copies and 18,587 closed, stale or unsupported yard
+rows (including Santa Maria, Paul's and Ryan's). The nineteen migrated yards'
+18,843 frozen rows are replaced by 18,805 current vehicles. The net source
+count falls by about 35,444. Some replacement VINs already exist, so 18,805 is
+current replacement inventory, not a claim of that many newly inserted VINs.
+Visibility follows the existing missing-run policy, not an immediate hard delete.
+Other directly ingested providers continue to own their live yards.
+
+Counts below compare the supplied per-yard published evidence with the complete
+saved replay. A-1 and JDM's before counts match their current accepted legacy
+inventories. Totals may drift before deployment.
+
+| Yard                                                               | State | Before | After | Result                   |
+| ------------------------------------------------------------------ | ----- | -----: | ----: | ------------------------ |
+| EZ Pull N Pay Birmingham                                           | AL    |    567 |   725 | Ario, current            |
+| EZ Pull N Pay Decatur                                              | AL    |    998 | 1,010 | Ario, current            |
+| EZ Pull N Pay Montgomery                                           | AL    |    995 | 1,078 | Ario, current            |
+| A&S Auto Wrecking Inc.                                             | CA    |      1 |     0 | Stale, hidden            |
+| A-1 METALS & AUTO SALVAGE INC                                      | CA    |    183 |   183 | Legacy, current          |
+| Ajax Auto Dismantlers                                              | CA    |     95 |     0 | Stale, hidden            |
+| Paso Robles Auto Wrecking                                          | CA    |      2 |     0 | Stale, hidden            |
+| Pick The Part                                                      | CA    |      3 |     0 | Stale, hidden            |
+| SAMSON AUTO SALVAGE                                                | CA    |    370 |   283 | Ario, current            |
+| San Luis Auto Salvage                                              | CA    |      1 |     0 | Stale, hidden            |
+| SANTA MARIA RECYCLING CENTER                                       | CA    |  4,207 |     0 | Ario also stale, hidden  |
+| Timos Auto Wrecking                                                | CA    |      3 |     0 | Stale, hidden            |
+| A & A Auto Recycling                                               | FL    |  1,106 | 1,134 | Ario, current            |
+| KIKER'S U PULL IT                                                  | FL    |    226 |     0 | Stale, hidden            |
+| EZ Pull N Pay Atlanta                                              | GA    |  1,032 | 1,043 | Ario, current            |
+| EZ Pull N Pay Columbus                                             | GA    |    936 |   940 | Ario, current            |
+| EZ Pull N Pay Stockbridge                                          | GA    |  1,111 | 1,104 | Ario, current            |
+| EZ Pull N Pay Warner Robins                                        | GA    |  1,176 | 1,158 | Ario, current            |
+| LKQ - FAYETTEVILLE                                                 | GA    |  1,031 |     0 | Duplicate, pyp owns yard |
+| LKQ - SAVANNAH                                                     | GA    |  1,651 |     0 | Duplicate, pyp owns yard |
+| Paul's - Elkhart                                                   | IN    |    857 |     0 | Stale, hidden            |
+| Paul's - Gary                                                      | IN    |    586 |     0 | Stale, hidden            |
+| Paul's - Knox                                                      | IN    |    425 |     0 | Stale, hidden            |
+| Paul's - Lake Station                                              | IN    |  1,210 |     0 | Stale, hidden            |
+| Paul's - Logansport                                                | IN    |    273 |     0 | Stale, hidden            |
+| Paul's - Westville                                                 | IN    |  1,428 |     0 | Stale, hidden            |
+| Paul's' - DeMotte                                                  | IN    |    509 |     0 | Stale, hidden            |
+| Pauls - Fort Wayne                                                 | IN    |  1,454 |     0 | Stale, hidden            |
+| Pauls - Merrilville                                                | IN    |  1,368 |     0 | Stale, hidden            |
+| Pauls's- South Bend                                                | IN    |  1,631 |     0 | Stale, hidden            |
+| AB Auto Salvage                                                    | LA    |     33 |     0 | Stale, hidden            |
+| Ryan's Pick-a-Part                                                 | MI    |  1,351 |     0 | Stale, hidden            |
+| Universal Auto and Recycling Group                                 | MO    |      3 |     0 | Stale, hidden            |
+| Auto Parts U Pull - Lincolnton                                     | NC    |    843 |   839 | Ario, current            |
+| Auto Parts U Pull - Shelby                                         | NC    |  1,968 | 1,315 | Ario, current            |
+| Foss Havelock                                                      | NC    |    553 |   504 | Ario, current            |
+| Foss Jacksonville                                                  | NC    |  1,136 | 1,137 | Ario, current            |
+| Foss La Grange                                                     | NC    |    968 |   968 | Ario, current            |
+| Foss Wilson                                                        | NC    |    741 |   713 | Ario, current            |
+| Foss Winston-Salem                                                 | NC    |  1,333 | 1,343 | Ario, current            |
+| Gaston Towing & Recovery                                           | NC    |      1 |     0 | Stale, hidden            |
+| JDM AUTOMOTIVE & RECYCLING                                         | NC    |    556 |   556 | Legacy, current          |
+| L AND L U-PULL AUTO PARTS                                          | NC    |  1,165 | 1,445 | Ario, current            |
+| LKQ - CHARLOTTE                                                    | NC    |  1,676 |     0 | Duplicate, pyp owns yard |
+| LKQ - DURHAM                                                       | NC    |  1,484 |     0 | Duplicate, pyp owns yard |
+| LKQ - EAST NC                                                      | NC    |    879 |     0 | Duplicate, pyp owns yard |
+| LKQ - GREENSBORO                                                   | NC    |  1,099 |     0 | Duplicate, pyp owns yard |
+| SOUTHERN AUTO SALVAGE                                              | NC    |    934 |     0 | Stale, hidden            |
+| U-Pull Auto Parts (AutoRecycler org name DIS & DAT AUTO RECYCLING) | NV    |    251 |     0 | Stale, hidden            |
+| A-Z U-PULL-IT USED AUTO PARTS INC.                                 | PA    |    764 |     0 | Stale, hidden            |
+| LKQ - CHARLESTON                                                   | SC    |    737 |     0 | Duplicate, pyp owns yard |
+| LKQ - GREER                                                        | SC    |  1,522 |     0 | Duplicate, pyp owns yard |
+| Pick Your Part - Greenville                                        | SC    |  1,001 |     0 | Duplicate, pyp owns yard |
+| LKQ - CHATTANOOGA                                                  | TN    |  2,326 |     0 | Duplicate, pyp owns yard |
+| LKQ - MEMPHIS                                                      | TN    |  1,580 |     0 | Duplicate, pyp owns yard |
+| LKQ - NASHVILLE                                                    | TN    |  1,833 |     0 | Duplicate, pyp owns yard |
+| American Parts Center                                              | TX    |      2 |     0 | Stale, hidden            |
+| ARIO AUTO PARTS (AutoRecycler house org, not a real yard)          | TX    |      2 |     0 | Stale, hidden            |
+| Gulf Bank Used Auto Parts                                          | TX    |      1 |     0 | Stale, hidden            |
+| Prestige Pull Your Part                                            | TX    |  1,033 | 1,305 | Ario, current            |
+| Sam's Auto Salvage                                                 | TX    |      2 |     0 | Stale, hidden            |
+| Foss Chesapeake                                                    | VA    |    812 |   761 | Ario, current            |
+| Long's Auto Recycling                                              | VA    |     23 |     0 | Stale, hidden            |
+| Yank A Part                                                        | WA    |    941 |     0 | Stale, hidden            |
+
+Offline fixtures and the full live request ledger are in
+`src/server/ingestion/fixtures/ario/`. In-bound pages and closing pages are saved
+responses. The legacy fixtures omit unrelated organization/account fields.
+Research stopped on Ario's hourly HTTP 429 limit; no challenge was bypassed.
+Tests never make network requests. Provider clients remain outside Workflow
+imports; cursor schemas import only the pure freshness state schema.
+
+## Earlier owned-location and legacy traversal work
 
 Yard geography must come from the yard's own organization or website record.
 Inventory GPS can name the requested organization while pointing to its parent

@@ -1,3 +1,4 @@
+import { selectAutorecyclerFeed } from "./autorecycler-freshness";
 import { Effect } from "effect";
 import {
   ArioYardsSchema,
@@ -20,6 +21,8 @@ import type { ConnectorChunkResult } from "./connector-chunk";
 export function streamArioYard<E, R>(
   options: {
     yardIndex: number;
+    asOf?: number;
+    legacyNewest?: number | null;
     onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
     onYards?: OnYards;
   },
@@ -37,7 +40,6 @@ export function streamArioYard<E, R>(
         if (
           matches.length !== 1 ||
           !yard ||
-          !yard.display_name ||
           !yard.display_name ||
           yard.id !== config.id ||
           yard.organization_id !== config.organizationId
@@ -75,13 +77,20 @@ export function streamArioYard<E, R>(
           seen.add(vehicle.vin);
           vehicles.push(vehicle);
         }
+        const selection = selectAutorecyclerFeed(
+          vehicles.map((vehicle) => Date.parse(vehicle.availableDate ?? "")),
+          options.legacyNewest ?? null,
+          options.asOf ?? Date.now(),
+        );
+        const published = selection === "ario" ? vehicles : [];
         return {
-          vehicles,
+          selection,
+          vehicles: published,
           geo,
           pages: inventory.pages,
-          rejected,
-          duplicates,
-          excluded,
+          rejected: selection === "ario" ? rejected : 0,
+          duplicates: selection === "ario" ? duplicates : 0,
+          excluded: selection === "ario" ? excluded : inventory.total,
           total: inventory.total,
           website: `${ARIO_ORIGIN}/yard/${config.slug}`,
         };
@@ -89,7 +98,7 @@ export function streamArioYard<E, R>(
       catch: (cause) =>
         new AutorecyclerProviderError({ from: options.yardIndex, cause }),
     });
-    if (options.onYards)
+    if (options.onYards && result.selection === "ario")
       yield* options.onYards([autorecyclerYard(result.geo, result.website)]);
     if (result.vehicles.length) yield* options.onBatch(result.vehicles);
     const next = options.yardIndex + 1;
@@ -98,6 +107,7 @@ export function streamArioYard<E, R>(
         ? { source: "autorecycler", phase: "ario", yardIndex: next }
         : { source: "autorecycler", phase: "page", beforeId: null };
     return {
+      selection: result.selection,
       source: "autorecycler",
       status: "paused",
       cursor,
@@ -110,6 +120,8 @@ export function streamArioYard<E, R>(
         recordsRejected: result.rejected,
         duplicateVehicles: result.duplicates,
       },
-    } satisfies ConnectorChunkResult<"autorecycler", AutorecyclerCursor>;
+    } satisfies ConnectorChunkResult<"autorecycler", AutorecyclerCursor> & {
+      selection: "ario" | "legacy" | "stale";
+    };
   });
 }

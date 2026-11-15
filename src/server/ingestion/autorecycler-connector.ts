@@ -1,3 +1,4 @@
+import { discoverFreshAutorecyclerYards } from "./autorecycler-freshness";
 import { streamArioYard } from "./autorecycler-ario-connector";
 import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
 import { autorecyclerYard, type OnYards } from "./yard-metadata";
@@ -213,9 +214,12 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
           const orgKey = autorecyclerOrgLookupKey(
             src.organization_custom_organization,
           );
-          if (orgKey && decisions.get(orgKey) === "direct-provider") {
+          if (
+            orgKey &&
+            ["direct-provider", "stale"].includes(decisions.get(orgKey) ?? "")
+          ) {
             recordsExcluded++;
-            mirroredRecords++;
+            if (decisions.get(orgKey) === "direct-provider") mirroredRecords++;
             continue;
           }
           const identityYear =
@@ -294,10 +298,12 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
       const lastId = yield* processPage(beforeId, json);
       // at_end can describe a capped query, not the provider feed. A fresh
       // query after the final unique ID must be empty before we can reconcile.
-      cursor =
+      const freshness = cursor.freshness;
+      const next: AutorecyclerCursor =
         lastId === null
           ? { source: "autorecycler", phase: "complete" }
           : { source: "autorecycler", phase: "page", beforeId: lastId };
+      cursor = freshness ? { ...next, freshness } : next;
     }
     const done = cursor.phase === "complete";
 
@@ -349,42 +355,108 @@ export function streamAutorecyclerInventory<E, R>(
   AutorecyclerProviderError | PersistenceError | E,
   Database | R
 > {
-  const cursor = options.startCursor ?? {
-    source: "autorecycler",
-    phase: "ario",
-    yardIndex: 0,
+  const cursor = AutorecyclerCursorSchema.parse(
+    options.startCursor ?? { source: "autorecycler", phase: "freshness" },
+  );
+  const emptyGeo = {
+    geoLookupCount: 0,
+    geoHitMemory: 0,
+    geoHitDb: 0,
+    geoFetches: 0,
+    geoMissAfterFetch: 0,
   };
-  if (cursor.phase === "ario")
-    return streamArioYard({ ...options, yardIndex: cursor.yardIndex }).pipe(
-      Effect.map((result) => ({
-        ...result,
-        geoStats: {
-          geoLookupCount: 0,
-          geoHitMemory: 0,
-          geoHitDb: 0,
-          geoFetches: 0,
-          geoMissAfterFetch: 0,
+  if (cursor.phase === "freshness")
+    return Effect.gen(function* () {
+      const freshness = yield* Effect.tryPromise({
+        try: () => discoverFreshAutorecyclerYards(Date.now()),
+        catch: (cause) => new AutorecyclerProviderError({ from: 0, cause }),
+      });
+      const decisions = yield* AutorecyclerSourcePolicy.create()(
+        Object.keys(freshness.legacy),
+      );
+      const legacy = Object.fromEntries(
+        Object.entries(freshness.legacy).filter(
+          ([id]) => decisions.get(id) !== "direct-provider",
+        ),
+      );
+      return {
+        source: "autorecycler" as const,
+        status: "paused" as const,
+        cursor: {
+          source: "autorecycler" as const,
+          phase: "ario" as const,
+          yardIndex: 0,
+          freshness: {
+            ...freshness,
+            legacy,
+            eligibleYards: Object.keys(legacy).map(
+              (id) => `1348695171700984260__LOOKUP__${id}`,
+            ),
+          },
         },
-      })),
+        count: 0,
+        errors: [],
+        pagesProcessed: 0,
+        geoStats: emptyGeo,
+      };
+    });
+  const freshness = cursor.freshness;
+  if (!freshness)
+    return Effect.fail(
+      new AutorecyclerProviderError({
+        from: 0,
+        cause: new Error(
+          "AutoRecycler checkpoint predates per-yard freshness. Start a new ingestion run; previously published inventory is preserved.",
+        ),
+      }),
+    );
+  if (cursor.phase === "ario")
+    return streamArioYard({
+      ...options,
+      yardIndex: cursor.yardIndex,
+      asOf: freshness.asOf,
+      legacyNewest:
+        freshness.legacy[
+          ARIO_CUSTOMER_YARDS[cursor.yardIndex]?.legacyId ?? ""
+        ] ?? null,
+    }).pipe(
+      Effect.map((result) => {
+        const yard = ARIO_CUSTOMER_YARDS[cursor.yardIndex];
+        if (!yard)
+          throw new Error("Ario cursor references a missing customer yard");
+        const legacy = { ...freshness.legacy };
+        if (result.selection !== "legacy") delete legacy[yard.legacyId];
+        const code = `1348695171700984260__LOOKUP__${yard.legacyId}`;
+        const eligibleYards = new Set(freshness.eligibleYards);
+        if (result.selection === "stale") eligibleYards.delete(code);
+        else eligibleYards.add(code);
+        return {
+          ...result,
+          cursor: {
+            ...result.cursor,
+            freshness: {
+              ...freshness,
+              legacy,
+              eligibleYards: [...eligibleYards],
+            },
+          },
+          geoStats: emptyGeo,
+        };
+      }),
     );
   const legacyPolicy = AutorecyclerSourcePolicy.create();
-  const migrated = new Set<string>(
-    ARIO_CUSTOMER_YARDS.map((yard) => yard.legacyId),
-  );
-  const policy: AutorecyclerSourcePolicy = (orgs) =>
-    legacyPolicy(orgs).pipe(
+  const policy: AutorecyclerSourcePolicy = (orgs) => {
+    const active = orgs.filter(
+      (org) =>
+        freshness.legacy[org.replace(/^\d+__LOOKUP__/, "")] !== undefined,
+    );
+    return legacyPolicy(active).pipe(
       Effect.map(
         (decisions) =>
-          new Map(
-            [...decisions].map(([org, decision]) => [
-              org,
-              migrated.has(org.replace(/^\d+__LOOKUP__/, ""))
-                ? "direct-provider"
-                : decision,
-            ]),
-          ),
+          new Map(orgs.map((org) => [org, decisions.get(org) ?? "stale"])),
       ),
     );
+  };
   return streamAutorecyclerInventoryWithPageFetcher(
     { ...options, startCursor: cursor },
     (beforeId, pageSize) =>
@@ -392,5 +464,10 @@ export function streamAutorecyclerInventory<E, R>(
         buildInventoryMsearchBody(beforeId, pageSize),
       ),
     policy,
+  ).pipe(
+    Effect.map((result) => ({
+      ...result,
+      cursor: { ...result.cursor, freshness },
+    })),
   );
 }

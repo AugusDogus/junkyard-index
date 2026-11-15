@@ -1,0 +1,10 @@
+import { z } from "zod";
+
+export const AutorecyclerFreshnessSchema = z
+  .object({
+    asOf: z.number().int().positive(),
+    legacy: z.record(z.string().regex(/^\d+x\d+$/), z.number().finite()),
+    eligibleYards: z.array(z.string().min(1)).max(1_000),
+  })
+  .strict();
+export type AutorecyclerFreshness = z.infer<typeof AutorecyclerFreshnessSchema>;
