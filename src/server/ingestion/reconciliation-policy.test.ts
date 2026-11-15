@@ -135,6 +135,7 @@ describe("reconciliation policy", () => {
       "jimsimport",
       "lonestarimports",
       "alshned",
+      "hollanderstores",
       "autorecycler",
     ]);
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
@@ -144,7 +145,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 76",
+      "when 'autorecycler' then 77",
     );
   });
 

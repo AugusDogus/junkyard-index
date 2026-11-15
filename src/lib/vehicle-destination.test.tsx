@@ -164,6 +164,10 @@ describe("manual provider destinations across search, durable alerts and present
       "https://www.lonestarimport.com/new-arrivals?stock=LS11016",
     ],
     [
+      "hollanderstores",
+      "https://leblancsauto.hollanderstores.com/VehicleDealerShowParts/4573/72737080",
+    ],
+    [
       "alshned",
       "https://alshnedauto.com/products/donor-vehicle-2016-nissan-murano-platinum-brown",
     ],

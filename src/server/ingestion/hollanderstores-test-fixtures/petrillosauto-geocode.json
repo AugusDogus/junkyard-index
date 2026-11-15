@@ -1,0 +1,34 @@
+{
+  "result": {
+    "input": {
+      "address": { "address": "150 Middletown Ave, New Haven, CT 06513" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "L", "tigerLineId": "3703096" },
+        "coordinates": { "x": -72.886238222811, "y": 41.323233531351 },
+        "addressComponents": {
+          "zip": "06513",
+          "streetName": "MIDDLETOWN",
+          "preType": "",
+          "city": "NEW HAVEN",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "100",
+          "state": "CT",
+          "suffixType": "AVE",
+          "toAddress": "152",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "150 MIDDLETOWN AVE, NEW HAVEN, CT, 06513"
+      }
+    ]
+  }
+}

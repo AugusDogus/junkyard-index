@@ -1,0 +1,34 @@
+{
+  "result": {
+    "input": {
+      "address": { "address": "W4726 County Road A, Fredonia, WI 53021" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "L", "tigerLineId": "95904381" },
+        "coordinates": { "x": -88.022746168222, "y": 43.469140113527 },
+        "addressComponents": {
+          "zip": "53021",
+          "streetName": "A",
+          "preType": "CO HWY",
+          "city": "FREDONIA",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "W4898",
+          "state": "WI",
+          "suffixType": "",
+          "toAddress": "W4400",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "W4726 CO HWY A, FREDONIA, WI, 53021"
+      }
+    ]
+  }
+}

@@ -29,6 +29,7 @@ import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 import { LonestarimportsCursor } from "./lonestarimports-cursor";
+import { HollanderstoresCursor } from "./hollanderstores-cursor";
 import { AlshnedCursor } from "./alshned-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
@@ -353,6 +354,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   alshned: {
     initialCursor: AlshnedCursor.initial,
     maxPagesPerChunk: 12,
+  },
+  hollanderstores: {
+    initialCursor: HollanderstoresCursor.initial(),
+    maxPagesPerChunk: 1,
   },
 };
 

@@ -1,0 +1,95 @@
+{
+  "capturedDate": "2026-11-15",
+  "responses": [
+    {
+      "file": "blvdautoparts-closing.html.gz",
+      "sha256": "c246e2f33232859e4bf687adb7bf8bea324f89e0f49d7d28c6009313b8b8c58f",
+      "bytes": 350696,
+      "url": "https://blvdautoparts.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "blvdautoparts.html.gz",
+      "sha256": "c246e2f33232859e4bf687adb7bf8bea324f89e0f49d7d28c6009313b8b8c58f",
+      "bytes": 350696,
+      "url": "https://blvdautoparts.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "kirchhaynautopa-closing.html.gz",
+      "sha256": "54b2922c1f3107eb6fe50c8ce1052ada56866fe094652bf798163173d52ff96d",
+      "bytes": 470257,
+      "url": "https://kirchhaynautopa.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "kirchhaynautopa.html.gz",
+      "sha256": "54b2922c1f3107eb6fe50c8ce1052ada56866fe094652bf798163173d52ff96d",
+      "bytes": 470257,
+      "url": "https://kirchhaynautopa.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "leblancsauto-closing.html.gz",
+      "sha256": "7d8f91fbcfbf22e7343d936b23cfff2fec0f7b9da3972738d16966dc5e837459",
+      "bytes": 2119471,
+      "url": "https://leblancsauto.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "leblancsauto.html.gz",
+      "sha256": "7d8f91fbcfbf22e7343d936b23cfff2fec0f7b9da3972738d16966dc5e837459",
+      "bytes": 2119471,
+      "url": "https://leblancsauto.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "petrillosauto-closing.html.gz",
+      "sha256": "a9b05d9744846f21e2df009bf91cb567477b6810892003dc27b0a147ffe0ef95",
+      "bytes": 265879,
+      "url": "https://petrillosauto.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "petrillosauto.html.gz",
+      "sha256": "a6a1a09ad9fc29d034658e32fc1f1fbba39a837e4a932913acd5844510a1cddd",
+      "bytes": 265879,
+      "url": "https://petrillosauto.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "standardauto-closing.html.gz",
+      "sha256": "48c377b0ecc125b41b93132bf5741aadcb70902a09f9431147d57902217fb999",
+      "bytes": 354692,
+      "url": "https://standardauto.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    },
+    {
+      "file": "standardauto.html.gz",
+      "sha256": "48c377b0ecc125b41b93132bf5741aadcb70902a09f9431147d57902217fb999",
+      "bytes": 354692,
+      "url": "https://standardauto.hollanderstores.com/VehicleDealerSearch",
+      "method": "POST",
+      "body": "hdnChangeDisplay=card",
+      "status": 200
+    }
+  ]
+}
