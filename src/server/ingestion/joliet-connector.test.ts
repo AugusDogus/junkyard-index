@@ -66,6 +66,9 @@ function mock(
   let contexts = 0;
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get("User-Agent")).toBe(
+        "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0",
+      );
       const url = input instanceof Request ? input.url : String(input);
       let kind: Kind;
       let body: string;
