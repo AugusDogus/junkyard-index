@@ -16,6 +16,7 @@ Providing Fresh Inventory at a Fair Price is What We Do Best.
 Self-Serve Locations Visiting our self-serve locations
 Midway U Pull - Muncie 6345 Kansas Ave Kansas City, KS 66111 913-287-6185
 Midway U Pull - Liberty 1101 Old State Hwy 210 Liberty, MO 64068 816-781-4886
+Midway U Pull - Tulsa 13802 E Apache St Tulsa, OK 74116 918-234-4444
 </body></html>`;
 
 export function midwayTestRow(record: MidwayRecord = midwayTestRecord) {

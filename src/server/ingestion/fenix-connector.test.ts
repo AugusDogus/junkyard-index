@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { Effect } from "effect";
 import { streamFenixInventoryWithRequestGate } from "./fenix-connector";
 import { FenixCursor, FenixCursorSchema } from "./fenix-cursor";
@@ -20,6 +21,34 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
+
+test("Fenix stops after the saved Moultrie HTTP 403 without staging donors", async () => {
+  const body = readFileSync(
+    new URL("./fenix-test-fixtures/moultrie-forbidden.html", import.meta.url),
+    "utf8",
+  );
+  let requests = 0;
+  let batches = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      requests++;
+      return new Response(body, {
+        status: 403,
+        headers: { "content-type": "text/html" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  await expect(
+    run(undefined, undefined, () =>
+      Effect.sync(() => {
+        batches++;
+      }),
+    ),
+  ).rejects.toThrow("unredirected HTTP 200");
+  expect(requests).toBe(1);
+  expect(batches).toBe(0);
+});
 function record(yard: FenixYardCode, index = 1): FenixRecord {
   const offset = FENIX_YARD_CODES.indexOf(yard) * 1000 + index;
   const id = String(204000000 + offset);
@@ -28,7 +57,7 @@ function record(yard: FenixYardCode, index = 1): FenixRecord {
     id,
     stock: id,
     vin: "1FMFU16LX4LA" + String(offset).padStart(5, "0"),
-    location: FENIX_YARDS[yard].city + ", NY",
+    location: FENIX_YARDS[yard].city + ", " + FENIX_YARDS[yard].state,
     photoUrl: null,
   };
 }
@@ -64,7 +93,9 @@ function mockInventory(
             ? "binghamton"
             : cookie === "fnx_location=3"
               ? "east-syracuse"
-              : null;
+              : cookie === "fnx_location=4"
+                ? "moultrie"
+                : null;
       if (!yard)
         throw new Error("Unexpected native public location preference");
       const order =
@@ -104,7 +135,7 @@ const run = (
     ),
   );
 
-test("Fenix completes both published orders and controls for all three physical yards", async () => {
+test("Fenix completes both published orders and controls for all four physical yards", async () => {
   const requests = mockInventory();
   const vehicles: FenixCanonicalVehicle[] = [];
   const result = await run(undefined, undefined, (batch) =>
@@ -114,11 +145,11 @@ test("Fenix completes both published orders and controls for all three physical 
   );
   expect(result).toMatchObject({
     status: "complete",
-    count: 3,
-    pagesProcessed: 18,
+    count: 4,
+    pagesProcessed: 24,
     accounting: {
-      recordsProcessed: 6,
-      recordsExcluded: 3,
+      recordsProcessed: 8,
+      recordsExcluded: 4,
       recordsRejected: 0,
       duplicateVehicles: 0,
     },
@@ -127,9 +158,9 @@ test("Fenix completes both published orders and controls for all three physical 
   expect(vehicles.every((v) => v.color === null && v.imageUrl === null)).toBe(
     true,
   );
-  expect(requests).toHaveLength(18);
+  expect(requests).toHaveLength(24);
   expect((await run(result.cursor)).count).toBe(0);
-  expect(requests).toHaveLength(18);
+  expect(requests).toHaveLength(24);
 });
 
 test("Fenix date-tie union recovers donors missing from each order across serialized checkpoints", async () => {
@@ -146,7 +177,7 @@ test("Fenix date-tie union recovers donors missing from each order across serial
   const vehicles: FenixCanonicalVehicle[] = [];
   let rejected = 0;
   let duplicates = 0;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 60; i++) {
     const chunk = await run(cursor, 3, (batch) =>
       Effect.sync(() => {
         vehicles.push(...batch);
@@ -158,9 +189,9 @@ test("Fenix date-tie union recovers donors missing from each order across serial
     if (chunk.status === "complete") break;
   }
   expect(cursor.phase).toBe("complete");
-  expect(vehicles).toHaveLength(153);
-  expect(new Set(vehicles.map((v) => v.vin)).size).toBe(153);
-  expect(duplicates).toBe(6);
+  expect(vehicles).toHaveLength(204);
+  expect(new Set(vehicles.map((v) => v.vin)).size).toBe(204);
+  expect(duplicates).toBe(8);
   expect(rejected).toBe(0);
 });
 
@@ -184,9 +215,9 @@ test("Fenix preserves eligible rejected VIN presence and enforces per-yard rejec
       })),
   });
   const result = await run();
-  expect(result.count).toBe(30);
-  expect(result.observedVins).toHaveLength(3);
-  expect(result.accounting?.recordsRejected).toBe(3);
+  expect(result.count).toBe(40);
+  expect(result.observedVins).toHaveLength(4);
+  expect(result.accounting?.recordsRejected).toBe(4);
   mockInventory({
     records: (yard) =>
       Array.from({ length: 9 }, (_, i) => ({
@@ -309,13 +340,13 @@ test("Fenix emits genuine optional photos without making image requests", async 
       vehicles.push(...batch);
     }),
   );
-  expect(vehicles).toHaveLength(3);
+  expect(vehicles).toHaveLength(4);
   expect(
     vehicles.every((vehicle) =>
       vehicle.imageUrl?.endsWith(`${vehicle.stockNumber}_1-150x100.jpg`),
     ),
   ).toBe(true);
-  expect(requests).toHaveLength(18);
+  expect(requests).toHaveLength(24);
 });
 
 test("Fenix retains the within-order duplicate limit even when the union is complete", async () => {

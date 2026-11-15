@@ -1,6 +1,16 @@
 # Fenix U-Pull ingestion
 
-The connector covers three native New York U-Pull yards only. It uses the published `fnx_location` preference on `https://fenixupull.com/recent-inventory/`: Elmira `1`, Binghamton `2`, East Syracuse `3`. Moultrie, GA and obsolete Belleville, MI are outside this source scope. The Fenix Parts full-service search is a separate inventory surface.
+The connector covers Elmira, Binghamton and East Syracuse in New York, plus Moultrie, Georgia. It uses native `fnx_location` preferences 1, 2, 3 and 4 on `https://fenixupull.com/recent-inventory/`. Obsolete Belleville remains outside scope.
+
+## Moultrie qualification, November 15
+
+The exact production profile (`JunkyardIndex/1.0`, `Accept: text/html`, location cookie 4, redirect error and the 1.6-second gate) returned real HTTP 200 inventory. No header workaround was needed. The historical raw-browser 403 remains saved as evidence of that earlier request, not the current transport result.
+
+All 24 pages in both date orders and four fresh bookends passed: 1,168 distinct donors, 1,152 accepted and 16 rejected (1.37%). The follow-up used 52 provider GETs and one Census lookup. Full four-yard runtime replay is `fenix-expansion.test.ts`, using saved raw responses only. The legacy native `/inventory/STK000524` route is accepted only when its stock ownership matches.
+
+The published address is 232 Industrial Road, Moultrie GA 31768. Census matches the street, number, city and state but returns ZIP 31788. Its street-range coordinate is 31.186237400954, -83.734815292513. This postal discrepancy is preserved, and the native map view center is separate evidence.
+
+Admission: `.scratchpad/provider-coverage/nov14-provider-goal/fenix-moultrie-local-admission.json`. New captures: `fenix-expansion/production-opening.{html,json}`, `qualified-census.json` and the Census receipt. Existing source rollout remains unchanged.
 
 The native page explicitly describes its full current yard inventory. The ten-column table supplies native VIN or older serial, year, make, model, yard, detail destination, and optional placement metadata. A valid native detail link is required. Optional color, stock, photo, date, and yard position never cause a missing-field rejection. Genuine optional values are preserved; unusable values become null. Photos retain the exact native donor-bound thumbnail URL, without fetching bytes or inventing larger images. Missing, unsafe, unrelated-owner, and placeholder image references become null. A source row explicitly marked held, sold, crushed, removed, or inactive fails active-donor admission.
 

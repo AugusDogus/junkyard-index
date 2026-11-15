@@ -70,6 +70,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     clearsalvage: 0,
     aplus: 0,
     central: 0,
+    northwest: 0,
     coutu: 0,
     kodak: 0,
     six03: 0,

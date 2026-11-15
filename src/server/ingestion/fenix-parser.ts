@@ -15,9 +15,10 @@ import {
 } from "./fenix-yard-metadata";
 
 const field = z.string().max(300);
+export const FenixDetailIdSchema = z.string().regex(/^(?:\d{1,20}|STK\d{6})$/);
 export const FenixRecordSchema = z
   .object({
-    id: z.string().regex(/^\d{1,20}$/),
+    id: FenixDetailIdSchema,
     datePlacedInYard: field,
     make: field,
     model: field,
@@ -111,7 +112,7 @@ export function parseFenixInventory(
   if (
     !attr(body, "class")
       ?.split(/\s+/)
-      .includes(yard + "-ny") ||
+      .includes(yard + "-" + FENIX_YARDS[yard].state.toLowerCase()) ||
     !scopeText.includes(
       "View the full inventory of cars placed in our yard.",
     ) ||
@@ -177,7 +178,7 @@ export function parseFenixInventory(
         url.password ||
         url.search ||
         url.hash ||
-        !/^\/inventory\/\d{1,20}\/?$/.test(url.pathname)
+        !/^\/inventory\/(?:\d{1,20}|STK\d{6})\/?$/.test(url.pathname)
       )
         throw new Error("Fenix donor detail destination is invalid");
       return url.pathname.split("/")[2];
@@ -203,8 +204,10 @@ export function parseFenixInventory(
       photoUrl,
     });
     if (
-      record.location !== `${FENIX_YARDS[yard].city}, NY` ||
-      (/^[1-9]\d{8}$/.test(record.stock) && record.stock !== id)
+      record.location !==
+        `${FENIX_YARDS[yard].city}, ${FENIX_YARDS[yard].state}` ||
+      ((/^[1-9]\d{8}$/.test(record.stock) || id.startsWith("STK")) &&
+        record.stock !== id)
     )
       throw new Error(
         "Fenix donor yard or stock ownership disagrees with its native detail",

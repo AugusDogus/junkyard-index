@@ -10,6 +10,26 @@ import { algoliaHitToSearchVehicle } from "./search-vehicles";
 import type { DataSource, SearchVehicle } from "./types";
 import { VehicleDestination } from "./vehicle-destination";
 
+test.each(["MO38", "MO09", "OO95"])(
+  "Midway manual inventory links retain yard %s",
+  (yard) => {
+    const href = `https://midwayupull.com/inventory/ANY/ANY/?k=1&id=${yard}&view=table`;
+    expect(
+      VehicleDestination.resolve({ source: "midway", detailsUrl: href }),
+    ).toMatchObject({ kind: "manual-search", href });
+  },
+);
+
+test.each(["pickerstxk.com", "pickerslongview.com", "pickersreno.com"])(
+  "Pickers manual inventory links retain the physical yard %s",
+  (host) => {
+    const href = `https://${host}/Home/Inventory`;
+    expect(
+      VehicleDestination.resolve({ source: "pickers", detailsUrl: href }),
+    ).toMatchObject({ kind: "manual-search", href });
+  },
+);
+
 test("Indian River uses the searchable catalog instead of shared paperwork URLs", () => {
   expect(
     VehicleDestination.resolve({

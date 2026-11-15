@@ -8,7 +8,7 @@ export const MidwayCursorSchema = z
       .object({
         source: z.literal("midway"),
         phase: z.literal("yard"),
-        yardCode: z.enum(["MO38", "MO09"]),
+        yardCode: z.enum(["MO38", "MO09", "OO95"]),
         observedVins: z.array(z.string().min(5).max(17)).max(10_000),
         stocks: z.array(z.string().min(2).max(40)).max(10_000),
       })

@@ -76,7 +76,7 @@ const run = (
     ),
   );
 
-test("Midway validates and emits both complete selected yards with no photo requests", async () => {
+test("Midway emits its first two yards before advancing to Tulsa", async () => {
   const requests = mockInventory();
   const vehicles: MidwayCanonicalVehicle[] = [];
   const result = await run((batch) =>
@@ -85,7 +85,7 @@ test("Midway validates and emits both complete selected yards with no photo requ
     }),
   );
   expect(result).toMatchObject({
-    status: "complete",
+    status: "paused",
     count: 2,
     pagesProcessed: 2,
     accounting: {
@@ -107,7 +107,8 @@ test("Midway resumes at the next yard without recrawling the accepted first tabl
   expect(first.status).toBe("paused");
   const requests = mockInventory();
   const second = await run(undefined, first.cursor, 1);
-  expect(second.status).toBe("complete");
+  expect(second.status).toBe("paused");
+  expect(second.cursor).toMatchObject({ phase: "yard", yardCode: "OO95" });
   expect(second.count).toBe(1);
   expect(requests.map((url) => new URL(url).searchParams.get("id"))).toEqual([
     null,

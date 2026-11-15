@@ -6,6 +6,7 @@ import {
 } from "./midway-client";
 import { MidwayCursor, MidwayCursorSchema } from "./midway-cursor";
 import { parseMidwayCatalog } from "./midway-parser";
+import { fetchMidwayMakeEnumeration } from "./midway-catalog";
 import {
   parseMidwayStockNumber,
   transformMidwayRecord,
@@ -72,9 +73,34 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
       const previousVins = cursor.observedVins;
       const previousStocks = cursor.stocks;
       const html = yield* fetchMidwayCatalog(code, gate);
+      const partitioned =
+        code === "OO95"
+          ? yield* fetchMidwayMakeEnumeration(html, code, gate)
+          : null;
+      if (code === "OO95") {
+        const closing = yield* fetchMidwayCatalog(code, gate);
+        yield* Effect.try({
+          try: () => {
+            if (
+              JSON.stringify(
+                parseMidwayCatalog(html, code, undefined, true),
+              ) !==
+              JSON.stringify(parseMidwayCatalog(closing, code, undefined, true))
+            )
+              throw new Error(
+                "Midway Tulsa broad closing witness changed during make enumeration",
+              );
+          },
+          catch: (cause) =>
+            new MidwayProviderError({
+              operation: "Tulsa closing coverage witness",
+              cause,
+            }),
+        });
+      }
       const snapshot = yield* Effect.try({
         try: () => {
-          const records = parseMidwayCatalog(html, code);
+          const records = partitioned ?? parseMidwayCatalog(html, code);
           const vins = new Set(previousVins);
           const stocks = new Set(previousStocks);
           const vehicles: MidwayCanonicalVehicle[] = [];
@@ -130,11 +156,11 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
       observedVins.push(...snapshot.rejectedVins);
       pagesProcessed++;
       cursor =
-        code === "MO38"
+        code !== "OO95"
           ? {
               source: "midway",
               phase: "yard",
-              yardCode: "MO09",
+              yardCode: code === "MO38" ? "MO09" : "OO95",
               observedVins: snapshot.vins,
               stocks: snapshot.stocks,
             }
@@ -157,12 +183,12 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
     } satisfies MidwayStreamResult;
   }).pipe(
     Effect.timeoutFail({
-      duration: "2 minutes",
+      duration: "5 minutes",
       onTimeout: () =>
         new MidwayProviderError({
           operation: "catalog budget",
           cause:
-            "Two-minute crawl limit exceeded; no completed checkpoint returned",
+            "Five-minute crawl limit exceeded; no completed checkpoint returned",
         }),
     }),
   );

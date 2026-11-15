@@ -14,8 +14,7 @@ The official [homepage](https://midwayupull.com/) verifies each physical yard,
 phone and self-service scope. Native selector codes determine ownership. The
 shared `mo06` image-storage prefix does not determine a vehicle's physical yard.
 Coordinates come from the separately hash-verified AutoSalvageYards map entries
-matching these native yard names and cities. Tulsa and Aesop full-service sites
-are outside this connector's scope. Tulsa's later required-field check remains
+matching these native yard names and cities. Aesop full-service sites remain outside this connector's scope. Tulsa is admitted by the November 15 make traversal below. Tulsa's later required-field check remains
 unqualified because its broad native view is incomplete, as recorded below.
 
 ## Tulsa completeness check, November 12
@@ -92,3 +91,36 @@ Its qualification audit is under that lane's
 `requalification/evidence/midway-*-current-enumeration.json`. The snapshots have
 763 valid unique VINs, no cross-yard overlap and zero required-field rejection.
 Research qualification and local replay do not authorize production enablement.
+
+## Tulsa complete make qualification, November 15
+
+Tulsa (`OO95`) qualifies locally and joins the existing Muncie and Liberty
+traversal. The source remains disabled by default.
+
+The native broad table is capped at 500. The complete traversal visits all
+59 distinct published makes once, including the menu's duplicated NISSAN value.
+Every partition contains fewer than 500 rows. Scoped native empty responses
+prove their make, ANY model and Tulsa yard with their published controls.
+An inline Cloudflare JSD script in these normal HTTP 200 pages is not a block.
+
+The union contains 1,083 donors: 1,064 accepted, 19 rejected (1.75%), and no
+duplicate stocks or VINs. Both broad 500-row witnesses are fully covered and
+the fresh closing witness is unchanged. Quality and duplicate checks finish
+before the Tulsa batch or yard callbacks. Rejected valid VINs remain presence
+evidence. A five-minute request budget accommodates the complete make crawl.
+
+The native home page publishes 13802 E Apache St, Tulsa OK 74116 and
+918-234-4444. The US Census geocoder matches that exact address at
+36.191506616229, -95.823681530963. This is street-range interpolation over
+12900-14198 E Apache St, not a rooftop coordinate.
+
+This follow-up made 61 provider requests (home, 59 make pages and one closing
+broad page) and one Census request. All returned HTTP 200 using production
+headers and pacing. The earlier saved opening was reused.
+
+Evidence: `.scratchpad/provider-coverage/nov14-provider-goal/midway-expansion/`.
+Admission: `midway-tulsa-local-admission.json` in its parent directory.
+`midway-test-fixtures/tulsa-census.json.gz` stores complete response bodies,
+prior-yard identities and the Census response. `midway-expansion.test.ts`
+replays the actual production collector, all 59 controls, explicit empty pages,
+closing, yard link targets and exact accounting without live requests.

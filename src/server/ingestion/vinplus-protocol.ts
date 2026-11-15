@@ -78,6 +78,7 @@ function recordSchema(scope: VinplusScope) {
       yardLocation: z.literal(scope.yardName),
       sourceSystem: z.literal(scope.sourceSystem),
       demo_offset_seconds: z.null().optional(),
+      recencyAnchor: z.unknown().optional(),
       vin: z.unknown().optional(),
       make: z.unknown().optional(),
       model: z.unknown().optional(),
@@ -100,6 +101,7 @@ export function parseVinplusSearch(
   raw: string,
   scope: VinplusScope,
   pair: VinplusPair,
+  duplicateStocks: "reject" | "retain" = "reject",
 ): VinplusRecord[] {
   const response = z
     .object({
@@ -120,8 +122,9 @@ export function parseVinplusSearch(
     .parse(JSON.parse(raw));
   if (
     response.match_count !== response.matches.length ||
-    new Set(response.matches.map((record) => record.stock)).size !==
-      response.matches.length
+    (duplicateStocks === "reject" &&
+      new Set(response.matches.map((record) => record.stock)).size !==
+        response.matches.length)
   )
     throw new Error(
       "VinPlus search returned a partial match count or duplicate native stock",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gunzipSync, gzipSync } from "node:zlib";
 import {
   PICKERS_MAX_MAKES,
   PICKERS_MAX_NATIVE_STOCKS,
@@ -8,6 +9,7 @@ import {
   PICKERS_MAX_RESPONSE_BYTES,
   PICKERS_MAX_STOCKS,
   PICKERS_SCOPE,
+  pickersScope,
   PickersHashSchema,
   PickersNativeRowSchema,
   PickersPairSchema,
@@ -27,6 +29,9 @@ import {
   PICKERS_LOCATION_ID,
   PICKERS_SEARCH_URL,
   PICKERS_YARD,
+  PICKERS_SITES,
+  PICKERS_DEFAULT_SITE,
+  type PickersSite,
 } from "./pickers-yard-metadata";
 import { vinplusQuery } from "./vinplus-protocol";
 import { SourceValidationPolicy } from "./source-validation";
@@ -98,6 +103,7 @@ const receiptSchema = z
     index: integer.max(PICKERS_MAX_QUERIES - 1),
     payloadHash: PickersHashSchema,
     bodyHash: PickersHashSchema,
+    comparisonHash: PickersHashSchema.optional(),
     bytes: integer.max(4 * 1024 * 1024),
     members: z.array(member).max(PICKERS_MAX_STOCKS),
     own: z
@@ -121,6 +127,9 @@ const guardSchema = z
 export type PickersGuard = z.infer<typeof guardSchema>;
 const stateSchema = z
   .object({
+    siteCode: z
+      .enum(["pickers-texarkana", "pickers-longview", "pickers-reno"])
+      .optional(),
     scopeHash: PickersHashSchema,
     ownerHash: PickersHashSchema,
     appHash: PickersHashSchema,
@@ -217,8 +226,9 @@ export function pickersEntry(
   record: PickersRecord,
   native: PickersNativeRow | null,
   firstQuery: number,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
 ): PickersEntry {
-  const result = transformPickersRecord(native, record);
+  const result = transformPickersRecord(native, record, site);
   if (result.status === "incomplete" && result.reason === "missing-enrichment")
     throw new Error("API entry cannot have a missing-enrichment disposition");
   return {
@@ -242,9 +252,20 @@ export function pickersEntry(
   };
 }
 export function pickersScopeHash(
-  state: Pick<PickersState, "ownerHash" | "appHash" | "configHash" | "makes">,
+  state: Pick<
+    PickersState,
+    "siteCode" | "ownerHash" | "appHash" | "configHash" | "makes"
+  >,
 ): string {
-  return pickersHash({ policy: PICKERS_POLICY_HASH, ...state });
+  // Absence is the original Texarkana v1 shape, preserving saved checkpoints.
+  const { siteCode, ...scope } = state;
+  return pickersHash({
+    policy: PICKERS_POLICY_HASH,
+    ...(siteCode && siteCode !== "pickers-texarkana"
+      ? { site: PICKERS_SITES[siteCode] }
+      : {}),
+    ...scope,
+  });
 }
 export function pickersPayload(
   kind: PickersReceipt["kind"],
@@ -263,8 +284,12 @@ export function pickersPayload(
     ];
   if (!pair) throw new Error("Public control index is outside pair directory");
   return {
-    ...vinplusQuery(PICKERS_SCOPE, pair),
-    location_id: PICKERS_LOCATION_ID,
+    ...vinplusQuery(
+      pickersScope(PICKERS_SITES[state.siteCode ?? "pickers-texarkana"]),
+      pair,
+    ),
+    location_id:
+      PICKERS_SITES[state.siteCode ?? "pickers-texarkana"].locationId,
   };
 }
 export function pickersReceipt(
@@ -305,6 +330,7 @@ export function pickersTerminal(state: PickersState) {
     result: transformPickersRecord(
       rows.get(stock) ?? null,
       records.get(stock) ?? null,
+      PICKERS_SITES[state.siteCode ?? "pickers-texarkana"],
     ),
   }));
   const vehicles = ledger.flatMap(({ result }) =>
@@ -357,6 +383,7 @@ function verify(cursor: Exclude<RawCursor, { phase: "start" }>): void {
     cursor.progressHash !== progressHash(cursor) ||
     state.scopeHash !==
       pickersScopeHash({
+        siteCode: state.siteCode,
         ownerHash: state.ownerHash,
         appHash: state.appHash,
         configHash: state.configHash,
@@ -384,6 +411,7 @@ function verify(cursor: Exclude<RawCursor, { phase: "start" }>): void {
           entry.record,
           rows.get(entry.record.stock) ?? null,
           entry.firstQuery,
+          PICKERS_SITES[state.siteCode ?? "pickers-texarkana"],
         ),
       )
     )
@@ -539,7 +567,8 @@ function verify(cursor: Exclude<RawCursor, { phase: "start" }>): void {
           );
           if (
             !original ||
-            receipt.bodyHash !== original.bodyHash ||
+            (receipt.comparisonHash ?? receipt.bodyHash) !==
+              (original.comparisonHash ?? original.bodyHash) ||
             !same(receipt.members, original.members) ||
             receipt.newStocks ||
             receipt.overlap
@@ -690,7 +719,7 @@ export const PickersCursor = {
       ...cursor,
       progressHash: pickersHash(cursor),
     });
-    bounded(JSON.stringify(parsed));
+    PickersCursor.serialize(parsed);
     return parsed;
   },
   complete(state: PickersState): PickersCursor {
@@ -706,12 +735,26 @@ export const PickersCursor = {
       ...cursor,
       progressHash: progressHash(cursor),
     });
-    bounded(JSON.stringify(parsed));
+    PickersCursor.serialize(parsed);
     return parsed;
   },
   parse(serialized: string): PickersCursor {
     bounded(serialized);
-    const value: unknown = JSON.parse(serialized);
+    let value: unknown = JSON.parse(serialized);
+    const compressed = z
+      .object({
+        encoding: z.literal("gzip-base64"),
+        data: z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/),
+      })
+      .strict()
+      .safeParse(value);
+    if (compressed.success) {
+      value = JSON.parse(
+        gunzipSync(Buffer.from(compressed.data.data, "base64"), {
+          maxOutputLength: 4 * PICKERS_MAX_CURSOR_BYTES,
+        }).toString("utf8"),
+      );
+    }
     const payload = z
       .object({ source: z.literal("pickers").optional() })
       .passthrough()
@@ -723,6 +766,20 @@ export const PickersCursor = {
     const payload = Object.fromEntries(
       Object.entries(parsed).filter(([key]) => key !== "source"),
     );
-    return bounded(JSON.stringify(payload));
+    const wire = JSON.stringify(payload);
+    if (Buffer.byteLength(wire) > 4 * PICKERS_MAX_CURSOR_BYTES)
+      throw new Error(
+        "Pickers decoded checkpoint exceeds 4 MiB; prior checkpoint and inventory are preserved",
+      );
+    // Keep the durable 1 MiB limit and every original field. Larger yards need
+    // compression, with a separate bounded decode to reject compressed bombs.
+    return bounded(
+      Buffer.byteLength(wire) <= PICKERS_MAX_CURSOR_BYTES
+        ? wire
+        : JSON.stringify({
+            encoding: "gzip-base64",
+            data: gzipSync(wire).toString("base64"),
+          }),
+    );
   },
 } as const;

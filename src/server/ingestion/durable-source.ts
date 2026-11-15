@@ -38,7 +38,7 @@ import { LittletonCursor } from "./littleton-cursor";
 import { MichigantruckCursor } from "./michigantruck-cursor";
 import { JolietCursor } from "./joliet-cursor";
 import { Alln1Cursor } from "./alln1-cursor";
-import { PickersCursor } from "./pickers-cursor";
+import { PickersCoverageCursor } from "./pickers-coverage-cursor";
 import { PipesCursor } from "./pipes-cursor";
 import { UwrenchCursor } from "./uwrench-cursor";
 import { MillerstownCursor } from "./millerstown-cursor";
@@ -52,6 +52,7 @@ import { AwapCursor } from "./awap-cursor";
 import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
+import { NorthwestCursor } from "./northwest-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
 import { Six03Cursor } from "./six03-cursor";
@@ -239,7 +240,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
-  pickers: { initialCursor: PickersCursor.initial, maxPagesPerChunk: 16 },
+  pickers: {
+    initialCursor: PickersCoverageCursor.initial,
+    maxPagesPerChunk: 16,
+  },
   pipes: { initialCursor: PipesCursor.initial, maxPagesPerChunk: 8 },
   uwrench: { initialCursor: UwrenchCursor.initial, maxPagesPerChunk: 16 },
   millerstown: {
@@ -262,6 +266,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   aplus: { initialCursor: AplusCursor.initial, maxPagesPerChunk: 8 },
   central: { initialCursor: CentralCursor.initial, maxPagesPerChunk: 8 },
+  northwest: { initialCursor: NorthwestCursor.initial, maxPagesPerChunk: 8 },
   coutu: { initialCursor: CoutuCursor.initial, maxPagesPerChunk: 8 },
   kodak: { initialCursor: KodakCursor.initial, maxPagesPerChunk: 2 },
   six03: { initialCursor: Six03Cursor.initial, maxPagesPerChunk: 8 },

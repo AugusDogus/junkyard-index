@@ -6,6 +6,7 @@ export const FENIX_YARD_CODES = [
   "elmira",
   "binghamton",
   "east-syracuse",
+  "moultrie",
 ] as const;
 export type FenixYardCode = (typeof FENIX_YARD_CODES)[number];
 
@@ -59,18 +60,37 @@ export const FENIX_YARDS = {
     lat: 43.094055,
     lng: -76.037907,
   },
+  moultrie: {
+    source: "fenix",
+    code: "moultrie",
+    name: "Fenix U-Pull Moultrie",
+    operator: "Fenix U-Pull",
+    address: "232 Industrial Road",
+    city: "Moultrie",
+    state: "GA",
+    postalCode: "31768",
+    phone: "+12299851052",
+    email: "info@fenixupull.com",
+    websiteUrl: FENIX_ORIGIN + "/moultrie-ga?setLocation=moultrie-ga",
+    // Census matches the native street address with ZIP 31788, not native 31768.
+    // Exact street-range interpolation, 298-200 Industrial Rd, not a rooftop.
+    lat: 31.186237400954,
+    lng: -83.734815292513,
+  },
 } as const satisfies Record<FenixYardCode, Yard>;
 
 export const FENIX_LOCATION_PREFERENCES = {
   elmira: "1",
   binghamton: "2",
   "east-syracuse": "3",
+  moultrie: "4",
 } as const;
 
 export const FENIX_NATIVE_MAP_COORDINATES = {
   elmira: { lat: 42.15589, lng: -76.86269 },
   binghamton: { lat: 42.108492, lng: -75.820253 },
   "east-syracuse": { lat: 43.094055, lng: -76.037907 },
+  moultrie: { lat: 31.18786, lng: -83.735001 },
 } as const;
 
 export function validateFenixYards(html: string): Yard[] {
@@ -89,7 +109,9 @@ export function validateFenixYards(html: string): Yard[] {
     if (
       card.length !== 1 ||
       !value?.includes(`>${yard.address}</div>`) ||
-      !value.includes(`>${yard.city}, NY ${yard.postalCode}</div>`) ||
+      !value.includes(
+        `>${yard.city}, ${yard.state} ${yard.postalCode}</div>`,
+      ) ||
       !value.includes(pin) ||
       phone !== yard.phone.slice(2) ||
       !value.includes(yard.websiteUrl.slice(FENIX_ORIGIN.length))

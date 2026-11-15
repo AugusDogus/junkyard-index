@@ -75,6 +75,7 @@ describe("IngestionSourceFlags.resolve", () => {
     "clearsalvage",
     "aplus",
     "central",
+    "northwest",
     "coutu",
     "kodak",
     "six03",

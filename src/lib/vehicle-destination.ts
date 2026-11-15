@@ -72,7 +72,25 @@ function manualSearchExplanation(source: DataSource): string {
 function resolve(
   vehicle: Pick<SearchVehicle, "source" | "detailsUrl">,
 ): VehicleDestination {
-  const manualSearchUrl = manualSearchUrls[vehicle.source];
+  const yardUrl = vehicle.detailsUrl?.trim();
+  const yardUrls =
+    vehicle.source === "pickers"
+      ? [
+          "https://pickerstxk.com/Home/Inventory",
+          "https://pickerslongview.com/Home/Inventory",
+          "https://pickersreno.com/Home/Inventory",
+        ]
+      : vehicle.source === "midway"
+        ? [
+            "https://midwayupull.com/inventory/ANY/ANY/?k=1&id=MO38&view=table",
+            "https://midwayupull.com/inventory/ANY/ANY/?k=1&id=MO09&view=table",
+            "https://midwayupull.com/inventory/ANY/ANY/?k=1&id=OO95&view=table",
+          ]
+        : [];
+  const manualSearchUrl =
+    yardUrl && yardUrls.includes(yardUrl)
+      ? yardUrl
+      : manualSearchUrls[vehicle.source];
   // Also correct old generic/unsupported links in the index and queued alerts.
   if (manualSearchUrl) {
     return {

@@ -29,7 +29,7 @@ import { streamLittletonInventory } from "./littleton-connector";
 import { streamMichigantruckInventory } from "./michigantruck-connector";
 import { streamJolietInventory } from "./joliet-connector";
 import { streamAlln1Inventory } from "./alln1-connector";
-import { streamPickersInventory } from "./pickers-connector";
+import { streamPickersCoverage } from "./pickers-coverage-connector";
 import { streamPipesInventory } from "./pipes-connector";
 import { streamUwrenchInventory } from "./uwrench-connector";
 import { streamMillerstownInventory } from "./millerstown-connector";
@@ -43,6 +43,7 @@ import { streamAwapInventory } from "./awap-connector";
 import { streamClearsalvageInventory } from "./clearsalvage-connector";
 import { streamAplusInventory } from "./aplus-connector";
 import { streamCentralInventory } from "./central-connector";
+import { streamNorthwestInventory } from "./northwest-connector";
 import { streamCoutuInventory } from "./coutu-connector";
 import { streamKodakInventory } from "./kodak-connector";
 import { streamSix03Inventory } from "./six03-connector";
@@ -586,6 +587,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       context.vehiclesByVin,
       context.yardsByCode,
     ),
+  northwest: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamNorthwestInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   coutu: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
@@ -757,7 +772,7 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
   pickers: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
-        streamPickersInventory({
+        streamPickersCoverage({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,

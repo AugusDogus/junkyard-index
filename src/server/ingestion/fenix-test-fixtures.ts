@@ -34,9 +34,9 @@ export function fenixTestPage(
   const contacts = Object.values(FENIX_YARDS)
     .map((y) => {
       const native = FENIX_NATIVE_MAP_COORDINATES[y.code];
-      return `<div class="fnx-ls-location-card"><div>${y.city}</div><div>${y.address}</div><div>${y.city}, NY ${y.postalCode}</div><a href="https://www.google.com/maps?ll=${native.lat},${native.lng}!3d${native.lat}!4d${native.lng}">Directions</a><a href="tel:${y.phone.slice(2)}">Phone</a><a href="${y.websiteUrl}">Site</a></div>`;
+      return `<div class="fnx-ls-location-card"><div>${y.city}</div><div>${y.address}</div><div>${y.city}, ${y.state} ${y.postalCode}</div><a href="https://www.google.com/maps?ll=${native.lat},${native.lng}!3d${native.lat}!4d${native.lng}">Directions</a><a href="tel:${y.phone.slice(2)}">Phone</a><a href="${y.websiteUrl}">Site</a></div>`;
     })
     .join("");
-  return `<html><body class="${yard}-ny">View the full inventory of cars placed in our yard. Our inventory is always being updated.
+  return `<html><body class="${yard}-${FENIX_YARDS[yard].state.toLowerCase()}">View the full inventory of cars placed in our yard. Our inventory is always being updated.
   <table id="inv-table"><thead><tr><th onclick="window.location.href='/recent-inventory/?sort_column=date_placed&sort_direction=${opposite}&pg=${page}'">Date Placed In Yard</th>${["Make", "Model", "Year", "Row", "VIN", "Stock Number", "Location", "Image", ""].map((v) => `<th>${v}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table><div class="fnx-pagination">${page} of ${last} <a href="${url(page + 1)}">&gt;</a><a href="${url(last)}">&gt;&gt;</a></div>${contacts}</body></html>`;
 }
