@@ -33,7 +33,7 @@ const itemSchema = z.object({
   ario_date_placed: z.string().nullish(),
   ario_date_removed: z.string().nullish(),
 });
-const pageSchema = z.object({
+export const ArioPageSchema = z.object({
   error: z.never().optional(),
   items: z.array(itemSchema).max(100),
   total: z.number().int().nonnegative(),
@@ -63,7 +63,7 @@ export async function readArioYard(client: ArioClient, yard: ArioCustomerYard) {
       throw new Error(
         `Ario ${yard.slug} exceeded the 100,000 rank safety bound`,
       );
-    const page = pageSchema.parse(await client.page(yard.slug, offset));
+    const page = ArioPageSchema.parse(await client.page(yard.slug, offset));
     pages++;
     const meta = page.yards_meta[0];
     if (
@@ -99,7 +99,7 @@ export async function readArioYard(client: ArioClient, yard: ArioCustomerYard) {
     // rank window through that bound, even when a window is short or empty.
     if (offset + 100 >= total) break;
   }
-  const closing = pageSchema.parse(await client.page(yard.slug, 0));
+  const closing = ArioPageSchema.parse(await client.page(yard.slug, 0));
   pages++;
   if (closing.total !== total || JSON.stringify(closing.items) !== first)
     throw new Error(

@@ -13,8 +13,20 @@ export const AutorecyclerCursorSchema = z.discriminatedUnion("phase", [
   z
     .object({
       source: z.literal("autorecycler"),
+      phase: z.literal("ario-read"),
+      offset: z.number().int().min(0).max(100_100).multipleOf(100),
+      closing: z.boolean(),
+      statePath: z.string().min(1).nullable(),
+      retryAt: z.number().int().nonnegative().optional(),
+      freshness: AutorecyclerFreshnessSchema,
+    })
+    .strict(),
+  z
+    .object({
+      source: z.literal("autorecycler"),
       phase: z.literal("ario"),
       yardIndex: z.number().int().min(0).max(19),
+      statePath: z.string().min(1).optional(),
       freshness: AutorecyclerFreshnessSchema.optional(),
     })
     .strict(),

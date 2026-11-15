@@ -600,18 +600,37 @@ export function createDurableIngestionRepository(
       const expectedCursor = serializeDurableSourceCursor(
         params.requestedCursor,
       );
-      const nextCursor = serializeDurableSourceCursor(params.fetched.cursor);
       const statements: InStatement[] = [];
       // Stage the chunk before the guarded checkpoint that records it. A lost
       // race leaves an unreferenced blob, which is deleted below.
       const snapshotPathname =
-        params.fetched.vehicles.length > 0 || observedVins.length > 0
+        params.fetched.vehicles.length > 0 ||
+        observedVins.length > 0 ||
+        params.fetched.checkpointState !== undefined
           ? await snapshotStore.put({
               runId: params.runId,
               source,
-              chunk: { vehicles: params.fetched.vehicles, observedVins },
+              chunk: {
+                vehicles: params.fetched.vehicles,
+                observedVins,
+                checkpointState: params.fetched.checkpointState,
+              },
             })
           : null;
+
+      // Store provider progress in the same guarded checkpoint as its resume
+      // cursor. Cleanup and lost-race deletion use the existing snapshot lifecycle.
+      const next =
+        params.fetched.checkpointState === undefined
+          ? params.fetched.cursor
+          : parseDurableSourceCursor(
+              source,
+              JSON.stringify({
+                ...params.fetched.cursor,
+                statePath: snapshotPathname,
+              }),
+            );
+      const nextCursor = serializeDurableSourceCursor(next);
 
       for (
         let start = 0;
@@ -701,7 +720,7 @@ export function createDurableIngestionRepository(
       }
       if (checkpointResult.rowsAffected === 1) {
         return {
-          cursor: params.fetched.cursor,
+          cursor: next,
           status: params.fetched.status,
           count: vehiclesProcessed,
           uniqueVehicles,

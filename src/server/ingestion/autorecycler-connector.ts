@@ -1,3 +1,9 @@
+import {
+  readArioRun,
+  loadArioState,
+  arioReplayClient,
+  type LoadArioState,
+} from "./autorecycler-ario-run";
 import { discoverFreshAutorecyclerYards } from "./autorecycler-freshness";
 import { streamArioYard } from "./autorecycler-ario-connector";
 import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
@@ -74,6 +80,7 @@ interface AutorecyclerStreamOptions<E, R> {
   onYards?: OnYards;
   startCursor?: AutorecyclerCursor;
   maxPages?: number;
+  loadArioState?: LoadArioState;
 }
 
 type AutorecyclerPageFetcher = (
@@ -384,8 +391,10 @@ export function streamAutorecyclerInventory<E, R>(
         status: "paused" as const,
         cursor: {
           source: "autorecycler" as const,
-          phase: "ario" as const,
-          yardIndex: 0,
+          phase: "ario-read" as const,
+          offset: 0,
+          closing: false,
+          statePath: null,
           freshness: {
             ...freshness,
             legacy,
@@ -410,40 +419,64 @@ export function streamAutorecyclerInventory<E, R>(
         ),
       }),
     );
-  if (cursor.phase === "ario")
-    return streamArioYard({
-      ...options,
-      yardIndex: cursor.yardIndex,
-      asOf: freshness.asOf,
-      legacyNewest:
-        freshness.legacy[
-          ARIO_CUSTOMER_YARDS[cursor.yardIndex]?.legacyId ?? ""
-        ] ?? null,
-    }).pipe(
-      Effect.map((result) => {
-        const yard = ARIO_CUSTOMER_YARDS[cursor.yardIndex];
-        if (!yard)
-          throw new Error("Ario cursor references a missing customer yard");
-        const legacy = { ...freshness.legacy };
-        if (result.selection !== "legacy") delete legacy[yard.legacyId];
-        const code = `1348695171700984260__LOOKUP__${yard.legacyId}`;
-        const eligibleYards = new Set(freshness.eligibleYards);
-        if (result.selection === "stale") eligibleYards.delete(code);
-        else eligibleYards.add(code);
-        return {
-          ...result,
-          cursor: {
-            ...result.cursor,
-            freshness: {
-              ...freshness,
-              legacy,
-              eligibleYards: [...eligibleYards],
-            },
-          },
-          geoStats: emptyGeo,
-        };
-      }),
+  if (cursor.phase === "ario-read")
+    return readArioRun(cursor, options.loadArioState).pipe(
+      Effect.map((result) => ({ ...result, geoStats: emptyGeo })),
     );
+  if (cursor.phase === "ario")
+    return Effect.gen(function* () {
+      if (!cursor.statePath)
+        return yield* new AutorecyclerProviderError({
+          from: 0,
+          cause: new Error(
+            "Ario checkpoint predates grouped enumeration; start a new ingestion run",
+          ),
+        });
+      const state = yield* Effect.tryPromise({
+        try: () => loadArioState(cursor.statePath ?? "", options.loadArioState),
+        catch: (cause) => new AutorecyclerProviderError({ from: 0, cause }),
+      });
+      return yield* streamArioYard(
+        {
+          ...options,
+          yardIndex: cursor.yardIndex,
+          asOf: freshness.asOf,
+          legacyNewest:
+            freshness.legacy[
+              ARIO_CUSTOMER_YARDS[cursor.yardIndex]?.legacyId ?? ""
+            ] ?? null,
+        },
+        arioReplayClient(state),
+      ).pipe(
+        Effect.map((result) => {
+          const yard = ARIO_CUSTOMER_YARDS[cursor.yardIndex];
+          if (!yard)
+            throw new Error("Ario cursor references a missing customer yard");
+          const legacy = { ...freshness.legacy };
+          if (result.selection !== "legacy") delete legacy[yard.legacyId];
+          const code = `1348695171700984260__LOOKUP__${yard.legacyId}`;
+          const eligibleYards = new Set(freshness.eligibleYards);
+          if (result.selection === "stale") eligibleYards.delete(code);
+          else eligibleYards.add(code);
+          return {
+            ...result,
+            cursor: {
+              ...result.cursor,
+              ...(result.cursor.phase === "ario"
+                ? { statePath: cursor.statePath }
+                : {}),
+              freshness: {
+                ...freshness,
+                legacy,
+                eligibleYards: [...eligibleYards],
+              },
+            },
+            pagesProcessed: 0,
+            geoStats: emptyGeo,
+          };
+        }),
+      );
+    });
   const legacyPolicy = AutorecyclerSourcePolicy.create();
   const policy: AutorecyclerSourcePolicy = (orgs) => {
     const active = orgs.filter(

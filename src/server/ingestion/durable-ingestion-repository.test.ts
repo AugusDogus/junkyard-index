@@ -1086,3 +1086,85 @@ test("yard checkpoints reject mismatched sources and roll back when snapshot sta
     database.cleanup();
   }
 });
+
+test("provider progress and its resume path checkpoint atomically and use normal snapshot cleanup", async () => {
+  const testDatabase = createTestClient();
+  const { client } = testDatabase;
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const store = IngestionSnapshotStore.memory();
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      client,
+      store,
+    );
+    await repository.initialize("ario-checkpoint");
+    const initial = { source: "autorecycler", phase: "freshness" } as const;
+    const cursor = {
+      source: "autorecycler",
+      phase: "ario-read",
+      offset: 100,
+      closing: false,
+      statePath: null,
+      retryAt: Date.now() + 3_600_000,
+      freshness: { asOf: Date.now(), legacy: {}, eligibleYards: [] },
+    } as const;
+    const progress = {
+      session: { key: "offline-key" },
+      pages: { "0": "saved-window" },
+    };
+    const fetched: FetchedDurableSourceChunk<"autorecycler"> = {
+      cursor: {
+        ...cursor,
+        freshness: { ...cursor.freshness, eligibleYards: [] },
+      },
+      status: "paused",
+      pagesProcessed: 1,
+      vehiclesProcessed: 0,
+      uniqueVehicles: 0,
+      duplicateVehicles: 0,
+      rejectedVehicles: 0,
+      errors: [],
+      vehicles: [],
+      yards: [],
+      checkpointState: progress,
+    };
+    const saved = await repository.checkpointChunk({
+      runId: "ario-checkpoint",
+      requestedCursor: initial,
+      fetched,
+    });
+    expect(saved.status).toBe("paused");
+    expect(saved.errors).toEqual([]);
+    if (saved.cursor.phase !== "ario-read" || !saved.cursor.statePath)
+      throw new Error("Missing private resume path");
+    expect(saved.cursor.offset).toBe(100);
+    expect(saved.cursor.retryAt).toBe(cursor.retryAt);
+    expect((await store.load(saved.cursor.statePath)).checkpointState).toEqual(
+      progress,
+    );
+    expect(
+      await repository.getCheckpoint({
+        runId: "ario-checkpoint",
+        requestedCursor: initial,
+      }),
+    ).toEqual(saved);
+    expect(
+      await repository.checkpointChunk({
+        runId: "ario-checkpoint",
+        requestedCursor: initial,
+        fetched,
+      }),
+    ).toEqual(saved);
+    expect(store.pathnames()).toHaveLength(1);
+    await repository.cleanupStaleSnapshots();
+    expect(store.pathnames()).toHaveLength(1);
+    await client.execute(
+      "update ingestion_run set active_slot = null, status = 'error' where id = 'ario-checkpoint'",
+    );
+    await repository.cleanupStaleSnapshots();
+    expect(store.pathnames()).toEqual([]);
+  } finally {
+    testDatabase.cleanup();
+  }
+});

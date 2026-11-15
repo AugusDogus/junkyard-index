@@ -88,6 +88,7 @@ import { streamOemInventoryFromProvider } from "./oem-connector";
 import { OEM_LOCATION, OEM_YARD } from "./oem-yard-metadata";
 import { SourceValidationPolicy } from "./source-validation";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { DonorPhotoStore } from "./donor-photo-store";
 import { env } from "~/env";
 import {
@@ -156,6 +157,7 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
     vehicles: [...vehiclesByVin.values()],
     yards: [...yardsByCode.values()],
     observedVins: result.observedVins ?? [],
+    checkpointState: result.checkpointState,
   };
 }
 
@@ -1362,6 +1364,12 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamAutorecyclerInventory({
+          loadArioState: async (path) =>
+            (
+              await IngestionSnapshotStore.vercelBlob(
+                env.BLOB_READ_WRITE_TOKEN,
+              ).load(path)
+            ).checkpointState,
           onBatch: context.onBatch,
           onYards: context.onYards,
           startCursor: cursor,

@@ -158,6 +158,7 @@ async function runSourceIngestion(runId: string) {
     cleanupStale: cleanupStaleDurableIngestionSnapshotsStep,
     initialize: initializeDurableIngestionStep,
     runChunk: runDurableSourceChunkStep,
+    sleepUntil: (time: number) => sleep(new Date(time)),
     markFailed: markDurableSourceFailedStep,
     validateSources: validateDurableIngestionSourcesStep,
     reconcile: reconcileDurableIngestionStep,
