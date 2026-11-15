@@ -46,14 +46,19 @@ must restart from its preceding publication. Each response has a combined
 HTTP 429, redirects, partial responses, wrong MIME types and unowned URLs stop
 the run. Resume only after the provider's Retry-After interval has elapsed.
 
-A vehicle is present when either the current arrivals list or a saved native
-search bucket lists it. Query buckets persist with their observation epoch in
-the terminal cursor, and replacing a bucket with an explicit empty response
-removes that bucket's old vehicles. Unvisited buckets survive between runs.
-Evidence older than eight days is pruned when starting a new run. This means
-search-only arrivals and removals can take up to a week to appear. A first
-publication has current photographed inventory plus its first search slice;
-the search cache fills over the first seven daily publications.
+Today's arrivals feed is authoritative for photographed stock, including any
+corrected VIN or model. A photographed car leaves search the day it leaves the
+feed, even if an older search bucket still lists it. Its old VIN is not kept as
+preservation evidence. Only cars without photos can be added from search alone.
+An unphotographed car leaves within a week, when its sweep slice re-checks it,
+assuming daily runs succeed. Search-only additions can also take up to a week.
+
+Query buckets persist until their own slice replaces them, including when that
+slice returns an explicit empty response. Missed days delay the sweep but do
+not expire buckets for queries still in the directory. A bucket whose query has
+been removed from the site's make/model list expires after 21 days without a
+refresh. A first publication has current photographed inventory plus its first
+search slice; the search cache fills over the first seven daily publications.
 
 The durable adapter loads only the latest accepted, search-published BYOT
 terminal cursor. Failed, partial or unpublished runs cannot advance its weekly
@@ -71,12 +76,14 @@ No VIN decoding, year inference, make inference or identity repairs are used.
 Null dates and absent photos remain null. Accepted donors link to the correct
 yard's native inventory search, with instructions to match VIN, stock and row.
 
-Repeated feed/search observations of one native stock are corroboration, not
-duplicate inventory. Conflicting required claims quarantine the entire stock.
-Conflicting VIN identities or yards are also quarantined, and valid observed
-VINs remain preservation evidence. Repeated stocks inside one response and
-benign duplicate VINs count toward the unchanged 25% duplicate guard. Rejected repeats remain rejects rather than benign duplicates. Rejects
-remain inside the 10% rejection guard with no intentional exclusions.
+Older bucket rows cannot override or quarantine a stock listed in today's
+feed. For search-only stock, the latest refresh replaces older identity claims.
+Conflicting required claims within today's feed or among search-only rows from
+the same refresh quarantine the entire stock. Conflicting VIN identities or
+yards are also quarantined, and their valid observed VINs remain preservation
+evidence. Repeated stocks inside one response and benign duplicate VINs count
+toward the unchanged 25% duplicate guard. Rejected repeats remain rejects rather
+than benign duplicates. Rejects remain inside the 10% rejection guard with no intentional exclusions.
 
 Each yard must retain at least 50% of its previous published count and meet its
 floor: Waco 1,000, Bryan 800, Beaumont 900, Port Allen 850 and Jackson 800.
@@ -129,8 +136,12 @@ an expanded saved archive using:
 bun scripts/refresh-byot-directory.ts saved-native-controls.json.br
 ```
 
-A directory change invalidates old cursor scopes. Requalify it, finish or
-discard old runs, and explicitly plan the cache restart before rollout. Do not
+Requalify directory changes before rollout. Finish or discard active runs
+before changing their directory. The next run can load a completed cursor from
+the prior directory: matching query buckets survive, the sweep restarts at the
+first query, and removed queries retain their buckets only until the 21-day
+expiry. Checkpoints retain query identities and their directory, so reordering
+queries cannot associate old results with a different make/model. Do not
 silently drop native controls to retain an old cursor.
 
 On a request, parser, checkpoint or guard failure, the previous published

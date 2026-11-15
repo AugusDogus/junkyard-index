@@ -5,32 +5,39 @@ import { BYOT_DAILY_QUERIES, BYOT_QUERIES } from "./byot-directory";
 import { ByotResult } from "./byot-result";
 
 export const BYOT_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
-export const BYOT_CACHE_MAX_AGE_MS = 8 * 24 * 60 * 60 * 1000;
+export const BYOT_RETIRED_QUERY_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
 export const BYOT_MAX_RUN_MS = 2 * 60 * 60 * 1000;
 export const BYOT_RUN_REQUESTS = BYOT_YARDS.length * (1 + BYOT_DAILY_QUERIES);
 export const byotHash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const scope = byotHash({ yards: BYOT_YARDS, queries: BYOT_QUERIES });
+export function byotQueryKey(index: number): string {
+  const query = BYOT_QUERIES[index];
+  if (!query)
+    throw new Error(`BYOT query ${index} is outside the qualified directory`);
+  return byotHash(query);
+}
+const directory = BYOT_QUERIES.map((_, index) => byotQueryKey(index));
+const scopeFor = (queries: readonly string[]) =>
+  byotHash({ yards: BYOT_YARDS, queries });
+const scope = scopeFor(directory);
+const currentQueries = new Set(directory);
+const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const records = z.array(z.unknown()).max(4999);
 const bucket = z
   .object({
-    index: z
-      .number()
-      .int()
-      .min(0)
-      .max(BYOT_QUERIES.length - 1),
+    query: digest,
     checkedAt: z.number().int().nonnegative(),
     records,
   })
   .strict();
-const cache = z
-  .array(z.array(bucket).max(BYOT_QUERIES.length))
-  .length(BYOT_YARDS.length);
+// Retired queries can coexist with the current directory, bounded by the wire cap.
+const cache = z.array(z.array(bucket)).length(BYOT_YARDS.length);
 const base = {
   source: z.literal("byot"),
   version: z.literal(1),
-  scope: z.literal(scope),
-  checksum: z.string().regex(/^[a-f0-9]{64}$/),
+  scope: digest,
+  directory: z.array(digest).min(1),
+  checksum: digest,
 };
 const active = {
   ...base,
@@ -78,11 +85,7 @@ const schema = z.discriminatedUnion("phase", [
       ...base,
       phase: z.literal("complete"),
       completedAt: z.number().int().nonnegative(),
-      nextOffset: z
-        .number()
-        .int()
-        .min(0)
-        .max(BYOT_QUERIES.length - 1),
+      nextOffset: z.number().int().nonnegative(),
       cache,
       yardCounts: z
         .array(z.number().int().nonnegative())
@@ -101,8 +104,23 @@ function validate(input: unknown): ByotCursor {
   if (Buffer.byteLength(JSON.stringify(input)) > BYOT_MAX_CURSOR_BYTES)
     throw new Error("Checkpoint exceeds 16 MiB");
   const cursor = schema.parse(input);
-  if (cursor.checksum !== checksum(cursor))
+  if (
+    cursor.checksum !== checksum(cursor) ||
+    cursor.scope !== scopeFor(cursor.directory)
+  )
     throw new Error("Checkpoint checksum or qualified directory changed");
+  const queries = new Set(cursor.directory);
+  if (queries.size !== cursor.directory.length)
+    throw new Error("Checkpoint directory repeats a query");
+  if (cursor.phase !== "complete" && cursor.scope !== scope)
+    throw new Error(
+      "Active checkpoint directory changed; restart from the prior published cursor",
+    );
+  if (
+    cursor.phase === "complete" &&
+    cursor.nextOffset >= cursor.directory.length
+  )
+    throw new Error("Next search offset is outside the checkpoint directory");
   if (cursor.phase === "initial") return cursor;
   if (
     "previousCounts" in cursor &&
@@ -112,13 +130,14 @@ function validate(input: unknown): ByotCursor {
     throw new Error("Previous yard counts are incomplete");
   const now = "startedAt" in cursor ? cursor.startedAt : cursor.completedAt;
   for (const yard of cursor.cache) {
-    if (new Set(yard.map((entry) => entry.index)).size !== yard.length)
-      throw new Error("Search cache repeats a query index");
+    if (new Set(yard.map((entry) => entry.query)).size !== yard.length)
+      throw new Error("Search cache repeats a query");
     if (
       yard.some(
         (entry) =>
           entry.checkedAt > now ||
-          now - entry.checkedAt > BYOT_CACHE_MAX_AGE_MS,
+          (!queries.has(entry.query) &&
+            now - entry.checkedAt > BYOT_RETIRED_QUERY_MAX_AGE_MS),
       )
     )
       throw new Error("Search evidence is expired or dated in the future");
@@ -129,20 +148,21 @@ function validate(input: unknown): ByotCursor {
     cursor.phase === "ready" ||
     cursor.phase === "complete"
   ) {
+    const dailyQueries = Math.ceil(cursor.directory.length / 7);
     const progress =
       cursor.phase === "search"
         ? cursor.progress
-        : BYOT_DAILY_QUERIES * BYOT_YARDS.length;
+        : dailyQueries * BYOT_YARDS.length;
     const start =
       cursor.phase === "complete"
-        ? (cursor.nextOffset - BYOT_DAILY_QUERIES + BYOT_QUERIES.length) %
-          BYOT_QUERIES.length
+        ? (cursor.nextOffset - dailyQueries + cursor.directory.length) %
+          cursor.directory.length
         : cursor.sweepStart;
     for (let i = 0; i < progress; i++) {
       const index =
-        (start + Math.floor(i / BYOT_YARDS.length)) % BYOT_QUERIES.length;
+        (start + Math.floor(i / BYOT_YARDS.length)) % cursor.directory.length;
       const entry = cursor.cache[i % BYOT_YARDS.length]?.find(
-        (item) => item.index === index,
+        (item) => item.query === cursor.directory[index],
       );
       if (!entry || entry.checkedAt !== now)
         throw new Error(
@@ -158,7 +178,7 @@ function seal(state: Unsigned): ByotCursor {
 }
 export const ByotCursor = {
   initial: (): ByotCursor =>
-    seal({ source: "byot", version: 1, scope, phase: "initial" }),
+    seal({ source: "byot", version: 1, scope, directory, phase: "initial" }),
   parse: (input: unknown) =>
     ByotResult.boundary("checkpoint", () => validate(input)),
   checkpoint: (state: Unsigned) =>
@@ -184,14 +204,20 @@ export const ByotCursor = {
         source: "byot",
         version: 1,
         scope,
+        directory,
         phase: "arrivals",
         startedAt: now,
-        sweepStart: previous?.phase === "complete" ? previous.nextOffset : 0,
+        sweepStart:
+          previous?.phase === "complete" && previous.scope === scope
+            ? previous.nextOffset
+            : 0,
         cache:
           previous?.phase === "complete"
             ? previous.cache.map((yard) =>
                 yard.filter(
-                  (entry) => now - entry.checkedAt <= BYOT_CACHE_MAX_AGE_MS,
+                  (entry) =>
+                    currentQueries.has(entry.query) ||
+                    now - entry.checkedAt <= BYOT_RETIRED_QUERY_MAX_AGE_MS,
                 ),
               )
             : BYOT_YARDS.map(() => []),

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { BYOT_YARDS } from "./byot-configuration";
-import { ByotCursor, BYOT_MAX_RUN_MS } from "./byot-cursor";
+import { ByotCursor, byotQueryKey, BYOT_MAX_RUN_MS } from "./byot-cursor";
 import {
   BYOT_ARRIVALS_URL,
   BYOT_DAILY_QUERIES,
@@ -121,11 +121,12 @@ export function streamByotInventory<E, R>(
           parseByotResponse(raw, "search", `${yard.code} query ${index}`),
         );
         const startedAt = cursor.startedAt;
+        const query = byotQueryKey(index);
         const cache = cursor.cache.map((entries, i) =>
           i === yardIndex
             ? [
-                ...entries.filter((entry) => entry.index !== index),
-                { index, checkedAt: startedAt, records },
+                ...entries.filter((entry) => entry.query !== query),
+                { query, checkedAt: startedAt, records },
               ]
             : entries,
         );
@@ -167,6 +168,7 @@ export function streamByotInventory<E, R>(
         source: "byot",
         version: 1,
         scope: cursor.scope,
+        directory: cursor.directory,
         phase: "complete",
         // Evidence uses a stable run observation epoch, including resumed chunks.
         completedAt: cursor.startedAt,

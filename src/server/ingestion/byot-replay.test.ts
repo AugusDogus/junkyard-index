@@ -4,8 +4,9 @@ import { brotliDecompressSync } from "node:zlib";
 import { z } from "zod";
 import { BYOT_QUERIES, byotSearchUrl } from "./byot-directory";
 import { parseByotResponse } from "./byot-parser";
+import { ByotCursor, BYOT_MAX_CURSOR_BYTES, byotQueryKey } from "./byot-cursor";
 import { byotSnapshot } from "./byot-snapshot";
-import { byotFeeds, byotValue } from "./byot-test-fixtures";
+import { byotFeeds, byotValue, byotTerminal } from "./byot-test-fixtures";
 
 const ReceiptSchema = z.object({
   url: z.string().url(),
@@ -48,7 +49,7 @@ const buckets = census.searches.map((request) => {
       "Saved Waco sweep left the qualified native controls: " + request.url,
     );
   return {
-    index,
+    query: byotQueryKey(index),
     checkedAt: request.capturedAt,
     records: byotValue(
       parseByotResponse(JSON.stringify(request.body), "search"),
@@ -156,7 +157,46 @@ test("the full sweep reproduces all prior missing Waco controls and the Jeep sea
     const index = BYOT_QUERIES.findIndex(
       (query) => query.make === "JEEP" && query.model === model,
     );
-    const result = buckets.find((bucket) => bucket.index === index);
+    const result = buckets.find(
+      (bucket) => bucket.query === byotQueryKey(index),
+    );
     expect(result?.records.length).toBeGreaterThan(0);
   }
+});
+
+test("a full cached sweep for all five yards stays below the cursor wire cap", () => {
+  const previous = byotTerminal(0);
+  if (previous.phase !== "complete") throw new Error("Missing terminal cursor");
+  const cursor = byotValue(
+    ByotCursor.checkpoint({
+      ...previous,
+      cache: Array.from({ length: 5 }, () =>
+        buckets.map((bucket) => ({
+          ...bucket,
+          checkedAt: previous.completedAt,
+        })),
+      ),
+    }),
+  );
+  if (cursor.phase !== "complete") throw new Error("Missing terminal cursor");
+  const wire = byotValue(ByotCursor.serialize(cursor));
+  expect(Buffer.byteLength(wire)).toBeLessThan(BYOT_MAX_CURSOR_BYTES);
+  expect(ByotCursor.fromWire(wire).ok).toBe(true);
+  expect(
+    ByotCursor.checkpoint({
+      ...cursor,
+      cache: cursor.cache.map((yard, index) =>
+        index === 0
+          ? [
+              ...yard,
+              {
+                query: "a".repeat(64),
+                checkedAt: cursor.completedAt,
+                records: ["x".repeat(BYOT_MAX_CURSOR_BYTES)],
+              },
+            ]
+          : yard,
+      ),
+    }).ok,
+  ).toBe(false);
 });

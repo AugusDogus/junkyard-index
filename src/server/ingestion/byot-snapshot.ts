@@ -14,8 +14,9 @@ import type { CanonicalVehicle } from "./types";
 
 const claims = z.object({
   StockId: z.string().trim().optional(),
-  VIN: z.string().optional(),
-  Year: z.number().optional(),
+  VIN: z.string().optional().catch(undefined),
+  Year: z.number().optional().catch(undefined),
+  images: z.unknown().optional(),
 });
 const identity = (row: ByotRecord) =>
   byotHash([
@@ -42,6 +43,8 @@ export function byotSnapshot(
     const groups = new Map<
       string,
       {
+        checkedAt: number;
+        photographed: boolean;
         records: ByotRecord[];
         rejected: boolean;
         vins: Set<string>;
@@ -49,26 +52,36 @@ export function byotSnapshot(
       }
     >();
     const batches = [
+      { records: feeds[yardIndex] ?? [], checkedAt: Infinity },
       ...(cache[yardIndex] ?? [])
         .slice()
-        .sort((a, b) => a.checkedAt - b.checkedAt)
-        .map((entry) => entry.records),
-      feeds[yardIndex] ?? [],
+        .sort((a, b) => b.checkedAt - a.checkedAt),
     ];
     for (const batch of batches) {
       const batchStocks = new Set<string>();
-      for (const raw of batch) {
+      for (const raw of batch.records) {
         const native = claims.safeParse(raw);
         const key =
           native.success && native.data.StockId
             ? native.data.StockId
             : byotHash(raw);
-        const group = groups.get(key) ?? {
+        const existing = groups.get(key);
+        const group = existing ?? {
+          checkedAt: batch.checkedAt,
+          photographed: false,
           records: [],
           rejected: false,
           duplicates: 0,
           vins: new Set<string>(),
         };
+        if (
+          native.success &&
+          Array.isArray(native.data.images) &&
+          native.data.images.length
+        )
+          group.photographed = true;
+        // The feed owns photographed stock; otherwise use the latest refresh.
+        if (existing && existing.checkedAt > batch.checkedAt) continue;
         const record = byotRecord(raw, yard);
         if (native.success && native.data.VIN) {
           const vin = inventoryVin(
@@ -85,6 +98,8 @@ export function byotSnapshot(
       }
     }
     for (const group of groups.values()) {
+      // The complete feed would include a photographed stock if it were still present.
+      if (group.checkedAt !== Infinity && group.photographed) continue;
       accounting.recordsProcessed += 1 + group.duplicates;
       const row = group.records.at(-1);
       if (

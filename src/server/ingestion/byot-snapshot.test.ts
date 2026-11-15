@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { byotQueryKey } from "./byot-cursor";
 import { byotSnapshot } from "./byot-snapshot";
 import { BYOT_YARDS } from "./byot-configuration";
 import { byotFeeds, byotMissingF150 } from "./byot-test-fixtures";
@@ -12,7 +13,7 @@ describe("BYOT arrivals and weekly search union", () => {
     const union = byotSnapshot(byotFeeds, [
       [
         {
-          index: 0,
+          query: byotQueryKey(0),
           checkedAt: now,
           records: [byotMissingF150, ...(byotFeeds[0]?.slice(0, 20) ?? [])],
         },
@@ -35,7 +36,7 @@ describe("BYOT arrivals and weekly search union", () => {
     const snapshot = byotSnapshot(byotFeeds, [
       [
         {
-          index: 0,
+          query: byotQueryKey(0),
           checkedAt: now,
           records: [byotMissingF150, { ...byotMissingF150, Year: 2004 }],
         },
@@ -81,14 +82,14 @@ describe("BYOT arrivals and weekly search union", () => {
 
 test("an explicitly empty refreshed bucket retires search-only inventory while feed evidence still keeps a donor", () => {
   const present = byotSnapshot(byotFeeds, [
-    [{ index: 0, checkedAt: now, records: [byotMissingF150] }],
+    [{ query: byotQueryKey(0), checkedAt: now, records: [byotMissingF150] }],
     [],
     [],
     [],
     [],
   ]);
   const refreshed = byotSnapshot(byotFeeds, [
-    [{ index: 0, checkedAt: now + 86400000, records: [] }],
+    [{ query: byotQueryKey(0), checkedAt: now + 86400000, records: [] }],
     [],
     [],
     [],
@@ -102,9 +103,155 @@ test("an explicitly empty refreshed bucket retires search-only inventory while f
   ).toBe(false);
   const stillInFeed = byotSnapshot(
     [[...(byotFeeds[0] ?? []), byotMissingF150], ...byotFeeds.slice(1)],
-    [[{ index: 0, checkedAt: now + 86400000, records: [] }], [], [], [], []],
+    [
+      [{ query: byotQueryKey(0), checkedAt: now + 86400000, records: [] }],
+      [],
+      [],
+      [],
+      [],
+    ],
   );
   expect(
     stillInFeed.vehicles.some((vehicle) => vehicle.stockNumber === "STK044158"),
   ).toBe(true);
+});
+
+test("a photographed stock absent from today's feed is neither published nor preserved by stale buckets", () => {
+  const snapshot = byotSnapshot(byotFeeds, [
+    [
+      {
+        query: byotQueryKey(0),
+        checkedAt: now - 86400000,
+        records: [
+          {
+            ...byotMissingF150,
+            images: [
+              "https://storage.googleapis.com/byotautoparts.appspot.com/yard_inventory/sold.jpg",
+            ],
+          },
+        ],
+      },
+      {
+        query: byotQueryKey(1),
+        checkedAt: now,
+        records: [
+          byotMissingF150,
+          { ...byotMissingF150, Model: "OLD CONFLICT" },
+        ],
+      },
+    ],
+    [],
+    [],
+    [],
+    [],
+  ]);
+  expect(snapshot.validation.ok).toBe(true);
+  expect(
+    snapshot.vehicles.some(
+      (row) => row.stockNumber === byotMissingF150.StockId,
+    ),
+  ).toBe(false);
+  expect(snapshot.observedVins).not.toContain(byotMissingF150.VIN);
+  expect(snapshot.accounting).toEqual(
+    byotSnapshot(byotFeeds, empty()).accounting,
+  );
+});
+
+test("today's feed publishes a corrected VIN and model without quarantining stale bucket claims", () => {
+  const corrected = {
+    ...byotMissingF150,
+    VIN: "1FTPX14584NC18315",
+    Model: "F150 CORRECTED",
+    images: [
+      "https://storage.googleapis.com/byotautoparts.appspot.com/yard_inventory/corrected.jpg",
+    ],
+  };
+  const snapshot = byotSnapshot(
+    [[...(byotFeeds[0] ?? []), corrected], ...byotFeeds.slice(1)],
+    [
+      [
+        {
+          query: byotQueryKey(0),
+          checkedAt: now - 86400000,
+          records: [byotMissingF150],
+        },
+      ],
+      [],
+      [],
+      [],
+      [],
+    ],
+  );
+  expect(snapshot.validation.ok).toBe(true);
+  expect(
+    snapshot.vehicles.find((row) => row.stockNumber === corrected.StockId),
+  ).toMatchObject({ vin: corrected.VIN, model: corrected.Model });
+  expect(snapshot.observedVins).not.toContain(byotMissingF150.VIN);
+  expect(snapshot.observedVins).not.toContain(corrected.VIN);
+  expect(snapshot.accounting.recordsRejected).toBe(
+    byotSnapshot(byotFeeds, empty()).accounting.recordsRejected,
+  );
+});
+
+test("conflicts within today's feed still quarantine the stock despite matching older search evidence", () => {
+  const snapshot = byotSnapshot(
+    [
+      [
+        ...(byotFeeds[0] ?? []),
+        byotMissingF150,
+        { ...byotMissingF150, Model: "CONFLICT" },
+      ],
+      ...byotFeeds.slice(1),
+    ],
+    [
+      [
+        {
+          query: byotQueryKey(0),
+          checkedAt: now - 86400000,
+          records: [byotMissingF150],
+        },
+      ],
+      [],
+      [],
+      [],
+      [],
+    ],
+  );
+  expect(
+    snapshot.vehicles.some(
+      (row) => row.stockNumber === byotMissingF150.StockId,
+    ),
+  ).toBe(false);
+  expect(snapshot.observedVins).toContain(byotMissingF150.VIN);
+});
+
+test("bucket-only stock uses its latest refresh and quarantines disagreements within that refresh", () => {
+  const corrected = { ...byotMissingF150, Model: "CORRECTED" };
+  const buckets = [
+    {
+      query: byotQueryKey(0),
+      checkedAt: now - 86400000,
+      records: [byotMissingF150],
+    },
+    { query: byotQueryKey(1), checkedAt: now, records: [corrected] },
+  ];
+  const snapshot = byotSnapshot(byotFeeds, [buckets, [], [], [], []]);
+  expect(
+    snapshot.vehicles.find((row) => row.stockNumber === corrected.StockId)
+      ?.model,
+  ).toBe(corrected.Model);
+  const conflict = byotSnapshot(byotFeeds, [
+    [
+      ...buckets,
+      { query: byotQueryKey(2), checkedAt: now, records: [byotMissingF150] },
+    ],
+    [],
+    [],
+    [],
+    [],
+  ]);
+  expect(
+    conflict.vehicles.some((row) => row.stockNumber === corrected.StockId),
+  ).toBe(false);
+  expect(conflict.observedVins).toContain(corrected.VIN);
 });
