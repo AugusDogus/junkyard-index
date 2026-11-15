@@ -51,6 +51,7 @@ describe("source snapshot validation", () => {
     { source: "jimsimport", count: 3649 },
     { source: "lonestarimports", count: 2532 },
     { source: "alshned", count: 41 },
+    { source: "hollanderstores", count: 876 },
     { source: "beavers", count: 278 },
     { source: "indianriver", count: 1_049 },
     { source: "army", count: 231 },

@@ -98,6 +98,8 @@ import { streamJimsimportInventoryFromProvider } from "../src/server/ingestion/j
 import { soakJimsimportInventory } from "./soak-jimsimport";
 import { streamLonestarimportsInventoryFromProvider } from "../src/server/ingestion/lonestarimports-connector";
 import { soakLonestarimportsInventory } from "./soak-lonestarimports";
+import { streamHollanderstoresInventoryFromProvider } from "../src/server/ingestion/hollanderstores-provider";
+import { soakHollanderstoresInventory } from "./soak-hollanderstores";
 import { streamAlshnedInventory } from "../src/server/ingestion/alshned-connector";
 import { soakAlshnedInventory } from "./soak-alshned";
 import { streamWeberbrothersInventory } from "../src/server/ingestion/weberbrothers-connector";
@@ -577,6 +579,19 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamLonestarimportsInventoryFromProvider({
+                    previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "hollanderstores":
+            return soakHollanderstoresInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamHollanderstoresInventoryFromProvider({
                     previousAcceptedCount: null,
                     startCursor,
                     maxPages,

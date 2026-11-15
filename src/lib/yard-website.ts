@@ -160,6 +160,17 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
         href: `https://www.${upp ? "upullandpay" : "pullapart"}.com/locations/${state}/${name}/`,
       };
   }
+  if (
+    yard.source === "hollanderstores" &&
+    [
+      "leblancsauto",
+      "blvdautoparts",
+      "standardauto",
+      "petrillosauto",
+      "kirchhaynautopa",
+    ].includes(yard.code)
+  )
+    return { kind: "yard", href: `https://${yard.code}.hollanderstores.com/` };
   const provider = providerWebsites.get(yard.source);
   return provider ? { kind: "provider", href: provider } : null;
 }
