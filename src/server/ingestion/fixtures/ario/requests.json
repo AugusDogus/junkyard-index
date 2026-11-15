@@ -1,0 +1,1258 @@
+[
+  {
+    "url": "https://ario.autorecycler.io",
+    "status": 200
+  },
+  {
+    "url": "https://ario.autorecycler.io/assets/index-oW1zBAeU.js",
+    "status": 200
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/rest/v1/yards?select=*&customer_facing_visible=eq.true",
+    "body": null,
+    "status": 200,
+    "bytes": 4766344
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-warner-robins"],
+      "per_yard_limit": 5,
+      "item_rank_offset": 0
+    },
+    "status": 200,
+    "bytes": 6729
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 5000,
+      "item_rank_offset": 0
+    },
+    "status": 400,
+    "bytes": 329
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200,
+    "bytes": 107856
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 100
+    },
+    "status": 200,
+    "bytes": 122479
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 200
+    },
+    "status": 200,
+    "bytes": 119179
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 299
+    },
+    "status": 200,
+    "bytes": 121433
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 399
+    },
+    "status": 200,
+    "bytes": 125251
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 498
+    },
+    "status": 200,
+    "bytes": 125682
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 598
+    },
+    "status": 200,
+    "bytes": 116581
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 696
+    },
+    "status": 200,
+    "bytes": 94808
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 791
+    },
+    "status": 200,
+    "bytes": 64648
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 847
+    },
+    "status": 200,
+    "bytes": 4780
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 855
+    },
+    "status": 200,
+    "bytes": 1314
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200,
+    "bytes": 91330
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 96
+    },
+    "status": 200,
+    "bytes": 72994
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 188
+    },
+    "status": 200,
+    "bytes": 77068
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 282
+    },
+    "status": 200,
+    "bytes": 85170
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 376
+    },
+    "status": 200,
+    "bytes": 81330
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 469
+    },
+    "status": 200,
+    "bytes": 86922
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 561
+    },
+    "status": 200,
+    "bytes": 98881
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 655
+    },
+    "status": 200,
+    "bytes": 77959
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 745
+    },
+    "status": 200,
+    "bytes": 82770
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 833
+    },
+    "status": 200,
+    "bytes": 104055
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 927
+    },
+    "status": 200,
+    "bytes": 91224
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1016
+    },
+    "status": 200,
+    "bytes": 86710
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1109
+    },
+    "status": 200,
+    "bytes": 98490
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1207
+    },
+    "status": 200,
+    "bytes": 78075
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1303
+    },
+    "status": 200,
+    "bytes": 67008
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1380
+    },
+    "status": 200,
+    "bytes": 32074
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1420
+    },
+    "status": 200,
+    "bytes": 7976
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1429
+    },
+    "status": 200,
+    "bytes": 2055
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200,
+    "bytes": 286448
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 100
+    },
+    "status": 200,
+    "bytes": 290456
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 200
+    },
+    "status": 200,
+    "bytes": 288471
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 300
+    },
+    "status": 200,
+    "bytes": 308225
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 400
+    },
+    "status": 200,
+    "bytes": 313161
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 500
+    },
+    "status": 200,
+    "bytes": 312880
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 600
+    },
+    "status": 200,
+    "bytes": 293231
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 700
+    },
+    "status": 200,
+    "bytes": 297279
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 799
+    },
+    "status": 200,
+    "bytes": 254961
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 899
+    },
+    "status": 200,
+    "bytes": 146304
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 999
+    },
+    "status": 200,
+    "bytes": 146412
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1099
+    },
+    "status": 200,
+    "bytes": 146173
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 800
+    },
+    "status": 200,
+    "bytes": 53608
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 900
+    },
+    "status": 200,
+    "bytes": 137
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/get-inventory-item",
+    "body": {
+      "inventory_id": "7128775",
+      "yard_slug": "ez-pull-n-pay-warner-robins"
+    },
+    "status": 200,
+    "bytes": 1067
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "samson-auto-salvage",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200,
+    "bytes": 2203324
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "samson-auto-salvage",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 100
+    },
+    "status": 200,
+    "bytes": 2331264
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "samson-auto-salvage",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 200
+    },
+    "status": 200,
+    "bytes": 2362438
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 300
+    },
+    "status": 200,
+    "bytes": 2306398
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 400
+    },
+    "status": 200,
+    "bytes": 2272056
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 500
+    },
+    "status": 200,
+    "bytes": 2273075
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 600
+    },
+    "status": 200,
+    "bytes": 2215475
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 700
+    },
+    "status": 200,
+    "bytes": 2013454
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-nc",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 800
+    },
+    "status": 200,
+    "bytes": 1796111
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 900
+    },
+    "status": 200,
+    "bytes": 1543373
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "ez-pull-n-pay-montgomery",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1000
+    },
+    "status": 200,
+    "bytes": 1381777
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "santa-maria-recycling-center",
+        "ez-pull-n-pay-montgomery",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1100
+    },
+    "status": 200,
+    "bytes": 782306
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "santa-maria-recycling-center",
+        "foss-winston-salem",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1200
+    },
+    "status": 200,
+    "bytes": 419683
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "prestige-pull-your-part-houston-tx",
+        "santa-maria-recycling-center",
+        "foss-winston-salem",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1300
+    },
+    "status": 200,
+    "bytes": 338101
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "santa-maria-recycling-center",
+        "auto-parts-u-pull-shelby-nc",
+        "l-and-l-u-pull"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1400
+    },
+    "status": 200,
+    "bytes": 191800
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1500
+    },
+    "status": 200,
+    "bytes": 134763
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1600
+    },
+    "status": 200,
+    "bytes": 136712
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1700
+    },
+    "status": 200,
+    "bytes": 135400
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1800
+    },
+    "status": 200,
+    "bytes": 139913
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1900
+    },
+    "status": 200,
+    "bytes": 136725
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2000
+    },
+    "status": 200,
+    "bytes": 137832
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2100
+    },
+    "status": 200,
+    "bytes": 139417
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2200
+    },
+    "status": 200,
+    "bytes": 144773
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2300
+    },
+    "status": 200,
+    "bytes": 142622
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2400
+    },
+    "status": 200,
+    "bytes": 143007
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2500
+    },
+    "status": 200,
+    "bytes": 143475
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2600
+    },
+    "status": 200,
+    "bytes": 143714
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2700
+    },
+    "status": 200,
+    "bytes": 144600
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2800
+    },
+    "status": 200,
+    "bytes": 146319
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 2900
+    },
+    "status": 200,
+    "bytes": 142212
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 3000
+    },
+    "status": 200,
+    "bytes": 144524
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 3100
+    },
+    "status": 200,
+    "bytes": 146217
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 3200
+    },
+    "status": 200,
+    "bytes": 139001
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": [
+        "auto-parts-u-pull-nc",
+        "auto-parts-u-pull-shelby-nc",
+        "prestige-pull-your-part-houston-tx",
+        "ez-pull-n-pay-atlanta",
+        "santa-maria-recycling-center",
+        "foss-wilson",
+        "foss-recycling",
+        "ez-pull-n-pay-columbus",
+        "ez-pull-n-pay-birmingham",
+        "ez-pull-n-pay-montgomery",
+        "foss-la-grange",
+        "samson-auto-salvage",
+        "ez-pull-n-pay-stockbridge",
+        "foss-winston-salem",
+        "ez-pull-n-pay-warner-robins",
+        "ez-pull-n-pay-decatur",
+        "a-a-auto-recycling",
+        "foss-jacksonville",
+        "l-and-l-u-pull",
+        "foss-havelock"
+      ],
+      "per_yard_limit": 100,
+      "item_rank_offset": 0
+    },
+    "status": 200,
+    "bytes": 2203324
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 900
+    },
+    "status": 200,
+    "bytes": 137
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["auto-parts-u-pull-shelby-nc"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1500
+    },
+    "status": 200,
+    "bytes": 145
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["prestige-pull-your-part-houston-tx"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1400
+    },
+    "status": 200,
+    "bytes": 152
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-atlanta"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1100
+    },
+    "status": 200,
+    "bytes": 139
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["santa-maria-recycling-center"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 3300
+    },
+    "status": 200,
+    "bytes": 146
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["foss-wilson"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 800
+    },
+    "status": 200,
+    "bytes": 128
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["foss-recycling"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 800
+    },
+    "status": 200,
+    "bytes": 131
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-columbus"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1000
+    },
+    "status": 200,
+    "bytes": 140
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-birmingham"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 800
+    },
+    "status": 200,
+    "bytes": 141
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-montgomery"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1200
+    },
+    "status": 200,
+    "bytes": 142
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["foss-la-grange"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1000
+    },
+    "status": 200,
+    "bytes": 132
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["samson-auto-salvage"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 300
+    },
+    "status": 200,
+    "bytes": 136
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-stockbridge"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1200
+    },
+    "status": 200,
+    "bytes": 143
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["foss-winston-salem"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1400
+    },
+    "status": 200,
+    "bytes": 136
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-warner-robins"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1200
+    },
+    "status": 200,
+    "bytes": 145
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["ez-pull-n-pay-decatur"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1100
+    },
+    "status": 200,
+    "bytes": 139
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["a-a-auto-recycling"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1200
+    },
+    "status": 200,
+    "bytes": 136
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["foss-jacksonville"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1200
+    },
+    "status": 200,
+    "bytes": 135
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": {
+      "yard_list": ["l-and-l-u-pull"],
+      "per_yard_limit": 100,
+      "item_rank_offset": 1500
+    },
+    "status": 429,
+    "bytes": 168
+  }
+]

@@ -1,0 +1,3880 @@
+[
+  {
+    "id": "734741a5-c4f7-4a84-bd08-bde6602822af",
+    "slug": "south-carolina-blue-and-gold",
+    "display_name": "Blue & Gold Auto Salvage",
+    "organization_id": null,
+    "address": "5940 Fairfield Rd, Columbia, SC 29203",
+    "city": "Columbia",
+    "state": "SC",
+    "website_url": null,
+    "phone": "(803) 736-8696",
+    "data": {
+      "latitude": 34.064461,
+      "longitude": -81.022693
+    }
+  },
+  {
+    "id": "292a329e-cfe5-4847-97aa-3fdf92066aeb",
+    "slug": "north-carolina-goldsboro-bevells-pull-it-yourself",
+    "display_name": "Bevells Pull It Yourself - Goldsboro",
+    "organization_id": null,
+    "address": "3175 US-70 BUS, Goldsboro, NC 27530",
+    "city": "Goldsboro",
+    "state": "NC",
+    "website_url": null,
+    "phone": "(919) 731-1245",
+    "data": {
+      "latitude": 35.296004,
+      "longitude": -78.155435
+    }
+  },
+  {
+    "id": "3503e674-db7e-42b3-9452-8a0856cdeb7e",
+    "slug": "pick-your-part-wilmington-help-yourself",
+    "display_name": "Pick Your Part - Wilmington Help Yourself",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1232 Blinn Ave.",
+    "city": "Wilmington",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/wilmington-help-yourself-1262/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 33.789313,
+      "longitude": -118.243532
+    }
+  },
+  {
+    "id": "2f7d586f-1170-4406-857d-3d4063db43ec",
+    "slug": "pick-n-pull-kansas-city-12th-st-ks",
+    "display_name": "Pick-N-Pull Kansas City (12th St)",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "1142 S 12th Street",
+    "city": "Kansas City",
+    "state": "KS",
+    "website_url": "https://www.picknpull.com/locations/159",
+    "phone": "913-321-1000",
+    "data": {
+      "latitude": 39.076,
+      "longitude": -94.6409
+    }
+  },
+  {
+    "id": "0b16e550-844a-4460-9e81-179d57d5081c",
+    "slug": "pick-n-pull-kansas-city-truman-rd-mo",
+    "display_name": "Pick-N-Pull Kansas City (Truman Rd)",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "8012 E Truman Road",
+    "city": "Kansas City",
+    "state": "MO",
+    "website_url": "https://www.picknpull.com/locations/67",
+    "phone": "816-231-1618",
+    "data": {
+      "latitude": 39.0934,
+      "longitude": -94.4904
+    }
+  },
+  {
+    "id": "49ee58cf-30dc-4130-9983-a9debb5e1195",
+    "slug": "pick-n-pull-kansas-city-winner-rd-mo",
+    "display_name": "Pick-N-Pull Kansas City (Winner Rd)",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "7700 E Winner Road",
+    "city": "Kansas City",
+    "state": "MO",
+    "website_url": "https://www.picknpull.com/locations/160",
+    "phone": "816-241-7548",
+    "data": {
+      "latitude": 39.1052,
+      "longitude": -94.4926
+    }
+  },
+  {
+    "id": "dcf6ec63-1ff5-4d44-9ba1-9c7d1ddcb9ae",
+    "slug": "pick-n-pull-springfield-mo",
+    "display_name": "Pick-N-Pull Springfield",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "1805 N West Bypass Road",
+    "city": "Springfield",
+    "state": "MO",
+    "website_url": "https://www.picknpull.com/locations/153",
+    "phone": "417-863-8858",
+    "data": {
+      "latitude": 37.2297,
+      "longitude": -93.3489
+    }
+  },
+  {
+    "id": "39681b0a-3433-425c-ac4f-0ebaacaa8e2b",
+    "slug": "pick-your-part-aurora",
+    "display_name": "Pick Your Part - Aurora",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "11602 E 33rd Ave.",
+    "city": "Aurora",
+    "state": "CO",
+    "website_url": "https://www.pyp.com/inventory/aurora-1230/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.763015,
+      "longitude": -104.852912
+    }
+  },
+  {
+    "id": "9e650335-4efb-4664-ba19-b4f22a0f1775",
+    "slug": "cfc-recycling",
+    "display_name": "CFC Recycling",
+    "organization_id": "6ce46a2f-1870-4a07-9f57-52d64f524c68",
+    "address": "2716 Dowdy Ferry Rd",
+    "city": "Dallas",
+    "state": "TX",
+    "website_url": null,
+    "phone": "(214) 584-6399",
+    "data": {}
+  },
+  {
+    "id": "6201b183-ebda-4436-bf2d-207a1a4941e7",
+    "slug": "fenix-auto-parts-georgia-llc-dba-ctv-pik-a-part-moultrie-ga",
+    "display_name": "Fenix Auto Parts Georgia",
+    "organization_id": "59894a5c-a685-454a-a56a-75102304cae2",
+    "address": "232 Industrial Rd",
+    "city": "Moultrie",
+    "state": "GA",
+    "website_url": "https://fenixupull.com",
+    "phone": "229-985-1052",
+    "data": {
+      "latitude": 31.17586845,
+      "longitude": -83.74942655
+    }
+  },
+  {
+    "id": "4b0dd5da-f1c9-4993-b8df-d39a52a353d0",
+    "slug": "pick-your-part-chicago-north",
+    "display_name": "Pick Your Part - Chicago North",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "4555 W North Ave",
+    "city": "Chicago",
+    "state": "IL",
+    "website_url": "https://www.pyp.com/inventory/chicago-north-1581/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 41.909709,
+      "longitude": -87.740647
+    }
+  },
+  {
+    "id": "dc2575c6-bed5-4c26-b1c7-6f9590d9e855",
+    "slug": "prestige-pull-your-part-houston-tx",
+    "display_name": "Prestige Pull Your Part",
+    "organization_id": "33a6feef-eb72-459b-8b57-8dcca4c20f77",
+    "address": "7615 East Mount Houston Road",
+    "city": "Houston",
+    "state": "TX",
+    "website_url": "https://prestigepullyourpart.com",
+    "phone": "832-770-9953",
+    "data": {
+      "latitude": 29.896284,
+      "longitude": -95.276448
+    }
+  },
+  {
+    "id": "19d943d4-b1b9-43be-b124-0b981b3db798",
+    "slug": "ryans-pick-a-part-detroit",
+    "display_name": "Ryan's Pick-a-Part",
+    "organization_id": "e28691c9-e7f4-4d75-890c-dba1fe137722",
+    "address": "9309 Hubbell Ave, Detroit, MI 48228, USA",
+    "city": "Detroit",
+    "state": "MI",
+    "website_url": "https://ryanspickapart.com",
+    "phone": "3138363600",
+    "data": {
+      "latitude": 42.36355486,
+      "longitude": -83.18753971,
+      "mapCenter": [-83.18958121454078, 42.36264553398033]
+    }
+  },
+  {
+    "id": "835e3970-f72a-4dbf-815d-e0ef9624feee",
+    "slug": "pick-n-pull-st-louis-mo",
+    "display_name": "Pick-N-Pull St. Louis",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "7557 Hall Street",
+    "city": "St. Louis",
+    "state": "MO",
+    "website_url": "https://www.picknpull.com/locations/68",
+    "phone": "314-383-2333",
+    "data": {
+      "latitude": 38.7035,
+      "longitude": -90.2226
+    }
+  },
+  {
+    "id": "f195a5a1-d608-4bcb-ab4a-3a6632a2dca7",
+    "slug": "pick-n-pull-carson-city-nv",
+    "display_name": "Pick-N-Pull Carson City",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "7777 US Highway 50 E",
+    "city": "Carson City",
+    "state": "NV",
+    "website_url": "https://www.picknpull.com/locations/69",
+    "phone": "775-841-1333",
+    "data": {
+      "latitude": 39.2173,
+      "longitude": -119.8078
+    }
+  },
+  {
+    "id": "db5bed15-05b4-4ec2-bd4b-377a6a783aac",
+    "slug": "pick-n-pull-sparks-nv",
+    "display_name": "Pick-N-Pull Sparks",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "2205 Larkin Circle",
+    "city": "Sparks",
+    "state": "NV",
+    "website_url": "https://www.picknpull.com/locations/70",
+    "phone": "775-359-4147",
+    "data": {
+      "latitude": 39.5216,
+      "longitude": -119.7011
+    }
+  },
+  {
+    "id": "e5fca19d-2abe-4503-81f8-46ba1f2112bb",
+    "slug": "pick-n-pull-columbus-oh",
+    "display_name": "Pick-N-Pull Columbus",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "2716 Groveport Road",
+    "city": "Columbus",
+    "state": "OH",
+    "website_url": "https://www.picknpull.com/locations/71",
+    "phone": "614-497-9152",
+    "data": {
+      "latitude": 39.9091,
+      "longitude": -82.9745
+    }
+  },
+  {
+    "id": "d3b531ae-6d1d-4f9f-9a0b-1049d91453d4",
+    "slug": "ez-pull-n-pay-atlanta",
+    "display_name": "EZ Pull N Pay Atlanta",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "1172 Field Rd NW, Atlanta, GA 30318, USA",
+    "city": "Atlanta",
+    "state": "GA",
+    "website_url": "https://ezpullnpay.com",
+    "phone": "4043431201",
+    "data": {
+      "mapCenter": [-84.48366342393938, 33.78849789523652]
+    }
+  },
+  {
+    "id": "d5c7a79f-4c34-4915-bfae-c5cdcac40864",
+    "slug": "santa-maria-recycling-center",
+    "display_name": "SANTA MARIA RECYCLING CENTER",
+    "organization_id": "019ea586-bc6d-4a34-8824-7ed9c0fb1818",
+    "address": "1544 Black Rd, Santa Maria, CA 93458, USA",
+    "city": "Santa Maria",
+    "state": "CA",
+    "website_url": null,
+    "phone": "8053462770",
+    "data": {
+      "latitude": 34.934034,
+      "longitude": -120.488343
+    }
+  },
+  {
+    "id": "c9b858e6-2260-4838-8c95-f5e076832de7",
+    "slug": "pauls-auto-yard-lake-station-in",
+    "display_name": "Pauls Auto Yard - Lake Station",
+    "organization_id": "5712345c-4597-4e8d-98ef-856be732082c",
+    "address": "1501 Lake Street",
+    "city": "Lake Station",
+    "state": "IN",
+    "website_url": "https://www.paulsautosalvage.com/lake-station-location",
+    "phone": "(219) 962-1177",
+    "data": {
+      "latitude": 41.58856415,
+      "longitude": -87.26611232
+    }
+  },
+  {
+    "id": "91e69d1e-959c-4717-b52f-eaa97fe066b9",
+    "slug": "pauls-auto-yard-merrillville",
+    "display_name": "Pauls Auto Yard - Merrillville",
+    "organization_id": "5712345c-4597-4e8d-98ef-856be732082c",
+    "address": "6530 Broadway",
+    "city": "Merrillville",
+    "state": "IN",
+    "website_url": "https://www.paulsautosalvage.com/merrillville-location",
+    "phone": "(844) 226-7272",
+    "data": {
+      "latitude": 41.49982024,
+      "longitude": -87.33611883
+    }
+  },
+  {
+    "id": "999ad0a2-7238-4fe2-8249-86d8a3d872df",
+    "slug": "auto-parts-u-pull-nc",
+    "display_name": "Auto Parts U Pull - Lincolnton",
+    "organization_id": "2f6823e3-8b15-49e5-9395-306964734078",
+    "address": "851 Car Farm Rd",
+    "city": "Charlotte",
+    "state": "NC",
+    "website_url": "https://www.autopullnc.com",
+    "phone": "7047355085",
+    "data": {
+      "latitude": 35.518375,
+      "longitude": -81.199645,
+      "mapCenter": [-81.19961687105241, 35.51957912456237]
+    }
+  },
+  {
+    "id": "c07e3cf6-2c4d-4f91-b0e5-8a1257abdd05",
+    "slug": "u-pull-and-pay-houston",
+    "display_name": "U-Pull-&-Pay Houston",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "9445 Tavenor Lane",
+    "city": "Houston",
+    "state": "TX",
+    "website_url": "https://www.upullandpay.com/locations/texas/houston/",
+    "phone": "832-706-2166",
+    "data": {
+      "latitude": 29.631745,
+      "longitude": -95.250792
+    }
+  },
+  {
+    "id": "601e6b58-68dd-4695-b91d-f1194b04d618",
+    "slug": "pull-a-part-atlanta-north",
+    "display_name": "Pull-A-Part Atlanta North",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4416 Buford Hwy",
+    "city": "Norcross",
+    "state": "GA",
+    "website_url": "https://www.pullapart.com/locations/georgia/atlanta-north/",
+    "phone": "770-242-8844",
+    "data": {
+      "latitude": 33.966371,
+      "longitude": -84.173752
+    }
+  },
+  {
+    "id": "dde2d4dd-9a95-4d7b-9252-7c15bacb8e2c",
+    "slug": "foss-wilson",
+    "display_name": "Foss Wilson",
+    "organization_id": "60d7af5d-5500-439e-a448-4000e687d0b4",
+    "address": "2100 Charleston St SE, Wilson, NC 27893, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "2523603090",
+    "data": {
+      "latitude": 35.699199,
+      "longitude": -77.895617
+    }
+  },
+  {
+    "id": "e86d0261-c963-4e8d-b9f9-5581df7dee05",
+    "slug": "pick-your-part-santa-fe-springs",
+    "display_name": "Pick Your Part - Santa Fe Springs",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "13780 Imperial Highway",
+    "city": "Santa Fe Springs",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/santa-fe-springs-1282/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 33.916785,
+      "longitude": -118.039428
+    }
+  },
+  {
+    "id": "dfd188c9-8d65-465f-b826-ee65f5029641",
+    "slug": "joliet-u-pull-it",
+    "display_name": "Joliet U-Pull-It",
+    "organization_id": "4ea033f1-ae77-4ad5-ba89-40891c145841",
+    "address": "1014 E Washington St",
+    "city": "Joliet",
+    "state": "IL",
+    "website_url": null,
+    "phone": "(815)723-3011",
+    "data": {
+      "latitude": 41.52286359,
+      "longitude": -88.05614059
+    }
+  },
+  {
+    "id": "c0bad6b5-b84d-45e9-bfea-aa5f93a6fa77",
+    "slug": "pick-n-pull-redding-ca",
+    "display_name": "Pick-N-Pull Redding",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "19919 Viking Way",
+    "city": "Redding",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/54",
+    "phone": "530-221-6184",
+    "data": {
+      "latitude": 40.5784,
+      "longitude": -122.3181
+    }
+  },
+  {
+    "id": "59a369c5-dd38-45f3-a0c1-231b95f826f0",
+    "slug": "pick-n-pull-richmond-ca",
+    "display_name": "Pick-N-Pull Richmond",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "1015 Market Avenue",
+    "city": "Richmond",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/55",
+    "phone": "510-233-7341",
+    "data": {
+      "latitude": 37.9587,
+      "longitude": -122.358
+    }
+  },
+  {
+    "id": "8d4aa354-71bb-45eb-836d-b9d7e751cf93",
+    "slug": "jalopy-wizards",
+    "display_name": "JALOPY WIZARDS",
+    "organization_id": "905e2fbb-db8c-45ac-9de8-bc46e04c645a",
+    "address": "Columbia, SC 29206, USA",
+    "city": null,
+    "state": null,
+    "website_url": null,
+    "phone": "8034705691",
+    "data": {
+      "latitude": 34.018564,
+      "longitude": -80.966349
+    }
+  },
+  {
+    "id": "3af59536-fef4-4fa4-8cfd-32c1bd99faa2",
+    "slug": "pick-your-part-anaheim",
+    "display_name": "Pick Your Part - Anaheim",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1235 South Beach Blvd",
+    "city": "Anaheim",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/anaheim-1265/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 33.815561,
+      "longitude": -117.994573
+    }
+  },
+  {
+    "id": "6f3cbb8d-2425-4c60-bac6-c77bb734140b",
+    "slug": "pick-n-pull-portland-south-or",
+    "display_name": "Pick-N-Pull Portland South",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "6241 SE 111th Avenue",
+    "city": "Portland",
+    "state": "OR",
+    "website_url": "https://www.picknpull.com/locations/118",
+    "phone": "503-760-5820",
+    "data": {
+      "latitude": 45.477,
+      "longitude": -122.5494
+    }
+  },
+  {
+    "id": "25bbb27a-81a4-463c-86d6-5e2a104cf34a",
+    "slug": "pick-n-pull-sherwood-or",
+    "display_name": "Pick-N-Pull Sherwood",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "19135 SW Pacific Highway",
+    "city": "Sherwood",
+    "state": "OR",
+    "website_url": "https://www.picknpull.com/locations/119",
+    "phone": "503-625-6141",
+    "data": {
+      "latitude": 45.3817,
+      "longitude": -122.8286
+    }
+  },
+  {
+    "id": "2dedce78-d6c5-4784-b1ca-6c73cf116ca2",
+    "slug": "youngs-u-pull-it",
+    "display_name": "Youngs U-Pull-It",
+    "organization_id": null,
+    "address": "3815 Liberty Hwy, Anderson, SC 29621",
+    "city": "Anderson",
+    "state": "SC",
+    "website_url": null,
+    "phone": "(864) 224-9687",
+    "data": {
+      "latitude": 34.554288,
+      "longitude": -82.680498
+    }
+  },
+  {
+    "id": "77e9c906-55e1-406b-9690-f760f9cf7314",
+    "slug": "sandhills-pick-n-pull",
+    "display_name": "Sandhills Pick N Pull",
+    "organization_id": null,
+    "address": "1025 N Bennett St, Southern Pines, NC 28387",
+    "city": "Southern Pines",
+    "state": "NC",
+    "website_url": null,
+    "phone": "(910) 692-7777",
+    "data": {
+      "latitude": 35.18098,
+      "longitude": -79.383469
+    }
+  },
+  {
+    "id": "e10ec0e7-12a6-4713-8566-1b269bb86a80",
+    "slug": "georgia-highway-82-pick-and-pay",
+    "display_name": "Highway 82 Pick & Pay",
+    "organization_id": null,
+    "address": "1715 US-82, Tifton, GA 31793",
+    "city": "Tifton",
+    "state": "GA",
+    "website_url": null,
+    "phone": "(229) 382-8884",
+    "data": {
+      "latitude": 31.446512,
+      "longitude": -83.54106
+    }
+  },
+  {
+    "id": "8f1aecf2-a9ca-4355-8915-f6f80b392841",
+    "slug": "pick-your-part-fontana",
+    "display_name": "Pick Your Part - Fontana",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "15228 Boyle Avenue",
+    "city": "Fontana",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/fontana-1285/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.065142,
+      "longitude": -117.472894
+    }
+  },
+  {
+    "id": "1260f9f5-175f-465f-b247-85069a105564",
+    "slug": "foss-recycling",
+    "display_name": "Foss Chesapeake",
+    "organization_id": "60d7af5d-5500-439e-a448-4000e687d0b4",
+    "address": "5411 W Military Hwy, Chesapeake, VA 23321, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "7573354048",
+    "data": {
+      "latitude": 36.770938,
+      "longitude": -76.458406,
+      "mapCenter": [-76.458306, 36.769884]
+    }
+  },
+  {
+    "id": "68331bd2-64b8-423c-a297-19b1e35d1a33",
+    "slug": null,
+    "display_name": null,
+    "organization_id": null,
+    "address": null,
+    "city": null,
+    "state": null,
+    "website_url": null,
+    "phone": null,
+    "data": {}
+  },
+  {
+    "id": "98de74ac-b296-4357-a926-b136e6747e97",
+    "slug": null,
+    "display_name": null,
+    "organization_id": null,
+    "address": null,
+    "city": null,
+    "state": null,
+    "website_url": null,
+    "phone": null,
+    "data": {}
+  },
+  {
+    "id": "d7bf9b8a-be33-4da9-95dd-62f4fa3cff5c",
+    "slug": "jalopy-jungle-caldwell",
+    "display_name": "Jalopy Jungle Caldwell",
+    "organization_id": "a35fdb7a-2863-40f7-80ef-bb3abcc1d4c6",
+    "address": null,
+    "city": "Caldwell",
+    "state": "ID",
+    "website_url": "https://pickapartjalopyjungle.com/",
+    "phone": "(208) 453-4994",
+    "data": {}
+  },
+  {
+    "id": "1920e8e5-4130-4601-912c-c6ba3be0bdf1",
+    "slug": "ez-pull-n-pay-columbus",
+    "display_name": "EZ Pull N Pay Columbus",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "3843 Aldridge Rd, Columbus, GA 31903, USA",
+    "city": "Columbus",
+    "state": "GA",
+    "website_url": "https://www.ezpullnpay.com",
+    "phone": "7066899888",
+    "data": {
+      "latitude": 32.442816,
+      "longitude": -84.939506,
+      "mapCenter": [-84.93948262189862, 32.44272767771879]
+    }
+  },
+  {
+    "id": "4e25e2c1-2aee-46d3-a50f-a39e99c59144",
+    "slug": "uapi-alexandria",
+    "display_name": "UAPI - Alexandria",
+    "organization_id": "0fb0271b-f538-4862-8bfc-33978f225bcf",
+    "address": "5901 Old Boyce Rd, Alexandria, LA 71303, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "(318) 442-8500",
+    "data": {
+      "latitude": 31.343579,
+      "longitude": -92.512155
+    }
+  },
+  {
+    "id": "a03821c7-fe2a-4d6c-910e-c8b696d4c120",
+    "slug": "ez-pull-n-pay-birmingham",
+    "display_name": "EZ Pull N Pay Birmingham",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "",
+    "city": "Birmingham",
+    "state": "AL",
+    "website_url": null,
+    "phone": "",
+    "data": {
+      "latitude": 33.522217,
+      "longitude": -86.809079
+    }
+  },
+  {
+    "id": "4dec575d-d833-47ff-b897-b97104ddb35c",
+    "slug": "pauls-auto-yard-westville-in",
+    "display_name": "Pauls Auto Yard - Westville",
+    "organization_id": "5712345c-4597-4e8d-98ef-856be732082c",
+    "address": "651 West State Road 2",
+    "city": "Westville",
+    "state": "IN",
+    "website_url": "https://www.paulsautosalvage.com/westville-location",
+    "phone": "(800) 261-2789",
+    "data": {
+      "latitude": 41.54474,
+      "longitude": -86.905105
+    }
+  },
+  {
+    "id": "3894e719-eaf3-405d-9951-c5ff006dfe65",
+    "slug": "ez-pull-n-pay-montgomery",
+    "display_name": "EZ Pull N Pay Montgomery",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "4425 Contractor Dr, Montgomery, AL 36110, USA",
+    "city": "Montgomery",
+    "state": "AL",
+    "website_url": "https://www.ezpullnpay.com",
+    "phone": "3343283006",
+    "data": {
+      "latitude": 32.422324,
+      "longitude": -86.232516,
+      "mapCenter": [0, 0]
+    }
+  },
+  {
+    "id": "cd6cb4b1-a2bf-4df2-856f-35b3db5638bd",
+    "slug": "foss-la-grange",
+    "display_name": "Foss La Grange",
+    "organization_id": "60d7af5d-5500-439e-a448-4000e687d0b4",
+    "address": "7009 US-70, La Grange, NC 28551, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "9103475865",
+    "data": {
+      "latitude": 35.26854,
+      "longitude": -77.737234
+    }
+  },
+  {
+    "id": "67aded0f-437f-4b46-9b93-494c2189b58f",
+    "slug": "samson-auto-salvage",
+    "display_name": "SAMSON AUTO SALVAGE",
+    "organization_id": "e3aaf9d1-058a-460f-9ce1-15fcd7308f55",
+    "address": "8103 South Alameda Street",
+    "city": "Los Angeles",
+    "state": "CA",
+    "website_url": "",
+    "phone": "3235831094",
+    "data": {
+      "latitude": 33.964847,
+      "longitude": -118.232858
+    }
+  },
+  {
+    "id": "31748529-ac1c-46be-8077-8a71682560c7",
+    "slug": "southside-u-pull-it",
+    "display_name": "SOUTHSIDE U-PULL-IT",
+    "organization_id": "68c50eab-32a3-4ecf-ae20-0abbdfd437a8",
+    "address": "3515 Almeda-Genoa Road",
+    "city": "Houston",
+    "state": "TX",
+    "website_url": "",
+    "phone": "8323019522",
+    "data": {
+      "latitude": 29.617081,
+      "longitude": -95.367004
+    }
+  },
+  {
+    "id": "991561b0-1331-4cbe-ab3b-1040cbe80cad",
+    "slug": "jalopy-jungle-nampa",
+    "display_name": "Jalopy Jungle Nampa",
+    "organization_id": "a35fdb7a-2863-40f7-80ef-bb3abcc1d4c6",
+    "address": "3931 Garrity Blvd",
+    "city": "Nampa",
+    "state": "ID",
+    "website_url": "https://pickapartjalopyjungle.com/",
+    "phone": "(208) 466-8468",
+    "data": {}
+  },
+  {
+    "id": "60b47f10-875e-40c9-8ce7-8a26a4b0a407",
+    "slug": "jdm-automotive-recycling",
+    "display_name": "JDM AUTOMOTIVE & RECYCLING",
+    "organization_id": "433979a0-d76b-4cee-b0fb-0a10b367cc43",
+    "address": "1731 Belgrade-Swansboro Rd, Maysville, NC 28555, USA",
+    "city": null,
+    "state": null,
+    "website_url": null,
+    "phone": "9103820221",
+    "data": {
+      "latitude": 34.80141,
+      "longitude": -77.21656
+    }
+  },
+  {
+    "id": "9c535ef6-faa9-4517-b642-a381dd9b7f1a",
+    "slug": "jalopy-jungle-twin-falls",
+    "display_name": "Jalopy Jungle Twin Falls",
+    "organization_id": "a35fdb7a-2863-40f7-80ef-bb3abcc1d4c6",
+    "address": null,
+    "city": "Twin Falls",
+    "state": "ID",
+    "website_url": "https://pickapartjalopyjungle.com/",
+    "phone": "(208) 734-5350",
+    "data": {}
+  },
+  {
+    "id": "64fa88ec-6eac-44e0-8734-402b0204b5dd",
+    "slug": "ez-pull-n-pay-stockbridge",
+    "display_name": "EZ Pull N Pay Stockbridge",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "473 Hwy 138E, Stockbridge, GA 30281, USA",
+    "city": "Stockbridge",
+    "state": "GA",
+    "website_url": "https://www.ezpullnpay.com",
+    "phone": "7704744454",
+    "data": {
+      "latitude": 33.54545,
+      "longitude": -84.191193,
+      "mapCenter": [-84.1915592354557, 33.545932788389536]
+    }
+  },
+  {
+    "id": "0184e45d-8df3-4db4-a492-58c1e19341e1",
+    "slug": "uapi-texarkana",
+    "display_name": "UAPI - TEXARKANA",
+    "organization_id": "0fb0271b-f538-4862-8bfc-33978f225bcf",
+    "address": "7000 W New Boston Rd, Wake Village, TX 75501, USA",
+    "city": null,
+    "state": null,
+    "website_url": null,
+    "phone": "8888548274",
+    "data": {
+      "latitude": 33.44353,
+      "longitude": -94.144132
+    }
+  },
+  {
+    "id": "4ff3f117-af51-44a6-957c-c3231bc7f4f3",
+    "slug": "jalopy-jungle-garden-city",
+    "display_name": "Jalopy Jungle Garden City",
+    "organization_id": "a35fdb7a-2863-40f7-80ef-bb3abcc1d4c6",
+    "address": null,
+    "city": "Garden City",
+    "state": "ID",
+    "website_url": "https://pickapartjalopyjungle.com/",
+    "phone": "(208) 321-7721",
+    "data": {}
+  },
+  {
+    "id": "8d421ecf-cb0e-4973-a28f-b62abccb00b2",
+    "slug": "foss-winston-salem",
+    "display_name": "Foss Winston-Salem",
+    "organization_id": "60d7af5d-5500-439e-a448-4000e687d0b4",
+    "address": "3459 Thomasville Rd, Winston-Salem, NC 27107, USA",
+    "city": "Winston-Salem",
+    "state": "NC",
+    "website_url": "https://fossupullit.com/",
+    "phone": "3367889122",
+    "data": {
+      "latitude": 36.055164,
+      "longitude": -80.20702,
+      "mapCenter": [-80.20576646911381, 36.05610673455696]
+    }
+  },
+  {
+    "id": "370e9a2c-5ec6-461f-944c-7bcf059ecfa9",
+    "slug": "cash-n-carry-pull-your-part-savannah-ga",
+    "display_name": "Cash-N-Carry Pull-Your-Part",
+    "organization_id": "d4478d4c-51e4-4c12-bdc2-80163276ba87",
+    "address": "500 Staley Ave",
+    "city": "Savannah",
+    "state": "GA",
+    "website_url": "https://cashncarryparts.com",
+    "phone": "912-352-0725",
+    "data": {
+      "latitude": 32.0337986,
+      "longitude": -81.1145402
+    }
+  },
+  {
+    "id": "7016ebd3-5c49-4b9f-87c4-7c29a9deb20c",
+    "slug": "uapi",
+    "display_name": "UAPI - North Shreveport",
+    "organization_id": "0fb0271b-f538-4862-8bfc-33978f225bcf",
+    "address": "809 Aero Dr, Shreveport, LA 71107, USA",
+    "city": "Shreveport",
+    "state": "LA",
+    "website_url": "https://uapi.biz/",
+    "phone": "(318) 746-4646 x 3",
+    "data": {
+      "latitude": 32.528886,
+      "longitude": -93.775703
+    }
+  },
+  {
+    "id": "5834a7c5-da6a-46a7-a440-25fd5c8e3cea",
+    "slug": "pick-your-part-huntsville",
+    "display_name": "Pick Your Part - Huntsville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "6942 Stringfield Rd.",
+    "city": "Huntsville",
+    "state": "AL",
+    "website_url": "https://www.pyp.com/inventory/huntsville-1223/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.77887,
+      "longitude": -86.652217
+    }
+  },
+  {
+    "id": "7dae3265-04aa-40da-b741-dc8ea54b4141",
+    "slug": "pick-your-part-bakersfield",
+    "display_name": "Pick Your Part - Bakersfield",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "5311 South Union Ave.",
+    "city": "Bakersfield",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/bakersfield-1260/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.306423,
+      "longitude": -119.005333
+    }
+  },
+  {
+    "id": "d37f904e-aadf-44f6-b425-833f5829ad99",
+    "slug": "ez-pull-n-pay-warner-robins",
+    "display_name": "EZ Pull N Pay Warner Robins",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "11128 Hawkinsville Rd, Warner Robins, GA 31093, USA",
+    "city": "Warner Robins",
+    "state": "GA",
+    "website_url": "https://www.ezpullnpay.com",
+    "phone": "4783282960",
+    "data": {
+      "latitude": 32.655945,
+      "longitude": -83.615756,
+      "mapCenter": [-83.61373210805083, 32.65680518536438]
+    }
+  },
+  {
+    "id": "f35fa198-d457-4109-8862-f048d68f1c07",
+    "slug": "ez-pull-n-pay-decatur",
+    "display_name": "EZ Pull N Pay Decatur",
+    "organization_id": "e83f5b57-8a5e-40cb-9a11-80d627ec8379",
+    "address": "205 Pine Ave SW, Decatur, AL 35601, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "2566788070",
+    "data": {
+      "latitude": 34.60404886,
+      "longitude": -87.01549312,
+      "mapCenter": [-87.01633524247035, 34.60273745360587]
+    }
+  },
+  {
+    "id": "aeb557d7-341e-4298-a7d6-138eb8c1ac05",
+    "slug": "u-pull-u-save-syracuse-east-syracuse-ny",
+    "display_name": "U Pull U Save Syracuse",
+    "organization_id": "5ed43902-b109-4ad1-ba7f-54bbba71b097",
+    "address": "7030 Myers Rd",
+    "city": "East Syracuse",
+    "state": "NY",
+    "website_url": "https://fenixupull.com",
+    "phone": "315-656-7533",
+    "data": {
+      "latitude": 43.09394,
+      "longitude": -76.039075
+    }
+  },
+  {
+    "id": "dca066fc-298f-47b1-9277-5c1ead41239f",
+    "slug": "pick-your-part-rialto",
+    "display_name": "Pick Your Part - Rialto",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "221 E. Santa Ana Avenue",
+    "city": "Bloomington",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/rialto-1284/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.055306,
+      "longitude": -117.367427
+    }
+  },
+  {
+    "id": "5d2b0e7d-030a-442d-9231-33737cf7017b",
+    "slug": "pull-n-save-west-valley-ut",
+    "display_name": "Pull N Save WVC",
+    "organization_id": "64dee260-29cd-44d3-bb6f-2996e900cf23",
+    "address": "6980 W 2100 S",
+    "city": "West Valley City",
+    "state": "UT",
+    "website_url": "https://pullnsave.com",
+    "phone": "801-508-1002",
+    "data": {
+      "latitude": 40.6896673,
+      "longitude": -112.0581079
+    }
+  },
+  {
+    "id": "0a1b4eff-11e7-49e4-b763-2bd3c5104811",
+    "slug": "u-pull-and-save-mason-mi",
+    "display_name": "U Pull and Save",
+    "organization_id": "d687c6a4-4aea-48a1-943c-7b3c33f210af",
+    "address": "1325 N Cedar St",
+    "city": "Mason",
+    "state": "MI",
+    "website_url": "https://u-pullandsave.com",
+    "phone": "517-699-6800",
+    "data": {
+      "latitude": 42.5880015,
+      "longitude": -84.4557582
+    }
+  },
+  {
+    "id": "c7286d24-9f9f-4931-a365-62e30d32ac02",
+    "slug": "a-a-auto-recycling",
+    "display_name": "A & A Auto Recycling",
+    "organization_id": "8afa12e2-2acf-4f56-8280-b430ff0165da",
+    "address": "5507 9th St E, Bradenton, FL 34203, USA",
+    "city": "Bradenton",
+    "state": "FL",
+    "website_url": "https://aaautorecycling.com",
+    "phone": "9417512690",
+    "data": {
+      "latitude": 27.44345,
+      "longitude": -82.5544,
+      "mapCenter": [-82.55291573948813, 27.443453531869466]
+    }
+  },
+  {
+    "id": "0c757f3c-68cf-40b5-812e-d20ddbe9c542",
+    "slug": "go-pull-it-jacksonville-fl",
+    "display_name": "GO Pull-It",
+    "organization_id": "84229512-c358-4606-83ed-d2ef6b1fdb25",
+    "address": "7282 Commonwealth Ave",
+    "city": "Jacksonville",
+    "state": "FL",
+    "website_url": "https://gopullit.com",
+    "phone": "904-674-6060",
+    "data": {
+      "latitude": 30.3372686,
+      "longitude": -81.7696884
+    }
+  },
+  {
+    "id": "5e54dc21-e1a8-4fdf-8c15-9a5df7a176a6",
+    "slug": "pull-n-save-phoenix-south-az",
+    "display_name": "Pull N Save PHX South",
+    "organization_id": "64dee260-29cd-44d3-bb6f-2996e900cf23",
+    "address": "504 S 27th Ave",
+    "city": "Phoenix",
+    "state": "AZ",
+    "website_url": "https://pullnsave.com",
+    "phone": "602-353-1826",
+    "data": {
+      "latitude": 33.4425824,
+      "longitude": -112.1180268
+    }
+  },
+  {
+    "id": "4fef413a-6b7f-4551-95b9-ed9fad0a972d",
+    "slug": "uapi-bossier-city",
+    "display_name": "UAPI - Bossier City",
+    "organization_id": "0fb0271b-f538-4862-8bfc-33978f225bcf",
+    "address": "809 Aero Dr, Shreveport, LA 71107, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "8888548274",
+    "data": {
+      "latitude": 32.528886,
+      "longitude": -93.775703
+    }
+  },
+  {
+    "id": "bae5ae1b-6417-48f2-8e04-342b3e23293a",
+    "slug": "smith-auto-inc-self-serve-pawnee-city-ne",
+    "display_name": "Smith Auto inc Self Serve",
+    "organization_id": "86c977b3-5ef2-4de7-85ea-6d2cf46f1147",
+    "address": "70971 621st Blvd",
+    "city": "Pawnee City",
+    "state": "NE",
+    "website_url": "https://smithautone.com",
+    "phone": "402-852-2190",
+    "data": {
+      "latitude": 40.1127016,
+      "longitude": -96.1655934
+    }
+  },
+  {
+    "id": "b1d301e6-4aec-4965-9992-111ebedbcca7",
+    "slug": "uapi-south-shreveport",
+    "display_name": "UAPI - South Shreveport",
+    "organization_id": "0fb0271b-f538-4862-8bfc-33978f225bcf",
+    "address": "809 Aero Dr, Shreveport, LA 71107, USA",
+    "city": null,
+    "state": null,
+    "website_url": null,
+    "phone": "8888548274",
+    "data": {
+      "latitude": 32.528886,
+      "longitude": -93.775703
+    }
+  },
+  {
+    "id": "fff1f5c3-744c-4aba-89b0-febc06e17135",
+    "slug": "pipes-u-pull-it-shreveport-la",
+    "display_name": "Pipes U-Pull-It",
+    "organization_id": "1d6946b5-9770-498e-94a0-266bcf81b3ba",
+    "address": "806 Aero Drive",
+    "city": "Shreveport",
+    "state": "LA",
+    "website_url": "https://www.pipesupullit.net",
+    "phone": "318-222-9547",
+    "data": {
+      "latitude": 32.52904392,
+      "longitude": -93.77210598
+    }
+  },
+  {
+    "id": "c6334d9a-c14b-463f-acbf-5e7e576db4bf",
+    "slug": "pickers-reno-tx",
+    "display_name": "Picker's Reno",
+    "organization_id": "bd318b01-2757-4449-87da-c8558281700a",
+    "address": "7090 Lamar Rd",
+    "city": "Reno",
+    "state": "TX",
+    "website_url": "https://pickersreno.com",
+    "phone": "903-609-3060",
+    "data": {
+      "latitude": 33.663256,
+      "longitude": -95.454856
+    }
+  },
+  {
+    "id": "211f79c5-1032-4159-aae2-f21abf6d8d49",
+    "slug": "wilberts-u-pull-it-williamson-ny",
+    "display_name": "Wilberts U-Pull-It",
+    "organization_id": "a5113ec5-851a-40af-8d17-3dc29863c5b4",
+    "address": "4936 State Route 104",
+    "city": "Williamson",
+    "state": "NY",
+    "website_url": "https://www.wilberts.com/u-pull-it/",
+    "phone": "315-589-2222",
+    "data": {
+      "latitude": 43.2238186,
+      "longitude": -77.1864012
+    }
+  },
+  {
+    "id": "b1ce05f7-c174-414a-abdc-30e0928ec4a7",
+    "slug": "pull-n-save-phoenix-north-az",
+    "display_name": "Pull N Save PHX North",
+    "organization_id": "64dee260-29cd-44d3-bb6f-2996e900cf23",
+    "address": "320 S 27th Ave",
+    "city": "Phoenix",
+    "state": "AZ",
+    "website_url": "https://pullnsave.com",
+    "phone": "602-353-1826",
+    "data": {
+      "latitude": 33.4451272,
+      "longitude": -112.1206582
+    }
+  },
+  {
+    "id": "6e3b68c1-04e8-4991-aec0-ed0d6e5f14bb",
+    "slug": "harolds-auto-parts-u-pull-it",
+    "display_name": "Harold's Auto Parts - U-Pull-It",
+    "organization_id": "3d3f4872-f467-4ba1-9784-6abb0b515b54",
+    "address": "223 County Road 218",
+    "city": "Briggs",
+    "state": "TX",
+    "website_url": "https://haroldsautoparts.com/",
+    "phone": "800-770-6199",
+    "data": {
+      "latitude": 30.88419939532954,
+      "longitude": -97.91662661949735,
+      "mapCenter": [-97.91904675308592, 30.883042063424384]
+    }
+  },
+  {
+    "id": "4c323b4f-b895-4353-8378-4ca2b91c3cdd",
+    "slug": "parts-galore-detroit-eastside-mi",
+    "display_name": "Parts Galore 1 Eastside",
+    "organization_id": "77cd3e59-5318-4026-a239-039bdc97b784",
+    "address": "11360 E 8 Mile Rd",
+    "city": "Detroit",
+    "state": "MI",
+    "website_url": "https://parts-galore.com",
+    "phone": "313-245-2944",
+    "data": {
+      "latitude": 42.44855437,
+      "longitude": -83.00879326
+    }
+  },
+  {
+    "id": "97bb2d6b-7df2-4fd5-961a-daad33ac3164",
+    "slug": "foss-jacksonville",
+    "display_name": "Foss Jacksonville",
+    "organization_id": "60d7af5d-5500-439e-a448-4000e687d0b4",
+    "address": "2014 Blue Creek Rd, Jacksonville, NC 28540, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "9103475865",
+    "data": {
+      "latitude": 34.754189,
+      "longitude": -77.554117
+    }
+  },
+  {
+    "id": "81345a26-a186-433b-b35d-88462382694b",
+    "slug": "dos-amigos-pull-n-save-fort-worth-tx",
+    "display_name": "Dos Amigos Pull-N-Save",
+    "organization_id": "4290a290-1bd7-4dd0-8524-5fd1197079c3",
+    "address": "2567 Decatur Ave",
+    "city": "Fort Worth",
+    "state": "TX",
+    "website_url": null,
+    "phone": "817-624-1616",
+    "data": {
+      "latitude": 32.7920274,
+      "longitude": -97.3377336
+    }
+  },
+  {
+    "id": "d6e61844-ddc4-4954-a411-9cd90471801a",
+    "slug": "harrys-u-pull-it-allentown",
+    "display_name": "Harry's U-Pull It Allentown",
+    "organization_id": "cbdae5f9-9759-475c-9eba-8a2aa6bee263",
+    "address": "1510 East Jonathan Street",
+    "city": "Allentown",
+    "state": "PA",
+    "website_url": "https://wegotused.com/",
+    "phone": "(610) 433-9901",
+    "data": {}
+  },
+  {
+    "id": "e85fbd51-d38e-4303-a67e-1df2139757c5",
+    "slug": "auto-parts-u-pull-shelby-nc",
+    "display_name": "Auto Parts U Pull - Shelby",
+    "organization_id": "2f6823e3-8b15-49e5-9395-306964734078",
+    "address": "1025 County Home Rd, Shelby, NC 28152, USA",
+    "city": "Shelby",
+    "state": "NC",
+    "website_url": "https://www.autopullnc.com",
+    "phone": "(704) 484-9355",
+    "data": {
+      "latitude": 35.271765,
+      "longitude": -81.507962,
+      "mapCenter": [-81.50799485685599, 35.269902405690885]
+    }
+  },
+  {
+    "id": "9ef47e06-30bb-4d9d-a21e-ae9eaa890ae3",
+    "slug": "pick-n-pull-dallas-south-tx",
+    "display_name": "Pick-N-Pull Dallas South",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "5301 S 2nd Avenue",
+    "city": "Dallas",
+    "state": "TX",
+    "website_url": "https://www.picknpull.com/locations/122",
+    "phone": "214-421-9193",
+    "data": {
+      "latitude": 32.7525,
+      "longitude": -96.7395
+    }
+  },
+  {
+    "id": "b20ff5d5-0a2f-4535-9c56-8828a10fd4d4",
+    "slug": "pick-your-part-chula-vista",
+    "display_name": "Pick Your Part - Chula Vista",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "880 Energy Way",
+    "city": "Chula Vista",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/chula-vista-1264/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 32.595782,
+      "longitude": -117.008471
+    }
+  },
+  {
+    "id": "37a43962-543b-473f-b901-c802bc5a2dd8",
+    "slug": "pick-your-part-hesperia",
+    "display_name": "Pick Your Part - Hesperia",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "11399 Santa Fe Ave. E.",
+    "city": "Hesperia",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/hesperia-1292/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.457322,
+      "longitude": -117.283518
+    }
+  },
+  {
+    "id": "7e188db2-c778-4a72-b30a-6aa0f80e16ab",
+    "slug": "pick-your-part-monrovia",
+    "display_name": "Pick Your Part - Monrovia",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3333 S. Peck Rd.",
+    "city": "Monrovia",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/monrovia-1281/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.106723,
+      "longitude": -118.00709
+    }
+  },
+  {
+    "id": "7d728572-d18f-4eb8-ad1b-ebece45f99d9",
+    "slug": "pick-your-part-ontario",
+    "display_name": "Pick Your Part - Ontario",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "2025 S. Milliken Ave",
+    "city": "Ontario",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/ontario-1280/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.037796,
+      "longitude": -117.556469
+    }
+  },
+  {
+    "id": "8dd54df8-7585-429f-a7da-862d595f124d",
+    "slug": "pick-your-part-riverside",
+    "display_name": "Pick Your Part - Riverside",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3760 Pyrite St.",
+    "city": "Riverside",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/riverside-1290/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.022324,
+      "longitude": -117.464737
+    }
+  },
+  {
+    "id": "5d587ee1-d892-48c3-85cd-cee8997d75be",
+    "slug": "pick-your-part-san-bernardino",
+    "display_name": "Pick Your Part - San Bernardino",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "434 E 6th St",
+    "city": "San Bernardino",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/san-bernardino-1291/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.112791,
+      "longitude": -117.27674
+    }
+  },
+  {
+    "id": "01a60e0b-caf9-4498-aa5e-e421ecd0e9d8",
+    "slug": "pick-your-part-sun-valley",
+    "display_name": "Pick Your Part - Sun Valley",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "11201 Pendleton Street",
+    "city": "Sun Valley",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/sun-valley-1263/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.23704,
+      "longitude": -118.374231
+    }
+  },
+  {
+    "id": "4f55517a-f186-4175-95b6-8ca2a2e87b3d",
+    "slug": "pick-your-part-victorville",
+    "display_name": "Pick Your Part - Victorville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "17229 Gas Line Road",
+    "city": "Victorville",
+    "state": "CA",
+    "website_url": "https://www.pyp.com/inventory/victorville-1287/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.562597,
+      "longitude": -117.328921
+    }
+  },
+  {
+    "id": "b4601545-1a87-4188-b406-515575a09e01",
+    "slug": "pick-your-part-denver-nd-ave",
+    "display_name": "Pick Your Part - Denver 52nd Ave",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1355 W 52nd Ave.",
+    "city": "Denver",
+    "state": "CO",
+    "website_url": "https://www.pyp.com/inventory/denver-nd-ave-1231/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.79133,
+      "longitude": -105.0038
+    }
+  },
+  {
+    "id": "c16a29e8-5714-4962-9e43-3b0a67ddee83",
+    "slug": "pick-your-part-bradenton",
+    "display_name": "Pick Your Part - Bradenton",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1880 63rd Ave East",
+    "city": "Bradenton",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/bradenton-1185/",
+    "phone": "(800) 962-CARS",
+    "data": {
+      "latitude": 27.428304,
+      "longitude": -82.541487
+    }
+  },
+  {
+    "id": "bb5a3415-826c-4a5d-8c47-5fefa90a1a9f",
+    "slug": "pick-your-part-clearwater",
+    "display_name": "Pick Your Part - Clearwater",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "12501 40th Street North",
+    "city": "Clearwater",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/clearwater-1190/",
+    "phone": "(800) 962-CARS",
+    "data": {
+      "latitude": 27.885576,
+      "longitude": -82.686889
+    }
+  },
+  {
+    "id": "3cf7cec0-53f2-4780-aed4-d11e0476d591",
+    "slug": "pick-your-part-daytona",
+    "display_name": "Pick Your Part - Daytona",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3157 W International Speedway Blvd.",
+    "city": "Daytona Beach",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/daytona-1225/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 29.157999,
+      "longitude": -81.09586
+    }
+  },
+  {
+    "id": "b95f12af-ee3e-4c0d-b2da-0dd8fc9ef37b",
+    "slug": "pick-your-part-gainesville",
+    "display_name": "Pick Your Part - Gainesville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "8910 NW 13th St.",
+    "city": "Gainesville",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/gainesville-1224/",
+    "phone": "(800) 962-CARS",
+    "data": {
+      "latitude": 29.736731,
+      "longitude": -82.383762
+    }
+  },
+  {
+    "id": "39c7696c-6ebc-4ffd-9e92-8d6bceb724d9",
+    "slug": "pick-your-part-largo",
+    "display_name": "Pick Your Part - Largo",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "11900 Starkey Rd.",
+    "city": "Largo",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/largo-1189/",
+    "phone": "(800) 962-CARS",
+    "data": {
+      "latitude": 27.881082,
+      "longitude": -82.761036
+    }
+  },
+  {
+    "id": "ca349fc7-19d5-453e-a232-f7f3c4a16d62",
+    "slug": "pick-your-part-orlando",
+    "display_name": "Pick Your Part - Orlando",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "9205 E Colonial Dr.",
+    "city": "Orlando",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/orlando-1134/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 28.570512,
+      "longitude": -81.260726
+    }
+  },
+  {
+    "id": "267fed6c-1f26-4920-a0f4-74845df6fe3b",
+    "slug": "pick-your-part-tampa",
+    "display_name": "Pick Your Part - Tampa",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "5109 Causeway Blvd",
+    "city": "Tampa",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/tampa-1180/",
+    "phone": "(800) 962-CARS",
+    "data": {
+      "latitude": 27.921077,
+      "longitude": -82.398649
+    }
+  },
+  {
+    "id": "dc519bbc-2ff5-42a9-8767-1f73c9c28bc6",
+    "slug": "pick-your-part-west-palm-beach",
+    "display_name": "Pick Your Part - West Palm Beach",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "451 Benoist Farms Rd.",
+    "city": "West Palm Beach",
+    "state": "FL",
+    "website_url": "https://www.pyp.com/inventory/west-palm-beach-1196/",
+    "phone": "(800) 962-CARS",
+    "data": {
+      "latitude": 26.682464,
+      "longitude": -80.174677
+    }
+  },
+  {
+    "id": "f27f230a-541f-4f70-8b79-82f98bcd59e6",
+    "slug": "pick-your-part-fayetteville",
+    "display_name": "Pick Your Part - Fayetteville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "155 Roberts Rd.",
+    "city": "Fayetteville",
+    "state": "GA",
+    "website_url": "https://www.pyp.com/inventory/fayetteville-1229/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 33.489468,
+      "longitude": -84.437476
+    }
+  },
+  {
+    "id": "e3e64517-e5fb-4564-b7c1-cd39c4cac691",
+    "slug": "pick-your-part-savannah",
+    "display_name": "Pick Your Part - Savannah",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1321 Hwy 80 West",
+    "city": "Savannah",
+    "state": "GA",
+    "website_url": "https://www.pyp.com/inventory/savannah-1163/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 32.084302,
+      "longitude": -81.162615
+    }
+  },
+  {
+    "id": "4d905dba-fa65-4deb-be07-3536bd76be27",
+    "slug": "pick-your-part-chicago-south",
+    "display_name": "Pick Your Part - Chicago South",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3130 S. St Louis Ave",
+    "city": "Chicago",
+    "state": "IL",
+    "website_url": "https://www.pyp.com/inventory/chicago-south-1585/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 41.835703,
+      "longitude": -87.712725
+    }
+  },
+  {
+    "id": "785c3fae-c41d-46e2-ba6b-7dd326b24dfb",
+    "slug": "pick-your-part-blue-island-il",
+    "display_name": "Pick Your Part - Blue Island, IL",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "2247 W 141 St",
+    "city": "Dixmoor",
+    "state": "IL",
+    "website_url": "https://www.pyp.com/inventory/blue-island-1582/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 41.63206,
+      "longitude": -87.673087
+    }
+  },
+  {
+    "id": "e5f2bd01-6d81-4671-8f04-fc25f57de72e",
+    "slug": "pick-your-part-rockford",
+    "display_name": "Pick Your Part - Rockford",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "601 Harrison Ave.",
+    "city": "Rockford",
+    "state": "IL",
+    "website_url": "https://www.pyp.com/inventory/rockford-1250/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 42.236755,
+      "longitude": -89.090793
+    }
+  },
+  {
+    "id": "47d1cf83-8d70-47e3-a57f-11cb7231a12d",
+    "slug": "pick-your-part-east-st-louis",
+    "display_name": "Pick Your Part - East St. Louis",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "6111 Bunkum Rd.",
+    "city": "Washington Park",
+    "state": "IL",
+    "website_url": "https://www.pyp.com/inventory/east-st-louis-1586/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 38.626347,
+      "longitude": -90.083282
+    }
+  },
+  {
+    "id": "cc3b45e6-453f-4eb0-b8ac-d5b4a3318c6d",
+    "slug": "pick-your-part-fort-wayne",
+    "display_name": "Pick Your Part - Fort Wayne",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "4820 Moeller Road",
+    "city": "Fort Wayne",
+    "state": "IN",
+    "website_url": "https://www.pyp.com/inventory/fort-wayne-1254/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 41.053952,
+      "longitude": -85.076511
+    }
+  },
+  {
+    "id": "2acb74f9-f8a1-4103-878e-60ece65b0988",
+    "slug": "pick-your-part-south-bend",
+    "display_name": "Pick Your Part - South Bend",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1602 S. Lafayette Blvd.",
+    "city": "South Bend",
+    "state": "IN",
+    "website_url": "https://www.pyp.com/inventory/south-bend-1255/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 41.658113,
+      "longitude": -86.253114
+    }
+  },
+  {
+    "id": "4fcdd120-2754-460b-a419-9344420a8396",
+    "slug": "pick-your-part-wichita",
+    "display_name": "Pick Your Part - Wichita",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "700 E 21st Street N.",
+    "city": "Wichita",
+    "state": "KS",
+    "website_url": "https://www.pyp.com/inventory/wichita-1246/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 37.723597,
+      "longitude": -97.330091
+    }
+  },
+  {
+    "id": "33770f5b-4155-40fc-9b68-d7210b953ea9",
+    "slug": "pick-your-part-erdman",
+    "display_name": "Pick Your Part - Erdman",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "6201 Erdman Ave.",
+    "city": "Baltimore",
+    "state": "MD",
+    "website_url": "https://www.pyp.com/inventory/erdman-1205/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.300739,
+      "longitude": -76.543787
+    }
+  },
+  {
+    "id": "79d475b5-9870-438f-98d4-bc57377ea020",
+    "slug": "pick-your-part-hawkins-point",
+    "display_name": "Pick Your Part - Hawkins Point",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "2801 Hawkins Point Rd.",
+    "city": "Baltimore",
+    "state": "MD",
+    "website_url": "https://www.pyp.com/inventory/hawkins-point-1207/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.203626,
+      "longitude": -76.562799
+    }
+  },
+  {
+    "id": "9f0c7202-8fb5-45de-a2a5-bd58cbe63f5e",
+    "slug": "pick-your-part-edgewood",
+    "display_name": "Pick Your Part - Edgewood",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1706 Pulaski Highway",
+    "city": "Edgewood",
+    "state": "MD",
+    "website_url": "https://www.pyp.com/inventory/edgewood-1209/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.43432,
+      "longitude": -76.322442
+    }
+  },
+  {
+    "id": "1fe71c1f-7407-4fb9-a673-fc6a63409a27",
+    "slug": "pick-your-part-mount-airy",
+    "display_name": "Pick Your Part - Mount Airy",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3923 Twin Arch Rd.",
+    "city": "Mount Airy",
+    "state": "MD",
+    "website_url": "https://www.pyp.com/inventory/mount-airy-1208/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.360855,
+      "longitude": -77.136449
+    }
+  },
+  {
+    "id": "9c370684-bfa3-4c90-9597-acec94640311",
+    "slug": "pick-your-part-grand-rapids",
+    "display_name": "Pick Your Part - Grand Rapids",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "4676 Division Ave. South",
+    "city": "Wayland",
+    "state": "MI",
+    "website_url": "https://www.pyp.com/inventory/grand-rapids-1348/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 42.759964,
+      "longitude": -85.663324
+    }
+  },
+  {
+    "id": "ba2638f6-955c-4d42-9056-79923669c8b2",
+    "slug": "pick-your-part-charlotte",
+    "display_name": "Pick Your Part - Charlotte",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3900 Chesapeake Dr.",
+    "city": "Charlotte",
+    "state": "NC",
+    "website_url": "https://www.pyp.com/inventory/charlotte-1228/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.274914,
+      "longitude": -80.868433
+    }
+  },
+  {
+    "id": "35dbcc37-a002-426d-8ac6-1b3914da4636",
+    "slug": "pick-your-part-raleigh",
+    "display_name": "Pick Your Part - Raleigh",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "2928 US 70 E",
+    "city": "Clayton",
+    "state": "NC",
+    "website_url": "https://www.pyp.com/inventory/raleigh-1168/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.674042,
+      "longitude": -78.517716
+    }
+  },
+  {
+    "id": "9574c245-924e-4dc3-8f4c-5ec5a334f9d2",
+    "slug": "pick-your-part-durham",
+    "display_name": "Pick Your Part - Durham",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1301 South Miami Blvd.",
+    "city": "Durham",
+    "state": "NC",
+    "website_url": "https://www.pyp.com/inventory/durham-1142/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.95978,
+      "longitude": -78.84139
+    }
+  },
+  {
+    "id": "0e6bc284-ee6c-4aa1-91f6-3272bc7f0b94",
+    "slug": "pick-your-part-greensboro",
+    "display_name": "Pick Your Part - Greensboro",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "100 Ward Rd",
+    "city": "Greensboro",
+    "state": "NC",
+    "website_url": "https://www.pyp.com/inventory/greensboro-1226/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 36.083363,
+      "longitude": -79.727094
+    }
+  },
+  {
+    "id": "01d5fed2-8f3d-4ff7-b2d8-aa3541b706bb",
+    "slug": "pick-your-part-east-nc",
+    "display_name": "Pick Your Part - East NC",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "4558 U.S. 13",
+    "city": "Greenville",
+    "state": "NC",
+    "website_url": "https://www.pyp.com/inventory/east-nc-1227/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.572021,
+      "longitude": -77.447085
+    }
+  },
+  {
+    "id": "14db130d-57f8-4304-b24f-22b62c4b30a6",
+    "slug": "pick-your-part-cincinnati",
+    "display_name": "Pick Your Part - Cincinnati",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "2040 E Kemper Rd",
+    "city": "Cincinnati",
+    "state": "OH",
+    "website_url": "https://www.pyp.com/inventory/cincinnati-1253/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.286363,
+      "longitude": -84.43952
+    }
+  },
+  {
+    "id": "c297bb6e-e62d-4e78-8035-6a2cbddf4be5",
+    "slug": "pick-your-part-dayton",
+    "display_name": "Pick Your Part - Dayton",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "4283 N. James H McGee Blvd.",
+    "city": "Dayton",
+    "state": "OH",
+    "website_url": "https://www.pyp.com/inventory/dayton-1257/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 39.772375,
+      "longitude": -84.254094
+    }
+  },
+  {
+    "id": "77cdc4a3-2e77-48b2-ad77-e68c2f46786f",
+    "slug": "pick-your-part-oklahoma-city",
+    "display_name": "Pick Your Part - Oklahoma City",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "900 South McArthur Blvd.",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "website_url": "https://www.pyp.com/inventory/oklahoma-city-1245/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.456126,
+      "longitude": -97.615521
+    }
+  },
+  {
+    "id": "7931c244-b4e7-4355-bc4a-3ef43c938953",
+    "slug": "pick-your-part-tulsa",
+    "display_name": "Pick Your Part - Tulsa",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "3112 North Peoria Ave.",
+    "city": "Tulsa",
+    "state": "OK",
+    "website_url": "https://www.pyp.com/inventory/tulsa-1746/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 36.198951,
+      "longitude": -95.975591
+    }
+  },
+  {
+    "id": "d2dbbd0f-f145-4478-9514-3f5771bc21f7",
+    "slug": "pick-your-part-charleston",
+    "display_name": "Pick Your Part - Charleston",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "4646 Rivers Ave.",
+    "city": "Charleston",
+    "state": "SC",
+    "website_url": "https://www.pyp.com/inventory/charleston-1220/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 32.875885,
+      "longitude": -80.001991
+    }
+  },
+  {
+    "id": "83d08565-47b2-467a-a6e7-fcb7668e2ac8",
+    "slug": "pick-your-part-greenville",
+    "display_name": "Pick Your Part - Greenville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1300 White Horse Rd.",
+    "city": "Greenville",
+    "state": "SC",
+    "website_url": "https://www.pyp.com/inventory/greenville-1212/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.787175,
+      "longitude": -82.411276
+    }
+  },
+  {
+    "id": "42bf49d6-e012-4e24-840d-63800ac3ed90",
+    "slug": "pick-your-part-greer",
+    "display_name": "Pick Your Part - Greer",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "13054 E. Wade Hampton Blvd.",
+    "city": "Greer",
+    "state": "SC",
+    "website_url": "https://www.pyp.com/inventory/greer-1213/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.954742,
+      "longitude": -82.172468
+    }
+  },
+  {
+    "id": "ff3f7ffc-88ba-4fb5-81e2-f354dc65a2fd",
+    "slug": "pick-your-part-chattanooga",
+    "display_name": "Pick Your Part - Chattanooga",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "400 Workman Road",
+    "city": "Chattanooga",
+    "state": "TN",
+    "website_url": "https://www.pyp.com/inventory/chattanooga-1217/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 34.996417,
+      "longitude": -85.307864
+    }
+  },
+  {
+    "id": "9844f50a-b269-496c-91ef-34d9c1b88f0d",
+    "slug": "pick-your-part-memphis",
+    "display_name": "Pick Your Part - Memphis",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "966 West Mitchell Rd.",
+    "city": "Memphis",
+    "state": "TN",
+    "website_url": "https://www.pyp.com/inventory/memphis-1215/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 35.057042,
+      "longitude": -90.096337
+    }
+  },
+  {
+    "id": "b447809a-451b-4ad8-ab9b-5601cab56128",
+    "slug": "pick-your-part-nashville",
+    "display_name": "Pick Your Part - Nashville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "2030 Lucas Lane",
+    "city": "Nashville",
+    "state": "TN",
+    "website_url": "https://www.pyp.com/inventory/nashville-1218/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 36.205209,
+      "longitude": -86.771173
+    }
+  },
+  {
+    "id": "e51f48de-7121-4386-a5a0-41954da2bbb8",
+    "slug": "pick-your-part-austin",
+    "display_name": "Pick Your Part - Austin",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "7900 S. Congress Avenue",
+    "city": "Austin",
+    "state": "TX",
+    "website_url": "https://www.pyp.com/inventory/austin-1234/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 30.179403,
+      "longitude": -97.784704
+    }
+  },
+  {
+    "id": "7ee7c1eb-5475-4da4-94f1-852b6d327a7a",
+    "slug": "pick-your-part-houston-northville",
+    "display_name": "Pick Your Part - Houston Northville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "1100 Northville St.",
+    "city": "Houston",
+    "state": "TX",
+    "website_url": "https://www.pyp.com/inventory/houston-northville-1235/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 29.909725,
+      "longitude": -95.421423
+    }
+  },
+  {
+    "id": "5b90dbb2-a209-4be8-8b5b-538bbc2fcb36",
+    "slug": "pick-your-part-houston-sw",
+    "display_name": "Pick Your Part - Houston SW",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "12575 Hiram Clarke Rd.",
+    "city": "Houston",
+    "state": "TX",
+    "website_url": "https://www.pyp.com/inventory/houston-sw-1239/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 29.6479,
+      "longitude": -95.446416
+    }
+  },
+  {
+    "id": "9f91bb09-4d30-4ce0-b763-c9fad782b2d9",
+    "slug": "pick-your-part-houston-wallisville",
+    "display_name": "Pick Your Part - Houston Wallisville",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "9314 Wallisville Rd.",
+    "city": "Houston",
+    "state": "TX",
+    "website_url": "https://www.pyp.com/inventory/houston-wallisville-1236/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 29.789143,
+      "longitude": -95.259551
+    }
+  },
+  {
+    "id": "33a1e0be-97b7-4ccf-8c1b-4e85d61546ea",
+    "slug": "pick-your-part-milwaukee",
+    "display_name": "Pick Your Part - Milwaukee",
+    "organization_id": "d397a036-1dfc-4bb0-bc0c-3c16a37d0f85",
+    "address": "6102 South 13th Street",
+    "city": "Milwaukee",
+    "state": "WI",
+    "website_url": "https://www.pyp.com/inventory/milwaukee-1256/",
+    "phone": "(800) 962-2277",
+    "data": {
+      "latitude": 42.932587,
+      "longitude": -87.925869
+    }
+  },
+  {
+    "id": "c77f378d-ba11-45a5-aa2a-2a18994d0f29",
+    "slug": "l-and-l-u-pull",
+    "display_name": "L AND L U-PULL AUTO PARTS",
+    "organization_id": "b037f8c2-6c62-4e97-98e7-a2a8b1a90897",
+    "address": "4805 Anthony Farm Rd",
+    "city": "Kings Mountain",
+    "state": "NC",
+    "website_url": "",
+    "phone": "7047394633",
+    "data": {
+      "latitude": 35.25439,
+      "longitude": -81.456583
+    }
+  },
+  {
+    "id": "888fb38e-d88d-4ee0-8b61-bda4802a2595",
+    "slug": "u-pull-it-omaha-south-ne",
+    "display_name": "U-Pull-It inc Omaha South",
+    "organization_id": "110c403e-9134-45ab-8500-c967610a7c3f",
+    "address": "5600 S 60th St",
+    "city": "Omaha",
+    "state": "NE",
+    "website_url": "https://upullitne.com",
+    "phone": "402-734-6029",
+    "data": {
+      "latitude": 41.20147,
+      "longitude": -96.004531
+    }
+  },
+  {
+    "id": "a75f24ce-0b6b-45ff-bdf9-86387848f536",
+    "slug": "u-pull-it-omaha-north-ne",
+    "display_name": "U-Pull-It inc Omaha North",
+    "organization_id": "110c403e-9134-45ab-8500-c967610a7c3f",
+    "address": "1405 Grace St",
+    "city": "Omaha",
+    "state": "NE",
+    "website_url": "https://upullitne.com",
+    "phone": "402-342-0831",
+    "data": {
+      "latitude": 41.27678902,
+      "longitude": -95.93640833
+    }
+  },
+  {
+    "id": "413f84b9-1790-45d1-ae47-3f58950ca535",
+    "slug": "besslers-u-pull-and-save-louisville-ky",
+    "display_name": "Besslers U Pull & Save Louisville",
+    "organization_id": "94c4572a-428e-460d-8bb2-c34b4e05331d",
+    "address": "4700 Strawberry Ln",
+    "city": "Louisville",
+    "state": "KY",
+    "website_url": "https://upullandsave.com",
+    "phone": "502-912-8399",
+    "data": {
+      "latitude": 38.1808995,
+      "longitude": -85.7550522
+    }
+  },
+  {
+    "id": "a3d5bad0-b580-4578-b0a4-3f33ddfd2b89",
+    "slug": "colorado-auto-and-parts-englewood-co",
+    "display_name": "Colorado Auto & Parts",
+    "organization_id": "1e82bb80-912f-4f65-8f65-f2751447ae0e",
+    "address": "2151 W Radcliff Ave",
+    "city": "Englewood",
+    "state": "CO",
+    "website_url": "https://coloradoautoandparts.com",
+    "phone": "303-761-0112",
+    "data": {
+      "latitude": 39.636828,
+      "longitude": -105.0107397
+    }
+  },
+  {
+    "id": "880d0e1c-de5d-4d4e-aa5d-1444ae01b5a9",
+    "slug": "aero-auto-parts-llc-shreveport-la",
+    "display_name": "Aero Auto Salvage",
+    "organization_id": "b0e20373-889c-4363-98b2-ef2e6d250933",
+    "address": "707 Aero Drive",
+    "city": "Shreveport",
+    "state": "LA",
+    "website_url": "https://aeroautosalvage.com",
+    "phone": "318-227-1010",
+    "data": {
+      "latitude": 32.52884219,
+      "longitude": -93.76953224
+    }
+  },
+  {
+    "id": "8500aaba-705d-4dc2-a5e1-e66982d7e5c5",
+    "slug": "yourpart-hinesville-ga",
+    "display_name": "Yourpart",
+    "organization_id": "313ff664-c3fb-431b-b5ba-cc7b9602707d",
+    "address": "6880 US-84",
+    "city": "Hinesville",
+    "state": "GA",
+    "website_url": "https://yourpart.com",
+    "phone": "912-876-4133",
+    "data": {
+      "latitude": 31.736034,
+      "longitude": -81.703385
+    }
+  },
+  {
+    "id": "00cd5c83-6adb-4b4c-a798-9f7feaecf9eb",
+    "slug": "u-pull-and-pay-aurora",
+    "display_name": "U-Pull-&-Pay Aurora",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "1370 Zeno Street",
+    "city": "Aurora",
+    "state": "CO",
+    "website_url": "https://www.upullandpay.com/locations/colorado/aurora/",
+    "phone": "303-364-4221",
+    "data": {
+      "latitude": 39.737985,
+      "longitude": -104.773011
+    }
+  },
+  {
+    "id": "2859e7e9-6184-41e3-af29-6eeaf531af40",
+    "slug": "pull-a-part-akron",
+    "display_name": "Pull-A-Part Akron",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "1250 Kelly Ave",
+    "city": "Akron",
+    "state": "OH",
+    "website_url": "https://www.pullapart.com/locations/ohio/akron/",
+    "phone": "330-786-9580",
+    "data": {
+      "latitude": 41.03655,
+      "longitude": -81.483436
+    }
+  },
+  {
+    "id": "07a0b257-b918-4dec-bcb8-1089f8accd9d",
+    "slug": "pull-a-part-baton-rouge",
+    "display_name": "Pull-A-Part Baton Rouge",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "8056 Greenwell Springs Rd",
+    "city": "Baton Rouge",
+    "state": "LA",
+    "website_url": "https://www.pullapart.com/locations/louisiana/baton-rouge/",
+    "phone": "225-387-8730",
+    "data": {
+      "latitude": 30.47833,
+      "longitude": -91.10564
+    }
+  },
+  {
+    "id": "47c3c527-22b0-45c6-a1dd-953543d48b8b",
+    "slug": "pull-a-part-jackson",
+    "display_name": "Pull-A-Part Jackson",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4000 Interstate 55 South",
+    "city": "Jackson",
+    "state": "MS",
+    "website_url": "https://www.pullapart.com/locations/mississippi/jackson/",
+    "phone": "601-949-8490",
+    "data": {
+      "latitude": 32.229402,
+      "longitude": -90.220601
+    }
+  },
+  {
+    "id": "95f7ecab-ede2-42a2-ab04-30ef416489a1",
+    "slug": "u-pull-r-parts-toledo",
+    "display_name": "U Pull R Parts - Toledo",
+    "organization_id": "41cfdd60-b286-48f0-a1de-4e94bf7623b9",
+    "address": "5650 North Detroit Avenue",
+    "city": "Toledo",
+    "state": "OH",
+    "website_url": "https://upullrparts.com",
+    "phone": "419) 724-5503",
+    "data": {
+      "latitude": 41.718678,
+      "longitude": -83.535646
+    }
+  },
+  {
+    "id": "49c8ca08-d2f2-49d7-abf9-9bbb55ae6b8e",
+    "slug": "pick-n-pull-summit-il",
+    "display_name": "Pick-N-Pull Summit",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "7800 West 61st Place",
+    "city": "Summit",
+    "state": "IL",
+    "website_url": "https://www.picknpull.com/locations/64/summit-il",
+    "phone": "708-458-2586",
+    "data": {
+      "latitude": 41.7797,
+      "longitude": -87.8143
+    }
+  },
+  {
+    "id": "57932f23-9a4b-493f-9a12-7a016d8c3d5e",
+    "slug": "pull-a-part-atlanta-east",
+    "display_name": "Pull-A-Part Atlanta East",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "6513 Marshall Boulevard",
+    "city": "Lithonia",
+    "state": "GA",
+    "website_url": "https://www.pullapart.com/locations/georgia/atlanta-east/",
+    "phone": "770-242-8844",
+    "data": {
+      "latitude": 33.734907,
+      "longitude": -84.123085
+    }
+  },
+  {
+    "id": "4a990ba4-6b11-4ae6-8c25-6668ca3d9554",
+    "slug": "pull-a-part-charlotte",
+    "display_name": "Pull-A-Part Charlotte",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "6024 N. Tryon St.",
+    "city": "Charlotte",
+    "state": "NC",
+    "website_url": "https://www.pullapart.com/locations/north-carolina/charlotte/",
+    "phone": "704-596-6800",
+    "data": {
+      "latitude": 35.268428,
+      "longitude": -80.767302
+    }
+  },
+  {
+    "id": "771ced2f-7ff3-4142-9ca2-f59c98790a35",
+    "slug": "pick-n-pull-hammond-in",
+    "display_name": "Pick-N-Pull - Hammond, IN",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "2015 East Summer Street",
+    "city": "Hammond",
+    "state": "IN",
+    "website_url": "https://www.picknpull.com/locations/66",
+    "phone": "(219) 844-8172",
+    "data": {
+      "latitude": 41.6004,
+      "longitude": -87.4805
+    }
+  },
+  {
+    "id": "b4550fca-2c7a-4748-b5bc-94a006c0dd60",
+    "slug": "pull-a-part-columbia",
+    "display_name": "Pull-A-Part Columbia",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "5702 Monticello Road",
+    "city": "Columbia",
+    "state": "SC",
+    "website_url": "https://www.pullapart.com/locations/s-carolina/columbia/",
+    "phone": "803-255-2990",
+    "data": {
+      "latitude": 34.060519,
+      "longitude": -81.042792
+    }
+  },
+  {
+    "id": "a74441d5-8fb9-4bde-a762-ccd5b0f62785",
+    "slug": "youngstown-u-pull-it-youngstown-oh",
+    "display_name": "Youngstown U-Pull-It",
+    "organization_id": "397a7439-0ce8-43ab-947f-b84f0696d979",
+    "address": "1300 Albert St",
+    "city": "Youngstown",
+    "state": "OH",
+    "website_url": "https://youngstownupullit.com",
+    "phone": "330-272-9486",
+    "data": {
+      "latitude": 41.1171983,
+      "longitude": -80.6330018
+    }
+  },
+  {
+    "id": "538d76cb-ebcb-4b71-8d5b-ad501a2015a1",
+    "slug": "pull-a-part-tucson",
+    "display_name": "Pull-A-Part Tucson",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4151 East Michigan St.",
+    "city": "Tucson",
+    "state": "AZ",
+    "website_url": "https://www.pullapart.com/locations/arizona/tucson/",
+    "phone": "520-790-5211",
+    "data": {}
+  },
+  {
+    "id": "a9a144ee-7c82-4905-8b2a-56ab6e871475",
+    "slug": "u-pull-and-pay-albuquerque",
+    "display_name": "U-Pull-&-Pay Albuquerque",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4560 Broadway Blvd SE",
+    "city": "Albuquerque",
+    "state": "NM",
+    "website_url": "https://www.upullandpay.com/locations/new-mexico/albuquerque/",
+    "phone": "505-248-9899",
+    "data": {}
+  },
+  {
+    "id": "88e86730-45ca-4a3c-b999-0d657cac50c4",
+    "slug": "u-pull-and-pay-orlando",
+    "display_name": "U-Pull-&-Pay Orlando",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "1157 Jetstream Drive",
+    "city": "Orlando",
+    "state": "FL",
+    "website_url": "https://www.upullandpay.com/locations/florida/orlando/",
+    "phone": "407-816-9696",
+    "data": {}
+  },
+  {
+    "id": "959b0bc1-1a6c-4f40-8dbf-4b531b827036",
+    "slug": "u-pull-and-pay-phoenix",
+    "display_name": "U-Pull-&-Pay Phoenix",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "2501 West Buckeye Rd",
+    "city": "Phoenix",
+    "state": "AZ",
+    "website_url": "https://www.upullandpay.com/locations/arizona/phoenix/",
+    "phone": "602-484-7278",
+    "data": {}
+  },
+  {
+    "id": "112ce320-acf6-4747-9942-fe342e38c81e",
+    "slug": "u-pull-and-pay-west-palm-beach",
+    "display_name": "U-Pull-&-Pay West Palm Beach",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "551 Benoist Farms Rd",
+    "city": "West Palm Beach",
+    "state": "FL",
+    "website_url": "https://www.upullandpay.com/locations/florida/west-palm-beach/",
+    "phone": "561-793-3808",
+    "data": {}
+  },
+  {
+    "id": "26686082-76bd-436a-9153-ba312139a79b",
+    "slug": "pull-a-part-atlanta-south",
+    "display_name": "Pull-A-Part Atlanta South",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "1540 Henrico Road",
+    "city": "Conley",
+    "state": "GA",
+    "website_url": "https://www.pullapart.com/locations/georgia/atlanta-south/",
+    "phone": "770-242-8844",
+    "data": {
+      "latitude": 33.667225,
+      "longitude": -84.3299
+    }
+  },
+  {
+    "id": "53485bd3-1a21-4ff5-8e6b-741b9642758c",
+    "slug": "pull-a-part-cleveland-west",
+    "display_name": "Pull-A-Part Cleveland West",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4433 West 130th Street",
+    "city": "Cleveland",
+    "state": "OH",
+    "website_url": "https://www.pullapart.com/locations/ohio/cleveland-west/",
+    "phone": "216-251-6600",
+    "data": {
+      "latitude": 41.434312,
+      "longitude": -81.774023
+    }
+  },
+  {
+    "id": "3a43f14b-b676-4152-be19-e7f7a31ab506",
+    "slug": "pull-a-part-corpus-christi",
+    "display_name": "Pull-A-Part Corpus Christi",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "5609 Agnes St",
+    "city": "Corpus Christi",
+    "state": "TX",
+    "website_url": "https://www.pullapart.com/locations/texas/corpus-christi/",
+    "phone": "361-299-2277",
+    "data": {
+      "latitude": 27.78514,
+      "longitude": -97.46507
+    }
+  },
+  {
+    "id": "1ecb3a5f-9a25-488c-adad-0ed8d1691cd7",
+    "slug": "pull-a-part-indianapolis",
+    "display_name": "Pull-A-Part Indianapolis",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "2505 Producers Lane",
+    "city": "Indianapolis",
+    "state": "IN",
+    "website_url": "https://www.pullapart.com/locations/indiana/indianapolis/",
+    "phone": "317-542-7750",
+    "data": {
+      "latitude": 39.802371,
+      "longitude": -86.09303
+    }
+  },
+  {
+    "id": "8e453bb9-eab7-4878-b96d-9b75a426146b",
+    "slug": "pull-a-part-knoxville",
+    "display_name": "Pull-A-Part Knoxville",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "5800 Rutledge Pike",
+    "city": "Knoxville",
+    "state": "TN",
+    "website_url": "https://www.pullapart.com/locations/tennessee/knoxville/",
+    "phone": "865-523-8000",
+    "data": {
+      "latitude": 36.027094,
+      "longitude": -83.847369
+    }
+  },
+  {
+    "id": "8d19d412-e0f1-42c5-8106-01726f464d5a",
+    "slug": "pull-a-part-louisville",
+    "display_name": "Pull-A-Part Louisville",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "6825 Recovery Road",
+    "city": "Louisville",
+    "state": "KY",
+    "website_url": "https://www.pullapart.com/locations/kentucky/louisville/",
+    "phone": "502-375-9375",
+    "data": {
+      "latitude": 38.149568,
+      "longitude": -85.750708
+    }
+  },
+  {
+    "id": "4b380dc8-f5ed-42f0-84cf-536fbcbed54f",
+    "slug": "pull-a-part-memphis",
+    "display_name": "Pull-A-Part Memphis",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "2955 Farrisview Blvd.",
+    "city": "Memphis",
+    "state": "TN",
+    "website_url": "https://www.pullapart.com/locations/tennessee/memphis/",
+    "phone": "901-543-5400",
+    "data": {
+      "latitude": 35.0761,
+      "longitude": -89.965155
+    }
+  },
+  {
+    "id": "0f605284-0458-4ca1-a64d-f08c99cf4864",
+    "slug": "pull-a-part-montgomery",
+    "display_name": "Pull-A-Part Montgomery",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4526 Norman Bridge Rd",
+    "city": "Montgomery",
+    "state": "AL",
+    "website_url": "https://www.pullapart.com/locations/alabama/montgomery/",
+    "phone": "334-834-5880",
+    "data": {
+      "latitude": 32.312812,
+      "longitude": -86.296884
+    }
+  },
+  {
+    "id": "d08c2971-b885-41d7-a323-b92ddc6aa25d",
+    "slug": "barry-s-u-pull-it-theodore-al",
+    "display_name": "Barry's U Pull It",
+    "organization_id": "62c30ac3-173e-4b94-860f-361d14edeb3f",
+    "address": "5385 Barry Dr",
+    "city": "Theodore",
+    "state": "AL",
+    "website_url": "https://barrysupullit.net",
+    "phone": "251-653-2925",
+    "data": {
+      "latitude": 30.5476941,
+      "longitude": -88.1752796
+    }
+  },
+  {
+    "id": "b33ecb30-554a-4531-ba10-d0b8862c3b60",
+    "slug": "pull-a-part-new-orleans-west",
+    "display_name": "Pull-A-Part New Orleans West",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4401 Peters Road",
+    "city": "New Orleans",
+    "state": "LA",
+    "website_url": "https://www.pullapart.com/locations/louisiana/new-orleans-west/",
+    "phone": "504-243-6660",
+    "data": {}
+  },
+  {
+    "id": "99a3ba6e-7b12-4264-85e8-417fa14884ac",
+    "slug": "u-pull-and-pay-colorado-springs",
+    "display_name": "U-Pull-&-Pay Colorado Springs",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "3745 So. Highway 85-87",
+    "city": "Colorado Springs",
+    "state": "CO",
+    "website_url": "https://www.upullandpay.com/locations/colorado/colorado-springs/",
+    "phone": "719-392-5900",
+    "data": {}
+  },
+  {
+    "id": "8854c9f1-e95e-4db6-9abd-58dea214e5d4",
+    "slug": "u-pull-and-pay-fort-myers",
+    "display_name": "U-Pull-&-Pay Fort Myers",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "2804 Hanson Street",
+    "city": "Fort Myers",
+    "state": "FL",
+    "website_url": "https://www.upullandpay.com/locations/florida/fort-myers/",
+    "phone": "863-345-0686",
+    "data": {}
+  },
+  {
+    "id": "4df88a9c-c951-469d-b4f0-0bca9b98310c",
+    "slug": "u-pull-and-pay-pittsburgh",
+    "display_name": "U-Pull-&-Pay Pittsburgh",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "250 Eastgate Drive",
+    "city": "Pittsburgh",
+    "state": "PA",
+    "website_url": "https://www.upullandpay.com/locations/pennsylvania/pittsburgh/",
+    "phone": "412-564-0344",
+    "data": {}
+  },
+  {
+    "id": "2e509531-8ea2-4f5d-8bce-fa722d9d3b9b",
+    "slug": "rg-pick-a-part-anthony-tx",
+    "display_name": "RG Pick-a-Part",
+    "organization_id": "ebaa98ac-9a59-4abb-b37b-85e54b0be33d",
+    "address": "8330 Doniphan Dr",
+    "city": "Anthony",
+    "state": "TX",
+    "website_url": "http://www.rgpick-a-part.com",
+    "phone": "915-886-2886",
+    "data": {
+      "latitude": 31.9759247,
+      "longitude": -106.5995579
+    }
+  },
+  {
+    "id": "65180bfe-09bf-4bdc-adca-3a3eeebe7043",
+    "slug": "pull-a-part-canton",
+    "display_name": "Pull-A-Part Canton",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "1551 Belden Avenue",
+    "city": "Canton",
+    "state": "OH",
+    "website_url": "https://www.pullapart.com/locations/ohio/canton/",
+    "phone": "330-484-1511",
+    "data": {
+      "latitude": 40.782867,
+      "longitude": -81.350833
+    }
+  },
+  {
+    "id": "a9bfe291-beb7-4b34-96f0-8aac6de98967",
+    "slug": "pull-a-part-nashville",
+    "display_name": "Pull-A-Part Nashville",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "7114 Centennial Blvd.",
+    "city": "Nashville",
+    "state": "TN",
+    "website_url": "https://www.pullapart.com/locations/tennessee/nashville/",
+    "phone": "615-350-6066",
+    "data": {}
+  },
+  {
+    "id": "d539a860-27ac-4c1a-9245-98fc89cbd791",
+    "slug": "pull-a-part-winston-salem",
+    "display_name": "Pull-A-Part Winston-Salem",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "4125 N. Patterson Ave",
+    "city": "Winston-Salem",
+    "state": "NC",
+    "website_url": "https://www.pullapart.com/locations/north-carolina/winston-salem/",
+    "phone": "336-661-1110",
+    "data": {}
+  },
+  {
+    "id": "f0c94cff-d850-4ce3-a5af-c583d50b8821",
+    "slug": "u-pull-and-pay-cincinnati",
+    "display_name": "U-Pull-&-Pay Cincinnati",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "426 West Seymour Ave.",
+    "city": "Cincinnati",
+    "state": "OH",
+    "website_url": "https://www.upullandpay.com/locations/ohio/cincinnati/",
+    "phone": "513-948-8649",
+    "data": {}
+  },
+  {
+    "id": "a532699b-8245-44f0-9b85-2f285dc18d4a",
+    "slug": "u-pull-and-pay-denver",
+    "display_name": "U-Pull-&-Pay Denver",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "390 West 66th Way",
+    "city": "Denver",
+    "state": "CO",
+    "website_url": "https://www.upullandpay.com/locations/colorado/denver/",
+    "phone": "303-650-0490",
+    "data": {}
+  },
+  {
+    "id": "30aa709f-de32-4e56-8380-a159ec6af410",
+    "slug": "pull-a-part-el-paso",
+    "display_name": "Pull-A-Part El Paso",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "12000 Montana Ave",
+    "city": "El Paso",
+    "state": "TX",
+    "website_url": "https://www.pullapart.com/locations/texas/el-paso/",
+    "phone": "915-855-0463",
+    "data": {
+      "latitude": 31.805175,
+      "longitude": -106.274595
+    }
+  },
+  {
+    "id": "b37d3df1-3f8a-4ca3-a6ac-b96d41ed891b",
+    "slug": "pull-a-part-lafayette",
+    "display_name": "Pull-A-Part Lafayette",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "207 Galbert Road",
+    "city": "Lafayette",
+    "state": "LA",
+    "website_url": "https://www.pullapart.com/locations/louisiana/lafayette/",
+    "phone": "337-237-7370",
+    "data": {
+      "latitude": 30.226172,
+      "longitude": -92.07297
+    }
+  },
+  {
+    "id": "a3d2b44f-54d5-4d05-93f2-75547f462d91",
+    "slug": "roberts-parts-u-pick-moffett-ok",
+    "display_name": "Roberts Parts-U-Pick",
+    "organization_id": "0200ac05-96d8-4733-9754-e2b3d9f907df",
+    "address": "111743 S 4823 Rd",
+    "city": "Moffett",
+    "state": "OK",
+    "website_url": "https://robertspartsupick.com",
+    "phone": "918-875-6110",
+    "data": {
+      "latitude": 35.390369,
+      "longitude": -94.4468822
+    }
+  },
+  {
+    "id": "f8dcd36b-2361-4ec8-afed-b6fad928994e",
+    "slug": "pull-a-part-augusta",
+    "display_name": "Pull-A-Part Augusta",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "327 SandBar Ferry Rd",
+    "city": "Augusta",
+    "state": "GA",
+    "website_url": "https://www.pullapart.com/locations/georgia/augusta/",
+    "phone": "706-432-0600",
+    "data": {
+      "latitude": 33.510978,
+      "longitude": -82.054451
+    }
+  },
+  {
+    "id": "b0205f1c-9826-45e8-866c-d61ab002a4b5",
+    "slug": "byot-elm-mott-tx",
+    "display_name": "BYOT Auto Parts",
+    "organization_id": "de37dcea-df6c-4634-8be2-f3a678316cd3",
+    "address": "14401 N Interstate 35 Frontage Rd",
+    "city": "Elm Mott",
+    "state": "TX",
+    "website_url": "https://www.byotautoparts.com",
+    "phone": "254-272-3668",
+    "data": {
+      "latitude": 31.67183,
+      "longitude": -97.09889
+    }
+  },
+  {
+    "id": "ee20b667-8ec6-49d6-9c8c-ab684bd92983",
+    "slug": "nevada-pic-a-part-north-las-vegas-nv",
+    "display_name": "Nevada Pic a Part Lamb",
+    "organization_id": "df1e8eb1-0408-4574-ae1a-4cfd1da944d6",
+    "address": "5100 N Lamb Blvd #5",
+    "city": "North Las Vegas",
+    "state": "NV",
+    "website_url": "https://nvpap.com",
+    "phone": "702-643-1776",
+    "data": {
+      "latitude": 36.2519109,
+      "longitude": -115.0799482
+    }
+  },
+  {
+    "id": "9f910a9b-8ff7-4478-8bd3-54b1fc2724fd",
+    "slug": "nevada-pic-a-part-henderson-nv",
+    "display_name": "Nevada Pic-A-Part Henderson",
+    "organization_id": "df1e8eb1-0408-4574-ae1a-4cfd1da944d6",
+    "address": "110 W Rolly St",
+    "city": "Henderson",
+    "state": "NV",
+    "website_url": "https://nvpap.com",
+    "phone": "702-565-1414",
+    "data": {
+      "latitude": 36.05641083,
+      "longitude": -115.0039677
+    }
+  },
+  {
+    "id": "fedd4208-42ce-4b7f-97bf-88977e50bedc",
+    "slug": "san-antonio-wrench-a-part-san-antonio-tx",
+    "display_name": "San Antonio Wrench a Part",
+    "organization_id": "e105130c-8522-4b02-8dcf-527ae434c5a1",
+    "address": "5814 Interstate 10 East",
+    "city": "San Antonio",
+    "state": "TX",
+    "website_url": "https://wrenchapart.com",
+    "phone": "210-951-5000",
+    "data": {
+      "latitude": 29.44126689,
+      "longitude": -98.37415973
+    }
+  },
+  {
+    "id": "73be4119-e459-47e2-9dca-c9e30038b7aa",
+    "slug": "u-pick-it-prescott-valley-az",
+    "display_name": "U Pick It inc - Prescott Valley",
+    "organization_id": "fe4f2eca-3d67-48ae-a9c7-51cc18216088",
+    "address": "10440 E Valley Rd",
+    "city": "Prescott Valley",
+    "state": "AZ",
+    "website_url": "https://upickitaz.com",
+    "phone": "928-443-1765",
+    "data": {
+      "latitude": 34.58355138,
+      "longitude": -112.2790573
+    }
+  },
+  {
+    "id": "97ca6c4c-2ced-438d-8c01-4efb849c036b",
+    "slug": "pull-a-part-birmingham",
+    "display_name": "Pull-A-Part Birmingham",
+    "organization_id": "3ac620bd-4fea-4c85-b3e6-6e4a4c5a838e",
+    "address": "3520 27th Avenue North",
+    "city": "Birmingham",
+    "state": "AL",
+    "website_url": "https://www.pullapart.com/locations/alabama/birmingham/",
+    "phone": "205-252-7278",
+    "data": {
+      "latitude": 33.54989,
+      "longitude": -86.79379
+    }
+  },
+  {
+    "id": "2c1ed06e-6d1c-410c-89a5-3a04e4fa3764",
+    "slug": "u-pick-it-flagstaff-az",
+    "display_name": "U-Pick-It inc Flagstaff",
+    "organization_id": "fe4f2eca-3d67-48ae-a9c7-51cc18216088",
+    "address": "7320 Leupp Rd",
+    "city": "Flagstaff",
+    "state": "AZ",
+    "website_url": "https://upickitaz.com",
+    "phone": "928-526-5292",
+    "data": {
+      "latitude": 35.1657845,
+      "longitude": -111.6550126
+    }
+  },
+  {
+    "id": "1d432bd0-a24f-4b80-922a-a26aa5bd82cd",
+    "slug": "parts-you-pull-amite-la",
+    "display_name": "Parts YoU Pull",
+    "organization_id": "574e97df-7106-43ac-8e83-14ce47c8d096",
+    "address": "56223 Hwy 51",
+    "city": "Amite",
+    "state": "LA",
+    "website_url": "https://partsyoupull.co",
+    "phone": "985-247-2773",
+    "data": {
+      "latitude": 30.7265747,
+      "longitude": -90.5089815
+    }
+  },
+  {
+    "id": "04873b0e-2519-46ef-88e4-8e4f7b457839",
+    "slug": "pickers-texarkana-ar",
+    "display_name": "Pickers Texarkana",
+    "organization_id": "bd318b01-2757-4449-87da-c8558281700a",
+    "address": "5512 E 9th St",
+    "city": "Texarkana",
+    "state": "AR",
+    "website_url": "https://pickerstxk.com",
+    "phone": "870-772-1880",
+    "data": {
+      "latitude": 33.4297792,
+      "longitude": -93.9692293
+    }
+  },
+  {
+    "id": "e224bbf6-8355-467a-b165-414df71af402",
+    "slug": "foss-havelock",
+    "display_name": "Foss Havelock",
+    "organization_id": "60d7af5d-5500-439e-a448-4000e687d0b4",
+    "address": "901 Lake Rd, Havelock, NC 28532, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "2524478618",
+    "data": {
+      "latitude": 34.87296,
+      "longitude": -76.929345
+    }
+  },
+  {
+    "id": "87177e21-2e6f-4a51-adb6-c4fdcd7fc3e5",
+    "slug": "tri-state-u-wrench-and-save-jackson-mo",
+    "display_name": "Tri-State U-Wrench & Save",
+    "organization_id": "cda2478a-6f00-43b4-8989-c3ba0417c5e3",
+    "address": "3310 Old Cape Rd",
+    "city": "Jackson",
+    "state": "MO",
+    "website_url": "https://uwrenchandsave.com",
+    "phone": "573-987-3322",
+    "data": {
+      "latitude": 37.36340086,
+      "longitude": -89.62984281
+    }
+  },
+  {
+    "id": "81b46a86-d0de-4acd-ba52-9182b4393e78",
+    "slug": "wilberts-u-pull-it-elma-ny",
+    "display_name": "Wilbert's U-Pull It of Buffalo",
+    "organization_id": "a5113ec5-851a-40af-8d17-3dc29863c5b4",
+    "address": "550 Pound Rd",
+    "city": "Elma",
+    "state": "NY",
+    "website_url": "https://www.wilberts.com/u-pull-it/",
+    "phone": "716-246-0606",
+    "data": {
+      "latitude": 42.8359446,
+      "longitude": -78.6806057
+    }
+  },
+  {
+    "id": "940c2dba-31cd-4902-b5dc-b173ea1246f5",
+    "slug": "pull-n-save-gilbert-az",
+    "display_name": "Pull N Save Gilbert",
+    "organization_id": "64dee260-29cd-44d3-bb6f-2996e900cf23",
+    "address": "623 N Cooper Rd",
+    "city": "Gilbert",
+    "state": "AZ",
+    "website_url": "https://pullnsave.com",
+    "phone": "480-795-5353",
+    "data": {
+      "latitude": 33.3611138,
+      "longitude": -111.8054025
+    }
+  },
+  {
+    "id": "f1bed0c7-2d3c-48d7-ace2-d9afcb6bd4d2",
+    "slug": "eichelbergers-u-pull-it-spring-grove",
+    "display_name": "Eichelberger's U-Pull-It",
+    "organization_id": "75fcdc34-387b-4b92-b24e-4d20238f3d3b",
+    "address": "1381 Sunnyside Rd",
+    "city": "Spring Grove",
+    "state": "PA",
+    "website_url": "https://upullit.jksalvageco.com/",
+    "phone": "(717) 225-5610",
+    "data": {}
+  },
+  {
+    "id": "6225a92e-925f-4507-8815-45adf2ed41d3",
+    "slug": "budget-u-pull-it-winter-garden-fl",
+    "display_name": "Budget U Pull It",
+    "organization_id": "4ddcf700-d95d-4cb6-9937-3712b6061654",
+    "address": "881 9th St",
+    "city": "Winter Garden",
+    "state": "FL",
+    "website_url": "https://budgetupullit.com",
+    "phone": "407-656-4707",
+    "data": {
+      "latitude": 28.5536984,
+      "longitude": -81.5747018
+    }
+  },
+  {
+    "id": "7a59c666-0e78-4a16-babc-0b53750121a3",
+    "slug": "hwy-195-used-auto-parts-killeen-tx",
+    "display_name": "Hwy 195 Used Auto Parts",
+    "organization_id": "68694b66-f1be-4f6e-9b6a-dffd1df7f54e",
+    "address": "12077 State Highway 195",
+    "city": "Killeen",
+    "state": "TX",
+    "website_url": "https://195usedautoparts.com",
+    "phone": "254-616-2886",
+    "data": {
+      "latitude": 31.0357251,
+      "longitude": -97.7584095
+    }
+  },
+  {
+    "id": "cdd9f1b9-1e37-4e00-9edf-b7e8d67ad5b3",
+    "slug": "pick-n-pull-johnston-ri",
+    "display_name": "Pick-N-Pull Johnston",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "30 Green Earth Ave.",
+    "city": "Johnston",
+    "state": "RI",
+    "website_url": "https://www.picknpull.com/locations/172",
+    "phone": "401-943-0683",
+    "data": {
+      "latitude": 41.8002,
+      "longitude": -71.5139
+    }
+  },
+  {
+    "id": "c34e4130-3e50-4bfc-a122-79823d7e1997",
+    "slug": "pick-n-pull-dallas-south-central-tx",
+    "display_name": "Pick-N-Pull Dallas South Central",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "8835 S Central Expressway",
+    "city": "Dallas",
+    "state": "TX",
+    "website_url": "https://www.picknpull.com/locations/121",
+    "phone": "214-372-5555",
+    "data": {
+      "latitude": 32.6933,
+      "longitude": -96.7423
+    }
+  },
+  {
+    "id": "0d761ec2-c3c6-468c-9da1-0d3c80b402b2",
+    "slug": "pick-n-pull-calgary-52-st-ab",
+    "display_name": "Pick-N-Pull Calgary (52 St)",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "2724 52 Street SE",
+    "city": "Calgary",
+    "state": "AB",
+    "website_url": "https://www.picknpull.com/locations/164",
+    "phone": "403-272-8206",
+    "data": {
+      "latitude": 51.0239,
+      "longitude": -113.9582
+    }
+  },
+  {
+    "id": "91902083-d165-4b39-99ee-139c96459ecb",
+    "slug": "pick-n-pull-calgary-barlow-trail-ab",
+    "display_name": "Pick-N-Pull Calgary (Barlow Trail)",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "8600 Barlow Trail SE",
+    "city": "Calgary",
+    "state": "AB",
+    "website_url": "https://www.picknpull.com/locations/76",
+    "phone": "403-279-7777",
+    "data": {
+      "latitude": 50.977,
+      "longitude": -113.9816
+    }
+  },
+  {
+    "id": "133ed1f4-375c-43b0-9704-06b94a36c01f",
+    "slug": "pick-n-pull-edmonton-ab",
+    "display_name": "Pick-N-Pull Edmonton",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "18649 118A Avenue NW",
+    "city": "Edmonton",
+    "state": "AB",
+    "website_url": "https://www.picknpull.com/locations/77",
+    "phone": "780-447-3820",
+    "data": {
+      "latitude": 53.5704,
+      "longitude": -113.6445
+    }
+  },
+  {
+    "id": "4093d521-2a37-4ee7-b885-f77f8c16eced",
+    "slug": "pick-n-pull-little-rock-ar",
+    "display_name": "Pick-N-Pull Little Rock",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "10312 Baseline Road",
+    "city": "Little Rock",
+    "state": "AR",
+    "website_url": "https://www.picknpull.com/locations/108",
+    "phone": "501-568-7771",
+    "data": {
+      "latitude": 34.6705,
+      "longitude": -92.3906
+    }
+  },
+  {
+    "id": "33024519-5021-4ed5-8759-9724fe509628",
+    "slug": "pick-n-pull-kelowna-bc",
+    "display_name": "Pick-N-Pull Kelowna",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "1516 Stevens Road",
+    "city": "Kelowna",
+    "state": "BC",
+    "website_url": "https://www.picknpull.com/locations/78",
+    "phone": "250-769-9377",
+    "data": {
+      "latitude": 49.8663,
+      "longitude": -119.5768
+    }
+  },
+  {
+    "id": "ac72e95c-a35f-45e5-97b9-c7f248c2c9fb",
+    "slug": "pick-n-pull-american-canyon-ca",
+    "display_name": "Pick-N-Pull American Canyon",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "5759 Broadway Street, Hwy 29",
+    "city": "American Canyon",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/183",
+    "phone": "707-260-0010",
+    "data": {
+      "latitude": 38.2041,
+      "longitude": -122.2568
+    }
+  },
+  {
+    "id": "b7163391-2e94-4dd4-a177-e5f93199d0e2",
+    "slug": "pick-n-pull-antelope-ca",
+    "display_name": "Pick-N-Pull Antelope",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "8640 Antelope North Road",
+    "city": "Antelope",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/111",
+    "phone": "916-721-4040",
+    "data": {
+      "latitude": 38.7196,
+      "longitude": -121.3255
+    }
+  },
+  {
+    "id": "41edb2de-3b39-4150-89e4-b5f415ba9bd1",
+    "slug": "pick-n-pull-chico-ca",
+    "display_name": "Pick-N-Pull Chico",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "397 E Park Avenue",
+    "city": "Chico",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/112",
+    "phone": "530-343-5590",
+    "data": {
+      "latitude": 39.714,
+      "longitude": -121.8077
+    }
+  },
+  {
+    "id": "333a0f80-83fd-4102-b8b2-d6b30bcb9b7a",
+    "slug": "pick-n-pull-fairfield-ca",
+    "display_name": "Pick-N-Pull Fairfield",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "4659 Air Base Parkway",
+    "city": "Fairfield",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/42",
+    "phone": "707-425-1044",
+    "data": {
+      "latitude": 38.2725,
+      "longitude": -122
+    }
+  },
+  {
+    "id": "b45aca0d-2e7a-4357-ad4f-4f04856facd6",
+    "slug": "spot-my-part-harlingen-tx",
+    "display_name": "Spot My Part",
+    "organization_id": "4e6f3c51-3ea7-4dcd-938f-98ced7b297e7",
+    "address": "20727 US-77 Expressway",
+    "city": "Harlingen",
+    "state": "TX",
+    "website_url": "https://www.spotmypart.co",
+    "phone": "956-364-3431",
+    "data": {
+      "latitude": 26.2591039,
+      "longitude": -97.7335894
+    }
+  },
+  {
+    "id": "d80eed9f-665d-44fe-8c87-bad445c8ee0a",
+    "slug": "pick-n-pull-fresno-ca",
+    "display_name": "Pick-N-Pull Fresno",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "3230 E Jensen Avenue",
+    "city": "Fresno",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/43",
+    "phone": "559-233-3881",
+    "data": {
+      "latitude": 36.7066,
+      "longitude": -119.77
+    }
+  },
+  {
+    "id": "a799fb80-b91e-41ae-9f18-e191f37791b9",
+    "slug": "pick-n-pull-merced-ca",
+    "display_name": "Pick-N-Pull Merced",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "1150 E Childs Avenue",
+    "city": "Merced",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/44",
+    "phone": "209-722-3376",
+    "data": {
+      "latitude": 37.2879,
+      "longitude": -120.4615
+    }
+  },
+  {
+    "id": "6d35940d-484b-43a5-893c-2f843a2435fa",
+    "slug": "pick-n-pull-modesto-ca",
+    "display_name": "Pick-N-Pull Modesto",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "113 Beard Avenue",
+    "city": "Modesto",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/45",
+    "phone": "209-579-2277",
+    "data": {
+      "latitude": 37.637,
+      "longitude": -120.9436
+    }
+  },
+  {
+    "id": "da36e572-8118-4d4d-b32b-fea43ad3f91b",
+    "slug": "pick-n-pull-moss-landing-ca",
+    "display_name": "Pick-N-Pull Moss Landing",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "516B Dolan Road",
+    "city": "Moss Landing",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/46",
+    "phone": "831-632-4201",
+    "data": {
+      "latitude": 36.8003,
+      "longitude": -121.7678
+    }
+  },
+  {
+    "id": "6978a242-3bd8-49cf-a204-23c016c3bba2",
+    "slug": "pick-n-pull-newark-ca",
+    "display_name": "Pick-N-Pull Newark",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "7400 Mowry Avenue",
+    "city": "Newark",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/47",
+    "phone": "510-742-2277",
+    "data": {
+      "latitude": 37.5105,
+      "longitude": -122.0143
+    }
+  },
+  {
+    "id": "02a0d851-b97b-414c-9a52-6781950923a3",
+    "slug": "pick-n-pull-oakland-ca",
+    "display_name": "Pick-N-Pull Oakland",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "8451 San Leandro Street",
+    "city": "Oakland",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/49",
+    "phone": "510-729-7010",
+    "data": {
+      "latitude": 37.7473,
+      "longitude": -122.1894
+    }
+  },
+  {
+    "id": "0d39d0c1-99c6-4a30-a597-11cbe88e2c07",
+    "slug": "pick-n-pull-rancho-cordova-ca",
+    "display_name": "Pick-N-Pull Rancho Cordova",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "3419 Sunrise Blvd",
+    "city": "Rancho Cordova",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/52",
+    "phone": "916-635-2027",
+    "data": {
+      "latitude": 38.577,
+      "longitude": -121.2605
+    }
+  },
+  {
+    "id": "60d7b64e-c8d4-40fd-9b00-109a1c6d807a",
+    "slug": "pick-n-pull-rocklin-ca",
+    "display_name": "Pick-N-Pull Rocklin",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "6355 Pacific Street",
+    "city": "Rocklin",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/56",
+    "phone": "916-784-6350",
+    "data": {
+      "latitude": 38.7753,
+      "longitude": -121.249
+    }
+  },
+  {
+    "id": "07aad38f-97c4-4ced-b3dc-18e60ebb7ecc",
+    "slug": "byot-bryan-tx",
+    "display_name": "BYOT Auto Parts",
+    "organization_id": "de37dcea-df6c-4634-8be2-f3a678316cd3",
+    "address": "3738 E State Hwy 21",
+    "city": "Bryan",
+    "state": "TX",
+    "website_url": "https://www.byotautoparts.com",
+    "phone": "979-658-8005",
+    "data": {
+      "latitude": 30.7005568,
+      "longitude": -96.3546309
+    }
+  },
+  {
+    "id": "135371f0-2c67-44cd-8d4c-61c61421fce9",
+    "slug": "grandpa-johns-pick-and-pull-green-bay-wi",
+    "display_name": "Grandpa Johns Pick & Pull",
+    "organization_id": "460a8849-5f1e-41a8-8db1-316a63b12d49",
+    "address": "1746 Velp Ave",
+    "city": "Green Bay",
+    "state": "WI",
+    "website_url": "https://grandpajohnsautoparts.com",
+    "phone": "920-884-5042",
+    "data": {
+      "latitude": 44.55200672,
+      "longitude": -88.05301
+    }
+  },
+  {
+    "id": "3f808987-5f1f-4934-b5fe-a447411fae3b",
+    "slug": "besslers-u-pull-and-save-massillon-oh",
+    "display_name": "Besslers U Pull & Save Massillon",
+    "organization_id": "94c4572a-428e-460d-8bb2-c34b4e05331d",
+    "address": "12192 Lincoln Way W",
+    "city": "Massillon",
+    "state": "OH",
+    "website_url": "https://besslerautoparts.com",
+    "phone": "330-236-4112",
+    "data": {
+      "latitude": 40.794919,
+      "longitude": -81.5285628
+    }
+  },
+  {
+    "id": "00461dcc-0db1-46e0-87d0-115d8b2c4fc8",
+    "slug": "u-pull-it-of-davie-llc-davie-fl",
+    "display_name": "U-Pull It of Davie, llc",
+    "organization_id": "67d22a9b-e2fc-4fe0-9680-e9e5fdc719ed",
+    "address": "4301 S State Rd 7",
+    "city": "Davie",
+    "state": "FL",
+    "website_url": "https://upullitdavie.com",
+    "phone": "954-546-0203",
+    "data": {
+      "latitude": 26.07049098,
+      "longitude": -80.20738987
+    }
+  },
+  {
+    "id": "dcf7ddc6-5c29-4df9-a894-5fa3c0132965",
+    "slug": "besslers-u-pull-and-save-wilder-ky",
+    "display_name": "Bessler's U Pull and Save",
+    "organization_id": "94c4572a-428e-460d-8bb2-c34b4e05331d",
+    "address": "106 Williams Way",
+    "city": "Wilder",
+    "state": "KY",
+    "website_url": "https://upullandsave.com",
+    "phone": "859-815-7266",
+    "data": {
+      "latitude": 39.00638777,
+      "longitude": -84.47223484
+    }
+  },
+  {
+    "id": "d921f559-0764-4c4c-8c4c-8bff19ba2675",
+    "slug": "byot-beaumont-tx",
+    "display_name": "BYOT Beaumont",
+    "organization_id": "de37dcea-df6c-4634-8be2-f3a678316cd3",
+    "address": "7516 Shady Ln",
+    "city": "Beaumont",
+    "state": "TX",
+    "website_url": "https://www.byotautoparts.com",
+    "phone": "409-204-7637",
+    "data": {
+      "latitude": 30.0576914,
+      "longitude": -94.2193269
+    }
+  },
+  {
+    "id": "bb1af10f-403f-4942-ae63-c567183f63b8",
+    "slug": "byot-port-allen-la",
+    "display_name": "BYOT BTR",
+    "organization_id": "de37dcea-df6c-4634-8be2-f3a678316cd3",
+    "address": "4007 I-10 Frontage Rd",
+    "city": "Port Allen",
+    "state": "LA",
+    "website_url": "https://www.byotautoparts.com",
+    "phone": "225-401-6644",
+    "data": {
+      "latitude": 30.4528866,
+      "longitude": -91.2777789
+    }
+  },
+  {
+    "id": "b145df4b-0b4d-4fff-96ea-8f37c43fabce",
+    "slug": "u-pull-and-save-pontiac-mi",
+    "display_name": "U-Pull and Save",
+    "organization_id": "d687c6a4-4aea-48a1-943c-7b3c33f210af",
+    "address": "240 E Columbia",
+    "city": "Pontiac",
+    "state": "MI",
+    "website_url": "https://u-pullandsave.com",
+    "phone": "248-618-5000",
+    "data": {
+      "latitude": 42.67028066,
+      "longitude": -83.29114897
+    }
+  },
+  {
+    "id": "5135b027-80e4-41cc-85db-d9a2a0a8e990",
+    "slug": "besslers-u-pull-and-save-hebron-ky",
+    "display_name": "Bessler U Pull & Save",
+    "organization_id": "94c4572a-428e-460d-8bb2-c34b4e05331d",
+    "address": "2412 Petersburg Rd",
+    "city": "Hebron",
+    "state": "KY",
+    "website_url": "https://upullandsave.com",
+    "phone": "859-586-6877",
+    "data": {
+      "latitude": 39.06769601,
+      "longitude": -84.71960031
+    }
+  },
+  {
+    "id": "406af702-6e28-43b7-88ca-a82d3e6287ee",
+    "slug": "baughmans-u-pull-it-york-pa",
+    "display_name": "Baughmans U Pull It",
+    "organization_id": "dc7b46c2-68ed-4f8f-bcc2-9cd86a560fd5",
+    "address": "441 Eberts Ln",
+    "city": "York",
+    "state": "PA",
+    "website_url": "https://baughmansupullit.com",
+    "phone": "717-846-3944",
+    "data": {
+      "latitude": 39.97685556,
+      "longitude": -76.70646185
+    }
+  },
+  {
+    "id": "04ed1ce5-f1a6-4f90-b9ef-9568c78e5af2",
+    "slug": "a-1-crashed-cars-south-sioux-city-ne",
+    "display_name": "a-1 Crashed Cars",
+    "organization_id": "9f04fb6e-10bd-4892-b709-8514b6f41f6c",
+    "address": "461 Dixon Path",
+    "city": "South Sioux City",
+    "state": "NE",
+    "website_url": "https://a1crashedcars.com",
+    "phone": "402-494-4886",
+    "data": {
+      "latitude": 42.4824397,
+      "longitude": -96.4380759
+    }
+  },
+  {
+    "id": "51c7f450-5d86-4b2e-ae04-f8073b07d649",
+    "slug": "horseheads-automotive-recycling-elmira-ny",
+    "display_name": "Horseheads Automotive Recycling",
+    "organization_id": "15d4c362-6d7a-4337-a612-6ecfa6e537e7",
+    "address": "1592 Sears Rd",
+    "city": "Elmira",
+    "state": "NY",
+    "website_url": "https://fenixupull.com",
+    "phone": "607-739-3851",
+    "data": {
+      "latitude": 42.156052,
+      "longitude": -76.8627312
+    }
+  },
+  {
+    "id": "9e8aad5d-44c5-4101-82e6-7c6cddff2b4b",
+    "slug": "us-auto-of-sterling-heights-sterling-heights-mi",
+    "display_name": "Us Auto of Sterling Heights",
+    "organization_id": "83167767-c265-455a-a8e5-3fe9435307c3",
+    "address": "7575 18 1/2 Mile Rd",
+    "city": "Sterling Heights",
+    "state": "MI",
+    "website_url": "https://usautosterlingheights.com",
+    "phone": "586-731-1616",
+    "data": {
+      "latitude": 42.6025484,
+      "longitude": -83.0372776
+    }
+  },
+  {
+    "id": "6ee4e7ab-e8dc-4a55-a4c7-cc9d0caa9542",
+    "slug": "wilberts-u-pull-it-bath-ny",
+    "display_name": "Wilberts U-Pull-It of Bath",
+    "organization_id": "a5113ec5-851a-40af-8d17-3dc29863c5b4",
+    "address": "7992B NY-415",
+    "city": "Bath",
+    "state": "NY",
+    "website_url": "https://www.wilberts.com/u-pull-it/",
+    "phone": "607-776-7662",
+    "data": {
+      "latitude": 42.37002,
+      "longitude": -77.366975
+    }
+  },
+  {
+    "id": "f3498587-a17f-49ab-a5ad-7f01776989e8",
+    "slug": "pauls-auto-yard-demotte",
+    "display_name": "Paul's Auto Yard - DeMotte",
+    "organization_id": "5712345c-4597-4e8d-98ef-856be732082c",
+    "address": "901 Orchid Street",
+    "city": "DeMotte",
+    "state": "IN",
+    "website_url": "https://pauldemin.hollanderstores.com/",
+    "phone": "(219) 987-4444",
+    "data": {}
+  },
+  {
+    "id": "b020f02e-f01d-4727-afac-097b3b3d8e5b",
+    "slug": "u-pull-east-bethel-mn",
+    "display_name": "U Pull R Parts East Bethel",
+    "organization_id": "41cfdd60-b286-48f0-a1de-4e94bf7623b9",
+    "address": "20418 Highway 65 NE",
+    "city": "East Bethel",
+    "state": "MN",
+    "website_url": "https://upullrparts.com",
+    "phone": "763-434-5229",
+    "data": {
+      "latitude": 45.3194095,
+      "longitude": -93.2024487
+    }
+  },
+  {
+    "id": "c056ba0d-e235-4ab0-8a2b-072e3ef3b10e",
+    "slug": "late-model-wap-holland-tx",
+    "display_name": "Late Model WAP",
+    "organization_id": "54c8e5e2-63fd-4ddf-994a-2574a9dd84be",
+    "address": "24759 State Hwy 95",
+    "city": "Holland",
+    "state": "TX",
+    "website_url": "https://wrenchapart.com",
+    "phone": "512-593-4413",
+    "data": {
+      "latitude": 30.8916843,
+      "longitude": -97.3903234
+    }
+  },
+  {
+    "id": "f630daf1-c247-4be4-87dd-bd96462b36f7",
+    "slug": "harrys-u-pull-it-hazle-township",
+    "display_name": "Harry's U-Pull It Hazle Township",
+    "organization_id": "cbdae5f9-9759-475c-9eba-8a2aa6bee263",
+    "address": "1010 Winters Avenue",
+    "city": "Hazle Township",
+    "state": "PA",
+    "website_url": "https://wegotused.com/",
+    "phone": "(570) 459-9901",
+    "data": {}
+  },
+  {
+    "id": "551837cb-a18d-4c1b-969a-a91f1fcdac68",
+    "slug": "utah-pic-a-part-ogden-ut",
+    "display_name": "Utah Pic-A-Part Ogden",
+    "organization_id": "95f3f800-33bc-4f44-9ca4-4476fb304ff6",
+    "address": "555 W 17th St",
+    "city": "Ogden",
+    "state": "UT",
+    "website_url": "https://utahpicapart.com",
+    "phone": "801-612-6446",
+    "data": {
+      "latitude": 41.2366021,
+      "longitude": -111.9915072
+    }
+  },
+  {
+    "id": "647f4348-6b85-45ee-9543-ad39d40008c6",
+    "slug": "polk-county-pick-and-pay-lakeland-fl",
+    "display_name": "Polk County Pick & Pay",
+    "organization_id": "7ccd169a-612d-4294-9383-4525ce419456",
+    "address": "7623 US Highway 98 N",
+    "city": "Lakeland",
+    "state": "FL",
+    "website_url": "http://www.polkcountypickandpay.com",
+    "phone": "863-777-2500",
+    "data": {
+      "latitude": 28.13954227,
+      "longitude": -81.97345095
+    }
+  },
+  {
+    "id": "1f453d01-dc67-4738-8a24-dc53bc005610",
+    "slug": "u-pull-it-ia-des-moines-ia",
+    "display_name": "U Pull It IA",
+    "organization_id": "b4a4d888-28b9-4fd3-9949-a1a4db2668ef",
+    "address": "1600 NE 44th Ave",
+    "city": "Des Moines",
+    "state": "IA",
+    "website_url": "https://upullitia.com",
+    "phone": "515-528-3600",
+    "data": {
+      "latitude": 41.6405098,
+      "longitude": -93.59882354
+    }
+  },
+  {
+    "id": "ebbb60b0-f114-448a-9a13-748ed098b8de",
+    "slug": "jalopy-jungle-boise",
+    "display_name": "Jalopy Jungle Boise",
+    "organization_id": "a35fdb7a-2863-40f7-80ef-bb3abcc1d4c6",
+    "address": "5501 W State Street",
+    "city": "Boise",
+    "state": "ID",
+    "website_url": "https://pickapartjalopyjungle.com/",
+    "phone": "(208) 853-7266",
+    "data": {}
+  },
+  {
+    "id": "ec50eaa1-e7db-49ab-b1ff-e296d661a6bd",
+    "slug": "u-pull-it-lincoln-ne",
+    "display_name": "U-Pull-It inc Lincoln",
+    "organization_id": "110c403e-9134-45ab-8500-c967610a7c3f",
+    "address": "6300 N 70th St",
+    "city": "Lincoln",
+    "state": "NE",
+    "website_url": "https://upullitne.com",
+    "phone": "402-467-4101",
+    "data": {
+      "latitude": 40.8734334,
+      "longitude": -96.6239322
+    }
+  },
+  {
+    "id": "8e66ec1b-0ae6-4715-b483-0223a7f4a925",
+    "slug": "tear-a-part-salt-lake-city-ut",
+    "display_name": "Tear a Part SLC",
+    "organization_id": "c0079299-1189-442b-8aee-0ac95a3081e8",
+    "address": "652 S Redwood Rd",
+    "city": "Salt Lake City",
+    "state": "UT",
+    "website_url": "https://tearapart.com",
+    "phone": "801-886-2345",
+    "data": {
+      "latitude": 40.755077,
+      "longitude": -111.939011
+    }
+  },
+  {
+    "id": "93b2ed99-955a-4bd4-9106-337f084eb36b",
+    "slug": "locos-gringos-pick-n-pull-tyler-tx",
+    "display_name": "Locos Gringos Pick N Pull",
+    "organization_id": "a1696d58-f07e-4b59-8a49-e32d589a2a02",
+    "address": "10310 County Road 383",
+    "city": "Tyler",
+    "state": "TX",
+    "website_url": "https://www.locosgringospicknpull.com",
+    "phone": "903-877-4900",
+    "data": {
+      "latitude": 32.41356138,
+      "longitude": -95.23519291
+    }
+  },
+  {
+    "id": "388f851f-49c3-4333-a064-1406bd759b0f",
+    "slug": "uapi-monroe",
+    "display_name": "UAPI - Monroe",
+    "organization_id": "0fb0271b-f538-4862-8bfc-33978f225bcf",
+    "address": "3010 US-165, Monroe, LA 71202, USA",
+    "city": "",
+    "state": "",
+    "website_url": null,
+    "phone": "8888548274",
+    "data": {
+      "latitude": 32.48267,
+      "longitude": -92.082899
+    }
+  },
+  {
+    "id": "8817d4af-48b1-48e1-affc-681d13092e93",
+    "slug": "utah-pic-a-part-orem-ut",
+    "display_name": "Utah Pic-A-Part Orem",
+    "organization_id": "95f3f800-33bc-4f44-9ca4-4476fb304ff6",
+    "address": "255 S Geneva Rd",
+    "city": "Orem",
+    "state": "UT",
+    "website_url": "https://utahpicapart.com",
+    "phone": "801-756-5878",
+    "data": {
+      "latitude": 40.280634,
+      "longitude": -111.729561
+    }
+  },
+  {
+    "id": "b00c0756-7bcf-431d-ac1d-c878bc29a11a",
+    "slug": "u-pull-auto-parts-pocatello-id",
+    "display_name": "U Pull Auto Parts",
+    "organization_id": "1f0480a7-68f6-4de9-965c-a1a2cf6587d9",
+    "address": "9587 N Philbin Rd",
+    "city": "Pocatello",
+    "state": "ID",
+    "website_url": null,
+    "phone": "208-233-1957",
+    "data": {
+      "latitude": 42.913239,
+      "longitude": -112.49587
+    }
+  },
+  {
+    "id": "91191cdd-e448-4372-bdbe-2dc31567f593",
+    "slug": "tear-a-part-ogden-ut",
+    "display_name": "Tear-a-Part Ogden",
+    "organization_id": "c0079299-1189-442b-8aee-0ac95a3081e8",
+    "address": "763 W 12th St",
+    "city": "Ogden",
+    "state": "UT",
+    "website_url": "https://tearapart.com",
+    "phone": "801-564-6960",
+    "data": {
+      "latitude": 41.2441836,
+      "longitude": -111.9596385
+    }
+  },
+  {
+    "id": "5c1156bd-0690-4e5b-89bc-381015aae45a",
+    "slug": "milliron-auto-parts-mansfield-oh",
+    "display_name": "Milliron Auto Parts",
+    "organization_id": "edcaed58-d7e0-4f1d-bf94-1c90b9c12280",
+    "address": "2375 Springmill Rd",
+    "city": "Mansfield",
+    "state": "OH",
+    "website_url": "https://www.millironyoupullit.com",
+    "phone": "800-747-4566",
+    "data": {
+      "latitude": 40.6939625,
+      "longitude": -82.5879159
+    }
+  },
+  {
+    "id": "5a2b71f4-6f52-4e1f-a4f6-5b7c24f9754a",
+    "slug": "h-and-h-salvage-amarillo-tx",
+    "display_name": "H and H Salvage",
+    "organization_id": "ae58f432-5c1b-40aa-b0fb-102bb645aaae",
+    "address": "7800 East Loop 335 North",
+    "city": "Amarillo",
+    "state": "TX",
+    "website_url": "https://www.handhsalvageamarillo.com",
+    "phone": "806-381-8674",
+    "data": {
+      "latitude": 35.261505,
+      "longitude": -101.749638
+    }
+  },
+  {
+    "id": "9b5c37e1-cf81-47dd-a4db-e3f3261ed3ac",
+    "slug": "harrys-u-pull-it-pennsburg",
+    "display_name": "Harry's U-Pull It Pennsburg",
+    "organization_id": "cbdae5f9-9759-475c-9eba-8a2aa6bee263",
+    "address": "2557 Geryville Pike",
+    "city": "Pennsburg",
+    "state": "PA",
+    "website_url": "https://wegotused.com/",
+    "phone": "(215) 541-9950",
+    "data": {}
+  },
+  {
+    "id": "815e31bc-6c32-4b19-ba72-2e34874723c6",
+    "slug": "pick-n-pull-sacramento-mather-ca",
+    "display_name": "Pick-N-Pull Sacramento Mather",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "4075 Happy Lane",
+    "city": "Sacramento",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/182",
+    "phone": "916-503-9473",
+    "data": {
+      "latitude": 38.5492,
+      "longitude": -121.3217
+    }
+  },
+  {
+    "id": "a6ce36d3-98de-42bb-9f1f-c0961c89cc47",
+    "slug": "pick-n-pull-salinas-ca",
+    "display_name": "Pick-N-Pull Salinas",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "20856 Spence Road",
+    "city": "Salinas",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/175",
+    "phone": "831-422-1088",
+    "data": {
+      "latitude": 36.6167,
+      "longitude": -121.567
+    }
+  },
+  {
+    "id": "e1e14625-cec6-411a-8d67-8325e5a269f2",
+    "slug": "pick-n-pull-stockton-ca",
+    "display_name": "Pick-N-Pull Stockton",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "3927 Clark Drive",
+    "city": "Stockton",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/60",
+    "phone": "209-462-1927",
+    "data": {
+      "latitude": 37.9213,
+      "longitude": -121.2216
+    }
+  },
+  {
+    "id": "24d358c6-4957-4109-b8a4-2f9742244ff5",
+    "slug": "pick-n-pull-windsor-ca",
+    "display_name": "Pick-N-Pull Windsor",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "10475 Old Redwood Highway",
+    "city": "Windsor",
+    "state": "CA",
+    "website_url": "https://www.picknpull.com/locations/61",
+    "phone": "707-838-4691",
+    "data": {
+      "latitude": 38.5655,
+      "longitude": -122.8299
+    }
+  },
+  {
+    "id": "a548442f-c64a-40ce-99e6-e18e45aca918",
+    "slug": "pick-n-pull-jefferson-ga",
+    "display_name": "Pick-N-Pull Jefferson",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "2991 Hwy 124W",
+    "city": "Jefferson",
+    "state": "GA",
+    "website_url": "https://www.picknpull.com/locations/195",
+    "phone": "706-367-8632",
+    "data": {
+      "latitude": 34.1008,
+      "longitude": -83.6573
+    }
+  },
+  {
+    "id": "19673430-d3b1-4e17-a2ea-a9df2f06dc4e",
+    "slug": "pick-n-pull-fort-worth-tx",
+    "display_name": "Pick-N-Pull Fort Worth",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "5806 Elliott Reeder Road",
+    "city": "Fort Worth",
+    "state": "TX",
+    "website_url": "https://www.picknpull.com/locations/73",
+    "phone": "817-834-0277",
+    "data": {
+      "latitude": 32.7804,
+      "longitude": -97.2597
+    }
+  },
+  {
+    "id": "a6399196-0b9f-4580-8199-fe51fc19d8f1",
+    "slug": "pick-n-pull-salt-lake-city-ut",
+    "display_name": "Pick-N-Pull Salt Lake City",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "585 West 3300 S",
+    "city": "Salt Lake City",
+    "state": "UT",
+    "website_url": "https://www.picknpull.com/locations/74",
+    "phone": "801-264-0359",
+    "data": {
+      "latitude": 40.6998,
+      "longitude": -111.9081
+    }
+  },
+  {
+    "id": "6d9102d2-5973-4ff4-af2b-f0f098fd755b",
+    "slug": "pick-n-pull-virginia-beach-va",
+    "display_name": "Pick-N-Pull Virginia Beach",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "100 Sykes Avenue",
+    "city": "Virginia Beach",
+    "state": "VA",
+    "website_url": "https://www.picknpull.com/locations/75",
+    "phone": "757-417-0380",
+    "data": {
+      "latitude": 36.8384,
+      "longitude": -76.0094
+    }
+  },
+  {
+    "id": "7b90cff7-191f-4675-af83-4e5de2feb217",
+    "slug": "pick-n-pull-arlington-wa",
+    "display_name": "Pick-N-Pull Arlington",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "6323 172nd Street NE",
+    "city": "Arlington",
+    "state": "WA",
+    "website_url": "https://www.picknpull.com/locations/136",
+    "phone": "360-403-9505",
+    "data": {
+      "latitude": 48.1519,
+      "longitude": -122.1447
+    }
+  },
+  {
+    "id": "fca956e1-8da1-4529-9089-d8d8be4e572f",
+    "slug": "pick-n-pull-tacoma-wa",
+    "display_name": "Pick-N-Pull Tacoma",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "2416 112th Street S",
+    "city": "Lakewood",
+    "state": "WA",
+    "website_url": "https://www.picknpull.com/locations/138",
+    "phone": "253-588-1775",
+    "data": {
+      "latitude": 47.1558,
+      "longitude": -122.4695
+    }
+  },
+  {
+    "id": "c2ee164f-e013-4d60-931b-63fb25f0408a",
+    "slug": "pick-n-pull-lynnwood-wa",
+    "display_name": "Pick-N-Pull Lynnwood",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "18306 Highway 99",
+    "city": "Lynnwood",
+    "state": "WA",
+    "website_url": "https://www.picknpull.com/locations/137",
+    "phone": "425-778-3147",
+    "data": {
+      "latitude": 47.8322,
+      "longitude": -122.3064
+    }
+  },
+  {
+    "id": "038e1055-c358-4606-a15d-c0c076dc8836",
+    "slug": "pick-n-pull-tumwater-wa",
+    "display_name": "Pick-N-Pull Tumwater",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "8010 Old Highway 99 SE",
+    "city": "Tumwater",
+    "state": "WA",
+    "website_url": "https://www.picknpull.com/locations/171",
+    "phone": "360-357-4466",
+    "data": {
+      "latitude": 46.9711,
+      "longitude": -122.8901
+    }
+  },
+  {
+    "id": "c1e04f12-3296-488f-97e9-23ca2f4ec09a",
+    "slug": "pick-n-pull-vancouver-wa",
+    "display_name": "Pick-N-Pull Vancouver",
+    "organization_id": "3651cd11-c72a-4740-b28d-141d32764ddf",
+    "address": "9605 NE 76th Street",
+    "city": "Vancouver",
+    "state": "WA",
+    "website_url": "https://www.picknpull.com/locations/120",
+    "phone": "360-892-8906",
+    "data": {
+      "latitude": 45.6769,
+      "longitude": -122.5741
+    }
+  },
+  {
+    "id": "6a06b366-95eb-4ec8-a61c-2b6dcf0bb872",
+    "slug": "pickers-longview-tx",
+    "display_name": "Pickers Longview",
+    "organization_id": "bd318b01-2757-4449-87da-c8558281700a",
+    "address": "5910 W Marshall Ave",
+    "city": "Longview",
+    "state": "TX",
+    "website_url": "https://pickerslongview.com",
+    "phone": "903-459-4470",
+    "data": {
+      "latitude": 32.5103124,
+      "longitude": -94.8273573
+    }
+  },
+  {
+    "id": "345f3632-81a8-4bf2-9b21-264d0f24b7ae",
+    "slug": "more-parts-to-pick-zanesville-oh",
+    "display_name": "More Parts To Pick",
+    "organization_id": "b64a2510-f292-4f2a-8f92-607cffce7061",
+    "address": "1740 Licking Rd",
+    "city": "Zanesville",
+    "state": "OH",
+    "website_url": "https://justjunkitohio.com",
+    "phone": "740-455-2274",
+    "data": {
+      "latitude": 39.94699806,
+      "longitude": -82.02620087
+    }
+  }
+]

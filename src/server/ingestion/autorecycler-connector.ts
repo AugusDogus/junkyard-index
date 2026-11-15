@@ -1,3 +1,5 @@
+import { streamArioYard } from "./autorecycler-ario-connector";
+import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
 import { autorecyclerYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import {
@@ -305,7 +307,7 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
     );
     if (mirroredRecords > 0)
       yield* Effect.logInfo(
-        `[AutoRecycler] Excluded ${mirroredRecords} Pull-A-Part/U-Pull-&-Pay mirror rows; the direct provider owns their inventory and VIN presence`,
+        `[AutoRecycler] Excluded ${mirroredRecords} direct-provider mirror rows; the direct provider owns their inventory and VIN presence`,
       );
     if (vinlessRecords > 0)
       warnings.push(
@@ -347,11 +349,48 @@ export function streamAutorecyclerInventory<E, R>(
   AutorecyclerProviderError | PersistenceError | E,
   Database | R
 > {
+  const cursor = options.startCursor ?? {
+    source: "autorecycler",
+    phase: "ario",
+    yardIndex: 0,
+  };
+  if (cursor.phase === "ario")
+    return streamArioYard({ ...options, yardIndex: cursor.yardIndex }).pipe(
+      Effect.map((result) => ({
+        ...result,
+        geoStats: {
+          geoLookupCount: 0,
+          geoHitMemory: 0,
+          geoHitDb: 0,
+          geoFetches: 0,
+          geoMissAfterFetch: 0,
+        },
+      })),
+    );
+  const legacyPolicy = AutorecyclerSourcePolicy.create();
+  const migrated = new Set<string>(
+    ARIO_CUSTOMER_YARDS.map((yard) => yard.legacyId),
+  );
+  const policy: AutorecyclerSourcePolicy = (orgs) =>
+    legacyPolicy(orgs).pipe(
+      Effect.map(
+        (decisions) =>
+          new Map(
+            [...decisions].map(([org, decision]) => [
+              org,
+              migrated.has(org.replace(/^\d+__LOOKUP__/, ""))
+                ? "direct-provider"
+                : decision,
+            ]),
+          ),
+      ),
+    );
   return streamAutorecyclerInventoryWithPageFetcher(
-    options,
+    { ...options, startCursor: cursor },
     (beforeId, pageSize) =>
       postAutorecyclerElasticsearchMsearch(
         buildInventoryMsearchBody(beforeId, pageSize),
       ),
+    policy,
   );
 }
