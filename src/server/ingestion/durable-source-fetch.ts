@@ -1,3 +1,4 @@
+import { streamCstruckInventory } from "./cstruck-connector";
 import type { Yard } from "~/lib/yard";
 import type { OnYards } from "./yard-metadata";
 import { Effect } from "effect";
@@ -169,6 +170,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamLonestarimportsInventoryFromProvider({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  cstruck: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamCstruckInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           // Shared validation compares the prior published complete count.

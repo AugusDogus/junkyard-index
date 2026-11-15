@@ -97,6 +97,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     kandr: 0,
     jimsimport: 0,
     lonestarimports: 0,
+    cstruck: 59,
     alshned: 0,
     hollanderstores: 0,
   },

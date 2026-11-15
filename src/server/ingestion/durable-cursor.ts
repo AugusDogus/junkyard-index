@@ -1,3 +1,4 @@
+import { CstruckCursor } from "./cstruck-cursor";
 import { z } from "zod";
 import { AutorecyclerCursorSchema } from "./autorecycler-cursor";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
@@ -281,6 +282,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
     parse: (value: string) => LonestarimportsCursor.fromWire(value),
     serialize: (cursor: LonestarimportsCursor) =>
       LonestarimportsCursor.serialize(cursor),
+  },
+  cstruck: {
+    parse: CstruckCursor.fromWire,
+    serialize: CstruckCursor.serialize,
   },
   alshned: {
     parse: (value: string) => {

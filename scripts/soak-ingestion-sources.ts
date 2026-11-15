@@ -1,3 +1,5 @@
+import { streamCstruckInventory } from "../src/server/ingestion/cstruck-connector";
+import { soakCstruckInventory } from "./soak-cstruck";
 /**
  * Read-only provider soak for vehicle ingestion sources.
  *
@@ -594,6 +596,19 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamHollanderstoresInventoryFromProvider({
+                    previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "cstruck":
+            return soakCstruckInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamCstruckInventory({
                     previousAcceptedCount: null,
                     startCursor,
                     maxPages,

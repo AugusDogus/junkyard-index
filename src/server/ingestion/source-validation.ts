@@ -60,6 +60,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   alshned: 35,
   // Five complete Hollander Stores yards, 876 accepted of 884 published cards.
   hollanderstores: 700,
+  // Complete C&S native store: 59 accepted of 64 items.
+  cstruck: 50,
   beavers: 240,
   indianriver: 900,
   army: 200,

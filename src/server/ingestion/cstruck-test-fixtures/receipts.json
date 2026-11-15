@@ -1,0 +1,114 @@
+[
+  {
+    "key": "robots",
+    "url": "https://www.heavytruckparts.net/robots.txt",
+    "status": 200,
+    "startedAt": 1794733631.346329,
+    "completedAt": 1794733631.6291034
+  },
+  {
+    "key": "store-opening",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=7131988&store=1",
+    "status": 200,
+    "startedAt": 1794733635.7302403,
+    "completedAt": 1794733636.216465
+  },
+  {
+    "key": "opening-1970-1998",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=1970&year_end=1998",
+    "status": 200,
+    "startedAt": 1794733640.327231,
+    "completedAt": 1794733640.9041133
+  },
+  {
+    "key": "opening-1999-2003",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=1999&year_end=2003",
+    "status": 200,
+    "startedAt": 1794733645.0266762,
+    "completedAt": 1794733645.8015265
+  },
+  {
+    "key": "opening-2004-2006",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=2004&year_end=2006",
+    "status": 200,
+    "startedAt": 1794733649.935064,
+    "completedAt": 1794733650.7175658
+  },
+  {
+    "key": "opening-2007-2027",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=2007&year_end=2027",
+    "status": 200,
+    "startedAt": 1794733654.8645577,
+    "completedAt": 1794733655.5822232
+  },
+  {
+    "key": "closing-1970-1998",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=1970&year_end=1998",
+    "status": 200,
+    "startedAt": 1794733659.741728,
+    "completedAt": 1794733660.2176208
+  },
+  {
+    "key": "closing-1999-2003",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=1999&year_end=2003",
+    "status": 200,
+    "startedAt": 1794733664.389972,
+    "completedAt": 1794733665.0530355
+  },
+  {
+    "key": "closing-2004-2006",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=2004&year_end=2006",
+    "status": 200,
+    "startedAt": 1794733669.2341356,
+    "completedAt": 1794733669.8101463
+  },
+  {
+    "key": "closing-2007-2027",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=2007&year_end=2027",
+    "status": 200,
+    "startedAt": 1794733674.0021834,
+    "completedAt": 1794733674.6391609
+  },
+  {
+    "key": "ascending",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&SortBy=year&Order=ASC",
+    "status": 200,
+    "startedAt": 1794733678.843724,
+    "completedAt": 1794733679.6760128
+  },
+  {
+    "key": "store-closing",
+    "url": "https://www.heavytruckparts.net/search.php?fltpc=7131988&store=1",
+    "status": 200,
+    "startedAt": 1794733683.8943026,
+    "completedAt": 1794733684.3504767
+  },
+  {
+    "key": "owner-robots",
+    "url": "https://candstrucksales.com/robots.txt",
+    "status": 200,
+    "startedAt": 1794733688.6807866,
+    "completedAt": 1794733688.9557214
+  },
+  {
+    "key": "owner",
+    "url": "https://candstrucksales.com/",
+    "status": 200,
+    "startedAt": 1794733693.1992044,
+    "completedAt": 1794733693.5381982
+  },
+  {
+    "key": "census",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=24988%20350th%20Ave%2C%20Pukwana%20SD%2057370&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "startedAt": 1794733697.819625,
+    "completedAt": 1794733698.2009354
+  },
+  {
+    "key": "empty-1970-1984",
+    "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7131988&store=1&year_start=1970&year_end=1984",
+    "status": 200,
+    "startedAt": 1794734841.543,
+    "completedAt": 1794734846.045
+  }
+]

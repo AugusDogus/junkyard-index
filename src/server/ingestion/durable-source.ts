@@ -1,4 +1,5 @@
 import type { ConnectorChunkStatus } from "./connector-chunk";
+import { CstruckCursor } from "./cstruck-cursor";
 import { PontiacCursor } from "./pontiac-cursor";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import { AeroCursor } from "./aero-cursor";
@@ -364,6 +365,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: HollanderstoresCursor.initial(),
     maxPagesPerChunk: 1,
   },
+  cstruck: { initialCursor: CstruckCursor.initial(), maxPagesPerChunk: 8 },
 };
 
 export function getDurableSourceDefinition<
