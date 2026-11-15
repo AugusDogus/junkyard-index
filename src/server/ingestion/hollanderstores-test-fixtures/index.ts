@@ -8,12 +8,13 @@ import {
 import { HOLLANDERSTORES_YARDS } from "../hollanderstores-yard-metadata";
 
 export function hollanderstoresFixtureBytes(file: string): Buffer {
-  const base = `${import.meta.dir}/${file}`;
-  return gunzipSync(
-    readFileSync(
-      existsSync(base) ? base : `${import.meta.dir}/expansion/${file}`,
-    ),
-  );
+  const path = [
+    `${import.meta.dir}/${file}`,
+    `${import.meta.dir}/expansion/${file}`,
+    `${import.meta.dir}/pauls/${file}`,
+  ].find((path) => existsSync(path));
+  if (!path) throw new Error("Saved Hollander response missing: " + file);
+  return gunzipSync(readFileSync(path));
 }
 export const hollanderstoresFixtureBody = (file: string) =>
   hollanderstoresFixtureBytes(file).toString("utf8");
