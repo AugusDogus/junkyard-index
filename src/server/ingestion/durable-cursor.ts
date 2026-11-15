@@ -1,4 +1,5 @@
 import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
+import { VinplusCursor } from "./vinplus-cursor";
 import { CstruckCursor } from "./cstruck-cursor";
 import { ByotCursor } from "./byot-cursor";
 import { AlliedCursor } from "./allied-cursor";
@@ -633,6 +634,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   rohner: {
     parse: RohnerCursor.parse,
     serialize: RohnerCursor.serialize,
+  },
+  vinplus: {
+    parse: VinplusCursor.fromWire,
+    serialize: VinplusCursor.serialize,
   },
   byot: {
     parse: (value: string) => {

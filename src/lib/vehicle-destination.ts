@@ -73,6 +73,21 @@ function resolve(
   vehicle: Pick<SearchVehicle, "source" | "detailsUrl">,
 ): VehicleDestination {
   const yardUrl = vehicle.detailsUrl?.trim();
+  if (
+    vehicle.source === "vinplus" &&
+    yardUrl &&
+    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(u-pull-auto-parts-pocatello|ryans|us-auto-supply|yourpart|pick-ur-part)$/.test(
+      yardUrl,
+    )
+  ) {
+    return {
+      kind: "manual-search",
+      href: yardUrl,
+      label: "Search provider inventory",
+      explanation:
+        "Match the VIN, stock number and physical yard. Contact the yard if vehicle search is hidden.",
+    };
+  }
   const yardUrls =
     vehicle.source === "pickers"
       ? [

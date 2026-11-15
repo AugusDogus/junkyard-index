@@ -5,6 +5,8 @@ import { ModernmuscleCursor } from "../src/server/ingestion/modernmuscle-cursor"
 import { soakShopifyYard } from "./soak-shopify-yard";
 import { streamHeavytruckpartsInventory } from "../src/server/ingestion/heavytruckparts-connector";
 import { soakHeavytruckpartsInventory } from "./soak-heavytruckparts";
+import { streamVinplusInventory } from "../src/server/ingestion/vinplus-connector";
+import { soakVinplusInventory } from "./soak-vinplus";
 import { streamCstruckInventory } from "../src/server/ingestion/cstruck-connector";
 import { soakCstruckInventory } from "./soak-cstruck";
 /**
@@ -983,6 +985,14 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamSix03Inventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "vinplus":
+            return soakVinplusInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamVinplusInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

@@ -97,26 +97,111 @@ function recordSchema(scope: VinplusScope) {
 }
 export type VinplusRecord = z.infer<ReturnType<typeof recordSchema>>;
 
+/** YardSmart signs public photo redirects on each search. Compare their stable
+ * host and filename, preserving other URL fields and unknown hosts verbatim. */
+function stablePhoto(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  return value.replace(
+    /^(https:\/\/api\.yardsmartapp\.com\/rails\/active_storage\/blobs\/redirect\/)[^/?#]+\/([^/?#]+)$/,
+    "$1$2",
+  );
+}
+export function vinplusStableRecord(record: VinplusRecord) {
+  const stable = { ...record };
+  delete stable.daysInYard;
+  if (record.sourceSystem === "yardsmart") {
+    stable.imageUrl = stablePhoto(record.imageUrl);
+    const images = z.array(z.unknown()).safeParse(record.imageUrls);
+    if (images.success) stable.imageUrls = images.data.map(stablePhoto);
+  }
+  return stable;
+}
+
 export function parseVinplusSearch(
   raw: string,
   scope: VinplusScope,
   pair: VinplusPair,
   duplicateStocks: "reject" | "retain" = "reject",
 ): VinplusRecord[] {
+  return parseSearch(
+    raw,
+    scope,
+    {
+      yard_id: z.literal(scope.yardId),
+      year_min: z.null(),
+      year_max: z.null(),
+      make: z.literal(pair.make),
+      model: z.literal(pair.model),
+    },
+    duplicateStocks,
+  );
+}
+
+/** Public app year controls permit an unset make/model. Bounded year ranges
+ * are independently reconciled against the complete published distribution. */
+export function vinplusYearQuery(
+  scope: VinplusScope,
+  min: number,
+  max: number,
+  make: string | null = null,
+) {
+  VinplusYearSchema.parse(min);
+  VinplusYearSchema.parse(max);
+  if (min > max) throw new Error("VinPlus year range is reversed");
+  if (
+    make !== null &&
+    (vinplusOptionalText(make) !== make || /[*%]/.test(make))
+  )
+    throw new Error(
+      "VinPlus year query requires a published literal make or explicit null",
+    );
+  return {
+    yard_id: scope.yardId,
+    year_min: min,
+    year_max: max,
+    make,
+    model: null,
+    language: "en",
+    location_id: null,
+  } as const;
+}
+export function parseVinplusYearSearch(
+  raw: string,
+  scope: VinplusScope,
+  min: number,
+  max: number,
+  make: string | null = null,
+  duplicateStocks: "reject" | "retain" = "reject",
+) {
+  vinplusYearQuery(scope, min, max, make);
+  const records = parseSearch(
+    raw,
+    scope,
+    {
+      yard_id: z.literal(scope.yardId),
+      year_min: z.literal(min),
+      year_max: z.literal(max),
+      make: make === null ? z.null() : z.literal(make),
+      model: z.null(),
+    },
+    duplicateStocks,
+  );
+  if (records.some((record) => record.year < min || record.year > max))
+    throw new Error("VinPlus returned a vehicle outside the requested years");
+  return records;
+}
+function parseSearch(
+  raw: string,
+  scope: VinplusScope,
+  criteria: z.ZodRawShape,
+  duplicateStocks: "reject" | "retain",
+) {
   const response = z
     .object({
       success: z.literal(true),
       match_count: z.number().int().nonnegative().max(scope.maxStocks),
       matches: z.array(recordSchema(scope)).max(scope.maxStocks),
-      search_criteria: z
-        .object({
-          yard_id: z.literal(scope.yardId),
-          year_min: z.null(),
-          year_max: z.null(),
-          make: z.literal(pair.make),
-          model: z.literal(pair.model),
-        })
-        .strict(),
+      search_criteria: z.object(criteria).strict(),
     })
     .strict()
     .parse(JSON.parse(raw));

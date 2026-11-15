@@ -178,6 +178,21 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
     ].includes(yard.code)
   )
     return { kind: "yard", href: `https://${yard.code}.hollanderstores.com/` };
+  if (yard.source === "vinplus") {
+    const slugs: Record<string, string> = {
+      pocatello: "u-pull-auto-parts-pocatello",
+      ryans: "ryans",
+      "sterling-heights": "us-auto-supply",
+      hinesville: "yourpart",
+      lubbock: "pick-ur-part",
+    };
+    const slug = slugs[yard.code];
+    if (slug)
+      return {
+        kind: "yard",
+        href: `https://vinplus.texnrewards.com/parts/${slug}`,
+      };
+  }
   const provider = providerWebsites.get(yard.source);
   return provider ? { kind: "provider", href: provider } : null;
 }

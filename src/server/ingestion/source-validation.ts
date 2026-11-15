@@ -69,6 +69,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Complete 45-make, 482-model census: 2,507 accepted, 86 rejects, 778 exclusions.
   allied: 2_000,
   byot: 4_350,
+  vinplus: 3_950,
   beavers: 240,
   indianriver: 900,
   army: 200,
