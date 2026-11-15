@@ -92,7 +92,7 @@ export function fetchDutchersPage(url: string, gate: ProviderRequestGate) {
       });
     }).pipe(
       // The caller's shared-host gate covers the complete body and completed gap.
-      Effect.ensuring(Effect.sleep("2500 millis")),
+      Effect.ensuring(Effect.sleep("4 seconds")),
       Effect.mapError(
         (cause) => new DutchersProviderError({ operation: url, cause }),
       ),

@@ -1,12 +1,17 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { Effect } from "effect";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
 import { z } from "zod";
 import { fetchDutchersPage, DutchersProviderError } from "./dutchers-client";
 import { streamDutchersInventoryWithRequestGate } from "./dutchers-connector";
 import { DutchersCursor, DutchersCursorSchema } from "./dutchers-cursor";
-import { dutchersHash } from "./dutchers-html";
+import {
+  dutchersAnchors,
+  dutchersDivs,
+  dutchersDocument,
+  dutchersHash,
+} from "./dutchers-html";
 import { DutchersRecordSchema, parseDutchersCatalog } from "./dutchers-parser";
 import { parseDutchersScope, parseDutchersStore } from "./dutchers-scope";
 import {
@@ -359,6 +364,84 @@ describe("Dutcher heavy division complete native census", () => {
       ),
     ).toThrow("retail/rebuildable");
   });
+
+  test("saved single-year search still needs pagination and cannot cover the store", () => {
+    const saved = z
+      .object({
+        robots: z.string(),
+        store: z.string(),
+        "year-2015": z.string(),
+        receipt: z.string(),
+      })
+      .parse(
+        JSON.parse(
+          gunzipSync(
+            readFileSync(
+              new URL(
+                "./dutchers-test-fixtures/year-range.json.gz",
+                import.meta.url,
+              ),
+            ),
+          ).toString(),
+        ),
+      );
+    expect(saved.robots).toContain("Crawl-delay: 4");
+    expect(saved.robots).toContain("Disallow: *?*page=*");
+    expect(parseDutchersStore(saved.store)).toBe(587);
+    const html = dutchersDocument(saved["year-2015"]);
+    const cards = dutchersDivs(html, "product");
+    expect(cards).toHaveLength(25);
+    expect(cards.every((card) => /<h3[^>]*>\s*2015 /.test(card))).toBe(true);
+    const next = dutchersAnchors(html).filter(
+      (anchor) => anchor.text === "Next",
+    );
+    expect(next.length).toBeGreaterThan(0);
+    expect(
+      next.every(
+        (anchor) =>
+          anchor.href ===
+          "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=3987345&store=1&year_start=2015&year_end=2015&page=2",
+      ),
+    ).toBe(true);
+    expect(
+      roster().filter((record) => record.year === "2015").length,
+    ).toBeGreaterThan(25);
+  });
+
+  test.each([200, 403])(
+    "waits four completed seconds before another GET after HTTP %i",
+    async (status) => {
+      const respond = Object.assign(
+        async () =>
+          new Response("<html><body></body></html>", {
+            status,
+            headers: { "Content-Type": "text/html" },
+          }),
+        { preconnect: globalThis.fetch.preconnect },
+      );
+      const fetcher = spyOn(globalThis, "fetch").mockImplementation(respond);
+      try {
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            const fiber = yield* Effect.fork(
+              Effect.gen(function* () {
+                yield* Effect.either(fetchDutchersPage(DUTCHERS_STORE, gate));
+                yield* Effect.either(fetchDutchersPage(DUTCHERS_STORE, gate));
+              }),
+            );
+            yield* TestClock.adjust("3999 millis");
+            expect(fetcher).toHaveBeenCalledTimes(1);
+            yield* TestClock.adjust("1 millis");
+            expect(fetcher).toHaveBeenCalledTimes(2);
+            yield* TestClock.adjust("4 seconds");
+            yield* Fiber.join(fiber);
+          }).pipe(Effect.provide(TestContext.TestContext)),
+        );
+      } finally {
+        fetcher.mockRestore();
+      }
+    },
+  );
 
   test("HTTP boundary preserves 403, never retries, and rejects unrelated URLs before fetch", async () => {
     const fetcher = spyOn(globalThis, "fetch").mockResolvedValue(
