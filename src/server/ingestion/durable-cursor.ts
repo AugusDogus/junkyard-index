@@ -18,6 +18,7 @@ import { FenixCursorSchema } from "./fenix-cursor";
 import { ImportapartCursorSchema } from "./importapart-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { SpeedysCursor } from "./speedys-cursor";
+import { SandwCursor } from "./sandw-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
@@ -374,6 +375,16 @@ const DURABLE_CURSOR_DEFINITIONS = {
   beavers: {
     parse: BeaversCursor.parse,
     serialize: BeaversCursor.serialize,
+  },
+  sandw: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 4 * 1024 * 1024)
+        throw new Error("S&W serialized checkpoint exceeds 4 MiB");
+      const payload: unknown = JSON.parse(value);
+      return SandwCursor.parse(payload);
+    },
+    serialize: (cursor: SandwCursor) =>
+      JSON.stringify(SandwCursor.parse(cursor)),
   },
   row52: defineJsonCursor(
     "row52",

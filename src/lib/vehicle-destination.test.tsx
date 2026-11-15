@@ -23,6 +23,18 @@ test("Indian River uses the searchable catalog instead of shared paperwork URLs"
   });
 });
 
+test("S&W directs users to its searchable report and preserves the cached-inventory caveat", () => {
+  expect(
+    VehicleDestination.resolve({ source: "sandw", detailsUrl: null }),
+  ).toEqual({
+    kind: "manual-search",
+    href: "https://www.sandwauto.com/inventory-search",
+    label: "Search provider inventory",
+    explanation:
+      "Search the yard inventory by VIN or stock number, then confirm availability with S&W. The provider may serve cached inventory.",
+  });
+});
+
 test.each([
   null,
   "",

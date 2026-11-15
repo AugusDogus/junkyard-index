@@ -14,6 +14,7 @@ import { FenixCursor } from "./fenix-cursor";
 import { ImportapartCursor } from "./importapart-cursor";
 import { BigtruckpageCursor } from "./bigtruckpage-cursor";
 import { SpeedysCursor } from "./speedys-cursor";
+import { SandwCursor } from "./sandw-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
@@ -288,6 +289,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   speedys: {
     initialCursor: SpeedysCursor.initial,
     maxPagesPerChunk: 2,
+  },
+  sandw: {
+    initialCursor: SandwCursor.initial(),
+    maxPagesPerChunk: 5,
   },
   denton: {
     initialCursor: initialDenton.value,
