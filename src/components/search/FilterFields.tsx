@@ -60,6 +60,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   hollanderstores: "Hollander Stores",
   cstruck: "C&S Truck Sales & Salvage",
   allied: "Allied Auto Wrecking",
+  byot: "BYOT Auto Parts",
   army: "Army's Auto Wrecking",
   idipull: "Idaho Falls I-Pull",
   pullsavewa: "Pull & Save Washington",

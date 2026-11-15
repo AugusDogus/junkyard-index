@@ -1,0 +1,5354 @@
+[
+  {
+    "make": "ACURA",
+    "model": "CL"
+  },
+  {
+    "make": "ACURA",
+    "model": "CSX"
+  },
+  {
+    "make": "ACURA",
+    "model": "EL"
+  },
+  {
+    "make": "ACURA",
+    "model": "ILX"
+  },
+  {
+    "make": "ACURA",
+    "model": "INTEGRA"
+  },
+  {
+    "make": "ACURA",
+    "model": "LEGEND"
+  },
+  {
+    "make": "ACURA",
+    "model": "MDX"
+  },
+  {
+    "make": "ACURA",
+    "model": "NSX"
+  },
+  {
+    "make": "ACURA",
+    "model": "RDX"
+  },
+  {
+    "make": "ACURA",
+    "model": "RL"
+  },
+  {
+    "make": "ACURA",
+    "model": "RLX"
+  },
+  {
+    "make": "ACURA",
+    "model": "RSX"
+  },
+  {
+    "make": "ACURA",
+    "model": "SLX"
+  },
+  {
+    "make": "ACURA",
+    "model": "TL"
+  },
+  {
+    "make": "ACURA",
+    "model": "TLX"
+  },
+  {
+    "make": "ACURA",
+    "model": "TSX"
+  },
+  {
+    "make": "ACURA",
+    "model": "VIGOR"
+  },
+  {
+    "make": "ACURA",
+    "model": "ZDX"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "ALFA-ROMEO 164"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "ALFA-ROMEO 2000"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "ALFA-ROMEO 4C"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "ALFA-ROMEO GTV-6"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "ALFA-ROMEO MILANO"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "GIULIA"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "STELVIO"
+  },
+  {
+    "make": "ALFA ROMEO",
+    "model": "TONALE"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "AMX"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "CJ-SERIES"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "CONCORD"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "EAGLE"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "HUMMER H2"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "HUMMER H3"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "J-SERIES TRUCK"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "PACER"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "RENEGADE"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "SPIRIT (AMC)"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "WAGONEER"
+  },
+  {
+    "make": "AM GENERAL",
+    "model": "WRANGLER"
+  },
+  {
+    "make": "AUDI",
+    "model": "A6 ALLROAD"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI 100"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI 200"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI 4000"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI 5000"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI 80"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI 90"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI A3"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI A4"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI A5"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI A6"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI A7"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI A8"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI ALLROAD"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI CABRIOLET"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI COUPE"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI COUPE GT"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI COUPE QUATTRO"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI Q3"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI Q5"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI Q7"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI QUATTRO"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI R8"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI RS4"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI RS5"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI RS6"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI RS7"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI RSQ8"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI S3"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI S4"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI S5"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI S6"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI S7"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI S8"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI SQ5"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI SQ7"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI SQ8"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI TT"
+  },
+  {
+    "make": "AUDI",
+    "model": "AUDI V8"
+  },
+  {
+    "make": "AUDI",
+    "model": "E-TRON"
+  },
+  {
+    "make": "AUDI",
+    "model": "E-TRON GT"
+  },
+  {
+    "make": "AUDI",
+    "model": "E-TRON S"
+  },
+  {
+    "make": "AUDI",
+    "model": "Q4"
+  },
+  {
+    "make": "AUDI",
+    "model": "Q4 E-TRON"
+  },
+  {
+    "make": "AUDI",
+    "model": "Q6 E-TRON"
+  },
+  {
+    "make": "AUDI",
+    "model": "Q8"
+  },
+  {
+    "make": "AUDI",
+    "model": "Q8 E-TRON"
+  },
+  {
+    "make": "AUDI",
+    "model": "RS E-TRON GT"
+  },
+  {
+    "make": "AUDI",
+    "model": "RS3"
+  },
+  {
+    "make": "AUDI",
+    "model": "S E-TRON GT"
+  },
+  {
+    "make": "AUDI",
+    "model": "SQ6 E-TRON"
+  },
+  {
+    "make": "AUDI",
+    "model": "SQ8 E-TRON"
+  },
+  {
+    "make": "BMW",
+    "model": "530e"
+  },
+  {
+    "make": "BMW",
+    "model": "550E"
+  },
+  {
+    "make": "BMW",
+    "model": "640i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "750E"
+  },
+  {
+    "make": "BMW",
+    "model": "ALPINA B8"
+  },
+  {
+    "make": "BMW",
+    "model": "ALPINA XB7"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 128i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 135i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 228i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 230i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 230I"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 318i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 320i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 323i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 325e"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 325i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 328i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 328i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 330e"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 330i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 330i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 335i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 335i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 340i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 340i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 428i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 430i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 435i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 440i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 524TD"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 525i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 528e"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 528i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 530i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 530I"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 533i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 535i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 535i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 540i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 540I"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 545i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 550i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 550i GT"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 633CSi"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 635CSi"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 640i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 645i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 650i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 733i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 735i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 740e"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 740i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 745e"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 745i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 750i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 760i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 840i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW 850i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW ACTIVEHYBRID 3"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW ACTIVEHYBRID 5"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW ACTIVEHYBRID 7"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW ALPINA B6"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW ALPINA B7"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW i3"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW i8"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW L6"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M1"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M2"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M235i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M240i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M3"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M4"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M5"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M6"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M760i"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW M760I"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X1"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X3"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X4"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X5"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X5M"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X6"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW X6M"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW Z3"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW Z4"
+  },
+  {
+    "make": "BMW",
+    "model": "BMW Z8"
+  },
+  {
+    "make": "BMW",
+    "model": "i4"
+  },
+  {
+    "make": "BMW",
+    "model": "I5"
+  },
+  {
+    "make": "BMW",
+    "model": "i7"
+  },
+  {
+    "make": "BMW",
+    "model": "iX"
+  },
+  {
+    "make": "BMW",
+    "model": "M340i"
+  },
+  {
+    "make": "BMW",
+    "model": "M440i"
+  },
+  {
+    "make": "BMW",
+    "model": "M550i"
+  },
+  {
+    "make": "BMW",
+    "model": "M8"
+  },
+  {
+    "make": "BMW",
+    "model": "M850i"
+  },
+  {
+    "make": "BMW",
+    "model": "X2"
+  },
+  {
+    "make": "BMW",
+    "model": "X3M"
+  },
+  {
+    "make": "BMW",
+    "model": "X4M"
+  },
+  {
+    "make": "BMW",
+    "model": "X7"
+  },
+  {
+    "make": "BMW",
+    "model": "XM"
+  },
+  {
+    "make": "BRITISH LEYLAND",
+    "model": "MG"
+  },
+  {
+    "make": "BRITISH LEYLAND",
+    "model": "TRIUMPH"
+  },
+  {
+    "make": "BUICK",
+    "model": "1000"
+  },
+  {
+    "make": "BUICK",
+    "model": "2000"
+  },
+  {
+    "make": "BUICK",
+    "model": "6000"
+  },
+  {
+    "make": "BUICK",
+    "model": "ACADIA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ACADIAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "ACHIEVA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ALERO"
+  },
+  {
+    "make": "BUICK",
+    "model": "ALLANTE"
+  },
+  {
+    "make": "BUICK",
+    "model": "ALLURE"
+  },
+  {
+    "make": "BUICK",
+    "model": "ASTRA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ASTRO"
+  },
+  {
+    "make": "BUICK",
+    "model": "ATS"
+  },
+  {
+    "make": "BUICK",
+    "model": "AURA"
+  },
+  {
+    "make": "BUICK",
+    "model": "AURORA"
+  },
+  {
+    "make": "BUICK",
+    "model": "AVALANCHE 1500"
+  },
+  {
+    "make": "BUICK",
+    "model": "AVALANCHE 2500"
+  },
+  {
+    "make": "BUICK",
+    "model": "AVEO"
+  },
+  {
+    "make": "BUICK",
+    "model": "AZTEK"
+  },
+  {
+    "make": "BUICK",
+    "model": "BERETTA"
+  },
+  {
+    "make": "BUICK",
+    "model": "BLAZER"
+  },
+  {
+    "make": "BUICK",
+    "model": "Blazer EV"
+  },
+  {
+    "make": "BUICK",
+    "model": "BLAZER S10/JIMMY S15"
+  },
+  {
+    "make": "BUICK",
+    "model": "BLAZER/JIMMY (full size)"
+  },
+  {
+    "make": "BUICK",
+    "model": "BOLT"
+  },
+  {
+    "make": "BUICK",
+    "model": "BOLT EUV"
+  },
+  {
+    "make": "BUICK",
+    "model": "BONNEVILLE"
+  },
+  {
+    "make": "BUICK",
+    "model": "BRAVADA"
+  },
+  {
+    "make": "BUICK",
+    "model": "BROUGHAM"
+  },
+  {
+    "make": "BUICK",
+    "model": "CALAIS"
+  },
+  {
+    "make": "BUICK",
+    "model": "CAMARO"
+  },
+  {
+    "make": "BUICK",
+    "model": "CANYON"
+  },
+  {
+    "make": "BUICK",
+    "model": "CAPRICE"
+  },
+  {
+    "make": "BUICK",
+    "model": "CAPTIVA SPORT"
+  },
+  {
+    "make": "BUICK",
+    "model": "CASCADA"
+  },
+  {
+    "make": "BUICK",
+    "model": "CATALINA"
+  },
+  {
+    "make": "BUICK",
+    "model": "CATERA"
+  },
+  {
+    "make": "BUICK",
+    "model": "CAVALIER"
+  },
+  {
+    "make": "BUICK",
+    "model": "CELEBRITY"
+  },
+  {
+    "make": "BUICK",
+    "model": "CENTURY"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVETTE"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 10 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 10 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 1500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 20 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 20 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 2500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 30 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 30 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET 3500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "CHEVROLET FORWARD CONTROL"
+  },
+  {
+    "make": "BUICK",
+    "model": "CIERA"
+  },
+  {
+    "make": "BUICK",
+    "model": "CIMARRON"
+  },
+  {
+    "make": "BUICK",
+    "model": "CITATION"
+  },
+  {
+    "make": "BUICK",
+    "model": "CITY EXPRESS"
+  },
+  {
+    "make": "BUICK",
+    "model": "COBALT"
+  },
+  {
+    "make": "BUICK",
+    "model": "COLORADO"
+  },
+  {
+    "make": "BUICK",
+    "model": "CORSICA"
+  },
+  {
+    "make": "BUICK",
+    "model": "CORVETTE"
+  },
+  {
+    "make": "BUICK",
+    "model": "CRUZE"
+  },
+  {
+    "make": "BUICK",
+    "model": "CT4"
+  },
+  {
+    "make": "BUICK",
+    "model": "CT5"
+  },
+  {
+    "make": "BUICK",
+    "model": "CT6"
+  },
+  {
+    "make": "BUICK",
+    "model": "CTS"
+  },
+  {
+    "make": "BUICK",
+    "model": "CUSTOM CRUISER"
+  },
+  {
+    "make": "BUICK",
+    "model": "CUTLASS"
+  },
+  {
+    "make": "BUICK",
+    "model": "DEVILLE"
+  },
+  {
+    "make": "BUICK",
+    "model": "DTS"
+  },
+  {
+    "make": "BUICK",
+    "model": "EIGHTY EIGHT"
+  },
+  {
+    "make": "BUICK",
+    "model": "ELDORADO"
+  },
+  {
+    "make": "BUICK",
+    "model": "ELECTRA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ELR"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENCLAVE"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENCORE"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENCORE GX"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENVISION"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENVISTA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENVOY"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENVOY XL"
+  },
+  {
+    "make": "BUICK",
+    "model": "ENVOY XUV"
+  },
+  {
+    "make": "BUICK",
+    "model": "EPICA"
+  },
+  {
+    "make": "BUICK",
+    "model": "EQUINOX"
+  },
+  {
+    "make": "BUICK",
+    "model": "EQUINOX EV"
+  },
+  {
+    "make": "BUICK",
+    "model": "ESCALADE"
+  },
+  {
+    "make": "BUICK",
+    "model": "ESCALADE ESV"
+  },
+  {
+    "make": "BUICK",
+    "model": "ESCALADE EXT"
+  },
+  {
+    "make": "BUICK",
+    "model": "ESCALADE IQ"
+  },
+  {
+    "make": "BUICK",
+    "model": "EV1"
+  },
+  {
+    "make": "BUICK",
+    "model": "EXPRESS 1500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "EXPRESS 2500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "EXPRESS 3500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "FIERO"
+  },
+  {
+    "make": "BUICK",
+    "model": "FIREBIRD"
+  },
+  {
+    "make": "BUICK",
+    "model": "FIREFLY"
+  },
+  {
+    "make": "BUICK",
+    "model": "FIRENZA"
+  },
+  {
+    "make": "BUICK",
+    "model": "FLEETWOOD"
+  },
+  {
+    "make": "BUICK",
+    "model": "G3"
+  },
+  {
+    "make": "BUICK",
+    "model": "G5"
+  },
+  {
+    "make": "BUICK",
+    "model": "G6"
+  },
+  {
+    "make": "BUICK",
+    "model": "G8"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC 1500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC 1500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC 2500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC 2500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC 3500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC 3500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "GMC FORWARD CONTROL"
+  },
+  {
+    "make": "BUICK",
+    "model": "GRAND AM"
+  },
+  {
+    "make": "BUICK",
+    "model": "GRAND PRIX"
+  },
+  {
+    "make": "BUICK",
+    "model": "GTO"
+  },
+  {
+    "make": "BUICK",
+    "model": "HHR"
+  },
+  {
+    "make": "BUICK",
+    "model": "HUMMER EV"
+  },
+  {
+    "make": "BUICK",
+    "model": "IMPALA"
+  },
+  {
+    "make": "BUICK",
+    "model": "INTRIGUE"
+  },
+  {
+    "make": "BUICK",
+    "model": "ION"
+  },
+  {
+    "make": "BUICK",
+    "model": "LACROSSE"
+  },
+  {
+    "make": "BUICK",
+    "model": "LE MANS"
+  },
+  {
+    "make": "BUICK",
+    "model": "LESABRE"
+  },
+  {
+    "make": "BUICK",
+    "model": "LUCERNE"
+  },
+  {
+    "make": "BUICK",
+    "model": "LUMINA CAR"
+  },
+  {
+    "make": "BUICK",
+    "model": "LUMINA VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "LUV"
+  },
+  {
+    "make": "BUICK",
+    "model": "LYRIQ"
+  },
+  {
+    "make": "BUICK",
+    "model": "MALIBU"
+  },
+  {
+    "make": "BUICK",
+    "model": "METRO"
+  },
+  {
+    "make": "BUICK",
+    "model": "MONTANA"
+  },
+  {
+    "make": "BUICK",
+    "model": "MONTE CARLO"
+  },
+  {
+    "make": "BUICK",
+    "model": "MONZA"
+  },
+  {
+    "make": "BUICK",
+    "model": "NINETY EIGHT"
+  },
+  {
+    "make": "BUICK",
+    "model": "NOVA"
+  },
+  {
+    "make": "BUICK",
+    "model": "OMEGA"
+  },
+  {
+    "make": "BUICK",
+    "model": "OPTIQ"
+  },
+  {
+    "make": "BUICK",
+    "model": "OPTRA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ORLANDO"
+  },
+  {
+    "make": "BUICK",
+    "model": "OUTLOOK"
+  },
+  {
+    "make": "BUICK",
+    "model": "PARISIENNE"
+  },
+  {
+    "make": "BUICK",
+    "model": "PARK AVENUE"
+  },
+  {
+    "make": "BUICK",
+    "model": "PHOENIX"
+  },
+  {
+    "make": "BUICK",
+    "model": "PRIZM"
+  },
+  {
+    "make": "BUICK",
+    "model": "PURSUIT"
+  },
+  {
+    "make": "BUICK",
+    "model": "RAINIER"
+  },
+  {
+    "make": "BUICK",
+    "model": "REATTA"
+  },
+  {
+    "make": "BUICK",
+    "model": "REGAL"
+  },
+  {
+    "make": "BUICK",
+    "model": "RELAY"
+  },
+  {
+    "make": "BUICK",
+    "model": "RENDEZVOUS"
+  },
+  {
+    "make": "BUICK",
+    "model": "RIVIERA"
+  },
+  {
+    "make": "BUICK",
+    "model": "ROADMASTER"
+  },
+  {
+    "make": "BUICK",
+    "model": "S10/S15/SONOMA"
+  },
+  {
+    "make": "BUICK",
+    "model": "SAFARI (GMC)"
+  },
+  {
+    "make": "BUICK",
+    "model": "SATURN L SERIES"
+  },
+  {
+    "make": "BUICK",
+    "model": "SATURN S SERIES"
+  },
+  {
+    "make": "BUICK",
+    "model": "SAVANA 1500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "SAVANA 2500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "SAVANA 3500 VAN"
+  },
+  {
+    "make": "BUICK",
+    "model": "SEVILLE"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA 1500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA 2500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA 3500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA DENALI"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA DENALI 1500"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA DENALI 2500"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA DENALI 3500"
+  },
+  {
+    "make": "BUICK",
+    "model": "SIERRA DENALI EV"
+  },
+  {
+    "make": "BUICK",
+    "model": "SILHOUETTE"
+  },
+  {
+    "make": "BUICK",
+    "model": "SILVERADO 1500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "SILVERADO 2500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "SILVERADO 3500 PICKUP"
+  },
+  {
+    "make": "BUICK",
+    "model": "SILVERADO EV"
+  },
+  {
+    "make": "BUICK",
+    "model": "SKY"
+  },
+  {
+    "make": "BUICK",
+    "model": "SKYHAWK"
+  },
+  {
+    "make": "BUICK",
+    "model": "SKYLARK"
+  },
+  {
+    "make": "BUICK",
+    "model": "SOLSTICE"
+  },
+  {
+    "make": "BUICK",
+    "model": "SOMERSET"
+  },
+  {
+    "make": "BUICK",
+    "model": "SONIC"
+  },
+  {
+    "make": "BUICK",
+    "model": "SPARK"
+  },
+  {
+    "make": "BUICK",
+    "model": "SPECTRUM"
+  },
+  {
+    "make": "BUICK",
+    "model": "SPRINT (CHEV)"
+  },
+  {
+    "make": "BUICK",
+    "model": "SPRINT (GMC)"
+  },
+  {
+    "make": "BUICK",
+    "model": "SRX"
+  },
+  {
+    "make": "BUICK",
+    "model": "SS CAPRICE"
+  },
+  {
+    "make": "BUICK",
+    "model": "SSR"
+  },
+  {
+    "make": "BUICK",
+    "model": "STARFIRE"
+  },
+  {
+    "make": "BUICK",
+    "model": "STORM"
+  },
+  {
+    "make": "BUICK",
+    "model": "STS"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUBURBAN 10"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUBURBAN 1500"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUBURBAN 20"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUBURBAN 2500"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUBURBAN 3500"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUNBIRD"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUNBURST"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUNFIRE"
+  },
+  {
+    "make": "BUICK",
+    "model": "SUNRUNNER"
+  },
+  {
+    "make": "BUICK",
+    "model": "SYCLONE"
+  },
+  {
+    "make": "BUICK",
+    "model": "TAHOE"
+  },
+  {
+    "make": "BUICK",
+    "model": "TEMPEST"
+  },
+  {
+    "make": "BUICK",
+    "model": "TERRAIN"
+  },
+  {
+    "make": "BUICK",
+    "model": "TERRAZA"
+  },
+  {
+    "make": "BUICK",
+    "model": "TORONADO"
+  },
+  {
+    "make": "BUICK",
+    "model": "TORRENT"
+  },
+  {
+    "make": "BUICK",
+    "model": "TRACKER"
+  },
+  {
+    "make": "BUICK",
+    "model": "TRAILBLAZER"
+  },
+  {
+    "make": "BUICK",
+    "model": "TRAILBLAZER EXT"
+  },
+  {
+    "make": "BUICK",
+    "model": "TRANS SPORT"
+  },
+  {
+    "make": "BUICK",
+    "model": "TRAVERSE"
+  },
+  {
+    "make": "BUICK",
+    "model": "TRAX"
+  },
+  {
+    "make": "BUICK",
+    "model": "TYPHOON"
+  },
+  {
+    "make": "BUICK",
+    "model": "UPLANDER"
+  },
+  {
+    "make": "BUICK",
+    "model": "VENTURE"
+  },
+  {
+    "make": "BUICK",
+    "model": "VERANO"
+  },
+  {
+    "make": "BUICK",
+    "model": "VIBE"
+  },
+  {
+    "make": "BUICK",
+    "model": "VOLT"
+  },
+  {
+    "make": "BUICK",
+    "model": "VUE"
+  },
+  {
+    "make": "BUICK",
+    "model": "WAVE"
+  },
+  {
+    "make": "BUICK",
+    "model": "XLR"
+  },
+  {
+    "make": "BUICK",
+    "model": "XT4"
+  },
+  {
+    "make": "BUICK",
+    "model": "XT5"
+  },
+  {
+    "make": "BUICK",
+    "model": "XT6"
+  },
+  {
+    "make": "BUICK",
+    "model": "XTS"
+  },
+  {
+    "make": "BUICK",
+    "model": "YUKON"
+  },
+  {
+    "make": "BUICK",
+    "model": "YUKON XL 1500"
+  },
+  {
+    "make": "BUICK",
+    "model": "YUKON XL 2500"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "200"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "2000 GTX"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "300"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "300M"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "5TH AVENUE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "ACCLAIM"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "ARIES"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "ARROW PASS."
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "ARROW TRUCK"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "ASPEN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "AVENGER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "BREEZE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CALIBER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CARAVAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CARAVELLE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CHALLENGER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CHALLENGER/SAPPORO"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CHAMP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CHARGER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CIRRUS"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "COLT"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "COMPASS"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CONCORDE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CONQUEST"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CORDOBA"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "CROSSFIRE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "D-50"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DAKOTA"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DART"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DAYTONA"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DIPLOMAT"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 100 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 100 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 150 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 150 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 1500 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 1500 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 200 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 200 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 250 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 250 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 2500 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 2500 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 300 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 300 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 350 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 350 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 3500 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 3500 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 400"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 400 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 450 PICKUP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DODGE 600"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DURANGO"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "DYNASTY"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "E-CLASS"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "GLADIATOR"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "GRAN FURY"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "HORIZON"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "HORNET"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "IMPERIAL"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "INTREPID"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "JOURNEY"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "LANCER (DODGE)"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "LASER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "LE BARON"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "LHS"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "MAGNUM"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "MIRADA"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "MONACO"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "NEON"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "NEW YORKER (FWD)"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "NEW YORKER (RWD)"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "NEWPORT"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "NITRO"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "OMNI"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PACIFICA"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PLYMOUTH 100 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PLYMOUTH 150 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PLYMOUTH 200 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PLYMOUTH 250 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PLYMOUTH 300 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PLYMOUTH 350 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PREMIER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PROMASTER 1500 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PROMASTER 2500 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PROMASTER 3500 VAN"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PROMASTER CITY"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PROMASTER EV"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PROWLER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "PT CRUISER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "RAIDER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "RAMCHARGER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "RAMPAGE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "RELIANT"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SCAMP"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SEBRING"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SHADOW"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SPIRIT"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SPRINTER 2500"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SPRINTER 3500"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "ST. REGIS"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "STEALTH"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "STRATUS"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SUMMIT"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "SUNDANCE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "TALON"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "TC"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "TOWN & COUNTRY"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "TRAIL DUSTER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "VIPER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "VISION"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "VISTA"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "VOLARE"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "VOYAGER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "WAGONEER"
+  },
+  {
+    "make": "CHRYSLER",
+    "model": "WRANGLER"
+  },
+  {
+    "make": "DAEWOO",
+    "model": "LANOS"
+  },
+  {
+    "make": "DAEWOO",
+    "model": "LEGANZA"
+  },
+  {
+    "make": "DAEWOO",
+    "model": "NUBIRA"
+  },
+  {
+    "make": "DAIHATSU",
+    "model": "CHARADE"
+  },
+  {
+    "make": "DAIHATSU",
+    "model": "ROCKY"
+  },
+  {
+    "make": "DATSUN",
+    "model": "200SX"
+  },
+  {
+    "make": "DATSUN",
+    "model": "210"
+  },
+  {
+    "make": "DATSUN",
+    "model": "240SX"
+  },
+  {
+    "make": "DATSUN",
+    "model": "280ZX"
+  },
+  {
+    "make": "DATSUN",
+    "model": "300ZX"
+  },
+  {
+    "make": "DATSUN",
+    "model": "310"
+  },
+  {
+    "make": "DATSUN",
+    "model": "350Z"
+  },
+  {
+    "make": "DATSUN",
+    "model": "370Z"
+  },
+  {
+    "make": "DATSUN",
+    "model": "510"
+  },
+  {
+    "make": "DATSUN",
+    "model": "810/MAXIMA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "ALTIMA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "ARIYA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "ARMADA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "AXXESS"
+  },
+  {
+    "make": "DATSUN",
+    "model": "CUBE"
+  },
+  {
+    "make": "DATSUN",
+    "model": "FRONTIER"
+  },
+  {
+    "make": "DATSUN",
+    "model": "GC22 VAN"
+  },
+  {
+    "make": "DATSUN",
+    "model": "GT-R"
+  },
+  {
+    "make": "DATSUN",
+    "model": "JUKE"
+  },
+  {
+    "make": "DATSUN",
+    "model": "KICKS"
+  },
+  {
+    "make": "DATSUN",
+    "model": "LEAF"
+  },
+  {
+    "make": "DATSUN",
+    "model": "MAXIMA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "MICRA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "MURANO"
+  },
+  {
+    "make": "DATSUN",
+    "model": "NISSAN PICKUP"
+  },
+  {
+    "make": "DATSUN",
+    "model": "NV 1500"
+  },
+  {
+    "make": "DATSUN",
+    "model": "NV 2500"
+  },
+  {
+    "make": "DATSUN",
+    "model": "NV 3500"
+  },
+  {
+    "make": "DATSUN",
+    "model": "NV200"
+  },
+  {
+    "make": "DATSUN",
+    "model": "NX"
+  },
+  {
+    "make": "DATSUN",
+    "model": "PATHFINDER"
+  },
+  {
+    "make": "DATSUN",
+    "model": "PULSAR"
+  },
+  {
+    "make": "DATSUN",
+    "model": "QASHQAI"
+  },
+  {
+    "make": "DATSUN",
+    "model": "QUEST"
+  },
+  {
+    "make": "DATSUN",
+    "model": "ROGUE"
+  },
+  {
+    "make": "DATSUN",
+    "model": "ROGUE SPORT"
+  },
+  {
+    "make": "DATSUN",
+    "model": "SENTRA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "STANZA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "STANZA VAN"
+  },
+  {
+    "make": "DATSUN",
+    "model": "TITAN"
+  },
+  {
+    "make": "DATSUN",
+    "model": "TITAN XD"
+  },
+  {
+    "make": "DATSUN",
+    "model": "VERSA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "X-TRAIL"
+  },
+  {
+    "make": "DATSUN",
+    "model": "XTERRA"
+  },
+  {
+    "make": "DATSUN",
+    "model": "Z"
+  },
+  {
+    "make": "FIAT",
+    "model": "124 SPIDER"
+  },
+  {
+    "make": "FIAT",
+    "model": "FIAT 124"
+  },
+  {
+    "make": "FIAT",
+    "model": "FIAT 131"
+  },
+  {
+    "make": "FIAT",
+    "model": "FIAT 500"
+  },
+  {
+    "make": "FIAT",
+    "model": "FIAT STRADA"
+  },
+  {
+    "make": "FIAT",
+    "model": "FIAT X 1/9"
+  },
+  {
+    "make": "FIAT",
+    "model": "LANCIA"
+  },
+  {
+    "make": "FORD",
+    "model": "AEROSTAR"
+  },
+  {
+    "make": "FORD",
+    "model": "ASPIRE"
+  },
+  {
+    "make": "FORD",
+    "model": "AVIATOR"
+  },
+  {
+    "make": "FORD",
+    "model": "BLACKWOOD"
+  },
+  {
+    "make": "FORD",
+    "model": "BOBCAT"
+  },
+  {
+    "make": "FORD",
+    "model": "BRONCO"
+  },
+  {
+    "make": "FORD",
+    "model": "BRONCO II"
+  },
+  {
+    "make": "FORD",
+    "model": "BRONCO RAPTOR"
+  },
+  {
+    "make": "FORD",
+    "model": "BRONCO SPORT"
+  },
+  {
+    "make": "FORD",
+    "model": "C-MAX"
+  },
+  {
+    "make": "FORD",
+    "model": "CAPRI"
+  },
+  {
+    "make": "FORD",
+    "model": "COMET"
+  },
+  {
+    "make": "FORD",
+    "model": "CONTOUR"
+  },
+  {
+    "make": "FORD",
+    "model": "CORSAIR"
+  },
+  {
+    "make": "FORD",
+    "model": "CORTINA"
+  },
+  {
+    "make": "FORD",
+    "model": "COUGAR"
+  },
+  {
+    "make": "FORD",
+    "model": "COURIER"
+  },
+  {
+    "make": "FORD",
+    "model": "CROWN VICTORIA"
+  },
+  {
+    "make": "FORD",
+    "model": "E-TRANSIT"
+  },
+  {
+    "make": "FORD",
+    "model": "ECOSPORT"
+  },
+  {
+    "make": "FORD",
+    "model": "EDGE"
+  },
+  {
+    "make": "FORD",
+    "model": "ESCAPE"
+  },
+  {
+    "make": "FORD",
+    "model": "ESCORT"
+  },
+  {
+    "make": "FORD",
+    "model": "EXCURSION"
+  },
+  {
+    "make": "FORD",
+    "model": "EXP"
+  },
+  {
+    "make": "FORD",
+    "model": "EXPEDITION"
+  },
+  {
+    "make": "FORD",
+    "model": "EXPLORER"
+  },
+  {
+    "make": "FORD",
+    "model": "FAIRLANE"
+  },
+  {
+    "make": "FORD",
+    "model": "FAIRMONT"
+  },
+  {
+    "make": "FORD",
+    "model": "FALCON"
+  },
+  {
+    "make": "FORD",
+    "model": "FESTIVA"
+  },
+  {
+    "make": "FORD",
+    "model": "FIESTA"
+  },
+  {
+    "make": "FORD",
+    "model": "FIVE HUNDRED"
+  },
+  {
+    "make": "FORD",
+    "model": "FLEX"
+  },
+  {
+    "make": "FORD",
+    "model": "FOCUS"
+  },
+  {
+    "make": "FORD",
+    "model": "FOCUS RS"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E100 VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E150 VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E200 VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E250 VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E300 VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E350 VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E450SD VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD E550SD VAN"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F100 PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F150 LIGHTNING"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F150 PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F150 RAPTOR"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F250 PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F250SD PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F350 PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F350SD PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F450 PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F450SD PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD F550SD PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD FORWARD CONTROL"
+  },
+  {
+    "make": "FORD",
+    "model": "FORD PASS."
+  },
+  {
+    "make": "FORD",
+    "model": "FREESTAR"
+  },
+  {
+    "make": "FORD",
+    "model": "FREESTYLE"
+  },
+  {
+    "make": "FORD",
+    "model": "FUSION"
+  },
+  {
+    "make": "FORD",
+    "model": "GRANADA"
+  },
+  {
+    "make": "FORD",
+    "model": "GRAND MARQUIS"
+  },
+  {
+    "make": "FORD",
+    "model": "GT"
+  },
+  {
+    "make": "FORD",
+    "model": "LINCOLN & TOWN CAR"
+  },
+  {
+    "make": "FORD",
+    "model": "LINCOLN CONTINENTAL"
+  },
+  {
+    "make": "FORD",
+    "model": "LINCOLN LS"
+  },
+  {
+    "make": "FORD",
+    "model": "LINCOLN LT"
+  },
+  {
+    "make": "FORD",
+    "model": "LINCOLN MARK SERIES"
+  },
+  {
+    "make": "FORD",
+    "model": "LN7"
+  },
+  {
+    "make": "FORD",
+    "model": "LTD"
+  },
+  {
+    "make": "FORD",
+    "model": "LTD II"
+  },
+  {
+    "make": "FORD",
+    "model": "LYNX"
+  },
+  {
+    "make": "FORD",
+    "model": "MARAUDER"
+  },
+  {
+    "make": "FORD",
+    "model": "MARINER"
+  },
+  {
+    "make": "FORD",
+    "model": "MARQUIS"
+  },
+  {
+    "make": "FORD",
+    "model": "MAVERICK"
+  },
+  {
+    "make": "FORD",
+    "model": "MAVERICK PICKUP"
+  },
+  {
+    "make": "FORD",
+    "model": "MERCURY"
+  },
+  {
+    "make": "FORD",
+    "model": "MERKUR"
+  },
+  {
+    "make": "FORD",
+    "model": "MILAN"
+  },
+  {
+    "make": "FORD",
+    "model": "MKC"
+  },
+  {
+    "make": "FORD",
+    "model": "MKS"
+  },
+  {
+    "make": "FORD",
+    "model": "MKT"
+  },
+  {
+    "make": "FORD",
+    "model": "MKX"
+  },
+  {
+    "make": "FORD",
+    "model": "MKZ"
+  },
+  {
+    "make": "FORD",
+    "model": "MONARCH"
+  },
+  {
+    "make": "FORD",
+    "model": "MONTEGO"
+  },
+  {
+    "make": "FORD",
+    "model": "MONTEREY"
+  },
+  {
+    "make": "FORD",
+    "model": "MOUNTAINEER"
+  },
+  {
+    "make": "FORD",
+    "model": "MUSTANG"
+  },
+  {
+    "make": "FORD",
+    "model": "MUSTANG MACH-E"
+  },
+  {
+    "make": "FORD",
+    "model": "MYSTIQUE"
+  },
+  {
+    "make": "FORD",
+    "model": "NAUTILUS"
+  },
+  {
+    "make": "FORD",
+    "model": "NAVIGATOR"
+  },
+  {
+    "make": "FORD",
+    "model": "PINTO"
+  },
+  {
+    "make": "FORD",
+    "model": "PROBE"
+  },
+  {
+    "make": "FORD",
+    "model": "RANGER"
+  },
+  {
+    "make": "FORD",
+    "model": "RANGER RAPTOR"
+  },
+  {
+    "make": "FORD",
+    "model": "SABLE"
+  },
+  {
+    "make": "FORD",
+    "model": "TAURUS"
+  },
+  {
+    "make": "FORD",
+    "model": "TAURUS X"
+  },
+  {
+    "make": "FORD",
+    "model": "TEMPO"
+  },
+  {
+    "make": "FORD",
+    "model": "THUNDERBIRD"
+  },
+  {
+    "make": "FORD",
+    "model": "TOPAZ"
+  },
+  {
+    "make": "FORD",
+    "model": "TRACER"
+  },
+  {
+    "make": "FORD",
+    "model": "TRANSIT 150"
+  },
+  {
+    "make": "FORD",
+    "model": "TRANSIT 250"
+  },
+  {
+    "make": "FORD",
+    "model": "TRANSIT 350"
+  },
+  {
+    "make": "FORD",
+    "model": "TRANSIT CONNECT"
+  },
+  {
+    "make": "FORD",
+    "model": "VERSAILLES"
+  },
+  {
+    "make": "FORD",
+    "model": "VILLAGER"
+  },
+  {
+    "make": "FORD",
+    "model": "WINDSTAR"
+  },
+  {
+    "make": "FORD",
+    "model": "ZEPHYR"
+  },
+  {
+    "make": "GENESIS",
+    "model": "G70"
+  },
+  {
+    "make": "GENESIS",
+    "model": "G80"
+  },
+  {
+    "make": "GENESIS",
+    "model": "G90"
+  },
+  {
+    "make": "GENESIS",
+    "model": "GV60"
+  },
+  {
+    "make": "GENESIS",
+    "model": "GV70"
+  },
+  {
+    "make": "GENESIS",
+    "model": "GV80"
+  },
+  {
+    "make": "HONDA",
+    "model": "ACCORD"
+  },
+  {
+    "make": "HONDA",
+    "model": "CIVIC"
+  },
+  {
+    "make": "HONDA",
+    "model": "CLARITY"
+  },
+  {
+    "make": "HONDA",
+    "model": "CLARITY ELECTRIC"
+  },
+  {
+    "make": "HONDA",
+    "model": "CLARITY FUEL CELL"
+  },
+  {
+    "make": "HONDA",
+    "model": "CR-V"
+  },
+  {
+    "make": "HONDA",
+    "model": "CR-V E:FCEV"
+  },
+  {
+    "make": "HONDA",
+    "model": "CR-Z"
+  },
+  {
+    "make": "HONDA",
+    "model": "CROSSTOUR"
+  },
+  {
+    "make": "HONDA",
+    "model": "CRX"
+  },
+  {
+    "make": "HONDA",
+    "model": "DEL SOL"
+  },
+  {
+    "make": "HONDA",
+    "model": "ELEMENT"
+  },
+  {
+    "make": "HONDA",
+    "model": "FIT"
+  },
+  {
+    "make": "HONDA",
+    "model": "HR-V"
+  },
+  {
+    "make": "HONDA",
+    "model": "INSIGHT"
+  },
+  {
+    "make": "HONDA",
+    "model": "ODYSSEY"
+  },
+  {
+    "make": "HONDA",
+    "model": "PASSPORT"
+  },
+  {
+    "make": "HONDA",
+    "model": "PILOT"
+  },
+  {
+    "make": "HONDA",
+    "model": "PRELUDE"
+  },
+  {
+    "make": "HONDA",
+    "model": "PROLOGUE"
+  },
+  {
+    "make": "HONDA",
+    "model": "RIDGELINE"
+  },
+  {
+    "make": "HONDA",
+    "model": "S2000"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "ACCENT"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "AZERA"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "ELANTRA"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "ENTOURAGE"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "EQUUS"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "EXCEL"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "GENESIS"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "IONIQ"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "IONIQ 5"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "IONIQ 6"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "KONA"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "KONA ELECTRIC"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "NEXO"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "PALISADE"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "PONY"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "SANTA CRUZ"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "SANTA FE"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "SCOUPE"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "SONATA"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "STELLAR"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "TIBURON"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "TUCSON"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "VELOSTER"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "VENUE"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "VERACRUZ"
+  },
+  {
+    "make": "HYUNDAI",
+    "model": "XG SERIES"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI EX35"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI EX37"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI FX SERIES"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI G20"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI G25"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI G35"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI G37"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI I30"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI I35"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI J30"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI JX35"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI M30"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI M35"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI M37"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI M45"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI M56"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI Q40"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI Q45"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI Q50"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI Q60"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI Q70"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX30"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX4"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX50"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX56"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX60"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX70"
+  },
+  {
+    "make": "INFINITI",
+    "model": "INFINITI QX80"
+  },
+  {
+    "make": "INFINITI",
+    "model": "QX55"
+  },
+  {
+    "make": "INTERNATIONAL",
+    "model": "SCOUT"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU AMIGO"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU ASCENDER"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU AXIOM"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU HOMBRE"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU I-280"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU I-290"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU I-350"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU I-370"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU I-MARK"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU IMPULSE"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU OASIS"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU OPTIMA"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU PUP (PICKUP)"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU RODEO"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU STYLUS"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU TROOPER"
+  },
+  {
+    "make": "ISUZU",
+    "model": "ISUZU VEHICROSS"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "E-PACE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "F TYPE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "F-PACE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "I-PACE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "S TYPE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "X TYPE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XF"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XF SPORTBRAKE"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XJ"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XJ12"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XJ6"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XJ8"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XJS"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XK"
+  },
+  {
+    "make": "JAGUAR",
+    "model": "XK8"
+  },
+  {
+    "make": "JEEP",
+    "model": "200"
+  },
+  {
+    "make": "JEEP",
+    "model": "2000 GTX"
+  },
+  {
+    "make": "JEEP",
+    "model": "300"
+  },
+  {
+    "make": "JEEP",
+    "model": "300M"
+  },
+  {
+    "make": "JEEP",
+    "model": "5TH AVENUE"
+  },
+  {
+    "make": "JEEP",
+    "model": "ACCLAIM"
+  },
+  {
+    "make": "JEEP",
+    "model": "AMX"
+  },
+  {
+    "make": "JEEP",
+    "model": "ARIES"
+  },
+  {
+    "make": "JEEP",
+    "model": "ARROW PASS."
+  },
+  {
+    "make": "JEEP",
+    "model": "ARROW TRUCK"
+  },
+  {
+    "make": "JEEP",
+    "model": "ASPEN"
+  },
+  {
+    "make": "JEEP",
+    "model": "AVENGER"
+  },
+  {
+    "make": "JEEP",
+    "model": "BREEZE"
+  },
+  {
+    "make": "JEEP",
+    "model": "CALIBER"
+  },
+  {
+    "make": "JEEP",
+    "model": "CARAVAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "CARAVELLE"
+  },
+  {
+    "make": "JEEP",
+    "model": "CHALLENGER"
+  },
+  {
+    "make": "JEEP",
+    "model": "CHALLENGER/SAPPORO"
+  },
+  {
+    "make": "JEEP",
+    "model": "CHAMP"
+  },
+  {
+    "make": "JEEP",
+    "model": "CHARGER"
+  },
+  {
+    "make": "JEEP",
+    "model": "CHEROKEE"
+  },
+  {
+    "make": "JEEP",
+    "model": "CIRRUS"
+  },
+  {
+    "make": "JEEP",
+    "model": "CJ-SERIES"
+  },
+  {
+    "make": "JEEP",
+    "model": "COLT"
+  },
+  {
+    "make": "JEEP",
+    "model": "COMANCHE"
+  },
+  {
+    "make": "JEEP",
+    "model": "COMMANDER"
+  },
+  {
+    "make": "JEEP",
+    "model": "COMPASS"
+  },
+  {
+    "make": "JEEP",
+    "model": "CONCORD"
+  },
+  {
+    "make": "JEEP",
+    "model": "CONCORDE"
+  },
+  {
+    "make": "JEEP",
+    "model": "CONQUEST"
+  },
+  {
+    "make": "JEEP",
+    "model": "CORDOBA"
+  },
+  {
+    "make": "JEEP",
+    "model": "CROSSFIRE"
+  },
+  {
+    "make": "JEEP",
+    "model": "D-50"
+  },
+  {
+    "make": "JEEP",
+    "model": "DAKOTA"
+  },
+  {
+    "make": "JEEP",
+    "model": "DART"
+  },
+  {
+    "make": "JEEP",
+    "model": "DAYTONA"
+  },
+  {
+    "make": "JEEP",
+    "model": "DIPLOMAT"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 100 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 100 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 150 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 150 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 1500 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 1500 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 200 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 200 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 250 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 250 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 2500 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 2500 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 300 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 300 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 350 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 350 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 3500 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 3500 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 400"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 400 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 450 PICKUP"
+  },
+  {
+    "make": "JEEP",
+    "model": "DODGE 600"
+  },
+  {
+    "make": "JEEP",
+    "model": "DURANGO"
+  },
+  {
+    "make": "JEEP",
+    "model": "DYNASTY"
+  },
+  {
+    "make": "JEEP",
+    "model": "E-CLASS"
+  },
+  {
+    "make": "JEEP",
+    "model": "EAGLE"
+  },
+  {
+    "make": "JEEP",
+    "model": "GLADIATOR"
+  },
+  {
+    "make": "JEEP",
+    "model": "GRAN FURY"
+  },
+  {
+    "make": "JEEP",
+    "model": "GRAND CHEROKEE"
+  },
+  {
+    "make": "JEEP",
+    "model": "GRAND WAGONEER"
+  },
+  {
+    "make": "JEEP",
+    "model": "HORIZON"
+  },
+  {
+    "make": "JEEP",
+    "model": "HORNET"
+  },
+  {
+    "make": "JEEP",
+    "model": "HUMMER H2"
+  },
+  {
+    "make": "JEEP",
+    "model": "HUMMER H3"
+  },
+  {
+    "make": "JEEP",
+    "model": "IMPERIAL"
+  },
+  {
+    "make": "JEEP",
+    "model": "INTREPID"
+  },
+  {
+    "make": "JEEP",
+    "model": "J-SERIES TRUCK"
+  },
+  {
+    "make": "JEEP",
+    "model": "JEEP STATION WAGON"
+  },
+  {
+    "make": "JEEP",
+    "model": "JEEP TRUCK"
+  },
+  {
+    "make": "JEEP",
+    "model": "JOURNEY"
+  },
+  {
+    "make": "JEEP",
+    "model": "LANCER (DODGE)"
+  },
+  {
+    "make": "JEEP",
+    "model": "LASER"
+  },
+  {
+    "make": "JEEP",
+    "model": "LE BARON"
+  },
+  {
+    "make": "JEEP",
+    "model": "LHS"
+  },
+  {
+    "make": "JEEP",
+    "model": "LIBERTY"
+  },
+  {
+    "make": "JEEP",
+    "model": "MAGNUM"
+  },
+  {
+    "make": "JEEP",
+    "model": "MIRADA"
+  },
+  {
+    "make": "JEEP",
+    "model": "MONACO"
+  },
+  {
+    "make": "JEEP",
+    "model": "NEON"
+  },
+  {
+    "make": "JEEP",
+    "model": "NEW YORKER (FWD)"
+  },
+  {
+    "make": "JEEP",
+    "model": "NEW YORKER (RWD)"
+  },
+  {
+    "make": "JEEP",
+    "model": "NEWPORT"
+  },
+  {
+    "make": "JEEP",
+    "model": "NITRO"
+  },
+  {
+    "make": "JEEP",
+    "model": "OMNI"
+  },
+  {
+    "make": "JEEP",
+    "model": "PACER"
+  },
+  {
+    "make": "JEEP",
+    "model": "PACIFICA"
+  },
+  {
+    "make": "JEEP",
+    "model": "PATRIOT"
+  },
+  {
+    "make": "JEEP",
+    "model": "PLYMOUTH 100 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PLYMOUTH 150 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PLYMOUTH 200 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PLYMOUTH 250 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PLYMOUTH 300 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PLYMOUTH 350 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PREMIER"
+  },
+  {
+    "make": "JEEP",
+    "model": "PROMASTER 1500 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PROMASTER 2500 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PROMASTER 3500 VAN"
+  },
+  {
+    "make": "JEEP",
+    "model": "PROMASTER CITY"
+  },
+  {
+    "make": "JEEP",
+    "model": "PROMASTER EV"
+  },
+  {
+    "make": "JEEP",
+    "model": "PROWLER"
+  },
+  {
+    "make": "JEEP",
+    "model": "PT CRUISER"
+  },
+  {
+    "make": "JEEP",
+    "model": "RAIDER"
+  },
+  {
+    "make": "JEEP",
+    "model": "RAMCHARGER"
+  },
+  {
+    "make": "JEEP",
+    "model": "RAMPAGE"
+  },
+  {
+    "make": "JEEP",
+    "model": "RELIANT"
+  },
+  {
+    "make": "JEEP",
+    "model": "RENEGADE"
+  },
+  {
+    "make": "JEEP",
+    "model": "SCAMP"
+  },
+  {
+    "make": "JEEP",
+    "model": "SEBRING"
+  },
+  {
+    "make": "JEEP",
+    "model": "SHADOW"
+  },
+  {
+    "make": "JEEP",
+    "model": "SPIRIT"
+  },
+  {
+    "make": "JEEP",
+    "model": "SPIRIT (AMC)"
+  },
+  {
+    "make": "JEEP",
+    "model": "SPRINTER 2500"
+  },
+  {
+    "make": "JEEP",
+    "model": "SPRINTER 3500"
+  },
+  {
+    "make": "JEEP",
+    "model": "ST. REGIS"
+  },
+  {
+    "make": "JEEP",
+    "model": "STEALTH"
+  },
+  {
+    "make": "JEEP",
+    "model": "STRATUS"
+  },
+  {
+    "make": "JEEP",
+    "model": "SUMMIT"
+  },
+  {
+    "make": "JEEP",
+    "model": "SUNDANCE"
+  },
+  {
+    "make": "JEEP",
+    "model": "TALON"
+  },
+  {
+    "make": "JEEP",
+    "model": "TC"
+  },
+  {
+    "make": "JEEP",
+    "model": "TOWN & COUNTRY"
+  },
+  {
+    "make": "JEEP",
+    "model": "TRAIL DUSTER"
+  },
+  {
+    "make": "JEEP",
+    "model": "VIPER"
+  },
+  {
+    "make": "JEEP",
+    "model": "VISION"
+  },
+  {
+    "make": "JEEP",
+    "model": "VISTA"
+  },
+  {
+    "make": "JEEP",
+    "model": "VOLARE"
+  },
+  {
+    "make": "JEEP",
+    "model": "VOYAGER"
+  },
+  {
+    "make": "JEEP",
+    "model": "WAGONEER"
+  },
+  {
+    "make": "JEEP",
+    "model": "WRANGLER"
+  },
+  {
+    "make": "KIA",
+    "model": "AMANTI"
+  },
+  {
+    "make": "KIA",
+    "model": "BORREGO"
+  },
+  {
+    "make": "KIA",
+    "model": "CADENZA"
+  },
+  {
+    "make": "KIA",
+    "model": "CARNIVAL"
+  },
+  {
+    "make": "KIA",
+    "model": "EV6"
+  },
+  {
+    "make": "KIA",
+    "model": "EV9"
+  },
+  {
+    "make": "KIA",
+    "model": "FORTE"
+  },
+  {
+    "make": "KIA",
+    "model": "K4"
+  },
+  {
+    "make": "KIA",
+    "model": "K5"
+  },
+  {
+    "make": "KIA",
+    "model": "K900"
+  },
+  {
+    "make": "KIA",
+    "model": "MAGENTIS"
+  },
+  {
+    "make": "KIA",
+    "model": "NIRO"
+  },
+  {
+    "make": "KIA",
+    "model": "NIRO EV"
+  },
+  {
+    "make": "KIA",
+    "model": "OPTIMA"
+  },
+  {
+    "make": "KIA",
+    "model": "RIO"
+  },
+  {
+    "make": "KIA",
+    "model": "RONDO"
+  },
+  {
+    "make": "KIA",
+    "model": "SEDONA"
+  },
+  {
+    "make": "KIA",
+    "model": "SELTOS"
+  },
+  {
+    "make": "KIA",
+    "model": "SEPHIA"
+  },
+  {
+    "make": "KIA",
+    "model": "SORENTO"
+  },
+  {
+    "make": "KIA",
+    "model": "SOUL"
+  },
+  {
+    "make": "KIA",
+    "model": "SPECTRA"
+  },
+  {
+    "make": "KIA",
+    "model": "SPORTAGE"
+  },
+  {
+    "make": "KIA",
+    "model": "STINGER"
+  },
+  {
+    "make": "KIA",
+    "model": "TELLURIDE"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "DEFENDER"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "DISCOVERY"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "DISCOVERY SPORT"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "EVOQUE"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "FREELANDER"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "LAND ROVER"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "LR2"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "LR3"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "LR4"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "RANGE ROVER"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "RANGE ROVER SPORT"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "STERLING"
+  },
+  {
+    "make": "LAND ROVER",
+    "model": "VELAR"
+  },
+  {
+    "make": "LEXUS",
+    "model": "GX550"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LC500"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LC500h"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS CT200H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS ES250"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS ES300"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS ES300H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS ES330"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS ES350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS F"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS200T"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS300"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS400"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS430"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS450H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GS460"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GX460"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS GX470"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS HS250H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS IS-F"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS IS200T"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS IS250"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS IS300"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS IS350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS IS500"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LS400"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LS430"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LS460"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LS600HL"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LX450"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LX470"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LX570"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS LX600"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS NX200T"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RC F"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RC200T"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RC300"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RC350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RX300"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RX330"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RX350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RX400H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS RX450H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS SC SERIES"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LEXUS SC430"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LS500"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LS500h"
+  },
+  {
+    "make": "LEXUS",
+    "model": "LX700H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "NX250"
+  },
+  {
+    "make": "LEXUS",
+    "model": "NX300"
+  },
+  {
+    "make": "LEXUS",
+    "model": "NX300H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "NX350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "NX350H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "NX450H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "RX350h"
+  },
+  {
+    "make": "LEXUS",
+    "model": "RX350L"
+  },
+  {
+    "make": "LEXUS",
+    "model": "RX450HL"
+  },
+  {
+    "make": "LEXUS",
+    "model": "RX500h"
+  },
+  {
+    "make": "LEXUS",
+    "model": "RZ300E"
+  },
+  {
+    "make": "LEXUS",
+    "model": "RZ450e"
+  },
+  {
+    "make": "LEXUS",
+    "model": "TX350"
+  },
+  {
+    "make": "LEXUS",
+    "model": "TX500h"
+  },
+  {
+    "make": "LEXUS",
+    "model": "TX550h"
+  },
+  {
+    "make": "LEXUS",
+    "model": "UX200"
+  },
+  {
+    "make": "LEXUS",
+    "model": "UX250H"
+  },
+  {
+    "make": "LEXUS",
+    "model": "UX300H"
+  },
+  {
+    "make": "MAZDA",
+    "model": "CX-50"
+  },
+  {
+    "make": "MAZDA",
+    "model": "CX-90"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 2"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 3"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 323"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 5"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 6"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 626"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA 929"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-2000"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-2200"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-2300"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-2500"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-2600"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-3000"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA B-4000"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA CX-3"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA CX-30"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA CX-5"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA CX-7"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA CX-9"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA GLC"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA MILLENIA"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA MPV"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA MX-3"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA MX-5 MIATA"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA MX-6"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA NAVAJO"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA PROTEGE"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA RX7"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA RX8"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MAZDA TRIBUTE"
+  },
+  {
+    "make": "MAZDA",
+    "model": "MX-30"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "A-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "CLE-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "EQE-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "EQE-CLASS SUV"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "EQS-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "EQS-CLASS SUV"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "ESPRINTER 2500"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 190"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 240D"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 260E"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 280"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 300D"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 300E"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 300SL"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 350"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 380"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 400"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 420"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 450"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 500"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 560"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES 600"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES B-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES C-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES CL-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES CLA-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES CLK"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES CLS-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES E-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES EQB-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES G-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GL-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GLA-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GLB-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GLC-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GLE-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GLK-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GLS-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES GT"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES ML-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES R-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES S-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SLC-CLASS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SLK"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SLR"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SLS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SPRINTER 1500"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SPRINTER 2500"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "MERCEDES SPRINTER 3500"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "METRIS"
+  },
+  {
+    "make": "MERCEDES-BENZ",
+    "model": "SMART"
+  },
+  {
+    "make": "MINI",
+    "model": "CLUBMAN"
+  },
+  {
+    "make": "MINI",
+    "model": "COUNTRYMAN"
+  },
+  {
+    "make": "MINI",
+    "model": "MINI COOPER"
+  },
+  {
+    "make": "MINI",
+    "model": "PACEMAN"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "3000GT"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "CORDIA"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "DIAMANTE"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "ECLIPSE"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "ECLIPSE CROSS"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "ENDEAVOR"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "EXPO"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "GALANT"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "I-MIEV"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "LANCER"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "MIRAGE"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "MITSUBISHI PICKUP"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "MITSUBISHI RAIDER"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "MITSUBISHI VAN/WAGON"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "MONTERO"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "MONTERO SPORT"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "OUTLANDER"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "OUTLANDER SPORT"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "PRECIS"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "RVR"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "SIGMA"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "STARION"
+  },
+  {
+    "make": "MITSUBISHI",
+    "model": "TREDIA"
+  },
+  {
+    "make": "PEUGEOT",
+    "model": "PEUGEOT 405"
+  },
+  {
+    "make": "PEUGEOT",
+    "model": "PEUGEOT 504"
+  },
+  {
+    "make": "PEUGEOT",
+    "model": "PEUGEOT 505"
+  },
+  {
+    "make": "PEUGEOT",
+    "model": "PEUGEOT 604"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "MACAN EV"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE 911"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE 918"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE 924"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE 928"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE 944"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE 968"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE BOXSTER"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE CARRERA GT"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE CAYENNE"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE CAYMAN"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE MACAN"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE PANAMERA"
+  },
+  {
+    "make": "PORSCHE",
+    "model": "PORSCHE TAYCAN"
+  },
+  {
+    "make": "RENAULT",
+    "model": "RENAULT 18i"
+  },
+  {
+    "make": "RENAULT",
+    "model": "RENAULT ALLIANCE"
+  },
+  {
+    "make": "RENAULT",
+    "model": "RENAULT ENCORE"
+  },
+  {
+    "make": "RENAULT",
+    "model": "RENAULT FUEGO"
+  },
+  {
+    "make": "RENAULT",
+    "model": "RENAULT MEDALLION"
+  },
+  {
+    "make": "RENAULT",
+    "model": "RENAULT R-5/LE CAR"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 9-2X"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 9-3"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 9-5"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 9-7X"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 900"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 9000"
+  },
+  {
+    "make": "SAAB",
+    "model": "SAAB 99"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION FR-S"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION IA"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION IM"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION IQ"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION TC"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION XA"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION XB"
+  },
+  {
+    "make": "SCION",
+    "model": "SCION XD"
+  },
+  {
+    "make": "SUBARU",
+    "model": "ASCENT"
+  },
+  {
+    "make": "SUBARU",
+    "model": "BAJA"
+  },
+  {
+    "make": "SUBARU",
+    "model": "BR-Z"
+  },
+  {
+    "make": "SUBARU",
+    "model": "BRAT"
+  },
+  {
+    "make": "SUBARU",
+    "model": "FORESTER"
+  },
+  {
+    "make": "SUBARU",
+    "model": "IMPREZA"
+  },
+  {
+    "make": "SUBARU",
+    "model": "JUSTY"
+  },
+  {
+    "make": "SUBARU",
+    "model": "LEGACY"
+  },
+  {
+    "make": "SUBARU",
+    "model": "LOYALE"
+  },
+  {
+    "make": "SUBARU",
+    "model": "SOLTERRA"
+  },
+  {
+    "make": "SUBARU",
+    "model": "SUBARU PASS."
+  },
+  {
+    "make": "SUBARU",
+    "model": "SVX"
+  },
+  {
+    "make": "SUBARU",
+    "model": "TRIBECA"
+  },
+  {
+    "make": "SUBARU",
+    "model": "WRX"
+  },
+  {
+    "make": "SUBARU",
+    "model": "XT"
+  },
+  {
+    "make": "SUBARU",
+    "model": "XV CROSSTREK"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "AERIO"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "EQUATOR"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "ESTEEM"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "FORENZA"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "FORSA"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "KIZASHI"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "RENO"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "SAMURAI"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "SIDEKICK"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "SJ410"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "SWIFT"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "SX4"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "VERONA"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "VITARA"
+  },
+  {
+    "make": "SUZUKI",
+    "model": "X90"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "4 RUNNER"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "86"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "AVALON"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "BZ4X"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "C-HR"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "CAMRY"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "CELICA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "COROLLA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "COROLLA CROSS"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "COROLLA IM"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "CORONA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "CRESSIDA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "CROWN"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "CROWN SIGNIA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "ECHO"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "FJ CRUISER"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "FX"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "GR COROLLA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "GR SUPRA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "GR86"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "GRAND HIGHLANDER"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "HIGHLANDER"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "LAND CRUISER"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "MATRIX"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "MIRAI"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "MR2"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "PASEO"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "PREVIA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "PRIUS"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "RAV4"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "SEQUOIA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "SIENNA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "SOLARA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "STARLET"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "SUPRA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "T100"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "TACOMA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "TERCEL"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "TOYOTA PICKUP"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "TUNDRA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "VAN WAGON"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "VENZA"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "YARIS"
+  },
+  {
+    "make": "TOYOTA",
+    "model": "YARIS IA"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "ARTEON"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "ATLAS"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "ATLAS CROSS SPORT"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "BEETLE"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "CABRIOLET CONVERTIBLE"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "CC"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "CORRADO"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "DASHER"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "EOS"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "EUROVAN"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "FOX"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "GOLF"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "GOLF GTI"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "ID.4"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "ID.BUZZ"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "JETTA"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "JETTA GLI"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "PASSAT"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "PHAETON"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "QUANTUM"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "RABBIT"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "ROUTAN"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "SCIROCCO"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "TAOS"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "TIGUAN"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "TOUAREG"
+  },
+  {
+    "make": "VOLKSWAGEN",
+    "model": "VANAGON"
+  },
+  {
+    "make": "VOLVO",
+    "model": "C40"
+  },
+  {
+    "make": "VOLVO",
+    "model": "EC40"
+  },
+  {
+    "make": "VOLVO",
+    "model": "EX30"
+  },
+  {
+    "make": "VOLVO",
+    "model": "EX40"
+  },
+  {
+    "make": "VOLVO",
+    "model": "EX90"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 240 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 260 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 30 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 40 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 50 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 60 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 70 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 740"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 760"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 780"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 80 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 850"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 90 SERIES"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 940"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO 960"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO S60"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO S90"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO V60"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO V90"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO XC60"
+  },
+  {
+    "make": "VOLVO",
+    "model": "VOLVO XC90"
+  },
+  {
+    "make": "VOLVO",
+    "model": "XC40"
+  },
+  {
+    "make": "YUGO",
+    "model": "GV"
+  }
+]

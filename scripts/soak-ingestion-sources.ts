@@ -107,6 +107,8 @@ import { soakAlshnedInventory } from "./soak-alshned";
 import { streamAlliedInventoryFromProvider } from "../src/server/ingestion/allied-connector";
 import { ALLIED_CONTRACT } from "../src/server/ingestion/allied-configuration";
 import { soakAlliedInventory } from "./soak-allied";
+import { streamByotInventoryFromProvider } from "../src/server/ingestion/byot-connector";
+import { soakByotInventory } from "./soak-byot";
 import { streamWeberbrothersInventory } from "../src/server/ingestion/weberbrothers-connector";
 import { soakWeberbrothersInventory } from "./soak-weberbrothers";
 import { streamOemInventoryFromProvider } from "../src/server/ingestion/oem-connector";
@@ -933,6 +935,18 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamSix03Inventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "byot":
+            return soakByotInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamByotInventoryFromProvider({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

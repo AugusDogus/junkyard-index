@@ -1,5 +1,6 @@
 import type { ConnectorChunkStatus } from "./connector-chunk";
 import { CstruckCursor } from "./cstruck-cursor";
+import { ByotCursor } from "./byot-cursor";
 import { AlliedCursor } from "./allied-cursor";
 import { ALLIED_CONTRACT } from "./allied-configuration";
 import { PontiacCursor } from "./pontiac-cursor";
@@ -372,6 +373,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: AlliedCursor.initial(ALLIED_CONTRACT),
     maxPagesPerChunk: 4,
   },
+  byot: { initialCursor: ByotCursor.initial(), maxPagesPerChunk: 8 },
 };
 
 export function getDurableSourceDefinition<

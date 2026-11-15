@@ -157,6 +157,7 @@ describe("bounded durable reconciliation", () => {
     "lonestarimports",
     "alshned",
     "allied",
+    "byot",
   ] as const)(
     "%s cannot publish staged inventory from a successful nonterminal cursor",
     async (source) => {

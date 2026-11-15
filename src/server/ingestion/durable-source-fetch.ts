@@ -1,4 +1,7 @@
 import { streamCstruckInventory } from "./cstruck-connector";
+import { streamByotInventoryFromProvider } from "./byot-connector";
+import { loadByotPublishedCursor } from "./byot-history";
+import { db } from "~/lib/db";
 import { streamAlliedInventoryFromProvider } from "./allied-connector";
 import { ALLIED_CONTRACT } from "./allied-configuration";
 import type { Yard } from "~/lib/yard";
@@ -524,6 +527,24 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamMeeksInventory({
           startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  byot: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamByotInventoryFromProvider({
+          startCursor: cursor,
+          previousCursor:
+            cursor.phase === "initial"
+              ? await loadByotPublishedCursor(db)
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,

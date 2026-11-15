@@ -1,0 +1,32 @@
+{
+  "waco": {
+    "url": "https://www.byotautoparts.com/locations/waco/",
+    "geo": "\"geo\": {\n     \"@type\": \"GeoCoordinates\",\n     \"latitude\": \"31.6934\",\n     \"longitude\": \"-97.10259\"\n   }",
+    "address": "\"address\": {\n     \"@type\": \"PostalAddress\",\n     \"streetAddress\": \"14401 N Interstate 35 Frontage Rd\", // enter both line 1 and 2 of the address, i.e. if there's a suite or unit number\n     \"addressLocality\": \"Elm Mott\",\n     \"addressRegion\": \"Texas\",\n     \"postalCode\": \"76640\",\n     \"addressCountry\": \"US\"\n   }",
+    "sourceUrl": "https://www.byotautoparts.com/locations/waco/"
+  },
+  "bryan-college-station": {
+    "url": "https://www.byotautoparts.com/locations/bryan-college-station/",
+    "geo": "\"geo\": {\n     \"@type\": \"GeoCoordinates\",\n     \"latitude\": \"30.70017\",\n     \"longitude\": \"-96.35607\"\n   }",
+    "address": "\"address\": {\n     \"@type\": \"PostalAddress\",\n     \"streetAddress\": \"3738 E State Hwy 21\", // enter both line 1 and 2 of the address, i.e. if there's a suite or unit number\n     \"addressLocality\": \"Bryan\",\n     \"addressRegion\": \"Texas\",\n     \"postalCode\": \"77808\",\n     \"addressCountry\": \"US\"\n   }",
+    "sourceUrl": "https://www.byotautoparts.com/locations/bryan-college-station/"
+  },
+  "beaumont": {
+    "url": "https://www.byotautoparts.com/locations/beaumont/",
+    "geo": "\"geo\": {\n     \"@type\": \"GeoCoordinates\",\n     \"latitude\": \"30.058371\",\n     \"longitude\": \"-94.218987\"\n   }",
+    "address": "\"address\": {\n     \"@type\": \"PostalAddress\",\n     \"streetAddress\": \"7516 Shady Ln\", // enter both line 1 and 2 of the address, i.e. if there's a suite or unit number\n     \"addressLocality\": \"Beaumont\",\n     \"addressRegion\": \"Texas\",\n     \"postalCode\": \"77713\",\n     \"addressCountry\": \"US\"\n   }",
+    "sourceUrl": "https://www.byotautoparts.com/locations/beaumont/"
+  },
+  "baton-rouge": {
+    "url": "https://www.byotautoparts.com/locations/baton-rouge/",
+    "geo": "\"geo\": {\n     \"@type\": \"GeoCoordinates\",\n     \"latitude\": \"30.45223\",\n     \"longitude\": \"-91.28975\"\n   }",
+    "address": "\"address\": {\n     \"@type\": \"PostalAddress\",\n     \"streetAddress\": \"4007 I- 10 Frontage Rd\", // enter both line 1 and 2 of the address, i.e. if there's a suite or unit number\n     \"addressLocality\": \"Port Allen\",\n     \"addressRegion\": \"Louisiana\",\n     \"postalCode\": \"70767\",\n     \"addressCountry\": \"US\"\n   }",
+    "sourceUrl": "https://www.byotautoparts.com/locations/baton-rouge/"
+  },
+  "jackson": {
+    "url": "https://www.byotautoparts.com/locations/jackson-ms/vehicles-for-sale/",
+    "geo": "\"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": \"32.287203\",\n    \"longitude\": \"-90.188693\"\n  }",
+    "address": "\"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"908 S Roach St\",\n    \"addressLocality\": \"Jackson\",\n    \"addressRegion\": \"MS\",\n    \"postalCode\": \"39201\",\n    \"addressCountry\": \"US\"\n  }",
+    "sourceUrl": "https://www.byotautoparts.com/locations/jackson/"
+  }
+}

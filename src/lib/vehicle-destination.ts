@@ -101,6 +101,21 @@ function resolve(
     };
   }
 
+  if (
+    vehicle.source === "byot" &&
+    vehicle.detailsUrl &&
+    /^https:\/\/www\.byotautoparts\.com\/locations\/(waco|bryan-college-station|beaumont|baton-rouge|jackson-ms)\/inventory\/$/.test(
+      vehicle.detailsUrl,
+    )
+  ) {
+    return {
+      kind: "manual-search",
+      href: vehicle.detailsUrl,
+      label: "Search provider inventory",
+      explanation:
+        "Select make and model, then match the VIN, stock number and yard row.",
+    };
+  }
   const href = vehicle.detailsUrl?.trim();
   if (!href || !URL.canParse(href) || !/^https?:\/\//i.test(href)) {
     return {
