@@ -2,12 +2,22 @@ export const IPULLUPULL_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 /** Bounded, complete UTF-8 bodies for the CSV export and HTML media pages.
  * HTTP status, MIME and document grammar remain each caller's responsibility.
+ * Callers may lower the streaming byte limit without increasing the shared cap.
  */
 export async function readIPullUPullResponseText(
   response: Response,
   context: string,
   signal: AbortSignal,
+  maximumBytes = IPULLUPULL_MAX_RESPONSE_BYTES,
 ): Promise<string> {
+  if (
+    !Number.isSafeInteger(maximumBytes) ||
+    maximumBytes < 1 ||
+    maximumBytes > IPULLUPULL_MAX_RESPONSE_BYTES
+  )
+    throw new Error(
+      `${context} response byte limit must be an integer between 1 and ${IPULLUPULL_MAX_RESPONSE_BYTES}; use the default or a smaller source limit.`,
+    );
   if (!response.body)
     throw new Error(`${context} has no body; retry the request.`);
   const reader = response.body.getReader();
@@ -18,9 +28,9 @@ export async function readIPullUPullResponseText(
       const chunk = await reader.read();
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
-      if (bytes > IPULLUPULL_MAX_RESPONSE_BYTES)
+      if (bytes > maximumBytes)
         throw new Error(
-          `${context} exceeds 4 MiB; inspect catalog growth before retrying.`,
+          `${context} exceeds ${maximumBytes / (1024 * 1024)} MiB; inspect catalog growth before retrying.`,
         );
       chunks.push(chunk.value);
     }

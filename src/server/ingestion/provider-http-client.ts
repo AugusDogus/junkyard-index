@@ -36,6 +36,7 @@ type ProviderRequestParams = {
   url: string;
   context: string;
   method?: "GET" | "POST";
+  redirect?: RequestRedirect;
   body?: string;
   headers?: Record<string, string> | (() => Record<string, string>);
   requestGate?: ProviderRequestGate;
@@ -140,6 +141,7 @@ export function fetchProviderResponse(
       try: () =>
         fetch(params.url, {
           method: params.method ?? "GET",
+          redirect: params.redirect,
           body: params.body,
           headers: {
             "User-Agent": DEFAULT_USER_AGENT,

@@ -74,6 +74,43 @@ test("bounds cumulative chunks, cancels unread bytes, and releases the reader", 
   expect(response.body?.locked).toBe(false);
 });
 
+test("enforces a caller's lower cumulative body limit before reading the tail", async () => {
+  const maximumBytes = 2 * 1024 * 1024;
+  let cancelled = false;
+  const response = new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(maximumBytes));
+        controller.enqueue(new Uint8Array(1));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }),
+  );
+  await expect(
+    readIPullUPullResponseText(
+      response,
+      "donor catalog",
+      AbortSignal.timeout(1_000),
+      maximumBytes,
+    ),
+  ).rejects.toThrow("2 MiB");
+  expect(cancelled).toBe(true);
+  expect(response.body?.locked).toBe(false);
+});
+
+test.each([0, -1, 1.5, Number.NaN, IPULLUPULL_MAX_RESPONSE_BYTES + 1])(
+  "rejects invalid or expanded caller body bound %s before locking the response",
+  async (maximumBytes) => {
+    const response = new Response("body");
+    await expect(
+      readIPullUPullResponseText(response, "catalog", signal(), maximumBytes),
+    ).rejects.toThrow("response byte limit");
+    expect(response.body?.locked).toBe(false);
+  },
+);
+
 test.each([false, true])(
   "aborting a stalled body cancels and unlocks the reader (pre-aborted=%s)",
   async (preAborted) => {
