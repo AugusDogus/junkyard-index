@@ -42,7 +42,7 @@ import { LittletonCursorSchema } from "./littleton-cursor";
 import { MichigantruckCursorSchema } from "./michigantruck-cursor";
 import { JolietCursorSchema } from "./joliet-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
-import { PickersCursor } from "./pickers-cursor";
+import { PickersCoverageCursor } from "./pickers-coverage-cursor";
 import { PipesCursor } from "./pipes-cursor";
 import { UwrenchCursor } from "./uwrench-cursor";
 import { MillerstownCursorSchema } from "./millerstown-cursor";
@@ -56,6 +56,7 @@ import { AwapCursor } from "./awap-cursor";
 import { ClearsalvageCursor } from "./clearsalvage-cursor";
 import { AplusCursor } from "./aplus-cursor";
 import { CentralCursor } from "./central-cursor";
+import { NorthwestCursor } from "./northwest-cursor";
 import { CoutuCursor } from "./coutu-cursor";
 import { KodakCursor } from "./kodak-cursor";
 import { Six03Cursor } from "./six03-cursor";
@@ -549,7 +550,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   michigantruck: defineJsonCursor("michigantruck", MichigantruckCursorSchema),
   joliet: defineJsonCursor("joliet", JolietCursorSchema),
   alln1: defineJsonCursor("alln1", Alln1CursorSchema),
-  pickers: { parse: PickersCursor.parse, serialize: PickersCursor.serialize },
+  pickers: {
+    parse: PickersCoverageCursor.parse,
+    serialize: PickersCoverageCursor.serialize,
+  },
   pipes: { parse: PipesCursor.parse, serialize: PipesCursor.serialize },
   uwrench: { parse: UwrenchCursor.parse, serialize: UwrenchCursor.serialize },
   millerstown: defineJsonCursor("millerstown", MillerstownCursorSchema),
@@ -586,6 +590,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   central: {
     parse: CentralCursor.parse,
     serialize: CentralCursor.serialize,
+  },
+  northwest: {
+    parse: NorthwestCursor.parse,
+    serialize: NorthwestCursor.serialize,
   },
   coutu: {
     parse: CoutuCursor.parse,

@@ -10,9 +10,8 @@ import {
   type PickersRecord,
 } from "./pickers-parser";
 import {
-  PICKERS_INVENTORY_URL,
-  PICKERS_PRICES_URL,
-  PICKERS_YARD,
+  PICKERS_DEFAULT_SITE,
+  type PickersSite,
 } from "./pickers-yard-metadata";
 import type { CanonicalVehicle } from "./types";
 
@@ -41,7 +40,12 @@ export function pickersNativeDate(row: PickersNativeRow): string | null {
 export function transformPickersRecord(
   native: PickersNativeRow | null,
   api: PickersRecord | null,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
 ): PickersDisposition {
+  if (api && api.yardLocation !== site.vendorName)
+    throw new Error(
+      "Pickers API record belongs to a different physical yard: " + api.stock,
+    );
   const rawVin = api ? pickersLiteral(api.fields.vin) : undefined;
   const year = native?.year ?? api?.year;
   const vin =
@@ -55,6 +59,12 @@ export function transformPickersRecord(
     return { status: "quarantined", vin, reason: "active-scope-unproven" };
   if (!api)
     return { status: "incomplete", vin: null, reason: "missing-enrichment" };
+  if (api.identityConflicts)
+    return {
+      status: "incomplete",
+      vin: null,
+      reason: "invalid-required-fields",
+    };
   if (native.year !== null && native.year !== api.year)
     throw new Error(
       "Pickers native/API year conflicts for stock " + native.stock,
@@ -84,26 +94,27 @@ export function transformPickersRecord(
       ),
       stockNumber: native.stock,
       imageUrl:
-        url?.origin === "https://pickerstxk.com" &&
-        url.pathname === "/PickersInventoryPhotos/" + native.stock + ".jpg" &&
+        url?.origin === site.origin &&
+        url.pathname ===
+          "/" + site.photoDirectory + "/" + native.stock + ".jpg" &&
         !url.username &&
         !url.password
           ? url.href
           : null,
       availableDate: pickersNativeDate(native),
-      locationCode: PICKERS_YARD.code,
-      locationName: PICKERS_YARD.name,
-      locationCity: PICKERS_YARD.city,
-      state: "Arkansas",
-      stateAbbr: "AR",
-      lat: PICKERS_YARD.lat,
-      lng: PICKERS_YARD.lng,
+      locationCode: site.yard.code,
+      locationName: site.yard.name,
+      locationCity: site.yard.city,
+      state: site.stateName,
+      stateAbbr: site.yard.state,
+      lat: site.yard.lat,
+      lng: site.yard.lng,
       section: null,
       row: vinplusOptionalText(pickersLiteral(native.row)),
       space: null,
-      detailsUrl: PICKERS_INVENTORY_URL,
+      detailsUrl: site.origin + "/Home/Inventory",
       partsUrl: null,
-      pricesUrl: PICKERS_PRICES_URL,
+      pricesUrl: site.origin + "/Home/PartPrices",
       engine: vinplusOptionalText(pickersLiteral(native.reference)),
       trim: null,
       transmission: null,

@@ -108,6 +108,7 @@ describe("reconciliation policy", () => {
       "clearsalvage",
       "aplus",
       "central",
+      "northwest",
       "coutu",
       "kodak",
       "six03",

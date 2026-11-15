@@ -1,6 +1,6 @@
 # Pickers inventory
 
-Source `pickers` covers Pickers Self-Service Auto Parts, operated by Tri-State Iron & Metal, at 5512 E 9th Street, Texarkana, AR 71854. Yard code is `pickers-texarkana`. Native contact is 870-772-1880. The physical location is Arkansas. Public VinPlus metadata labels its location TX; that explicit discrepancy is preserved in source scope and never copied into canonical geography.
+Source `pickers` covers the Texarkana, Longview and Reno Pickers yards operated by Tri-State Iron & Metal. The original Texarkana yard is at 5512 E 9th Street, Texarkana, AR 71854. Yard code is `pickers-texarkana`. Native contact is 870-772-1880. The physical location is Arkansas. Public VinPlus metadata labels its location TX; that explicit discrepancy is preserved in source scope and never copied into canonical geography.
 
 The source is disabled by default and requires explicit rollout.
 
@@ -22,13 +22,13 @@ Use `inventoryVin`, including eligible pre-1981 serials. Do not infer descriptio
 
 Bootstrap verifies native ownership, active self-service statement, the native form and literal make directory, the published public app yard-info contract and resolved configuration. Make-wide native POSTs use exact `VehicleMake` and the published empty `VehicleModel`. Derive public selectors from all nonblank literal native make/model pairs. Never send a blank or wildcard public selector. No model-menu, image, admin, analytics or private request is part of recurring ingestion.
 
-Phases are native opening, public queries, native closing, exact first/last public bookends and terminal verification. Resume reads the native form and per-location configuration. Closing compares every native row and field, all makes and derived pairs. First/last public bookends compare whole response bytes and ordered entries. Final native ownership and public app guards must still agree.
+Phases are native opening, public queries, native closing, exact first/last public bookends and terminal verification. Resume reads the native form and per-location configuration. Closing compares every native row and field, all makes and derived pairs. First/last public bookends retain whole response hashes and compare all returned fields except the derived days-in-yard counter, plus ordered entries. Final native ownership and public app guards must still agree.
 
 Every request uses manual redirects, no retries, exact HTTP 200, expected MIME, no content-range, exact verified response URL and a complete UTF-8 body capped at 4 MiB. The same 20-second deadline covers headers and body. The production gate waits 1.6 seconds after complete body processing. Each chunk has a three-minute hard deadline and stops starting controls with fewer than 25 seconds remaining. Default data budget is 16 controls. Guard requests count toward elapsed time and cumulative cost. Total bounds are 512 requests and 32 MiB of response bytes. Capacity failures preserve prior accepted inventory and checkpoint; inspect growth or chunk sizing before restarting.
 
 ## Durable evidence and accounting
 
-The source-local codec enforces a 1 MiB UTF-8 cap before JSON parsing and before persistence. The wire payload omits the fixed source tag; sibling tags are rejected before restoring `pickers`. Register `PickersCursor.parse` and `.serialize` directly. A shared parser in front of these wrappers would defeat the input byte guard.
+The source-local codec enforces a 1 MiB UTF-8 cap before JSON parsing and before persistence. Single-yard wire payloads omit the fixed source tag; sibling tags are rejected before restoring `pickers`. Durable registration uses `PickersCoverageCursor.parse` and `.serialize`, which preserve the source-local byte guards. A shared parser in front of these wrappers would defeat the input byte guard.
 
 The versioned phase cursor keeps bounded whole native/API records, exact stock bindings, typed dispositions, native missing-enrichment decisions, all optional evidence, raw response hashes, ordered entry hashes, exact payload/phase/index receipts, contiguous prefix hashes and all HTTP/raw occurrence counters. Each native row also retains a hash of its complete published markup, binding every photo reference and attribute during closing checks. Compact tagged tuples retain literal optional values or unusable-value hashes, types, reasons and byte counts. Derived canonical values, presence and terminal union accounting are independently recomputed on resume. These detect corruption of trusted durable state and do not authenticate an untrusted cursor.
 
@@ -58,3 +58,55 @@ Eligible vehicles use native color, reference text as engine, row, calendar arri
 `scripts/soak-pickers.ts` exports a read-only chunk driver. Its caller owns staging and the request gate. It roundtrips every source-local checkpoint and rejects premature accounting or stalled progress. It does not enable the source or write inventory by itself.
 
 Registration, source enablement and production acceptance are separate decisions. Saved-fixture success does not authorize production writes or source activation.
+
+## Longview and Reno qualification, November 15
+
+Both Texas yards qualify locally and join Texarkana in the durable coverage
+traversal. The existing source remains disabled by default. No inventory, index
+or production flag was written.
+
+| Yard     | Native makes | Literal queries | Processed | Accepted | Rejected | Reject share | Follow-up live requests |
+| -------- | -----------: | --------------: | --------: | -------: | -------: | -----------: | ----------------------: |
+| Longview |           39 |             265 |       888 |      843 |       45 |        5.07% |                     208 |
+| Reno     |           34 |             211 |       551 |      545 |        6 |        1.09% |                     155 |
+
+Saved query prefixes were reused without repeating their census queries.
+Each completed run includes all native makes, all literal public queries,
+fresh native closing tables, and fresh first/last public query bookends.
+Every live response returned HTTP 200 through the production client and gate.
+The 10% rejection guard, VIN/YMM/yard guards and native whole-row closing
+comparison remain in force.
+
+`recencyAnchor` is retained as bounded optional metadata, including its observed
+offset timestamp. It does not override native arrival dates. Reno stock
+STK022321 has conflicting 1965/1966 serials. Its conflicting record hashes are
+retained, and the stock counts once as a rejected donor with no asserted VIN.
+
+The shared comparison for all Pickers yards ignores only `daysInYard`, a
+counter derived from arrival time. Original values and raw response hashes
+remain saved. Separate comparison hashes omit that counter from query
+bookends; every other returned field must still agree. Tests cover daily
+counter changes and failing VIN, model and color changes.
+
+Longview exceeds 1 MiB when its complete evidence is represented as plain JSON.
+The checkpoint codec compresses larger payloads with gzip, retains the 1 MiB
+wire limit, and limits decoded evidence to 4 MiB. Original v1 Texarkana
+checkpoints remain readable. The coverage cursor wraps one yard checkpoint
+at a time and advances Texarkana, Longview, Reno.
+
+| Yard     | Published address / phone                             | Census coordinate                 |
+| -------- | ----------------------------------------------------- | --------------------------------- |
+| Longview | 5910 W Marshall Ave, Longview TX 75604 / 903-459-4470 | 32.512129240164, -94.829516480918 |
+| Reno     | 7090 Lamar Rd, Reno TX 75462 / 888-402-3829           | 33.663280126385, -95.454935610305 |
+
+These Census exact-address coordinates are street-range interpolations, not
+rooftop points. Longview's range is 5904-5910 W Marshall Ave; Reno's is
+7090-7098 Lamar Rd. Longview's REF-before-COLOR grammar and native header typo,
+and Reno's PHOTO column, retain explicit source contracts.
+
+Evidence and admission receipts live under
+`.scratchpad/provider-coverage/nov14-provider-goal/`. The
+`pickers-test-fixtures/{longview,reno}-census.json.gz` fixtures retain all saved
+bodies. `pickers-expansion.test.ts` replays the complete production collector,
+checkpoint roundtrips, closing controls, yard transitions, exact accounting
+and physical-yard inventory destinations without live HTTP.

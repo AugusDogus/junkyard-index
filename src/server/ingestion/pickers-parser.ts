@@ -6,11 +6,9 @@ import {
 } from "./inventory-html";
 import { parseVinplusSearch, type VinplusPair } from "./vinplus-protocol";
 import {
-  PICKERS_APP_URL,
-  PICKERS_LOCATION_ID,
+  PICKERS_DEFAULT_SITE,
   PICKERS_OPERATOR_ID,
-  PICKERS_ORIGIN,
-  PICKERS_YARD,
+  type PickersSite,
 } from "./pickers-yard-metadata";
 
 export const PICKERS_MAX_MAKES = 64;
@@ -83,6 +81,17 @@ export const pickersHash = (value: unknown): string =>
   createHash("sha256").update(pickersStableJson(value)).digest("hex");
 export const pickersBodyHash = (raw: string): string =>
   createHash("sha256").update(raw).digest("hex");
+/** The provider recomputes this counter daily; retain its original evidence. */
+export function pickersSearchComparisonHash(raw: string): string {
+  const source = z
+    .object({ matches: z.array(z.record(z.string(), z.unknown())) })
+    .passthrough()
+    .parse(JSON.parse(raw));
+  return pickersHash({
+    ...source,
+    matches: source.matches.map(({ daysInYard: _days, ...record }) => record),
+  });
+}
 export const pickersPairKey = (pair: VinplusPair): string =>
   JSON.stringify([pair.make, pair.model]);
 
@@ -162,9 +171,16 @@ export const PickersRecordSchema = z
   .object({
     stock: PickersStockSchema,
     year: z.number().int().min(1886).max(2100),
-    yardLocation: z.literal("Pickers Texarkana"),
+    yardLocation: z.enum([
+      "Pickers Texarkana",
+      "Pickers Longview",
+      "Pickers Reno",
+    ]),
     sourceSystem: z.literal("crush"),
-    fields: z.object(apiFields).strict(),
+    identityConflicts: z.array(PickersHashSchema).min(2).optional(),
+    fields: z
+      .object({ ...apiFields, recencyAnchor: PickersValueSchema.optional() })
+      .strict(),
   })
   .strict();
 export type PickersRecord = z.infer<typeof PickersRecordSchema>;
@@ -176,19 +192,47 @@ export const PICKERS_SCOPE = {
   maxStocks: PICKERS_MAX_NATIVE_STOCKS,
 } as const;
 
-export function parsePickersSearch(raw: string, pair: PickersPair) {
-  return parseVinplusSearch(raw, PICKERS_SCOPE, pair).map((record) => {
+export function pickersScope(site: PickersSite = PICKERS_DEFAULT_SITE) {
+  return { ...PICKERS_SCOPE, yardName: site.vendorName };
+}
+
+export function parsePickersSearch(
+  raw: string,
+  pair: PickersPair,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+) {
+  const records = parseVinplusSearch(raw, pickersScope(site), pair, "retain");
+  const groups = new Map<string, typeof records>();
+  for (const record of records) {
+    const group = groups.get(record.stock) ?? [];
+    group.push(record);
+    groups.set(record.stock, group);
+  }
+  return [...groups.values()].map((group) => {
+    const record = group[0];
+    if (!record) throw new Error("Empty Pickers stock group");
+    const identities = new Set(
+      group.map(({ daysInYard: _days, ...row }) => pickersHash(row)),
+    );
     const fields = z.record(z.string(), z.unknown()).parse(record);
     return PickersRecordSchema.parse({
       stock: record.stock,
       year: record.year,
       yardLocation: record.yardLocation,
       sourceSystem: record.sourceSystem,
-      fields: Object.fromEntries(
-        Object.keys(apiFields).map((key) => {
-          return [key, pickersValue(fields[key])];
-        }),
-      ),
+      ...(identities.size > 1
+        ? { identityConflicts: [...identities].sort() }
+        : {}),
+      fields: {
+        ...Object.fromEntries(
+          Object.keys(apiFields).map((key) => {
+            return [key, pickersValue(fields[key])];
+          }),
+        ),
+        ...(Object.hasOwn(record, "recencyAnchor")
+          ? { recencyAnchor: pickersValue(record.recencyAnchor) }
+          : {}),
+      },
     });
   });
 }
@@ -225,38 +269,44 @@ function text(raw: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-function document(raw: string): string {
+function document(raw: string, site: PickersSite): string {
   if (Buffer.byteLength(raw) > 4 * 1024 * 1024 || !/<\/html>\s*$/i.test(raw))
     throw new Error("Pickers native HTML is oversized or incomplete");
   const html = stripInventoryRawText(raw);
   const body = text(html);
   if (
-    !body.includes(PICKERS_YARD.address) ||
-    !body.includes("Texarkana, AR 71854") ||
-    !body.replace(/\D/g, "").includes("8707721880")
+    !body.includes(site.yard.address) ||
+    !body.includes(
+      `${site.yard.city}, ${site.yard.state} ${site.yard.postalCode}`,
+    ) ||
+    !body.replace(/\D/g, "").includes(site.yard.phone.replace(/\D/g, ""))
   )
-    throw new Error("Pickers native Arkansas address or phone changed");
+    throw new Error("Pickers native address or phone changed for " + site.code);
   return html;
 }
-export function parsePickersOwner(raw: string): string {
-  const html = document(raw);
+export function parsePickersOwner(
+  raw: string,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+): string {
+  const html = document(raw, site);
   const body = text(html);
   if (
-    !body.includes(
-      "maintaining an inventory of more than 500 vehicles, rotating constantly.",
-    ) ||
-    !body.includes("Self-Service Auto Parts")
+    !body.includes("Self-Service Auto Parts") ||
+    !body.includes(site.activeStatement)
   )
     throw new Error("Pickers active self-service inventory statement changed");
   return pickersHash({
-    address: PICKERS_YARD.address,
-    phone: PICKERS_YARD.phone,
+    address: site.yard.address,
+    phone: site.yard.phone,
     active: true,
   });
 }
 
-export function parsePickersInventory(raw: string) {
-  const html = document(raw);
+export function parsePickersInventory(
+  raw: string,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+) {
+  const html = document(raw, site);
   const forms = [
     ...html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form\s*>/gi),
   ].filter(
@@ -323,8 +373,7 @@ export function parsePickersInventory(raw: string) {
   const anchors = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)];
   if (
     !anchors.some(
-      (match) =>
-        inventoryHtmlAttribute(match[1] ?? "", "href") === PICKERS_APP_URL,
+      (match) => inventoryHtmlAttribute(match[1] ?? "", "href") === site.appUrl,
     ) ||
     !anchors.some(
       (match) =>
@@ -337,14 +386,14 @@ export function parsePickersInventory(raw: string) {
       const attributes = match[1] ?? "";
       const url = URL.parse(
         inventoryHtmlAttribute(attributes, "href") ?? "",
-        PICKERS_ORIGIN,
+        site.origin,
       );
       return (
         /^(?:next|last)$/i.test(text(match[2] ?? "")) ||
         /(?:^|\s)(?:next|last)(?:\s|$)/i.test(
           inventoryHtmlAttribute(attributes, "rel") ?? "",
         ) ||
-        (url?.origin === PICKERS_ORIGIN &&
+        (url?.origin === site.origin &&
           ((url.pathname === "/Home/Inventory" && Boolean(url.search)) ||
             url.pathname.startsWith("/Home/Inventory/")))
       );
@@ -359,29 +408,36 @@ export function parsePickersInventory(raw: string) {
     tables.length !== [...html.matchAll(/<\/table\b/gi)].length
   )
     throw new Error("Pickers native tables are incomplete or nested");
-  const headers = [
-    "YEAR",
-    "MAKE",
-    "MODEL",
-    "COLOR",
-    "REFERENCE",
-    "ROW",
-    "ARRIVAL DATE",
-    "IMAGE",
-  ];
+  const headers = site.headers;
   const inventory = tables.filter(
     (match) =>
       JSON.stringify(
-        [...(match[1] ?? "").matchAll(/<th\b[^>]*>([\s\S]*?)<\/th\s*>/gi)].map(
-          (cell) => text(cell[1] ?? ""),
-        ),
+        [
+          ...(match[1] ?? "")
+            .replace("<th>REF</>", "<th>REF</th>")
+            .matchAll(/<th\b[^>]*>([\s\S]*?)<\/th\s*>/gi),
+        ].map((cell) => text(cell[1] ?? "")),
       ) === JSON.stringify(headers),
   );
   if (inventory.length !== 1)
     throw new Error(
       "Pickers complete eight-column inventory table is missing or ambiguous",
     );
-  const table = inventory[0]?.[1] ?? "";
+  const originalTable = inventory[0]?.[1] ?? "";
+  let table = originalTable;
+  if (site.code === "pickers-longview") {
+    // Longview publishes one thead, direct donor rows and the literal REF</> typo.
+    // Accept that captured spelling without repairing other malformed row markup.
+    const head = /^\s*<thead\b[^>]*>([\s\S]*?)<\/thead\s*>([\s\S]*)$/i.exec(
+      table,
+    );
+    if (!head || [...table.matchAll(/<\/?thead\b/gi)].length !== 2)
+      throw new Error("Pickers Longview requires one complete leading header");
+    table = ((head[1] ?? "") + (head[2] ?? "")).replace(
+      "<th>REF</>",
+      "<th>REF</th>",
+    );
+  }
   if (/<\/?(?:thead|tbody)\b/i.test(table))
     throw new Error("Pickers direct-row inventory grammar changed");
   const tableRows = [...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr\s*>/gi)];
@@ -420,12 +476,12 @@ export function parsePickersInventory(raw: string) {
         inventoryHtmlAttribute(attributes, "href") ??
         inventoryHtmlAttribute(attributes, "src");
       if (!value) return [];
-      const url = URL.parse(value, PICKERS_ORIGIN + "/Home/Inventory");
+      const url = URL.parse(value, site.origin + "/Home/Inventory");
       if (!url) return [];
-      const stock = /^\/PickersInventoryPhotos\/(STK\d{6})\.jpg$/.exec(
-        url.pathname,
-      )?.[1];
-      return url.origin === PICKERS_ORIGIN &&
+      const stock = new RegExp(
+        "^/" + site.photoDirectory + "/(STK\\d{6})\\.jpg$",
+      ).exec(url.pathname)?.[1];
+      return url.origin === site.origin &&
         !url.username &&
         !url.password &&
         stock
@@ -443,8 +499,8 @@ export function parsePickersInventory(raw: string) {
       year: /^\d{4}$/.test(values[0] ?? "") ? Number(values[0]) : null,
       make: values[1] ?? "",
       model: values[2] ?? "",
-      color: pickersValue(values[3]),
-      reference: pickersValue(values[4]),
+      color: pickersValue(values[site.code === "pickers-longview" ? 4 : 3]),
+      reference: pickersValue(values[site.code === "pickers-longview" ? 3 : 4]),
       row: pickersValue(values[5]),
       date: pickersValue(values[6]),
       image: pickersValue(references[0]?.url),
@@ -473,7 +529,10 @@ export function pickersPairs(rows: readonly PickersNativeRow[]): PickersPair[] {
 }
 
 /** Only the public app's published canonical yard-info bootstrap is required. */
-export function parsePickersApp(raw: string): string {
+export function parsePickersApp(
+  raw: string,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+): string {
   if (
     !/<\/html>\s*$/i.test(raw) ||
     !raw.includes(
@@ -485,19 +544,22 @@ export function parsePickersApp(raw: string): string {
   )
     throw new Error("Pickers public app canonical yard-info contract changed");
   return pickersHash({
-    app: PICKERS_APP_URL,
+    app: site.appUrl,
     route: "/api/yard-info/",
     slugPolicy: "hyphen-to-underscore-v1",
   });
 }
 
-export function parsePickersConfig(raw: string): string {
+export function parsePickersConfig(
+  raw: string,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+): string {
   const config = z
     .object({
       success: z.literal(true),
       yard_info: z.object({
         yard_id: z.literal(PICKERS_OPERATOR_ID),
-        resolved_location_id: z.literal(PICKERS_LOCATION_ID),
+        resolved_location_id: z.literal(site.locationId),
         multi_location_enabled: z.literal(true),
         per_location_mode_enabled: z.literal(true),
         status: z.string().optional(),
@@ -522,24 +584,25 @@ export function parsePickersConfig(raw: string): string {
   if (info.status && /^(?:archived|inactive|disabled)$/i.test(info.status))
     throw new Error("Pickers public inventory is explicitly disabled");
   const locations = info.locations.filter(
-    (location) => location.location_id === PICKERS_LOCATION_ID,
+    (location) => location.location_id === site.locationId,
   );
   const location = locations[0];
   if (
     locations.length !== 1 ||
     !location ||
-    location.location_name !== "Pickers Texarkana" ||
-    location.city.trim() !== "Texarkana" ||
+    location.location_name !== site.vendorName ||
+    location.city.trim() !== site.yard.city ||
     location.state !== "TX"
   )
     throw new Error(
-      "Pickers resolved location or explicit Arkansas/vendor-Texas bridge changed",
+      "Pickers resolved location or native/vendor geography bridge changed for " +
+        site.code,
     );
   return pickersHash({
     yard: info.yard_id,
     location,
     features: info.features,
-    nativeState: "AR",
+    nativeState: site.yard.state,
     vendorState: "TX",
   });
 }

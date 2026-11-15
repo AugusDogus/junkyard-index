@@ -79,6 +79,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   clearsalvage: "Clear Salvage",
   aplus: "A Plus Auto",
   central: "Central Auto Liquidators",
+  northwest: "Northwest Auto Parts",
   coutu: "Truck Country",
   kodak: "Kodak Auto",
   six03: "603 Auto Salvage",

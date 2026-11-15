@@ -6,22 +6,20 @@ import {
 } from "./provider-http-client";
 import { vinplusPublicQuery } from "./vinplus-public-enrichment";
 import {
-  PICKERS_SCOPE,
+  pickersScope,
   parsePickersApp,
   parsePickersConfig,
   parsePickersInventory,
   parsePickersOwner,
   parsePickersSearch,
   pickersBodyHash,
+  pickersSearchComparisonHash,
   type PickersPair,
 } from "./pickers-parser";
 import {
-  PICKERS_APP_URL,
-  PICKERS_CONFIG_URL,
-  PICKERS_INVENTORY_URL,
-  PICKERS_LOCATION_ID,
-  PICKERS_ORIGIN,
+  PICKERS_DEFAULT_SITE,
   PICKERS_SEARCH_URL,
+  type PickersSite,
 } from "./pickers-yard-metadata";
 
 export class PickersProviderError extends Data.TaggedError(
@@ -54,6 +52,7 @@ function read<A>(
   gate: ProviderRequestGate,
   body?: string,
   contentType = "application/json",
+  comparisonHash?: (raw: string) => string,
 ) {
   return Effect.gen(function* () {
     const signal = AbortSignal.timeout(20_000);
@@ -91,6 +90,7 @@ function read<A>(
     return yield* pickersValidated("response validation at " + url, () => ({
       value: parse(raw),
       bodyHash: pickersBodyHash(raw),
+      ...(comparisonHash ? { comparisonHash: comparisonHash(raw) } : {}),
       bytes: Buffer.byteLength(raw),
     }));
   }).pipe(
@@ -102,20 +102,39 @@ function read<A>(
     gate,
   );
 }
-export const fetchPickersOwner = (gate: ProviderRequestGate) =>
-  read(PICKERS_ORIGIN + "/", "text/html", parsePickersOwner, gate);
-export const fetchPickersApp = (gate: ProviderRequestGate) =>
-  read(PICKERS_APP_URL, "text/html", parsePickersApp, gate);
-export const fetchPickersConfig = (gate: ProviderRequestGate) =>
-  read(PICKERS_CONFIG_URL, "application/json", parsePickersConfig, gate);
+export const fetchPickersOwner = (
+  gate: ProviderRequestGate,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+) =>
+  read(
+    site.origin + "/",
+    "text/html",
+    (raw) => parsePickersOwner(raw, site),
+    gate,
+  );
+export const fetchPickersApp = (
+  gate: ProviderRequestGate,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+) => read(site.appUrl, "text/html", (raw) => parsePickersApp(raw, site), gate);
+export const fetchPickersConfig = (
+  gate: ProviderRequestGate,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
+) =>
+  read(
+    site.configUrl,
+    "application/json",
+    (raw) => parsePickersConfig(raw, site),
+    gate,
+  );
 export const fetchPickersInventory = (
   gate: ProviderRequestGate,
   make?: string,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
 ) =>
   read(
-    PICKERS_INVENTORY_URL,
+    site.origin + "/Home/Inventory",
     "text/html",
-    parsePickersInventory,
+    (raw) => parsePickersInventory(raw, site),
     gate,
     make === undefined
       ? undefined
@@ -125,18 +144,21 @@ export const fetchPickersInventory = (
 export function fetchPickersSearch(
   pair: PickersPair,
   gate: ProviderRequestGate,
+  site: PickersSite = PICKERS_DEFAULT_SITE,
 ) {
-  return vinplusPublicQuery(PICKERS_SCOPE, pair, {
+  return vinplusPublicQuery(pickersScope(site), pair, {
     kind: "per-location",
-    id: PICKERS_LOCATION_ID,
+    id: site.locationId,
   }).pipe(
     Effect.flatMap((payload) =>
       read(
         PICKERS_SEARCH_URL,
         "application/json",
-        (raw) => parsePickersSearch(raw, pair),
+        (raw) => parsePickersSearch(raw, pair, site),
         gate,
         JSON.stringify(payload),
+        "application/json",
+        pickersSearchComparisonHash,
       ),
     ),
     Effect.mapError(

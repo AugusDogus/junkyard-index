@@ -570,8 +570,7 @@ test("wrong year and wrong site fail before canonical callbacks", async () => {
   }
 });
 
-test("optional growth exceeding the output cursor cap preserves the last checkpoint", async () => {
-  const data = smallFixture(500);
+test("larger Pickers checkpoints compress without losing optional evidence or exceeding the wire cap", async () => {
   transport(
     (raw, request) =>
       request.url === PICKERS_SEARCH_URL
@@ -580,27 +579,20 @@ test("optional growth exceeding the output cursor cap preserves the last checkpo
             '"engine":' + JSON.stringify("x".repeat(2048)),
           )
         : raw,
-    data,
+    smallFixture(500),
   );
-  const opening = await run(16, (chunk) => chunk.cursor.phase === "queries");
-  let callbacks = 0;
-  await expect(
-    Effect.runPromise(
-      streamPickersInventoryWithRequestGate(
-        {
-          startCursor: opening.cursor,
-          maxPages: 16,
-          onBatch: () =>
-            Effect.sync(() => {
-              callbacks++;
-            }),
-        },
-        identityGate,
-      ),
-    ),
-  ).rejects.toThrow("exceeds 1 MiB");
-  expect(callbacks).toBe(0);
-  expect(opening.cursor.phase).toBe("queries");
+  const result = await run(16);
+  expect(result.cursor.phase).toBe("complete");
+  const wire = PickersCursor.serialize(result.cursor);
+  expect(Buffer.byteLength(wire)).toBeLessThanOrEqual(PICKERS_MAX_CURSOR_BYTES);
+  expect(wire).toContain('"encoding":"gzip-base64"');
+  expect(PickersCursor.parse(wire)).toEqual(result.cursor);
+  if (result.cursor.phase !== "complete")
+    throw new Error("Missing complete evidence");
+  expect(result.cursor.state.entries[0]?.record.fields.engine).toEqual([
+    "literal",
+    "x".repeat(2048),
+  ]);
 });
 
 test("tiny data budgets count resume guards and fail at the fixed HTTP ceiling", async () => {
@@ -806,3 +798,42 @@ test("callbacks can consume their inputs without changing terminal accounting or
   expect(PICKERS_YARD.lat).toBe(33.42952);
   expect(() => PickersCursor.serialize(result.cursor)).not.toThrow();
 });
+
+test("repeated Pickers rows may change only the derived daysInYard counter", async () => {
+  let calls = 0;
+  transport((raw, request) => {
+    if (request.url !== PICKERS_SEARCH_URL) return raw;
+    calls++;
+    return raw.replace(
+      /"sourceSystem":"crush"/g,
+      '"sourceSystem":"crush","daysInYard":' + calls,
+    );
+  }, smallFixture());
+  const result = await run(16);
+  expect(result.chunks.at(-1)?.status).toBe("complete");
+  if (result.cursor.phase !== "complete")
+    throw new Error("Missing terminal evidence");
+  expect(result.cursor.state.entries[0]?.record.fields.daysInYard).toEqual([
+    "literal",
+    1,
+  ]);
+});
+
+for (const [before, after] of [
+  ['"color":"BLACK"', '"color":"BLUE"'],
+  ['"model":"FOCUS"', '"model":"CHANGED"'],
+  ['"vin":"1FADP3E23EL100000"', '"vin":"1FADP3E23EL100001"'],
+] as const) {
+  test(`repeated Pickers rows still reject a change to ${before}`, async () => {
+    let calls = 0;
+    transport((raw, request) => {
+      if (request.url !== PICKERS_SEARCH_URL || ++calls === 1) return raw;
+      const changed = raw.replace(before, after);
+      expect(changed).not.toBe(raw);
+      return changed;
+    }, smallFixture());
+    await expect(run(16)).rejects.toThrow(
+      "Repeated stock changed a whole record",
+    );
+  });
+}

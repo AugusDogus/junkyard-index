@@ -166,7 +166,7 @@ export function streamFenixInventoryWithRequestGate<E, R>(
           });
           const verified: FenixYardCode[] = [...cursor.verified, yard];
           cursor =
-            cursor.yardIndex === 2
+            cursor.yardIndex === FENIX_YARD_CODES.length - 1
               ? {
                   source: "fenix",
                   phase: "complete",

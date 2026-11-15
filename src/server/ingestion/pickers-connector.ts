@@ -29,7 +29,11 @@ import {
   pickersPairs,
   type PickersNativeRow,
 } from "./pickers-parser";
-import { PICKERS_YARD, type PickersYard } from "./pickers-yard-metadata";
+import {
+  PICKERS_SITES,
+  type PickersSite,
+  type PickersYard,
+} from "./pickers-yard-metadata";
 import type { PickersCanonicalVehicle } from "./pickers-transform";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -37,6 +41,7 @@ import { SourceValidationPolicy } from "./source-validation";
 
 interface PickersOptions<E, R> {
   startCursor?: PickersCursor;
+  siteCode?: PickersSite["code"];
   maxPages?: number;
   onBatch: (vehicles: PickersCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: PickersYard[]) => Effect.Effect<void, E, R>;
@@ -106,6 +111,21 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         PickersCursor.serialize(options.startCursor ?? PickersCursor.initial),
       ),
     );
+    const site =
+      PICKERS_SITES[
+        options.siteCode ??
+          (initial.phase === "start"
+            ? "pickers-texarkana"
+            : (initial.state.siteCode ?? "pickers-texarkana"))
+      ];
+    if (
+      initial.phase !== "start" &&
+      (initial.state.siteCode ?? "pickers-texarkana") !== site.code
+    )
+      return yield* new PickersProviderError({
+        operation: "checkpoint yard",
+        cause: "Checkpoint belongs to a different physical yard",
+      });
     const maxPages = options.maxPages ?? 16;
     if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 32)
       return yield* new PickersProviderError({
@@ -134,11 +154,12 @@ export function streamPickersInventoryWithRequestGate<E, R>(
     let phase: "native-opening" | "queries" | "native-closing" | "bookends";
     let next: number;
     if (initial.phase === "start") {
-      const owner = yield* fetchPickersOwner(gate);
-      const app = yield* fetchPickersApp(gate);
-      const inventory = yield* fetchPickersInventory(gate);
-      const config = yield* fetchPickersConfig(gate);
+      const owner = yield* fetchPickersOwner(gate, site);
+      const app = yield* fetchPickersApp(gate, site);
+      const inventory = yield* fetchPickersInventory(gate, undefined, site);
+      const config = yield* fetchPickersConfig(gate, site);
       state = {
+        ...(site.code === "pickers-texarkana" ? {} : { siteCode: site.code }),
         scopeHash: "",
         ownerHash: owner.value,
         appHash: app.value,
@@ -156,6 +177,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         queryOverlapOccurrences: 0,
       };
       state.scopeHash = pickersScopeHash({
+        siteCode: state.siteCode,
         ownerHash: state.ownerHash,
         appHash: state.appHash,
         configHash: state.configHash,
@@ -179,7 +201,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
       phase = initial.phase;
       next = initial.next;
       yield* requireCapacity(state.requests);
-      const inventory = yield* fetchPickersInventory(gate);
+      const inventory = yield* fetchPickersInventory(gate, undefined, site);
       yield* pickersValidated("resumed native form", () => {
         if (pickersHash(inventory.value.makes) !== pickersHash(state.makes))
           throw new Error("Native make directory changed during crawl");
@@ -191,7 +213,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         );
       });
       yield* requireCapacity(state.requests);
-      const config = yield* fetchPickersConfig(gate);
+      const config = yield* fetchPickersConfig(gate, site);
       yield* pickersValidated("resumed public location", () => {
         if (config.value !== state.configHash)
           throw new Error(
@@ -227,7 +249,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
             operation: "native directory",
             cause: "Missing exact native make",
           });
-        const response = yield* fetchPickersInventory(gate, make);
+        const response = yield* fetchPickersInventory(gate, make, site);
         yield* pickersValidated("whole native stock control", () => {
           if (pickersHash(response.value.makes) !== pickersHash(state.makes))
             throw new Error("Native make directory changed during traversal");
@@ -273,7 +295,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
             operation: "public directory",
             cause: "Missing literal native make/model",
           });
-        const response = yield* fetchPickersSearch(pair, gate);
+        const response = yield* fetchPickersSearch(pair, gate, site);
         yield* pickersValidated(
           "whole public records and stock binding",
           () => {
@@ -290,8 +312,20 @@ export function streamPickersInventoryWithRequestGate<E, R>(
                 record,
                 natives.get(record.stock) ?? null,
                 prior?.firstQuery ?? queryIndex,
+                site,
               );
-              if (prior && pickersHash(prior) !== pickersHash(entry))
+              const comparable = (value: typeof entry) => ({
+                ...value,
+                record: {
+                  ...value.record,
+                  fields: { ...value.record.fields, daysInYard: undefined },
+                },
+              });
+              if (
+                prior &&
+                pickersHash(comparable(prior)) !==
+                  pickersHash(comparable(entry))
+              )
                 throw new Error(
                   "Repeated stock changed a whole record: " + record.stock,
                 );
@@ -302,7 +336,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
                 state.entries.push(entry);
                 newStocks++;
               }
-              return { stock: record.stock, hash: pickersHash(entry) };
+              return { stock: record.stock, hash: pickersHash(prior ?? entry) };
             });
             const returned = new Set(members.map((member) => member.stock));
             const own = state.native
@@ -318,7 +352,8 @@ export function streamPickersInventoryWithRequestGate<E, R>(
               );
               if (
                 !opening ||
-                opening.bodyHash !== response.bodyHash ||
+                (opening.comparisonHash ?? opening.bodyHash) !==
+                  (response.comparisonHash ?? response.bodyHash) ||
                 pickersHash(opening.members) !== pickersHash(members)
               )
                 throw new Error(
@@ -333,6 +368,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
               index: next,
               payloadHash: pickersHash(pickersPayload(kind, next, state)),
               bodyHash: response.bodyHash,
+              comparisonHash: response.comparisonHash,
               bytes: response.bytes,
               members,
               own,
@@ -364,7 +400,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         next = 0;
       } else {
         yield* requireCapacity(state.requests);
-        const owner = yield* fetchPickersOwner(gate);
+        const owner = yield* fetchPickersOwner(gate, site);
         yield* pickersValidated("closing native ownership", () => {
           if (owner.value !== state.ownerHash)
             throw new Error(
@@ -373,7 +409,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
           addGuard(state, "owner", owner, owner.value);
         });
         yield* requireCapacity(state.requests);
-        const app = yield* fetchPickersApp(gate);
+        const app = yield* fetchPickersApp(gate, site);
         yield* pickersValidated("closing app relationship", () => {
           if (app.value !== state.appHash)
             throw new Error("Public app yard-info contract changed");
@@ -406,7 +442,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
           duplicateVehicles: 0,
         };
         yield* options.onBatch(structuredClone(terminal.vehicles));
-        if (options.onYards) yield* options.onYards([{ ...PICKERS_YARD }]);
+        if (options.onYards) yield* options.onYards([{ ...site.yard }]);
         return {
           ...summary,
           status: "complete" as const,
@@ -434,7 +470,9 @@ export function streamPickersInventoryWithRequestGate<E, R>(
 }
 export function streamPickersInventory<E, R>(options: PickersOptions<E, R>) {
   // Sequential source controls, including body reads, finish before this pause.
-  const gate: ProviderRequestGate = (request) =>
-    request.pipe(Effect.tap(() => Effect.sleep("1600 millis")));
+  const gate = pickersRequestGate;
   return streamPickersInventoryWithRequestGate(options, gate);
 }
+
+export const pickersRequestGate: ProviderRequestGate = (request) =>
+  request.pipe(Effect.ensuring(Effect.sleep("1600 millis")));

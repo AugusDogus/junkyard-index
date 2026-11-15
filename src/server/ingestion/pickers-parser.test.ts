@@ -198,3 +198,25 @@ test("the complete native row binds secondary published photo URLs", () => {
   expect(closing?.image).toEqual(opening?.image);
   expect(closing?.provenanceHash).not.toBe(opening?.provenanceHash);
 });
+
+test("Pickers retains observed recencyAnchor metadata without changing native date authority", () => {
+  const record = {
+    ...pickersTestRecord,
+    recencyAnchor: "2026-11-14T17:00:00-06:00",
+  };
+  const api = parsePickersSearch(pickersTestSearch([record]), {
+    make: "FORD",
+    model: "FOCUS",
+  })[0];
+  expect(api?.fields.recencyAnchor).toEqual(["literal", record.recencyAnchor]);
+  const native = PickersNativeRowSchema.parse({
+    ...parsePickersInventory(pickersTestInventory()).rows[0],
+    makeIndex: 0,
+    ordinal: 0,
+  });
+  if (!api) throw new Error("Missing enrichment");
+  expect(transformPickersRecord(native, api)).toMatchObject({
+    status: "available",
+    vehicle: { availableDate: "2026-11-10" },
+  });
+});

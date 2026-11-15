@@ -61,7 +61,9 @@ export const FenixDonor = {
         make,
         model,
         color: null,
-        stockNumber: /^[1-9]\d{8}$/.test(record.stock) ? record.stock : null,
+        stockNumber: /^(?:[1-9]\d{8}|STK\d{6})$/.test(record.stock)
+          ? record.stock
+          : null,
         position:
           /^\d{1,3}$/.test(record.row.trim()) && Number(record.row) > 0
             ? record.row.trim()

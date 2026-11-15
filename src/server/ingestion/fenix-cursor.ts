@@ -2,7 +2,11 @@ import { z } from "zod";
 import { FenixDonor } from "./fenix-donor";
 import { validateFenixYardEvidence } from "./fenix-evidence";
 import { fenixPhotoUrl } from "./fenix-photo";
-import { FenixRecordSchema, fenixHash } from "./fenix-parser";
+import {
+  FenixDetailIdSchema,
+  FenixRecordSchema,
+  fenixHash,
+} from "./fenix-parser";
 import { FENIX_YARD_CODES, FENIX_YARDS } from "./fenix-yard-metadata";
 
 const yard = z.enum(FENIX_YARD_CODES);
@@ -14,10 +18,7 @@ const page = z
     order,
     page: z.number().int().min(1).max(999),
     lastPage: z.number().int().min(1).max(999),
-    ids: z
-      .array(z.string().regex(/^\d{1,20}$/))
-      .min(1)
-      .max(50),
+    ids: z.array(FenixDetailIdSchema).min(1).max(50),
     hash: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
@@ -25,7 +26,7 @@ const evidence = {
   source: z.literal("fenix"),
   entries: z.array(entry).max(30_000),
   pages: z.array(page).max(6000),
-  verified: z.array(yard).max(3),
+  verified: z.array(yard).max(FENIX_YARD_CODES.length),
   checks: z
     .array(
       z
@@ -37,7 +38,7 @@ const evidence = {
         })
         .strict(),
     )
-    .max(12),
+    .max(4 * FENIX_YARD_CODES.length),
 };
 export type FenixEntry = z.infer<typeof entry>;
 export type FenixPageEvidence = z.infer<typeof page>;
@@ -51,7 +52,11 @@ export const FenixCursorSchema = z
       .object({
         ...evidence,
         phase: z.literal("inventory"),
-        yardIndex: z.number().int().min(0).max(2),
+        yardIndex: z
+          .number()
+          .int()
+          .min(0)
+          .max(FENIX_YARD_CODES.length - 1),
         order,
         page: z.number().int().min(1).max(999),
       })
@@ -60,7 +65,11 @@ export const FenixCursorSchema = z
       .object({
         ...evidence,
         phase: z.literal("verify"),
-        yardIndex: z.number().int().min(0).max(2),
+        yardIndex: z
+          .number()
+          .int()
+          .min(0)
+          .max(FENIX_YARD_CODES.length - 1),
         controlIndex: z.number().int().min(0).max(3),
       })
       .strict(),
@@ -77,7 +86,8 @@ export const FenixCursorSchema = z
       return vin ? [vin] : [];
     });
     const referenced = new Set(cursor.pages.flatMap((value) => value.ids));
-    const completeYards = cursor.phase === "complete" ? 3 : cursor.yardIndex;
+    const completeYards =
+      cursor.phase === "complete" ? FENIX_YARD_CODES.length : cursor.yardIndex;
     let valid =
       owners.size === cursor.entries.length &&
       new Set(vins).size === vins.length &&
@@ -87,8 +97,10 @@ export const FenixCursorSchema = z
         JSON.stringify(FENIX_YARD_CODES.slice(0, completeYards));
     valid &&= cursor.entries.every(
       (value) =>
-        value.record.location === `${FENIX_YARDS[value.yard].city}, NY` &&
-        (!/^[1-9]\d{8}$/.test(value.record.stock) ||
+        value.record.location ===
+          `${FENIX_YARDS[value.yard].city}, ${FENIX_YARDS[value.yard].state}` &&
+        ((!/^[1-9]\d{8}$/.test(value.record.stock) &&
+          !value.record.id.startsWith("STK")) ||
           value.record.stock === value.record.id) &&
         (value.record.photoUrl === null ||
           fenixPhotoUrl(value.record.photoUrl, value.record.id) ===

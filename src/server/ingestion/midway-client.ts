@@ -7,6 +7,8 @@ import {
 import {
   MIDWAY_ORIGIN,
   midwayInventoryUrl,
+  midwayMakeInventoryUrl,
+  type MidwayInventoryCode,
   type MidwayYardCode,
 } from "./midway-yard-metadata";
 
@@ -71,3 +73,8 @@ export const fetchMidwayCatalog = (
   code: MidwayYardCode,
   gate: ProviderRequestGate,
 ) => page(midwayInventoryUrl(code), gate);
+export const fetchMidwayMakeCatalog = (
+  code: MidwayInventoryCode,
+  make: string,
+  gate: ProviderRequestGate,
+) => page(midwayMakeInventoryUrl(code, make), gate);

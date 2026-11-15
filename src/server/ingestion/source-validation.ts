@@ -93,6 +93,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   aplus: 1_000,
   // Complete finite native model census: 5,957 unique donors.
   central: 5_000,
+  northwest: 5_500,
   // Complete finite native vehicle-tab census: 1,254 unique donors.
   coutu: 1_000,
   // Complete finite native roster: 38 unique donors.

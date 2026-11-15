@@ -3,7 +3,11 @@ import {
   inventoryTableSections,
   stripInventoryRawText,
 } from "./inventory-html";
-import { MIDWAY_ORIGIN, type MidwayYardCode } from "./midway-yard-metadata";
+import {
+  MIDWAY_ORIGIN,
+  midwayMakeInventoryUrl,
+  type MidwayInventoryCode,
+} from "./midway-yard-metadata";
 
 export interface MidwayRecord {
   year: string;
@@ -55,7 +59,12 @@ function classContains(tag: string, name: string) {
   );
 }
 
-function verifyScope(clean: string, code: MidwayYardCode) {
+function verifyScope(
+  clean: string,
+  code: MidwayInventoryCode,
+  make?: string,
+  empty = false,
+) {
   const selects = [
     ...clean.matchAll(/(<select\b[^>]*>)([\s\S]*?)<\/select>/gi),
   ].filter((match) => classContains(match[1] ?? "", "upullsimpleLocation"));
@@ -71,9 +80,14 @@ function verifyScope(clean: string, code: MidwayYardCode) {
     selected.length !== 1 ||
     inventoryHtmlAttribute(selected[0]?.[1] ?? "", "value") !== code ||
     text(selected[0]?.[2] ?? "") !==
-      (code === "MO38" ? "Muncie U-Pull" : "Liberty U-Pull")
+      (code === "MO38"
+        ? "Muncie U-Pull"
+        : code === "MO09"
+          ? "Liberty U-Pull"
+          : "Tulsa U-Pull")
   )
     throw new Error("Midway ignored or changed the selected physical yard");
+  if (empty) return;
   const forms = [
     ...clean.matchAll(/(<form\b[^>]*>)([\s\S]*?)<\/form>/gi),
   ].filter((match) => classContains(match[1] ?? "", "iis-upull-search-form"));
@@ -81,7 +95,9 @@ function verifyScope(clean: string, code: MidwayYardCode) {
   if (
     forms.length !== 1 ||
     inventoryHtmlAttribute(form?.[1] ?? "", "action") !==
-      "/inventory/ANY/ANY/" ||
+      (make
+        ? new URL(midwayMakeInventoryUrl(code, make)).pathname
+        : "/inventory/ANY/ANY/") ||
     inventoryHtmlAttribute(form?.[1] ?? "", "method") !== "get"
   )
     throw new Error("Midway unfiltered inventory form changed");
@@ -118,11 +134,44 @@ function verifyScope(clean: string, code: MidwayYardCode) {
 
 export function parseMidwayCatalog(
   html: string,
-  code: MidwayYardCode,
+  code: MidwayInventoryCode,
+  make?: string,
+  cappedWitness = false,
 ): MidwayRecord[] {
   const clean = stripInventoryRawText(html);
   if (html.length > 10_000_000 || !/<\/html>\s*$/i.test(clean))
     throw new Error("Midway inventory is oversized or truncated");
+  if (
+    make &&
+    clean.includes("No Results Found. Try Browsing Our Parts Or Search Again")
+  ) {
+    verifyScope(clean, code, make, true);
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+      .map((match) => match[1] ?? "")
+      .join("\n");
+    const makeValues = [
+      ...scripts.matchAll(/\bvar\s+setMake\s*=\s*"([^"]+)"/g),
+    ].map((match) => match[1]);
+    const modelValues = [
+      ...scripts.matchAll(/\bvar\s+setModel\s*=\s*"([^"]+)"/g),
+    ].map((match) => match[1]);
+    const yards = [...scripts.matchAll(/\bvar\s+urgID\s*=\s*"([^"]+)"/g)].map(
+      (match) => match[1],
+    );
+    if (
+      makeValues.length !== 1 ||
+      makeValues[0] !== make.replace(" ", "_").replace("/", ".") ||
+      modelValues.length !== 1 ||
+      modelValues[0] !== "ANY" ||
+      !yards.length ||
+      yards.some((yard) => yard !== code) ||
+      /IISUpullTable/.test(clean)
+    )
+      throw new Error(
+        "Midway empty response does not prove its selected make and yard",
+      );
+    return [];
+  }
   if (
     !clean
       .replace(/<[^>]*>/g, " ")
@@ -133,7 +182,7 @@ export function parseMidwayCatalog(
       )
   )
     throw new Error("Midway active donor inventory statement changed");
-  verifyScope(clean, code);
+  verifyScope(clean, code, make);
   for (const [tag] of clean.matchAll(/<a\b[^>]*>/gi)) {
     const href = inventoryHtmlAttribute(tag, "href");
     const url = href === null ? null : URL.parse(text(href), MIDWAY_ORIGIN);
@@ -216,18 +265,18 @@ export function parseMidwayCatalog(
     throw new Error("Midway inventory headings changed");
   const rows = [...body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
   if (
-    !rows.length ||
+    (!rows.length && make === undefined) ||
     rows.length > 10_000 ||
     body.replace(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi, "").trim()
   )
     throw new Error("Midway inventory rows are empty or incomplete");
   // The native broad view can silently stop at 500 rows. A published search
   // recovered older donors beyond a stable 500-row Tulsa capture.
-  if (rows.length >= 500)
+  if (rows.length >= 500 && !cappedWitness)
     throw new Error(
       "Midway inventory reached the observed 500-row result boundary; completeness cannot be verified. Previously published inventory is preserved. Validate complete native traversal before retrying.",
     );
-  return rows.map((match) => {
+  const records = rows.map((match) => {
     const row = match[1] ?? "";
     const cells = [...row.matchAll(/<(th|td)\b[^>]*>([\s\S]*?)<\/\1>/gi)];
     if (
@@ -260,4 +309,38 @@ export function parseMidwayCatalog(
       stock: optionalValue(7),
     };
   });
+  if (make && records.some((record) => record.make !== make))
+    throw new Error("Midway ignored its selected make control");
+  return records;
+}
+
+/** NISSAN occurs twice in the native menu; query each distinct value once. */
+export function parseMidwayMakeDirectory(
+  html: string,
+  code: MidwayInventoryCode,
+): string[] {
+  const clean = stripInventoryRawText(html);
+  if (!/<\/html>\s*$/i.test(clean))
+    throw new Error("Midway make directory is truncated");
+  verifyScope(clean, code);
+  const menus = [
+    ...clean.matchAll(/(<select\b[^>]*>)([\s\S]*?)<\/select>/gi),
+  ].filter((match) => classContains(match[1] ?? "", "upullsimpleMake"));
+  if (menus.length !== 1)
+    throw new Error("Midway make directory is missing or ambiguous");
+  const values = [
+    ...(menus[0]?.[2] ?? "").matchAll(/<option\b([^>]*)>[\s\S]*?<\/option>/gi),
+  ]
+    .map((match) => inventoryHtmlAttribute(match[1] ?? "", "value"))
+    .filter((value): value is string => value !== null);
+  if (!values.includes("ANY"))
+    throw new Error("Midway make directory lost its unfiltered choice");
+  const makes = [...new Set(values.filter((value) => value !== "ANY"))];
+  if (
+    !makes.length ||
+    makes.length > 100 ||
+    makes.some((make) => !/^[A-Z0-9 /-]{1,50}$/.test(make))
+  )
+    throw new Error("Midway make directory has unsupported controls");
+  return makes;
 }

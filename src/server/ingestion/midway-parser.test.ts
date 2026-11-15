@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
-import { parseMidwayCatalog } from "./midway-parser";
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
+import { parseMidwayCatalog, parseMidwayMakeDirectory } from "./midway-parser";
 import { transformMidwayRecord } from "./midway-transform";
 import {
   midwayTestPage,
@@ -102,3 +104,62 @@ test.each(["&mdash;", "&hellip;", "&minus;"])(
     });
   },
 );
+
+test("saved Tulsa response preserves all published make controls and remains outside admitted scope", () => {
+  const html = gunzipSync(
+    readFileSync(
+      new URL("./midway-test-fixtures/tulsa-opening.html.gz", import.meta.url),
+    ),
+  ).toString("utf8");
+  const directory =
+    /<select\b[^>]*class="[^"]*upullsimpleMake[^"]*"[^>]*>([\s\S]*?)<\/select>/i.exec(
+      html,
+    )?.[1];
+  if (!directory) throw new Error("Missing captured make directory");
+  const values = [...directory.matchAll(/<option\b[^>]*value="([^"]*)"/gi)].map(
+    (match) => match[1],
+  );
+  expect(values).toHaveLength(61);
+  expect(new Set(values).size).toBe(60);
+  expect(values.filter((value) => value === "NISSAN")).toHaveLength(2);
+  expect([...new Set(values)].filter((value) => value !== "ANY")).toHaveLength(
+    59,
+  );
+  const body = /<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i.exec(html)?.[1];
+  if (!body) throw new Error("Missing captured donor body");
+  expect([...body.matchAll(/<tr\b/gi)]).toHaveLength(500);
+  expect(html).toContain("/cdn-cgi/challenge-platform/scripts/jsd/main.js");
+  expect(() => parseMidwayCatalog(html, "MO38")).toThrow(
+    "selected physical yard",
+  );
+  expect(() => parseMidwayCatalog(html, "MO09")).toThrow(
+    "selected physical yard",
+  );
+});
+
+test("the captured Tulsa menu enumerates each of its 59 distinct make controls once", () => {
+  const html = gunzipSync(
+    readFileSync(
+      new URL("./midway-test-fixtures/tulsa-opening.html.gz", import.meta.url),
+    ),
+  ).toString("utf8");
+  const makes = parseMidwayMakeDirectory(html, "OO95");
+  expect(makes).toHaveLength(59);
+  expect(makes.filter((make) => make === "NISSAN")).toEqual(["NISSAN"]);
+  expect(makes).not.toContain("ANY");
+  expect(() => parseMidwayCatalog(html, "OO95")).toThrow(
+    "500-row result boundary",
+  );
+  expect(parseMidwayCatalog(html, "OO95", undefined, true)).toHaveLength(500);
+});
+
+test("make partitions enforce the published route, make identity and 500-row cap", () => {
+  const html = midwayTestPage().replace(
+    "/inventory/ANY/ANY/",
+    "/inventory/CHRYSLER/ANY/",
+  );
+  expect(parseMidwayCatalog(html, "MO38", "CHRYSLER")).toEqual([
+    midwayTestRecord,
+  ]);
+  expect(() => parseMidwayCatalog(html, "MO38", "FORD")).toThrow();
+});

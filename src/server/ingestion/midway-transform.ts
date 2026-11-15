@@ -74,7 +74,8 @@ export function transformMidwayRecord(
       locationCode: code,
       locationName: yard.name,
       locationCity: yard.city,
-      state: code === "MO38" ? "Kansas" : "Missouri",
+      state:
+        code === "MO38" ? "Kansas" : code === "MO09" ? "Missouri" : "Oklahoma",
       stateAbbr: yard.state,
       lat: yard.lat,
       lng: yard.lng,
