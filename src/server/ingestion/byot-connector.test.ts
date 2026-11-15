@@ -66,7 +66,9 @@ describe("BYOT bounded durable daily slice", () => {
     expect(emitted.length).toBeGreaterThan(5000);
     for (const yard of cursor.cache)
       expect(yard).toHaveLength(BYOT_DAILY_QUERIES);
-  }, 15000);
+    // Replays a full day for five yards (about 120 checkpoint round trips),
+    // which takes about 18 seconds on CI runners.
+  }, 60_000);
   test("seven daily published cursors cover every query and preserve unrevisited unphotographed vehicles", () => {
     let previous: ByotCursor | null = null;
     const indexes = new Set<number>();
