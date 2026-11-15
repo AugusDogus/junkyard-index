@@ -16,6 +16,7 @@ import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
+import { JimsimportCursor } from "./jimsimport-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
 import { JolietCursorSchema } from "./joliet-cursor";
@@ -233,6 +234,20 @@ const autorecyclerJsonCursor = defineJsonCursor(
 const hagermanJsonCursor = defineJsonCursor("hagerman", HagermanCursorSchema);
 
 const DURABLE_CURSOR_DEFINITIONS = {
+  jimsimport: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 8 * 1024 * 1024)
+        throw new Error("Jim's Import serialized checkpoint exceeds 8 MiB");
+      const payload: unknown = JSON.parse(value);
+      return JimsimportCursor.parse(payload);
+    },
+    serialize: (cursor: JimsimportCursor) => {
+      const wire = JSON.stringify(JimsimportCursor.parse(cursor));
+      if (Buffer.byteLength(wire) > 8 * 1024 * 1024)
+        throw new Error("Jim's Import serialized checkpoint exceeds 8 MiB");
+      return wire;
+    },
+  },
   kandr: {
     parse: (value: string) => {
       const parsed = KandrCursor.fromWire(value, KANDR_CONTRACT);
