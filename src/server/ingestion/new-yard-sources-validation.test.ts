@@ -1,3 +1,9 @@
+import { UrgiisCursor } from "./urgiis-cursor";
+import {
+  URGIIS_TENANTS,
+  URGIIS_MINIMUM_INVENTORY,
+  URGIIS_MINIMUM_BY_YARD,
+} from "./urgiis-configuration";
 import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -136,6 +142,23 @@ const completeWeber = WeberbrothersCursor.checkpoint({
 
 const sources = [
   {
+    source: "urgiis",
+    minimum: URGIIS_MINIMUM_INVENTORY,
+    initial: UrgiisCursor.initial(),
+    complete: UrgiisCursor.checkpoint({
+      source: "urgiis",
+      version: 1,
+      phase: "complete",
+      scope: UrgiisCursor.initial().scope,
+      requests: 1000,
+      bytes: 1000000,
+      completed: URGIIS_TENANTS.map((tenant) => ({
+        code: tenant.code,
+        accepted: tenant.minimumInventory,
+      })),
+    }),
+  },
+  {
     source: "weberbrothers",
     minimum: 5_000,
     initial: WeberbrothersCursor.initial,
@@ -263,14 +286,29 @@ for (const { source, minimum, initial, complete } of sources) {
           snapshotStore,
         );
         await repository.initialize("source-validation", async () => [source]);
+        const donors = Array.from({ length: minimum }, (_, index) => ({
+          ...makeVehicle(`1HGCM82633A${String(index).padStart(6, "0")}`),
+          source,
+        }));
+        if (source === "urgiis") {
+          const first = URGIIS_TENANTS[0];
+          if (!first) throw new Error("Missing qualified IIS tenant");
+          for (const donor of donors) donor.locationCode = first.yard.code;
+          let assigned = 0;
+          for (const [code, floor] of URGIIS_MINIMUM_BY_YARD) {
+            for (let i = 0; i < floor; i++) {
+              const donor = donors[assigned++];
+              if (!donor)
+                throw new Error("IIS yard floors exceed its source floor");
+              donor.locationCode = code;
+            }
+          }
+        }
         const pathname = await snapshotStore.put({
           runId: "source-validation",
           source,
           chunk: {
-            vehicles: Array.from({ length: minimum }, (_, index) => ({
-              ...makeVehicle(`1HGCM82633A${String(index).padStart(6, "0")}`),
-              source,
-            })),
+            vehicles: donors,
             observedVins: [],
           },
         });
