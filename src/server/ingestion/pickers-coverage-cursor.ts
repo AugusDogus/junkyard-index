@@ -70,15 +70,29 @@ export const PickersCoverageCursor = {
   },
   serialize(cursor: PickersCoverageCursor): string {
     if (cursor.version === 1) return PickersCursor.serialize(cursor);
-    const wire = JSON.stringify(
+    const payload =
       cursor.phase === "yard"
         ? {
             version: cursor.version,
             phase: cursor.phase,
             siteCode: cursor.siteCode,
-            cursor: JSON.parse(PickersCursor.serialize(cursor.cursor)),
           }
-        : { version: cursor.version, phase: cursor.phase },
+        : { version: cursor.version, phase: cursor.phase };
+    // Reserve the actual envelope bytes before deciding whether to gzip the inner cursor.
+    const overhead =
+      Buffer.byteLength(JSON.stringify({ ...payload, cursor: null })) - 4;
+    const wire = JSON.stringify(
+      cursor.phase === "yard"
+        ? {
+            ...payload,
+            cursor: JSON.parse(
+              PickersCursor.serialize(
+                cursor.cursor,
+                PICKERS_MAX_CURSOR_BYTES - overhead,
+              ),
+            ),
+          }
+        : payload,
     );
     PickersCoverageCursor.parse(wire);
     return wire;

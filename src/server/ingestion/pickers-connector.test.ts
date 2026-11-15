@@ -7,6 +7,7 @@ import {
   streamPickersInventoryWithRequestGate,
   type PickersStreamResult,
 } from "./pickers-connector";
+import { PickersCoverageCursor } from "./pickers-coverage-cursor";
 import { PICKERS_MAX_CURSOR_BYTES, PickersCursor } from "./pickers-cursor";
 import {
   pickersSavedFixture,
@@ -837,3 +838,50 @@ for (const [before, after] of [
     );
   });
 }
+
+test("coverage envelopes compress a valid checkpoint just below the inner 1 MiB limit", async () => {
+  const target = PICKERS_MAX_CURSOR_BYTES - 8;
+  const data = smallFixture(450);
+  const capture = async (padding: number) => {
+    spyOn(globalThis, "fetch").mockRestore();
+    transport((raw) => {
+      let remaining = padding;
+      return raw.replaceAll("L4, 2.0L", () => {
+        const size = Math.min(2048, remaining);
+        remaining -= size;
+        return "x".repeat(size);
+      });
+    }, data);
+    return (await run(1, (chunk) => chunk.cursor.phase === "queries")).cursor;
+  };
+  const plainSize = (cursor: PickersCursor) =>
+    Buffer.byteLength(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(cursor).filter(([key]) => key !== "source"),
+        ),
+      ),
+    );
+  let padding = 0;
+  let cursor = await capture(padding);
+  for (
+    let attempt = 0;
+    attempt < 3 && plainSize(cursor) !== target;
+    attempt++
+  ) {
+    padding += target - plainSize(cursor);
+    cursor = await capture(padding);
+  }
+  expect(plainSize(cursor)).toBe(target);
+  expect(Buffer.byteLength(PickersCursor.serialize(cursor))).toBe(target);
+  const coverage: PickersCoverageCursor = {
+    source: "pickers",
+    version: 2,
+    phase: "yard",
+    siteCode: "pickers-texarkana",
+    cursor,
+  };
+  const wire = PickersCoverageCursor.serialize(coverage);
+  expect(Buffer.byteLength(wire)).toBeLessThanOrEqual(PICKERS_MAX_CURSOR_BYTES);
+  expect(PickersCoverageCursor.parse(wire)).toEqual(coverage);
+}, 15000);
