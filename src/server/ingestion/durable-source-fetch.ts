@@ -34,6 +34,7 @@ import { streamIndianriverInventoryFromProvider } from "./indianriver-connector"
 import { streamDentonInventoryFromProvider } from "./denton-connector";
 import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
+import { streamHagermanInventory } from "./hagerman-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
 import { env } from "~/env";
@@ -107,6 +108,22 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  hagerman: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamHagermanInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Shared validation compares the prior published complete count.
+          previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   chasencars: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

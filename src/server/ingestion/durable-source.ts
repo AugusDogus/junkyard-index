@@ -11,6 +11,7 @@ import { IndianriverCursor } from "./indianriver-cursor";
 import { DentonCursor } from "./denton-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { HagermanCursor } from "./hagerman-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { IdipullCursor } from "./idipull-cursor";
 import { JolietCursor } from "./joliet-cursor";
@@ -220,6 +221,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   chasencars: {
     initialCursor: ChasencarsCursor.initial(null),
     maxPagesPerChunk: 6,
+  },
+  hagerman: {
+    initialCursor: HagermanCursor.initial,
+    maxPagesPerChunk: 12,
   },
 };
 

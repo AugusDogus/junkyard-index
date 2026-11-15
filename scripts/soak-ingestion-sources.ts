@@ -64,6 +64,8 @@ import { streamDutchersInventory } from "../src/server/ingestion/dutchers-connec
 import { soakDutchersInventory } from "./soak-dutchers";
 import { streamChasencarsInventoryFromProvider } from "../src/server/ingestion/chasencars-connector";
 import { soakChasencarsInventory } from "./soak-chasencars";
+import { streamHagermanInventory } from "../src/server/ingestion/hagerman-connector";
+import { soakHagermanInventory } from "./soak-hagerman";
 import { streamIndianriverInventoryFromProvider } from "../src/server/ingestion/indianriver-connector";
 import { soakIndianriverInventory } from "./soak-indianriver";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
@@ -395,6 +397,19 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamDentonInventoryFromProvider({
+                    previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "hagerman":
+            return soakHagermanInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamHagermanInventory({
                     previousAcceptedCount: null,
                     startCursor,
                     maxPages,

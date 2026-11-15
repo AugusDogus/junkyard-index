@@ -11,8 +11,25 @@ import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { HagermanCursor } from "./hagerman-cursor";
 
 describe("durable ingestion cursors", () => {
+  test("registers Hagerman with twelve native GETs and a validated durable cursor", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("hagerman", {
+      initialCursor: HagermanCursor.initial,
+      maxPagesPerChunk: 12,
+    });
+    const wire = serializeDurableSourceCursor(HagermanCursor.initial);
+    expect(parseDurableSourceCursor("hagerman", wire)).toEqual(
+      HagermanCursor.initial,
+    );
+    expect(() =>
+      parseDurableSourceCursor(
+        "hagerman",
+        wire.replace('"start"', '"complete"'),
+      ),
+    ).toThrow();
+  });
   test("registers Chase N Cars with six physical GETs per checkpoint", () => {
     expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("chasencars", {
       initialCursor: ChasencarsCursor.initial(null),
@@ -34,6 +51,7 @@ describe("durable ingestion cursors", () => {
     ["denton", 16],
     ["dutchers", 8],
     ["chasencars", 2],
+    ["hagerman", 2],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {
