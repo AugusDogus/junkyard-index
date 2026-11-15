@@ -250,6 +250,9 @@ describe("Dutcher heavy division complete native census", () => {
     ).toBeNull();
     expect(records.some((r) => r.imageUrl === null)).toBe(true);
     expect(
+      DutchersRecordSchema.safeParse({ ...native, engine: "C15" }).success,
+    ).toBe(false);
+    expect(
       DutchersRecordSchema.safeParse({
         ...native,
         imageUrl: "https://other.example/photo.jpg",
