@@ -10,6 +10,8 @@ function fixture(name: string): unknown {
     ).toString("utf8"),
   );
 }
+// Killeen closing reads reuse saved opening bodies for offline simulation.
+// See vinplus-test-fixtures/killeen-replay.json for capture provenance.
 export function vinplusCensus(): string[][] {
   return z.array(z.array(z.string())).parse(fixture("census"));
 }

@@ -76,7 +76,7 @@ function resolve(
   if (
     vehicle.source === "vinplus" &&
     yardUrl &&
-    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(u-pull-auto-parts-pocatello|ryans|us-auto-supply|yourpart|pick-ur-part)$/.test(
+    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(u-pull-auto-parts-pocatello|ryans|us-auto-supply|yourpart|195-used-auto-parts|pick-ur-part)$/.test(
       yardUrl,
     )
   ) {

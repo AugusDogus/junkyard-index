@@ -62,6 +62,7 @@ test("complete frozen census replays through transport, chunking and durable che
     { preconnect: originalFetch.preconnect },
   );
   let cursor = VinplusCursor.initial();
+  let warnings: string[] = [];
   while (cursor.phase !== "complete") {
     const result = await Effect.runPromise(
       streamVinplusInventory({
@@ -72,7 +73,7 @@ test("complete frozen census replays through transport, chunking and durable che
         onBatch: (vehicles) =>
           Effect.sync(() => {
             callbacks++;
-            expect(vehicles).toHaveLength(4_776);
+            expect(vehicles).toHaveLength(6_348);
             for (const vehicle of vehicles) {
               expect(VehicleDestination.resolve(vehicle).kind).toBe(
                 "manual-search",
@@ -88,6 +89,8 @@ test("complete frozen census replays through transport, chunking and durable che
           }),
       }),
     );
+    if (result.status === "complete") warnings = result.warnings ?? [];
+    else expect(result.warnings).toEqual([]);
     cursor = parseDurableSourceCursor(
       "vinplus",
       serializeDurableSourceCursor(result.cursor),
@@ -102,6 +105,10 @@ test("complete frozen census replays through transport, chunking and durable che
       expect(yardCallbacks).toBe(0);
     }
   }
+  expect(warnings).toHaveLength(1);
+  expect(warnings.join(" ")).toContain(
+    "195 Used Auto Parts: 6 unreachable advertised vehicles / 1581",
+  );
   expect(callbacks).toBe(1);
   expect(yardCallbacks).toBe(1);
   expect(seenRequests).toBe(census.flat().length);

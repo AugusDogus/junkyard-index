@@ -3,7 +3,7 @@ import { VINPLUS_TENANTS } from "./vinplus-configuration";
 import { inspectVinplusEvidence, vinplusHash } from "./vinplus-parser";
 import { vinplusSnapshot } from "./vinplus-snapshot";
 
-export const VINPLUS_MAX_CURSOR_BYTES = 8 * 1024 * 1024;
+export const VINPLUS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const VINPLUS_MAX_REQUESTS = 2048;
 export const VINPLUS_MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 const schema = z
@@ -25,7 +25,7 @@ const checksum = (cursor: VinplusCursor) =>
   vinplusHash({ ...cursor, checksum: undefined });
 function checkCapacity(cursor: VinplusCursor): void {
   if (Buffer.byteLength(JSON.stringify(cursor)) > VINPLUS_MAX_CURSOR_BYTES)
-    throw new Error("VinPlus checkpoint exceeds 8 MiB");
+    throw new Error("VinPlus checkpoint exceeds 16 MiB");
   const bodies = cursor.yards.flat();
   if (
     bodies.length > VINPLUS_MAX_REQUESTS ||
@@ -36,7 +36,7 @@ function checkCapacity(cursor: VinplusCursor): void {
 }
 function validate(input: unknown): VinplusCursor {
   if (Buffer.byteLength(JSON.stringify(input)) > VINPLUS_MAX_CURSOR_BYTES)
-    throw new Error("VinPlus checkpoint exceeds 8 MiB");
+    throw new Error("VinPlus checkpoint exceeds 16 MiB");
   const cursor = schema.parse(input);
   if (cursor.scope !== scope() || cursor.checksum !== checksum(cursor))
     throw new Error(
@@ -97,7 +97,7 @@ export const VinplusCursor = {
   fromWire(raw: string): VinplusCursor {
     if (Buffer.byteLength(raw) > VINPLUS_MAX_CURSOR_BYTES)
       throw new Error(
-        "VinPlus wire checkpoint exceeds 8 MiB before JSON parsing",
+        "VinPlus wire checkpoint exceeds 16 MiB before JSON parsing",
       );
     return validate(JSON.parse(raw));
   },

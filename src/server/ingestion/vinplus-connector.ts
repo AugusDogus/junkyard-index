@@ -48,6 +48,7 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
       count: 0,
       pagesProcessed: 0,
       errors: [],
+      warnings: [],
       observedVins: [],
       accounting: {
         recordsProcessed: 0,
@@ -137,7 +138,10 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
         const result = inspectVinplusEvidence(tenant, evidence);
         if (result.kind !== "complete")
           throw new Error("Terminal yard still has pending controls");
-        return vinplusSnapshot(tenant, result.records);
+        return {
+          ...vinplusSnapshot(tenant, result.records),
+          warnings: result.warnings,
+        };
       }),
     );
     const vehicles = snapshots.flatMap((snapshot) => snapshot.vehicles);
@@ -152,6 +156,7 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
       cursor,
       pagesProcessed,
       count: vehicles.length,
+      warnings: snapshots.flatMap((snapshot) => snapshot.warnings),
       observedVins: snapshots.flatMap((snapshot) => snapshot.observedVins),
       accounting: snapshots.reduce(
         (sum, snapshot) => ({

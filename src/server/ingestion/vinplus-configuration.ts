@@ -125,6 +125,28 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     ),
   },
   {
+    yardId: "195_used_auto_parts",
+    slug: "195-used-auto-parts",
+    label: "195 Used Auto Parts",
+    timezone: "America/Chicago",
+    hiddenSearch: false,
+    inventory: { kind: "crush", stockDigits: 5 },
+    minimum: 1300,
+    yard: yard(
+      {
+        code: "killeen",
+        name: "195 Used Auto Parts",
+        address: "12077 State Highway 195",
+        city: "Killeen",
+        state: "TX",
+        postalCode: "76542",
+        lat: 31.017893889633,
+        lng: -97.753710608874,
+      },
+      "195-used-auto-parts",
+    ),
+  },
+  {
     yardId: "pick_ur_part",
     slug: "pick-ur-part",
     label: "Pick Ur Part",

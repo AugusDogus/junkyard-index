@@ -1,0 +1,14 @@
+{
+  "yard": "195 Used Auto Parts, Killeen",
+  "openingCapturedResponses": 170,
+  "simulatedClosingResponses": 167,
+  "note": "Opening bodies were captured during the original qualification. Closing responses in census.json.gz reuse those captured bodies for offline tests; no new live closing verification is claimed. Production still requires fresh closing reads.",
+  "advertised": 1581,
+  "recovered": 1575,
+  "unreachable": 6,
+  "unreachableByYear": {
+    "2006": 4,
+    "2007": 1,
+    "2008": 1
+  }
+}

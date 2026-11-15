@@ -17,11 +17,12 @@ vehicle. No unsupported vehicle permalink is constructed.
 | Ryan's Pick-A-Part                 | ryans            | MI    | ryans                       |            1,200 |
 | US Auto Supply of Sterling Heights | sterling-heights | MI    | us-auto-supply              |              900 |
 | YourPart (SA Recycling)            | hinesville       | GA    | yourpart                    |              400 |
+| 195 Used Auto Parts                | killeen          | TX    | 195-used-auto-parts         |            1,300 |
 | Pick Ur Part                       | lubbock          | TX    | pick-ur-part                |              850 |
 
 App URLs are `https://vinplus.texnrewards.com/parts/<slug>`. Configuration maps
 these to exact backend yard IDs and names. All admitted tenants are single-yard
-inventories. The first four use Crush with `STK` plus six digits. Pick Ur Part
+inventories. The first four use Crush with `STK` plus six digits; Killeen uses five digits. Pick Ur Part
 uses YardSmart with numeric 12-digit, `PUP` or `XPUP` stocks and literal
 `yardLocation=Lubbock`. Pocatello deliberately permits the
 published `hide_vehicle_search=true` configuration. Its unauthenticated public
@@ -30,17 +31,18 @@ inventory API qualifies even though its page hides the search form.
 Sterling Heights is a different physical yard from source `pontiac`. Ryan's is
 its own business in Detroit. YourPart's own site returned HTTP 500 during
 qualification; its VinPlus app is the source and destination. Texas was qualified
-last; Pick Ur Part passed and Killeen did not. Pickers, including its
+last; both Killeen and Pick Ur Part qualify. Pickers, including its
 native-authoritative enrichment and location resolution, keeps its existing
 behavior.
 
-| Yard             | Address                                        | Census latitude, longitude         |
-| ---------------- | ---------------------------------------------- | ---------------------------------- |
-| Pocatello        | 9587 N Philbin Rd, Pocatello ID 83202          | 42.899466372540, -112.495800567155 |
-| Ryan's           | 9309 Hubbell Street, Detroit MI 48228          | 42.363251568324, -83.187495433027  |
-| Sterling Heights | 7575 18 1/2 Mile Rd, Sterling Heights MI 48314 | 42.601893504252, -83.036124488316  |
-| YourPart         | 6880 US Highway 84, Hinesville GA 31313        | 31.767772464280, -81.643658295697  |
-| Pick Ur Part     | 4125 E Slaton Rd, Lubbock TX 79404             | 33.520132845259, -101.780012462231 |
+| Yard                | Address                                        | Census latitude, longitude         |
+| ------------------- | ---------------------------------------------- | ---------------------------------- |
+| Pocatello           | 9587 N Philbin Rd, Pocatello ID 83202          | 42.899466372540, -112.495800567155 |
+| Ryan's              | 9309 Hubbell Street, Detroit MI 48228          | 42.363251568324, -83.187495433027  |
+| Sterling Heights    | 7575 18 1/2 Mile Rd, Sterling Heights MI 48314 | 42.601893504252, -83.036124488316  |
+| YourPart            | 6880 US Highway 84, Hinesville GA 31313        | 31.767772464280, -81.643658295697  |
+| 195 Used Auto Parts | 12077 State Highway 195, Killeen TX 76542      | 31.017893889633, -97.753710608874  |
+| Pick Ur Part        | 4125 E Slaton Rd, Lubbock TX 79404             | 33.520132845259, -101.780012462231 |
 
 Coordinates come from US Census `Public_AR_Current` one-line exact-address
 matches. They are street-range interpolations, not rooftop points. Pocatello's
@@ -54,12 +56,14 @@ corroborated by Yellow Pages, u-pull-it.com and Chamber of Commerce listings.
 YourPart's address comes from the public listing for yourpart.com documented
 in the provider coverage investigation.
 
-195 Used Auto Parts, Killeen, is left out. Its opening census enumerated 1,575
-of 1,581 published backend records after year/make discovery, observed-make
-supplements and the public make directory: 2006 had 107/111, 2007 had 134/135
-and 2008 had 134/135. Model probes did not establish a complete alternative.
-The saved prefix must fail reconciliation. Its published address and Census
-match are retained as qualification evidence, but no partial inventory ships.
+195 Used Auto Parts, Killeen, qualifies under the per-yard 1% unreachable rule.
+Its saved opening census recovered 1,575 of 1,581 advertised rows after year/make
+discovery, observed-make supplements and the public make directory. Six rows
+(0.379507%) are unreachable: four from 2006, one from 2007 and one from 2008.
+They are reported as a count warning, without inventing identities or adding them
+to rejected VIN presence. Of the reachable rows, 1,572 qualify and three are
+rejected. Its published address at `https://195usedautoparts.com/` has a Census
+exact-address match. No new live inventory requests were made for this update.
 
 Pick Ur Part's official `https://pickurpart.com/` and `/inventory-search/`
 pages publish its Lubbock address and link to the Texn app. Census confirms that
@@ -83,8 +87,11 @@ while their total is at most 90. A year above 100 uses a capped discovery contro
 to obtain literal make selectors. Complete year/make reads must remain below 100. Missing makes are supplemented from other observed tenant records and,
 if necessary, the app's published make directory. Discovery rows supply selectors
 only and never add donors. Null make/model values are explicit public API year
-controls, not wildcard strings. Any unresolved year, missing selector or saturated
-make partition fails the source.
+controls, not wildcard strings. A missing selector or saturated make partition
+still fails the source. After exhausting applicable controls, unreachable rows
+may total at most 1% of that physical yard's advertised inventory. Exactly 1%
+passes with a warning; above 1% fails. Complete yards cannot mask another yard's
+deficit. Year overcounts and unadvertised years always fail.
 
 Make searches can return a different published make, as Killeen's Chrysler
 query does for an Oldsmobile record. Response criteria must match the request;
@@ -92,8 +99,11 @@ returned YMM is preserved literally. Whole-record query overlaps count once,
 retaining the maximum multiplicity observed inside one complete response.
 This distinguishes overlapping searches from repeated backend rows.
 
-The resulting opening record union must reconcile with every published year
-and the total count. Repeated stocks keep all their records. A conflicting stock
+The resulting opening record union accounts for every published year and the
+total count, including explicit warnings for permitted unreachable counts. Each
+warning names the yard, advertised total, unreachable total and year deficits.
+Warnings reach the terminal connector result, durable ingestion logs and soak
+output. They never become success-shaped donor rows or rejected VIN claims. Repeated stocks keep all their records. A conflicting stock
 counts once as a rejected donor with no asserted VIN, following Pickers' stock
 association rule. Identical stock repeats are provenance. Distinct stocks sharing
 an agreeing VIN count as donor duplicates; contradictory YMM for one VIN fails.
@@ -116,7 +126,7 @@ Unverified photo hosts and vehicle/parts links are null.
 
 Each yard independently enforces its accepted floor, at most 10% rejected donors
 and at most 25% duplicate donors. Raw repeated-stock occurrences also have a 25%
-guard. Production source validation requires at least 3,950 accepted vehicles,
+guard. Production source validation requires at least 5,250 accepted vehicles,
 the unchanged source rejection/duplicate limits and at least 50% of the previous
 accepted source count. A failure preserves prior accepted inventory.
 
@@ -131,7 +141,7 @@ signal covers headers and body and propagates interruption.
 
 Chunks default to eight controls, allow at most sixteen, and have a three-minute
 deadline. No new control starts after 150 seconds. Cumulative limits are 2,048
-requests and 32 MiB of response bodies. The checkpoint wire limit is 8 MiB,
+requests and 32 MiB of response bodies. The checkpoint wire limit is 16 MiB,
 checked before JSON parsing and persistence. Capacity errors preserve the last
 validated checkpoint and require inspection or requalification.
 
@@ -148,14 +158,21 @@ configured yard is required before durable source acceptance.
 
 ## Offline checks and read-only soak
 
-`vinplus-test-fixtures/census.json.gz` contains complete opening and closing raw
-bodies (586 requests). Qualification accepted 713/720 donors at Pocatello,
-1,406/1,423 at Ryan's, 1,083/1,084 at Sterling Heights, 479/490 at YourPart
-and 1,095/1,097 at Lubbock. Ryan's 1,428 raw backend rows include five repeated stocks. All five yards had
-zero distinct-stock VIN duplicates. `qualification.json.gz` retains the cap
-example, incomplete Killeen prefix, offset-bearing Lubbock sample and Census
-responses.
-Tests mock transport and never touch the network.
+`vinplus-test-fixtures/census.json.gz` replays 923 response bodies. The original
+five yards contain 586 captured opening/closing responses. Killeen adds 170
+captured opening responses and 167 simulated closing responses that reuse the
+captured bodies. These simulated reads test closure, checkpoints and warning
+propagation; they do not claim a live closing verification. Production still
+requires fresh closing reads. Provenance and deficit counts are recorded in
+`vinplus-test-fixtures/killeen-replay.json`.
+
+Qualification accepted 713/720 donors at Pocatello, 1,406/1,423 at Ryan's,
+1,083/1,084 at Sterling Heights, 479/490 at YourPart, 1,572/1,575 at Killeen and
+1,095/1,097 at Lubbock. Ryan's 1,428 raw backend rows include five repeated
+stocks. All six yards had zero distinct-stock VIN duplicates.
+`qualification.json.gz` retains the cap example, original Killeen opening
+prefix, offset-bearing Lubbock sample and Census responses. Tests mock transport
+and never touch the network.
 
 ```sh
 bun test --timeout 15000 src/server/ingestion/vinplus-*.test.ts

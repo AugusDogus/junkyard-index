@@ -184,6 +184,7 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
       ryans: "ryans",
       "sterling-heights": "us-auto-supply",
       hinesville: "yourpart",
+      killeen: "195-used-auto-parts",
       lubbock: "pick-ur-part",
     };
     const slug = slugs[yard.code];

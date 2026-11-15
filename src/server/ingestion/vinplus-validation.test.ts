@@ -59,7 +59,7 @@ test.each([
         runId: "vinplus-validation",
         source: "vinplus",
         chunk: {
-          vehicles: Array.from({ length: 3_950 }, (_, index) => ({
+          vehicles: Array.from({ length: 5_250 }, (_, index) => ({
             ...makeVehicle(`1HGCM82633A${String(index).padStart(6, "0")}`),
             source: "vinplus",
           })),
@@ -77,7 +77,7 @@ test.each([
             )
           : cursor;
       await client.execute({
-        sql: "update ingestion_source_run set status = 'success', vehicles_processed = 3950, next_cursor = ?, snapshot_chunks = ? where source = 'vinplus'",
+        sql: "update ingestion_source_run set status = 'success', vehicles_processed = 5250, next_cursor = ?, snapshot_chunks = ? where source = 'vinplus'",
         args: [wire, JSON.stringify([pathname])],
       });
       const result = await validateDurableSourceRuns({

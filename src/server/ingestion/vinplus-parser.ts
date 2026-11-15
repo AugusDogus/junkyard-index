@@ -1,4 +1,5 @@
 import { VinplusRecordUnion } from "./vinplus-record-union";
+import { VinplusCoverage } from "./vinplus-coverage";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { VINPLUS_API, type VinplusTenant } from "./vinplus-configuration";
@@ -37,7 +38,7 @@ export interface VinplusControl {
 }
 export type VinplusProgress =
   | { kind: "pending"; control: VinplusControl }
-  | { kind: "complete"; records: VinplusRecord[] };
+  | { kind: "complete"; records: VinplusRecord[]; warnings: string[] };
 type Counts = ReturnType<typeof parseVinplusAnalytics>;
 export interface VinplusRange {
   min: number;
@@ -134,10 +135,15 @@ function config(raw: string, tenant: VinplusTenant) {
     .parse(JSON.parse(raw));
 }
 /** Discovery is a control only. Counts, complete per-make reads and closing
- * replays establish donors. A missing make can never silently reduce coverage. */
+ * replays establish donors. Unreachable advertised rows are bounded per yard
+ * and reported explicitly after all applicable controls have been exhausted. */
 function* traversal(
   tenant: VinplusTenant,
-): Generator<VinplusControl, VinplusRecord[], string> {
+): Generator<
+  VinplusControl,
+  { records: VinplusRecord[]; warnings: string[] },
+  string
+> {
   const appControl = get(
     `https://vinplus.texnrewards.com/parts/${tenant.slug}`,
     "text/html",
@@ -194,12 +200,6 @@ function* traversal(
         .filter((make) => make !== null),
     ),
   ].sort();
-  if (
-    counts.years.some(
-      (row) => row.count <= 100 && union.yearCount(row.year) !== row.count,
-    )
-  )
-    throw new Error("Uncapped year did not reconcile with its published total");
   yield* supplementRanges(
     tenant,
     counts.years.filter((row) => row.count > 100),
@@ -211,7 +211,7 @@ function* traversal(
   let menuHash: string | null = null;
   const menuControl = get(VINPLUS_API + "/api/vehicle-groups");
   const unresolved = counts.years.filter(
-    (row) => union.yearCount(row.year) !== row.count,
+    (row) => row.count > 100 && union.yearCount(row.year) !== row.count,
   );
   if (unresolved.length) {
     const raw = yield menuControl;
@@ -251,18 +251,7 @@ function* traversal(
   const actual = new Map<number, number>();
   for (const record of records)
     actual.set(record.year, (actual.get(record.year) ?? 0) + 1);
-  if (
-    records.length !== counts.count ||
-    counts.years.some((row) => actual.get(row.year) !== row.count)
-  )
-    throw new Error(
-      `Complete stock union has ${records.length} of ${counts.count} published records; year mismatches: ${counts.years
-        .filter((row) => actual.get(row.year) !== row.count)
-        .map((row) => `${row.year}: ${actual.get(row.year) ?? 0}/${row.count}`)
-        .join(
-          ", ",
-        )}. Inventory may be truncated or a discovery make is missing`,
-    );
+  const coverage = VinplusCoverage.fromCounts(tenant.label, counts, actual);
   for (const [index, range] of ranges.entries()) {
     const closing = yield* readRange(tenant, range);
     if (
@@ -293,7 +282,7 @@ function* traversal(
   app(closingApp);
   if (closingApp !== openingApp)
     throw new Error("Public app changed during traversal");
-  return records;
+  return { records, warnings: coverage.warnings };
 }
 export function vinplusRanges(
   counts: Counts,
@@ -344,6 +333,6 @@ export function inspectVinplusEvidence(
     step = run.next(body);
   }
   return step.done
-    ? { kind: "complete", records: step.value }
+    ? { kind: "complete", ...step.value }
     : { kind: "pending", control: step.value };
 }
