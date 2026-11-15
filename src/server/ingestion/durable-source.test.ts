@@ -9,6 +9,7 @@ import {
 } from "./durable-source";
 import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
@@ -76,6 +77,12 @@ describe("durable ingestion cursors", () => {
       maxPagesPerChunk: 8,
     });
   });
+  test("registers OEM with eight bounded native GETs per checkpoint", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("oem", {
+      initialCursor: OemCursor.initial(),
+      maxPagesPerChunk: 8,
+    });
+  });
   test.each([
     ["awap", 2],
     ["clearsalvage", 4],
@@ -83,6 +90,7 @@ describe("durable ingestion cursors", () => {
     ["beavers", 2],
     ["indianriver", 8],
     ["denton", 16],
+    ["oem", 4],
     ["dutchers", 8],
     ["chasencars", 2],
     ["hagerman", 2],
