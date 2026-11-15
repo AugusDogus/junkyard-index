@@ -223,7 +223,7 @@ describe("source snapshot validation", () => {
     });
   });
 
-  test("allows inventory up to 30 whole days old", () => {
+  test("allows inventory up to exactly 30 days old", () => {
     const validatedAt = new Date("2026-11-15T07:44:11Z");
     const daysOld = (days: number, extraMs = 0) =>
       validateSourceSnapshot({
@@ -233,8 +233,8 @@ describe("source snapshot validation", () => {
         ),
         validatedAt,
       }).status;
-    expect(daysOld(30, 86_399_999)).toBe("accepted");
-    expect(daysOld(31)).toBe("rejected");
+    expect(daysOld(30)).toBe("accepted");
+    expect(daysOld(30, 1)).toBe("rejected");
   });
 
   test("skips the age check when no vehicle carries a date", () => {
