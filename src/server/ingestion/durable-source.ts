@@ -1,3 +1,4 @@
+import type { ConnectorChunkStatus } from "./connector-chunk";
 import { UpullRPartsCursor } from "./upullrparts-cursor";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
 import {
@@ -5,6 +6,7 @@ import {
   type IngestionSource,
 } from "~/lib/ingestion-source";
 import {
+  durableSourceCursorEquals,
   GopullitCursorState,
   type DurableCursorFor,
   type DurableSourceCursor,
@@ -26,6 +28,16 @@ export type {
 } from "./durable-cursor";
 
 export type DurableIngestionSource = IngestionSource;
+
+export function durableSourceChunkProgressError(
+  cursor: DurableSourceCursor,
+  result: { status: ConnectorChunkStatus; cursor: DurableSourceCursor },
+): string | null {
+  return result.status === "paused" &&
+    durableSourceCursorEquals(result.cursor, cursor)
+    ? `Source ${cursor.source} returned its current cursor without completing`
+    : null;
+}
 
 type DurableSourceDefinition<Source extends IngestionSource> = {
   initialCursor: DurableCursorFor<Source>;

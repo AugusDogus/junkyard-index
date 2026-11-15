@@ -3,6 +3,7 @@ import {
   DURABLE_INITIAL_SOURCE_CURSORS,
   DURABLE_SOURCE_DEFINITIONS,
   durableSourceCursorEquals,
+  durableSourceChunkProgressError,
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
 } from "./durable-source";
@@ -249,4 +250,20 @@ describe("durable ingestion cursors", () => {
     );
     expect(parseDurableSourceCursor("gopullit", serialized)).toEqual(cursor);
   });
+});
+
+test("paused chunks must advance, while complete chunks may retain their cursor", () => {
+  const cursor = { source: "pullnsave", page: 1 } as const;
+  expect(
+    durableSourceChunkProgressError(cursor, { status: "paused", cursor }),
+  ).toBe("Source pullnsave returned its current cursor without completing");
+  expect(
+    durableSourceChunkProgressError(cursor, { status: "complete", cursor }),
+  ).toBeNull();
+  expect(
+    durableSourceChunkProgressError(cursor, {
+      status: "paused",
+      cursor: { source: "pullnsave", page: 2 },
+    }),
+  ).toBeNull();
 });
