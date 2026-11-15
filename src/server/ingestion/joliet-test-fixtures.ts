@@ -1,9 +1,38 @@
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
+import { z } from "zod";
 import type { VinplusRecord } from "./vinplus-protocol";
 import {
   JOLIET_CONTACT_URL,
   JOLIET_EMBED_URL,
   JOLIET_INVENTORY_URL,
 } from "./joliet-yard-metadata";
+
+/** Saved 2026-11-15 HTML, analytics and exact F-150 response, plus the
+ * STK076107 record extracted from the saved 2013 response into a model envelope.
+ * Other API queries were not saved and must be explicitly synthesized by tests.
+ */
+export function jolietDisagreementFixture() {
+  return z
+    .object({
+      inventory: z.string(),
+      analytics: z.string(),
+      f150: z.string(),
+      sonata: z.string(),
+    })
+    .parse(
+      JSON.parse(
+        gunzipSync(
+          readFileSync(
+            new URL(
+              "./joliet-test-fixtures/disagreement.json.gz",
+              import.meta.url,
+            ),
+          ),
+        ).toString("utf8"),
+      ),
+    );
+}
 
 const embed = '<script>iframe.src = "' + JOLIET_EMBED_URL + '";</script>';
 const owner =

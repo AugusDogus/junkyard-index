@@ -14,8 +14,8 @@ import {
 import { inventoryVin } from "./inventory-vin";
 import {
   jolietHash,
-  jolietPairKey,
-  type JolietPair,
+  jolietYearCounts,
+  JOLIET_MAX_DISAGREEMENT_RATIO,
   type JolietRecord,
 } from "./joliet-parser";
 import {
@@ -47,60 +47,38 @@ function validateResume(cursor: QueryCursor, context: JolietContext): void {
       "Official Joliet owner, native table, public config or active counts changed during the crawl",
     );
   const rows = new Map(context.rows.map((row) => [row.stock, row]));
-  const seen = new Map(cursor.seen.map((entry) => [entry.stock, entry]));
   for (const entry of cursor.seen) {
     const row = rows.get(entry.stock);
     if (
-      !row ||
-      (entry.vin && inventoryVin(entry.vin, String(row.year)) !== entry.vin)
+      (row && row.year !== entry.year) ||
+      (entry.vin && inventoryVin(entry.vin, String(entry.year)) !== entry.vin)
     )
       throw new Error(
         "Checkpoint stock/year or VIN/serial does not bind to the current official Joliet table",
       );
   }
-  const pairIndexes = new Map(
-    context.pairs.map((pair, index) => [jolietPairKey(pair), index]),
-  );
-  for (const row of context.rows) {
-    const index = pairIndexes.get(jolietPairKey(row));
-    if (index === undefined)
-      throw new Error("Checkpoint native pair index is missing");
-    const entry = seen.get(row.stock);
-    if (index < cursor.nextQuery && (!entry || entry.firstQuery > index))
-      throw new Error(
-        "Checkpoint skips required own-query official stock coverage",
-      );
-  }
 }
 
 /** Native model matching overlaps. An agreeing repeat supplies coverage only;
- * each exact table pair must still return every one of its own official stocks.
+ * missing HTML stocks are reconciled against the complete API union at terminal.
  */
 function applySearch(
   context: JolietContext,
-  pair: JolietPair,
   index: number,
   records: readonly JolietRecord[],
   seen: Map<string, JolietSeen>,
   vins: Map<string, string>,
 ) {
   const rows = new Map(context.rows.map((row) => [row.stock, row]));
-  const returned = new Set(records.map((record) => record.stock));
-  for (const row of context.rows.filter(
-    (row) => jolietPairKey(row) === jolietPairKey(pair),
-  ))
-    if (!returned.has(row.stock))
-      throw new Error(
-        "Native exact query omitted its own official stock " + row.stock,
-      );
   const vehicles: JolietCanonicalVehicle[] = [];
   const observedVins: string[] = [];
+  const apiOnlyStocks: string[] = [];
   let excluded = 0,
     rejected = 0,
     newStocks = 0;
   for (const record of records) {
     const row = rows.get(record.stock);
-    if (!row || row.year !== record.year)
+    if (row && row.year !== record.year)
       throw new Error(
         "Native search stock/year is outside the official active inventory: " +
           record.stock,
@@ -111,8 +89,8 @@ function applySearch(
       ? date.slice(5, 7) + "." + date.slice(8, 10) + "." + date.slice(2, 4)
       : null;
     if (
-      (row.row && nativeRow && row.row !== nativeRow) ||
-      (row.sourceSetDate && renderedDate && row.sourceSetDate !== renderedDate)
+      (row?.row && nativeRow && row.row !== nativeRow) ||
+      (row?.sourceSetDate && renderedDate && row.sourceSetDate !== renderedDate)
     )
       throw new Error(
         "Native position or set date conflicts with official stock " +
@@ -145,26 +123,41 @@ function applySearch(
     if (transformed.status === "available") {
       seen.set(record.stock, {
         stock: record.stock,
+        year: record.year,
         hash,
         firstQuery: index,
         status: "available",
         vin: transformed.vehicle.vin,
       });
-      vehicles.push(transformed.vehicle);
+      if (row) vehicles.push(transformed.vehicle);
     } else {
       seen.set(record.stock, {
         stock: record.stock,
+        year: record.year,
         hash,
         firstQuery: index,
         status: "incomplete",
         vin,
       });
-      rejected++;
-      if (vin) observedVins.push(vin);
+      if (row) {
+        rejected++;
+        if (vin) observedVins.push(vin);
+      }
+    }
+    if (!row) {
+      excluded++;
+      apiOnlyStocks.push(record.stock);
     }
     newStocks++;
   }
-  return { vehicles, observedVins, excluded, rejected, newStocks };
+  return {
+    vehicles,
+    observedVins,
+    excluded,
+    rejected,
+    newStocks,
+    apiOnlyStocks,
+  };
 }
 
 export function streamJolietInventoryWithRequestGate<E, R>(
@@ -224,6 +217,7 @@ export function streamJolietInventoryWithRequestGate<E, R>(
     let nextQuery = initial.phase === "queries" ? initial.nextQuery : 0;
     const vehicles: JolietCanonicalVehicle[] = [];
     const observedVins: string[] = [];
+    const warnings: string[] = [];
     let processed = 0,
       excluded = 0,
       rejected = 0;
@@ -239,9 +233,8 @@ export function streamJolietInventoryWithRequestGate<E, R>(
         });
       const response = yield* fetchJolietSearch(pair, gate);
       const result = yield* validateJoliet(
-        "stock/year and own-query coverage",
-        () =>
-          applySearch(context, pair, nextQuery, response.records, seen, vins),
+        "stock/year and stable identity",
+        () => applySearch(context, nextQuery, response.records, seen, vins),
       );
       receipts.push({
         hash: response.hash,
@@ -253,31 +246,62 @@ export function streamJolietInventoryWithRequestGate<E, R>(
       processed += response.records.length;
       excluded += result.excluded;
       rejected += result.rejected;
+      if (result.apiOnlyStocks.length)
+        warnings.push(
+          "Joliet excluded API-only stocks absent from HTML: " +
+            result.apiOnlyStocks.join(", "),
+        );
       nextQuery++;
       summary.pagesProcessed++;
     }
     const terminal = nextQuery === context.pairs.length;
     if (terminal) {
       yield* validateJoliet("terminal coverage and quality", () => {
+        const rows = new Set(context.rows.map((row) => row.stock));
+        const htmlOnly = context.rows
+          .filter((row) => !seen.has(row.stock))
+          .map((row) => row.stock);
+        const apiOnly = [...seen.keys()].filter((stock) => !rows.has(stock));
         if (
-          seen.size !== context.rows.length ||
-          context.rows.some((row) => !seen.has(row.stock))
+          (htmlOnly.length + apiOnly.length) / context.rows.length >
+          JOLIET_MAX_DISAGREEMENT_RATIO
         )
           throw new Error(
-            "Terminal source stock union does not cover the complete official inventory",
+            "Stocks exceed the 1% disagreement limit; HTML-only: " +
+              htmlOnly.join(", ") +
+              "; API-only: " +
+              apiOnly.join(", "),
           );
-        const totalRejected = [...seen.values()].filter(
+        if (
+          JSON.stringify(jolietYearCounts(seen.values())) !==
+          JSON.stringify(context.counts)
+        )
+          throw new Error(
+            "Terminal API stock union does not reconcile with native active inventory counts and years",
+          );
+        if (htmlOnly.length) {
+          processed += htmlOnly.length;
+          excluded += htmlOnly.length;
+          warnings.push(
+            "Joliet excluded HTML-only stocks absent from API: " +
+              htmlOnly.join(", "),
+          );
+        }
+        const shared = [...seen.values()].filter((entry) =>
+          rows.has(entry.stock),
+        );
+        const totalRejected = shared.filter(
           (entry) => entry.status === "incomplete",
         ).length;
         if (
-          totalRejected === seen.size ||
-          totalRejected / seen.size >
+          totalRejected === shared.length ||
+          totalRejected / shared.length >
             SourceValidationPolicy.maximumRejectionRatio
         )
           throw new Error(
             totalRejected +
               " rejected of " +
-              seen.size +
+              shared.length +
               " active donors exceeds the unchanged 10% rejection limit or leaves no valid donors",
           );
       });
@@ -310,11 +334,14 @@ export function streamJolietInventoryWithRequestGate<E, R>(
       cursor,
       count: vehicles.length,
       observedVins,
-      warnings: rejected
-        ? [
-            "Joliet rejected incomplete required identities; valid rejected VINs supply presence evidence only.",
-          ]
-        : [],
+      warnings: [
+        ...warnings,
+        ...(rejected
+          ? [
+              "Joliet rejected incomplete required identities; valid rejected VINs supply presence evidence only.",
+            ]
+          : []),
+      ],
       accounting: {
         recordsProcessed: processed,
         recordsExcluded: excluded,
