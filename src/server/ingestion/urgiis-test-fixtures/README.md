@@ -1,0 +1,3 @@
+These Brotli archives retain public URG Inventory InSite HTML captured on November 15, 2026. `probes.json.br` is a JSON array of model and detail responses used to verify template variants, shared suppliers, missing VINs, the 500-card boundary and empty large models. It includes unsuccessful qualification leads so parser changes cannot hide their failure modes.
+
+All tests read local files. They never contact a yard, URG, Census or a geocoder. Census receipts and complete qualifying catalogs are retained separately as they qualify. The runbook records admission counts, exclusions, coordinate sources and live request totals.
