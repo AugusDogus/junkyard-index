@@ -12,6 +12,7 @@ import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
@@ -65,6 +66,21 @@ describe("durable ingestion cursors", () => {
       ),
     ).toThrow();
   });
+  test("registers oeM Garage with eight native GETs and a checked durable cursor", () => {
+    const initial = OemgarageCursor.initial();
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("oemgarage", {
+      initialCursor: initial,
+      maxPagesPerChunk: 8,
+    });
+    const wire = serializeDurableSourceCursor(initial);
+    expect(parseDurableSourceCursor("oemgarage", wire)).toEqual(initial);
+    expect(() =>
+      parseDurableSourceCursor(
+        "oemgarage",
+        wire.replace('"owner"', '"complete"'),
+      ),
+    ).toThrow();
+  });
   test("registers Chase N Cars with six physical GETs per checkpoint", () => {
     expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("chasencars", {
       initialCursor: ChasencarsCursor.initial(null),
@@ -93,6 +109,7 @@ describe("durable ingestion cursors", () => {
     ["oem", 4],
     ["dutchers", 8],
     ["chasencars", 2],
+    ["oemgarage", 4],
     ["hagerman", 2],
     ["kandr", 4],
     ["jimsimport", 8],

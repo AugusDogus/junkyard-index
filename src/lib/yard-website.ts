@@ -28,6 +28,7 @@ const providerWebsites = new Map<string, string>([
   ["oem", "https://oemautorecyclers.com/"],
   ["dutchers", "https://dutchersinc.com/"],
   ["chasencars", "https://chasencarsauto.com/"],
+  ["oemgarage", "https://oe-mgarage.com/"],
   ["hagerman", "https://hagermanparts.com/"],
   ["kandr", "https://kandrtruckparts.com/"],
   ["jimsimport", "https://jimsimport.com/"],

@@ -16,6 +16,7 @@ import { DentonCursor } from "./denton-cursor";
 import { OemCursorSchema, type OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
@@ -281,6 +282,20 @@ const DURABLE_CURSOR_DEFINITIONS = {
       const wire = hagermanJsonCursor.serialize(cursor);
       if (Buffer.byteLength(wire) > 2 * 1024 * 1024)
         throw new Error("Hagerman serialized checkpoint exceeds 2 MiB");
+      return wire;
+    },
+  },
+  oemgarage: {
+    parse: (value: string) => {
+      if (Buffer.byteLength(value) > 4 * 1024 * 1024)
+        throw new Error("oeM Garage serialized checkpoint exceeds 4 MiB");
+      const payload: unknown = JSON.parse(value);
+      return OemgarageCursor.parse(payload);
+    },
+    serialize: (cursor: OemgarageCursor) => {
+      const wire = JSON.stringify(OemgarageCursor.parse(cursor));
+      if (Buffer.byteLength(wire) > 4 * 1024 * 1024)
+        throw new Error("oeM Garage serialized checkpoint exceeds 4 MiB");
       return wire;
     },
   },
