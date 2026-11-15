@@ -347,3 +347,51 @@ test("URG IIS refuses an empty model at the known native cap boundary", async ()
   expect(reads).toBe(5);
   expect(emitted).toBe(false);
 });
+
+test("URG IIS enforces rejection and duplicate limits independently of floors and exclusions", () => {
+  const make = { path: "/parts/FORD", label: "FORD", count: 10 };
+  const model = { path: "/parts/FORD/MUSTANG/", label: "MUSTANG", count: 10 };
+  const donors = Array.from({ length: 9 }, (_, i) => ({
+    years: ["1965"],
+    titles: ["FORD MUSTANG"],
+    vins: [`5F07C${100000 + i}`],
+    inquiries: [],
+    destinations: [`https://example.com/parts/FORD/MUSTANG/C${i}/1965`],
+    stock: `C${i}`,
+    image: null,
+    date: null,
+  }));
+  const original = donors[0];
+  if (!original) throw new Error("Missing serial fixture");
+  const invalid = {
+    ...original,
+    vins: [""],
+    stock: "bad",
+    destinations: ["https://example.com/parts/FORD/MUSTANG/bad/1965"],
+  };
+  const snapshot = (records: typeof donors) =>
+    urgiisSnapshot([{ make, model, records, hash: "" }], {
+      ...tenant,
+      placeholderStocks: ["166C"],
+    });
+  const boundary = snapshot([...donors, invalid]);
+  expect(boundary.vehicles).toHaveLength(9);
+  expect(boundary.accounting.recordsRejected).toBe(1);
+  expect(() => validateUrgiisSnapshot(boundary, tenant)).not.toThrow();
+  const bins = Array.from({ length: 100 }, () => ({
+    ...invalid,
+    stock: "166C",
+  }));
+  const rejected = snapshot([...donors, invalid, invalid, ...bins]);
+  expect(rejected.accounting.recordsExcluded).toBe(100);
+  expect(() => validateUrgiisSnapshot(rejected, tenant)).toThrow("admission");
+  const duplicated = snapshot([
+    ...donors,
+    original,
+    original,
+    original,
+    original,
+  ]);
+  expect(duplicated.accounting.duplicateVehicles).toBe(4);
+  expect(() => validateUrgiisSnapshot(duplicated, tenant)).toThrow("admission");
+});

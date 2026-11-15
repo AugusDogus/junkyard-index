@@ -114,3 +114,21 @@ test("URG IIS saved probes retain shared pools and both empty Nationwide Mercede
   for (const probe of probes.filter((p) => p.i === 3 && p.kind === "detail"))
     expect(iisCards(probe.html, nationwide.site).nativeEmpty).toBe(true);
 });
+
+test("Brown's largest shared model reaches the 500-card cap before own-yard filtering", () => {
+  const site = probes.find((p) => p.i === 1 && p.kind === "model");
+  const raw = probes.find(
+    (p) =>
+      p.i === 1 && p.kind === "detail" && p.key === "recovery-largest-model",
+  );
+  if (!site || site.kind !== "model" || !raw)
+    throw new Error("Missing Brown's cap evidence");
+  const page = iisCards(raw.html, site.site);
+  expect(page.records).toHaveLength(500);
+  expect(page.capped).toBe(true);
+  const own = page.records.filter((r) =>
+    r.image?.includes("cloudfront.net/bb86/"),
+  );
+  expect(own.length).toBeGreaterThan(0);
+  expect(own.length).toBeLessThan(500);
+});
