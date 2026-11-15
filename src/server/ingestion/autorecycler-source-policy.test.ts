@@ -100,3 +100,27 @@ test("retries after malformed results without reusing partial classifications", 
   ).toBe("direct-provider");
   expect(calls).toBe(2);
 });
+
+test("excludes all twelve verified LKQ imports and their children", async () => {
+  const ids = [
+    "1729734766990x950099823086187300",
+    "1729734766093x340198914988167880",
+    "1729734766535x427413633759663500",
+    "1729734765104x535405133894433660",
+    "1729734768283x592117435094416500",
+    "1729734764662x232536945531569570",
+    "1729734764195x109900838604892300",
+    "1729734763657x870281075279977200",
+    "1729734765576x140464582636548050",
+    "1729734763257x684941304085489500",
+    "1729734767394x763899678894703500",
+    "1729734767860x176607785988997630",
+  ];
+  const policy = AutorecyclerSourcePolicy.create(async () => ({
+    docs: [...ids.map((id) => doc(id)), doc(child, ids[0])],
+  }));
+  const result = await Effect.runPromise(policy([...ids.map(lookup), child]));
+  expect([...result.values()]).toEqual(
+    Array.from({ length: 13 }, () => "direct-provider"),
+  );
+});
