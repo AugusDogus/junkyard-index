@@ -3,10 +3,7 @@ import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import { SourceValidationPolicy } from "./source-validation";
 import type { CanonicalVehicle } from "./types";
 import type { HollanderstoresPage } from "./hollanderstores-parser";
-import {
-  HOLLANDERSTORES_YARDS,
-  type HollanderstoresYard,
-} from "./hollanderstores-yard-metadata";
+import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
 
 export type HollanderstoresVehicle = CanonicalVehicle & {
@@ -34,7 +31,6 @@ export function hollanderstoresSnapshot(
   pages: readonly HollanderstoresPage[],
   decoded: Readonly<Record<string, string | null>>,
   previousAcceptedCount: number | null = null,
-  yards: readonly HollanderstoresYard[] = HOLLANDERSTORES_YARDS,
 ) {
   const vehicles = new Map<string, HollanderstoresVehicle>();
   const claims = new Map<string, Set<string>>();
@@ -69,7 +65,7 @@ export function hollanderstoresSnapshot(
     recordsExcluded: 0,
     duplicateVehicles: 0,
   };
-  for (const yard of yards) {
+  for (const yard of HOLLANDERSTORES_YARDS) {
     const page = pages.find((page) => page.yard === yard.code);
     if (!page) {
       errors.push("Missing complete yard " + yard.code);

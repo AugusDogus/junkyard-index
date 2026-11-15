@@ -1,0 +1,308 @@
+[
+  {
+    "code": "aaaparts",
+    "address": "2871 West 160th Street",
+    "publishedCityStateZip": "Rosemount, MN 55068",
+    "census": "aaaparts-geocode.json.gz",
+    "provider": "census",
+    "lat": 44.717328616887,
+    "lng": -93.123544652918,
+    "matchedAddress": "2871 160TH ST W, ROSEMOUNT, MN, 55068"
+  },
+  {
+    "code": "aabcoautoparts",
+    "address": "7300 Old Central Ave.",
+    "publishedCityStateZip": "Fridley, MN 55432",
+    "census": "aabcoautoparts-geocode.json.gz",
+    "provider": "census",
+    "lat": 45.101165403407,
+    "lng": -93.238172430803,
+    "matchedAddress": "7300 CENTRAL AVE NE, FRIDLEY, MN, 55432"
+  },
+  {
+    "code": "aplusparts",
+    "address": "640 West Hoffman Avenue",
+    "publishedCityStateZip": "Lindenhurst, NY 11757",
+    "census": "aplusparts-geocode.json.gz",
+    "provider": "census",
+    "lat": 40.683077341077,
+    "lng": -73.387379810995,
+    "matchedAddress": "640 W HOFFMAN AVE, LINDENHURST, NY, 11757"
+  },
+  {
+    "code": "bandkautosalvag",
+    "address": "64190 Ore. Highway 203",
+    "publishedCityStateZip": "LaGrande, OR 97850",
+    "census": "bandkautosalvag-geocode.json.gz",
+    "provider": "census",
+    "lat": 45.280880689864,
+    "lng": -118.015876462477,
+    "matchedAddress": "64190 STATE HWY 203, LA GRANDE, OR, 97850"
+  },
+  {
+    "code": "bandmauto",
+    "address": "W227 S2698 Racine Ave.",
+    "publishedCityStateZip": "Waukesha, WI 53186",
+    "census": "bandmauto-geocode.json.gz",
+    "provider": "nominatim",
+    "nominatim": "bandmauto-nominatim.json.gz",
+    "matches": [
+      {
+        "place_id": 368406662,
+        "licence": "Data \u00a9 OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "way",
+        "osm_id": 848645620,
+        "lat": "42.9960090",
+        "lon": "-88.1998275",
+        "category": "building",
+        "type": "yes",
+        "place_rank": 30,
+        "importance": 5.908979934381655e-5,
+        "addresstype": "building",
+        "name": "",
+        "display_name": "W227S2698, Racine Avenue, Village of Waukesha, Waukesha County, Wisconsin, 53186, United States",
+        "address": {
+          "house_number": "W227S2698",
+          "road": "Racine Avenue",
+          "village": "Village of Waukesha",
+          "county": "Waukesha County",
+          "state": "Wisconsin",
+          "ISO3166-2-lvl4": "US-WI",
+          "postcode": "53186",
+          "country": "United States",
+          "country_code": "us"
+        },
+        "boundingbox": [
+          "42.9959363",
+          "42.9960816",
+          "-88.2000644",
+          "-88.1995906"
+        ]
+      }
+    ],
+    "lat": 42.996009,
+    "lng": -88.1998275
+  },
+  {
+    "code": "biloxiauto",
+    "address": "13464 Scruggs Ln.",
+    "publishedCityStateZip": "Biloxi, MS 39532",
+    "census": "biloxiauto-geocode.json.gz",
+    "provider": "yard-published",
+    "nominatim": "biloxiauto-nominatim-normalized.json.gz",
+    "matches": [],
+    "lat": 30.4840971,
+    "lng": -88.9083495,
+    "coordinateFile": "biloxi-map-embed.html.gz",
+    "coordinateEvidence": "Business marker resolved from its own website Google Maps embed; address and phone match Hollander"
+  },
+  {
+    "code": "branson",
+    "address": "2615 North 17th",
+    "publishedCityStateZip": "Fort Smith, AR 72904",
+    "census": "branson-geocode.json.gz",
+    "provider": "census",
+    "lat": 35.405718628845,
+    "lng": -94.413808743583,
+    "matchedAddress": "2615 N 17TH ST, FORT SMITH, AR, 72904"
+  },
+  {
+    "code": "brother",
+    "address": "4162 Highway 178",
+    "publishedCityStateZip": "Red Bank, MS 38661",
+    "census": "brother-geocode.json.gz",
+    "provider": "census",
+    "lat": 34.828788117729,
+    "lng": -89.566464971797,
+    "matchedAddress": "4162 HWY 178 E, RED BANKS, MS, 38661"
+  },
+  {
+    "code": "conrads",
+    "address": "E. 9889 10th Avenue",
+    "publishedCityStateZip": "Mondovi, WI 54755",
+    "census": "conrads-geocode.json.gz",
+    "provider": "nominatim",
+    "nominatim": "conrads-nominatim-name.json.gz",
+    "matches": [
+      {
+        "place_id": 375686867,
+        "licence": "Data \u00a9 OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "way",
+        "osm_id": 1264643344,
+        "lat": "44.6853766",
+        "lon": "-91.6617765",
+        "category": "landuse",
+        "type": "industrial",
+        "place_rank": 24,
+        "importance": 0.0800384443427176,
+        "addresstype": "industrial",
+        "name": "Conrad's Auto Salvage",
+        "display_name": "Conrad's Auto Salvage, E9889, Mondovi, Dunn County, Wisconsin, 54755, United States",
+        "address": {
+          "industrial": "Conrad's Auto Salvage",
+          "house_number": "E9889",
+          "town": "Mondovi",
+          "county": "Dunn County",
+          "state": "Wisconsin",
+          "ISO3166-2-lvl4": "US-WI",
+          "postcode": "54755",
+          "country": "United States",
+          "country_code": "us"
+        },
+        "boundingbox": [
+          "44.6836846",
+          "44.6870812",
+          "-91.6639735",
+          "-91.6603368"
+        ]
+      }
+    ],
+    "lat": 44.6853766,
+    "lng": -91.6617765
+  },
+  {
+    "code": "flap",
+    "address": "3531 Co Rd 3 NW",
+    "publishedCityStateZip": "Annandale, MN 55302",
+    "census": "flap-geocode.json.gz",
+    "provider": "census",
+    "lat": 45.201034348226,
+    "lng": -94.185403778129,
+    "matchedAddress": "3531 CO RD 3 NW, ANNANDALE, MN, 55302"
+  },
+  {
+    "code": "lamarautosalvag",
+    "address": "8575 US Highway 98",
+    "publishedCityStateZip": "Sumrall, MS 39482",
+    "census": "lamarautosalvag-geocode.json.gz",
+    "provider": "census",
+    "lat": 31.290074763716,
+    "lng": -89.588878286704,
+    "matchedAddress": "8575 US HWY 98, SUMRALL, MS, 39482"
+  },
+  {
+    "code": "milfordmotorsus",
+    "address": "112 Weaver Road",
+    "publishedCityStateZip": "West Milford, NJ 07480",
+    "census": "milfordmotorsus-geocode.json.gz",
+    "provider": "census",
+    "lat": 41.043881799632,
+    "lng": -74.373713342462,
+    "matchedAddress": "112 WEAVER RD, WEST MILFORD, NJ, 07480"
+  },
+  {
+    "code": "northverdeauto",
+    "address": "2001 North Verde Drive",
+    "publishedCityStateZip": "Ontario, OR 97914",
+    "census": "northverdeauto-geocode.json.gz",
+    "provider": "census",
+    "lat": 44.045662965407,
+    "lng": -116.98555743749,
+    "matchedAddress": "2001 N VERDE DR, ONTARIO, OR, 97914"
+  },
+  {
+    "code": "nwaupiautoparts",
+    "address": "600 West Price Lane",
+    "publishedCityStateZip": "Rogers, AR 72758",
+    "census": "nwaupiautoparts-geocode.json.gz",
+    "provider": "census",
+    "lat": 36.296927738606,
+    "lng": -94.117859132127,
+    "matchedAddress": "600 W PRICE LN, ROGERS, AR, 72758"
+  },
+  {
+    "code": "okautoms",
+    "address": "771 Highway 49 S",
+    "publishedCityStateZip": "Richland, MS 39218",
+    "census": "okautoms-geocode.json.gz",
+    "provider": "census",
+    "lat": 32.230483485754,
+    "lng": -90.161094055423,
+    "matchedAddress": "771 US HWY 49, RICHLAND, MS, 39218"
+  },
+  {
+    "code": "piperautoparts",
+    "address": "607 S East Street",
+    "publishedCityStateZip": "Bloomfield, IA 52537",
+    "census": "piperautoparts-geocode.json.gz",
+    "provider": "census",
+    "lat": 40.746534050698,
+    "lng": -92.409599430145,
+    "matchedAddress": "607 S EAST ST, BLOOMFIELD, IA, 52537"
+  },
+  {
+    "code": "robertsons",
+    "address": "2680 Cranberry Highway",
+    "publishedCityStateZip": "Wareham, MA 02571",
+    "census": "robertsons-geocode.json.gz",
+    "provider": "census",
+    "lat": 41.769790671719,
+    "lng": -70.703986094003,
+    "matchedAddress": "2680 CRANBERRY HWY, WAREHAM, MA, 02571"
+  },
+  {
+    "code": "rockitopauto",
+    "address": "W3095 Walrath Road",
+    "publishedCityStateZip": "Glen Flora, WI 54526",
+    "census": "rockitopauto-geocode-normalized.json.gz",
+    "provider": "census",
+    "nominatim": "rockitopauto-nominatim.json.gz",
+    "matches": [],
+    "lat": 45.435714978205,
+    "lng": -90.84887247876,
+    "matchedAddress": "W3095 WALRATH RD, GLEN FLORA, WI, 54526"
+  },
+  {
+    "code": "rogersauto",
+    "address": "5222 Highway 11 N",
+    "publishedCityStateZip": "Ellisville, MS 39437",
+    "census": "rogersauto-geocode.json.gz",
+    "provider": "yard-published",
+    "nominatim": "rogersauto-nominatim-normalized.json.gz",
+    "matches": [],
+    "lat": 31.6292412,
+    "lng": -89.18308859999999,
+    "coordinateFile": "rogers-map-embed.html.gz",
+    "coordinateEvidence": "Business marker resolved from its own website Google Maps embed; address and phone match Hollander"
+  },
+  {
+    "code": "spilmanautopart",
+    "address": "20311 Old Highway 2",
+    "publishedCityStateZip": "Bloomfield, IA 52537",
+    "census": "spilmanautopart-geocode.json.gz",
+    "provider": "census",
+    "lat": 40.750236725111,
+    "lng": -92.428702247522,
+    "matchedAddress": "20311 OLD HWY 2, BLOOMFIELD, IA, 52537"
+  },
+  {
+    "code": "sunlineparts",
+    "address": "4400 6th Street SW",
+    "publishedCityStateZip": "Cedar Rapids, IA 52404",
+    "census": "sunlineparts-geocode.json.gz",
+    "provider": "census",
+    "lat": 41.933672596381,
+    "lng": -91.67633114693,
+    "matchedAddress": "4400 6TH ST SW, CEDAR RAPIDS, IA, 52404"
+  },
+  {
+    "code": "terryvilleauto",
+    "address": "35 Fall Mountain Rd.",
+    "publishedCityStateZip": "Terryville, CT 06786",
+    "census": "terryvilleauto-geocode.json.gz",
+    "provider": "census",
+    "lat": 41.644207445785,
+    "lng": -72.986709037427,
+    "matchedAddress": "35 FALL MOUNTAIN TER, TERRYVILLE, CT, 06786"
+  },
+  {
+    "code": "windyhill",
+    "address": "9200 240th Ave NE",
+    "publishedCityStateZip": "New London, MN 56273",
+    "census": "windyhill-geocode.json.gz",
+    "provider": "census",
+    "lat": 45.3515025613,
+    "lng": -94.918279297667,
+    "matchedAddress": "9200 240TH AVE NE, NEW LONDON, MN, 56273"
+  }
+]

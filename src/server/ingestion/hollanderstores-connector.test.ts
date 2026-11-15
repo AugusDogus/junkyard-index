@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { gunzipSync } from "node:zlib";
 import { Effect } from "effect";
 import { streamHollanderstoresInventory } from "./hollanderstores-connector";
 import {
@@ -26,16 +24,11 @@ import {
 } from "./durable-source";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 
-const fixture = (code: string) =>
-  gunzipSync(
-    readFileSync(
-      `${import.meta.dir}/hollanderstores-test-fixtures/${code}.html.gz`,
-    ),
-  ).toString("utf8");
-const pages = () =>
-  HOLLANDERSTORES_YARDS.map((yard, index) =>
-    parseHollanderstoresPage(fixture(yard.code), index),
-  );
+import {
+  hollanderstoresExpected as expected,
+  hollanderstoresFixture as fixture,
+  hollanderstoresFixturePages as pages,
+} from "./hollanderstores-test-fixtures";
 const decode = (vins: readonly string[]) =>
   Effect.succeed(
     Object.fromEntries(
@@ -47,44 +40,8 @@ describe("Hollander Stores saved complete census", () => {
   test("qualifies every separate yard, rejecting VIN errors and retaining published conflicting makes", () => {
     const value = hollanderstoresSnapshot(pages(), hollanderstoresSeed);
     expect(value.errors).toEqual([]);
-    expect(value.perYard).toEqual([
-      {
-        code: "leblancsauto",
-        accepted: 541,
-        rejected: 0,
-        duplicates: 0,
-        total: 541,
-      },
-      {
-        code: "blvdautoparts",
-        accepted: 83,
-        rejected: 0,
-        duplicates: 0,
-        total: 83,
-      },
-      {
-        code: "standardauto",
-        accepted: 79,
-        rejected: 6,
-        duplicates: 0,
-        total: 85,
-      },
-      {
-        code: "petrillosauto",
-        accepted: 59,
-        rejected: 2,
-        duplicates: 0,
-        total: 61,
-      },
-      {
-        code: "kirchhaynautopa",
-        accepted: 114,
-        rejected: 0,
-        duplicates: 0,
-        total: 114,
-      },
-    ]);
-    expect(value.vehicles).toHaveLength(876);
+    expect(value.perYard).toEqual(expected.perYard);
+    expect(value.vehicles).toHaveLength(expected.count);
     expect(
       value.vehicles.find((row) => row.vin === "5GTEN13E788122266")?.make,
     ).toBe("American Motors");
@@ -97,7 +54,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(value.warnings.some((message) => message.includes("ALFA"))).toBe(
       false,
     );
-    expect(value.observedVins).toHaveLength(6);
+    expect(value.observedVins).toHaveLength(expected.observedVins.length);
   });
   test("rejects failed make lookups without inventing a make and guards each yard", () => {
     const value = hollanderstoresSnapshot(pages(), {});
@@ -126,7 +83,8 @@ describe("Hollander Stores saved complete census", () => {
       "Standard Used Auto Parts & Wrecking rejection ratio exceeds 10%",
     );
     expect(
-      hollanderstoresSnapshot(pages(), hollanderstoresSeed, 2000).errors,
+      hollanderstoresSnapshot(pages(), hollanderstoresSeed, expected.count * 3)
+        .errors,
     ).toContain(
       "Hollander Stores inventory fell below the previous-run 50% drift limit",
     );
@@ -173,7 +131,10 @@ describe("Hollander Stores saved complete census", () => {
     const readPage = (yard: HollanderstoresYard) =>
       Effect.sync(() => {
         calls.push(yard.code);
-        return fixture(yard.code + (calls.length > 5 ? "-closing" : ""));
+        return fixture(
+          yard.code +
+            (calls.length > HOLLANDERSTORES_YARDS.length ? "-closing" : ""),
+        );
       });
     const decodeBatch = (vins: readonly string[]) => {
       decoded.push(...vins);
@@ -181,11 +142,11 @@ describe("Hollander Stores saved complete census", () => {
       return decode(vins);
     };
     let cursor = getDurableSourceDefinition("hollanderstores").initialCursor;
-    for (let step = 0; step < 30; step++) {
+    for (let step = 0; step < 1000; step++) {
       const result = await Effect.runPromise(
         streamHollanderstoresInventory({
           startCursor: cursor,
-          maxPages: 1,
+          maxPages: 8,
           readPage,
           decodeBatch,
           onBatch,
@@ -197,7 +158,7 @@ describe("Hollander Stores saved complete census", () => {
         throw new Error("Wrong durable source");
       cursor = resumed;
       if (result.status === "complete") {
-        expect(result.count).toBe(876);
+        expect(result.count).toBe(expected.count);
         break;
       }
       expect(batches).toHaveLength(0);
@@ -219,10 +180,10 @@ describe("Hollander Stores saved complete census", () => {
       }),
     );
     expect(terminal.count).toBe(0);
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(2 * HOLLANDERSTORES_YARDS.length);
     expect(batches).toHaveLength(1);
     expect(IngestionSourceFlags.resolve({})).not.toContain("hollanderstores");
-  });
+  }, 180000);
   test("closing drift and corrupt checkpoints cannot emit", async () => {
     let requests = 0,
       emitted = false;
@@ -239,7 +200,30 @@ describe("Hollander Stores saved complete census", () => {
           return fixture(yard.code);
         }),
     });
-    const first = await Effect.runPromise(run);
+    let first = await Effect.runPromise(run);
+    while (first.cursor.phase !== "closing") {
+      const remaining =
+        first.cursor.phase === "opening"
+          ? HOLLANDERSTORES_YARDS.length - first.cursor.pages.length
+          : Math.ceil(
+              (hollanderstoresMissing(first.cursor).length -
+                Object.keys(first.cursor.decoded).length) /
+                50,
+            );
+      first = await Effect.runPromise(
+        streamHollanderstoresInventory({
+          startCursor: first.cursor,
+          maxPages: Math.min(8, remaining),
+          decodeBatch: decode,
+          readPage: (yard) =>
+            Effect.sync(() => {
+              requests++;
+              return fixture(yard.code);
+            }),
+          onBatch: () => Effect.die("No inventory before closing"),
+        }),
+      );
+    }
     const checked = HollanderstoresCursor.parse(first.cursor);
     expect(() =>
       HollanderstoresCursor.parse({ ...checked, requests: 99 }),
@@ -259,8 +243,8 @@ describe("Hollander Stores saved complete census", () => {
     );
     expect(result._tag).toBe("Failure");
     expect(emitted).toBe(false);
-    expect(requests).toBe(5);
-  });
+    expect(requests).toBe(HOLLANDERSTORES_YARDS.length);
+  }, 180000);
   test("provider failures never release partial inventory", async () => {
     let emitted = false;
     const result = await Effect.runPromiseExit(
@@ -322,6 +306,8 @@ test("unknown native make prefixes reject one row without publishing a guessed m
   expect(snapshot.vehicles.some((r) => r.vin === "5GTEN13E788122266")).toBe(
     false,
   );
-  expect(snapshot.accounting.recordsRejected).toBe(9);
+  expect(snapshot.accounting.recordsRejected).toBe(
+    expected.perYard.reduce((sum, yard) => sum + yard.rejected, 0) + 1,
+  );
   expect(snapshot.errors).toEqual([]);
 });
