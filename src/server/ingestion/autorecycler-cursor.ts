@@ -6,6 +6,13 @@ export const AutorecyclerCursorSchema = z.discriminatedUnion("phase", [
   z
     .object({
       source: z.literal("autorecycler"),
+      phase: z.literal("ario"),
+      yardIndex: z.number().int().min(0).max(19),
+    })
+    .strict(),
+  z
+    .object({
+      source: z.literal("autorecycler"),
       phase: z.literal("page"),
       beforeId: AutorecyclerRecordIdSchema.nullable(),
     })
