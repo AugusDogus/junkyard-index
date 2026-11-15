@@ -22,7 +22,7 @@ import {
   validateDurableIngestionSources,
 } from "~/server/ingestion/durable-ingestion";
 import {
-  durableSourceCursorEquals,
+  durableSourceChunkProgressError,
   type DurableCursorFor,
   type DurableIngestionSource,
 } from "~/server/ingestion/durable-source";
@@ -199,17 +199,8 @@ export async function runDurableSourceChunkStep<
     },
   );
   console.info("[Workflow] Completed source chunk", result);
-  // A paused chunk must advance its cursor, or the workflow would loop on it.
-  // Retrying cannot help, and comparing cursors needs the provider codecs that
-  // only step code may load.
-  if (
-    result.status === "paused" &&
-    durableSourceCursorEquals(result.cursor, cursor)
-  ) {
-    throw new FatalError(
-      `Source ${cursor.source} returned its current cursor without completing`,
-    );
-  }
+  const progressError = durableSourceChunkProgressError(cursor, result);
+  if (progressError) throw new FatalError(progressError);
   return result;
 }
 runDurableSourceChunkStep.maxRetries = 2;

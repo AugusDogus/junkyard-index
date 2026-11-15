@@ -14,6 +14,7 @@ import {
   type DurableIngestionResult,
   validateDurableIngestionSources,
 } from "./durable-ingestion";
+import { durableSourceChunkProgressError } from "./durable-source";
 import { executeDurableIngestion } from "./durable-ingestion-orchestrator";
 import {
   drainDurableCleanup,
@@ -30,8 +31,15 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
     operations: {
       cleanupStale: cleanupStaleDurableIngestionSnapshots,
       initialize: initializeDurableIngestion,
-      runChunk: (currentRunId, cursor) =>
-        runDurableSourceChunk({ runId: currentRunId, cursor }),
+      runChunk: async (currentRunId, cursor) => {
+        const result = await runDurableSourceChunk({
+          runId: currentRunId,
+          cursor,
+        });
+        const progressError = durableSourceChunkProgressError(cursor, result);
+        if (progressError) throw new Error(progressError);
+        return result;
+      },
       markFailed: (currentRunId, source, message) =>
         markDurableSourceFailed({ runId: currentRunId, source, message }),
       validateSources: validateDurableIngestionSources,
