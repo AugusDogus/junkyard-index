@@ -1,16 +1,16 @@
 import type {
   DurableIngestionResult,
   DurableReconciliationBatchResult,
+  DurableIngestionStart,
   DurableSourceChunkResult,
-  InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
 import type { DurableSourceValidationSummary } from "./durable-source-validation";
-import {
-  durableSourceCursorEquals,
-  getDurableSourceDefinition,
-  type DurableCursorFor,
-  type DurableIngestionSource,
-  type DurableSourceCursor,
+// Type-only: this module runs in the workflow sandbox, which cannot load
+// provider cursor codecs. Steps own cursor construction and comparison.
+import type {
+  DurableCursorFor,
+  DurableIngestionSource,
+  DurableSourceCursor,
 } from "./durable-source";
 
 export interface DurableSourceOperations<
@@ -38,7 +38,7 @@ export interface DurableIngestionOperations {
     message: string,
   ) => Promise<DurableSourceChunkResult<Source>>;
   cleanupStale: () => Promise<void>;
-  initialize: (runId: string) => Promise<InitializeDurableIngestionResult>;
+  initialize: (runId: string) => Promise<DurableIngestionStart>;
   validateSources: (runId: string) => Promise<DurableSourceValidationSummary>;
   reconcile: (runId: string) => Promise<DurableReconciliationBatchResult>;
   markRunFailed: (runId: string, message: string) => Promise<void>;
@@ -108,11 +108,6 @@ export async function ingestDurableSource<
         );
       }
       if (result.status !== "paused") return result;
-      if (durableSourceCursorEquals(result.cursor, cursor)) {
-        throw new Error(
-          `Source ${source} returned its current cursor without completing`,
-        );
-      }
       cursor = result.cursor;
     }
   } catch (error) {
@@ -175,11 +170,7 @@ export async function stageDurableIngestion(params: {
         initialCursor,
         operations: params.operations,
       });
-    await Promise.all(
-      initialized.sources.map((source) =>
-        ingestSource(getDurableSourceDefinition(source).initialCursor),
-      ),
-    );
+    await Promise.all(initialized.initialCursors.map(ingestSource));
     const validation = await validateSources(params.runId);
     return validation.status === "stopped"
       ? { status: "stopped" }

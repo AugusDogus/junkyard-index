@@ -21,9 +21,10 @@ import {
   runDurableSourceChunk,
   validateDurableIngestionSources,
 } from "~/server/ingestion/durable-ingestion";
-import type {
-  DurableCursorFor,
-  DurableIngestionSource,
+import {
+  durableSourceCursorEquals,
+  type DurableCursorFor,
+  type DurableIngestionSource,
 } from "~/server/ingestion/durable-source";
 import {
   finalizeSearchIndexMigration,
@@ -179,26 +180,37 @@ export async function runDurableSourceChunkStep<
   "use step";
 
   console.info("[Workflow] Starting source chunk", { runId, cursor });
-  try {
-    const result = await runDurableSourceChunk({ runId, cursor });
-    console.info("[Workflow] Completed source chunk", result);
-    return result;
-  } catch (error) {
-    try {
-      Sentry.logger.warn("Vehicle ingestion source attempt failed", {
-        runId,
-        source: cursor.source,
-        attempt: getStepMetadata().attempt,
-        error: formatError(error).slice(0, 500),
-      });
-    } catch (reportError) {
-      console.error("Failed to report vehicle source retry", reportError);
-    }
-    throwRetryableStepError(
-      `Vehicle source chunk ${cursor.source}/${JSON.stringify(cursor)}`,
-      error,
+  const result = await runDurableSourceChunk({ runId, cursor }).catch(
+    (error: unknown) => {
+      try {
+        Sentry.logger.warn("Vehicle ingestion source attempt failed", {
+          runId,
+          source: cursor.source,
+          attempt: getStepMetadata().attempt,
+          error: formatError(error).slice(0, 500),
+        });
+      } catch (reportError) {
+        console.error("Failed to report vehicle source retry", reportError);
+      }
+      return throwRetryableStepError(
+        `Vehicle source chunk ${cursor.source}/${JSON.stringify(cursor)}`,
+        error,
+      );
+    },
+  );
+  console.info("[Workflow] Completed source chunk", result);
+  // A paused chunk must advance its cursor, or the workflow would loop on it.
+  // Retrying cannot help, and comparing cursors needs the provider codecs that
+  // only step code may load.
+  if (
+    result.status === "paused" &&
+    durableSourceCursorEquals(result.cursor, cursor)
+  ) {
+    throw new FatalError(
+      `Source ${cursor.source} returned its current cursor without completing`,
     );
   }
+  return result;
 }
 runDurableSourceChunkStep.maxRetries = 2;
 

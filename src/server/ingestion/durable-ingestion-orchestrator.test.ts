@@ -8,6 +8,7 @@ import {
 import type { DurableIngestionResult } from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
+  DURABLE_INITIAL_SOURCE_CURSORS,
   type DurableSourceCursor,
 } from "./durable-source";
 
@@ -47,7 +48,7 @@ function makeOperations(
     initialize: async (runId) => ({
       status: "started",
       runId,
-      sources: DURABLE_INGESTION_SOURCES,
+      initialCursors: DURABLE_INITIAL_SOURCE_CURSORS,
     }),
     runChunk: async (_runId, cursor) => ({
       cursor,
@@ -329,7 +330,7 @@ describe("durable ingestion lifecycle", () => {
           return {
             status: "started",
             runId,
-            sources: DURABLE_INGESTION_SOURCES,
+            initialCursors: DURABLE_INITIAL_SOURCE_CURSORS,
           };
         },
         runChunk: async function (this: unknown, _runId, cursor) {
@@ -459,7 +460,9 @@ describe("durable ingestion run sources", () => {
         initialize: async (runId) => ({
           status: "started",
           runId,
-          sources: ["row52", "pyp"],
+          initialCursors: DURABLE_INITIAL_SOURCE_CURSORS.filter(
+            (cursor) => cursor.source === "row52" || cursor.source === "pyp",
+          ),
         }),
         runChunk: async (_runId, cursor) => {
           ingested.push(cursor.source);
