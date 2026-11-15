@@ -1,4 +1,5 @@
 import { normalizeRegion } from "~/server/ingestion/normalization";
+import { HOLLANDERSTORES_YARDS } from "~/server/ingestion/hollanderstores-yard-metadata";
 import { Yard } from "./yard";
 
 export type YardWebsite = { kind: "yard" | "provider"; href: string };
@@ -169,13 +170,7 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
   }
   if (
     yard.source === "hollanderstores" &&
-    [
-      "leblancsauto",
-      "blvdautoparts",
-      "standardauto",
-      "petrillosauto",
-      "kirchhaynautopa",
-    ].includes(yard.code)
+    HOLLANDERSTORES_YARDS.some((tenant) => tenant.code === yard.code)
   )
     return { kind: "yard", href: `https://${yard.code}.hollanderstores.com/` };
   if (yard.source === "vinplus") {
