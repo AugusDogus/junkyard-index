@@ -61,7 +61,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Complete 43-donor native catalog and details: 41 accepted, two rejects.
   alshned: 35,
   // Five complete Hollander Stores yards, 876 accepted of 884 published cards.
-  hollanderstores: 700,
+  hollanderstores: 30_000,
   // Complete C&S native store: 59 accepted of 64 items.
   cstruck: 50,
   // Seven complete HTP supplier stores, with per-supplier quality floors.
