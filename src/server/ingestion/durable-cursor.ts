@@ -8,6 +8,7 @@ import { DdautoCursorSchema } from "./ddauto-cursor";
 import { BigtruckpageCursorSchema } from "./bigtruckpage-cursor";
 import { BeaversCursor } from "./beavers-cursor";
 import { DentonCursor } from "./denton-cursor";
+import { ChasencarsCursor } from "./chasencars-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { Alln1CursorSchema } from "./alln1-cursor";
 import { AviationCursor } from "./aviation-cursor";
@@ -221,6 +222,10 @@ const autorecyclerJsonCursor = defineJsonCursor(
 );
 
 const DURABLE_CURSOR_DEFINITIONS = {
+  chasencars: {
+    parse: ChasencarsCursor.fromWire,
+    serialize: ChasencarsCursor.serialize,
+  },
   denton: {
     parse: (value: string) => {
       const parsed = DentonCursor.fromWire(value, null);

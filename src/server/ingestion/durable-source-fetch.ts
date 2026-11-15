@@ -26,6 +26,7 @@ import { streamBrandywineInventory } from "./brandywine-connector";
 import { streamCaltonInventoryFromProvider } from "./calton-connector";
 import { streamBeaversInventory } from "./beavers-connector";
 import { streamDentonInventoryFromProvider } from "./denton-connector";
+import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { CALTON_CONTRACT, CALTON_YARD } from "./calton-configuration";
 import { DonorPhotoStore } from "./donor-photo-store";
 import { env } from "~/env";
@@ -99,6 +100,22 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
 }
 
 const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
+  chasencars: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamChasencarsInventoryFromProvider({
+          // Durable validation checks the prior published count before reconciliation.
+          previousAcceptedCount: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
   denton: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(

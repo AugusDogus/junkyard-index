@@ -32,6 +32,7 @@ export const INGESTION_SOURCES = [
   "bigtruckpage",
   "denton",
   "beavers",
+  "chasencars",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
@@ -70,6 +71,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   bigtruckpage: "BigTruckPage",
   denton: "Denton Auto Parts",
   beavers: "Beaver's Car Salvage",
+  chasencars: "Chase N Cars",
 } as const satisfies Record<IngestionSource, string>;
 
 export function mapIngestionSources<Value>(
@@ -109,6 +111,7 @@ export function mapIngestionSources<Value>(
     bigtruckpage: transform("bigtruckpage"),
     denton: transform("denton"),
     beavers: transform("beavers"),
+    chasencars: transform("chasencars"),
   };
 }
 

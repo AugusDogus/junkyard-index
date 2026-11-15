@@ -9,14 +9,22 @@ import {
 } from "./durable-source";
 import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import { ChasencarsCursor } from "./chasencars-cursor";
 
 describe("durable ingestion cursors", () => {
+  test("registers Chase N Cars with six physical GETs per checkpoint", () => {
+    expect(DURABLE_SOURCE_DEFINITIONS).toHaveProperty("chasencars", {
+      initialCursor: ChasencarsCursor.initial(null),
+      maxPagesPerChunk: 6,
+    });
+  });
   test.each([
     ["awap", 2],
     ["clearsalvage", 4],
     ["central", 2],
     ["beavers", 2],
     ["denton", 16],
+    ["chasencars", 2],
   ] as const)(
     "%s preserves its source-specific wire byte guard",
     (source, limitMiB) => {

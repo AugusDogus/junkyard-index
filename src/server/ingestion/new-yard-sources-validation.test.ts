@@ -19,6 +19,8 @@ import {
 import { CaltonCursor } from "./calton-cursor";
 import { CALTON_CONTRACT } from "./calton-configuration";
 import { BeaversCursor } from "./beavers-cursor";
+import { ChasencarsCursor, chasencarsAdvance } from "./chasencars-cursor";
+import { chasencarsFixture } from "./chasencars-test-fixtures";
 
 const schema = `${TEST_SCHEMA}
   create table vehicle (
@@ -72,7 +74,25 @@ const completeCalton = CaltonCursor.checkpoint(
 );
 if (!completeCalton.ok) throw new Error(completeCalton.error.message);
 
+let chasencars = ChasencarsCursor.initial(null);
+for (const name of [
+  "owner",
+  "yard",
+  "inventory",
+  "inventory",
+  "yard",
+  "owner",
+] as const)
+  chasencars = chasencarsAdvance(chasencars, chasencarsFixture(name));
+const completeChasencars = ChasencarsCursor.complete(chasencars);
+
 const sources = [
+  {
+    source: "chasencars",
+    minimum: 550,
+    initial: ChasencarsCursor.initial(null),
+    complete: completeChasencars,
+  },
   {
     source: "beavers",
     minimum: 240,

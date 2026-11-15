@@ -32,6 +32,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   bigtruckpage: "BigTruckPage",
   denton: "Denton Auto Parts",
   beavers: "Beaver's Car Salvage",
+  chasencars: "Chase N Cars",
   army: "Army's Auto Wrecking",
   alln1: "All-N-1 U Pull",
   aviation: "Aviation Auto Salvage",
