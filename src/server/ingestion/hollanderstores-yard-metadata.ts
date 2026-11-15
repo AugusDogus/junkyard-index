@@ -97,7 +97,22 @@ export const HOLLANDERSTORES_YARDS = [
   logo: string;
   minimum: number;
 })[];
-export type HollanderstoresYard = (typeof HOLLANDERSTORES_YARDS)[number];
+export type HollanderstoresYard = Yard & {
+  source: "hollanderstores";
+  websiteUrl: string;
+  tenant: string;
+  logo: string;
+  minimum: number;
+};
+
+// The native list view uses 20 rows; card view ignores the page parameter.
+export const hollanderstoresUsesPaging = (
+  yard: Pick<HollanderstoresYard, "code">,
+) => yard.code === "aaaparts";
+export const hollanderstoresPageCount = (
+  yard: Pick<HollanderstoresYard, "code">,
+  total: number,
+) => (hollanderstoresUsesPaging(yard) ? Math.ceil(total / 20) : 1);
 
 export function hollanderstoresDestination(
   raw: string,

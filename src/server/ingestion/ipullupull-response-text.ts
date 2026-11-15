@@ -18,6 +18,20 @@ export async function readIPullUPullResponseText(
     throw new Error(
       `${context} response byte limit must be an integer between 1 and ${IPULLUPULL_MAX_RESPONSE_BYTES}; use the default or a smaller source limit.`,
     );
+  return readBoundedResponseText(response, context, signal, maximumBytes);
+}
+
+/** Complete UTF-8 reader with an explicit provider-owned streaming bound. */
+export async function readBoundedResponseText(
+  response: Response,
+  context: string,
+  signal: AbortSignal,
+  maximumBytes: number,
+): Promise<string> {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1)
+    throw new Error(
+      `${context} requires a positive integer response byte limit.`,
+    );
   if (!response.body)
     throw new Error(`${context} has no body; retry the request.`);
   const reader = response.body.getReader();

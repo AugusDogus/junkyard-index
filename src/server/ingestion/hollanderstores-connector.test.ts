@@ -13,7 +13,10 @@ import {
 } from "./hollanderstores-cursor";
 import { parseHollanderstoresPage } from "./hollanderstores-parser";
 import { hollanderstoresSnapshot } from "./hollanderstores-snapshot";
-import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
+import {
+  HOLLANDERSTORES_YARDS,
+  type HollanderstoresYard,
+} from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
 import type { HollanderstoresVehicle } from "./hollanderstores-snapshot";
 import {
@@ -167,7 +170,7 @@ describe("Hollander Stores saved complete census", () => {
       Effect.sync(() => {
         batches.push(vehicles);
       });
-    const readPage = (yard: (typeof HOLLANDERSTORES_YARDS)[number]) =>
+    const readPage = (yard: HollanderstoresYard) =>
       Effect.sync(() => {
         calls.push(yard.code);
         return fixture(yard.code + (calls.length > 5 ? "-closing" : ""));
