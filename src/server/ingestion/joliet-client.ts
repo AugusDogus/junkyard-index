@@ -60,7 +60,12 @@ function read(
       context: "Joliet " + url,
       method: body === undefined ? "GET" : "POST",
       body,
-      headers: body === undefined ? {} : { "Content-Type": "application/json" },
+      headers: {
+        // This host drops connections for the shared Chrome User-Agent.
+        "User-Agent":
+          "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0",
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
       requestGate: gate,
       retry: { timeoutMs: 20_000, retryLimit: 0, retryNetworkErrors: false },
       onResponse: (response) => {
