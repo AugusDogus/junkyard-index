@@ -1,4 +1,5 @@
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
+import { URGIIS_MINIMUM_BY_YARD } from "./urgiis-configuration";
 import { validatePublishedYardInventory } from "./published-yard-inventory";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -155,6 +156,7 @@ export async function validateDurableSourceRuns(params: {
           params.database,
           snapshot.vehicles.values(),
           "urgiis",
+          URGIIS_MINIMUM_BY_YARD,
         ),
       );
   }

@@ -1,0 +1,34 @@
+{
+  "result": {
+    "input": {
+      "address": { "address": "211 Granite St, Worcester, MA 01607" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "L", "tigerLineId": "657954785" },
+        "coordinates": { "x": -71.782708739098, "y": 42.23811894312 },
+        "addressComponents": {
+          "zip": "01607",
+          "streetName": "GRANITE",
+          "preType": "",
+          "city": "WORCESTER",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "193",
+          "state": "MA",
+          "suffixType": "ST",
+          "toAddress": "299",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "211 GRANITE ST, WORCESTER, MA, 01607"
+      }
+    ]
+  }
+}
