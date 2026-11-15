@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AutorecyclerCursorSchema } from "./autorecycler-cursor";
 import { WrenchApartCursorSchema } from "./wrenchapart-cursor";
 import { UpullitwaCursorSchema } from "./upullitwa-cursor";
+import { PickNSaveCursorSchema } from "./picknsave-cursor";
 import {
   UpullRPartsCursor,
   UpullRPartsCursorSchema,
@@ -304,6 +305,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
     (cursor) => cursor.catalog,
   ),
   upullitwa: defineJsonCursor("upullitwa", UpullitwaCursorSchema),
+  picknsave: defineJsonCursor("picknsave", PickNSaveCursorSchema),
   partsgalore: defineScalarCursor(
     "partsgalore",
     z.object({

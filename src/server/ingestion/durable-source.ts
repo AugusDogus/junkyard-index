@@ -112,6 +112,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: { source: "partsgalore", catalog: 0 },
     maxPagesPerChunk: 1,
   },
+  picknsave: {
+    initialCursor: { source: "picknsave", phase: "start" },
+    maxPagesPerChunk: 2,
+  },
 };
 
 export function getDurableSourceDefinition<

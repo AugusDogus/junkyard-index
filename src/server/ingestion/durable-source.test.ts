@@ -10,6 +10,39 @@ import type { DurableCursorFor } from "./durable-cursor";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 
 describe("durable ingestion cursors", () => {
+  test("round trips Pick-n-Save ordering and yard evidence between bounded chunks", () => {
+    const cursors: DurableCursorFor<"picknsave">[] = [
+      { source: "picknsave", phase: "start" },
+      {
+        source: "picknsave",
+        phase: "page",
+        page: 3,
+        totalProducts: 1692,
+        lastProductId: 5100,
+        yardsSeen: ["PNS-VA-LYNCHBURG", "PNS-VA-ROANOKE"],
+      },
+      { source: "picknsave", phase: "complete" },
+    ];
+    for (const cursor of cursors) {
+      expect(
+        parseDurableSourceCursor(
+          "picknsave",
+          serializeDurableSourceCursor(cursor),
+        ),
+      ).toEqual(cursor);
+    }
+    expect(DURABLE_SOURCE_DEFINITIONS.picknsave.maxPagesPerChunk).toBe(2);
+    expect(() =>
+      parseDurableSourceCursor("picknsave", '{"phase":"page","page":3}'),
+    ).toThrow("Invalid picknsave ingestion cursor");
+    expect(
+      durableSourceCursorEquals(
+        { source: "picknsave", phase: "start" },
+        { source: "picknsave", phase: "complete" },
+      ),
+    ).toBe(false);
+  });
+
   test.each(["ipullupull", "partsgalore"] as const)(
     "round trips %s atomic catalog checkpoints",
     (source) => {

@@ -78,6 +78,7 @@ const SOURCES = [
   ["ipullupull", "iPull-uPull"],
   ["upullitwa", "Washington U-Pull-It"],
   ["partsgalore", "Parts Galore"],
+  ["picknsave", "Pick-n-Save Virginia"],
   ["row52", "Row52 / Pick-n-Pull"],
   ["autorecycler", "AutoRecycler.io"],
 ] as const;

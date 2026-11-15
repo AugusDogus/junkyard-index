@@ -15,6 +15,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   ipullupull: 3_000,
   upullitwa: 1_500,
   partsgalore: 500,
+  picknsave: 1_000,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;
