@@ -68,6 +68,8 @@ import { streamDutchersInventory } from "../src/server/ingestion/dutchers-connec
 import { soakDutchersInventory } from "./soak-dutchers";
 import { streamChasencarsInventoryFromProvider } from "../src/server/ingestion/chasencars-connector";
 import { soakChasencarsInventory } from "./soak-chasencars";
+import { streamOemgarageInventoryFromProvider } from "../src/server/ingestion/oemgarage-connector";
+import { soakOemgarageInventory } from "./soak-oemgarage";
 import { streamHagermanInventory } from "../src/server/ingestion/hagerman-connector";
 import { soakHagermanInventory } from "./soak-hagerman";
 import { streamKandrInventoryFromProvider } from "../src/server/ingestion/kandr-connector";
@@ -470,6 +472,19 @@ async function main(): Promise<void> {
                 runProgram(
                   streamHagermanInventory({
                     previousAcceptedCount: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "oemgarage":
+            return soakOemgarageInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamOemgarageInventoryFromProvider({
+                    previousUniqueInventory: null,
                     startCursor,
                     maxPages,
                     onBatch,

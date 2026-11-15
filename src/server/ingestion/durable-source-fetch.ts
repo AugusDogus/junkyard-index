@@ -42,6 +42,7 @@ import { streamIndianriverInventoryFromProvider } from "./indianriver-connector"
 import { streamDentonInventoryFromProvider } from "./denton-connector";
 import { streamDutchersInventory } from "./dutchers-connector";
 import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
+import { streamOemgarageInventoryFromProvider } from "./oemgarage-connector";
 import { streamHagermanInventory } from "./hagerman-connector";
 import { streamKandrInventoryFromProvider } from "./kandr-connector";
 import { KANDR_CONTRACT } from "./kandr-configuration";
@@ -169,6 +170,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           maxPages: context.maxPages,
           // Shared validation compares the prior published complete count.
           previousAcceptedCount: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  oemgarage: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamOemgarageInventoryFromProvider({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          // Durable validation compares the prior published complete count.
+          previousUniqueInventory: null,
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),

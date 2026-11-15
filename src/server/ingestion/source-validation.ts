@@ -32,6 +32,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   dutchers: 500,
   // Complete native inline report: 661 accepted of 680 rows.
   chasencars: 550,
+  oemgarage: 200,
   hagerman: 5,
   kandr: 40,
   // Complete native NN38 model graph: 3,649 accepted among 4,016 rows.

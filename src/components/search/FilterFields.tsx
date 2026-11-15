@@ -40,6 +40,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   oem: "OEM Auto Recyclers",
   dutchers: "Dutcher's Inc. Heavy Truck Division",
   chasencars: "Chase N Cars",
+  oemgarage: "oeM Garage",
   hagerman: "Hagerman",
   kandr: "K&R Truck Parts",
   jimsimport: "Jim's Import Auto Salvage",

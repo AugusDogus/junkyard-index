@@ -13,6 +13,7 @@ import { DentonCursor } from "./denton-cursor";
 import { OemCursor } from "./oem-cursor";
 import { DutchersCursor } from "./dutchers-cursor";
 import { ChasencarsCursor } from "./chasencars-cursor";
+import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
@@ -258,6 +259,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   chasencars: {
     initialCursor: ChasencarsCursor.initial(null),
     maxPagesPerChunk: 6,
+  },
+  oemgarage: {
+    initialCursor: OemgarageCursor.initial(),
+    maxPagesPerChunk: 8,
   },
   hagerman: {
     initialCursor: HagermanCursor.initial,

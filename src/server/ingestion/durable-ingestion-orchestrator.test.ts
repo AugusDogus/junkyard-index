@@ -71,6 +71,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     oem: 0,
     dutchers: 0,
     chasencars: 0,
+    oemgarage: 0,
     hagerman: 0,
     kandr: 0,
     jimsimport: 0,
