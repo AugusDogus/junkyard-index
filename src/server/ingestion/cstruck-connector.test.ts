@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { Effect } from "effect";
 import { z } from "zod";
 import { cstruckFixture } from "./cstruck-test-fixtures";
@@ -26,19 +26,27 @@ import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 import { resolveYardWebsite } from "~/lib/yard-website";
 
-const opening = () =>
-  CSTRUCK_RANGES.map((range) =>
+const opening = () => [
+  ...CSTRUCK_RANGES.map((range) =>
     parseCstruckPage(cstruckFixture(`opening-${range[0]}-${range[1]}`), range),
-  );
+  ),
+  ...[1, 2, 3].map((page) =>
+    parseCstruckPage(cstruckFixture(`unfiltered-${page}`), { page }),
+  ),
+];
 const records = () => cstruckRoster(opening(), 64);
 const controls = [
   { key: "store-opening", url: CSTRUCK_STORE },
-  ...["opening", "closing"].flatMap((phase) =>
-    CSTRUCK_RANGES.map((range) => ({
+  ...["opening", "closing"].flatMap((phase) => [
+    ...CSTRUCK_RANGES.map((range) => ({
       key: `${phase}-${range[0]}-${range[1]}`,
       url: cstruckRangeUrl(range),
     })),
-  ),
+    ...[1, 2, 3].map((page) => ({
+      key: `unfiltered-${page}`,
+      url: cstruckRangeUrl({ page }),
+    })),
+  ]),
   { key: "store-closing", url: CSTRUCK_STORE },
 ];
 function replay(change: (raw: string, index: number) => string = (raw) => raw) {
@@ -72,7 +80,7 @@ function replay(change: (raw: string, index: number) => string = (raw) => raw) {
               }),
             onBatch: (vehicles) =>
               Effect.sync(() => {
-                expect(calls).toBe(10);
+                expect(calls).toBe(16);
                 emitted += vehicles.length;
               }),
             onYards: (values) =>
@@ -98,15 +106,15 @@ function replay(change: (raw: string, index: number) => string = (raw) => raw) {
 test("complete offline census reconciles 64 native items, 59 SD donors, five rejects and no duplicates", async () => {
   expect(parseCstruckStore(cstruckFixture("store-opening"))).toBe(64);
   expect(opening().map((page) => page.records.length)).toEqual([
-    10, 22, 13, 19,
+    10, 22, 13, 19, 25, 25, 14,
   ]);
   const saved = replay(),
     result = await saved.run();
   expect(result.status).toBe("complete");
-  expect(saved.calls).toBe(10);
+  expect(saved.calls).toBe(16);
   expect(saved.emitted).toBe(59);
   expect(saved.yards).toBe(1);
-  expect(result.cursor.requests).toBe(10);
+  expect(result.cursor.requests).toBe(16);
   expect(result.count).toBe(59);
   expect(result.accounting).toEqual({
     recordsProcessed: 64,
@@ -195,9 +203,9 @@ test("floor, rejection, duplicate, conflicting VIN and previous-count drift guar
 });
 
 test.each([
-  [5, "2HSFMAHR9SC048056", "2HSFMAHR9SC048057"],
-  [8, "C15 CAT", "C13 CAT"],
-  [9, "Complete Vehicle - 64", "Complete Vehicle - 63"],
+  [8, "2HSFMAHR9SC048056", "2HSFMAHR9SC048057"],
+  [11, "C15 CAT", "C13 CAT"],
+  [15, "Complete Vehicle - 64", "Complete Vehicle - 63"],
 ] as const)(
   "closing mutation at control %i emits no partial vehicles",
   async (index, from, to) => {
@@ -254,6 +262,7 @@ test("25-row cap bisects ranges without following page links; saturated single y
     [1999, 2003],
     [2004, 2006],
     [2007, 2027],
+    { page: 1 },
   ]);
   expect(() => cstruckFrontier([{ ...capped, range: [1971, 1998] }])).toThrow(
     "frontier",
@@ -264,7 +273,8 @@ test("25-row cap bisects ranges without following page links; saturated single y
   const history: CstruckPage[] = [];
   for (;;) {
     const range = cstruckFrontier(history)[0];
-    if (!range) throw new Error("Missing synthetic frontier");
+    if (!range || "page" in range)
+      throw new Error("Missing synthetic range frontier");
     const parsed: CstruckPage = {
       ...capped,
       range: [range[0], range[1]],
@@ -371,4 +381,88 @@ test("actual empty child range is complete only with the native no-matches headi
       [1970, 1984],
     ),
   ).toThrow("no-matches");
+});
+
+test("slow successful requests pause with their completed work and resume without refetching", async () => {
+  let now = 1_800_000_000_000;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  let calls = 0;
+  const readPage = (url: string) =>
+    Effect.sync(() => {
+      const control = controls[calls++];
+      if (!control) throw new Error("Unexpected request");
+      expect(url).toBe(control.url);
+      now += 31_000;
+      return cstruckFixture(control.key);
+    });
+  try {
+    const first = await Effect.runPromise(
+      streamCstruckInventory({
+        previousAcceptedCount: null,
+        readPage,
+        onBatch: () => Effect.die("Partial emission"),
+      }),
+    );
+    expect(first.status).toBe("paused");
+    expect(first.pagesProcessed).toBe(2);
+    expect(first.cursor.requests).toBe(2);
+    const second = await Effect.runPromise(
+      streamCstruckInventory({
+        startCursor: first.cursor,
+        previousAcceptedCount: null,
+        readPage,
+        onBatch: () => Effect.die("Partial emission"),
+      }),
+    );
+    expect(second.status).toBe("paused");
+    expect(second.cursor.requests).toBe(4);
+    expect(calls).toBe(4);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("the unfiltered census includes pre-1970, future and missing years", () => {
+  const raw = cstruckFixture("unfiltered-1");
+  const changed = raw
+    .replaceAll("1985 OSHKOSH", "1968 OSHKOSH")
+    .replaceAll("1989 GMC", "2028 GMC")
+    .replaceAll("1993 FREIGHTLINER", "FREIGHTLINER");
+  const page = parseCstruckPage(changed, { page: 1 });
+  expect(page.records.some((r) => r.year === "1968")).toBe(true);
+  expect(page.records.some((r) => r.year === "2028")).toBe(true);
+  expect(page.records.some((r) => r.year === "")).toBe(true);
+});
+
+test("complete unfiltered item counts include years the range controls cannot express", () => {
+  const pages = opening();
+  const last = pages.at(-1),
+    first = last?.records[0];
+  if (!last || !first) throw new Error("Missing final unfiltered page");
+  last.records.push(
+    ...["1968", "2028", ""].map((year, index) => ({
+      ...first,
+      id: String(99000 + index),
+      url: first.url.replace(/\d+$/, String(99000 + index)),
+      year,
+    })),
+  );
+  const roster = cstruckRoster(pages, 67);
+  expect(roster).toHaveLength(67);
+  for (const year of ["1968", "2028", ""])
+    expect(roster.some((r) => r.year === year)).toBe(true);
+  expect(() => cstruckRoster(pages, 64)).toThrow("store count");
+});
+test("unfiltered traversal requires every Next page and rejects duplicate native items", () => {
+  const pages = opening();
+  expect(() => cstruckRoster(pages.slice(0, -1), 64)).toThrow("unvisited");
+  const first = pages[4],
+    second = pages[5];
+  if (!first || !second) throw new Error("Missing unfiltered pages");
+  expect(cstruckFrontier(pages.slice(0, 5))).toEqual([{ page: 2 }]);
+  expect(() =>
+    cstruckFrontier([...pages.slice(0, 5), { ...second, range: { page: 3 } }]),
+  ).toThrow("frontier");
+  second.records = first.records;
+  expect(() => cstruckRoster(pages, 64)).toThrow();
 });
