@@ -1,0 +1,991 @@
+<!doctype html>
+<html>
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            function isEmpty(value) {
+                return (
+                    // null
+                    (value == null) ||         //undefined
+                    (value == undefined) ||         // has length and it's zero
+                    (value.hasOwnProperty('length') && value.length === 0) ||         // is an Object and has no keys
+                    (value.constructor === Object && Object.keys(value).length === 0)
+                )
+            }
+            let userId = 'Guest';
+            console.log($("#lblQuoteUser").text());
+            if (!isEmpty($("#lblQuoteUser").text())) {
+                userId = $("#lblQuoteUser").text()
+            }
+            (function (apiKey) {
+                (function (p, e, n, d, o) {
+                    var v, w, x, y, z; o = p[d] = p[d] || {}; o._q = o._q || [];
+                    v = ['initialize', 'identify', 'updateOptions', 'pageLoad', 'track']; for (w = 0, x = v.length; w < x; ++w)(function (m) {
+                        o[m] = o[m] || function () { o._q[m === v[0] ? 'unshift' : 'push']([m].concat([].slice.call(arguments, 0))); };
+                    })(v[w]);
+                    y = e.createElement(n); y.async = !0; y.src = 'https://cdn.pendo.io/agent/static/' + apiKey + '/pendo.js';
+                    z = e.getElementsByTagName(n)[0]; z.parentNode.insertBefore(y, z);
+                })(window, document, 'script', 'pendo');
+
+                pendo.initialize({
+                    visitor: {
+                        id: userId,
+                        app: 'HPDC'
+                    }
+                });
+            })('f00d2908-9447-4495-6910-ea6ed3fbbf74');
+        });
+    </script>
+
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <title></title>
+    <meta name="description" />
+    <meta name="keywords" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <link rel="icon" href="/Images/Hollander.ico" type="image/x-icon" />
+
+        <meta name="ROBOTS" content="NOINDEX, NOFOLLOW" />
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" crossorigin="anonymous">
+    <link href="/Style/jquery-ui-1.10.3.css" rel="stylesheet" type="text/css" crossorigin="anonymous" />
+    <link href="/Style/style.css" rel="stylesheet" type="text/css" crossorigin="anonymous" />
+    <link href="/Style/chat.css" rel="stylesheet" type="text/css" crossorigin="anonymous" />
+
+        <style>
+            .partDescription {color: #227FBB;}
+            .cartDescription {color: #227FBB;}
+            .partShipping {color: #227FBB;}
+            .join a {text-decoration: underline;color: #227FBB;}
+            .ui-widget-content .lineCheck a, a {text-decoration: none;color:#227FBB;cursor: pointer;}
+            .ui-widget-content .lineCheck a:hover, a:hover {text-decoration: underline;color: #227FBB;}
+            .header .wide.active, .header .wide.inactive:hover {border-bottom:.3em solid #227FBB;}
+            #lblQuoteUser {color: #227FBB;}
+            .userMenuTop.active #lblQuoteUser {color: #227FBB;}
+            .Accountcontainer a{color:#227FBB;}
+            .pageTitle {height: auto;float: left;width: 100%;padding:.8em 0;}
+
+            .footerbottom, .bgBlack, .updateBtn, .pageTitle, .greenBtn, .orangeButton,
+            .signIn .orangeButton, .orangeButton, .searchForParts, .orangeButton,
+            .orangeButton, .orangeButton, #GuestCheckout, #submitLogin, .rememberMeHolder,
+            .loginFormHolder input[type=button].signInButton, .loginRegisterHolder .register,
+            #divShareLink input[type=button], .grayBtn, .loginFormHolderForgot input.forgotPasswordSubmit, .emptyCart a.contShoppingBtn {background: #666666;}
+
+            .orangeButton, a.orangeButton, a.registerButton {background: linear-gradient(to bottom, #666666 25%, #484444 65%) repeat scroll 0 0 transparent;
+            -ms-filter: "progid:DXImageTransform.Microsoft.gradient(startColorstr=#666666, endColorstr=#484444)";
+            border-radius: .2em;border: 1px solid transparent;cursor: pointer;text-align: center;color: white;width:100%;padding:.3em; }
+        </style>
+
+    <!--web-font-->
+    <link href='//fonts.googleapis.com/css?family=Ubuntu:300,400,500,700,300italic,400italic,500italic,700italic' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Rouge+Script' rel='stylesheet' type='text/css'>
+    <link href='//fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,800,700,600,300' rel='stylesheet' type='text/css'>
+    <!--//web-font-->
+    <style type="text/css">
+        .ui-effects-transfer {
+            border: 2px dotted gray;
+            background: #e0e0e0;
+        }
+    </style>
+    <script src="/Scripts/jquery-1.10.2.min.js" type="text/javascript"></script>
+    <script src="/Scripts/jquery-ui-1.10.3.custom.min.js" type="text/javascript"></script>
+    <script src="/Scripts/common.js" type="text/javascript"></script>
+    <script src="/Scripts/Chat.js" type="text/javascript"></script>
+
+    <script src="/Scripts/Chat.js" type="text/javascript"></script>
+
+    
+
+    
+
+    
+    
+    
+    
+
+</head>
+
+<body onload="try { ss.play(); applyBorderColor(); } catch (Exception) { };">
+    <div class="onepcssgrid-1000">
+
+        <!--------------------------------------------------------------------------------
+Notes for new sites (delete when modifications are done
+The size of your primary nav buttons is controlled exclusively through the nav.primaryNav ul li div.gradient selector in style.css
+The nested <div> tags in the primary navigation are a result of making gradient background + border-radius compatible in IE9
+    *When we move off of supporting IE9 we can remove the nested <div> tags in the <li> elements and refactor css to use css3 gradient exclusively
+TopLeftHeader is not floated. Adjust if you wish to.
+Default of most of site is display:inline-block to control responsive design factoring
+---------------------------------------------------------------------------------->
+
+
+<header class="headerSection">
+    <div class="onerow topheaderrow">
+        <div id="headerbox" class="col12 bgBlack">
+                <div class="logo">
+                    <a href="/" class="hpdcLogo">BeaversCarSalvage</a>
+                </div>
+
+            <div id="cartimagetext" class="cartHolder">
+                <a Id="cartHolderLink" href="/Quote" class="noUnderline">
+                    <div id="carttext" class="textHolder">
+                        <div><span class="nmbrOfItems" id="cartSummaryItemCnt">0</span> items</div>
+                        <div>Total: <span id="cartSummarySubTotal"><label id="lblPrice">$0.00</label></span></div>
+                    </div>
+                    <div class="cartImage">
+                        
+                        <div id="cartphoto" alt="" border="0"></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="onerow">
+        <div class="col12">
+            <div id="headerid" class="header">
+
+                    <a id="homeMenu" href="http://beaversgarage.hollanderstores.com/vehicledealersearch" class="inactive wide"><span>HOME</span></a>
+
+
+                <a id="searchPartsMenu" href="/used-auto-parts" class="inactive wide"><span>SEARCH PARTS</span></a>
+
+
+                
+                    <div class="narrowone narrow">
+                        <a id="homeMenu" href="http://beaversgarage.hollanderstores.com/vehicledealersearch" class="">
+                            <img id="homeMenuImg" src="/Images/Mobile/Home.png" border="0"><br />
+                            HOME
+                        </a>
+                    </div>
+
+
+                <div class="narrowtwo narrow">
+                    <a id="homeMenu" href="/used-auto-parts/" class="inactive">
+                        <img alt="search parts" id="searchPartsMenuImg" src="/Images/Mobile/MagGlass.png" border="0"><br />
+                        SEARCH PARTS
+                    </a>
+                </div>
+
+                    <div class="narrowthree narrow">
+
+
+                    </div>
+                                    <div id="signinarea" class="joinSignInHolder fullsize">
+                            <div id="join" class="join joinLinkHolder"><a href="/CreateAccount/Index" id="" class="">Join</a></div>
+                            <div class="signIn"><a id="loginLink" class="orangeButton" href="/Login">Sign in</a></div>
+
+                    </div>
+
+
+            <div id="logobackground" class="container">
+
+            </div>
+            </div>
+                    <div id="spacer">⠀⠀</div>
+
+
+        </div>
+    </div>
+</header>
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+            if ($('.narrowone').css('display') != "none") {
+                if (window.location.pathname == '/' || window.location.pathname == "/Home" || window.location.pathname == "") {
+                    $('#homeMenu:first').removeClass('inactive').addClass('active');
+                    homeUrl = $('.narrowone #homeMenuImg').attr('src');
+                    $('.narrowone').addClass('active');
+                    $('.narrowone #homeMenuImg').attr('src', homeUrl.replace('mobileHome_inactive', 'mobileHome_active')).click(function () {
+                        window.location.href = '/Home';
+                    });
+                }
+                if (window.location.pathname.indexOf('used-auto-parts') > -1 || window.location.pathname.indexOf('PartSearch') > 0 || window.location.href.indexOf('#grid') > 0 || window.location.href.indexOf('TopSearches') > 0 || window.location.href.indexOf('/part-') > 0) {
+                    $('#searchPartsMenu:first').removeClass('inactive').addClass('active');
+                    searchUrl = $('.narrowtwo #searchPartsMenuImg').attr('src');
+                    $('.narrowtwo').addClass('active');
+                    $('.narrowtwo #searchPartsMenuImg').attr('src', searchUrl.replace('searchParts_inactive.gif', 'searchParts_active.gif')).click(function () {
+                        window.location.href = '/PartSearch';
+                    });
+                }
+                if (window.location.pathname.indexOf('SellerDirectory') > -1 || window.location.pathname.indexOf('AboutUs') > -1) {
+                    $('#sellerDirectoryMenu:first').removeClass('inactive').addClass('active');
+                    sellerUrl = $('.narrowthree #sellerDirectoryMenuImg').attr('src');
+                    $('.narrowthree').addClass('active');
+                    $('.narrowthree #sellerDirectoryMenuImg').attr('src', sellerUrl.replace('sellers_inactive.gif', 'sellers_active.gif')).click(function () {
+                        window.location.href = '/SellerDirectory';
+                    });
+                }
+            } else {
+                if (window.location.pathname == '/' || window.location.pathname == "/Home" || window.location.pathname == "") {
+                    $('#homeMenu').removeClass('inactive').addClass('active');
+                }
+                if (window.location.pathname.indexOf('used-auto-parts') > -1 || window.location.pathname.indexOf('PartSearch') > -1 || window.location.href.indexOf('#grid') > -1 || window.location.href.indexOf('/part-') > -1) {
+                    $('#searchPartsMenu').removeClass('inactive').addClass('active');
+                }
+                if (window.location.pathname.indexOf('VehicleDealerSearch') > -1 || window.location.pathname.indexOf('VehiclePartSearch') > -1) {
+                    $('#searchVehicleMenu').removeClass('inactive').addClass('active');
+                    $('#searchPartsMenu').removeClass('active').addClass('inactive');
+                }
+                if (window.location.pathname.indexOf('VehicleRebuilderSearch') > -1 || window.location.pathname.indexOf('VehicleRebuilderSearch') > -1) {
+                    $('#vehiclesForSaleMenu').removeClass('inactive').addClass('active');
+                    //$('#searchPartsMenu').removeClass('active').addClass('inactive');
+                }
+                if (window.location.pathname.indexOf('VINDecode') > -1 || window.location.pathname.indexOf('VINDecode') > -1) {
+                    $('#vinDecodeMenu').removeClass('inactive').addClass('active');
+                    $('#vehiclesForSaleMenu').removeClass('active').addClass('inactive');
+                }
+                if (window.location.pathname.indexOf('SellerDirectory') > 0) {
+                    $('#sellerDirectoryMenu').removeClass('inactive').addClass('active');
+                }
+
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        $('.userMenuTop').hover(function () {
+            $(this).addClass('active');
+            $('#usertable').show();
+            $('#usertable').hover(function () {
+                $(this).show();
+                $('.userMenuTop').addClass('active');
+            },
+            function () {
+                $(this).hide();
+                $('.userMenuTop').removeClass('active');
+            });
+        },
+        function () {
+            $('#usertable').hide();
+            $('.userMenuTop').removeClass('active');
+        });
+        function LogoutToAdminSite() {
+            isYardAdmin = "false";
+            $.ajax({
+                url: '/Admin/Home/SignOut',
+                context: $(this),
+                type: 'get',
+                dataType: 'json',
+                data: {
+                    username: ""
+                },
+            });
+        }
+    </script>
+    <input type="hidden" id="SalvageYardAdmin" value="" />
+
+
+
+        <div class="mainBody">
+
+            
+        
+
+
+
+
+
+
+<style type="text/css">
+    .table {
+        margin: 8px;
+        width: 97%;
+        background-color: #FCFCFC;
+        padding:inherit;
+       
+    }
+
+    .head {
+        background-color: #ffffff;
+        font-weight: bold;
+        font-size: 1.1em;
+        color: #000;
+        text-align:left;
+        border-collapse:collapse;
+        padding-top:15px;
+       min-height:50px;
+    }
+
+
+    .webGrid th, .webGrid td {
+        border: 1px solid #C0C0C0;
+       
+
+        
+    }
+
+   .tr {
+       
+        padding: 15px;
+    }
+
+    .altRow {
+        background-color: #E4E9F5;
+        color: #000;
+    }
+
+    .gridHead a:hover {
+        text-decoration: underline;
+       
+    }
+
+     .gridHead {
+          padding-top:15px;
+     }
+
+    .th {
+        text-align:left;
+        height:50px;
+    }
+
+    .Twentypercent {
+        width: 20%;
+    }
+
+    .Fifteenpercent {
+        width: 15%;
+    }
+
+     .Tenpercent {
+        width: 10%;
+    }
+
+    .selectRow {
+        background-color: #389DF5;
+    }
+
+    .rowPadding {
+        padding-top: 25px;
+    }
+</style>
+
+<div class="onerow">
+    <div class="col12 PSRHeaderRow seo">
+    
+       
+
+        <div class="pageTitle"><h2>Search Vehicles </h2></div>
+        <div class="optionOneTitle desktop" style="width:75%;"><span>Showing 290 Vehicles in Inventory</span><br /></div>
+
+            <br />&nbsp;<br />
+          
+          
+                                    <div>
+                        <nobr><input type="radio" id="rList" title="List View" value="List" checked name="someRadioGroup"> List View</nobr>
+                        <nobr><input type="radio" id="rCard" title="Card View" value="Card" name="someRadioGroup" > Card View</nobr>
+                    </div>
+      
+
+
+                <div class="col12 allPartsFitText seo" >
+                    <div class="nextFitLevel" style="background-color:lightgrey; padding:5px 0px 10px 10px; width:99%; align-content:center;">
+                        <div class="" style="width:95%;">
+                            <!-------------------------------------------------------------->
+
+                         
+
+                                <label for="lstSearchType" class="" style="height:27px;">Search By:</label>
+                                <select id="lstSearchType" name="lstSearchType" style="height:27px;">
+                                    <!-- see doc ready binding -->
+                                    <option value="0" >Select a search type</option>
+                                    <option value="Stock Ticket Number" >Stock Ticket Number</option>
+                                    <option value="VIN" >VIN</option>
+                                    <option value="Model" >Model</option>
+                                  
+                                </select>
+                                <input type="text" id="txtSearchTerm" value="" maxlength="25" style="height:27px; width:200px;"/>
+                                <input type="button" id="submitSearch" class="hollanderBtn" style="background-color:#666666; color:#ffffff; "value="Search" />
+                                <input type="button" id="submitClear" class="hollanderBtn" style="background-color:#666666; color:#ffffff; " value="Clear" />
+                               
+                            <!-------------------------------------------------------------->
+            
+                        </div>
+                    </div>
+                </div>
+        
+            </div>
+            
+    </div>
+
+
+            <!-- List View -->
+                <div id="grid">
+
+                        <table class="table">
+    <thead>
+        <tr class="head">
+            <th scope="col">
+<a href="/VehicleDealerSearch?sort=DisplayYear&amp;sortdir=ASC">Year</a>            </th>
+            <th scope="col">
+<a href="/VehicleDealerSearch?sort=Model&amp;sortdir=ASC">Model</a>            </th>
+            <th scope="col">
+Stock#            </th>
+            <th scope="col">
+<a href="/VehicleDealerSearch?sort=Body&amp;sortdir=ASC">Body Style</a>            </th>
+            <th scope="col">
+<a href="/VehicleDealerSearch?sort=MileageText&amp;sortdir=ASC">Mileage</a>            </th>
+            <th scope="col">
+VIN            </th>
+            <th scope="col">
+# Parts            </th>
+            <th scope="col">
+            </th>
+        </tr>
+    </thead>
+    <tfoot>
+        <tr >
+            <td colspan="8">1 <a href="/VehicleDealerSearch?page=2">2</a> <a href="/VehicleDealerSearch?page=3">3</a> <a href="/VehicleDealerSearch?page=4">4</a> <a href="/VehicleDealerSearch?page=5">5</a> <a href="/VehicleDealerSearch?page=2">&gt;</a> </td>
+        </tr>
+    </tfoot>
+    <tbody>
+        <tr class="rowPadding">
+            <td>&#39;18</td>
+            <td class="Twentypercent">MDX      </td>
+            <td class="Tenpercent">260540</td>
+            <td class="Twentypercent">UTLT     </td>
+            <td class="Tenpercent">222,000</td>
+            <td>5J8YD3H36JL001078</td>
+            <td class="Tenpercent">1</td>
+            <td><a href="/VehicleDealerShowParts/503/72805148" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;14</td>
+            <td class="Twentypercent">CIVIC    </td>
+            <td class="Tenpercent">260539</td>
+            <td class="Twentypercent">CPE      </td>
+            <td class="Tenpercent">145,000</td>
+            <td>2HGFG3B56EH507103</td>
+            <td class="Tenpercent">114</td>
+            <td><a href="/VehicleDealerShowParts/503/72801928" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;15</td>
+            <td class="Twentypercent">ACCORD   </td>
+            <td class="Tenpercent">260538</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">191,000</td>
+            <td>1HGCR2F30FA027560</td>
+            <td class="Tenpercent">56</td>
+            <td><a href="/VehicleDealerShowParts/503/72800344" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;15</td>
+            <td class="Twentypercent">TLX      </td>
+            <td class="Tenpercent">260537</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">144,000</td>
+            <td>19UUB2F50FA008002</td>
+            <td class="Tenpercent">129</td>
+            <td><a href="/VehicleDealerShowParts/503/72805485" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;17</td>
+            <td class="Twentypercent">TLX      </td>
+            <td class="Tenpercent">260536</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">128,000</td>
+            <td>19UUB3F51HA001648</td>
+            <td class="Tenpercent">1</td>
+            <td><a href="/VehicleDealerShowParts/503/72799037" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;15</td>
+            <td class="Twentypercent">ODYSSEY  </td>
+            <td class="Tenpercent">260535</td>
+            <td class="Twentypercent">PASVN    </td>
+            <td class="Tenpercent">199,000</td>
+            <td>5FNRL5H63FB075757</td>
+            <td class="Tenpercent">1</td>
+            <td><a href="/VehicleDealerShowParts/503/72798058" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;17</td>
+            <td class="Twentypercent">TLX      </td>
+            <td class="Tenpercent">260534</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">106,000</td>
+            <td>19UUB1F31HA010658</td>
+            <td class="Tenpercent">1</td>
+            <td><a href="/VehicleDealerShowParts/503/72797170" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;05</td>
+            <td class="Twentypercent">CIVIC    </td>
+            <td class="Tenpercent">260533</td>
+            <td class="Twentypercent">CPE      </td>
+            <td class="Tenpercent">0</td>
+            <td>1HGEM229X5L032124</td>
+            <td class="Tenpercent">60</td>
+            <td><a href="/VehicleDealerShowParts/503/72797593" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;22</td>
+            <td class="Twentypercent">HR-V     </td>
+            <td class="Tenpercent">260532</td>
+            <td class="Twentypercent">UTLT     </td>
+            <td class="Tenpercent">291,000</td>
+            <td>3CZRU5H17NM701591</td>
+            <td class="Tenpercent">102</td>
+            <td><a href="/VehicleDealerShowParts/503/72794413" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;19</td>
+            <td class="Twentypercent">ACCORD   </td>
+            <td class="Tenpercent">260531</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">142,000</td>
+            <td>1HGCV1F32KA109144</td>
+            <td class="Tenpercent">131</td>
+            <td><a href="/VehicleDealerShowParts/503/72793090" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;09</td>
+            <td class="Twentypercent">ACCORD   </td>
+            <td class="Tenpercent">260530</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">105,000</td>
+            <td>1HGCP26779A156361</td>
+            <td class="Tenpercent">88</td>
+            <td><a href="/VehicleDealerShowParts/503/72792205" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;05</td>
+            <td class="Twentypercent">PILOT    </td>
+            <td class="Tenpercent">260529</td>
+            <td class="Twentypercent">UTLT     </td>
+            <td class="Tenpercent">0</td>
+            <td>5FNYF18695B021728</td>
+            <td class="Tenpercent">1</td>
+            <td><a href="/VehicleDealerShowParts/503/72789364" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;16</td>
+            <td class="Twentypercent">HR-V     </td>
+            <td class="Tenpercent">260528</td>
+            <td class="Twentypercent">WGN 4Dr  </td>
+            <td class="Tenpercent">211,000</td>
+            <td>3CZRU6H77GM714810</td>
+            <td class="Tenpercent">1</td>
+            <td><a href="/VehicleDealerShowParts/503/72786812" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;17</td>
+            <td class="Twentypercent">CIVIC    </td>
+            <td class="Tenpercent">260527</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">191,000</td>
+            <td>19XFC2F50HE061867</td>
+            <td class="Tenpercent">91</td>
+            <td><a href="/VehicleDealerShowParts/503/72785579" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;18</td>
+            <td class="Twentypercent">CIVIC    </td>
+            <td class="Tenpercent">260526</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">155,000</td>
+            <td>2HGFC2F77JH565636</td>
+            <td class="Tenpercent">128</td>
+            <td><a href="/VehicleDealerShowParts/503/72781874" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;11</td>
+            <td class="Twentypercent">ACCORD   </td>
+            <td class="Tenpercent">260525</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">226,000</td>
+            <td>1HGCP3F88BA017828</td>
+            <td class="Tenpercent">140</td>
+            <td><a href="/VehicleDealerShowParts/503/72779931" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;15</td>
+            <td class="Twentypercent">CR-V     </td>
+            <td class="Tenpercent">260524</td>
+            <td class="Twentypercent">UTLT     </td>
+            <td class="Tenpercent">182,000</td>
+            <td>2HKRM3H55FH503449</td>
+            <td class="Tenpercent">111</td>
+            <td><a href="/VehicleDealerShowParts/503/72776894" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;14</td>
+            <td class="Twentypercent">ACCORD   </td>
+            <td class="Tenpercent">260523</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">128,000</td>
+            <td>1HGCR2F8XEA053027</td>
+            <td class="Tenpercent">109</td>
+            <td><a href="/VehicleDealerShowParts/503/72772255" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="rowPadding">
+            <td>&#39;16</td>
+            <td class="Twentypercent">MDX      </td>
+            <td class="Tenpercent">260522</td>
+            <td class="Twentypercent">UTLT     </td>
+            <td class="Tenpercent">132,000</td>
+            <td>5FRYD4H69GB001987</td>
+            <td class="Tenpercent">159</td>
+            <td><a href="/VehicleDealerShowParts/503/72771087" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+        <tr class="altRow">
+            <td>&#39;14</td>
+            <td class="Twentypercent">CIVIC    </td>
+            <td class="Tenpercent">260521</td>
+            <td class="Twentypercent">SDN      </td>
+            <td class="Tenpercent">177,000</td>
+            <td>19XFB2F57EE037239</td>
+            <td class="Tenpercent">89</td>
+            <td><a href="/VehicleDealerShowParts/503/72768712" class="hollanderBtn" style="background-color:#666666; color:#ffffff; width:90px;">View Parts</a></td>
+        </tr>
+    </tbody>
+    </table>
+
+                </div>
+
+
+
+        </div>
+        
+        <!-- footer for anonymous user role-->
+
+
+
+
+
+
+
+<div class="onepcssgrid-1000">
+    <div class="onerow">
+        <div class="col12 last">
+            <div class="footertop" style="line-height:3em">
+                <div class="footerLink horiz">
+                    <a href="/">Home</a>
+                </div>
+                <div class="footerSpacer horiz">
+                    |
+                </div>
+                <div class="footerLink horiz">
+                    <a href="/used-auto-parts">Search Parts</a>
+                </div>
+                <div class="footerSpacer horiz">
+                    |
+                </div>
+
+                <div class="footerLink horiz">
+                    <a href="/Quote">Cart</a>
+                </div>
+                <div class="footerSpacer horiz">
+                    |
+                </div>
+                
+                
+
+
+                    <div class="footerLink horiz">
+                        <a href="/ContactStore">Contact Us</a>
+                    </div>
+                    <div class="footerSpacer horiz">
+                        |
+                    </div>
+                <div class="footerLink horiz ">
+                    <a href="/CreateAccount">Create Account</a>
+                </div>
+                <div class="footerSpacer horiz">
+                    |
+                </div>
+
+                <div class="footerLink horiz">
+                    <a href="/Terms">Terms of Use</a>
+                </div>
+
+                <div class="footerSpacer horiz">
+                    |
+                </div>
+
+                <div class="footerLink horiz">
+                    
+                    <a href="https://dsutaflx5ws11.cloudfront.net/Documents/HollanderPartsStorefront_Privacy_Notice.pdf" target="_blank">Privacy Notice</a>
+                </div>
+                <div>
+                    <!-- OneTrust Cookies Settings button start -->
+                    
+                    <a id="cookiesettings" style="border:none; background-color:#f2f2f2; color:black; font-size:1.3em;" class="optanon-toggle-display">Cookie Settings</a>
+                    <!-- OneTrust Cookies Settings button end -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="onerow">
+        <div class="col12 seo last">
+            <div id="footer" class="footerbottom" style="max-width:100%;">
+                <h1>&nbsp;&nbsp;Hollander &reg;</h1>
+                <div class="copyright">
+                    &copy; 2026 Hollander, LLC All Rights Reserved.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- OneTrust Cookies Consent Notice start -->
+
+
+
+    <!--Storefront PROD -- aaaparts.hollanderstores.com>
+    <!--OneTrust Cookies Consent Notice start -->
+    <!--OneTrust Cookies Consent Notice end -->
+    <!--Storefront-->
+    <!--Storefront PROD -->
+    <!-- OneTrust Cookies Consent Notice start -->
+    <script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js" type="text/javascript" charset="UTF-8" data-domain-script="9de06a8a-1c9e-4d72-afd1-a01ab813161a"></script>
+    <script type="text/javascript">
+        function OptanonWrapper() { }
+    </script>
+
+
+
+
+
+
+
+<!-- OneTrust Cookies Consent Notice end -->
+<!-- OneTrust Cookies Consent Notice end -->
+<!-- OneTrust Cookies Settings button start -->
+
+<!-- OneTrust Cookies Settings button end -->
+<!-- OneTrust Cookies List start -->
+
+<!-- OneTrust Cookies List end -->
+
+<script type="text/javascript">
+    $('.individualPartHolder').each(function () {
+        $(this).on('click', function () {
+            window.location.href = $('.partCardLink a', this).attr('href');
+        });
+    });
+    $('.lookupLink').click('on', function () {
+        $('#blocker').show();
+    })
+
+</script>
+
+
+
+
+    </div>
+
+
+    <!-- for troubleshooting: Server Name =  -->
+
+    <div style=" display none;" id="blocker">
+        <div>
+            <img alt="wheel animation" src="Images/wheelanimation.gif">
+        </div>
+    </div>
+    <!-- footer area javascript - script that executes after the page loads, or isn't used during .ready() or onload -->
+    
+        <script type="text/javascript">
+            $(document).ready(function () {
+
+                           
+                $('#lstSortOrdinal').change(function () {
+                    $('#blocker').show();
+                    ChangeSortOrdinal();
+
+                });
+                // $('#lstSortOrdinal').val();
+
+            });
+
+
+            function ChangeSortOrdinal(sortOrdinal) {
+                
+                var display = 'list';
+               
+                if ($("#rCard").is(':checked')) {
+                    display = 'card';
+                }
+
+              
+                $('body').append('<form id="frmSort"></form>');
+                $('#frmSort').attr("action", "VehicleDealerSearch")
+                               .attr("method", "post")
+                               .append('<input type="hidden" name="hdnSortOrdinal" id="hdnSortOrdinal" value="' + $('#lstSortOrdinal').val() + '">')
+                               .append('<input type="hidden" name="hdnSearchType" id="hdnSearchType" value="' + $('#lstSearchType').val() + '">')
+                               .append('<input type="hidden" name="hdnSearchTerm" id="hdnSearchTerm" value="' + $('#txtSearchTerm').val() + '">')
+                               .append('<input type="hidden" name="hdnChangeDisplay" id="hdnChangeDisplay" value="' + display + '">')
+                $('#frmSort').submit();
+            }
+
+           
+            function ClearSearch() {
+
+                var display = 'list';
+                if ($("#rCard").is(':checked')) {
+                    display = 'card';
+                }
+
+                $('#txtSearchTerm').val = "";
+                var clear = '*clear*';
+
+                $('body').append('<form id="frmSearch"></form>');
+                $('#frmSearch').attr("action", "VehicleDealerSearch")
+                                .attr("method", "post")
+
+                 .append('<input type="hidden" name="hdnSearchTerm" id="hdnSearchTerm" value="' + clear + '">')
+                 .append('<input type="hidden" name="hdnChangeDisplay" id="hdnChangeDisplay" value="' + display + '">')
+                $('#frmSearch').submit();
+
+
+            }
+
+            $('#submitSearch').click(function () {
+            
+
+                var searchType = $('#lstSearchType').val();
+                var searchTerm = $('#txtSearchTerm').val();
+
+                if (searchType != 0) {
+                    
+                    if (searchTerm != '') {
+
+                        ChangeSortOrdinal();
+                    }
+                    else {
+                        alert('Please enter text to use the Search feature.')
+                    }
+
+                }
+                else {
+                    alert('Please select a Search By Type to use the Search feature.')
+                }
+
+            });
+
+           
+            $('#submitClear').click(function () {
+
+                ClearSearch();
+
+            });
+
+          
+
+            $("input[name=someRadioGroup]:radio").change(function () {
+               // alert('here');
+                if ($("#rList").is(':checked')) {
+                    $('#rCard:input').removeAttr('checked');
+                   // alert('here2');
+                    ChangeDisplay("list");
+                }
+                else {
+                    // $('#rCard:input').attr('checked', 'checked');
+                    $('#rList:input').removeAttr('checked');
+                    //alert('here3');
+                    ChangeDisplay("card");
+                }
+
+            })
+
+
+            function ChangeDisplay(changeDisplayValue) {
+
+                $('body').append('<form id="frmSearch"></form>');
+                $('#frmSearch').attr("action", "VehicleDealerSearch")
+                               .attr("method", "post")
+                .append('<input type="hidden" name="hdnChangeDisplay" id="hdnChangeDisplay" value="' + changeDisplayValue + '">')
+                $('#frmSearch').submit();
+
+
+            }
+
+        </script>
+    
+    <!-- Server Name = HOL-CLOUDWEB3 -->
+    <script type="text/javascript">
+
+        $(function () {
+            GetShoppingQuote();
+        });
+        function numberToCurrency(amount) {
+            var thousandsSeparator = ","
+            var currencyNum = "";
+            var amountString = amount.toFixed(2).toString();
+            var digits = amountString.split("");
+
+            var countDigits = digits.length;
+            var revDigits = digits.reverse();
+
+            for (var i = 0; i < countDigits; i++) {
+                if ((i % 3 == 0) && (i != 0)) {
+                    currencyNum += thousandsSeparator + revDigits[i];
+                } else {
+                    currencyNum += digits[i];
+                }
+            };
+
+            var revCurrency = currencyNum.split("").reverse().join("");
+
+            var finalCurrency = "$" + revCurrency;
+            return finalCurrency.replace(',.', '.');
+        }
+        function GetShoppingQuote() {
+            var json = "";
+            $.ajax({
+                url: '/StoreManager/GetShoppingQuote',
+                async: false,
+                cache: false,
+                success: function (result) {
+                    //document.getElementById('lblMsg').innerText = result.Msg;
+                    if (result.User == "Guest") {
+                        $('#lblQuoteUser').html("");
+                    } else {
+                        userName = result.User.split(' ');
+                        fName = userName[0];
+                        $('#lblQuoteUser').html(fName);
+                    }
+                    $('#cartSummaryItemCnt').html(result.QuoteItemsCount == "" ? "0" : result.QuoteItemsCount);
+                    $('#lblPrice').html(numberToCurrency(result.Price));
+                    //GetShoppingQuoteExecution(result);
+                },
+                statusCode: {
+                    404: function (content) { alert('cannot find resource'); },
+                    505: function (content) { alert('internal server error'); }
+                },
+                error: function (req, status, errorObj) {
+                    json = "";
+                }
+            });
+            return json;
+
+
+        }
+        $('[placeholder]').focus(function () {
+            var input = $(this);
+            if (input.val() == input.attr('placeholder')) {
+                input.val('');
+                input.removeClass('placeholder');
+            }
+        }).blur(function () {
+            var input = $(this);
+            if (input.val() == '' || input.val() == input.attr('placeholder')) {
+                input.addClass('placeholder');
+                input.val(input.attr('placeholder'));
+            }
+        }).blur().parents('form').submit(function () {
+            $(this).find('[placeholder]').each(function () {
+                var input = $(this);
+                if (input.val() == input.attr('placeholder')) {
+                    input.val('');
+                }
+            })
+        });
+
+    </script>
+</body>
+
+
+
+</html>

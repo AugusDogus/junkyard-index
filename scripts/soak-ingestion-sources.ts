@@ -47,6 +47,8 @@ import { streamPartsGaloreInventory } from "../src/server/ingestion/partsgalore-
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamBigtruckpageInventory } from "../src/server/ingestion/bigtruckpage-connector";
 import { soakBigtruckpageInventory } from "./soak-bigtruckpage";
+import { streamBeaversInventory } from "../src/server/ingestion/beavers-connector";
+import { soakBeaversInventory } from "./soak-beavers";
 import { streamArmyInventory } from "../src/server/ingestion/army-connector";
 import { soakArmyInventory } from "./soak-army";
 import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
@@ -309,6 +311,14 @@ async function main(): Promise<void> {
                     maxPages,
                     onBatch,
                   }),
+                ),
+              config.maxPages,
+            );
+          case "beavers":
+            return soakBeaversInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamBeaversInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );
