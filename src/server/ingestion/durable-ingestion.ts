@@ -8,12 +8,13 @@ import type {
   DurableIngestionResult,
   DurableIngestionWakeupResult,
   DurableReconciliationBatchResult,
+  DurableIngestionStart,
   DurableSourceChunkResult,
-  InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
-import type {
-  DurableCursorFor,
-  DurableIngestionSource,
+import {
+  getDurableSourceDefinition,
+  type DurableCursorFor,
+  type DurableIngestionSource,
 } from "./durable-source";
 import { reconcileDurableIngestionRun } from "./durable-reconciliation";
 import { validateDurableSourceRuns } from "./durable-source-validation";
@@ -45,10 +46,21 @@ const repository = createDurableIngestionRepository(
   snapshotStore,
 );
 
-export function initializeDurableIngestion(
+export async function initializeDurableIngestion(
   runId: string,
-): Promise<InitializeDurableIngestionResult> {
-  return repository.initialize(runId, IngestionSourceFlags.enabledSources);
+): Promise<DurableIngestionStart> {
+  const result = await repository.initialize(
+    runId,
+    IngestionSourceFlags.enabledSources,
+  );
+  if (result.status !== "started") return result;
+  return {
+    status: "started",
+    runId: result.runId,
+    initialCursors: result.sources.map(
+      (source) => getDurableSourceDefinition(source).initialCursor,
+    ),
+  };
 }
 
 export async function prepareDurableIngestionWakeup(

@@ -3,6 +3,7 @@ import type { IngestionSource } from "~/lib/ingestion-source";
 import type {
   DurableCursorFor,
   DurableIngestionSource,
+  DurableSourceCursor,
 } from "./durable-source";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
@@ -12,6 +13,18 @@ export type InitializeDurableIngestionResult =
       status: "started";
       runId: string;
       sources: readonly DurableIngestionSource[];
+    }
+  | { status: "deduplicated"; activeRunId: string | null };
+
+/**
+ * A started run hands the workflow each source's first cursor. Workflow code
+ * only passes cursors between steps, so it never loads provider cursor codecs.
+ */
+export type DurableIngestionStart =
+  | {
+      status: "started";
+      runId: string;
+      initialCursors: readonly DurableSourceCursor[];
     }
   | { status: "deduplicated"; activeRunId: string | null };
 
