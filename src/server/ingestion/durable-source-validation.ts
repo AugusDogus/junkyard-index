@@ -59,6 +59,7 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
     if (parsed.source === "cstruck") return parsed.phase === "complete";
     if (parsed.source === "alshned") return parsed.phase === "complete";
     if (parsed.source === "byot") return parsed.phase === "complete";
+    if (parsed.source === "vinplus") return parsed.phase === "complete";
     if (parsed.source === "allied") return parsed.phase === "complete";
     return true;
   } catch {

@@ -1,4 +1,5 @@
 import { streamHeavytruckpartsInventory } from "./heavytruckparts-connector";
+import { streamVinplusInventory } from "./vinplus-connector";
 import { streamCstruckInventory } from "./cstruck-connector";
 import { streamByotInventoryFromProvider } from "./byot-connector";
 import { loadByotPublishedCursor } from "./byot-history";
@@ -594,6 +595,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
             cursor.phase === "initial"
               ? await loadByotPublishedCursor(db)
               : null,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  vinplus: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamVinplusInventory({
+          startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,

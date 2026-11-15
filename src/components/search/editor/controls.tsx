@@ -78,6 +78,7 @@ const SOURCES = [
   ["cstruck", "C&S Truck Sales & Salvage"],
   ["heavytruckparts", "HeavyTruckParts.net"],
   ["byot", "BYOT Auto Parts"],
+  ["vinplus", "VinPlus app yards"],
   ["allied", "Allied Auto Wrecking"],
   ["pyp", "Pick Your Part"],
   ["pullapart", "Pull-A-Part"],
