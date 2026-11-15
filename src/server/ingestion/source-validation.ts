@@ -231,11 +231,10 @@ export function validateSourceSnapshot(
   }
 
   if (input.newestVehicleDate !== null) {
-    const ageDays = Math.floor(
-      (input.validatedAt.getTime() - input.newestVehicleDate.getTime()) /
-        DAY_MS,
-    );
-    if (ageDays > MAXIMUM_INVENTORY_AGE_DAYS) {
+    const ageMs =
+      input.validatedAt.getTime() - input.newestVehicleDate.getTime();
+    if (ageMs > MAXIMUM_INVENTORY_AGE_DAYS * DAY_MS) {
+      const ageDays = Math.floor(ageMs / DAY_MS);
       errors.push(
         `${input.source} newest vehicle arrived ${input.newestVehicleDate.toISOString().slice(0, 10)}, ${ageDays} days before this run; a feed with nothing newer than ${MAXIMUM_INVENTORY_AGE_DAYS} days is treated as frozen. Its previously published inventory stays in place; check whether the provider moved its inventory to a new system.`,
       );
