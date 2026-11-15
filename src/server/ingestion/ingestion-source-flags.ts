@@ -1,6 +1,6 @@
 import { flagsClient, Reason, type EvaluationResult } from "@vercel/flags-core";
 import {
-  INGESTION_SOURCES,
+  ACTIVE_INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
 
@@ -8,7 +8,7 @@ import {
 // source's `ingestion-source-<source>` boolean flag to leave it out of new
 // ingestion runs. A missing flag, or a failed evaluation, keeps the source
 // enabled. New Vercel flags serve false in production, so creating one pauses
-// its source immediately.
+// its source immediately. A retired source stays out whatever its flag serves.
 export const IngestionSourceFlags = {
   key(source: IngestionSource): string {
     return `ingestion-source-${source}`;
@@ -17,7 +17,7 @@ export const IngestionSourceFlags = {
   resolve(
     results: Readonly<Record<string, EvaluationResult<unknown> | undefined>>,
   ): IngestionSource[] {
-    return INGESTION_SOURCES.filter((source) => {
+    return ACTIVE_INGESTION_SOURCES.filter((source) => {
       const key = IngestionSourceFlags.key(source);
       const result = results[key];
       if (!result) return true;
@@ -41,7 +41,7 @@ export const IngestionSourceFlags = {
 
   async enabledSources(): Promise<IngestionSource[]> {
     const results = await flagsClient.bulkEvaluate<unknown>(
-      INGESTION_SOURCES.map((source) => ({
+      ACTIVE_INGESTION_SOURCES.map((source) => ({
         key: IngestionSourceFlags.key(source),
         defaultValue: true,
       })),

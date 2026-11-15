@@ -39,7 +39,10 @@ async function yardInventoryRows(client: ReturnType<typeof createClient>) {
   }));
 }
 
-function snapshot(source: "row52" | "pyp", color: string): CanonicalVehicle {
+function snapshot(
+  source: "row52" | "pyp" | "gopullit",
+  color: string,
+): CanonicalVehicle {
   return {
     source,
     vin: "VIN-1",
@@ -1113,6 +1116,162 @@ describe("bounded durable reconciliation", () => {
       expect(completed.status).toBe("complete");
       expect(await yardInventoryRows(client)).toEqual([
         { source: "row52", code: "yard-1", count: 1 },
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("withdraws a retired source's vehicles through other sources' runs", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const seededAt = new Date("2026-11-15T07:00:00.000Z");
+      // upullitne is retired: it never runs again, so only other sources'
+      // runs can retire its frozen rows.
+      await client.execute({
+        sql: `insert into vehicle (
+          vin, source, year, make, model, location_code, location_name,
+          location_city, state, state_abbr, lat, lng, first_seen_at,
+          last_seen_at, missing_run_count
+        ) values ('VIN-NE-1', 'upullitne', 2012, 'HONDA', 'CIVIC', 'LINCOLN',
+          'Lincoln', 'Lincoln', 'Nebraska', 'NE', 40.8, -96.7, ?, ?, 0)`,
+        args: [seededAt.getTime(), seededAt.getTime()],
+      });
+      await client.execute(`insert into yard_inventory values
+        ('upullitne', 'LINCOLN', 'Lincoln', 'Lincoln', 'NE', 40.8, -96.7, 1, null, 0)`);
+      const snapshotStore = IngestionSnapshotStore.memory();
+
+      const states = [];
+      for (const attempt of [1, 2, 3]) {
+        const runId = `run-row52-${attempt}`;
+        const startedAt = new Date(seededAt.getTime() + attempt * 3_600_000);
+        await database.insert(ingestionRun).values({
+          id: runId,
+          source: "row52",
+          status: "running",
+          stage: "reconcile_upsert",
+          activeSlot: 1,
+          acceptedSources: JSON.stringify(["row52"]),
+          startedAt,
+          lastProgressAt: startedAt,
+        });
+        await database.insert(ingestionSourceRun).values({
+          id: `${runId}:row52`,
+          runId,
+          source: "row52",
+          status: "success",
+          acceptanceStatus: "accepted",
+          uniqueVehicles: 1,
+          startedAt,
+        });
+        await stageSnapshots({
+          client,
+          store: snapshotStore,
+          runId,
+          vehicles: [snapshot("row52", "Black")],
+        });
+        const result = await reconcileDurableIngestionRun({
+          runId,
+          database,
+          batchClient: client,
+          snapshotStore,
+        });
+        expect(result.status).toBe("complete");
+        const retired = await client.execute(
+          "select missing_run_count from vehicle where vin = 'VIN-NE-1'",
+        );
+        const changes = await client.execute({
+          sql: "select vin, change_type from vehicle_change_v2 where run_id = ? and vin = 'VIN-NE-1'",
+          args: [runId],
+        });
+        states.push({
+          missingRunCount: retired.rows[0]?.missing_run_count ?? "deleted",
+          changes: changes.rows.map((row) => row.change_type),
+        });
+        // The yard leaves the summary as soon as its vehicles go missing.
+        expect(await yardInventoryRows(client)).toEqual([
+          { source: "row52", code: "yard-1", count: 1 },
+        ]);
+      }
+
+      // Missing vehicles stay searchable with a badge; the third run deletes
+      // the row and queues the search deletion.
+      expect(states).toEqual([
+        { missingRunCount: 1, changes: ["missing"] },
+        { missingRunCount: 2, changes: ["missing"] },
+        { missingRunCount: "deleted", changes: ["delete"] },
+      ]);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("lets a lower-priority source take over a retired source's VIN", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const startedAt = new Date("2026-11-15T08:00:00.000Z");
+      // upullitne outranks gopullit, but a retired owner must not keep the
+      // VIN from a source that still lists it.
+      await client.execute({
+        sql: `insert into vehicle (
+          vin, source, year, make, model, location_code, location_name,
+          location_city, state, state_abbr, lat, lng, first_seen_at,
+          last_seen_at, missing_run_count
+        ) values ('VIN-1', 'upullitne', 2018, 'FORD', 'FOCUS', 'LINCOLN',
+          'Lincoln', 'Lincoln', 'Nebraska', 'NE', 40.8, -96.7, ?, ?, 0)`,
+        args: [startedAt.getTime(), startedAt.getTime()],
+      });
+      await client.execute(`insert into yard_inventory values
+        ('upullitne', 'LINCOLN', 'Lincoln', 'Lincoln', 'NE', 40.8, -96.7, 1, null, 0)`);
+      await database.insert(ingestionRun).values({
+        id: "run-gopullit",
+        source: "gopullit",
+        status: "running",
+        stage: "reconcile_upsert",
+        activeSlot: 1,
+        acceptedSources: JSON.stringify(["gopullit"]),
+        startedAt,
+        lastProgressAt: startedAt,
+      });
+      await database.insert(ingestionSourceRun).values({
+        id: "run-gopullit:gopullit",
+        runId: "run-gopullit",
+        source: "gopullit",
+        status: "success",
+        acceptanceStatus: "accepted",
+        uniqueVehicles: 1,
+        startedAt,
+      });
+      const snapshotStore = IngestionSnapshotStore.memory();
+      await stageSnapshots({
+        client,
+        store: snapshotStore,
+        runId: "run-gopullit",
+        vehicles: [snapshot("gopullit", "Black")],
+      });
+
+      const result = await reconcileDurableIngestionRun({
+        runId: "run-gopullit",
+        database,
+        batchClient: client,
+        snapshotStore,
+      });
+      expect(result.status).toBe("complete");
+      const owner = await client.execute(
+        "select source, missing_run_count from vehicle where vin = 'VIN-1'",
+      );
+      expect(
+        owner.rows.map((row) => ({
+          source: row.source,
+          missing_run_count: row.missing_run_count,
+        })),
+      ).toEqual([{ source: "gopullit", missing_run_count: 0 }]);
+      expect(await yardInventoryRows(client)).toEqual([
+        { source: "gopullit", code: "yard-1", count: 1 },
       ]);
     } finally {
       client.close();

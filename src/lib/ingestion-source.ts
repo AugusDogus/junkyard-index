@@ -301,3 +301,24 @@ export function isIngestionSource(value: unknown): value is IngestionSource {
     INGESTION_SOURCES.some((source) => source === value)
   );
 }
+
+/**
+ * Sources whose feed no longer reflects the yards' inventory. They are never
+ * fetched, and every run withdraws their published vehicles through the usual
+ * missing-then-delete reconciliation. They stay in INGESTION_SOURCES so their
+ * stored rows still parse and their status reports stale.
+ *
+ * upullitne: U Pull-It Nebraska moved to YardConnect Pro, which lists no VINs.
+ * Its old TAP endpoint still answers, frozen at early August 2026.
+ */
+export const RETIRED_INGESTION_SOURCES: readonly IngestionSource[] = [
+  "upullitne",
+];
+
+export function isRetiredIngestionSource(source: IngestionSource): boolean {
+  return RETIRED_INGESTION_SOURCES.includes(source);
+}
+
+/** Sources that are still fetched: every source except the retired ones. */
+export const ACTIVE_INGESTION_SOURCES: readonly IngestionSource[] =
+  INGESTION_SOURCES.filter((source) => !isRetiredIngestionSource(source));

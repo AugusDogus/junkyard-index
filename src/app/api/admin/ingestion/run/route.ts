@@ -1,7 +1,10 @@
 import pRetry from "p-retry";
 import { start } from "workflow/api";
 import { env } from "~/env";
-import { isIngestionSource } from "~/lib/ingestion-source";
+import {
+  isIngestionSource,
+  isRetiredIngestionSource,
+} from "~/lib/ingestion-source";
 import { startManualDurableIngestionRun } from "~/server/ingestion/durable-ingestion";
 import { hasValidCronAuthorization } from "~/server/workflows/cron-authorization";
 import { workflowStartRetryOptions } from "~/server/workflows/start-retry";
@@ -30,6 +33,14 @@ export async function POST(request: Request) {
         error: `Unknown ingestion source "${source ?? ""}". Pass ?source=<source>.`,
       },
       { status: 400 },
+    );
+  }
+  if (isRetiredIngestionSource(source)) {
+    return Response.json(
+      {
+        error: `${source} is retired: its feed no longer reflects the yards' inventory, so it is not fetched and every ingestion run withdraws its published vehicles. No run was started.`,
+      },
+      { status: 409 },
     );
   }
   const run = await startManualDurableIngestionRun(source);
