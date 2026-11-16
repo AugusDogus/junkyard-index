@@ -117,6 +117,11 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         ),
       });
     let cursor = parsedCursor.data;
+    const initialFreshness =
+      "freshness" in cursor ? cursor.freshness : undefined;
+    const legacyDateEvidence = initialFreshness
+      ? { ...initialFreshness.legacyDateEvidence }
+      : undefined;
     let pagesProcessed = 0;
     let totalCanonical = 0;
     const errors: string[] = [];
@@ -168,6 +173,27 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
                 `Source ownership lookup omitted organization ${org}; no page inventory was emitted`,
               ),
             });
+        }
+        if (legacyDateEvidence) {
+          for (const hit of hits) {
+            const src = hitSource(hit);
+            if (!src) continue;
+            const org = autorecyclerOrgLookupKey(
+              src.organization_custom_organization,
+            );
+            if (
+              !org ||
+              !decisions.has(org) ||
+              decisions.get(org) === "direct-provider"
+            )
+              continue;
+            const date = src.added_date_date;
+            legacyDateEvidence[org] =
+              legacyDateEvidence[org] === true ||
+              (typeof date === "number" &&
+                Number.isFinite(date) &&
+                Number.isFinite(new Date(date).getTime()));
+          }
         }
         const seeds = new Map<string, string>();
         for (const h of hits) {
@@ -310,9 +336,23 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         lastId === null
           ? { source: "autorecycler", phase: "complete" }
           : { source: "autorecycler", phase: "page", beforeId: lastId };
-      cursor = freshness ? { ...next, freshness } : next;
+      cursor = freshness
+        ? { ...next, freshness: { ...freshness, legacyDateEvidence } }
+        : next;
     }
     const done = cursor.phase === "complete";
+    if (done && legacyDateEvidence) {
+      const undated = Object.entries(legacyDateEvidence)
+        .filter(([, hasDate]) => !hasDate)
+        .map(([org]) => org);
+      if (undated.length > 0)
+        return yield* new AutorecyclerProviderError({
+          from: 0,
+          cause: new Error(
+            `AutoRecycler legacy yards ${undated.join(", ")} have listings but no parseable addition dates. Expected added_date_date as epoch milliseconds. Published inventory is preserved; inspect the provider date contract before starting a new run.`,
+          ),
+        });
+    }
 
     const warnings = [...excludedYards].map(
       ([orgLookup, count]) =>
@@ -497,10 +537,5 @@ export function streamAutorecyclerInventory<E, R>(
         buildInventoryMsearchBody(beforeId, pageSize),
       ),
     policy,
-  ).pipe(
-    Effect.map((result) => ({
-      ...result,
-      cursor: { ...result.cursor, freshness },
-    })),
   );
 }

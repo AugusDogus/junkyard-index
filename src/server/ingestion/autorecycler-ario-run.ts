@@ -13,7 +13,14 @@ import type { AutorecyclerCursor } from "./autorecycler-cursor";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { AutorecyclerProviderError } from "./errors";
 
+const MAX_CONSECUTIVE_RATE_LIMITS = 24;
 const StateSchema = z.object({
+  consecutiveRateLimits: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(MAX_CONSECUTIVE_RATE_LIMITS)
+    .optional(),
   session: z.object({
     key: z.string().optional(),
     bundle: z.string().optional(),
@@ -115,6 +122,7 @@ export function readArioRun(
           saved[cursor.closing ? "closing" : String(cursor.offset)] = page;
         }
         pagesProcessed = 1;
+        state.consecutiveRateLimits = 0;
         const offset = cursor.offset + 100;
         next = cursor.closing
           ? {
@@ -134,6 +142,13 @@ export function readArioRun(
             };
       } catch (error) {
         if (!(error instanceof ArioRateLimit)) throw error;
+        state.consecutiveRateLimits = (state.consecutiveRateLimits ?? 0) + 1;
+        // Default one-hour waits allow roughly a day of provider recovery.
+        // A completed rank window resets the limit; restarts retain it in state.
+        if (state.consecutiveRateLimits >= MAX_CONSECUTIVE_RATE_LIMITS)
+          throw new Error(
+            `Ario stopped after ${MAX_CONSECUTIVE_RATE_LIMITS} consecutive rate-limit pauses at rank offset ${cursor.offset}. Published inventory is preserved. Inspect the provider quota and shared-IP traffic before starting a new ingestion run.`,
+          );
         next = { ...cursor, retryAt: error.retryAt };
       }
       return {

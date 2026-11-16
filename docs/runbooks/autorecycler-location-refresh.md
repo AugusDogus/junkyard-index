@@ -61,6 +61,10 @@ only the unfinished window is retried; bundle discovery, directory reads and
 completed windows are reused. The closing stability check remains mandatory even
 after a long pause. If inventory changed, fail validation and preserve the prior
 published inventory. Snapshot cleanup also removes these private progress blobs.
+After 24 consecutive rate-limit pauses (roughly one day at the default hourly
+wait), the source fails instead of holding the run open indefinitely. The count
+survives checkpoints and resets after a completed rank window. Published inventory
+is preserved. Inspect the quota and shared-IP traffic before starting a new run.
 
 A yard qualifies only if a usable vehicle has an added date within the previous
 60 days, inclusive, and no later than the run's fixed clock. Sync timestamps,
@@ -72,6 +76,11 @@ addition wins, with Ario winning ties. The existing organization location key is
 preserved. A stale yard emits neither metadata, vehicles nor VIN observations;
 its old vehicles enter normal missing-vehicle reconciliation and it returns
 automatically after a recent addition. No production data patch is required.
+Listings with no parseable addition dates anywhere in their yard are a provider
+contract failure, not evidence that the yard is stale. Ario checks active listings
+before emitting the yard. The unfiltered legacy crawl accumulates date evidence
+across checkpoints and rejects undated yards before source completion, including
+when date-filtered freshness discovery silently returns no rows after a field rename.
 
 The 100-vehicle overall floor, 10% rejection cap, 25% duplicate cap and 50% drift
 ratio remain unchanged. Drift now compares AutoRecycler against the published
@@ -82,6 +91,22 @@ against a collapsed current yard. The measured eligible baseline is 19,582
 vehicles and the new snapshot has 19,544. Comparing to all 54,988 old rows would
 incorrectly block the intentional retirements. Old complete checkpoints without
 the freshness manifest are rejected. Start a new ingestion run after deployment.
+
+Stale customer removals also cannot exceed **50% of the previously published
+customer inventory in one run**. This reuses the existing drift tolerance and
+permits an ordinary single-yard retirement while blocking a feed-wide collapse.
+The baseline includes all twenty verified Ario customers, A-1, JDM and any other
+currently eligible yard, even when a known customer is now stale. Previously
+missing rows do not count. Intentional LKQ and unsupported legacy retirements stay
+outside this customer baseline, so the initial migration remains possible.
+
+Birmingham overrides Ario's downtown placeholder using the official
+[yard address](https://ezpullnpay.com/birmingham-location/), **1849 Ruffner Rd,
+Birmingham, AL 35210**. The business marker in the official
+[locations page](https://ezpullnpay.com/locations/)'s Google Maps embed is
+**33.5567534, -86.6903392** (place `0x888911363df54255:0xad30c48e8a2ff36a`,
+verified November 15, 2026). These are the marker coordinates, not the embed's
+viewport center. The same override supplies vehicle coordinates and yard metadata.
 
 On the saved November 15 census, nineteen Ario yards supply 18,805 valid unique
 vehicles, and the two legacy yards supply 739, for 19,544 total. The supplied

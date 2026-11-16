@@ -41,6 +41,15 @@ export const ARIO_CUSTOMER_YARDS = [
     legacyId: "1780608885295x623625493214308200",
     city: "Birmingham",
     state: "AL",
+    // Official address: https://ezpullnpay.com/birmingham-location/
+    // Business marker in the map embedded at https://ezpullnpay.com/locations/,
+    // place 0x888911363df54255:0xad30c48e8a2ff36a, verified 2026-11-15.
+    // The embed's viewport longitude and Ario's downtown placeholder are not the marker.
+    locationOverride: {
+      address: "1849 Ruffner Rd, Birmingham, AL 35210",
+      lat: 33.5567534,
+      lng: -86.6903392,
+    },
   },
   {
     slug: "ez-pull-n-pay-columbus",
