@@ -17,7 +17,7 @@ if (!qualified) throw new Error("Missing Eagle qualification");
 const tenant = { ...qualified, minimumInventory: 1 };
 const tenants = [tenant];
 const store = IngestionSnapshotStore.memory();
-const start = 14 * DAY;
+const start = Date.UTC(2026, 10, 16);
 const models: {
   make: UrgiisControl;
   model: UrgiisControl;
@@ -48,7 +48,7 @@ const cards = (records: UrgiisRecord[]) =>
         `<div class="card-deck">${records
           .map(
             (r) =>
-              `<div class="card-price"><div class="card-img">${r.image ? `<img src="${escape(r.image)}">` : ""}</div><div class="car-details"><b>Stock:</b>${escape(r.stock ?? "")}<br><b>Year:</b>${escape(r.years[0] ?? "")}<br><b>Make/Model:</b>${escape(r.titles[0] ?? "")}<br><b>VIN:</b>${escape(r.vins[0] ?? "")}<br></div>${r.destinations.map((url) => `<a href="${escape(url)}">See Parts</a>`).join("")}${r.inquiries.map((claim) => `<button data-vehicle="${escape(claim)}">Inquire</button>`).join("")}</div>`,
+              `<div class="card-price"><div class="card-img">${r.image ? `<img src="${escape(r.image)}">` : ""}</div><div class="car-details"><b>Stock:</b>${escape(r.stock ?? "")}<br><b>Year:</b>${escape(r.years[0] ?? "")}<br><b>Make/Model:</b>${escape(r.titles[0] ?? "")}<br><b>VIN:</b>${escape(r.vins[0] ?? "")}<br>${r.date ? `<b>Enter Date:</b>${escape(r.date)}<br>` : ""}${r.purchaseDate ? `<b>Purchase Date:</b>${escape(r.purchaseDate)}<br>` : ""}</div>${r.destinations.map((url) => `<a href="${escape(url)}">See Parts</a>`).join("")}${r.inquiries.map((claim) => `<button data-vehicle="${escape(claim)}">Inquire</button>`).join("")}</div>`,
           )
           .join("")}</div>`,
       )
@@ -159,6 +159,12 @@ const target = () => {
   if (!model) throw new Error("Missing multi-donor captured page");
   return model;
 };
+function knownArrival() {
+  const record = models.find((m) => m.model.path !== target().model.path)
+    ?.records[0];
+  if (!record) throw new Error("Missing unrelated known arrival");
+  return record;
+}
 beforeAll(async () => {
   const archive = await UrgiisReplayArchive.open("eagle");
   try {
@@ -230,7 +236,7 @@ test("arrivals detect a new donor and a same-count replacement", async () => {
   });
   const result = await run({
     previous: previous.cursor,
-    arrivals: [replacement],
+    arrivals: [replacement, knownArrival()],
     replace: { path: model.model.path, records: [replacement] },
   });
   expect(readModels(result)).toEqual([tenant.origin + model.model.path]);
@@ -247,7 +253,10 @@ test("an unknown arrival adds to an unchanged-count model without losing known d
     now: start,
     replace: { path: model.model.path, records: [known] },
   });
-  const result = await run({ previous: previous.cursor, arrivals: [arrival] });
+  const result = await run({
+    previous: previous.cursor,
+    arrivals: [arrival, knownArrival()],
+  });
   expect(readModels(result)).toEqual([tenant.origin + model.model.path]);
   expect(result.vehicles.map((v) => v.vin)).toContain(known.vins[0] ?? "");
   expect(result.vehicles.map((v) => v.vin)).toContain(arrival.vins[0] ?? "");
@@ -404,7 +413,7 @@ test("native arrival labels refresh a same-count model when its donor link uses 
   };
   const result = await run({
     previous: previous.cursor,
-    arrivals: [arrival],
+    arrivals: [arrival, knownArrival()],
     replace: { path: model.model.path, records: [] },
   });
   expect(readModels(result)).toEqual([tenant.origin + model.model.path]);
@@ -412,4 +421,82 @@ test("native arrival labels refresh a same-count model when its donor link uses 
     replacement.vins[0] ?? "",
   );
   expect(result.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
+});
+
+test("an all-new arrivals window requires every model and cannot defer a failed page", async () => {
+  const model = target();
+  const [old, replacement] = model.records;
+  if (!old || !replacement) throw new Error("Missing captured pair");
+  const previous = await run({
+    now: start,
+    replace: { path: model.model.path, records: [old] },
+  });
+  const result = await run({
+    previous: previous.cursor,
+    arrivals: [replacement],
+    replace: { path: model.model.path, records: [replacement] },
+  });
+  expect(readModels(result)).toHaveLength(models.length);
+  expect(result.warnings.join(" ")).toContain("all-new");
+  expect(result.vehicles.map((v) => v.vin)).toContain(
+    replacement.vins[0] ?? "",
+  );
+  expect(result.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
+  await expect(
+    run({
+      previous: previous.cursor,
+      arrivals: [replacement],
+      fail: models[0]?.model.path,
+    }),
+  ).rejects.toThrow("offline repeated HTTP500");
+});
+
+test("an oldest purchase date beyond the accepted run requires a full census even with known stocks", async () => {
+  const record = knownArrival();
+  const result = await run({
+    previous: baseline.cursor,
+    now: start + 2 * DAY,
+    arrivals: [{ ...record, purchaseDate: "2026-11-17" }],
+  });
+  expect(readModels(result)).toHaveLength(models.length);
+  expect(result.warnings.join(" ")).toContain("newer-oldest");
+});
+
+test("same-day replacement missing from arrivals stays stale only until that model's sweep", async () => {
+  const model = target();
+  const [old, replacement] = model.records;
+  if (!old || !replacement) throw new Error("Missing captured pair");
+  const previous = await run({
+    now: start,
+    replace: { path: model.model.path, records: [old] },
+  });
+  const replace = {
+    path: model.model.path,
+    records: [{ ...replacement, purchaseDate: "2000-01-01" }],
+  };
+  const missed = await run({
+    previous: previous.cursor,
+    replace,
+    arrivals: [knownArrival()],
+  });
+  expect(readModels(missed)).toEqual([]);
+  expect(missed.vehicles.map((v) => v.vin)).toContain(old.vins[0] ?? "");
+  expect(missed.vehicles.map((v) => v.vin)).not.toContain(
+    replacement.vins[0] ?? "",
+  );
+  const index = models.indexOf(model);
+  const days = Array.from({ length: 7 }, (_, i) => i + 1).find(
+    (day) => (Math.floor(start / DAY) + day) % 7 === index % 7,
+  );
+  if (days === undefined) throw new Error("Missing seven-day sweep slot");
+  const swept = await run({
+    previous: missed.cursor,
+    now: start + days * DAY,
+    replace,
+    arrivals: [knownArrival()],
+  });
+  expect(readModels(swept)).toContain(tenant.origin + model.model.path);
+  expect(swept.vehicles.map((v) => v.vin)).toContain(replacement.vins[0] ?? "");
+  expect(swept.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
+  expect(days).toBeLessThanOrEqual(7);
 });

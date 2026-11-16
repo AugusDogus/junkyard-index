@@ -29,6 +29,7 @@ export const IisRecordSchema = z
     stock: z.string().nullable(),
     image: z.string().nullable(),
     date: z.string().nullable(),
+    purchaseDate: z.string().nullable().optional(),
   })
   .strict();
 export type IisRecord = z.infer<typeof IisRecordSchema>;
