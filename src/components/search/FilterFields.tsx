@@ -76,6 +76,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   michigantruck: "Michigan Truck Parts",
   joliet: "Joliet U-Pull-It",
   alln1: "All-N-1 U Pull",
+  grandpajohns: "Grandpa John’s Pick & Pull",
   pickers: "Pickers Texarkana",
   pipes: "Pipes U-Pull-It",
   uwrench: "Tri-State U-Wrench & Save",

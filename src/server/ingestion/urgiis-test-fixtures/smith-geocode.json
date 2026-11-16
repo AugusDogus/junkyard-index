@@ -1,0 +1,45 @@
+{
+  "census": {
+    "result": {
+      "input": {
+        "address": {
+          "address": "70971 621st Blvd, Pawnee City, NE 68420"
+        },
+        "benchmark": {
+          "isDefault": true,
+          "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+          "id": "4",
+          "benchmarkName": "Public_AR_Current"
+        }
+      },
+      "addressMatches": []
+    }
+  },
+  "arcgis": {
+    "spatialReference": {
+      "wkid": 4326,
+      "latestWkid": 4326
+    },
+    "candidates": [
+      {
+        "address": "70971 621st Blvd, Pawnee City, Nebraska, 68420",
+        "location": {
+          "x": -96.16676636793,
+          "y": 40.112555110879
+        },
+        "score": 100,
+        "attributes": {
+          "Match_addr": "70971 621st Blvd, Pawnee City, Nebraska, 68420",
+          "Addr_type": "PointAddress",
+          "Place_addr": "70971 621st Blvd, Pawnee City, Nebraska, 68420"
+        },
+        "extent": {
+          "xmin": -96.16776636793,
+          "ymin": 40.11155511088,
+          "xmax": -96.16576636793,
+          "ymax": 40.113555110879
+        }
+      }
+    ]
+  }
+}

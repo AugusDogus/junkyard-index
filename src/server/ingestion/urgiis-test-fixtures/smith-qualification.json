@@ -1,0 +1,108 @@
+{
+  "tenantCode": "smith",
+  "status": "excluded",
+  "reason": "Unadvertised 30-card model windows omit independently verified own-yard donors; complete enumeration is unproven",
+  "admitted": 0,
+  "candidateAccepted": 2945,
+  "byYard": {
+    "smith": 2945
+  },
+  "recordsProcessed": 3335,
+  "recordsExcluded": 148,
+  "recordsRejected": 218,
+  "duplicateVehicles": 24,
+  "makes": 40,
+  "models": 392,
+  "arrivals": 60,
+  "makeBadges": 3846,
+  "modelBadges": 4139,
+  "responseCount": 477,
+  "candidateReplay": {
+    "status": "complete",
+    "reads": 477,
+    "accepted": 2945,
+    "admitted": false
+  },
+  "qualification": {
+    "urgid": "NE22",
+    "origin": "https://smithautone.com",
+    "placeholderStocks": ["NOF", "ASA002", "BROCK"],
+    "coordinates": {
+      "source": "ArcGIS score-100 PointAddress match for the official owner address",
+      "lat": 40.112555110879,
+      "lng": -96.16676636793
+    },
+    "missingDonor": {
+      "stock": "261352",
+      "vin": "1FTEW1EP9NKD56443",
+      "year": 2022,
+      "modelPath": "/parts/FORD/FORD_F150_PICKUP/",
+      "publishedModelBadge": 163,
+      "modelCards": 30,
+      "revalidatedModelCards": 30,
+      "nativeSeller": "NE22"
+    }
+  },
+  "liveRequests": 492,
+  "requestAccounting": {
+    "successfulNativeReplayResponses": 477,
+    "supplementalSuccessfulRequests": 10,
+    "failedOrAbortedAttempts": 5,
+    "knownMissingTimestamps": 2
+  },
+  "modelStats": {
+    "cards": 3275,
+    "blankVins": 312,
+    "maxCards": 30,
+    "photoCodes": {
+      "ne22": 2076
+    },
+    "last": "/parts/VOLKSWAGEN/TIGUAN/"
+  },
+  "closingControls": {
+    "separatelyFetched": true,
+    "owner": true,
+    "makes": true,
+    "allMenus": 40,
+    "unchanged": true
+  },
+  "candidateContract": {
+    "pathStyle": "parts",
+    "makesPath": "/parts/makes/",
+    "ownerPath": "/",
+    "cookie": "urg_hv=1",
+    "pacingMs": 3500,
+    "requestTimeoutMs": 90000,
+    "skipBlankVin": false,
+    "placeholderStocks": ["NOF", "ASA002", "BROCK"],
+    "attribution": {
+      "kind": "site"
+    },
+    "code": "smith",
+    "origin": "https://smithautone.com",
+    "urgid": "NE22",
+    "arrivalsPath": "/latest-arrivals/",
+    "ownerClaims": [
+      "Smith Auto, Inc.",
+      "70971 621st Blvd",
+      "Pawnee City, Nebraska 68420"
+    ],
+    "minimumInventory": 2800,
+    "photoCodes": ["ne22"],
+    "yard": {
+      "source": "urgiis",
+      "code": "smith",
+      "name": "Smith Auto, Inc.",
+      "operator": "Smith Auto, Inc.",
+      "address": "70971 621st Blvd",
+      "city": "Pawnee City",
+      "state": "NE",
+      "postalCode": "68420",
+      "lat": 40.112555110879,
+      "lng": -96.16676636793,
+      "phone": "402-852-2190",
+      "email": null,
+      "websiteUrl": "https://smithautone.com/"
+    }
+  }
+}

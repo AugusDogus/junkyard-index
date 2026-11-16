@@ -171,6 +171,27 @@ export const ARIO_CUSTOMER_YARDS = [
     city: "Santa Maria",
     state: "CA",
   },
+  {
+    slug: "cfc-recycling",
+    id: "9e650335-4efb-4664-ba19-b4f22a0f1775",
+    organizationId: "6ce46a2f-1870-4a07-9f57-52d64f524c68",
+    city: "Dallas",
+    state: "TX",
+    // The Ario directory has no coordinates. The embed owner's exact-address
+    // LocalBusiness point: https://cfcrecycling.com/used-auto-parts/inventory/
+    locationOverride: {
+      address: "2716 Dowdy Ferry Rd, Dallas, TX 75217",
+      lat: 32.6619785,
+      lng: -96.6729032,
+    },
+  },
 ] as const;
 
 export type ArioCustomerYard = (typeof ARIO_CUSTOMER_YARDS)[number];
+
+/** Preserve migrated identities; native Ario yards use their physical yard UUID. */
+export function arioLocationCode(yard: ArioCustomerYard): string {
+  return "legacyId" in yard
+    ? `${AUTORECYCLER_LOOKUP_PREFIX}${yard.legacyId}`
+    : `ario:${yard.id}`;
+}

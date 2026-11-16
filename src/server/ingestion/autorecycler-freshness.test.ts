@@ -14,7 +14,7 @@ import { Database } from "./context";
 import { makeVehicle, TEST_SCHEMA } from "./durable-ingestion-test-fixtures";
 import {
   ARIO_CUSTOMER_YARDS,
-  AUTORECYCLER_LOOKUP_PREFIX,
+  arioLocationCode,
 } from "./autorecycler-ario-yards";
 
 const asOf = Date.parse("2026-11-15T21:55:00Z");
@@ -158,12 +158,21 @@ test("drift ignores unsupported retired yards while protecting every still-eligi
   }
 });
 
-test.each([20, 50, 51, 96])(
-  "bounds newly stale customer removals at 50%% of published customer inventory (%i%%)",
-  async (staleCount) => {
+test.each(
+  [20, 50, 51, 96].flatMap((staleCount) =>
+    ["ez-pull-n-pay-birmingham", "cfc-recycling"].map((slug) => ({
+      staleCount,
+      slug,
+    })),
+  ),
+)(
+  "bounds stale customer removals at 50% for migrated and native yards (%j)",
+  async ({ staleCount, slug }) => {
     const client = createClient({ url: ":memory:" });
     try {
-      const stale = `${AUTORECYCLER_LOOKUP_PREFIX}${ARIO_CUSTOMER_YARDS[0].legacyId}`;
+      const yard = ARIO_CUSTOMER_YARDS.find((yard) => yard.slug === slug);
+      if (!yard) throw new Error("Missing qualified customer " + slug);
+      const stale = arioLocationCode(yard);
       await client.execute(
         "create table vehicle (vin text primary key, source text, location_code text, missing_since_at integer)",
       );

@@ -1,28 +1,35 @@
 import {
-  Alln1Cursor,
-  Alln1CursorSchema,
+  createAlln1Cursor,
+  type UpullCursor,
 } from "../src/server/ingestion/alln1-cursor";
-import type { Alln1StreamResult } from "../src/server/ingestion/alln1-connector";
-import { ALLN1_MAX_PAGES } from "../src/server/ingestion/alln1-yard-metadata";
+import type { UpullStreamResult } from "../src/server/ingestion/alln1-connector";
+import {
+  ALLN1_TENANT,
+  ALLN1_MAX_PAGES,
+  type Alln1Tenant,
+  type Alln1Source,
+} from "../src/server/ingestion/alln1-yard-metadata";
 
 /** Read-only count/discard driver. Caller owns callbacks and request gate. */
-export async function soakAlln1Inventory(
+export async function soakUpullInventory<S extends Alln1Source>(
+  tenant: Alln1Tenant<S>,
   runChunk: (
-    cursor: Alln1Cursor,
+    cursor: UpullCursor<S>,
     maxPages: number,
-  ) => Promise<Alln1StreamResult>,
+  ) => Promise<UpullStreamResult<S>>,
   maxPages = ALLN1_MAX_PAGES,
-): Promise<Alln1StreamResult> {
+): Promise<UpullStreamResult<S>> {
   if (
     !Number.isSafeInteger(maxPages) ||
     maxPages < 1 ||
     maxPages > ALLN1_MAX_PAGES
   )
     throw new Error("All-N-1 soak requires a total page budget from 1 to 20");
-  const summary: Alln1StreamResult = {
-    source: "alln1",
+  const codec = createAlln1Cursor(tenant);
+  const summary: UpullStreamResult<S> = {
+    source: tenant.source,
     status: "paused",
-    cursor: Alln1Cursor.initial,
+    cursor: codec.initial,
     count: 0,
     pagesProcessed: 0,
     errors: [],
@@ -41,7 +48,7 @@ export async function soakAlln1Inventory(
       summary.cursor,
       Math.min(3, maxPages - summary.pagesProcessed),
     );
-    const cursor = Alln1CursorSchema.parse(chunk.cursor);
+    const cursor = codec.schema.parse(chunk.cursor);
     if (
       chunk.status === "paused" &&
       (chunk.pagesProcessed === 0 ||
@@ -75,3 +82,11 @@ export async function soakAlln1Inventory(
   }
   return summary;
 }
+
+export const soakAlln1Inventory = (
+  runChunk: (
+    cursor: UpullCursor<"alln1">,
+    maxPages: number,
+  ) => Promise<UpullStreamResult<"alln1">>,
+  maxPages = ALLN1_MAX_PAGES,
+) => soakUpullInventory(ALLN1_TENANT, runChunk, maxPages);

@@ -4,7 +4,11 @@ import {
   fetchAlln1Owner,
   fetchAlln1Page,
 } from "./alln1-client";
-import { Alln1Cursor, Alln1CursorSchema, type Alln1Seen } from "./alln1-cursor";
+import {
+  createAlln1Cursor,
+  type UpullCursor,
+  type Alln1Seen,
+} from "./alln1-cursor";
 import {
   alln1Hash,
   alln1Stock,
@@ -12,45 +16,52 @@ import {
   type Alln1Record,
 } from "./alln1-parser";
 import {
-  transformAlln1Record,
+  transformUpullRecord,
   type Alln1CanonicalVehicle,
 } from "./alln1-transform";
 import {
-  ALLN1_INVENTORY_URL,
-  ALLN1_YARD,
+  ALLN1_TENANT,
+  GRANDPAJOHNS_TENANT,
+  type Alln1Tenant,
+  type Alln1Source,
   type Alln1Yard,
 } from "./alln1-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
 
-interface Alln1Options<E, R> {
-  startCursor?: Alln1Cursor;
+interface Alln1Options<E, R, S extends Alln1Source> {
+  startCursor?: UpullCursor<S>;
   maxPages?: number;
-  onBatch: (vehicles: Alln1CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  onYards?: (yards: Alln1Yard[]) => Effect.Effect<void, E, R>;
+  onBatch: (vehicles: Alln1CanonicalVehicle<S>[]) => Effect.Effect<void, E, R>;
+  onYards?: (yards: Alln1Yard<S>[]) => Effect.Effect<void, E, R>;
 }
-export type Alln1StreamResult = ConnectorChunkResult<"alln1", Alln1Cursor>;
+export type UpullStreamResult<S extends Alln1Source> = ConnectorChunkResult<
+  S,
+  UpullCursor<S>
+>;
+export type Alln1StreamResult = UpullStreamResult<"alln1">;
 const validated = <A>(operation: string, run: () => A) =>
   Effect.try({
     try: run,
     catch: (cause) => new Alln1ProviderError({ operation, cause }),
   });
-function processPage(
+function processPage<S extends Alln1Source>(
   records: readonly Alln1Record[],
   page: number,
   seen: Alln1Seen[],
+  tenant: Alln1Tenant<S>,
 ) {
   const vins = new Set(seen.flatMap((entry) => (entry.vin ? [entry.vin] : [])));
   const stocks = new Set(
     seen.flatMap((entry) => (entry.stock ? [entry.stock] : [])),
   );
   const hashes = new Set(seen.map((entry) => entry.hash));
-  const vehicles: Alln1CanonicalVehicle[] = [];
+  const vehicles: Alln1CanonicalVehicle<S>[] = [];
   const observedVins: string[] = [];
   let rejected = 0;
   for (const record of records) {
-    const result = transformAlln1Record(record);
+    const result = transformUpullRecord(record, tenant);
     const vin = result.status === "available" ? result.vehicle.vin : result.vin;
     const stock = alln1Stock(record.stock);
     const hash = alln1Hash(record);
@@ -81,14 +92,14 @@ function processPage(
   }
   return { vehicles, observedVins, rejected };
 }
-export function streamAlln1InventoryWithRequestGate<E, R>(
-  options: Alln1Options<E, R>,
+function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
+  options: Alln1Options<E, R, S>,
   gate: ProviderRequestGate,
+  tenant: Alln1Tenant<S>,
 ) {
   return Effect.gen(function* () {
-    const parsed = Alln1CursorSchema.safeParse(
-      options.startCursor ?? Alln1Cursor.initial,
-    );
+    const codec = createAlln1Cursor(tenant);
+    const parsed = codec.schema.safeParse(options.startCursor ?? codec.initial);
     const maxPages = options.maxPages ?? 3;
     if (
       !parsed.success ||
@@ -101,10 +112,10 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
         cause: "Use a validated All-N-1 cursor and a page budget from 1 to 32",
       });
     const initial = parsed.data;
-    const empty: Alln1StreamResult = {
-      source: "alln1",
+    const empty: UpullStreamResult<S> = {
+      source: tenant.source,
       status: "complete",
-      cursor: { source: "alln1", phase: "complete" },
+      cursor: { source: tenant.source, phase: "complete" },
       count: 0,
       pagesProcessed: 0,
       errors: [],
@@ -118,8 +129,8 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
       },
     };
     if (initial.phase === "complete") return empty;
-    const owner = yield* fetchAlln1Owner(gate);
-    const anchor = yield* fetchAlln1Page(ALLN1_INVENTORY_URL, gate);
+    const owner = yield* fetchAlln1Owner(gate, tenant);
+    const anchor = yield* fetchAlln1Page(tenant.inventoryUrl, gate, tenant);
     const scopeHash = alln1Hash({ owner, scope: anchor.scopeHash });
     if (
       initial.phase === "pages" &&
@@ -138,15 +149,15 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
       initial.phase === "pages" ? [...initial.receipts] : [];
     let nextPage = initial.phase === "pages" ? initial.nextPage : 1;
     let nextUrl: string | null =
-      initial.phase === "pages" ? initial.nextUrl : ALLN1_INVENTORY_URL;
-    const vehicles: Alln1CanonicalVehicle[] = [];
+      initial.phase === "pages" ? initial.nextUrl : tenant.inventoryUrl;
+    const vehicles: Alln1CanonicalVehicle<S>[] = [];
     const observedVins: string[] = [];
     let pagesProcessed = 0,
       processed = 0,
       rejected = 0;
     while (nextUrl && pagesProcessed < maxPages) {
       const page: Alln1Page =
-        nextPage === 1 ? anchor : yield* fetchAlln1Page(nextUrl, gate);
+        nextPage === 1 ? anchor : yield* fetchAlln1Page(nextUrl, gate, tenant);
       if (
         page.page !== nextPage ||
         page.lastPage !== anchor.lastPage ||
@@ -158,7 +169,7 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
             "Requested page or native pagination directory changed during the crawl",
         });
       const result = yield* validated("cumulative donor identities", () =>
-        processPage(page.records, nextPage, seen),
+        processPage(page.records, nextPage, seen, tenant),
       );
       vehicles.push(...result.vehicles);
       observedVins.push(...result.observedVins);
@@ -188,8 +199,8 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
               " donors exceeds the unchanged 10% rejection limit or lacks complete valid yard coverage",
           );
       });
-      const closingOwner = yield* fetchAlln1Owner(gate);
-      const closing = yield* fetchAlln1Page(ALLN1_INVENTORY_URL, gate);
+      const closingOwner = yield* fetchAlln1Owner(gate, tenant);
+      const closing = yield* fetchAlln1Page(tenant.inventoryUrl, gate, tenant);
       if (
         closingOwner !== owner ||
         closing.hash !== anchor.hash ||
@@ -203,8 +214,8 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
     }
     const cursor = yield* validated("next checkpoint", () =>
       nextUrl === null
-        ? Alln1CursorSchema.parse({ source: "alln1", phase: "complete" })
-        : Alln1Cursor.checkpoint({
+        ? codec.schema.parse({ source: tenant.source, phase: "complete" })
+        : codec.checkpoint({
             scopeHash,
             anchorHash: anchor.hash,
             lastPage: anchor.lastPage,
@@ -216,7 +227,7 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
     );
     // No callback can return an advanced checkpoint after any failed read.
     yield* options.onBatch(vehicles);
-    if (terminal && options.onYards) yield* options.onYards([ALLN1_YARD]);
+    if (terminal && options.onYards) yield* options.onYards([tenant.yard]);
     return {
       ...empty,
       status: terminal ? "complete" : "paused",
@@ -226,7 +237,8 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
       observedVins,
       warnings: rejected
         ? [
-            "All-N-1 counts incomplete identities and literal availability-ambiguous positions toward rejection; valid identities remain presence-only.",
+            (tenant.source === "alln1" ? "All-N-1" : tenant.yard.name) +
+              " counts incomplete identities and literal availability-ambiguous positions toward rejection; valid identities remain presence-only.",
           ]
         : [],
       accounting: {
@@ -235,7 +247,7 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
         recordsRejected: rejected,
         duplicateVehicles: 0,
       },
-    } satisfies Alln1StreamResult;
+    } satisfies UpullStreamResult<S>;
   }).pipe(
     Effect.timeoutFail({
       duration: "3 minutes",
@@ -248,12 +260,29 @@ export function streamAlln1InventoryWithRequestGate<E, R>(
     }),
   );
 }
-export function streamAlln1Inventory<E, R>(options: Alln1Options<E, R>) {
-  return Effect.scoped(
-    RateLimiter.make({ limit: 1, interval: "1600 millis" }).pipe(
-      Effect.flatMap((gate) =>
-        streamAlln1InventoryWithRequestGate(options, gate),
-      ),
-    ),
-  );
+export function createAlln1Connector<S extends Alln1Source>(
+  tenant: Alln1Tenant<S>,
+) {
+  const streamWithRequestGate = <E, R>(
+    options: Alln1Options<E, R, S>,
+    gate: ProviderRequestGate,
+  ) => streamUpullInventoryWithRequestGate(options, gate, tenant);
+  return {
+    streamWithRequestGate,
+    stream<E, R>(options: Alln1Options<E, R, S>) {
+      return Effect.scoped(
+        RateLimiter.make({ limit: 1, interval: "1600 millis" }).pipe(
+          Effect.flatMap((gate) => streamWithRequestGate(options, gate)),
+        ),
+      );
+    },
+  };
 }
+const alln1 = createAlln1Connector(ALLN1_TENANT);
+export const streamAlln1Inventory = alln1.stream;
+export const streamAlln1InventoryWithRequestGate = alln1.streamWithRequestGate;
+
+const grandpajohns = createAlln1Connector(GRANDPAJOHNS_TENANT);
+export const streamGrandpajohnsInventory = grandpajohns.stream;
+export const streamGrandpajohnsInventoryWithRequestGate =
+  grandpajohns.streamWithRequestGate;

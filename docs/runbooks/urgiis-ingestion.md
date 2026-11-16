@@ -71,10 +71,40 @@ Chuck's follows all 41 makes, 415 model pages and 43 arrivals. Its 502-response 
 
 Central NH follows all 43 makes, 380 model pages and 60 arrivals. Its 471-response replay accepts 2,477 donors, rejects 193 observations (7.09%), excludes none and merges 52 duplicates. All supplier photos are FF27. Separate closing ownership and directory controls pass. Its floor is 1,900. The Census point for 54 Basin Street, Concord, NH 03301 is 43.190099292255, -71.523265006371.
 
+## Smith qualification, November 16, 2026
+
+Smith Auto, Inc. remains excluded. Its full 40-make, 392-model census contains
+3,275 model cards and 60 arrivals. The candidate production-connector replay
+accepts 2,945 unique identities, rejects 218 observations (6.84%), excludes
+148 verified NOF, ASA002 and BROCK part-bin observations and merges 24 duplicates.
+Those bins have saved native parts across unrelated makes and years with no
+VIN claims; numeric and unverified stocks remain rejects. All observed supplier
+photos are NE22, and model pages expose full VINs. Identity quality therefore
+has headroom, but it cannot establish complete enumeration.
+
+The published F150 route advertises 163 and renders exactly 30 cards without
+an enumerable continuation. A separately paced cache-revalidated request returns
+the identical donor fingerprint. Stock 261352, VIN `1FTEW1EP9NKD56443`, appears
+in arrivals and its own native detail with matching VIN, stock and NE22 seller,
+but is absent from that model page. The public plugin's Browse Vehicles action
+returns to the make directory and supplies no model continuation. Do not admit
+this partial graph or use arrivals to fill its unmeasured gaps.
+
+Qualification used 492 serial live requests, including five failed or aborted
+attempts, cache revalidation, native detail probes and geocoders. The 477-response
+candidate replay passes owner, closing, checkpoint and identity-quality checks.
+That result does not qualify an independently proven partial native graph.
+
+The full failed-census archive, separate closing controls, part-bin probes,
+missing-donor proof and request ledger are retained in the URGIIS fixtures.
+No Smith entry or published inventory is created. The small completeness
+regression preserves the missing-donor evidence and the exclusion.
+
 ## Leads left out
 
 | Yard                          | State   | Reason                                                                                                                                                                                                                                                                                    |
 | ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Smith Auto, Inc.              | NE      | Published F150 advertises 163 but renders 30 cards with no enumerable continuation. A cache-revalidated read is identical. Its arrivals and native NE22 detail expose stock 261352 / VIN 1FTEW1EP9NKD56443, absent from that model page. Complete enumeration is unproven.                |
 | Brown's Auto Salvage          | VT      | The 39,835 badges cover a shared pool. Silverado 1500 advertises 1,325 but returns 500 cards from DD05, BB86, MA06 and AA74. Own-yard filtering cannot repair the cap. Its published `/inventory/` alias returned 404.                                                                    |
 | Nordstrom's Automotive        | SD      | The published F150 route advertises 506 but returns an explicit empty result. The ordinary model-name variant also returns empty. Complete enumeration is unproven.                                                                                                                       |
 | Nationwide Auto Recycling     | MA      | Both published Mercedes E-Class (502 badge) and C-Class (450 badge) routes return empty. Blank-VIN exclusion is supported, but it cannot recover missing model pages.                                                                                                                     |

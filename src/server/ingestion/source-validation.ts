@@ -87,6 +87,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   michigantruck: 150,
   joliet: 1_200,
   alln1: 900,
+  grandpajohns: 500,
   pickers: 450,
   pipes: 500,
   uwrench: 1_000,

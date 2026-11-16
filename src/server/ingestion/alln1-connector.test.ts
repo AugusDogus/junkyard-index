@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import {
+  parseDurableSourceCursor,
+  serializeDurableSourceCursor,
+} from "./durable-cursor";
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { soakAlln1Inventory } from "../../../scripts/soak-alln1";
@@ -282,3 +287,26 @@ test("All-N-1 rejects redirected responses and network failures without retries"
   await expect(run()).rejects.toThrow("previous inventory is preserved");
   expect(calls).toBe(1);
 });
+
+test.each([1, 2, 3, 32])(
+  "All-N-1 canonical bytes match the pre-generalization fixture at budget %i",
+  async (budget) => {
+    mock();
+    let cursor: Alln1Cursor = Alln1Cursor.initial;
+    const vehicles: Alln1CanonicalVehicle[] = [];
+    while (cursor.phase !== "complete") {
+      const result = await run(cursor, budget, (batch) =>
+        Effect.sync(() => {
+          vehicles.push(...batch);
+        }),
+      );
+      cursor = parseDurableSourceCursor(
+        "alln1",
+        serializeDurableSourceCursor(result.cursor),
+      );
+    }
+    expect(
+      createHash("sha256").update(JSON.stringify(vehicles)).digest("hex"),
+    ).toBe("1ca9f680d8502ed80b686a0a144fcd0264d86540ccb7af0f76c5dfceb4b05a71");
+  },
+);

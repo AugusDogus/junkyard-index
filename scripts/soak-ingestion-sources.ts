@@ -3,6 +3,7 @@ import { streamHarrysInventory } from "../src/server/ingestion/harrys-connector"
 import { streamBudgetInventory } from "../src/server/ingestion/budget-connector";
 import { soakHarrysInventory } from "./soak-harrys";
 import { soakBudgetInventory } from "./soak-budget";
+import { GRANDPAJOHNS_TENANT } from "../src/server/ingestion/alln1-yard-metadata";
 import { streamHawaiipartsInventory } from "../src/server/ingestion/hawaiiparts-connector";
 import { streamModernmuscleInventory } from "../src/server/ingestion/modernmuscle-connector";
 import { HawaiipartsCursor } from "../src/server/ingestion/hawaiiparts-cursor";
@@ -145,8 +146,11 @@ import { streamMichigantruckInventory } from "../src/server/ingestion/michigantr
 import { soakMichigantruckInventory } from "./soak-michigantruck";
 import { streamJolietInventory } from "../src/server/ingestion/joliet-connector";
 import { soakJolietInventory } from "./soak-joliet";
-import { streamAlln1Inventory } from "../src/server/ingestion/alln1-connector";
-import { soakAlln1Inventory } from "./soak-alln1";
+import {
+  streamAlln1Inventory,
+  streamGrandpajohnsInventory,
+} from "../src/server/ingestion/alln1-connector";
+import { soakAlln1Inventory, soakUpullInventory } from "./soak-alln1";
 import { streamPickersInventory } from "../src/server/ingestion/pickers-connector";
 import { soakPickersInventory } from "./soak-pickers";
 import { streamUwrenchInventory } from "../src/server/ingestion/uwrench-connector";
@@ -859,6 +863,19 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamAlln1Inventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "grandpajohns":
+            return soakUpullInventory(
+              GRANDPAJOHNS_TENANT,
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamGrandpajohnsInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

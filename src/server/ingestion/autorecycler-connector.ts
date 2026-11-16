@@ -6,7 +6,10 @@ import {
 } from "./autorecycler-ario-run";
 import { discoverFreshAutorecyclerYards } from "./autorecycler-freshness";
 import { streamArioYard } from "./autorecycler-ario-connector";
-import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
+import {
+  ARIO_CUSTOMER_YARDS,
+  arioLocationCode,
+} from "./autorecycler-ario-yards";
 import { autorecyclerYard, type OnYards } from "./yard-metadata";
 import { Effect } from "effect";
 import {
@@ -476,15 +479,20 @@ export function streamAutorecyclerInventory<E, R>(
         try: () => loadArioState(cursor.statePath ?? "", options.loadArioState),
         catch: (cause) => new AutorecyclerProviderError({ from: 0, cause }),
       });
+      const config = ARIO_CUSTOMER_YARDS[cursor.yardIndex];
+      if (!config)
+        return yield* new AutorecyclerProviderError({
+          from: cursor.yardIndex,
+          cause: new Error("Ario cursor references a missing customer yard"),
+        });
+      const legacyId = "legacyId" in config ? config.legacyId : null;
       return yield* streamArioYard(
         {
           ...options,
           yardIndex: cursor.yardIndex,
           asOf: freshness.asOf,
           legacyNewest:
-            freshness.legacy[
-              ARIO_CUSTOMER_YARDS[cursor.yardIndex]?.legacyId ?? ""
-            ] ?? null,
+            legacyId === null ? null : (freshness.legacy[legacyId] ?? null),
         },
         arioReplayClient(state),
       ).pipe(
@@ -493,8 +501,9 @@ export function streamAutorecyclerInventory<E, R>(
           if (!yard)
             throw new Error("Ario cursor references a missing customer yard");
           const legacy = { ...freshness.legacy };
-          if (result.selection !== "legacy") delete legacy[yard.legacyId];
-          const code = `1348695171700984260__LOOKUP__${yard.legacyId}`;
+          if (result.selection !== "legacy" && legacyId !== null)
+            delete legacy[legacyId];
+          const code = arioLocationCode(yard);
           const eligibleYards = new Set(freshness.eligibleYards);
           if (result.selection === "stale") eligibleYards.delete(code);
           else eligibleYards.add(code);

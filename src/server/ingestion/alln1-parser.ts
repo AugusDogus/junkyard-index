@@ -6,9 +6,9 @@ import {
 } from "./inventory-html";
 import {
   ALLN1_MAX_PAGES,
-  ALLN1_ORIGIN,
   ALLN1_PAGE_SIZE,
-  ALLN1_YARD,
+  ALLN1_TENANT,
+  type Alln1Tenant,
   alln1PageNumber,
 } from "./alln1-yard-metadata";
 
@@ -93,7 +93,10 @@ function complete(raw: string): void {
   )
     throw new Error("All-N-1 HTML is oversized or truncated");
 }
-export function parseAlln1Owner(raw: string): string {
+export function parseAlln1Owner(
+  raw: string,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+): string {
   complete(raw);
   const clean = stripInventoryRawText(raw);
   const body = clean.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
@@ -101,21 +104,21 @@ export function parseAlln1Owner(raw: string): string {
     ([tag]) => attr(tag, "name") === "description",
   );
   if (
-    !body.includes(ALLN1_YARD.address) ||
-    !body.includes("Kansas City, MO 64129") ||
-    !body.replace(/\D/g, "").includes("8162523930") ||
+    !tenant.ownerClaims.every((claim) => body.includes(claim)) ||
+    (tenant.ownerPhoneDigits !== null &&
+      !body.replace(/\D/g, "").includes(tenant.ownerPhoneDigits)) ||
     descriptions.length !== 1 ||
     !attr(descriptions[0]?.[0] ?? "", "content")?.includes(
-      "self-service junkyard in Kansas City, MO",
+      tenant.ownerDescription,
     )
   )
     throw new Error(
       "All-N-1 physical ownership, address, phone or self-service statement changed",
     );
   return alln1Hash({
-    yard: "MO42",
-    address: ALLN1_YARD.address,
-    phone: ALLN1_YARD.phone,
+    yard: tenant.yard.code,
+    address: tenant.yard.address,
+    phone: tenant.yard.phone,
     selfService: true,
   });
 }
@@ -151,7 +154,7 @@ interface PageLink {
   url: string;
   active: boolean;
 }
-function pagination(clean: string, page: number) {
+function pagination(clean: string, page: number, tenant: Alln1Tenant) {
   const navs = [
     ...clean.matchAll(/<nav\b([^>]*)>([\s\S]*?)<\/nav\s*>/gi),
   ].filter((m) => hasClass(m[1] ?? "", "iis-upull-pagination-wrapper"));
@@ -167,8 +170,8 @@ function pagination(clean: string, page: number) {
         ];
         const link = links[0];
         const href = attr(link?.[1] ?? "", "href");
-        const url = href ? new URL(href, ALLN1_ORIGIN).href : "";
-        const target = alln1PageNumber(url);
+        const url = href ? new URL(href, tenant.origin).href : "";
+        const target = alln1PageNumber(url, tenant);
         if (links.length !== 1 || target === null)
           throw new Error(
             "All-N-1 pagination contains a foreign, filtered or unsupported continuation",
@@ -212,7 +215,11 @@ function pagination(clean: string, page: number) {
     );
   return { lastPage, nextUrl: next[0]?.url ?? null };
 }
-function photo(cell: string, stock: string): string | null {
+function photo(
+  cell: string,
+  stock: string,
+  tenant: Alln1Tenant,
+): string | null {
   // Optional malformed media is null; it cannot invalidate a genuine donor.
   try {
     const images = [...cell.matchAll(/<img\b[^>]*>/gi)].filter(([tag]) =>
@@ -236,15 +243,25 @@ function photo(cell: string, stock: string): string | null {
       !alln1Stock(stock)
     )
       return null;
-    const match = /^\/mo42\/images\/([A-Z0-9-]+)\/([A-Z0-9-]+)_\d+\.jpg$/i.exec(
-      url.pathname,
-    );
-    return match && match[1] === stock && match[2] === stock ? url.href : null;
+    const match =
+      /^\/([a-z0-9]+)\/images\/([A-Z0-9-]+)\/([A-Z0-9-]+)_\d+\.jpg$/i.exec(
+        url.pathname,
+      );
+    return match &&
+      match[1]?.toLowerCase() === tenant.yard.code.toLowerCase() &&
+      match[2] === stock &&
+      match[3] === stock
+      ? url.href
+      : null;
   } catch {
     return null;
   }
 }
-export function parseAlln1Page(raw: string, page: number) {
+export function parseAlln1Page(
+  raw: string,
+  page: number,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+) {
   complete(raw);
   if (!Number.isSafeInteger(page) || page < 1 || page > ALLN1_MAX_PAGES)
     throw new Error(
@@ -289,7 +306,7 @@ export function parseAlln1Page(raw: string, page: number) {
     ) ||
     scriptBody.replace(declaration, "").trim() ||
     scopes.length !== 1 ||
-    (scopes[0]?.[2] ?? scopes[0]?.[3]) !== "MO42"
+    (scopes[0]?.[2] ?? scopes[0]?.[3]) !== tenant.yard.code
   )
     throw new Error(
       "All-N-1 inline native yard assignment changed or is ambiguous",
@@ -306,7 +323,7 @@ export function parseAlln1Page(raw: string, page: number) {
   )
     throw new Error("All-N-1 native parts inventory statement changed");
   verifyForm(clean);
-  const paging = pagination(clean, page);
+  const paging = pagination(clean, page, tenant);
   const tables = [
     ...clean.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table\s*>/gi),
   ].filter((m) => hasClass(m[1] ?? "", "IISUpullTable"));
@@ -395,7 +412,7 @@ export function parseAlln1Page(raw: string, page: number) {
       vin: field(6),
       stock,
       freshSet: field(8),
-      imageUrl: photo(cells[0]?.[2] ?? "", stock),
+      imageUrl: photo(cells[0]?.[2] ?? "", stock, tenant),
     };
   });
   return {
@@ -403,7 +420,7 @@ export function parseAlln1Page(raw: string, page: number) {
     page,
     ...paging,
     scopeHash: alln1Hash({
-      yard: "MO42",
+      yard: tenant.yard.code,
       headers: expected,
       lastPage: paging.lastPage,
       form: {
