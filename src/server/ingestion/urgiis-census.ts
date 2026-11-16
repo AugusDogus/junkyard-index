@@ -127,7 +127,14 @@ export function urgiisCarry(
   // continued presence must not force the same unchanged page read every day.
   const prefix = task.url.replace(/\/$/, "") + "/";
   const belongs = (record: UrgiisRecord) =>
-    record.destinations.some((url) => url.startsWith(prefix));
+    record.destinations.some((url) => url.startsWith(prefix)) ||
+    record.titles.some(
+      (title) =>
+        title === task.make.label + " " + task.model.label ||
+        (title === task.model.label &&
+          (task.model.label === task.make.label ||
+            task.model.label.startsWith(task.make.label + " "))),
+    );
   const previousArrivals = previous.entries.flatMap((e) =>
     e.kind === "arrivals" ? e.records.filter(belongs) : [],
   );
@@ -137,10 +144,7 @@ export function urgiisCarry(
   const unknownArrival =
     arrivals?.kind === "arrivals" &&
     arrivals.records.some(
-      (record) =>
-        record.destinations.some((url) =>
-          url.startsWith(task.url.replace(/\/$/, "") + "/"),
-        ) && !known.has(identity(record)),
+      (record) => belongs(record) && !known.has(identity(record)),
     );
   if (
     before.model.count !== task.model.count ||
