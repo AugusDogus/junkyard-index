@@ -1,5 +1,7 @@
 # Rohner's Auto Parts ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `rohner` reads the native filtered Vehicles catalog at
 <https://rohnersautoparts.com/shop/?product-categories=vehicles>.
 Yard `willmar` is Rohner's Auto Parts, Inc., 1800 County Road 27 NW,
@@ -63,7 +65,7 @@ source row claims success and already has sufficient staged inventory.
 | Total native request capacity  | 832 GET units        |
 | Total response capacity        | 256 MiB              |
 | Serialized cursor              | 16 MiB               |
-| Accepted inventory minimum     | 240 vehicles         |
+| Accepted inventory minimum     | 95 vehicles          |
 
 Requests are serial, with no automatic retries or redirect follows. On a
 transport, body, source, quality or closing failure, preserve prior inventory
@@ -109,6 +111,6 @@ bun test src/server/ingestion/rohner-*.test.ts
 bun run check
 ```
 
-The source defaults disabled. All work remains local and unpublished under
+The source runs unless its pause flag serves false. All work remains local and unpublished under
 the user's instruction. Saved replay and memory persistence do not verify
 remote snapshot capacity or authorize production source enablement.

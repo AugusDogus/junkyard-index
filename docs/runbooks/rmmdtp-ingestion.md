@@ -1,6 +1,8 @@
 # RMMDTP Corinne ingestion
 
-This connector is local and disabled pending root-owned admission and registration. The literal source is `rmmdtp`, the location code is `corinne`, and the qualified minimum is 80 accepted unique donors. The implementation does not register itself or perform production writes.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+This connector runs unless its source pause flag serves false. The literal source is `rmmdtp`, the location code is `corinne`, and the qualified minimum is 34 accepted unique donors. The implementation does not register itself or perform production writes.
 
 ## Qualified scope
 
@@ -18,7 +20,7 @@ All native labeled card claims, titles, image claims and three detail anchors re
 
 The strict versioned cursor has explicit opening, closing, ready and complete phases. It retains typed native pages, verified closing prefixes, semantic hashes, checksum, contract scope and exact request/response-byte accounting. JSON serialization between chunks is supported. Resume validation rejects changed scope, corrupted hashes, reordered pages, inconsistent census, invalid destinations, byte mismatches and contradictory phase state. A complete cursor performs no reads or emission when replayed.
 
-Conflicts in native identity, destination, YMM or donor/Complete condition quarantine the connected records before sale exclusion. All valid quarantined VINs retain presence. Benign identical duplicates are accounted separately; contradictory usable stock, image or engine metadata becomes null. Quality gates remain: minimum 80 accepted, at most 10% required rejects, at most 25% benign duplicates, and the existing shared drift minimum of `floor(previous complete inventory * 0.5)`. Reject and duplicate ratios use non-excluded candidates.
+Conflicts in native identity, destination, YMM or donor/Complete condition quarantine the connected records before sale exclusion. All valid quarantined VINs retain presence. Benign identical duplicates are accounted separately; contradictory usable stock, image or engine metadata becomes null. Quality gates remain: minimum 34 accepted, at most 10% required rejects, at most 25% benign duplicates, and the existing shared drift minimum of `floor(previous complete inventory * 0.5)`. Reject and duplicate ratios use non-excluded candidates.
 
 An incomplete, changed, failed or invalid run emits nothing and cannot authorize reconciliation. Retain the last successful checkpoint and prior complete inventory, inspect the saved evidence, then retry from that checkpoint or start a new opening census when the native graph changed. Callbacks must remain idempotent for retries around a failed external write.
 
@@ -38,4 +40,4 @@ Qualification seals:
 - MT22: `.scratchpad/coverage/parallel-mt-wy-nd/rmm-corinne-source-review22/report.json`, SHA-256 `98d02b145f905c2064e189b726fcd60ee9495b4e6c8127a38ea6aff60195c3b0`.
 - AL60: `.scratchpad/coverage/parallel-al-ms-la/rmm-corinne-physical271-review60/report.json`, SHA-256 `5282da1fec5ac44df6bd04648601b9e36b8b5458a03048643feac801cba17aad`.
 
-Root owns shared source admission, flags, dispatcher, durable orchestration, registry, validation policy and production reconciliation. Keep runtime admission disabled until that integration and review are complete.
+Root owns shared source admission, flags, dispatcher, durable orchestration, registry, validation policy and production reconciliation. Serving false from the source flag pauses ingestion; missing or failed evaluations keep it enabled.

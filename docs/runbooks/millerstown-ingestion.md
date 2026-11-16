@@ -1,11 +1,13 @@
 # Millerstown Pic-A-Part ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Status on November 12, 2026: implementation, independent source review,
 saved-fixture verification and one bounded live qualification are complete.
 The native PDF has
 1,122 rows across 34 pages, yielding 1,087 accepted unique donors and 35 required
 field rejects. One rejected donor retains a valid identity as presence evidence.
-No production inventory was written. The source remains disabled by default.
+No production inventory was written. The source runs unless its pause flag serves false.
 This records local source qualification only; parent yard admission and
 production enablement remain separate decisions.
 
@@ -75,7 +77,7 @@ arrival date. The saved accepted donors contain nine supported older serials.
 
 The strict cursor contains only `source` and `phase`, either `start` or
 `complete`. It stores no PDF bytes, page offsets or partial checkpoint. The
-source is atomic with a central chunk size of one and a minimum of 900 accepted
+source is atomic with a central chunk size of one and a minimum of 362 accepted
 unique donors. The source accepts a logical catalog budget of 1 through 32,
 default one, and completes one catalog. The read-only soak driver requires one.
 A complete cursor performs no reads and no callbacks. Both phases round-trip

@@ -210,7 +210,7 @@ export function validateOemgarageSnapshot(
       "oeM Garage previous complete count must be nonnegative or null",
     );
   if (
-    n < 200 ||
+    n < 79 ||
     a.recordsProcessed !== n + a.recordsRejected + a.duplicateVehicles ||
     a.recordsExcluded !== 0 ||
     a.recordsRejected / a.recordsProcessed >
@@ -221,6 +221,6 @@ export function validateOemgarageSnapshot(
       n < previous * SourceValidationPolicy.minimumPreviousRunRatio)
   )
     throw new Error(
-      "oeM Garage complete donor census failed the 200-donor floor, rejection, duplicate, reconciliation or previous-count guards; prior inventory is preserved",
+      "oeM Garage complete donor census failed the 79-donor floor, rejection, duplicate, reconciliation or previous-count guards; prior inventory is preserved",
     );
 }

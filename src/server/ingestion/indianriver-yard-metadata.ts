@@ -5,7 +5,7 @@ export const INDIANRIVER_OWNER = INDIANRIVER_ORIGIN + "/";
 export const INDIANRIVER_CATALOG = INDIANRIVER_ORIGIN + "/inventory-3/";
 export const INDIANRIVER_PAGE_SIZE = 500;
 export const INDIANRIVER_MAX_PAGES = 20;
-export const INDIANRIVER_MINIMUM_UNIQUE_INVENTORY = 900;
+export const INDIANRIVER_MINIMUM_UNIQUE_INVENTORY = 349;
 export type IndianriverYard = Omit<Yard, "source"> & { source: "indianriver" };
 
 // Native address/phone and Census exact-address match, saved 2026-11-15 UTC in

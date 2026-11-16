@@ -1,5 +1,7 @@
 # Army's Auto Wrecking ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Army's publishes its current self-service donor inventory at
 <https://armysauto.com/self-service-inventory/>. One unfiltered HTML GET returns
 the complete inline `table.bootstrap-tables`, with `data-pagination="false"`.
@@ -12,7 +14,7 @@ physical yard identity, unfiltered make/model/year controls, native script
 versions, table mode, complete document/table/row/modal structure and identity
 consistency before either callback. It never infers a model year from a VIN.
 The shared rejection and duplicate limits remain 10% and 25%. The configured
-source minimum is 200 in the shared source policy. Admission and source
+source minimum is 77 in the shared source policy. Admission and source
 enablement are separate from this connector.
 
 The five native columns are Images, Make, Model, Year and Color. The first cell
@@ -66,8 +68,7 @@ There are no fallback paths or alternate endpoints.
 
 `ArmyCursor.initial` starts the single-page crawl. A complete cursor makes no
 request and invokes no callbacks. `soakArmyInventory` counts and discards one
-complete batch through its caller. The shared integration owns default-disabled
-registration, durable scheduling, minimum count and product links.
+complete batch through its caller. The shared integration owns registration, pause flags, durable scheduling, minimum count and product links.
 
 Retained local evidence is under
 `.scratchpad/coverage/parallel-mi-oh-wi/continuation/army-requalification/`:

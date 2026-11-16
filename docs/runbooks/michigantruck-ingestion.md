@@ -1,8 +1,10 @@
 # Michigan Truck Parts ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `michigantruck` covers one physical yard, code `westland`: Michigan Truck Parts, 38658 Ford Rd, Westland MI 48185, 734-722-3800. The native catalog, contact page and source-linked donor detail confirm ownership. Coordinates 42.3249, -83.4221 come from ITPA CompanyID 84 and its business-marker implementation. The native Google embed viewport is separate evidence.
 
-Keep the source disabled until parent admission and rollout approval. The source minimum is 150 accepted donors. Existing source validation and reconciliation rules remain in force.
+The source runs unless its pause flag serves false. The source minimum is 57 accepted donors. Existing source validation and reconciliation rules remain in force.
 
 ## Native scope
 

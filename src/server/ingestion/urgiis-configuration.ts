@@ -28,7 +28,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "2744 Eagle School Road",
       "Martinsburg, WV 25404",
     ],
-    minimumInventory: 1200,
+    minimumInventory: 482,
     photoCodes: ["ee52"],
     placeholderStocks: [
       "104C",
@@ -108,7 +108,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     urgid: "MA09",
     arrivalsPath: "/recent-arrivals/",
     ownerClaims: ["Linder's, Inc.", "211 Granite St", "Worcester, MA 01607"],
-    minimumInventory: 2600,
+    minimumInventory: 1_091,
     photoCodes: ["ma09"],
     yard: {
       source: "urgiis",
@@ -139,7 +139,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "1775 Old Plymouth Street",
       "Bridgewater, MA 02324",
     ],
-    minimumInventory: 2900,
+    minimumInventory: 1_223,
     photoCodes: ["ma23"],
     yard: {
       source: "urgiis",
@@ -168,7 +168,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "5702 So. 60th ST",
       "Omaha, NE 68117",
     ],
-    minimumInventory: 9800,
+    minimumInventory: 4_118,
     photoCodes: ["ne02"],
     yard: {
       source: "urgiis",
@@ -197,7 +197,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "2752 S Riverside Dr",
       "Iowa City, IA 52246",
     ],
-    minimumInventory: 1200,
+    minimumInventory: 508,
     photoCodes: ["oo76"],
     placeholderStocks: [
       "DORMAN",
@@ -232,7 +232,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     urgid: "NJ29,II08,NJ12",
     arrivalsPath: "/recent-arrivals/",
     ownerClaims: ["Lentini Auto Salvage", "130 US-202", "89 Brickyard Rd."],
-    minimumInventory: 2600,
+    minimumInventory: 1_117,
     photoCodes: ["nj12"],
     attribution: {
       kind: "seller",
@@ -259,8 +259,8 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
         II08: "lentini-port-murray",
       },
       minimumByYard: {
-        "lentini-ringoes": 1900,
-        "lentini-port-murray": 700,
+        "lentini-ringoes": 809,
+        "lentini-port-murray": 308,
       },
     },
     yard: {
@@ -290,7 +290,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "99 Little Pitch Road",
       "Litchfield, CT 06759",
     ],
-    minimumInventory: 800,
+    minimumInventory: 370,
     photoCodes: ["ct05"],
     yard: {
       source: "urgiis",
@@ -321,7 +321,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "120 Stantack Rd.",
       "Middleton, CT 06457",
     ],
-    minimumInventory: 2600,
+    minimumInventory: 1_120,
     photoCodes: ["aa74"],
     yard: {
       source: "urgiis",
@@ -349,7 +349,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     pacingMs: 3500,
     requestTimeoutMs: 90000,
     ownerClaims: ["Ace Auto Parts", "754 Rice", "55117"],
-    minimumInventory: 2400,
+    minimumInventory: 1_005,
     photoCodes: ["mn25"],
     yard: {
       source: "urgiis",
@@ -380,7 +380,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "30187 E. Bass Lake Road",
       "Grand Rapids, MN 55744",
     ],
-    minimumInventory: 2000,
+    minimumInventory: 867,
     photoCodes: ["pp42"],
     placeholderStocks: [
       "11NOF",
@@ -437,7 +437,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       "54 Basin Street",
       "Concord, NH 03301",
     ],
-    minimumInventory: 1900,
+    minimumInventory: 825,
     photoCodes: ["ff27"],
     yard: {
       source: "urgiis",
@@ -530,7 +530,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     ],
     pacingMs: 3500,
     requestTimeoutMs: 90000,
-    minimumInventory: 1104,
+    minimumInventory: 1_104,
     photoCodes: ["mo24"],
     yard: {
       source: "urgiis",
@@ -557,7 +557,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     ownerClaims: ["Revolution Auto Parts", "9001 Stitt St", "Monroe, NC 28110"],
     pacingMs: 3500,
     requestTimeoutMs: 90000,
-    minimumInventory: 1728,
+    minimumInventory: 1_728,
     photoCodes: ["nc74"],
     yard: {
       source: "urgiis",
@@ -611,7 +611,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     ownerClaims: ["Lambert Auto Salvage", "2412 South Second St.", "38829"],
     pacingMs: 3500,
     requestTimeoutMs: 90000,
-    minimumInventory: 2995,
+    minimumInventory: 2_995,
     photoCodes: ["ms06"],
     yard: {
       source: "urgiis",
@@ -638,7 +638,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
     ownerClaims: ["Norb's Auto Salvage", "5924 Highway R", "54208"],
     pacingMs: 3500,
     requestTimeoutMs: 90000,
-    minimumInventory: 2954,
+    minimumInventory: 2_954,
     photoCodes: ["ee91"],
     placeholderStocks: ["NOR6", "NOF"],
     yard: {

@@ -1,5 +1,7 @@
 # All-N-1 Auto Parts ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 ## Grandpa John's tenant qualification, November 16, 2026
 
 The same U-Pull connector now takes an explicit tenant contract. All-N-1 keeps
@@ -8,8 +10,8 @@ existing 600-donor test fixture has identical canonical bytes across budgets
 1, 2, 3 and 32: SHA-256
 `1ca9f680d8502ed80b686a0a144fcd0264d86540ccb7af0f76c5dfceb4b05a71`.
 
-The new `grandpajohns` source remains disabled by default behind
-`ingestion-source-grandpajohns`. Grandpa John's Pick & Pull publishes
+The new `grandpajohns` source runs by default;
+`ingestion-source-grandpajohns` pauses it when it serves false. Grandpa John's Pick & Pull publishes
 1746 Velp Avenue, Green Bay, WI 54303 and its self-pull statement on the
 official root. Its inventory declares `iisupullurgid = 'WI25'` in the same
 executable inline plugin contract as All-N-1. No phone is published there;
@@ -21,7 +23,7 @@ Two complete pages contain 500 and 152 rows. The production connector accepts
 (2.45% overall, 14 on page one and two on page two), with no exclusions or duplicates. Grandpa John's uses `inventoryVinWithCheckDigit`; eight previously accepted
 VINs fail ISO 3779 validation. Its 302 accepted native photo references survive
 the WI25 stock and filename guard; foreign MO42 photos remain null.
-The yard floor is 500;
+The Grandpa John's yard floor is 212;
 the existing 10% rejection cap, 25% duplicate cap and 50% prior-count drift
 guard remain unchanged. Separately fetched closing owner and first-page
 controls match. The native GET search for `1FMCU9GX9GUC13987` returns one
@@ -38,7 +40,7 @@ Status on November 12, 2026: saved-only production connector replays accept
 1,093 unique vehicles from 1,158 native rows, with 65 rejected and zero
 duplicates. Budgets 1, 2, 3 and 32 produce identical canonical output through
 the actual shared durable cursor codec. No production inventory was written;
-the source remains disabled by default.
+the source runs unless its pause flag serves false.
 
 The source is `alln1`, yard `MO42`, All-N-1 U Pull & Metals Recycling,
 operated by All-N-1 Auto Parts at 2408 Blue Ridge Blvd, Kansas City MO 64129,
@@ -141,7 +143,7 @@ The unchanged 10% rejection cap applies to the complete yard, not a partial
 page or checkpoint. Page one legitimately pauses at 58 rejected of 500 rows
 (11.6%). Complete accounting is 1,158 processed, zero excluded, 65 rejected
 (5.61%), zero duplicates and 1,093 accepted. Shared admission requires at
-least 900 accepted unique donors and retains the 50% prior-count drift limit
+least 364 accepted unique donors and retains the 50% prior-count drift limit
 and duplicate/reconciliation guards. Partial or failed snapshots cannot
 reconcile inventory.
 

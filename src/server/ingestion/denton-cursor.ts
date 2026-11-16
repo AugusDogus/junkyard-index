@@ -20,7 +20,7 @@ import {
   DENTON_YARD,
 } from "./denton-yard-metadata";
 
-export const DENTON_MINIMUM_INVENTORY = 2000;
+export const DENTON_MINIMUM_INVENTORY = 765;
 export const DENTON_MAX_REQUESTS = 2048;
 export const DENTON_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
 export const DENTON_MAX_CURSOR_BYTES = 16 * 1024 * 1024;

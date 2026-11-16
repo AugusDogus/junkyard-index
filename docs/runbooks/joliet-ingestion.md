@@ -1,11 +1,13 @@
 # Joliet U-Pull-It ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Status on November 12, 2026: locally qualified from saved public responses with
 1,392 accepted unique donors, 14 malformed modern VIN rejects and zero duplicate
 VINs. Actual connector replays with 1, 16 and 32 queries per chunk produce
 identical canonical output through the shared durable cursor codec. The actual
 read-only soak also completes. No production inventory was written; this source
-is disabled by default.
+is enabled unless its pause flag serves false.
 
 The source and yard codes are `joliet`. The single self-service yard is at
 1014 E. Washington Street, Joliet IL 60433, phone 815-723-3011. The official
@@ -110,7 +112,7 @@ excluded, 14 rejected and 1,392 unique emitted. Shared metrics therefore have
 1,406 eligible donors, zero duplicates and a 0.996% rejection rate. Repeats
 cannot dilute the rejection denominator.
 
-The source floor is 1,200 accepted unique donors. The unchanged 10% rejection,
+The source floor is 464 accepted unique donors. The unchanged 10% rejection,
 25% duplicate and 50% prior-count drift guards apply. Only terminal accepted
 snapshots can reconcile inventory.
 

@@ -1,5 +1,7 @@
 # Allied Auto Wrecking ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Allied Auto Wrecking is one full-service yard at 32 Dustin Tavern Rd, Weare,
 New Hampshire 03281, phone 603-529-7211. Its public site binds the URG Inventory
 InSite catalog to supplier KK25. The US Census Public_AR_Current geocoder
@@ -40,7 +42,7 @@ ordered Brotli response archive preserves separate opening and closing controls.
 Compression retains the raw HTML, including repeated URLs; tests never replace
 closing responses with opening responses.
 
-The source floor is 2,000 unique donors. The normal-stock rejection limit is
+The source floor is 835 unique donors. The normal-stock rejection limit is
 10%, the duplicate limit is 25%, and accepted inventory must retain at least
 50% of the preceding published complete run. Exclusions never dilute the
 rejection denominator. No inventory is emitted until the entire graph and all
@@ -61,8 +63,7 @@ checkpoint, preserves incomplete state at its budget, prints exclusion and badge
 warnings, and writes no canonical inventory. Tests use saved native responses
 and never contact the provider or Census.
 
-The source ships disabled. `ingestion-source-allied` must be explicitly enabled
-for rollout. On a request, parser, guard or checkpoint failure, keep prior
+The source runs by default. `ingestion-source-allied` pauses ingestion when it serves false. On a request, parser, guard or checkpoint failure, keep prior
 inventory and inspect the named operation and saved response. Resume the last
 validated checkpoint only if its contract is unchanged. Restart after graph
 drift or policy changes. Never force reconciliation from incomplete evidence.

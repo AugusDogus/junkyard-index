@@ -1,5 +1,7 @@
 # Importapart inventory
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Importapart publishes its current donor inventory at `https://importapart.com/blogs/part-outs`. The native heading says `CURRENT INVENTORY`, and the introduction says these are vehicles currently being parted out. A component marked `SOLD` does not establish that the whole donor is inactive.
 
 The single physical yard is Importapart, 7373 Hazelwood Ave, Hazelwood, MO 63042, 314-502-3104. Native `AutoPartsStore` JSON-LD establishes the address and phone on listing and donor pages. Donor descriptions repeat the address. Current descriptions call the business a full-service salvage yard and describe parts pulled to order and local pickup. Older descriptions use `Hazelwood Avenue, Hazelwood MO 63042`. The coordinate pair `38.77462, -90.34407` comes from the separately saved ASYD `importapart-hazelwood-mo` directory map row. Coordinates are not claimed to be native map evidence.

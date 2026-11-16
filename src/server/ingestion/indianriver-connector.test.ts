@@ -341,10 +341,10 @@ describe("Indian River real identity and accounting", () => {
     );
     expect(() =>
       validateIndianriverSnapshot(
-        { ...snapshot, vehicles: snapshot.vehicles.slice(0, 899) },
+        { ...snapshot, vehicles: snapshot.vehicles.slice(0, 348) },
         null,
       ),
-    ).toThrow("900-donor");
+    ).toThrow("349-donor");
     expect(() =>
       validateIndianriverSnapshot(
         {

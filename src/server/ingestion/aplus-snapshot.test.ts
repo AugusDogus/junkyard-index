@@ -109,9 +109,9 @@ test("Aplus enforces the donor floor and source rejection and duplicate limits",
   ).not.toThrow();
   expect(() =>
     validateAplusSnapshot(
-      aplusSnapshot(makes, [aplusFixturePage(records.slice(1))], []),
+      aplusSnapshot(makes, [aplusFixturePage(records.slice(0, 406))], []),
     ),
-  ).toThrow("below 1000");
+  ).toThrow("below 407");
   const invalid = aplusFixtureRecord(999);
   invalid[0] = "-";
   expect(() =>

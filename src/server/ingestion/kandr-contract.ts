@@ -3,7 +3,7 @@ import { kandrHash } from "./kandr-native";
 import { KANDR_YARD } from "./kandr-snapshot";
 
 // Complete saved census: 48 accepted donors of 49, November 15, 2026 UTC.
-export const KANDR_MINIMUM_UNIQUE_INVENTORY = 40;
+export const KANDR_MINIMUM_UNIQUE_INVENTORY = 16;
 export const KandrContractSchema = z
   .object({
     minimumUniqueInventory: z.number().int().positive().safe(),

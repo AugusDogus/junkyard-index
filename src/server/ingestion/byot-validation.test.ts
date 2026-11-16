@@ -11,9 +11,9 @@ import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { ByotCursor } from "./byot-cursor";
 import { byotTerminal } from "./byot-test-fixtures";
 
-test("BYOT is registered for qualification and requires explicit rollout", () => {
+test("BYOT is registered for qualification and runs unless its flag serves false", () => {
   expect(INGESTION_SOURCES).toContain("byot");
-  expect(IngestionSourceFlags.resolve({})).not.toContain("byot");
+  expect(IngestionSourceFlags.resolve({})).toContain("byot");
 });
 
 const initial = ByotCursor.initial();

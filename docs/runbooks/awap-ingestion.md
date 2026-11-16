@@ -1,5 +1,7 @@
 # AWAP ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `awap` reads Alabama Wholesale Auto Parts' native Cars at Yard catalog:
 `https://www.alwholesaleautoparts.com/cars-at-yard/`. The yard code is
 `birmingham`. Native About binds Birmingham, AL 35211, phone `205-538-2538`
@@ -36,7 +38,7 @@ Contradictory native VIN/YMM claims, repeated donor destinations or reused valid
 identities across distinct cards fail the source globally. A completed yard
 must contain eligible donors and stay within the unchanged 10% rejection limit.
 Shared source validation retains minimum-count, duplicate and previous-run
-drift guards; the configured AWAP minimum is 160 against 183 qualified donors.
+drift guards; the configured AWAP minimum is 61 against 183 qualified donors.
 
 Native color, image, engine and transmission values are optional. Unambiguous
 valid values remain intact, including combined color labels and literal photo

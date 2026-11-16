@@ -1,13 +1,15 @@
 # Calton ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Calton Auto Parts Recyclers is the native MM28 supplier at 7491 Washington
 Blvd, Elkridge MD 21075, phone 410-799-1320. The verified business point is
 39.1794853, -76.7697906. Its native footer spells the city "Eldridge"; that typo
 is retained in evidence. The physical screen found no matching accepted yard
 or location within 250 metres.
 
-The source is registered locally and defaults disabled. Production rollout,
-deployment and source enablement are not authorized.
+The source runs unless its pause flag serves false. Qualification did not
+deploy the application, change production flags or publish inventory.
 
 ## Native inventory contract
 
@@ -54,7 +56,7 @@ identity groups. Fifteen rejected valid VINs are preserved for reconciliation.
 ## Checkpoints and recovery
 
 Eight native requests form a durable chunk. Nothing is emitted until the entire
-graph is read and the source minimum of 11,000 passes alongside the unchanged
+graph is read and the source minimum of 4,183 passes alongside the unchanged
 10% rejection, 25% duplicate and 50% previous-run retention guards. A complete
 cursor is published only after the caller accepts the terminal batch.
 
@@ -82,7 +84,7 @@ The obsolete `/inventory/` DNS failure and recovered 404 are also retained.
 Focused checks cover native parsing, cross-page conflict quarantine, rejected
 VIN preservation, literal route aliases, bounded HTTP, cursor integrity,
 continuations, no early emission, callback failures, terminal source validation
-and disabled defaults. Run `bun test src/server/ingestion/calton-*.test.ts`
+and pause-only flags. Run `bun test src/server/ingestion/calton-*.test.ts`
 and the shared durable-source and source-validation tests after changes.
 
 The parent replay checked all 679 saved response bodies through the shared

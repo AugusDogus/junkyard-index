@@ -13,12 +13,12 @@ import { VINPLUS_TENANTS } from "./vinplus-configuration";
 import { SourceValidationPolicy } from "./source-validation";
 import { VinplusCursor } from "./vinplus-cursor";
 
-test("VinPlus is registered for qualification and requires explicit rollout", () => {
+test("VinPlus is registered for qualification and runs unless its flag serves false", () => {
   expect(INGESTION_SOURCES).toContain("vinplus");
   expect(SourceValidationPolicy.minimumUniqueInventory.vinplus).toBe(
     VINPLUS_TENANTS.reduce((sum, tenant) => sum + tenant.minimum, 0),
   );
-  expect(IngestionSourceFlags.resolve({})).not.toContain("vinplus");
+  expect(IngestionSourceFlags.resolve({})).toContain("vinplus");
 });
 
 const initial = VinplusCursor.initial();

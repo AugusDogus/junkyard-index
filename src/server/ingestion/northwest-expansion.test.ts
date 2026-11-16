@@ -226,7 +226,7 @@ test("Northwest replays all 36 makes and 334 models through its real client and 
       .size,
   ).toBe(334);
   expect(requested.length).toBe(418);
-  expect(IngestionSourceFlags.resolve({})).not.toContain("northwest");
+  expect(IngestionSourceFlags.resolve({})).toContain("northwest");
   expect(saved.census.result.addressMatches[0]?.coordinates).toEqual({
     x: NORTHWEST_YARD.lng,
     y: NORTHWEST_YARD.lat,

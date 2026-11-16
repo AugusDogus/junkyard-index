@@ -1,5 +1,7 @@
 # Rightway Auto Recycling ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Status on November 11, 2026: locally qualified from saved native evidence. The
 actual connector replay emitted 543 unique donors from all 543 published rows,
 with zero rejections or duplicates. Shared source validation accepted this

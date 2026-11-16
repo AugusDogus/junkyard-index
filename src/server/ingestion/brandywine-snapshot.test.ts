@@ -54,9 +54,9 @@ test("source size and unchanged prior-drift guard use eligible unique inventory"
     validateBrandywineInventorySnapshot(
       {
         ...snapshot,
-        vehicles: snapshot.vehicles.slice(0, 1499),
+        vehicles: snapshot.vehicles.slice(0, 601),
         accounting: {
-          recordsProcessed: 1499,
+          recordsProcessed: 601,
           recordsExcluded: 0,
           recordsRejected: 0,
           duplicateVehicles: 0,
@@ -64,7 +64,7 @@ test("source size and unchanged prior-drift guard use eligible unique inventory"
       },
       null,
     ),
-  ).toThrow("1,500 minimum");
+  ).toThrow("602 minimum");
   expect(() => validateBrandywineInventorySnapshot(snapshot, -1)).toThrow(
     "authoritative",
   );

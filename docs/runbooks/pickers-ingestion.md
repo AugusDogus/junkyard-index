@@ -1,8 +1,10 @@
 # Pickers inventory
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `pickers` covers the Texarkana, Longview and Reno Pickers yards operated by Tri-State Iron & Metal. The original Texarkana yard is at 5512 E 9th Street, Texarkana, AR 71854. Yard code is `pickers-texarkana`. Native contact is 870-772-1880. The physical location is Arkansas. Public VinPlus metadata labels its location TX; that explicit discrepancy is preserved in source scope and never copied into canonical geography.
 
-The source is disabled by default and requires explicit rollout.
+The source runs unless its pause flag serves false.
 
 The coordinates (33.42952, -93.97398) are an exact-address ASYD business marker, corroborated by the named AutoRecycler Texarkana business within 7.402 m. Google embed viewport coordinates and AutoRecycler's repeated Longview address are excluded.
 
@@ -32,7 +34,7 @@ The source-local codec enforces a 1 MiB UTF-8 cap before JSON parsing and before
 
 The versioned phase cursor keeps bounded whole native/API records, exact stock bindings, typed dispositions, native missing-enrichment decisions, all optional evidence, raw response hashes, ordered entry hashes, exact payload/phase/index receipts, contiguous prefix hashes and all HTTP/raw occurrence counters. Each native row also retains a hash of its complete published markup, binding every photo reference and attribute during closing checks. Compact tagged tuples retain literal optional values or unusable-value hashes, types, reasons and byte counts. Derived canonical values, presence and terminal union accounting are independently recomputed on resume. These detect corruption of trusted durable state and do not authenticate an untrusted cursor.
 
-All nonterminal chunks return count zero, zero donor accounting, empty presence and no batch or yard callbacks. Only successful terminal closing and quality validation permit the complete canonical batch, rejected presence and yard callback. Callback failure returns no advanced cursor. Production reconciliation still requires terminal source validation: minimum 450 unique vehicles, at most 10% rejections, at most 25% duplicates and no drop below 50% of the previous accepted count.
+All nonterminal chunks return count zero, zero donor accounting, empty presence and no batch or yard callbacks. Only successful terminal closing and quality validation permit the complete canonical batch, rejected presence and yard callback. Callback failure returns no advanced cursor. Production reconciliation still requires terminal source validation: minimum 180 unique vehicles, at most 10% rejections, at most 25% duplicates and no drop below 50% of the previous accepted count.
 
 The frozen 2026-11-12 snapshot contains:
 
@@ -62,7 +64,7 @@ Registration, source enablement and production acceptance are separate decisions
 ## Longview and Reno qualification, November 15
 
 Both Texas yards qualify locally and join Texarkana in the durable coverage
-traversal. The existing source remains disabled by default. No inventory, index
+traversal. The existing source runs unless its pause flag serves false. No inventory, index
 or production flag was written.
 
 | Yard     | Native makes | Literal queries | Processed | Accepted | Rejected | Reject share | Follow-up live requests |

@@ -1,6 +1,8 @@
 # C&S Truck Sales & Salvage ingestion
 
-The default-off `cstruck` source adds South Dakota's first provider: C & S Truck Sales, LLC, a self-described truck salvage yard at 24988 350th Ave, Pukwana SD 57370, phone 605-894-4100. Its operator website says it is an auto salvage yard and sells out-of-commission trucks for parts. This is heavy-truck inventory, with limited value for passenger-car searches.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+The `cstruck` source adds South Dakota's first provider: C & S Truck Sales, LLC, a self-described truck salvage yard at 24988 350th Ave, Pukwana SD 57370, phone 605-894-4100. Its operator website says it is an auto salvage yard and sells out-of-commission trucks for parts. This is heavy-truck inventory, with limited value for passenger-car searches.
 
 The approved policy admits HeavyTruckParts.net Complete Vehicle listings as donor vehicles for this salvage yard, as for Dutchers. The generic Vehicle For Sale heading does not imply a retail exclusion for this supplier. Most records say CAB & CHASSIS, have no price and show only the supplier logo. Previous research found VIN-linked parts on five of 18 sampled trucks. This catalog is a subset of the yard's vehicle registry; it does not claim to enumerate unpublished registry stock numbers.
 
@@ -18,7 +20,7 @@ Coordinates 43.760066942433, -99.182783487055 come from a unique Census Public_A
 
 The collector reads the opening store count, enumerates all four ranges and every page of the unfiltered ascending catalog, repeats every actual request and verifies the closing store count. The unfiltered roster is authoritative; each range record must match its unfiltered item. A 25-row response, with or without Next, is bisected into disjoint year ranges. Only exact supplier/store ascending catalog page controls are followed; inquiry routes are never requested. A single year at the cap stops the run. The unfiltered pass also covers missing years, pre-1970 vehicles and model years beyond the range controls. Missing or unsupported required fields remain individual row rejects under the 10% quality guard. The separately captured ascending page confirms the current oldest inventory starts in 1985.
 
-No vehicles, yard, accounting or presence emit until all closing identities, metadata, destinations, ranges, pagination and store counts match. Checked cursors reconstruct the exact traversal frontier and bind request/byte accounting, supplier scope and previous accepted count. Terminal resume emits nothing and makes no requests. Shared validation enforces a 50-vehicle floor, 10% rejection and 25% duplicate ceilings, plus the previous-count 50% drift guard before reconciliation.
+No vehicles, yard, accounting or presence emit until all closing identities, metadata, destinations, ranges, pagination and store counts match. Checked cursors reconstruct the exact traversal frontier and bind request/byte accounting, supplier scope and previous accepted count. Terminal resume emits nothing and makes no requests. Shared validation enforces a 19-vehicle floor, 10% rejection and 25% duplicate ceilings, plus the previous-count 50% drift guard before reconciliation.
 
 The HTTP client and parser are shared with Dutchers without changing its source key or enumeration policy. A process-wide shared-host semaphore covers complete responses and a completed four-second gap, including failures. Each chunk allows eight serial GETs, a 60-second pause budget checked between requests and a four-minute deadline. Whole-run bounds are 40 requests, one hour, 2 MiB per response and 4 MiB per checkpoint. The normal current census costs sixteen GETs. Requests require unredirected complete HTTP 200 HTML and do not retry. A block, ownership change, unsupported scope, incomplete count or quality failure preserves prior inventory and the last validated checkpoint. Inspect saved evidence before restarting.
 
@@ -30,6 +32,6 @@ The count-only soak discards vehicles and returns a paused checked cursor at its
 bun run soak:sources -- --sources=cstruck --cycles=1 --max-pages=40
 ```
 
-This is a live diagnostic. Do not run it as part of offline tests. `ingestion-source-cstruck` ships disabled by default. Qualification does not enable, deploy or merge this provider.
+This is a live diagnostic. Do not run it as part of offline tests. `ingestion-source-cstruck` pauses ingestion when it serves false. Qualification does not enable, deploy or merge this provider.
 
 Three additional paced production-client requests verified unfiltered ascending catalog pages 1, 2 and 3 (25, 25 and 14 unique items). Their bodies are saved as `unfiltered-1` through `unfiltered-3`; offline closing replay reuses these bodies. No additional live closing census was requested.

@@ -1,7 +1,9 @@
 # River Valley Truck Parts ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Status on November 12, 2026 UTC: locally qualified from saved public evidence,
-disabled and unpublished. No production ingestion, index, alert or directory
+unpublished. No production ingestion, index, alert or directory
 write is authorized by this qualification.
 
 ## Physical yard and active donor scope
@@ -64,7 +66,7 @@ the crawl.
 River Valley has one physical yard. Its cumulative terminal rejection limit
 remains 10%, and its separate duplicate limit remains 25%. Neither limit is
 weakened for incomplete optional fields. Shared validation requires at least
-1,300 unique donors and retains the previous accepted snapshot drift limit.
+517 unique donors and retains the previous accepted snapshot drift limit.
 
 The default durable chunk permits eight HTTP requests, with an explicit bound
 of 2-32. Requests use the shared HTTP client, a 4 MiB complete UTF-8 body
@@ -131,5 +133,4 @@ The count/discard soak driver is `scripts/soak-rivervalley.ts`. A bounded run
 that returns `paused` is incomplete and cannot qualify the source. Preserve its
 last validated cursor and counters for recovery. No production rollout or
 published Illinois yard-count change follows automatically from this work.
-Keep the source disabled until the parent overlap, review and admission work
-is complete and publication is separately authorized.
+The source runs unless its pause flag serves false. Qualification did not publish inventory.

@@ -108,7 +108,7 @@ test("603 does not repair native YMM from route words, VIN, title decorations or
   const snapshot = six03Snapshot(subset([civic]), [record]);
   expect(snapshot.vehicles).toHaveLength(0);
   expect(snapshot.observedVins).toEqual(["2HGFC2F84LH570904"]);
-  expect(() => validateSix03Snapshot(snapshot)).toThrow("below 800");
+  expect(() => validateSix03Snapshot(snapshot)).toThrow("below 324");
 });
 
 test("603 native Frontier structured variant and malformed Mazda remain required rejections", () => {

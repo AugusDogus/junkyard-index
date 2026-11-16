@@ -1,8 +1,10 @@
 # URG Inventory InSite ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `urgiis` adds independent yard businesses through one multi-tenant connector. Each physical yard has its own location code, address, coordinates and website. Existing Pratt, Central, Northwest and Allied source behavior is preserved. Shared IIS identity, HTML and quarantine primitives are extracted from Allied.
 
-The source ships disabled. `ingestion-source-urgiis` must be explicitly enabled for rollout.
+The source runs by default. `ingestion-source-urgiis` pauses it when it serves false. The current source inventory floor is 23,561 accepted donors.
 
 The first census follows each tenant’s official owner page, published make directory, all make/model links and its enumerable arrivals page. Subsequent daily runs use the accepted census and weekly slices described below. A tenant with no published arrival cards uses its model graph. The connector rereads the owner, makes and every make menu before emission, including on incremental days. It requires unchanged ownership claims, literal paths, labels and control order. Models added or removed between opening and closing fail even if their badges are zero. Small badge changes are allowed as described below. An arrivals window alone cannot qualify: at least one admitted own-yard donor must come from the current or carried model graph. Arrivals and models are assessed together, with conflicting VIN/destination claims quarantined before deduplication. A modern VIN must pass its check digit; supported pre-1981 serials are accepted. Native year/make/model and an owned per-vehicle destination are required. Arrivals-only donors link to the tenant arrivals page that displays them; modeled donors retain their native detail destination. No identity is decoded or invented.
 
@@ -34,7 +36,7 @@ Qualification began with serial censuses. Later acquisitions allow at most three
 
 Concurrent qualification batches on one machine share `/tmp/jyi-urg-gate.lock` and `/tmp/jyi-urg-gate.last`. Before every tenant-origin request, take an exclusive `flock`, read the last timestamp as fractional Unix seconds, wait until 3.1 seconds have elapsed, write the current timestamp, release the lock, then send the request. Keep the tenant's response spacing as well. This cross-process gate belongs to qualification tooling, not product code.
 
-The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 1,200. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
+The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 482. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
 
 Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). Its historical counts predate the full restacked configuration; the incremental estimate below includes every configured tenant.
 
@@ -134,45 +136,45 @@ These original counts describe the retained captures. The current publication de
 
 | Yard                               | City          | State | Accepted | Rejected | Skipped | Duplicates | Floor |
 | ---------------------------------- | ------------- | ----- | -------: | -------: | ------: | ---------: | ----: |
-| Eagle Auto Parts                   | Martinsburg   | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
-| Linder's Inc                       | Worcester     | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
-| Chuckran Auto Parts                | Bridgewater   | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
-| United Auto Recyclers              | Omaha         | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
-| Ace Auto Recyclers                 | Iowa City     | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
-| Lentini Auto Salvage - Ringoes     | Ringoes       | NJ    |    2,429 |   shared |       0 |     shared | 1,900 |
-| Lentini Auto Salvage - Port Murray | Port Murray   | NJ    |      924 |   shared |       0 |     shared |   700 |
-| Ding's Auto Parts                  | Litchfield    | CT    |    1,110 |      109 |       0 |         24 |   800 |
-| Bishop's Auto Parts                | Middletown    | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
-| Ace Auto Parts                     | St. Paul      | MN    |    3,015 |      185 |       0 |         54 | 2,400 |
-| Chuck's Auto Salvage               | Grand Rapids  | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
-| Central Auto Recyclers             | Concord       | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
+| Eagle Auto Parts                   | Martinsburg   | WV    |    1,448 |      127 |     143 |          5 |   482 |
+| Linder's Inc                       | Worcester     | MA    |    3,274 |      159 |       0 |         54 | 1,091 |
+| Chuckran Auto Parts                | Bridgewater   | MA    |    3,671 |      369 |       0 |         13 | 1,223 |
+| United Auto Recyclers              | Omaha         | NE    |   12,356 |       56 |       0 |          5 | 4,118 |
+| Ace Auto Recyclers                 | Iowa City     | IA    |    1,524 |      172 |     125 |         56 |   508 |
+| Lentini Auto Salvage - Ringoes     | Ringoes       | NJ    |    2,429 |   shared |       0 |     shared |   809 |
+| Lentini Auto Salvage - Port Murray | Port Murray   | NJ    |      924 |   shared |       0 |     shared |   308 |
+| Ding's Auto Parts                  | Litchfield    | CT    |    1,110 |      109 |       0 |         24 |   370 |
+| Bishop's Auto Parts                | Middletown    | CT    |    3,362 |       82 |       0 |          0 | 1,120 |
+| Ace Auto Parts                     | St. Paul      | MN    |    3,015 |      185 |       0 |         54 | 1,005 |
+| Chuck's Auto Salvage               | Grand Rapids  | MN    |    2,601 |      283 |     480 |         40 |   867 |
+| Central Auto Recyclers             | Concord       | NH    |    2,477 |      193 |       0 |         52 |   825 |
 | Higgins Auto Parts                 | Bakersfield   | CA    |    1,477 |       51 |       0 |         48 |   492 |
 | A-Z Auto Parts & Auto Sales        | Oklahoma City | OK    |    1,739 |       54 |       0 |         39 |   579 |
 | Norb's Auto Salvage                | Denmark       | WI    |    8,864 |      898 |     398 |         43 | 2,954 |
 | Lambert Auto Salvage               | Booneville    | MS    |    8,985 |      329 |       0 |          9 | 2,995 |
 | Mars Auto Parts & Engine Swaps     | Akron         | OH    |      381 |       30 |       0 |          6 |   127 |
 
-Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
+Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 1,223, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
-United's full census follows 46 makes, 526 model pages and six arrivals. Its 623-response replay accepts 12,356 donors, rejects 56 observations (0.45%), excludes no rows and merges five duplicates. Every supplier photograph is NE02. Its floor is 9,800. The US Census point for 5702 S 60th St, Omaha, NE 68117 is 41.200697251758, -96.004715979234.
+United's full census follows 46 makes, 526 model pages and six arrivals. Its 623-response replay accepts 12,356 donors, rejects 56 observations (0.45%), excludes no rows and merges five duplicates. Every supplier photograph is NE02. Its floor is 4,118. The US Census point for 5702 S 60th St, Omaha, NE 68117 is 41.200697251758, -96.004715979234.
 
 Linder's full census follows 41 makes, 426 model pages and 60 arrivals. It contains 3,427 model cards, with only MA09 supplier photographs. Its eligible rejection rate is 159 / 3,487 (4.56%). The 513-response replay includes separately acquired closing controls. Its US Census point is 42.23811894312, -71.782708739098 for 211 Granite St, Worcester, MA 01607.
 
-Ace Iowa follows 42 makes, 376 model pages and 60 arrivals. Its 465-response replay accepts 1,524 donors, rejects 172 observations (9.82%), excludes 125 verified bulk-part-bin observations and merges 56 duplicates. Saved native detail pages show DORMAN, BROCK, NOF, MONTE, DORMN, 114AFT, BERGER and ORDER holding parts across unrelated vehicles. EPL and AER returned empty details and remain rejects, as do unverified stocks and numeric donors. Every supplier photograph is OO76. Its floor is 1,200. The US Census point for 2752 S Riverside Dr, Iowa City, IA 52246 is 41.625474637231, -91.543835183719.
+Ace Iowa follows 42 makes, 376 model pages and 60 arrivals. Its 465-response replay accepts 1,524 donors, rejects 172 observations (9.82%), excludes 125 verified bulk-part-bin observations and merges 56 duplicates. Saved native detail pages show DORMAN, BROCK, NOF, MONTE, DORMN, 114AFT, BERGER and ORDER holding parts across unrelated vehicles. EPL and AER returned empty details and remain rejects, as do unverified stocks and numeric donors. Every supplier photograph is OO76. Its floor is 508. The US Census point for 2752 S Riverside Dr, Iowa City, IA 52246 is 41.625474637231, -91.543835183719.
 
-Lentini's complete 3,969-response production connector replay passes. It follows all 39 makes, 336 model pages and 60 arrivals, with per-donor parts pages and separate closing controls fetched after those details. It accepts 2,429 donors for Ringoes and 924 for Port Murray. Its tenant-wide accounting is 375 rejected observations (9.52%), zero exclusions and 211 duplicates across 3,939 observations. Rejections cannot always be assigned to one physical yard, so the table marks those totals as shared. Its tenant floor is 2,600, with separate yard floors of 1,900 and 700. NJ12 and NJ29 map to Ringoes; II08 maps to Port Murray. The shared NJ12 photo bucket is never used to assign a physical yard. Every admitted donor requires agreeing native stock, year, seller and SKU prefix, with no contradictory native part VIN. The native VIN guard was reapplied to all saved details at final admission.
+Lentini's complete 3,969-response production connector replay passes. It follows all 39 makes, 336 model pages and 60 arrivals, with per-donor parts pages and separate closing controls fetched after those details. It accepts 2,429 donors for Ringoes and 924 for Port Murray. Its tenant-wide accounting is 375 rejected observations (9.52%), zero exclusions and 211 duplicates across 3,939 observations. Rejections cannot always be assigned to one physical yard, so the table marks those totals as shared. Its tenant floor is 1,117, with separate yard floors of 809 and 308. NJ12 and NJ29 map to Ringoes; II08 maps to Port Murray. The shared NJ12 photo bucket is never used to assign a physical yard. Every admitted donor requires agreeing native stock, year, seller and SKU prefix, with no contradictory native part VIN. The native VIN guard was reapplied to all saved details at final admission.
 
 Ringoes publishes 130 US-202, Ringoes, NJ 08551; its Census point is 40.469701869601, -74.861027850067. Port Murray publishes 89 Brickyard Rd., Port Murray, NJ 07865; its Census point is 40.7837265065, -74.91716279734. Separate Census receipts and a filtered public supplier-to-city mapping are fixtures.
 
-Dings follows 36 makes, 246 model pages and 60 arrivals. Its 323-response replay accepts 1,110 donors, rejects 109 observations (8.77%), excludes none and merges 24 duplicates. Every supplier photograph is CT05. Its floor is 800. The US Census point for 99 Little Pitch Road, Litchfield, CT 06759 is 41.725760885077, -73.178934578762.
+Dings follows 36 makes, 246 model pages and 60 arrivals. Its 323-response replay accepts 1,110 donors, rejects 109 observations (8.77%), excludes none and merges 24 duplicates. Every supplier photograph is CT05. Its floor is 370. The US Census point for 99 Little Pitch Road, Litchfield, CT 06759 is 41.725760885077, -73.178934578762.
 
-Bishop's follows all 35 makes and 322 model pages, with no published arrival-card enumeration. Its 396-response replay accepts 3,362 donors, rejects 82 observations (2.38%), excludes none and has no duplicates. Every supplier photo is AA74. Separate closing owner and directory controls pass. Its floor is 2,600. Qualification recovered a slow Spark page with a 90-second timeout and ordinary curl retries; pacing is 3.5 seconds after responses. The US Census point for 120 Stantack Rd, Middletown, CT 06457 is 41.564414369713, -72.749473882561.
+Bishop's follows all 35 makes and 322 model pages, with no published arrival-card enumeration. Its 396-response replay accepts 3,362 donors, rejects 82 observations (2.38%), excludes none and has no duplicates. Every supplier photo is AA74. Separate closing owner and directory controls pass. Its floor is 1,120. Qualification recovered a slow Spark page with a 90-second timeout and ordinary curl retries; pacing is 3.5 seconds after responses. The US Census point for 120 Stantack Rd, Middletown, CT 06457 is 41.564414369713, -72.749473882561.
 
-Ace St. Paul follows all 38 makes, 342 model pages and 60 arrivals. Its 423-response replay accepts 3,015 donors, rejects 185 observations (5.69%), excludes none and merges 54 duplicates. Every supplier photo is MN25. Its published contact page provides the verified address and JSON-LD point: 754 Rice Street, St. Paul, MN 55117 (44.963964848401794, -93.10545003558208). Its floor is 2,400 and pacing is 3.5 seconds after responses. Literal parentheses in the published New Yorker model path require ordinary percent-encoding for HTTP transport; the native destination is retained.
+Ace St. Paul follows all 38 makes, 342 model pages and 60 arrivals. Its 423-response replay accepts 3,015 donors, rejects 185 observations (5.69%), excludes none and merges 54 duplicates. Every supplier photo is MN25. Its published contact page provides the verified address and JSON-LD point: 754 Rice Street, St. Paul, MN 55117 (44.963964848401794, -93.10545003558208). Its floor is 1,005 and pacing is 3.5 seconds after responses. Literal parentheses in the published New Yorker model path require ordinary percent-encoding for HTTP transport; the native destination is retained.
 
-Chuck's follows all 41 makes, 415 model pages and 43 arrivals. Its 502-response replay accepts 2,601 donors, rejects 283 observations (9.68%), excludes 480 verified part-bin observations and merges 40 duplicates. Each of the 25 explicit NOF stocks has native parts from multiple makes and years, with no donor VIN claims. A native VIN or yard photo overrides the bin exclusion. NEW, RIDE and unverified NOF stocks remain rejects. All supplier photos are PP42. Its floor is 2,000, tenant spacing is 3.5 seconds and the public `urg_hv=1` cookie is required. The Census point for 30187 E. Bass Lake Road, Grand Rapids, MN 55744 is 47.314234240213, -93.604031442421.
+Chuck's follows all 41 makes, 415 model pages and 43 arrivals. Its 502-response replay accepts 2,601 donors, rejects 283 observations (9.68%), excludes 480 verified part-bin observations and merges 40 duplicates. Each of the 25 explicit NOF stocks has native parts from multiple makes and years, with no donor VIN claims. A native VIN or yard photo overrides the bin exclusion. NEW, RIDE and unverified NOF stocks remain rejects. All supplier photos are PP42. Its floor is 867, tenant spacing is 3.5 seconds and the public `urg_hv=1` cookie is required. The Census point for 30187 E. Bass Lake Road, Grand Rapids, MN 55744 is 47.314234240213, -93.604031442421.
 
-Central NH follows all 43 makes, 380 model pages and 60 arrivals. Its 471-response replay accepts 2,477 donors, rejects 193 observations (7.09%), excludes none and merges 52 duplicates. All supplier photos are FF27. Separate closing ownership and directory controls pass. Its floor is 1,900. The Census point for 54 Basin Street, Concord, NH 03301 is 43.190099292255, -71.523265006371.
+Central NH follows all 43 makes, 380 model pages and 60 arrivals. Its 471-response replay accepts 2,477 donors, rejects 193 observations (7.09%), excludes none and merges 52 duplicates. All supplier photos are FF27. Separate closing ownership and directory controls pass. Its floor is 825. The Census point for 54 Basin Street, Concord, NH 03301 is 43.190099292255, -71.523265006371.
 
 ## Smith qualification, November 16, 2026
 
@@ -281,15 +283,15 @@ Before the slower retry qualifications, the source needed 8,546 successful nativ
 
 ## Validation
 
-The original qualification admitted 38,191 unique vehicle identifiers across eleven tenants and twelve physical yards, with zero cross-tenant duplicates. The source floor is 30,000 and every physical-yard floor holds. All eleven complete connector replays pass across 8,546 separately captured native responses.
+The original qualification admitted 38,191 unique vehicle identifiers across eleven tenants and twelve physical yards, with zero cross-tenant duplicates. The original source floor was 30,000 and every physical-yard floor held. All eleven complete connector replays pass across 8,546 separately captured native responses.
 
 Baseline lint, typecheck and formatting of all 63 changed text files pass. The affected set passes 58 tests. The full `bun test --timeout 15000 src` run passes 4,394 tests across 409 files with zero failures in 860.44 seconds, using CI's pinned Bun 1.4.1. Lentini's full replay completes in 336.56 seconds under its explicit 600-second per-test timeout. Tests use local responses only. No lockfile changed after the machine's global Bun upgrade.
 
-`SKIP_ENV_VALIDATION=1 bunx next build` compiles 117 steps, four workflows and the Next application without `workflow-node-module-error`. Later page collection stops on a missing local PostHog API key. The source remains disabled; no inventory was enabled.
+`SKIP_ENV_VALIDATION=1 bunx next build` compiles 117 steps, four workflows and the Next application without `workflow-node-module-error`. Later page collection stops on a missing local PostHog API key. The source runs unless its pause flag serves false; no inventory was enabled.
 
 ## Batch A qualification, November 16, 2026
 
-At initial screening, none of the ten batch A tenants qualified. All remained outside `URGIIS_TENANTS`; no new inventory floors or exclusion whitelists were registered. Higgins subsequently qualified in the follow-up recorded below. The source stays disabled and the 50% previous-run drift guard is unchanged.
+At initial screening, none of the ten batch A tenants qualified. All remained outside `URGIIS_TENANTS`; no new inventory floors or exclusion whitelists were registered. Higgins subsequently qualified in the follow-up recorded below. The source runs unless its pause flag serves false and the 50% previous-run drift guard is unchanged.
 
 | Tenant                      | URG owner | Recorded attempts | Exclusion                                                                                                                                                        |
 | --------------------------- | --------- | ----------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -342,7 +344,7 @@ The same `?yr=2014` probe still returns 30 cards on I-17, Speedway and iDrive. A
 
 ## Higgins follow-up qualification, November 16, 2026
 
-Higgins now qualifies after accepting its exact native arrivals title. Its complete census follows 36 makes, 240 model pages and 60 arrivals, with 1,516 model cards. The 317-response production connector replay includes independently acquired closing ownership and directory controls and serialized checkpoints. It emits 1,477 unique donors, rejects 51 of 1,576 observations (3.24%), excludes none and merges 48 duplicates. All 1,528 supplier-photo observations are CA22; 48 observations have no yard photo. The tenant floor is 492, with 3.5-second response spacing and a 90-second request timeout. The source remains disabled.
+Higgins now qualifies after accepting its exact native arrivals title. Its complete census follows 36 makes, 240 model pages and 60 arrivals, with 1,516 model cards. The 317-response production connector replay includes independently acquired closing ownership and directory controls and serialized checkpoints. It emits 1,477 unique donors, rejects 51 of 1,576 observations (3.24%), excludes none and merges 48 duplicates. All 1,528 supplier-photo observations are CA22; 48 observations have no yard photo. The tenant floor is 492, with 3.5-second response spacing and a 90-second request timeout. The source runs unless its pause flag serves false.
 
 Badges are informational and often exceed the observed native lists. Escape has 30 cards against badge 34, but all four recent Escape donors are present. Eight accepted arrivals are absent from their model results. Each of their published native detail URLs returns an explicit empty parts result. These eight donors retain valid native arrivals identities and remain admitted through arrivals under the existing connector contract. This census does not establish that badge totals count enumerable donors or solve the five excluded tenants' proven missing-model-donor cases.
 
@@ -456,7 +458,7 @@ no supplier bucket is used as a substitute location.
 
 The combined source has 58,160 accepted donors and a floor of 36,655. Conservative native-VIN overlap bounds leave every physical yard above its floor. A complete full-graph run requires 10,233 native responses and 1,737,146,330 bytes, below the 30,000-request / 8 GiB bounds. Configured response spacing alone costs 7.52 hours; observed response timing estimates 23.90 hours before retry overhead. These are qualification census costs. Daily incremental work is separate and unchanged here.
 
-The fresh ledger records 2,952 requests, including three for the separately qualified [Idaho Falls iPull source](idipull-ingestion.md). Its 568-row census admits 535 unique donors and rejects 33 (5.81%). Intermountain's full-service URG tenant remains excluded. Both sources remain default off; no source was enabled, deployed or merged.
+The fresh ledger records 2,952 requests, including three for the separately qualified [Idaho Falls iPull source](idipull-ingestion.md). Its 568-row census admits 535 unique donors and rejects 33 (5.81%). Intermountain's full-service URG tenant remains excluded. Both sources remain enabled unless their pause flags serve false; no source was enabled, deployed or merged.
 
 `fresh-census-qualification.json` records final outcomes, counts, floors and budget.
 `fresh-census-requests.jsonl.gz` records every fresh HTTP attempt with sanitized

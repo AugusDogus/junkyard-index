@@ -1,7 +1,9 @@
 # Chesterfield inventory qualification
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Parent admission at 03:35 UTC on November 12, 2026 qualified Richmond, Fort Lee
-and Southside, Virginia locally, with the source disabled and unpublished.
+and Southside, Virginia locally, with the source unpublished. Serving false from its source flag pauses ingestion.
 That admission is recorded in `.scratchpad/coverage/chesterfield-local-admission.json`.
 The policy replay below validates the updated connector against the same
 completed current crawl. Parent owns the updated application admission.
@@ -403,7 +405,7 @@ Native blob identity uniqueness does not prove distinct image content across
 the full catalog. Private Blob behavior is tested using an injected SDK double;
 no live Blob writes, deployment, production image delivery or catalog-wide image
 preservation had been performed at that increment. The source is now registered
-locally with a disabled default; no source has been enabled.
+locally with pause-only source flags; no production flag was changed.
 
 ### Completed local photo preservation
 
@@ -443,7 +445,7 @@ No provider URL was changed and no format conversion occurred. A separate
 application response check read back the preserved PNG with HTTP disabled and
 zero network attempts. Its evidence is `photo-catalog/png-control-preservation-proof.json`.
 
-### Disabled resumable connector
+### Resumable connector
 
 The local connector collects the independent newest controls and all native
 make/model directories, then processes exact queries within a 16-request chunk
@@ -458,7 +460,7 @@ Field-complete donors emit only after byte preservation and readback. The
 canonical position remains intact in `row`, and the destination uses the manual
 search instructions above. Source registration, durable cursors, fetch dispatch,
 validation, reconciliation priority and search labels are integrated locally.
-Missing or unreadable flags default this source to disabled. The read-only soak
+Missing or unreadable flags keep this source enabled; serving false pauses it. The read-only soak
 uses memory-only photo storage and discards canonical batches.
 
 A six-request public connector control at 22:44 UTC verified all three footer

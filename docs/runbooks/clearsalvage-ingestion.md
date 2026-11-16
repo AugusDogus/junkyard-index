@@ -1,5 +1,7 @@
 # Clear Salvage ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `clearsalvage`, yard `dubois`, uses the public inventory on
 `https://clearsalvage.com`. The retained public identity is Clear Salvage LLC.
 Its native notice says it is now Sims Metal, DuBois, with the same people and
@@ -51,8 +53,8 @@ All occurrences of conflicting VIN/YMM identities are quarantined. Valid VINs
 from rejected records remain presence evidence. Benign duplicate observations
 are counted separately, with optional stock conflicts resolved to null.
 
-The parent workflow owns source registration, default-off enablement, the
-minimum count of 150, previous-run drift, cross-source reconciliation and soak.
+The parent workflow owns source registration, enablement, the
+minimum count of 59, previous-run drift, cross-source reconciliation and soak.
 Do not run new provider requests without the workflow's authorization.
 
 ## Saved verification

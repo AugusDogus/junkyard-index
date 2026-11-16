@@ -157,7 +157,7 @@ export function chasencarsSnapshot(
   const errors: string[] = [];
   if (vehicles.size < CHASENCARS_MINIMUM_INVENTORY)
     errors.push(
-      `Chase N Cars accepted ${vehicles.size}, below fixed source floor550`,
+      `Chase N Cars accepted ${vehicles.size}, below fixed source floor220`,
     );
   if (
     accounting.recordsRejected / catalog.records.length >

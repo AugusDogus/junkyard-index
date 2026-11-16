@@ -234,9 +234,15 @@ describe("McCauley native census", () => {
     expect(() =>
       validateMccauleySnapshot({
         ...snapshot,
-        vehicles: snapshot.vehicles.slice(0, 19),
+        vehicles: snapshot.vehicles.slice(0, 7),
+        accounting: {
+          recordsProcessed: 7,
+          recordsRejected: 0,
+          duplicateVehicles: 0,
+          recordsExcluded: 0,
+        },
       }),
-    ).toThrow("minimum");
+    ).toThrow("8-donor minimum");
     expect(() =>
       validateMccauleySnapshot({
         ...snapshot,

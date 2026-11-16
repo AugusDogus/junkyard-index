@@ -107,9 +107,9 @@ test("Chaz enforces the donor floor and source rejection and duplicate limits", 
   ).not.toThrow();
   expect(() =>
     validateChazSnapshot(
-      chazSnapshot(makes, [chazFixturePage(records.slice(1))], []),
+      chazSnapshot(makes, [chazFixturePage(records.slice(0, 353))], []),
     ),
-  ).toThrow("below 900");
+  ).toThrow("below 354");
   const invalid = chazFixtureRecord(999);
   invalid[0] = "-";
   expect(() =>

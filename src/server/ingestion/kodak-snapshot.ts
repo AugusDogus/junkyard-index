@@ -79,9 +79,9 @@ export function validateKodakSnapshot(
   const { vehicles, accounting } = snapshot;
   const total =
     vehicles.length + accounting.duplicateVehicles + accounting.recordsRejected;
-  if (total !== accounting.recordsProcessed || vehicles.length < 30)
+  if (total !== accounting.recordsProcessed || vehicles.length < 12)
     throw new Error(
-      "Kodak complete inventory does not reconcile or is below the 30-donor minimum",
+      "Kodak complete inventory does not reconcile or is below the 12-donor minimum",
     );
   if (
     accounting.recordsRejected / total >

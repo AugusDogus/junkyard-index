@@ -308,8 +308,8 @@ test("checked cursor binds native traversal, requests, checksum and prior accept
   ).toThrow("unvisited");
 });
 
-test("C&S ships disabled with native vehicle destinations and yard website fallback", () => {
-  expect(IngestionSourceFlags.resolve({})).not.toContain("cstruck");
+test("C&S runs unless its flag serves false with native vehicle destinations and yard website fallback", () => {
+  expect(IngestionSourceFlags.resolve({})).toContain("cstruck");
   const first = cstruckSnapshot(records(), null).vehicles[0];
   if (!first) throw new Error("Missing donor");
   expect(VehicleDestination.resolve(first)).toMatchObject({

@@ -307,7 +307,7 @@ test("Aero keeps rejected presence and applies the unchanged ten-percent limit b
   expect(emitted).toBe(false);
 });
 
-test("Aero shared validation requires at least 100 admitted donors", () => {
+test("Aero shared validation requires at least 43 admitted donors", () => {
   const input = {
     source: "aero",
     terminal: true,
@@ -322,7 +322,7 @@ test("Aero shared validation requires at least 100 admitted donors", () => {
     "accepted",
   );
   expect(
-    validateSourceSnapshot({ ...input, uniqueVehicles: 99, errors: [] }).status,
+    validateSourceSnapshot({ ...input, uniqueVehicles: 42, errors: [] }).status,
   ).toBe("rejected");
 });
 

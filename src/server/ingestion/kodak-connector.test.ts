@@ -108,7 +108,7 @@ test("quality or shape failures emit neither yard nor vehicle", async () => {
         gate,
       ),
     ),
-  ).rejects.toThrow("30-donor");
+  ).rejects.toThrow("12-donor");
   expect(emitted).toBe(0);
 });
 

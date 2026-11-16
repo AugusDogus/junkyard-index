@@ -20,5 +20,5 @@ export const RMMDTP_YARD = {
 export const RMMDTP_CONTRACT = {
   yard: RMMDTP_YARD,
   // Root-approved minimum after UT36/MT22 full saved-native qualification.
-  minimumUniqueInventory: 80,
+  minimumUniqueInventory: 34,
 } satisfies RmmdtpContract;

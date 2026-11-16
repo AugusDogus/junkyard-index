@@ -1,13 +1,15 @@
 # Northwest Auto Parts qualification
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Northwest Auto Parts, Anchorage AK, qualifies locally under the owner's maximum
-1% unrecovered advertised-donor rule. The source is wired and disabled by default.
+1% unrecovered advertised-donor rule. The source is wired and enabled unless its pause flag serves false.
 There are no database, index or rollout writes.
 
 The saved complete census covers all 36 makes and 334 models: 6,934 occurrences,
 6,688 accepted donors, 246 rejects (3.55%), and zero benign duplicates. Every
 occurrence in the 17 conflicting VIN groups is quarantined, including 34 rows.
-The 10% rejection guard and the previously selected 5,500-donor floor remain.
+The 10% rejection guard and the previously selected 2,229-donor floor remain.
 
 ## Transport and traversal
 
@@ -67,7 +69,7 @@ part search. All responses and the native script are saved.
 
 `northwest-expansion.test.ts` traverses all 334 models through the real client,
 serializes each checkpoint, and verifies 418 replay requests, terminal counts,
-Census geography, disabled rollout and destinations. It tests the 1% boundary,
+Census geography, pause flags and destinations. It tests the 1% boundary,
 missing models, changed checkpoints, new continuation, wrong supplier, truncation
 and HTTP refusals without emissions.
 

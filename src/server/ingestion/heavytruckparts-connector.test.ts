@@ -501,8 +501,8 @@ describe("HeavyTruckParts marketplace", () => {
     );
     expect(bad._tag).toBe("Failure");
   });
-  test("new source ships disabled and HTTP destinations are supplier-bound", async () => {
-    expect(IngestionSourceFlags.resolve({})).not.toContain("heavytruckparts");
+  test("new source runs unless its flag serves false and HTTP destinations are supplier-bound", async () => {
+    expect(IngestionSourceFlags.resolve({})).toContain("heavytruckparts");
     for (const url of [
       "https://example.com/",
       htpStoreUrl(HTP_RETAIL_SUPPLIER),

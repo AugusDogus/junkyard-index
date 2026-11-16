@@ -1,5 +1,7 @@
 # White & Bradstreet ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source ID: `whitebradstreet`. Native inventory: <https://white-bradstreet.com/trucks/?f-condition=nw>.
 
 ## Native contract
@@ -22,7 +24,7 @@ Requests are sequential at one per 1,600 ms. Each has a 20-second timeout and no
 
 ## Qualification evidence
 
-The saved 2026-11-11 enumeration reached all 16 pages and all 386 distinct native donor IDs. The complete connector replay emitted 382 unique donors, rejected four invalid native identities (1.04%) and found zero canonical duplicates. No rejected record supplied a valid VIN. The source minimum is 350 admitted donors, grounded in this complete baseline.
+The saved 2026-11-11 enumeration reached all 16 pages and all 386 distinct native donor IDs. The complete connector replay emitted 382 unique donors, rejected four invalid native identities (1.04%) and found zero canonical duplicates. No rejected record supplied a valid VIN. The source minimum is 127 admitted donors, grounded in this complete baseline.
 
 Rejected IDs and unmodified native identity values:
 

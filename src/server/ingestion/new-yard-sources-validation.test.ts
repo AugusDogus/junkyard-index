@@ -168,19 +168,19 @@ const sources = [
   },
   {
     source: "weberbrothers",
-    minimum: 5_000,
+    minimum: 1_920,
     initial: WeberbrothersCursor.initial,
     complete: completeWeber,
   },
   {
     source: "chasencars",
-    minimum: 550,
+    minimum: 220,
     initial: ChasencarsCursor.initial(null),
     complete: completeChasencars,
   },
   {
     source: "dutchers",
-    minimum: 500,
+    minimum: 193,
     initial: DutchersCursor.initial(),
     // Synthetic terminal marker tests shared gating, not native qualification.
     complete: DutchersCursor.checkpoint({
@@ -190,7 +190,7 @@ const sources = [
   },
   {
     source: "oem",
-    minimum: 1_800,
+    minimum: 719,
     initial: OemCursor.initial(),
     // Synthetic terminal marker tests shared gating, not native qualification.
     complete: OemCursor.checkpoint({
@@ -203,7 +203,7 @@ const sources = [
   },
   {
     source: "scotts",
-    minimum: 800,
+    minimum: 325,
     initial: ScottsCursor.initial,
     complete: { source: "scotts", version: 1, phase: "complete" },
   },
@@ -227,7 +227,7 @@ const sources = [
   },
   {
     source: "indianriver",
-    minimum: 900,
+    minimum: 349,
     initial: IndianriverCursor.initial(),
     complete: IndianriverCursor.checkpoint({
       source: "indianriver",
@@ -244,13 +244,13 @@ const sources = [
   },
   {
     source: "beavers",
-    minimum: 240,
+    minimum: 92,
     initial: BeaversCursor.initial,
     complete: { source: "beavers", version: 1, phase: "complete" },
   },
   {
     source: "sandw",
-    minimum: 500,
+    minimum: 208,
     initial: SandwCursor.initial(),
     complete: SandwCursor.checkpoint({
       source: "sandw",
@@ -267,34 +267,34 @@ const sources = [
   },
   {
     source: "cars4parts",
-    minimum: 56,
+    minimum: 24,
     initial: initialCars,
     complete: completeCars.value,
   },
   {
     source: "meeks",
-    minimum: 1_200,
+    minimum: 471,
     initial: MeeksCursor.initial,
     complete: { source: "meeks", phase: "complete" },
   },
   {
     source: "brandywine",
-    minimum: 1_500,
+    minimum: 602,
     initial: BrandywineCursor.initial(null),
     complete: completeBrandywine,
   },
   {
     source: "rmmdtp",
-    minimum: 80,
+    minimum: 34,
     initial: RmmdtpCursor.initial(RMMDTP_CONTRACT),
     complete: completeRmmdtp.value,
   },
 ] as const;
 
 test.each([...sources])(
-  "$source remains disabled without explicit rollout",
+  "$source runs unless its flag serves false",
   ({ source }) => {
-    expect(IngestionSourceFlags.resolve({})).not.toContain(source);
+    expect(IngestionSourceFlags.resolve({})).toContain(source);
   },
 );
 

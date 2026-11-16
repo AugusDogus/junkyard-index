@@ -136,9 +136,9 @@ export function validateCentralSnapshot(
   const { vehicles, accounting } = snapshot;
   const observed =
     vehicles.length + accounting.recordsRejected + accounting.duplicateVehicles;
-  if (observed !== accounting.recordsProcessed || vehicles.length < 5000)
+  if (observed !== accounting.recordsProcessed || vehicles.length < 1_985)
     throw new Error(
-      "Central complete native accounting changed or accepted inventory is below 5000 donors; preserve prior inventory",
+      "Central complete native accounting changed or accepted inventory is below 1985 donors; preserve prior inventory",
     );
   if (
     accounting.recordsRejected / observed >

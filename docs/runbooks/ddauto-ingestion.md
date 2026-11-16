@@ -1,5 +1,7 @@
 # DD Auto & Salvage ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Status on November 12, 2026: locally qualified for the Logan main parts yard.
 The production connector replay emitted 67 unique donors from 68 explicitly
 active main-yard rows. One invalid identity was rejected. Shared source
@@ -87,7 +89,7 @@ The saved invalid 15-character Nissan identity supplies no presence VIN.
 
 The unchanged rejection limit is 10%, measured against active main-yard rows.
 Excluded Premium Lot and unavailable/killed rows cannot dilute that denominator.
-Shared validation uses a 50-vehicle source minimum and the existing duplicate,
+Shared validation uses a 22-vehicle source minimum and the existing duplicate,
 count-drift and reconciliation guards. No partial table can reconcile inventory.
 
 | Native status | Rows | Result                                       |

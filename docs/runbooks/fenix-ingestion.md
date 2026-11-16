@@ -1,5 +1,7 @@
 # Fenix U-Pull ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 The connector covers Elmira, Binghamton and East Syracuse in New York, plus Moultrie, Georgia. It uses native `fnx_location` preferences 1, 2, 3 and 4 on `https://fenixupull.com/recent-inventory/`. Obsolete Belleville remains outside scope.
 
 ## Moultrie qualification, November 15
@@ -24,7 +26,7 @@ Completion requires the distinct native-detail union to equal both complete trav
 
 The cursor retains raw donor identity evidence, ordered page IDs and hashes, verified-yard prefixes, and all four completion bookend checks per yard. Resume rechecks the active order's head and last processed page. Completion rechecks the head and terminal page in both orders. Serialized checkpoints validate every page hash against retained rows, ownership, exact page prefixes, and completed-yard quality. HTTP, metadata, ownership, drift, callback, and validation failures return no advanced checkpoint. Previously published inventory remains intact.
 
-HTTP requests require unredirected status 200, complete UTF-8 HTML, correct MIME and native destination. Requests are gated, bounded to 3-32 per chunk, and normally spaced by 1.6 seconds. There are no automatic retries. New sources remain disabled by default until explicitly rolled out.
+HTTP requests require unredirected status 200, complete UTF-8 HTML, correct MIME and native destination. Requests are gated, bounded to 3-32 per chunk, and normally spaced by 1.6 seconds. There are no automatic retries. New sources run by default; serving false from a source flag pauses it.
 
 ## Physical location evidence
 

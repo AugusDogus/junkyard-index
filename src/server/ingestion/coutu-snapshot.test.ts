@@ -90,13 +90,13 @@ test("Coutu rejects unsafe required destinations while retaining valid VIN prese
   expect(snapshot([record]).observedVins).toEqual([record[0]]);
 });
 
-test("Coutu enforces the 1000 donor floor and original source quality guards", () => {
+test("Coutu enforces the 418 donor floor and original source quality guards", () => {
   const rows = Array.from({ length: 1000 }, (_, i) =>
     coutuFixtureRecord(i + 1),
   );
   expect(() => validateCoutuSnapshot(snapshot(rows))).not.toThrow();
-  expect(() => validateCoutuSnapshot(snapshot(rows.slice(1)))).toThrow(
-    "below 1000",
+  expect(() => validateCoutuSnapshot(snapshot(rows.slice(0, 417)))).toThrow(
+    "below 418",
   );
   const invalid = Array.from({ length: 112 }, () => {
     const r = coutuFixtureRecord(2000);

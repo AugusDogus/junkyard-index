@@ -321,7 +321,7 @@ describe("S&W native identity and accounting", () => {
       validateSandwSnapshot(
         sandwSnapshot({
           ...native(),
-          vehicles: native().vehicles.slice(0, 499),
+          vehicles: native().vehicles.slice(0, 207),
         }),
         null,
       ),

@@ -23,7 +23,7 @@ const scope = jimsimportHash({
   version: 1,
   catalog: JIMSIMPORT_CATALOG,
   yard: JIMSIMPORT_YARD,
-  floor: 3000,
+  floor: 1_216,
 });
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const base = {

@@ -24,7 +24,7 @@ export const HTP_SUPPLIERS = [
     title: "Complete Vehicle",
     location:
       "Sold by: Rydemore Heavy Duty Truck Parts Inc Location: FITCHBURG MA",
-    minimum: 5,
+    minimum: 2,
     storeClaims: [
       "Rydemore Heavy Duty Truck Parts Inc",
       "88 BENSON STREET",
@@ -54,7 +54,7 @@ export const HTP_SUPPLIERS = [
     itemCategory: "Complete-Vehicle",
     title: "Complete Vehicle",
     location: "Sold by: West Side Truck Parts Location: OWENSBORO KY",
-    minimum: 450,
+    minimum: 188,
     storeClaims: [
       "West Side Truck Parts",
       "1120 Crabtree ave.",
@@ -84,7 +84,7 @@ export const HTP_SUPPLIERS = [
     itemCategory: "Complete-Vehicle",
     title: "Complete Vehicle",
     location: "Sold by: All County Truck Parts Location: Chattanooga TN",
-    minimum: 30,
+    minimum: 13,
     storeClaims: [
       "All County Truck Parts",
       "1073 Hooker Rd",
@@ -114,7 +114,7 @@ export const HTP_SUPPLIERS = [
     itemCategory: "Complete-Vehicle",
     title: "Complete Vehicle",
     location: "Sold by: crest truck parts Location: CARTERSVILLE GA",
-    minimum: 175,
+    minimum: 72,
     storeClaims: [
       "crest truck parts",
       "640 Joe Frank Harris Parkway",
@@ -144,7 +144,7 @@ export const HTP_SUPPLIERS = [
     itemCategory: "Complete-Vehicle",
     title: "Complete Vehicle",
     location: "Sold by: CA Truck Parts Location: Opa-Locka FL",
-    minimum: 3,
+    minimum: 1,
     storeClaims: ["CA Truck Parts", "13480 Cairo Lane", "Opa-Locka, FL 33054"],
     yard: {
       source: "heavytruckparts",
@@ -170,7 +170,7 @@ export const HTP_SUPPLIERS = [
     itemCategory: "Vehicle-For-Sale",
     title: "Vehicle For Sale",
     location: "Sold by: American Truck Salvage Location: Phoenix AZ",
-    minimum: 2,
+    minimum: 1,
     storeClaims: [
       "American Truck Salvage",
       "2850 West Broadway Road",

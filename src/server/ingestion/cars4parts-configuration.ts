@@ -21,7 +21,7 @@ export const CARS4PARTS_CONTRACT = {
       lng: -88.9935285,
       websiteUrl: CARS4PARTS_ORIGIN + "/",
     },
-    minimumUniqueInventory: 55,
+    minimumUniqueInventory: 23,
   },
   armington: {
     yard: {

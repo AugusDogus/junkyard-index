@@ -217,7 +217,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(terminal.count).toBe(0);
     expect(calls).toHaveLength(2 * HOLLANDERSTORES_YARDS.length);
     expect(batches).toHaveLength(1);
-    expect(IngestionSourceFlags.resolve({})).not.toContain("hollanderstores");
+    expect(IngestionSourceFlags.resolve({})).toContain("hollanderstores");
   }, 600_000);
   test("closing drift and corrupt checkpoints cannot emit", async () => {
     let requests = 0,

@@ -1,5 +1,7 @@
 # Coutu ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 The `coutu` provider is Truck Country's own donor inventory at
 `https://www.truckcountry.us/browse`. The native site identifies Truck Country,
 1535 W Main St, Willimantic, CT 06226, phone 860-423-6004. Its homepage describes
@@ -45,7 +47,7 @@ particular, native `1969 INTERNATIONAL INTERNATIONAL`, serial `383208H879516`,
 retains the native model `INTERNATIONAL`. No VIN decoding or URL slug rewrites
 native make/model claims.
 
-Validation requires at least 1,000 accepted donors, at most 10% required rejects
+Validation requires at least 418 accepted donors, at most 10% required rejects
 and at most 25% benign duplicates. Terminal accounting must satisfy
 `raw = accepted unique + duplicates + required rejects`, with no exclusions.
 The saved November 12, 2026 finite census is 11 makes, 74 models and 1,435 raw

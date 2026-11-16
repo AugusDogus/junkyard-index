@@ -1,10 +1,12 @@
 # McCauley ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `mccauley` reads the native Parts Vehicles index and current part-out list for
 McCauley's Auto LLC, 5156 Rt 66, New Bethlehem, PA 16242. Yard code is
 `new-bethlehem`. Native contact text establishes physical ownership. Coordinates
 `41.07134, -79.31888` come from the retained ASYD physical-yard row, rather than a
-native map pin. Shared registration remains disabled by default.
+native map pin. Serving false from its source flag pauses ingestion.
 
 ## Native scope and required identity
 
@@ -32,7 +34,7 @@ Changed or contradictory whole-vehicle cardinality claims require inspection.
 
 Exact accounting is **27 observations = 24 accepted donors + two duplicates +
 one required-identity rejection**. The 3.7037% rejection and 7.4074% duplicate
-ratios satisfy the unchanged 10% and 25% limits. The source floor is 20 donors.
+ratios satisfy the unchanged 10% and 25% limits. The source floor is 8 donors.
 Shared prior-run drift and reconciliation guards remain applicable.
 
 Only native labelled transmission is retained, with 18 Automatic values in the

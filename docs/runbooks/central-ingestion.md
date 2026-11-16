@@ -1,5 +1,7 @@
 # Central Auto Liquidators
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Local source `central`, yard `franklin`, supplier `DD15`. Source registration,
 durable integration, enablement and admission belong to the parent workflow.
 This implementation and its verification make no production writes.
@@ -13,7 +15,7 @@ candidates, 561 required rejects and zero duplicate extras after all-occurrence
 conflict quarantine. Of the rejects, 519 lack a usable native VIN or supported
 older serial, and 42 are occurrences across 21 conflicting VIN groups. All
 21 valid rejected VINs remain independent presence evidence. Rejection is
-8.6069%, within the existing 10% limit. The accepted donor floor is 5,000.
+8.6069%, within the existing 10% limit. The accepted donor floor is 1,985.
 
 The 2005 Chevrolet Equinox VIN `2CNDL23F556051685` appears at two distinct native
 donor destinations, stocks `CA0022` and `CA0004`. Both occurrences are rejected.

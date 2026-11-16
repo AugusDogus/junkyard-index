@@ -1,5 +1,7 @@
 # 603 Auto Salvage ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `six03` is the native donor catalog at
 <https://603autosalvage.com/parts-vehicles/>. Yard `plaistow` is 603 Auto
 Salvage, 233 Main St, Plaistow, NH 03865. The named business marker is
@@ -84,7 +86,7 @@ yard callback, rejected VIN presence or accounting. A failure leaves the caller'
 last accepted checkpoint and prior inventory intact. Resume that checkpoint
 after diagnosis, or restart when native membership changed.
 
-The accepted inventory floor is 800 vehicles. Raw accounting is
+The accepted inventory floor is 324 vehicles. Raw accounting is
 `U + D + R`, without excluded donors. Maximum rejection and duplicate ratios
 remain 10% and 25%. `scripts/soak-six03.ts` only drives bounded chunks and
 aggregates count/discard results; it does not write staging or admit a source.

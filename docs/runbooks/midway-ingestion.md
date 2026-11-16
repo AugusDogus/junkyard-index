@@ -1,5 +1,7 @@
 # Midway U Pull ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `midway` enumerates two native self-service donor catalogs. It admits native
 VINs (or eligible pre-1981 serials), year, make and model. Color, stock, photos,
 inventory date and yard position are optional, with absent or unverified values
@@ -95,7 +97,7 @@ Research qualification and local replay do not authorize production enablement.
 ## Tulsa complete make qualification, November 15
 
 Tulsa (`OO95`) qualifies locally and joins the existing Muncie and Liberty
-traversal. The source remains disabled by default.
+traversal. The source runs unless its pause flag serves false.
 
 The native broad table is capped at 500. The complete traversal visits all
 59 distinct published makes once, including the menu's duplicated NISSAN value.

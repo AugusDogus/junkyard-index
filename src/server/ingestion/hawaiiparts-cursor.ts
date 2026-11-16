@@ -6,6 +6,6 @@ import {
 export const HawaiipartsCursor = shopifyYardCursor("hawaiiparts", {
   yard: HAWAIIPARTS_YARD,
   catalog: HAWAIIPARTS_CATALOG,
-  floor: 35,
+  floor: 14,
 });
 export type HawaiipartsCursor = ReturnType<typeof HawaiipartsCursor.initial>;

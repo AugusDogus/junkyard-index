@@ -1,6 +1,8 @@
 # Utah Pic-A-Part qualification
 
-Two additional Utah yards are locally qualified, disabled and unpublished.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Two additional Utah yards are locally qualified and unpublished.
 The user's local-only instruction remains in force. Do not push, deploy, enable
 this source or write inventory/photos to production.
 
@@ -74,7 +76,7 @@ accept exactly 10% rejection and fail above it. Resume photo accounting includes
 emitted donors without images while retaining exact preserved-hash accounting.
 Version 2 checkpoints reject the previous required-metadata policy's checkpoints;
 restart this unpublished source from its initial cursor after the policy change.
-The source defaults to disabled, requires 1,500 unique donors, and retains
+The source runs unless its pause flag serves false, requires 575 unique donors, and retains
 existing drift and duplicate guards.
 
 ## Operation and evidence
