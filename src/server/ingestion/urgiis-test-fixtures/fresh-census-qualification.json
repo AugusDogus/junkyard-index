@@ -1,0 +1,449 @@
+{
+  "date": "2026-11-16",
+  "requests": 2952,
+  "knownUnloggedAttempts": 0,
+  "minimumRequestStartGapSeconds": 3.1500144004821777,
+  "maximumActiveUrgTenants": 3,
+  "minimumRejectionHeadroomPercentagePoints": 0.5,
+  "tenants": [
+    {
+      "code": "norbs",
+      "name": "Norb's Auto Salvage",
+      "urgid": "EE91",
+      "requests": 783,
+      "statuses": {
+        "200": 778,
+        "0": 5
+      },
+      "accepted": 8864,
+      "recordsRejected": 898,
+      "closed": 53,
+      "makes": 51,
+      "models": 667,
+      "drift": {
+        "makes": 0,
+        "models": 0
+      },
+      "modeledVehicles": 8864,
+      "recordsProcessed": 10203,
+      "recordsExcluded": 398,
+      "duplicateVehicles": 43,
+      "minimumInventory": 2954,
+      "binQualification": {
+        "stocks": ["NOR6", "NOF"],
+        "proofRequests": 4,
+        "unexcludedAccepted": 8864,
+        "unexcludedRejected": 1296
+      },
+      "outcome": "qualified",
+      "rejectionPercent": 9.15859255481897,
+      "unexcludedRejectionAudit": {
+        "code": "norbs",
+        "observations": 10203,
+        "rejected": 1296,
+        "blankVin": 1188,
+        "checkDigitOrMalformed": 64,
+        "overlappingReasonCounts": {
+          "quarantined-native-conflict": 44,
+          "missing-or-invalid-native-vin": 1252,
+          "native-donor-destination-missing-conflicting-or-unowned": 12
+        }
+      }
+    },
+    {
+      "code": "lambert",
+      "name": "Lambert Auto Salvage",
+      "urgid": "MS06",
+      "requests": 612,
+      "statuses": {
+        "200": 611,
+        "500": 1
+      },
+      "accepted": 8985,
+      "modeledVehicles": 8985,
+      "recordsProcessed": 9323,
+      "recordsExcluded": 0,
+      "recordsRejected": 329,
+      "duplicateVehicles": 9,
+      "makes": 47,
+      "models": 512,
+      "closed": 49,
+      "drift": {
+        "makes": 0,
+        "models": 0
+      },
+      "minimumInventory": 2995,
+      "outcome": "qualified",
+      "rejectionPercent": 3.528907004183203,
+      "rejectionAudit": {
+        "code": "lambert",
+        "observations": 9323,
+        "rejected": 329,
+        "blankVin": 268,
+        "checkDigitOrMalformed": 17,
+        "overlappingReasonCounts": {
+          "quarantined-native-conflict": 44,
+          "missing-or-invalid-native-vin": 285
+        }
+      }
+    },
+    {
+      "code": "southwest",
+      "name": "Southwest Auto Recycling",
+      "urgid": "UT11",
+      "requests": 467,
+      "statuses": {
+        "200": 467
+      },
+      "outcome": "excluded",
+      "failure": {
+        "tenant": "southwest",
+        "error": "IIS southwest failed admission: 1526 accepted (minimum 1; 1526 from model pages), 653/2193 rejected, 14 duplicates. Prior inventory is preserved; inspect saved responses.",
+        "entries": 420,
+        "models": 372,
+        "closed": 47,
+        "badgeDrift": {
+          "makes": 0,
+          "models": 0
+        }
+      },
+      "accepted": 1526,
+      "modeledVehicles": 1526,
+      "recordsProcessed": 2193,
+      "recordsExcluded": 0,
+      "recordsRejected": 653,
+      "duplicateVehicles": 14,
+      "makes": 45,
+      "models": 372,
+      "closed": 47,
+      "drift": {
+        "makes": 0,
+        "models": 0
+      },
+      "rejectionPercent": 29.7765617875057,
+      "rejectionAudit": {
+        "code": "southwest",
+        "observations": 2193,
+        "rejected": 653,
+        "blankVin": 569,
+        "checkDigitOrMalformed": 0,
+        "overlappingReasonCounts": {
+          "quarantined-native-conflict": 84,
+          "missing-or-invalid-native-vin": 569
+        }
+      }
+    },
+    {
+      "code": "quick-recovery",
+      "name": "Quick Recovery Auto Salvage",
+      "urgid": "QQ32",
+      "requests": 570,
+      "statuses": {
+        "200": 565,
+        "500": 4,
+        "503": 1
+      },
+      "outcome": "excluded",
+      "failure": {
+        "tenant": "quick-recovery",
+        "error": "IIS quick-recovery failed admission: 4766 accepted (minimum 1; 4766 from model pages), 706/5516 rejected, 44 duplicates. Prior inventory is preserved; inspect saved responses.",
+        "entries": 520,
+        "models": 474,
+        "closed": 45,
+        "badgeDrift": {
+          "makes": 0,
+          "models": 0
+        }
+      },
+      "accepted": 4766,
+      "modeledVehicles": 4766,
+      "recordsProcessed": 5516,
+      "recordsExcluded": 0,
+      "recordsRejected": 706,
+      "duplicateVehicles": 44,
+      "makes": 43,
+      "models": 474,
+      "closed": 45,
+      "drift": {
+        "makes": 0,
+        "models": 0
+      },
+      "rejectionPercent": 12.799129804205947,
+      "rejectionAudit": {
+        "code": "quick-recovery",
+        "observations": 5516,
+        "rejected": 706,
+        "blankVin": 204,
+        "checkDigitOrMalformed": 215,
+        "overlappingReasonCounts": {
+          "quarantined-native-conflict": 287,
+          "missing-or-invalid-native-vin": 419,
+          "native-donor-destination-missing-conflicting-or-unowned": 2
+        }
+      }
+    },
+    {
+      "code": "riverbend",
+      "name": "Riverbend Recycled Auto Parts",
+      "urgid": "NN82",
+      "requests": 121,
+      "statuses": {
+        "200": 121
+      },
+      "outcome": "excluded",
+      "failure": {
+        "tenant": "riverbend",
+        "error": "Native 500-card cap at https://riverbendrecycled.com/parts/CHEVROLET/MALIBU/",
+        "entries": 120,
+        "models": 74,
+        "closed": 0,
+        "badgeDrift": {
+          "makes": 0,
+          "models": 0
+        },
+        "capEvidence": {
+          "url": "https://riverbendrecycled.com/parts/CHEVROLET/MALIBU/",
+          "advertised": 62,
+          "observedCards": 500,
+          "photos": {
+            "ff42": 45,
+            "ia08": 64,
+            "kk05": 48,
+            "nn82": 16
+          }
+        }
+      }
+    },
+    {
+      "code": "mars",
+      "name": "Mars Auto Parts & Engine Swaps",
+      "urgid": "OH25",
+      "requests": 60,
+      "statuses": {
+        "200": 60
+      },
+      "accepted": 381,
+      "modeledVehicles": 359,
+      "recordsProcessed": 417,
+      "recordsExcluded": 0,
+      "recordsRejected": 30,
+      "duplicateVehicles": 6,
+      "makes": 7,
+      "models": 41,
+      "closed": 9,
+      "drift": {
+        "makes": 0,
+        "models": 0
+      },
+      "minimumInventory": 127,
+      "outcome": "qualified",
+      "rejectionPercent": 7.194244604316546,
+      "rejectionAudit": {
+        "code": "mars",
+        "observations": 417,
+        "rejected": 30,
+        "blankVin": 26,
+        "checkDigitOrMalformed": 0,
+        "overlappingReasonCounts": {
+          "quarantined-native-conflict": 4,
+          "missing-or-invalid-native-vin": 26
+        }
+      }
+    },
+    {
+      "code": "lakepoint",
+      "name": "Lake Point Auto Recycling",
+      "urgid": "UU23",
+      "requests": 336,
+      "statuses": {
+        "200": 336
+      },
+      "outcome": "excluded",
+      "failure": {
+        "tenant": "lakepoint",
+        "error": "IIS lakepoint failed admission: 1215 accepted (minimum 1; 1215 from model pages), 179/1444 rejected, 50 duplicates. Prior inventory is preserved; inspect saved responses.",
+        "entries": 290,
+        "models": 251,
+        "closed": 38,
+        "badgeDrift": {
+          "makes": 0,
+          "models": 0
+        }
+      },
+      "accepted": 1215,
+      "recordsRejected": 179,
+      "closed": 38,
+      "makes": 36,
+      "models": 251,
+      "drift": {
+        "makes": 0,
+        "models": 0
+      },
+      "modeledVehicles": 1215,
+      "recordsProcessed": 1489,
+      "recordsExcluded": 45,
+      "duplicateVehicles": 50,
+      "binQualification": {
+        "stocks": ["NOF"],
+        "proofRequests": 2,
+        "proofAssetRequests": 2,
+        "unexcludedAccepted": 1215,
+        "unexcludedRejected": 224
+      },
+      "rejectionPercent": 12.39612188365651,
+      "unexcludedRejectionAudit": {
+        "code": "lakepoint",
+        "observations": 1489,
+        "rejected": 224,
+        "blankVin": 152,
+        "checkDigitOrMalformed": 19,
+        "overlappingReasonCounts": {
+          "quarantined-native-conflict": 53,
+          "missing-or-invalid-native-vin": 171,
+          "native-donor-destination-missing-conflicting-or-unowned": 60
+        }
+      }
+    }
+  ],
+  "ipull": {
+    "source": "idipull",
+    "requests": 3,
+    "accepted": 535,
+    "rejected": 33,
+    "processed": 568,
+    "rejectionPercent": 5.809859154929577,
+    "latestAdmittedArrival": "2026-11-13",
+    "floor": 178
+  },
+  "note": "Fresh one-time complete qualification censuses. Opening evidence is never substituted for independently fetched closing controls. Original retry diagnosis remains historical. Daily incremental work is separate.",
+  "audit": {
+    "accepted": 58160,
+    "sourceFloor": 36655,
+    "overlappingValidNativeClaims": [],
+    "bounds": [
+      {
+        "yard": "eagle-martinsburg",
+        "accepted": 1448,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 1448,
+        "floor": 1200
+      },
+      {
+        "yard": "linders",
+        "accepted": 3274,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 3274,
+        "floor": 2600
+      },
+      {
+        "yard": "chuckran",
+        "accepted": 3671,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 3671,
+        "floor": 2900
+      },
+      {
+        "yard": "united",
+        "accepted": 12356,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 12356,
+        "floor": 9800
+      },
+      {
+        "yard": "ace-iowa",
+        "accepted": 1524,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 1524,
+        "floor": 1200
+      },
+      {
+        "yard": "lentini-ringoes",
+        "accepted": 2429,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 2429,
+        "floor": 1900
+      },
+      {
+        "yard": "lentini-port-murray",
+        "accepted": 924,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 924,
+        "floor": 700
+      },
+      {
+        "yard": "dings",
+        "accepted": 1110,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 1110,
+        "floor": 800
+      },
+      {
+        "yard": "bishops",
+        "accepted": 3362,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 3362,
+        "floor": 2600
+      },
+      {
+        "yard": "ace-st-paul",
+        "accepted": 3015,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 3015,
+        "floor": 2400
+      },
+      {
+        "yard": "chucks",
+        "accepted": 2601,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 2601,
+        "floor": 2000
+      },
+      {
+        "yard": "central-nh",
+        "accepted": 2477,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 2477,
+        "floor": 1900
+      },
+      {
+        "yard": "az",
+        "accepted": 1739,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 1739,
+        "floor": 579
+      },
+      {
+        "yard": "norbs",
+        "accepted": 8864,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 8864,
+        "floor": 2954
+      },
+      {
+        "yard": "lambert",
+        "accepted": 8985,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 8985,
+        "floor": 2995
+      },
+      {
+        "yard": "mars",
+        "accepted": 381,
+        "maximumDuplicateLoss": 0,
+        "conservativeRemaining": 381,
+        "floor": 127
+      }
+    ],
+    "note": "Native valid VIN supersets conservatively bound possible cross-tenant deduplication losses. No conflicting stock chooses a winner."
+  },
+  "fullCensusBudget": {
+    "nativeRequests": 10233,
+    "maximumNativeRequests": 30000,
+    "responseBytes": 1737146330,
+    "maximumResponseBytes": 8589934592,
+    "addedNativeRequests": 1445,
+    "minimumPacingHours": 7.519555555555556,
+    "estimatedFullCensusHours": 23.9022906424067,
+    "note": "One-time full graph cost, before retry overhead. Daily incremental work is separate and unchanged here. No rollout is authorized."
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "3456 East Waterloo Road, Akron, OH 44312"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": {
+          "side": "R",
+          "tigerLineId": "61366647"
+        },
+        "coordinates": {
+          "x": -81.406344059269,
+          "y": 41.027257136305
+        },
+        "addressComponents": {
+          "zip": "44312",
+          "streetName": "WATERLOO",
+          "preType": "",
+          "city": "AKRON",
+          "preDirection": "E",
+          "suffixDirection": "",
+          "fromAddress": "3416",
+          "state": "OH",
+          "suffixType": "RD",
+          "toAddress": "3456",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "3456 E WATERLOO RD, AKRON, OH, 44312"
+      }
+    ]
+  }
+}

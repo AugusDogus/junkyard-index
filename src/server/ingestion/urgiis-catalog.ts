@@ -67,6 +67,7 @@ export function iisDocument(raw: string, site: UrgiisSite) {
       "5fd169a3e874d9270f77caaaa63466a0",
       "19fbb292174b9c76ca14c2e68fe9b3af",
       "109475697a861a25286362dda4420580",
+      "2c733cc353e1f69c742a7aee3ce9bb31",
     ].some(
       (hash) =>
         supplierBundles[0] ===
