@@ -126,6 +126,37 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       websiteUrl: "https://lindersparts.com/",
     },
   },
+  {
+    ...standard,
+    code: "chuckran",
+    origin: "https://chuckransautoparts.com",
+    urgid: "MA23",
+    arrivalsPath: "/recent-arrivals/",
+    pacingMs: 3500,
+    requestTimeoutMs: 90000,
+    ownerClaims: [
+      "Chuckran Auto Parts",
+      "1775 Old Plymouth Street",
+      "Bridgewater, MA 02324",
+    ],
+    minimumInventory: 2900,
+    photoCodes: ["ma23"],
+    yard: {
+      source: "urgiis",
+      code: "chuckran",
+      name: "Chuckran Auto Parts",
+      operator: "Chuckran Auto Parts",
+      address: "1775 Old Plymouth Street",
+      city: "Bridgewater",
+      state: "MA",
+      postalCode: "02324",
+      lat: 41.990325748641,
+      lng: -70.913539837235,
+      phone: "508-697-6319",
+      email: null,
+      websiteUrl: "https://chuckransautoparts.com/",
+    },
+  },
 ];
 
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(

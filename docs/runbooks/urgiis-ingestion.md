@@ -30,10 +30,13 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 
 ## Qualified yards
 
-| Yard             | City        | State | Accepted | Rejected | Skipped | Duplicates | Floor |
-| ---------------- | ----------- | ----- | -------: | -------: | ------: | ---------: | ----: |
-| Eagle Auto Parts | Martinsburg | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
-| Linder's Inc     | Worcester   | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
+| Yard                | City        | State | Accepted | Rejected | Skipped | Duplicates | Floor |
+| ------------------- | ----------- | ----- | -------: | -------: | ------: | ---------: | ----: |
+| Eagle Auto Parts    | Martinsburg | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
+| Linder's Inc        | Worcester   | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
+| Chuckran Auto Parts | Bridgewater | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
+
+Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
 Linder's full census follows 41 makes, 426 model pages and 60 arrivals. It contains 3,427 model cards, with only MA09 supplier photographs. Its eligible rejection rate is 159 / 3,487 (4.56%). The 513-response replay includes separately acquired closing controls. Its US Census point is 42.23811894312, -71.782708739098 for 211 Granite St, Worcester, MA 01607.
 
