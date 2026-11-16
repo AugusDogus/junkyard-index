@@ -69,3 +69,33 @@ test("URG IIS sends the configured verification cookie and owned complete HTML r
     fetch.mockRestore();
   }
 });
+
+test("URG IIS encodes model-name parentheses without changing the published graph", async () => {
+  const literal = tenant.origin + "/parts/CHRYSLER/NEW_YORKER_(RWD)/";
+  const encoded = tenant.origin + "/parts/CHRYSLER/NEW_YORKER_%28RWD%29/";
+  const nativeResponse = () => {
+    const response = new Response("native HTML", {
+      headers: { "content-type": "text/html" },
+    });
+    Object.defineProperty(response, "url", { value: encoded });
+    return response;
+  };
+  const fetch = spyOn(globalThis, "fetch")
+    .mockRejectedValue(
+      new Error("Unexpected extra request in offline IIS test"),
+    )
+    .mockResolvedValueOnce(nativeResponse())
+    .mockResolvedValueOnce(nativeResponse());
+  try {
+    expect(await Effect.runPromise(readUrgiisPage(literal, tenant))).toBe(
+      "native HTML",
+    );
+    expect(await Effect.runPromise(readUrgiisPage(encoded, tenant))).toBe(
+      "native HTML",
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls.map((call) => call[0])).toEqual([encoded, encoded]);
+  } finally {
+    fetch.mockRestore();
+  }
+});
