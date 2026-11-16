@@ -33,3 +33,29 @@ The probes also retain APS's published Rover make directory entry, its empty veh
 `lentini.jsonl.br` retains 3,969 raw responses for the complete NJ catalog, native seller details and separately fetched closing controls after detail collection. It accepts 2,429 Ringoes donors and 924 Port Murray donors, rejects 375 observations, excludes none and merges 211 duplicates. `lentini-ringoes-geocode.json` and `lentini-port-murray-geocode.json` retain separate Census matches. `lentini-supplier-mapping.json` preserves only the three relevant public supplier records; directory coordinates are not used for yard placement. The final replay reapplies the native part VIN guard.
 
 `qualification-requests.jsonl.gz` retains the sanitized qualification HTTP ledger. `qualification-requests.json` records per-tenant totals, six known unlogged attempts and separate APS browser-map resource accounting. It is not an exhaustive wire log. `qualification-audit.json` records 38,191 unique admitted VINs, zero cross-tenant duplicates and satisfied per-yard floors after conservative duplicate accounting.
+
+`smith-qualification.json` records a complete but excluded NE22 census:
+40 makes, 392 model pages, 3,275 model cards, 60 arrivals and separate closing
+owner, makes and all 40 model directories. Its 477-response candidate connector
+replay, including durable serialization after each three-page chunk, yields
+2,945 candidate identities, 218 rejects (6.84%), 148 qualified part-bin exclusions
+and 24 duplicates. These candidates are not admitted to the source.
+
+`smith-rejected-census.jsonl.br` retains the full failed census in connector
+order, with audit metadata followed by raw `{url, html}` responses. This is
+an excluded qualification archive, not an admitted `UrgiisReplayArchive`.
+`smith-part-bins.json.br` retains native NOF, ASA002 and BROCK details spanning
+unrelated vehicles without VIN claims. `smith-geocode.json` retains both the
+unsuccessful Census query and the ArcGIS exact-address PointAddress match.
+
+`smith-completeness.json.br` retains the published Ford directory, F150 page,
+a separately fetched cache-revalidation, arrivals and a native donor detail.
+F150 advertises 163 but returns 30 cards with no enumerable continuation.
+The revalidation has the same donor fingerprint. Own-yard stock 261352,
+VIN `1FTEW1EP9NKD56443`, exists in arrivals and a native NE22 part detail but
+is absent from that model page. A regression preserves this exclusion. `smith-public-plugin.js.br` retains the
+public Browse Vehicles action, which returns to the make directory.
+`smith-qualification-requests.jsonl.gz` records all 492 live requests, including
+477 successful replay responses, ten supplemental successes and five failed or
+aborted attempts. Two early attempts have no retained exact start time.
+No failed request is counted as a successful native replay response.

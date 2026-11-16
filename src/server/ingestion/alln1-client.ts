@@ -5,7 +5,11 @@ import {
 } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { parseAlln1Owner, parseAlln1Page } from "./alln1-parser";
-import { ALLN1_ORIGIN, alln1PageNumber } from "./alln1-yard-metadata";
+import {
+  ALLN1_TENANT,
+  type Alln1Tenant,
+  alln1PageNumber,
+} from "./alln1-yard-metadata";
 
 export class Alln1ProviderError extends Data.TaggedError("Alln1ProviderError")<{
   operation: string;
@@ -61,19 +65,26 @@ function read(url: string, gate: ProviderRequestGate) {
     ),
   );
 }
-export const fetchAlln1Owner = (gate: ProviderRequestGate) =>
-  read(ALLN1_ORIGIN + "/", gate).pipe(
+export const fetchAlln1Owner = (
+  gate: ProviderRequestGate,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+) =>
+  read(tenant.origin + "/", gate).pipe(
     Effect.flatMap((raw) =>
       Effect.try({
-        try: () => parseAlln1Owner(raw),
+        try: () => parseAlln1Owner(raw, tenant),
         catch: (cause) =>
           new Alln1ProviderError({ operation: "physical ownership", cause }),
       }),
     ),
   );
-export function fetchAlln1Page(url: string, gate: ProviderRequestGate) {
+export function fetchAlln1Page(
+  url: string,
+  gate: ProviderRequestGate,
+  tenant: Alln1Tenant = ALLN1_TENANT,
+) {
   return Effect.gen(function* () {
-    const page = alln1PageNumber(url);
+    const page = alln1PageNumber(url, tenant);
     if (page === null)
       return yield* new Alln1ProviderError({
         operation: "page destination",
@@ -81,7 +92,7 @@ export function fetchAlln1Page(url: string, gate: ProviderRequestGate) {
       });
     const raw = yield* read(url, gate);
     return yield* Effect.try({
-      try: () => parseAlln1Page(raw, page),
+      try: () => parseAlln1Page(raw, page, tenant),
       catch: (cause) =>
         new Alln1ProviderError({
           operation: "native inventory page " + page,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ARIO_ORIGIN, type ArioClient } from "./autorecycler-ario-client";
 import {
-  AUTORECYCLER_LOOKUP_PREFIX,
+  arioLocationCode,
   type ArioCustomerYard,
 } from "./autorecycler-ario-yards";
 import { inventoryVin } from "./inventory-vin";
@@ -126,7 +126,7 @@ export function arioGeo(
 ): AutorecyclerOrgGeo {
   const region = normalizeRegion("", yard.state);
   return {
-    orgLookup: `${AUTORECYCLER_LOOKUP_PREFIX}${yard.legacyId}`,
+    orgLookup: arioLocationCode(yard),
     locationName: name,
     locationCity: yard.city,
     ...region,

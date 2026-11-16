@@ -1,5 +1,36 @@
 # All-N-1 Auto Parts ingestion
 
+## Grandpa John's tenant qualification, November 16, 2026
+
+The same U-Pull connector now takes an explicit tenant contract. All-N-1 keeps
+its source, native scope, cursor, admission rules and canonical output. Its
+existing 600-donor test fixture has identical canonical bytes across budgets
+1, 2, 3 and 32: SHA-256
+`1ca9f680d8502ed80b686a0a144fcd0264d86540ccb7af0f76c5dfceb4b05a71`.
+
+The new `grandpajohns` source remains disabled by default behind
+`ingestion-source-grandpajohns`. Grandpa John's Pick & Pull publishes
+1746 Velp Avenue, Green Bay, WI 54303 and its self-pull statement on the
+official root. Its inventory declares `iisupullurgid = 'WI25'` in the same
+executable inline plugin contract as All-N-1. No phone is published there;
+phone stays null rather than borrowing the neighboring full-service yard's.
+The Census exact-address point is 44.552055694176, -88.053118559214.
+
+Two complete pages contain 500 and 152 rows. The production connector accepts
+644 unique donors and rejects eight invalid identities, all on page one
+(1.23% overall), with no exclusions or duplicates. The yard floor is 500;
+the existing 10% rejection cap, 25% duplicate cap and 50% prior-count drift
+guard remain unchanged. Separately fetched closing owner and first-page
+controls match. The native GET search for `1FMCU9GX9GUC13987` returns one
+donor. Photos require WI25 and matching stock under the existing media guard.
+
+Qualification used seven serial live requests, including the owner, two
+inventory pages, two closing controls, Census and one VIN search. Offline
+fixtures and receipts live in `src/server/ingestion/alln1-test-fixtures/`.
+Budgets 1, 2, 3 and 32 replay identically through the durable cursor codec;
+another tenant's cursor or origin cannot be resumed. The count-only driver
+also accepts `--sources=grandpajohns`.
+
 Status on November 12, 2026: saved-only production connector replays accept
 1,093 unique vehicles from 1,158 native rows, with 65 rejected and zero
 duplicates. Budgets 1, 2, 3 and 32 produce identical canonical output through

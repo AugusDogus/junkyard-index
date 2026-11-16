@@ -1,5 +1,40 @@
 # AutoRecycler inventory and owned locations
 
+## CFC qualification, November 16, 2026
+
+CFC Recycling's official inventory page embeds the native Ario customer yard
+`cfc-recycling`, UUID `9e650335-4efb-4664-ba19-b4f22a0f1775`, organization
+`6ce46a2f-1870-4a07-9f57-52d64f524c68`. Its exact-address LocalBusiness
+record supplies 2716 Dowdy Ferry Rd, Dallas, TX 75217 and
+32.6619785, -96.6729032. Ario supplies no coordinates for this yard, so this
+owned point is the explicit location override. No legacy ID is known.
+Native Ario yards use `ario:<yard UUID>` consistently for canonical location,
+freshness and published-customer drift protection. Migrated location keys stay
+unchanged; no fabricated legacy ID participates in feed selection.
+
+All five 100-rank windows and a separately fetched closing window cover
+422 records: 407 accepted, 15 rejected, no exclusions or duplicates (3.55%
+rejected). Embedded spaces and Cyrillic look-alikes remain invalid under the
+existing VIN policy. No guessed corrections are applied. The complete saved
+Ario replay now accepts 19,212 vehicles across twenty current yards; Santa
+Maria remains stale in this census.
+
+Qualification used fourteen serial live requests, including owner evidence,
+identity discovery, the complete census and a shared 21-yard group probe.
+The live group returned all 21 requested yard metadata entries and 2,095
+items. CFC's 422 ranks fit inside the existing largest yard's 33 windows,
+so the daily budget stays **37 requests against the unchanged 48-request
+hourly cap**, with eleven requests of headroom. No quota-exhaustion probe
+was made. Group bounds remain exactly 100 items per allowlisted yard.
+
+Saved staging replay uses 34 capture chunks, 21 yard publication chunks and
+one legacy terminal stand-in, 56 total versus 55 before CFC. Each capture
+chunk still reads one grouped window; publication uses saved responses and
+adds no HTTP requests. The workflow loops over chunks without a fixed total
+step cap. All existing per-request, chunk, rank, retry and rate-limit guards
+remain in place. CFC uses the existing `autorecycler` source flag; no flag
+was enabled and no production inventory was written.
+
 ## Ario migration and freshness, November 15, 2026
 
 Most AutoRecycler customers moved from the Bubble feed to Ario in August 2026.

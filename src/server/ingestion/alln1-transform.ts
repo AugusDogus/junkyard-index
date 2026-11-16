@@ -5,13 +5,22 @@ import {
   alln1Stock,
   type Alln1Record,
 } from "./alln1-parser";
-import { ALLN1_YARD, alln1DetailsUrl } from "./alln1-yard-metadata";
-import { normalizeCanonicalMake } from "./normalization";
+import {
+  ALLN1_TENANT,
+  alln1DetailsUrl,
+  type Alln1Tenant,
+  type Alln1Source,
+} from "./alln1-yard-metadata";
+import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import type { CanonicalVehicle } from "./types";
 
-export type Alln1CanonicalVehicle = CanonicalVehicle & { source: "alln1" };
-export function transformAlln1Record(record: Alln1Record):
-  | { status: "available"; vehicle: Alln1CanonicalVehicle }
+export type Alln1CanonicalVehicle<S extends Alln1Source = "alln1"> =
+  CanonicalVehicle & { source: S };
+export function transformUpullRecord<S extends Alln1Source>(
+  record: Alln1Record,
+  tenant: Alln1Tenant<S>,
+):
+  | { status: "available"; vehicle: Alln1CanonicalVehicle<S> }
   | { status: "incomplete"; vin: string | null }
   | {
       status: "quarantined";
@@ -44,7 +53,7 @@ export function transformAlln1Record(record: Alln1Record):
   return {
     status: "available",
     vehicle: {
-      source: "alln1",
+      source: tenant.source,
       vin,
       year,
       make,
@@ -54,14 +63,14 @@ export function transformAlln1Record(record: Alln1Record):
       row: alln1OptionalText(position),
       availableDate: alln1SourceDate(record.setDate),
       imageUrl: record.imageUrl,
-      locationCode: ALLN1_YARD.code,
-      locationName: ALLN1_YARD.name,
-      locationCity: ALLN1_YARD.city,
-      state: "Missouri",
-      stateAbbr: "MO",
-      lat: ALLN1_YARD.lat,
-      lng: ALLN1_YARD.lng,
-      detailsUrl: alln1DetailsUrl(vin),
+      locationCode: tenant.yard.code,
+      locationName: tenant.yard.name,
+      locationCity: tenant.yard.city,
+      state: normalizeRegion("", tenant.yard.state).state,
+      stateAbbr: tenant.yard.state,
+      lat: tenant.yard.lat,
+      lng: tenant.yard.lng,
+      detailsUrl: alln1DetailsUrl(vin, tenant),
       section: null,
       space: null,
       partsUrl: null,
@@ -72,3 +81,6 @@ export function transformAlln1Record(record: Alln1Record):
     },
   };
 }
+
+export const transformAlln1Record = (record: Alln1Record) =>
+  transformUpullRecord(record, ALLN1_TENANT);

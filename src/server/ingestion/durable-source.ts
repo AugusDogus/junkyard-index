@@ -49,7 +49,7 @@ import { PullsavewaCursor } from "./pullsavewa-cursor";
 import { LittletonCursor } from "./littleton-cursor";
 import { MichigantruckCursor } from "./michigantruck-cursor";
 import { JolietCursor } from "./joliet-cursor";
-import { Alln1Cursor } from "./alln1-cursor";
+import { Alln1Cursor, GrandpajohnsCursor } from "./alln1-cursor";
 import { PickersCoverageCursor } from "./pickers-coverage-cursor";
 import { PipesCursor } from "./pipes-cursor";
 import { UwrenchCursor } from "./uwrench-cursor";
@@ -256,6 +256,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   joliet: { initialCursor: JolietCursor.initial, maxPagesPerChunk: 16 },
   alln1: { initialCursor: Alln1Cursor.initial, maxPagesPerChunk: 3 },
+  grandpajohns: {
+    initialCursor: GrandpajohnsCursor.initial,
+    maxPagesPerChunk: 3,
+  },
   pickers: {
     initialCursor: PickersCoverageCursor.initial,
     maxPagesPerChunk: 16,

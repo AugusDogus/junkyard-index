@@ -1,9 +1,18 @@
+import { inventoryVin } from "./inventory-vin";
 import { z } from "zod";
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamArioYard } from "./autorecycler-ario-connector";
-import { ArioPageSchema, readArioYard } from "./autorecycler-ario-inventory";
-import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
+import {
+  ArioPageSchema,
+  readArioYard,
+  arioGeo,
+  transformArioItem,
+} from "./autorecycler-ario-inventory";
+import {
+  ARIO_CUSTOMER_YARDS,
+  arioLocationCode,
+} from "./autorecycler-ario-yards";
 import type { ArioClient } from "./autorecycler-ario-client";
 import type { CanonicalVehicle } from "./types";
 import type { Yard } from "~/lib/yard";
@@ -62,6 +71,7 @@ const expectedCounts: Record<
   "prestige-pull-your-part-houston-tx": 1305,
   "samson-auto-salvage": 283,
   "santa-maria-recycling-center": 0,
+  "cfc-recycling": 407,
 };
 
 test("replays complete Ario customer inventories with no network, including suppressed rank holes", async () => {
@@ -93,7 +103,7 @@ test("replays complete Ario customer inventories with no network, including supp
       );
     } else expect(vehicles.length).toBeGreaterThan(100);
     for (const vehicle of vehicles) {
-      expect(vehicle.locationCode).toEndWith(yard.legacyId);
+      expect(vehicle.locationCode).toBe(arioLocationCode(yard));
       expect(vehicle.stateAbbr).toBe(yard.state);
       expect(vehicle.locationCity).toBe(yard.city);
       expect(vehicle.detailsUrl).toContain(`yard=${yard.slug}&inv=`);
@@ -238,4 +248,77 @@ test("Birmingham publishes the verified Ruffner Road yard instead of the downtow
     expect(vehicle.lat).toBe(33.5567534);
     expect(vehicle.lng).toBe(-86.6903392);
   }
+});
+
+test("CFC uses its owned website point and native yard UUID, rejecting every malformed VIN unchanged", async () => {
+  const index = ARIO_CUSTOMER_YARDS.findIndex(
+    (yard) => yard.slug === "cfc-recycling",
+  );
+  const config = ARIO_CUSTOMER_YARDS[index];
+  if (!config || !("locationOverride" in config))
+    throw new Error("Missing qualified CFC location");
+  const owner = gunzipSync(
+    await Bun.file(
+      new URL("./fixtures/ario/cfc-owner.html.gz", import.meta.url),
+    ).bytes(),
+  ).toString();
+  expect(owner).toContain(
+    "https://ario.autorecycler.io/yard/cfc-recycling?embed=1",
+  );
+  expect(owner).toContain('"streetAddress":"2716 Dowdy Ferry Rd"');
+  expect(owner).toContain('"latitude":32.6619785,"longitude":-96.6729032');
+  const vehicles: CanonicalVehicle[] = [];
+  const yards: Yard[] = [];
+  const result = await Effect.runPromise(
+    streamArioYard(
+      {
+        yardIndex: index,
+        asOf: Date.parse("2026-11-16T12:00:00Z"),
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles.push(...batch);
+          }),
+        onYards: (batch) =>
+          Effect.sync(() => {
+            yards.push(...batch);
+          }),
+      },
+      await savedClient(),
+    ),
+  );
+  expect(result.accounting).toEqual({
+    recordsProcessed: 422,
+    recordsExcluded: 0,
+    recordsRejected: 15,
+    duplicateVehicles: 0,
+  });
+  expect(yards).toHaveLength(1);
+  expect(yards[0]).toMatchObject({
+    code: "ario:9e650335-4efb-4664-ba19-b4f22a0f1775",
+    address: "2716 Dowdy Ferry Rd, Dallas, TX 75217",
+    lat: 32.6619785,
+    lng: -96.6729032,
+  });
+  expect(vehicles).toHaveLength(407);
+  for (const vehicle of vehicles) {
+    expect(vehicle.locationCode).toBe(
+      "ario:9e650335-4efb-4664-ba19-b4f22a0f1775",
+    );
+    expect(vehicle.lat).toBe(32.6619785);
+    expect(vehicle.lng).toBe(-96.6729032);
+  }
+  const inventory = await readArioYard(await savedClient(), config);
+  const malformed = inventory.items.filter(
+    (item) => inventoryVin(item.vin ?? "", String(item.year ?? "")) === null,
+  );
+  expect(malformed).toHaveLength(15);
+  expect(malformed.map((item) => item.vin)).toContain("WBAЗА5C52CF256492");
+  expect(malformed.map((item) => item.vin)).toContain("2HGE J6572TH528443");
+  const geo = arioGeo(
+    config,
+    "CFC Recycling",
+    config.locationOverride.lat,
+    config.locationOverride.lng,
+  );
+  for (const item of malformed) expect(transformArioItem(item, geo)).toBeNull();
 });

@@ -1,3 +1,4 @@
+import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
 import { z } from "zod";
 import { AutorecyclerFreshnessSchema } from "./autorecycler-freshness-state";
 
@@ -25,7 +26,11 @@ export const AutorecyclerCursorSchema = z.discriminatedUnion("phase", [
     .object({
       source: z.literal("autorecycler"),
       phase: z.literal("ario"),
-      yardIndex: z.number().int().min(0).max(19),
+      yardIndex: z
+        .number()
+        .int()
+        .min(0)
+        .max(ARIO_CUSTOMER_YARDS.length - 1),
       statePath: z.string().min(1).optional(),
       freshness: AutorecyclerFreshnessSchema.optional(),
     })

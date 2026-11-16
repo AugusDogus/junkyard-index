@@ -72,8 +72,12 @@ export function readArioRun(
           cursor.closing ? 0 : cursor.offset,
         );
         const group = ArioPageSchema.extend({
-          items: ArioPageSchema.shape.items.max(2_000),
-          yards_meta: ArioPageSchema.shape.yards_meta.max(20),
+          items: ArioPageSchema.shape.items.max(
+            ARIO_CUSTOMER_YARDS.length * 100,
+          ),
+          yards_meta: ArioPageSchema.shape.yards_meta.max(
+            ARIO_CUSTOMER_YARDS.length,
+          ),
         }).parse(raw);
         if (
           group.yards_meta.length !== slugs.length ||

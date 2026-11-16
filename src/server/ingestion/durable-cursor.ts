@@ -53,7 +53,7 @@ import { PullsavewaCursorSchema } from "./pullsavewa-cursor";
 import { LittletonCursorSchema } from "./littleton-cursor";
 import { MichigantruckCursorSchema } from "./michigantruck-cursor";
 import { JolietCursorSchema } from "./joliet-cursor";
-import { Alln1CursorSchema } from "./alln1-cursor";
+import { Alln1CursorSchema, GrandpajohnsCursor } from "./alln1-cursor";
 import { PickersCoverageCursor } from "./pickers-coverage-cursor";
 import { PipesCursor } from "./pipes-cursor";
 import { UwrenchCursor } from "./uwrench-cursor";
@@ -107,7 +107,7 @@ function invalidCursor(source: IngestionSource, value: string): Error {
 
 function parseWithSchema<Cursor extends SourceCursor>(
   source: Cursor["source"],
-  schema: z.ZodType<Cursor>,
+  schema: z.ZodType<Cursor, z.ZodTypeDef, unknown>,
   value: unknown,
   serializedValue: string,
 ): Cursor {
@@ -158,7 +158,10 @@ function parsePair(
 function defineJsonCursor<
   Source extends IngestionSource,
   Cursor extends SourceCursor<Source>,
->(source: Source, schema: z.ZodType<Cursor>): DurableCursorDefinition<Cursor> {
+>(
+  source: Source,
+  schema: z.ZodType<Cursor, z.ZodTypeDef, unknown>,
+): DurableCursorDefinition<Cursor> {
   return {
     parse: (value) =>
       parseWithSchema(source, schema, parseJsonPayload(value, source), value),
@@ -183,7 +186,7 @@ function defineLegacyJsonCursor<
   Cursor extends SourceCursor<Source>,
 >(
   source: Source,
-  schema: z.ZodType<Cursor>,
+  schema: z.ZodType<Cursor, z.ZodTypeDef, unknown>,
   legacy: Readonly<Record<string, Cursor>>,
 ): DurableCursorDefinition<Cursor> {
   const json = defineJsonCursor(source, schema);
@@ -198,7 +201,7 @@ function defineScalarCursor<
   Cursor extends SourceCursor<Source>,
 >(
   source: Source,
-  schema: z.ZodType<Cursor>,
+  schema: z.ZodType<Cursor, z.ZodTypeDef, unknown>,
   fromInteger: (value: number) => Cursor,
   toInteger: (cursor: Cursor) => number,
 ): DurableCursorDefinition<Cursor> {
@@ -224,7 +227,7 @@ function definePairCursor<
   Cursor extends SourceCursor<Source>,
 >(
   source: Source,
-  schema: z.ZodType<Cursor>,
+  schema: z.ZodType<Cursor, z.ZodTypeDef, unknown>,
   fromPair: (first: number, second: number) => Cursor,
   toPair: (cursor: Cursor) => readonly [number, number],
 ): DurableCursorDefinition<Cursor> {
@@ -581,6 +584,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   michigantruck: defineJsonCursor("michigantruck", MichigantruckCursorSchema),
   joliet: defineJsonCursor("joliet", JolietCursorSchema),
   alln1: defineJsonCursor("alln1", Alln1CursorSchema),
+  grandpajohns: defineJsonCursor("grandpajohns", GrandpajohnsCursor.schema),
   pickers: {
     parse: PickersCoverageCursor.parse,
     serialize: PickersCoverageCursor.serialize,

@@ -5,15 +5,14 @@ import type { CanonicalVehicle } from "./types";
 import { SourceValidationPolicy } from "./source-validation";
 import {
   ARIO_CUSTOMER_YARDS,
+  arioLocationCode,
   AUTORECYCLER_LOOKUP_PREFIX,
 } from "./autorecycler-ario-yards";
 
 // Protect current customer retirements without counting the intentionally removed
 // LKQ mirrors and unsupported legacy yards in the initial migration baseline.
 const customerYards = new Set([
-  ...ARIO_CUSTOMER_YARDS.map(
-    (yard) => `${AUTORECYCLER_LOOKUP_PREFIX}${yard.legacyId}`,
-  ),
+  ...ARIO_CUSTOMER_YARDS.map(arioLocationCode),
   `${AUTORECYCLER_LOOKUP_PREFIX}1672882562847x152496749538181120`, // JDM
   `${AUTORECYCLER_LOOKUP_PREFIX}1727808874603x499378618447920300`, // A-1
 ]);
