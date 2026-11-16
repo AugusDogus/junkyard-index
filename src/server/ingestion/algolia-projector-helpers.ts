@@ -1,6 +1,6 @@
 import { vehicle } from "~/schema";
 import { isIngestionSource } from "~/lib/ingestion-source";
-import type { CanonicalVehicle } from "./types";
+import { toAlgoliaRecord, type CanonicalVehicle } from "./types";
 
 export function mapDbVehicleToCanonical(
   row: typeof vehicle.$inferSelect,
@@ -37,6 +37,17 @@ export function mapDbVehicleToCanonical(
     trim: row.trim,
     transmission: row.transmission,
   };
+}
+
+/** Shared by incremental publication and every full reindex entry point. */
+export function mapDbVehicleToAlgolia(row: typeof vehicle.$inferSelect) {
+  return toAlgoliaRecord(
+    mapDbVehicleToCanonical(row),
+    row.firstSeenAt,
+    row.missingSinceAt,
+    row.missingRunCount ?? 0,
+    row.observedArrivalAt,
+  );
 }
 
 export function partitionVehicleChanges(

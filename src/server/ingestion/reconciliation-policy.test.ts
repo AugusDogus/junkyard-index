@@ -49,6 +49,7 @@ function existingVehicle(
 ): typeof vehicle.$inferSelect {
   return {
     ...canonicalVehicle(vin),
+    observedArrivalAt: null,
     firstSeenAt: new Date("2026-02-01T00:00:00.000Z"),
     lastSeenAt: new Date("2026-03-01T00:00:00.000Z"),
     missingSinceAt: null,
@@ -172,9 +173,48 @@ describe("reconciliation policy", () => {
     );
   });
 
+  test("keys published yard history by both source and location", () => {
+    const runTimestamp = new Date("2026-11-16T12:00:00Z");
+    const cars = [
+      canonicalVehicle("known-yard", {
+        source: "pyp",
+        locationCode: "100",
+        availableDate: null,
+      }),
+      canonicalVehicle("new-yard", {
+        source: "pyp",
+        locationCode: "200",
+        availableDate: null,
+      }),
+      canonicalVehicle("new-source", {
+        source: "row52",
+        locationCode: "100",
+        availableDate: null,
+      }),
+    ];
+    const changes = planChangedVehicleUpserts({
+      inventory: new Map(cars.map((car) => [car.vin, car])),
+      existingRows: [],
+      runTimestamp,
+      acceptedSources: new Set(["pyp", "row52"]),
+      publishedYards: new Map([["pyp", new Set(["100"])]]),
+    });
+    expect(
+      changes.map(({ vehicle, observedArrivalAt }) => [
+        vehicle.vin,
+        observedArrivalAt,
+      ]),
+    ).toEqual([
+      ["known-yard", runTimestamp],
+      ["new-yard", null],
+      ["new-source", null],
+    ]);
+  });
+
   test("ignores coordinate noise from the database's float round trip", () => {
     // Turso returns -97.51810604352379 as -97.5181060435238.
     const changed = planChangedVehicleUpserts({
+      publishedYards: new Map(),
       inventory: new Map([
         ["VIN123", canonicalVehicle("VIN123", { lng: -97.51810604352379 })],
       ]),
@@ -189,6 +229,7 @@ describe("reconciliation policy", () => {
   test("treats a reappearing vehicle as changed", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
     const changed = planChangedVehicleUpserts({
+      publishedYards: new Map(),
       inventory: new Map([["VIN123", canonicalVehicle("VIN123")]]),
       existingRows: [
         existingVehicle("VIN123", {
@@ -208,6 +249,7 @@ describe("reconciliation policy", () => {
     const runTimestamp = new Date("2026-03-05T00:00:00.000Z");
     const plan = (owner: typeof vehicle.$inferSelect) =>
       planChangedVehicleUpserts({
+        publishedYards: new Map(),
         inventory: new Map([
           ["VIN123", canonicalVehicle("VIN123", { source: "autorecycler" })],
         ]),
@@ -230,6 +272,7 @@ describe("reconciliation policy", () => {
     // A lower-priority owner yields to a higher-priority source.
     expect(
       planChangedVehicleUpserts({
+        publishedYards: new Map(),
         inventory: new Map([["VIN123", canonicalVehicle("VIN123")]]),
         existingRows: [existingVehicle("VIN123", { source: "autorecycler" })],
         runTimestamp,

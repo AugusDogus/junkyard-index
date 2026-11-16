@@ -89,7 +89,7 @@ export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] 
           "exact",
           "custom",
         ],
-        customRanking: ["desc(availableDateTs)"],
+        customRanking: ["desc(arrivalDateKnown)", "desc(availableDateTs)"],
       },
       forwardToReplicas: false,
     },
@@ -98,7 +98,7 @@ export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] 
       indexName: oldestIndex,
       indexSettings: {
         ...virtualReplicaDefaults,
-        customRanking: ["asc(availableDateTs)"],
+        customRanking: ["desc(arrivalDateKnown)", "asc(availableDateTs)"],
       },
       forwardToReplicas: false,
     },

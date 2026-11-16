@@ -1,3 +1,4 @@
+import { ArrivalDate } from "~/lib/arrival-date";
 import { VinPattern } from "~/lib/vin-pattern";
 import { buildAdvancedSearchTokens } from "~/lib/advanced-search-query";
 import type { IngestionSource } from "~/lib/ingestion-source";
@@ -53,6 +54,8 @@ export interface AlgoliaVehicleRecord {
   stockNumber: string | null;
   imageUrl: string | null;
   availableDate: string | null;
+  arrivalDate: ArrivalDate;
+  arrivalDateKnown: 0 | 1;
   availableDateTs: number;
   locationCode: string;
   locationName: string;
@@ -94,13 +97,18 @@ export function toAlgoliaRecord(
   firstSeenAt: Date,
   missingSinceAt: Date | null,
   missingRunCount: number,
+  observedArrivalAt: Date | null,
 ): AlgoliaVehicleRecord {
-  const parsedMs = vehicle.availableDate
-    ? new Date(vehicle.availableDate).getTime()
-    : NaN;
-  const availableDateTs = Number.isNaN(parsedMs)
-    ? 0
-    : Math.floor(parsedMs / 1000);
+  const arrivalDate = ArrivalDate.from(
+    vehicle.availableDate,
+    observedArrivalAt && Number.isFinite(observedArrivalAt.getTime())
+      ? observedArrivalAt.toISOString()
+      : null,
+  );
+  const availableDateTs =
+    arrivalDate.kind === "unknown"
+      ? 0
+      : Math.floor(Date.parse(arrivalDate.date) / 1000);
 
   return {
     objectID: vehicle.vin,
@@ -120,6 +128,8 @@ export function toAlgoliaRecord(
     stockNumber: vehicle.stockNumber,
     imageUrl: vehicle.imageUrl,
     availableDate: vehicle.availableDate,
+    arrivalDate,
+    arrivalDateKnown: arrivalDate.kind === "unknown" ? 0 : 1,
     availableDateTs,
     locationCode: vehicle.locationCode,
     locationName: vehicle.locationName,

@@ -46,7 +46,7 @@ describe("transformPullNSaveVehicle", () => {
       const vehicle = transformPullNSaveVehicle(record, yard);
       if (!vehicle) throw new Error(`Invalid live sample ${record.stockId}`);
       const searchVehicle = algoliaHitToSearchVehicle(
-        toAlgoliaRecord(vehicle, new Date(), null, 0),
+        toAlgoliaRecord(vehicle, new Date(), null, 0, null),
       );
       expect(searchVehicle?.vin).toBe(vehicle.vin);
       expect(searchVehicle?.imageUrl).toBe(
@@ -70,7 +70,7 @@ describe("transformPullNSaveVehicle", () => {
     const vehicle = transformPullNSaveVehicle(VALID_RECORD, GILBERT);
     if (!vehicle) throw new Error("Expected a canonical vehicle");
     const searchVehicle = algoliaHitToSearchVehicle(
-      toAlgoliaRecord(vehicle, new Date(), null, 0),
+      toAlgoliaRecord(vehicle, new Date(), null, 0, null),
     );
     // This is only a search form, not a vehicle destination. See the media/link audit runbook.
     expect(searchVehicle?.detailsUrl).toBeNull();

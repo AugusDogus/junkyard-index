@@ -92,6 +92,139 @@ async function stageSnapshots(params: {
 }
 
 describe("bounded durable reconciliation", () => {
+  test("keeps backfills unknown per yard across batches and records only later arrivals", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      const first = new Date("2026-11-15T12:00:00Z");
+      const second = new Date("2026-11-16T12:00:00Z");
+      const backfill = Array.from({ length: 501 }, (_, index) => ({
+        ...snapshot("pyp", "Blue"),
+        vin: `A-${String(index).padStart(4, "0")}`,
+      }));
+      async function publish(
+        id: string,
+        at: Date,
+        vehicles: CanonicalVehicle[],
+      ) {
+        await database.insert(ingestionRun).values({
+          id,
+          source: "pyp",
+          status: "running",
+          stage: "reconcile_upsert",
+          activeSlot: 1,
+          commitStartedAt: at,
+          acceptedSources: JSON.stringify(["pyp"]),
+          startedAt: at,
+          lastProgressAt: at,
+        });
+        await database.insert(ingestionSourceRun).values({
+          id: `${id}:pyp`,
+          runId: id,
+          source: "pyp",
+          status: "success",
+          acceptanceStatus: "accepted",
+          uniqueVehicles: vehicles.length,
+          startedAt: at,
+        });
+        await stageSnapshots({ client, store, runId: id, vehicles });
+        let result = await reconcileDurableIngestionRun({
+          runId: id,
+          database,
+          batchClient: client,
+          snapshotStore: store,
+          budgetMs: 0,
+        });
+        while (result.status === "paused") {
+          result = await reconcileDurableIngestionRun({
+            runId: id,
+            database,
+            batchClient: client,
+            snapshotStore: store,
+            budgetMs: 0,
+          });
+        }
+        await database
+          .update(ingestionRun)
+          .set({ activeSlot: null })
+          .where(eq(ingestionRun.id, id));
+      }
+      await publish("arrival-first", first, backfill);
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle where observed_arrival_at is not null",
+          )
+        ).rows[0]?.count,
+      ).toBe(0);
+      const newCar = { ...snapshot("pyp", "Blue"), vin: "B-new" };
+      const newYard = { ...newCar, vin: "C-new-yard", locationCode: "yard-2" };
+      const datedCar = {
+        ...newCar,
+        vin: "D-dated",
+        availableDate: "2026-11-14T12:00:00Z",
+      };
+      await publish("arrival-second", second, [
+        ...backfill,
+        newCar,
+        newYard,
+        datedCar,
+      ]);
+      const rows = (
+        await client.execute(
+          "select vin, observed_arrival_at from vehicle where vin >= 'B' order by vin",
+        )
+      ).rows;
+      expect(
+        rows.map((row) => ({
+          vin: row.vin,
+          observed_arrival_at: row.observed_arrival_at,
+        })),
+      ).toEqual([
+        { vin: "B-new", observed_arrival_at: second.getTime() },
+        { vin: "C-new-yard", observed_arrival_at: null },
+        { vin: "D-dated", observed_arrival_at: null },
+      ]);
+      await publish("arrival-third", new Date("2026-11-17T12:00:00Z"), [
+        ...backfill,
+        { ...newCar, availableDate: datedCar.availableDate },
+        newYard,
+        datedCar,
+      ]);
+      expect(
+        (
+          await client.execute(
+            "select available_date, observed_arrival_at from vehicle where vin = 'B-new'",
+          )
+        ).rows[0],
+      ).toMatchObject({
+        available_date: datedCar.availableDate,
+        observed_arrival_at: second.getTime(),
+      });
+      // Retiring every car does not turn a published yard into a first crawl again.
+      await client.execute(
+        "delete from vehicle where location_code = 'yard-1'",
+      );
+      const fourth = new Date("2026-11-18T12:00:00Z");
+      await publish("arrival-fourth", fourth, [
+        { ...newCar, vin: "E-after-empty" },
+        newYard,
+      ]);
+      expect(
+        (
+          await client.execute(
+            "select observed_arrival_at from vehicle where vin = 'E-after-empty'",
+          )
+        ).rows[0]?.observed_arrival_at,
+      ).toBe(fourth.getTime());
+    } finally {
+      client.close();
+    }
+  });
+
+
   test.each([
     "hawaiiparts",
     "modernmuscle",

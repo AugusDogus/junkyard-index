@@ -296,6 +296,16 @@ export const yardInventory = sqliteTable(
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
 );
 
+/** Retains published yard history even after its last vehicle is retired. */
+export const yardArrivalBaseline = sqliteTable(
+  "yard_arrival_baseline",
+  {
+    source: text("source").notNull(),
+    locationCode: text("location_code").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
+);
+
 export const vehicle = sqliteTable(
   "vehicle",
   {
@@ -308,6 +318,7 @@ export const vehicle = sqliteTable(
     stockNumber: text("stock_number"),
     imageUrl: text("image_url"),
     availableDate: text("available_date"),
+    observedArrivalAt: integer("observed_arrival_at", { mode: "timestamp_ms" }),
     locationCode: text("location_code").notNull(),
     locationName: text("location_name").notNull(),
     locationCity: text("location_city").default("Unknown").notNull(),

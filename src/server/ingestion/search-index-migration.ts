@@ -9,13 +9,12 @@ import {
 } from "~/lib/search-index-schema";
 import { VinPattern } from "~/lib/vin-pattern";
 import { vehicle } from "~/schema";
-import { mapDbVehicleToCanonical } from "./algolia-projector-helpers";
+import { mapDbVehicleToAlgolia } from "./algolia-projector-helpers";
 import {
   buildVinFilterValidationRequests,
   SearchIndexMigrationValidationError,
 } from "./search-index-validation";
 import { configureAlgoliaIndex, syncToAlgolia } from "./sync-algolia";
-import { toAlgoliaRecord } from "./types";
 
 const DEFAULT_BATCH_SIZE = 1000;
 const VALIDATION_SAMPLE_SIZE = 3;
@@ -137,14 +136,7 @@ export async function migrateSearchIndexBatch(
   const rows = await readVehicleBatch(state.cursor, normalizedBatchSize);
   if (rows.length === 0) return { done: true, state };
 
-  const records = rows.map((row) =>
-    toAlgoliaRecord(
-      mapDbVehicleToCanonical(row),
-      row.firstSeenAt,
-      row.missingSinceAt,
-      row.missingRunCount ?? 0,
-    ),
-  );
+  const records = rows.map(mapDbVehicleToAlgolia);
   await syncToAlgolia(records, []);
 
   const validationVins = [...state.validationVins];

@@ -596,3 +596,49 @@ test.each([
     });
   },
 );
+describe("arrival dates across search cards and notifications", () => {
+  test.each(["2026-11-16T12:00:00Z", "", "garbage"])(
+    "reads pending legacy notification date %j",
+    (availableDate) => {
+      const { arrivalDate, ...legacy } = vehicle("pyp", null);
+      const payload = parseNotificationIntentPayload(
+        JSON.stringify({
+          searchName: "Legacy",
+          query: "",
+          searchUrl: "https://example.com/search",
+          searchId: "legacy",
+          match: { count: 1, previewVehicles: [{ ...legacy, availableDate }] },
+        }),
+      );
+      expect(payload.match.previewVehicles[0]?.arrivalDate.kind).toBe(
+        availableDate === "2026-11-16T12:00:00Z" ? "yard" : "unknown",
+      );
+      expect(arrivalDate.kind).toBe("yard");
+    },
+  );
+
+  test.each([
+    ["2026-11-16T12:00:00Z", null, "Nov 16, 2026"],
+    [null, { kind: "seen", date: "2026-11-16T12:00:00Z" }, "Seen Nov 16, 2026"],
+    [null, { kind: "unknown" }, "Date unknown"],
+    ["garbage", { kind: "yard", date: "garbage" }, "Date unknown"],
+    [null, { kind: "seen", date: "garbage" }, "Date unknown"],
+    [null, null, "Date unknown"],
+  ])(
+    "renders yard %j and arrival %j as %s",
+    async (availableDate, arrivalDate, label) => {
+      const parsed = algoliaHitToSearchVehicle({
+        source: "pyp",
+        availableDate,
+        arrivalDate,
+      });
+      if (!parsed) throw new Error("Expected supported source");
+      const restored = roundTripNotification(parsed);
+      const { card, email } = await renderSurfaces(restored);
+      expect(card).toContain(label);
+      expect(email).toContain(label);
+      expect(card).not.toContain("Invalid Date");
+      expect(email).not.toContain("Invalid Date");
+    },
+  );
+});
