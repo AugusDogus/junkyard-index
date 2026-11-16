@@ -1,0 +1,384 @@
+{
+  "base": "c83ecc0502bac0b8859b41c02495a90ac33eb119",
+  "capturedOn": "2026-11-16",
+  "sourceDefaultOff": true,
+  "tenants": [
+    {
+      "code": "premier",
+      "decision": "admit",
+      "recordedAttempts": 340,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 1,
+      "publishedMakes": 35,
+      "publishedModels": 264,
+      "acquiredModels": 264,
+      "census": {
+        "site": {
+          "code": "premier",
+          "origin": "https://premierauto-parts.com",
+          "urgid": "MI23",
+          "pathStyle": "parts"
+        },
+        "makes": 35,
+        "models": 264,
+        "modelCards": 2660,
+        "arrivalCards": 60,
+        "maxCards": 223,
+        "photos": ["mi23"],
+        "dates": {
+          "count": 60,
+          "first": "2026-10-16",
+          "last": "2026-10-23"
+        }
+      },
+      "replay": {
+        "tenantCode": "premier",
+        "expected": {
+          "accepted": 2568,
+          "byYard": {
+            "premier": 2568
+          },
+          "recordsProcessed": 2720,
+          "recordsExcluded": 0,
+          "recordsRejected": 109,
+          "duplicateVehicles": 43
+        },
+        "responseCount": 339
+      },
+      "thirtyCardCheck": {
+        "modelsChecked": 264,
+        "cutoffs": []
+      },
+      "floor": 856,
+      "urgid": "MI23",
+      "ownerClaims": [
+        "Premier Auto & Truck Parts, Inc",
+        "28 - 17 Mile Road",
+        "Cedar Springs, MI 49319"
+      ],
+      "yard": {
+        "source": "urgiis",
+        "code": "premier",
+        "name": "Premier Auto & Truck Parts",
+        "operator": "Premier Auto & Truck Parts",
+        "address": "28 - 17 Mile Road",
+        "city": "Cedar Springs",
+        "state": "MI",
+        "postalCode": "49319",
+        "lat": 43.219608703141,
+        "lng": -85.670858668628,
+        "phone": "616-696-1730",
+        "email": null,
+        "websiteUrl": "https://premierauto-parts.com/"
+      },
+      "successfulReplayHttpSeconds": 680.79
+    },
+    {
+      "code": "shroyer",
+      "decision": "exclude",
+      "recordedAttempts": 49,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 0,
+      "reason": "Malibu returns a capped 500-card shared pool; own-yard filtering cannot recover a complete inventory. Same-business Hollander storefront must not be added.",
+      "publishedMakes": 45,
+      "publishedModels": 484,
+      "acquiredModels": 1
+    },
+    {
+      "code": "junior-sinn",
+      "decision": "admit",
+      "recordedAttempts": 441,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 1,
+      "publishedMakes": 40,
+      "publishedModels": 355,
+      "acquiredModels": 355,
+      "census": {
+        "site": {
+          "code": "junior-sinn",
+          "origin": "https://www.juniorsinnautoparts.com",
+          "urgid": "MO24",
+          "pathStyle": "parts"
+        },
+        "makes": 40,
+        "models": 355,
+        "modelCards": 3569,
+        "arrivalCards": 26,
+        "maxCards": 154,
+        "photos": ["mo24"],
+        "dates": {
+          "count": 26,
+          "first": "2026-10-22",
+          "last": "2026-11-05"
+        }
+      },
+      "replay": {
+        "tenantCode": "junior-sinn",
+        "expected": {
+          "accepted": 3313,
+          "byYard": {
+            "junior-sinn": 3313
+          },
+          "recordsProcessed": 3595,
+          "recordsExcluded": 0,
+          "recordsRejected": 259,
+          "duplicateVehicles": 23
+        },
+        "responseCount": 440
+      },
+      "thirtyCardCheck": {
+        "modelsChecked": 355,
+        "cutoffs": []
+      },
+      "floor": 1104,
+      "urgid": "MO24",
+      "ownerClaims": [
+        "Junior Sinn Auto Parts",
+        "588 County Road 649",
+        "Cape Girardeau, MO 63701"
+      ],
+      "yard": {
+        "source": "urgiis",
+        "code": "junior-sinn",
+        "name": "Junior Sinn Auto Parts",
+        "operator": "Junior Sinn Auto Parts",
+        "address": "588 County Road 649",
+        "city": "Cape Girardeau",
+        "state": "MO",
+        "postalCode": "63701",
+        "lat": 37.377948485995,
+        "lng": -89.458919796033,
+        "phone": "866-746-6288",
+        "email": null,
+        "websiteUrl": "https://www.juniorsinnautoparts.com/"
+      },
+      "successfulReplayHttpSeconds": 457.925
+    },
+    {
+      "code": "74-auto",
+      "decision": "exclude",
+      "recordedAttempts": 370,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 1,
+      "reason": "Complete census exceeds rejection guard; no exclusions applied.",
+      "publishedMakes": 45,
+      "publishedModels": 274,
+      "acquiredModels": 274,
+      "census": {
+        "site": {
+          "code": "74-auto",
+          "origin": "https://74autoparts.com",
+          "urgid": "MO23",
+          "pathStyle": "parts"
+        },
+        "makes": 45,
+        "models": 274,
+        "modelCards": 1630,
+        "arrivalCards": 21,
+        "maxCards": 123,
+        "photos": ["mo23"],
+        "dates": {
+          "count": 21,
+          "first": "2026-08-25",
+          "last": "2026-11-13"
+        }
+      },
+      "replay": {
+        "tenantCode": "74-auto",
+        "expected": {
+          "accepted": 1259,
+          "byYard": {
+            "74-auto": 1259
+          },
+          "recordsProcessed": 1651,
+          "recordsExcluded": 0,
+          "recordsRejected": 374,
+          "duplicateVehicles": 18
+        },
+        "responseCount": 369
+      },
+      "thirtyCardCheck": {
+        "modelsChecked": 274,
+        "cutoffs": []
+      }
+    },
+    {
+      "code": "lambert",
+      "decision": "exclude",
+      "recordedAttempts": 381,
+      "attemptsFromStartOnly": 1,
+      "maximumUnrecordedInterruptedAttempts": 0,
+      "reason": "Required Hummer H2 model route exhausted three attempts: 90-second timeout, HTTP 500, HTTP 500. Complete census is unproven.",
+      "publishedMakes": 47,
+      "publishedModels": 512,
+      "acquiredModels": 323
+    },
+    {
+      "code": "revolution",
+      "decision": "admit",
+      "recordedAttempts": 486,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 0,
+      "publishedMakes": 43,
+      "publishedModels": 389,
+      "acquiredModels": 389,
+      "census": {
+        "site": {
+          "code": "revolution",
+          "origin": "https://revolutionautoparts.com",
+          "urgid": "NC74",
+          "pathStyle": "parts"
+        },
+        "makes": 43,
+        "models": 389,
+        "modelCards": 5281,
+        "arrivalCards": 0,
+        "maxCards": 159,
+        "photos": ["nc74"],
+        "dates": {
+          "count": 0
+        }
+      },
+      "replay": {
+        "tenantCode": "revolution",
+        "expected": {
+          "accepted": 5186,
+          "byYard": {
+            "revolution": 5186
+          },
+          "recordsProcessed": 5281,
+          "recordsExcluded": 0,
+          "recordsRejected": 95,
+          "duplicateVehicles": 0
+        },
+        "responseCount": 479
+      },
+      "thirtyCardCheck": {
+        "modelsChecked": 389,
+        "cutoffs": []
+      },
+      "floor": 1728,
+      "urgid": "NC74",
+      "ownerClaims": [
+        "Revolution Auto Parts",
+        "9001 Stitt St",
+        "Monroe, NC 28110"
+      ],
+      "yard": {
+        "source": "urgiis",
+        "code": "revolution",
+        "name": "Revolution Auto Parts",
+        "operator": "Revolution Auto Parts",
+        "address": "9001 Stitt St",
+        "city": "Monroe",
+        "state": "NC",
+        "postalCode": "28110",
+        "lat": 34.984359668092,
+        "lng": -80.486378798227,
+        "phone": "980-247-3200",
+        "email": null,
+        "websiteUrl": "https://revolutionautoparts.com/"
+      },
+      "successfulReplayHttpSeconds": 551.712
+    },
+    {
+      "code": "creston",
+      "decision": "exclude",
+      "recordedAttempts": 91,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 0,
+      "reason": "Model routes stop at 30 cards; independently verified own-yard F150 donor is missing. Published continuation, pagination probes and ordinary model alias do not recover it.",
+      "publishedMakes": 47,
+      "publishedModels": 561,
+      "acquiredModels": 35
+    },
+    {
+      "code": "mars",
+      "decision": "exclude",
+      "recordedAttempts": 3,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 0,
+      "reason": "Official owner page is inaccessible: connection failure, then HTTP 403 twice. Ownership and complete census are unproven.",
+      "acquiredModels": 0
+    },
+    {
+      "code": "airport",
+      "decision": "exclude",
+      "recordedAttempts": 586,
+      "attemptsFromStartOnly": 0,
+      "maximumUnrecordedInterruptedAttempts": 0,
+      "reason": "Complete census exceeds rejection guard; no exclusions applied.",
+      "publishedMakes": 46,
+      "publishedModels": 489,
+      "acquiredModels": 489,
+      "census": {
+        "site": {
+          "code": "airport",
+          "origin": "https://airportautopartsinc.com",
+          "urgid": "OH27",
+          "pathStyle": "parts"
+        },
+        "makes": 46,
+        "models": 489,
+        "modelCards": 5057,
+        "arrivalCards": 46,
+        "maxCards": 231,
+        "photos": ["oh27"],
+        "dates": {
+          "count": 46,
+          "first": "2026-08-18",
+          "last": "2026-11-13"
+        }
+      },
+      "replay": {
+        "tenantCode": "airport",
+        "expected": {
+          "accepted": 3904,
+          "byYard": {
+            "airport": 3904
+          },
+          "recordsProcessed": 5103,
+          "recordsExcluded": 0,
+          "recordsRejected": 1157,
+          "duplicateVehicles": 42
+        },
+        "responseCount": 586
+      },
+      "thirtyCardCheck": {
+        "modelsChecked": 489,
+        "cutoffs": []
+      },
+      "negativeReplay": {
+        "code": "airport",
+        "result": "expected admission rejection",
+        "operation": "snapshot airport",
+        "message": "URG IIS snapshot airport: IIS airport failed admission: 3904 accepted (minimum 1; 3903 from model pages), 1157/5103 rejected, 42 duplicates. Prior inventory is preserved; inspect saved responses.. Prior inventory is preserved; inspect the saved response or resume the last validated checkpoint.",
+        "requests": 586,
+        "published": 0,
+        "expected": {
+          "accepted": 3904,
+          "byYard": {
+            "airport": 3904
+          },
+          "recordsProcessed": 5103,
+          "recordsExcluded": 0,
+          "recordsRejected": 1157,
+          "duplicateVehicles": 42
+        }
+      }
+    }
+  ],
+  "requests": {
+    "recordedAttempts": 2747,
+    "maximumUnrecordedInterruptedAttempts": 3,
+    "attemptsFromStartOnly": 1,
+    "explanation": "An abrupt restart to adopt the shared cross-process gate occurred before pre-send logging existed. At most one interrupted attempt each for Premier, Junior Sinn and 74 Auto may be unrecorded. One additional Lambert start has no completion receipt; it is counted from its pre-send log with an unknown outcome. Counts include retries, qualification probes and geocoding, and are not an exhaustive wire or redirect-hop count."
+  },
+  "qualificationGate": {
+    "lock": "/tmp/jyi-urg-gate.lock",
+    "timestamp": "/tmp/jyi-urg-gate.last",
+    "minimumStartGapSeconds": 3.1,
+    "minimumTenantResponseGapSeconds": 3.5,
+    "maximumActiveTenants": 3
+  }
+}

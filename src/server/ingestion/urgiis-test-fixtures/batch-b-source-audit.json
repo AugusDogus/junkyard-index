@@ -1,0 +1,325 @@
+{
+  "accepted": 49258,
+  "uniqueVins": 49258,
+  "crossTenantDuplicates": 0,
+  "sourceFloor": 33688,
+  "bounds": [
+    {
+      "yard": "eagle-martinsburg",
+      "accepted": 1448,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 1448,
+      "floor": 1200
+    },
+    {
+      "yard": "linders",
+      "accepted": 3274,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3274,
+      "floor": 2600
+    },
+    {
+      "yard": "chuckran",
+      "accepted": 3671,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3671,
+      "floor": 2900
+    },
+    {
+      "yard": "united",
+      "accepted": 12356,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 12356,
+      "floor": 9800
+    },
+    {
+      "yard": "ace-iowa",
+      "accepted": 1524,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 1524,
+      "floor": 1200
+    },
+    {
+      "yard": "lentini-ringoes",
+      "accepted": 2429,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2429,
+      "floor": 1900
+    },
+    {
+      "yard": "lentini-port-murray",
+      "accepted": 924,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 924,
+      "floor": 700
+    },
+    {
+      "yard": "dings",
+      "accepted": 1110,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 1110,
+      "floor": 800
+    },
+    {
+      "yard": "bishops",
+      "accepted": 3362,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3362,
+      "floor": 2600
+    },
+    {
+      "yard": "ace-st-paul",
+      "accepted": 3015,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3015,
+      "floor": 2400
+    },
+    {
+      "yard": "chucks",
+      "accepted": 2601,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2601,
+      "floor": 2000
+    },
+    {
+      "yard": "central-nh",
+      "accepted": 2477,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2477,
+      "floor": 1900
+    },
+    {
+      "yard": "premier",
+      "accepted": 2568,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2568,
+      "floor": 856
+    },
+    {
+      "yard": "junior-sinn",
+      "accepted": 3313,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3313,
+      "floor": 1104
+    },
+    {
+      "yard": "revolution",
+      "accepted": 5186,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 5186,
+      "floor": 1728
+    }
+  ],
+  "daily": {
+    "requests": 9804,
+    "bytes": 1644515174,
+    "pacingHours": 7.1024722222222225,
+    "requestBudget": 30000,
+    "byteBudget": 8589934592,
+    "wallTimeEstimate": {
+      "method": "Per-tenant mean successful public-site qualification HTTP latency times daily replay requests, plus mandatory serial pacing. Timed native pages and other same-origin qualification probes form the sample. Untimed tenants use 3 seconds per request. Excludes gate waits, workflow overhead and future retries; not a measured daily production run.",
+      "tenants": [
+        {
+          "code": "eagle",
+          "timedSuccessfulSamples": 1,
+          "dailyRequests": 363,
+          "meanSeconds": 3.584,
+          "medianSeconds": 3.584,
+          "projectedHttpSeconds": 1300.99,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "linders",
+          "timedSuccessfulSamples": 262,
+          "dailyRequests": 513,
+          "meanSeconds": 3.9523,
+          "medianSeconds": 3.1385,
+          "projectedHttpSeconds": 2027.52,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "chuckran",
+          "timedSuccessfulSamples": 496,
+          "dailyRequests": 498,
+          "meanSeconds": 9.0964,
+          "medianSeconds": 5.5785,
+          "projectedHttpSeconds": 4530.01,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "united",
+          "timedSuccessfulSamples": 620,
+          "dailyRequests": 623,
+          "meanSeconds": 6.7514,
+          "medianSeconds": 6.792,
+          "projectedHttpSeconds": 4206.15,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "ace-iowa",
+          "timedSuccessfulSamples": 473,
+          "dailyRequests": 465,
+          "meanSeconds": 1.4209,
+          "medianSeconds": 1.398,
+          "projectedHttpSeconds": 660.71,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "lentini",
+          "timedSuccessfulSamples": 4007,
+          "dailyRequests": 3969,
+          "meanSeconds": 3.9971,
+          "medianSeconds": 3.87,
+          "projectedHttpSeconds": 15864.33,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "dings",
+          "timedSuccessfulSamples": 320,
+          "dailyRequests": 323,
+          "meanSeconds": 3.9307,
+          "medianSeconds": 3.543,
+          "projectedHttpSeconds": 1269.62,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "bishops",
+          "timedSuccessfulSamples": 394,
+          "dailyRequests": 396,
+          "meanSeconds": 6.58,
+          "medianSeconds": 4.387,
+          "projectedHttpSeconds": 2605.67,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "ace-st-paul",
+          "timedSuccessfulSamples": 421,
+          "dailyRequests": 423,
+          "meanSeconds": 11.0595,
+          "medianSeconds": 9.638,
+          "projectedHttpSeconds": 4678.18,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "chucks",
+          "timedSuccessfulSamples": 527,
+          "dailyRequests": 502,
+          "meanSeconds": 8.4438,
+          "medianSeconds": 5.984,
+          "projectedHttpSeconds": 4238.77,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "central-nh",
+          "timedSuccessfulSamples": 468,
+          "dailyRequests": 471,
+          "meanSeconds": 10.5052,
+          "medianSeconds": 8.31,
+          "projectedHttpSeconds": 4947.95,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "premier",
+          "timedSuccessfulSamples": 339,
+          "dailyRequests": 339,
+          "meanSeconds": 2.0082,
+          "medianSeconds": 1.643,
+          "projectedHttpSeconds": 680.79,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "junior-sinn",
+          "timedSuccessfulSamples": 440,
+          "dailyRequests": 440,
+          "meanSeconds": 1.0407,
+          "medianSeconds": 1.001,
+          "projectedHttpSeconds": 457.93,
+          "assumedWhenUnmeasured": false
+        },
+        {
+          "code": "revolution",
+          "timedSuccessfulSamples": 483,
+          "dailyRequests": 479,
+          "meanSeconds": 1.1533,
+          "medianSeconds": 1.084,
+          "projectedHttpSeconds": 552.45,
+          "assumedWhenUnmeasured": false
+        }
+      ],
+      "projectedHttpHours": 13.3392,
+      "pacingAndHttpHours": 20.4417
+    }
+  },
+  "tenants": [
+    {
+      "code": "eagle",
+      "requests": 363,
+      "accepted": 1448
+    },
+    {
+      "code": "linders",
+      "requests": 513,
+      "accepted": 3274
+    },
+    {
+      "code": "chuckran",
+      "requests": 498,
+      "accepted": 3671
+    },
+    {
+      "code": "united",
+      "requests": 623,
+      "accepted": 12356
+    },
+    {
+      "code": "ace-iowa",
+      "requests": 465,
+      "accepted": 1524
+    },
+    {
+      "code": "lentini",
+      "requests": 3969,
+      "accepted": 3353
+    },
+    {
+      "code": "dings",
+      "requests": 323,
+      "accepted": 1110
+    },
+    {
+      "code": "bishops",
+      "requests": 396,
+      "accepted": 3362
+    },
+    {
+      "code": "ace-st-paul",
+      "requests": 423,
+      "accepted": 3015
+    },
+    {
+      "code": "chucks",
+      "requests": 502,
+      "accepted": 2601
+    },
+    {
+      "code": "central-nh",
+      "requests": 471,
+      "accepted": 2477
+    },
+    {
+      "code": "premier",
+      "requests": 339,
+      "accepted": 2568
+    },
+    {
+      "code": "junior-sinn",
+      "requests": 440,
+      "accepted": 3313
+    },
+    {
+      "code": "revolution",
+      "requests": 479,
+      "accepted": 5186
+    }
+  ]
+}

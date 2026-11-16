@@ -32,6 +32,8 @@ Qualification began with serial censuses. Later acquisitions allow at most three
 
 The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 1,200. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
 
+Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). The counts below describe the original qualification before that batch.
+
 ## Qualified yards
 
 | Yard                               | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |

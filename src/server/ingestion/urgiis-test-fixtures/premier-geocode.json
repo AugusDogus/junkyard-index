@@ -1,0 +1,42 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "28 17 Mile Road, Cedar Springs, MI 49319"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": {
+          "side": "L",
+          "tigerLineId": "635616096"
+        },
+        "coordinates": {
+          "x": -85.670858668628,
+          "y": 43.219608703141
+        },
+        "addressComponents": {
+          "zip": "49319",
+          "streetName": "17 MILE",
+          "preType": "",
+          "city": "CEDAR SPRINGS",
+          "preDirection": "",
+          "suffixDirection": "NE",
+          "fromAddress": "198",
+          "state": "MI",
+          "suffixType": "RD",
+          "toAddress": "2",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "28 17 MILE RD NE, CEDAR SPRINGS, MI, 49319"
+      }
+    ]
+  }
+}
