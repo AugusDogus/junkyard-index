@@ -149,11 +149,11 @@ export function iisCards(
     surface === "model" ? inventory(raw, site) : iisDocument(raw, site);
   if (surface === "arrivals") {
     const titles = elements(html, "title");
+    const title = text(titles[0]?.body ?? "");
     if (
       titles.length !== 1 ||
-      !/\b(?:recent|latest)(?: vehicle)? arrivals\b/i.test(
-        text(titles[0]?.body ?? ""),
-      )
+      (!/\b(?:recent|latest)(?: vehicle)? arrivals\b/i.test(title) &&
+        title !== "New Arrivals, Recycled Vehicles - Higgins Auto Parts")
     )
       throw new Error("IIS native arrivals title is missing or changed");
   }
