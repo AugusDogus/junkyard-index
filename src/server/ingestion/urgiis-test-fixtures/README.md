@@ -1,4 +1,4 @@
-These Brotli archives retain public URG Inventory InSite HTML captured on November 15, 2026. `probes.json.br` is a JSON array of model and detail responses used to verify template variants, shared suppliers, missing VINs, the 500-card boundary and empty large models. It includes unsuccessful qualification leads so parser changes cannot hide their failure modes.
+These Brotli archives retain public URG Inventory InSite HTML captured on November 15 and 16, 2026. `probes.json.br` is a JSON array of model and detail responses used to verify template variants, shared suppliers, missing VINs, the 500-card boundary and empty large models. It includes unsuccessful qualification leads so parser changes cannot hide their failure modes.
 
 All tests read local files. They never contact a yard, URG, Census or a geocoder. Census receipts and complete qualifying catalogs are retained separately as they qualify. The runbook records admission counts, exclusions, coordinate sources and live request totals.
 
@@ -19,3 +19,5 @@ Replay archives order responses for the connector. Opening make directories were
 Large replay archives use Brotli-compressed JSONL: one metadata record (`tenantCode`, `expected`, `responseCount`), then one `{url, html}` record per raw native response. Replays decode one page at a time. Dings exercises this format alongside the original JSON archives. This avoids allocating an entire seller-detail catalog as one JSON string.
 
 `bishops.jsonl.br` retains all 35 makes and 322 model pages, plus separately fetched closing controls. No arrival window is used. Its 396-response replay accepts 3,362 donors, rejects 82 observations, excludes none and has no duplicates. All supplier photos are AA74. `bishops-geocode.json` retains the US Census match for the published Middletown address. The acquisition recovered a slow Spark route using a 90-second timeout and normal curl retries, with 3.5-second tenant spacing.
+
+The probes also retain APS's published Rover make directory entry, its empty vehicle-table response and two separately paced curl retries. No complete model directory is present. Metro's published F150 page retains 500 shared cards before its MN06 filter. Both leads fail complete enumeration and remain out of the source.
