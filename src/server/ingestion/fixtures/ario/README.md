@@ -27,7 +27,8 @@ probe was attempted. Tests replay these responses without network access.
 
 November 16 CFC qualification adds `cfc-recycling.json.gz`: five complete
 100-rank windows and a separately fetched closing window. Of 422 rows,
-407 are accepted and fifteen malformed VINs are rejected unchanged.
+395 are accepted and 27 invalid VINs are rejected unchanged, including twelve
+ISO 3779 check-digit failures.
 `cfc-owner.html.gz` is the official page embedding this native yard and
 publishing its exact-address LocalBusiness coordinates. The directory has
 no coordinates for CFC. Its native location key uses the yard UUID because

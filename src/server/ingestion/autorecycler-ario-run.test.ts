@@ -171,7 +171,7 @@ async function replay(failAt?: number) {
   expect(result.status).toBe("complete");
   expect(failures).toEqual([]);
   expect(closing).toBe(true);
-  expect(accepted).toBe(19_212);
+  expect(accepted).toBe(19_200);
   expect(bootstraps).toBe(1);
   expect(saved.directoryCalls()).toBe(1);
   return { ...saved, waits, chunks };
