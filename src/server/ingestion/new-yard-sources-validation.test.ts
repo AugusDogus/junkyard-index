@@ -1,3 +1,4 @@
+import { BigdCursor } from "./bigd-cursor";
 import { UrgiisCursor } from "./urgiis-cursor";
 import {
   URGIIS_TENANTS,
@@ -209,6 +210,12 @@ const sources = [
       scope: IndianriverCursor.initial().scope,
       phase: "complete",
     }),
+  },
+  {
+    source: "bigd",
+    minimum: 250,
+    initial: BigdCursor.initial,
+    complete: { source: "bigd", version: 1, phase: "complete" },
   },
   {
     source: "beavers",

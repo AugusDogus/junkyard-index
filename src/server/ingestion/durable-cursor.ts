@@ -45,6 +45,7 @@ import { LonestarimportsCursor } from "./lonestarimports-cursor";
 import { HollanderstoresCursor } from "./hollanderstores-cursor";
 import { AlshnedCursor, ALSHNED_MAX_CURSOR_BYTES } from "./alshned-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
+import { BigdCursorSchema } from "./bigd-cursor";
 import { IdipullCursorSchema } from "./idipull-cursor";
 import { PullsavewaCursorSchema } from "./pullsavewa-cursor";
 import { LittletonCursorSchema } from "./littleton-cursor";
@@ -570,6 +571,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   speedys: SpeedysCursor,
   army: defineJsonCursor("army", ArmyCursorSchema),
   idipull: defineJsonCursor("idipull", IdipullCursorSchema),
+  bigd: defineJsonCursor("bigd", BigdCursorSchema),
   pullsavewa: defineJsonCursor("pullsavewa", PullsavewaCursorSchema),
   littleton: defineJsonCursor("littleton", LittletonCursorSchema),
   michigantruck: defineJsonCursor("michigantruck", MichigantruckCursorSchema),

@@ -28,6 +28,7 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   ddauto: "https://dd-auto-parts-cars.glide.page/dl/17171d",
   army: "https://armysauto.com/self-service-inventory/",
   idipull: "https://ifipull.com/inventory/",
+  bigd: "https://bigdsalvage.com/inventory/",
   littleton: "https://littletonupullit.com/vehicle-inventory",
   joliet: "https://www.jolietupullit.com/inventory",
   pickers: "https://pickerstxk.com/Home/Inventory",
@@ -41,6 +42,8 @@ function manualSearchExplanation(source: DataSource): string {
   switch (source) {
     case "chasencars":
       return "Search the yard inventory by VIN or stock number, then match the year, make, model and yard row.";
+    case "bigd":
+      return "Search the inventory table by VIN, then match the year, make, model and yard row.";
     case "indianriver":
       return "Search the inventory by VIN or serial number and match the year, make and model. This provider's Row column contains vehicle identities.";
     case "sandw":

@@ -1,3 +1,4 @@
+import { streamBigdInventory } from "./bigd-connector";
 import { streamHeavytruckpartsInventory } from "./heavytruckparts-connector";
 import { streamVinplusInventory } from "./vinplus-connector";
 import { streamUrgiisInventoryFromProvider } from "./urgiis-connector";
@@ -1008,6 +1009,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamIdipullInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  bigd: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamBigdInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
