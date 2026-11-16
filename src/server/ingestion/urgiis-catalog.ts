@@ -50,7 +50,34 @@ export function iisDocument(raw: string, site: UrgiisSite) {
   const ids = [...raw.matchAll(/\bvar\s+urgid\s*=\s*(['"])(.*?)\1\s*;/g)].map(
     (m) => m[2],
   );
-  if (!ids.length || ids.some((id) => id !== site.urgid))
+  // Lake Point moves its native UU23 declaration into LiteSpeed bundles.
+  // Saved scripts verify these exact content hashes; changed assets fail closed.
+  const supplierBundles =
+    site.origin === "https://lakepointauto.com" && site.urgid === "UU23"
+      ? [...raw.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b[^>]*>/gi)]
+          .map(([tag]) => tag)
+          .filter((tag) => attr(tag, "data-optimized") === "1")
+      : [];
+  const knownSupplierBundle =
+    supplierBundles.length === 1 &&
+    [
+      "08d3082e19c81dd9e309ebfe58cdd809",
+      "e3896d4a1fec6b4d6c9c19f078417b3a",
+      "39db489fc853da352aa4cff83df01e73",
+      "5fd169a3e874d9270f77caaaa63466a0",
+      "19fbb292174b9c76ca14c2e68fe9b3af",
+      "109475697a861a25286362dda4420580",
+    ].some(
+      (hash) =>
+        supplierBundles[0] ===
+        '<script data-optimized="1" type="litespeed/javascript" data-src="https://lakepointauto.com/wp-content/litespeed/js/' +
+          hash +
+          '.js?ver=9a323">',
+    );
+  if (
+    (!ids.length && !knownSupplierBundle) ||
+    ids.some((id) => id !== site.urgid)
+  )
     throw new Error("IIS supplier identity changed: expected " + site.urgid);
   return html;
 }
