@@ -89,6 +89,7 @@ import { KANDR_CONTRACT } from "./kandr-configuration";
 import { KANDR_YARD } from "./kandr-snapshot";
 import { streamJimsimportInventoryFromProvider } from "./jimsimport-connector";
 import { streamLonestarimportsInventoryFromProvider } from "./lonestarimports-connector";
+import { streamHollanderstoresDurableInventory } from "./hollanderstores-durable";
 import { streamHollanderstoresInventoryFromProvider } from "./hollanderstores-provider";
 import { streamAlshnedInventory } from "./alshned-connector";
 import { streamOemInventoryFromProvider } from "./oem-connector";
@@ -172,13 +173,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
   hollanderstores: async (cursor, context) =>
     toFetchedChunk(
       await runIngestionEffect(
-        streamHollanderstoresInventoryFromProvider({
-          startCursor: cursor,
-          maxPages: context.maxPages,
-          previousAcceptedCount: null,
-          onBatch: context.onBatch,
-          onYards: context.onYards,
-        }),
+        streamHollanderstoresDurableInventory(
+          {
+            loadState: async (path) =>
+              (
+                await IngestionSnapshotStore.vercelBlob(
+                  env.BLOB_READ_WRITE_TOKEN,
+                ).load(path)
+              ).checkpointState,
+            startCursor: cursor,
+            maxPages: context.maxPages,
+            previousAcceptedCount: null,
+            onBatch: context.onBatch,
+            onYards: context.onYards,
+          },
+          streamHollanderstoresInventoryFromProvider,
+        ),
       ),
       (next) => next,
       context.vehiclesByVin,

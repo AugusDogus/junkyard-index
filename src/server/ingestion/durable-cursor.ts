@@ -44,7 +44,7 @@ import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 import { LonestarimportsCursor } from "./lonestarimports-cursor";
-import { HollanderstoresCursor } from "./hollanderstores-cursor";
+import { HollanderstoresDurableCursor } from "./hollanderstores-durable-cursor";
 import { AlshnedCursor, ALSHNED_MAX_CURSOR_BYTES } from "./alshned-cursor";
 import { ArmyCursorSchema } from "./army-cursor";
 import { BigdCursorSchema } from "./bigd-cursor";
@@ -288,9 +288,9 @@ const hagermanJsonCursor = defineJsonCursor("hagerman", HagermanCursorSchema);
 
 const DURABLE_CURSOR_DEFINITIONS = {
   hollanderstores: {
-    parse: (value: string) => HollanderstoresCursor.fromWire(value),
-    serialize: (cursor: HollanderstoresCursor) =>
-      HollanderstoresCursor.serialize(cursor),
+    parse: (value: string) => HollanderstoresDurableCursor.fromWire(value),
+    serialize: (cursor: HollanderstoresDurableCursor) =>
+      HollanderstoresDurableCursor.serialize(cursor),
   },
   lonestarimports: {
     parse: (value: string) => LonestarimportsCursor.fromWire(value),
