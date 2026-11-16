@@ -541,3 +541,47 @@ test.each([
     label: "Search provider inventory",
   });
 });
+
+test("Harry's preserves the verified VIN-bearing native donor destination", () => {
+  expect(
+    VehicleDestination.resolve({
+      source: "harrys",
+      detailsUrl: "https://wegotused.com/inventory-item/item-298/",
+    }),
+  ).toMatchObject({
+    kind: "inventory",
+    href: "https://wegotused.com/inventory-item/item-298/",
+  });
+});
+test.each(["FORD", "MERCEDES-BENZ", "LAND ROVER"])(
+  "Budget retains the native make partition for %s with explicit manual matching",
+  (make) => {
+    const href =
+      "https://budgetupullit.com/current-inventory/?make=" +
+      encodeURIComponent(make) +
+      "&model=";
+    expect(
+      VehicleDestination.resolve({ source: "budget", detailsUrl: href }),
+    ).toMatchObject({
+      kind: "manual-search",
+      href,
+      label: "Search provider inventory",
+      explanation: expect.stringContaining("VIN, stock number and yard row"),
+    });
+  },
+);
+test.each([
+  null,
+  "https://foreign.test/current-inventory/?make=FORD&model=",
+  "https://budgetupullit.com/current-inventory/?make=FORD&model=FOCUS",
+])(
+  "Budget falls back to the owned public search entry point for %j",
+  (detailsUrl) => {
+    expect(
+      VehicleDestination.resolve({ source: "budget", detailsUrl }),
+    ).toMatchObject({
+      kind: "manual-search",
+      href: "https://budgetupullit.com/current-inventory/",
+    });
+  },
+);

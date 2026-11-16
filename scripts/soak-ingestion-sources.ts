@@ -1,4 +1,8 @@
 import { streamBigdInventory } from "../src/server/ingestion/bigd-connector";
+import { streamHarrysInventory } from "../src/server/ingestion/harrys-connector";
+import { streamBudgetInventory } from "../src/server/ingestion/budget-connector";
+import { soakHarrysInventory } from "./soak-harrys";
+import { soakBudgetInventory } from "./soak-budget";
 import { streamHawaiipartsInventory } from "../src/server/ingestion/hawaiiparts-connector";
 import { streamModernmuscleInventory } from "../src/server/ingestion/modernmuscle-connector";
 import { HawaiipartsCursor } from "../src/server/ingestion/hawaiiparts-cursor";
@@ -790,6 +794,22 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamScottsInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "harrys":
+            return soakHarrysInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamHarrysInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "budget":
+            return soakBudgetInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamBudgetInventory({ startCursor, maxPages, onBatch }),
                 ),
               config.maxPages,
             );

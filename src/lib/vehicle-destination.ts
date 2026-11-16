@@ -44,6 +44,8 @@ function manualSearchExplanation(source: DataSource): string {
       return "Search the yard inventory by VIN or stock number, then match the year, make, model and yard row.";
     case "bigd":
       return "Search the inventory table by VIN, then match the year, make, model and yard row.";
+    case "budget":
+      return "Select the vehicle make, then match its VIN, stock number and yard row in the inventory table.";
     case "indianriver":
       return "Search the inventory by VIN or serial number and match the year, make and model. This provider's Row column contains vehicle identities.";
     case "sandw":
@@ -115,6 +117,25 @@ function resolve(
             "https://midwayupull.com/inventory/ANY/ANY/?k=1&id=OO95&view=table",
           ]
         : [];
+  if (vehicle.source === "budget") {
+    const url = yardUrl ? URL.parse(yardUrl) : null;
+    const owned =
+      url &&
+      url.origin === "https://budgetupullit.com" &&
+      url.pathname === "/current-inventory/" &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      url.searchParams.get("model") === "" &&
+      url.searchParams.get("make") &&
+      [...url.searchParams.keys()].length === 2;
+    return {
+      kind: "manual-search",
+      href: owned ? url.href : "https://budgetupullit.com/current-inventory/",
+      label: "Search provider inventory",
+      explanation: manualSearchExplanation("budget"),
+    };
+  }
   const manualSearchUrl =
     yardUrl && yardUrls.includes(yardUrl)
       ? yardUrl

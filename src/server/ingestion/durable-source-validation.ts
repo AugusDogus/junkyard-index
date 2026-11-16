@@ -1,3 +1,4 @@
+import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
 import { URGIIS_MINIMUM_BY_YARD } from "./urgiis-configuration";
 import { validatePublishedYardInventory } from "./published-yard-inventory";
@@ -45,6 +46,8 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
     if (parsed.source === "sandw") return parsed.phase === "complete";
     if (parsed.source === "bigd") return parsed.phase === "complete";
     if (parsed.source === "beavers") return parsed.phase === "complete";
+    if (parsed.source === "harrys" || parsed.source === "budget")
+      return parsed.phase === "complete";
     if (parsed.source === "indianriver") return parsed.phase === "complete";
     if (parsed.source === "denton") return parsed.phase === "complete";
     if (parsed.source === "scotts") return parsed.phase === "complete";
@@ -144,6 +147,20 @@ export async function validateDurableSourceRuns(params: {
         await validateCars4PartsPublishedYardInventory(
           params.database,
           snapshot.vehicles.values(),
+        ),
+      );
+    if (
+      row.source === "harrys" &&
+      row.status === "success" &&
+      hasTerminalCursor(row.source, row.nextCursor)
+    )
+      yardErrorsBySource.set(
+        row.source,
+        await validatePublishedYardInventory(
+          params.database,
+          snapshot.vehicles.values(),
+          "harrys",
+          HARRYS_MINIMUM_BY_YARD,
         ),
       );
     if (

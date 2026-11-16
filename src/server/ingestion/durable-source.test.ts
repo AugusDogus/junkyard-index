@@ -171,6 +171,8 @@ describe("durable ingestion cursors", () => {
     ["sandw", 4],
     ["beavers", 2],
     ["indianriver", 8],
+    ["harrys", 8],
+    ["budget", 8],
     ["denton", 16],
     ["scotts", 2],
     ["oem", 4],

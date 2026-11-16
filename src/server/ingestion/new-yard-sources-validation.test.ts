@@ -1,4 +1,6 @@
 import { BigdCursor } from "./bigd-cursor";
+import { HarrysCursor } from "./harrys-cursor";
+import { BudgetCursor } from "./budget-cursor";
 import { UrgiisCursor } from "./urgiis-cursor";
 import {
   URGIIS_TENANTS,
@@ -201,6 +203,24 @@ const sources = [
     complete: { source: "scotts", version: 1, phase: "complete" },
   },
   {
+    source: "harrys",
+    minimum: 3_500,
+    initial: HarrysCursor.initial(),
+    complete: HarrysCursor.checkpoint({
+      ...HarrysCursor.initial(),
+      phase: "complete",
+    }),
+  },
+  {
+    source: "budget",
+    minimum: 1_500,
+    initial: BudgetCursor.initial(),
+    complete: BudgetCursor.checkpoint({
+      ...BudgetCursor.initial(),
+      phase: "complete",
+    }),
+  },
+  {
     source: "indianriver",
     minimum: 900,
     initial: IndianriverCursor.initial(),
@@ -297,6 +317,12 @@ for (const { source, minimum, initial, complete } of sources) {
           ...makeVehicle(`1HGCM82633A${String(index).padStart(6, "0")}`),
           source,
         }));
+        if (source === "harrys") {
+          const codes = ["allentown", "hazle-township", "pennsburg"];
+          donors.forEach((donor, index) => {
+            donor.locationCode = codes[index % 3] ?? "allentown";
+          });
+        }
         if (source === "urgiis") {
           const first = URGIIS_TENANTS[0];
           if (!first) throw new Error("Missing qualified IIS tenant");
@@ -453,3 +479,54 @@ test.each([
     }
   },
 );
+
+test("Harry's preserves inventory when a physical yard disappears from a source-sized complete snapshot", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(schema);
+    const database = drizzle(client),
+      snapshotStore = IngestionSnapshotStore.memory();
+    const repository = createDurableIngestionRepository(
+      database,
+      client,
+      snapshotStore,
+    );
+    await repository.initialize("harrys-yard-floor", async () => ["harrys"]);
+    const donors = Array.from({ length: 3500 }, (_, index) => ({
+      ...makeVehicle(`harrys-${index}`),
+      source: "harrys" as const,
+      locationCode: index % 2 === 0 ? "allentown" : "hazle-township",
+    }));
+    const pathname = await snapshotStore.put({
+      runId: "harrys-yard-floor",
+      source: "harrys",
+      chunk: { vehicles: donors, observedVins: [] },
+    });
+    const cursor = HarrysCursor.checkpoint({
+      ...HarrysCursor.initial(),
+      phase: "complete",
+    });
+    await client.execute({
+      sql: "update ingestion_source_run set status = 'success', vehicles_processed = 3500, next_cursor = ?, snapshot_chunks = ? where source = 'harrys'",
+      args: [serializeDurableSourceCursor(cursor), JSON.stringify([pathname])],
+    });
+    const result = await validateDurableSourceRuns({
+      runId: "harrys-yard-floor",
+      database,
+      batchClient: client,
+      snapshotStore,
+    });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") throw new Error("Validation was skipped");
+    expect(result.acceptedSources).toEqual([]);
+    expect(result.rejectedSources).toMatchObject([
+      {
+        source: "harrys",
+        errors: [expect.stringContaining("pennsburg has 0 donors")],
+      },
+    ]);
+    expect(await database.select().from(vehicle)).toEqual([]);
+  } finally {
+    client.close();
+  }
+});

@@ -1,3 +1,5 @@
+import { HarrysCursor } from "./harrys-cursor";
+import { BudgetCursor } from "./budget-cursor";
 import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
 import { VinplusCursor } from "./vinplus-cursor";
 import { UrgiisCursor } from "./urgiis-cursor";
@@ -410,6 +412,8 @@ const DURABLE_CURSOR_DEFINITIONS = {
     parse: ScottsCursor.parse,
     serialize: ScottsCursor.serialize,
   },
+  harrys: { parse: HarrysCursor.fromWire, serialize: HarrysCursor.serialize },
+  budget: { parse: BudgetCursor.fromWire, serialize: BudgetCursor.serialize },
   indianriver: {
     parse: (value: string) => {
       if (Buffer.byteLength(value) > 8 * 1024 * 1024)

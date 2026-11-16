@@ -81,6 +81,8 @@ const SOURCES = [
   ["vinplus", "VinPlus app yards"],
   ["allied", "Allied Auto Wrecking"],
   ["urgiis", "Independent URG yards"],
+  ["harrys", "Harry's U-Pull It"],
+  ["budget", "Budget U Pull It"],
   ["pyp", "Pick Your Part"],
   ["pullapart", "Pull-A-Part"],
   ["upullitne", "U Pull-It (NE/IA)"],

@@ -1,4 +1,6 @@
 import { streamBigdInventory } from "./bigd-connector";
+import { streamHarrysInventory } from "./harrys-connector";
+import { streamBudgetInventory } from "./budget-connector";
 import { streamHeavytruckpartsInventory } from "./heavytruckparts-connector";
 import { streamVinplusInventory } from "./vinplus-connector";
 import { streamUrgiisInventoryFromProvider } from "./urgiis-connector";
@@ -419,6 +421,34 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamScottsInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  harrys: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamHarrysInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  budget: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamBudgetInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
