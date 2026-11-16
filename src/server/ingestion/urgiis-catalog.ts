@@ -150,10 +150,15 @@ export function iisCards(
   if (surface === "arrivals") {
     const titles = elements(html, "title");
     const title = text(titles[0]?.body ?? "");
+    const knownVariant = [
+      "New Arrivals, Recycled Vehicles - Higgins Auto Parts",
+      "Latest Used Auto Parts Arrivals",
+      "Latest Used Auto Parts Arrivals | A-Z Auto Parts",
+    ].includes(title);
     if (
       titles.length !== 1 ||
-      (!/\b(?:recent|latest)(?: vehicle)? arrivals\b/i.test(title) &&
-        title !== "New Arrivals, Recycled Vehicles - Higgins Auto Parts")
+      (!knownVariant &&
+        !/\b(?:recent|latest)(?: vehicle)? arrivals\b/i.test(title))
     )
       throw new Error("IIS native arrivals title is missing or changed");
   }

@@ -69,6 +69,29 @@ const responses = [
   menu,
 ];
 
+test("URG IIS accepts known arrivals titles and rejects unknown variants", () => {
+  for (const title of [
+    "Recent Arrivals",
+    "Latest Arrivals",
+    "Latest Used Auto Parts Arrivals",
+    "Latest Used Auto Parts Arrivals | A-Z Auto Parts",
+  ]) {
+    expect(
+      iisCards(page.replace("Recent Arrivals", title), tenant, "arrivals")
+        .records,
+    ).toHaveLength(1);
+  }
+  for (const title of [
+    "Used Auto Parts",
+    "Latest Used Auto Parts Arrivals | Unknown Yard",
+    "Latest Retail Auto Sales Arrivals",
+  ]) {
+    expect(() =>
+      iisCards(page.replace("Recent Arrivals", title), tenant, "arrivals"),
+    ).toThrow("IIS native arrivals title is missing or changed");
+  }
+});
+
 test("URG IIS publishes observed donors through one-car badge additions and removals", async () => {
   for (const [openingCount, closingCount] of [
     [1, 2],
