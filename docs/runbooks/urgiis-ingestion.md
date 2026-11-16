@@ -32,16 +32,17 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 
 ## Qualified yards
 
-| Yard                  | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |
-| --------------------- | ------------ | ----- | -------: | -------: | ------: | ---------: | ----: |
-| Eagle Auto Parts      | Martinsburg  | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
-| Linder's Inc          | Worcester    | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
-| Chuckran Auto Parts   | Bridgewater  | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
-| United Auto Recyclers | Omaha        | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
-| Ace Auto Recyclers    | Iowa City    | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
-| Ding's Auto Parts     | Litchfield   | CT    |    1,110 |      109 |       0 |         24 |   800 |
-| Bishop's Auto Parts   | Middletown   | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
-| Chuck's Auto Salvage  | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
+| Yard                   | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |
+| ---------------------- | ------------ | ----- | -------: | -------: | ------: | ---------: | ----: |
+| Eagle Auto Parts       | Martinsburg  | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
+| Linder's Inc           | Worcester    | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
+| Chuckran Auto Parts    | Bridgewater  | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
+| United Auto Recyclers  | Omaha        | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
+| Ace Auto Recyclers     | Iowa City    | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
+| Ding's Auto Parts      | Litchfield   | CT    |    1,110 |      109 |       0 |         24 |   800 |
+| Bishop's Auto Parts    | Middletown   | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
+| Chuck's Auto Salvage   | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
+| Central Auto Recyclers | Concord      | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
 
 Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
@@ -56,6 +57,8 @@ Dings follows 36 makes, 246 model pages and 60 arrivals. Its 323-response replay
 Bishop's follows all 35 makes and 322 model pages, with no published arrival-card enumeration. Its 396-response replay accepts 3,362 donors, rejects 82 observations (2.38%), excludes none and has no duplicates. Every supplier photo is AA74. Separate closing owner and directory controls pass. Its floor is 2,600. Qualification recovered a slow Spark page with a 90-second timeout and ordinary curl retries; pacing is 3.5 seconds after responses. The US Census point for 120 Stantack Rd, Middletown, CT 06457 is 41.564414369713, -72.749473882561.
 
 Chuck's follows all 41 makes, 415 model pages and 43 arrivals. Its 502-response replay accepts 2,601 donors, rejects 283 observations (9.68%), excludes 480 verified part-bin observations and merges 40 duplicates. Each of the 25 explicit NOF stocks has native parts from multiple makes and years, with no donor VIN claims. A native VIN or yard photo overrides the bin exclusion. NEW, RIDE and unverified NOF stocks remain rejects. All supplier photos are PP42. Its floor is 2,000, tenant spacing is 3.5 seconds and the public `urg_hv=1` cookie is required. The Census point for 30187 E. Bass Lake Road, Grand Rapids, MN 55744 is 47.314234240213, -93.604031442421.
+
+Central NH follows all 43 makes, 380 model pages and 60 arrivals. Its 471-response replay accepts 2,477 donors, rejects 193 observations (7.09%), excludes none and merges 52 duplicates. All supplier photos are FF27. Separate closing ownership and directory controls pass. Its floor is 1,900. The Census point for 54 Basin Street, Concord, NH 03301 is 43.190099292255, -71.523265006371.
 
 ## Leads left out
 
