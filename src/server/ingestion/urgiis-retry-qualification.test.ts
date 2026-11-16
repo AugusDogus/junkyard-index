@@ -84,6 +84,29 @@ test("Quick Recovery's failed response names a site-side Redis connection error"
   expect(failure?.html).toContain("Error establishing a Redis connection");
 });
 
+test("Lambert's historical H2 failures name Redis and database connection errors", () => {
+  const historical = z
+    .object({
+      responses: z.array(z.object({ status: z.number(), html: z.string() })),
+    })
+    .parse(
+      JSON.parse(
+        brotliDecompressSync(
+          readFileSync(
+            new URL(
+              "./urgiis-test-fixtures/lambert-retry-failures.json.br",
+              import.meta.url,
+            ),
+          ),
+        ).toString(),
+      ),
+    );
+  expect(historical.responses.map((r) => r.status)).toEqual([500, 500]);
+  const bodies = historical.responses.map((r) => r.html).join("\n");
+  expect(bodies).toContain("Error establishing a Redis connection");
+  expect(bodies).toContain("Error establishing a database connection");
+});
+
 test("MARS blocks Chrome but serves its native supplier document to Firefox", () => {
   const site = {
     origin: "https://swaptheuniverse.com",
