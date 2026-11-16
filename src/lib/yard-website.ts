@@ -41,6 +41,8 @@ const providerWebsites = new Map<string, string>([
   ["sandw", "https://www.sandwauto.com/locations/u-pull"],
   ["denton", "https://dentonauto.com/"],
   ["beavers", "https://www.beaverscarsalvage.com/"],
+  ["harrys", "https://wegotused.com/"],
+  ["budget", "https://budgetupullit.com/"],
   ["indianriver", "https://indianriverautosalvage.com/"],
   ["scotts", "https://hondapartsused.com/"],
   ["oem", "https://oemautorecyclers.com/"],

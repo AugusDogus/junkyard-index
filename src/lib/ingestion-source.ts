@@ -86,6 +86,8 @@ export const INGESTION_SOURCES = [
   "byot",
   "vinplus",
   "urgiis",
+  "harrys",
+  "budget",
 ] as const;
 
 export type IngestionSource = (typeof INGESTION_SOURCES)[number];
@@ -178,6 +180,8 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   byot: "BYOT Auto Parts",
   vinplus: "VinPlus app yards",
   urgiis: "Independent URG yards",
+  harrys: "Harry's U-Pull It",
+  budget: "Budget U Pull It",
 } as const satisfies Record<IngestionSource, string>;
 
 export function mapIngestionSources<Value>(
@@ -271,6 +275,8 @@ export function mapIngestionSources<Value>(
     byot: transform("byot"),
     vinplus: transform("vinplus"),
     urgiis: transform("urgiis"),
+    harrys: transform("harrys"),
+    budget: transform("budget"),
   };
 }
 

@@ -75,6 +75,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   vinplus: 5_250,
   beavers: 240,
   indianriver: 900,
+  harrys: 3_500,
+  budget: 1_500,
   army: 200,
   idipull: 450,
   bigd: BIGD_MINIMUM_INVENTORY,
