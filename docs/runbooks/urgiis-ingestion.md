@@ -56,6 +56,9 @@ Batch B qualification, including its admitted yards, exclusions, request ledger 
 | Central Auto Recyclers             | Concord      | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
 | Higgins Auto Parts                 | Bakersfield  | CA    |    1,477 |       51 |       0 |         48 |   492 |
 | A-Z Auto Parts & Auto Sales        | Oklahoma City | OK    |    1,739 |       54 |       0 |         39 |   579 |
+| Norb's Auto Salvage                | Denmark       | WI    |    8,864 |      898 |     398 |         43 | 2,954 |
+| Lambert Auto Salvage               | Booneville    | MS    |    8,985 |      329 |       0 |          9 | 2,995 |
+| Mars Auto Parts & Engine Swaps     | Akron         | OH    |      381 |       30 |       0 |          6 |   127 |
 
 Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
@@ -109,6 +112,8 @@ No Smith entry or published inventory is created. The small completeness
 regression preserves the missing-donor evidence and the exclusion.
 
 ## Leads left out
+
+This table records initial failures. The fresh qualification sections below supersede later outcomes.
 
 | Yard                          | State   | Reason                                                                                                                                                                                                                                                                                    |
 | ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -291,3 +296,100 @@ With A-Z, the branch has 39,930 accepted donors, twelve tenants and thirteen phy
 Production transport retries can resume a saved chunk frontier and do not permanently disable a source. However, there is no durable per-page slow cooldown: exhausted chunk retries end the source attempt, and the next attempt recrawls from fresh opening evidence. The two-hour source delay is measured from the prior start, so a long failed census can be retried immediately. This is safe for preserved inventory but costly and potentially ineffective for backend outages that last minutes. The new regression verifies that a failed model request emits nothing and that resuming its saved frontier completes closing checks before publication. Retry semantics are unchanged.
 
 Final retry validation passes lint, typecheck, changed-file formatting and `git diff --check`. The full `bun test --timeout 15000 src` run with CI's pinned Bun 1.4.1 passes 4,584 tests across 431 files with zero failures in 1,774.91 seconds, including all twelve complete URG replays and the new diagnosis regressions. No source was enabled, no production action was taken, and no full census was started after the parent changed scope.
+
+## Fresh complete qualification censuses
+
+These November 16, 2026 one-time censuses supersede the seven retry-ready
+assessments above. Successful isolated probes were not used as inventory.
+Every attempted request uses the shared `flock /tmp/jyi-urg-gate.lock` gate and
+`/tmp/jyi-urg-gate.last` timestamp, with at least 3.15 seconds between starts and
+after each tenant response. At most three tenants are active, each strictly serial.
+The ledger includes failures and retries. Each acquisition operation has at most three paced attempts.
+MARS uses the previously verified Firefox User-Agent. Lake Point retains exact
+verified supplier bundle literals. Its arrivals page newly references
+`2c733cc353e1f69c742a7aee3ce9bb31.js?ver=9a323`. One additional gated script GET
+confirms that filename equals its MD5 and both native supplier declarations are
+UU23 with `iisHomeUrl=lakepointauto.com`. Only this exact literal is added. The
+initial three-page census stops at the unknown bundle; its responses and failure
+are preserved before starting fresh opening evidence. Unknown hashes or versions
+still fail closed. Scripts are inspected as text, never executed.
+
+| Yard                                  | State | Outcome  | Accepted candidates |     Rejected | Requests |    Floor |
+| ------------------------------------- | ----- | -------- | ------------------: | -----------: | -------: | -------: |
+| Norb's Auto Salvage (EE91)            | WI    | Admitted |               8,864 |  898 (9.16%) |      783 |     2954 |
+| Lambert Auto Salvage (MS06)           | MS    | Admitted |               8,985 |  329 (3.53%) |      612 |     2995 |
+| Southwest Auto Recycling (UT11)       | UT    | Excluded |               1,526 | 653 (29.78%) |      467 | excluded |
+| Quick Recovery Auto Salvage (QQ32)    | LA    | Excluded |               4,766 | 706 (12.80%) |      570 | excluded |
+| Riverbend Recycled Auto Parts (NN82)  | IA    | Excluded |          unassessed |   unassessed |      121 | excluded |
+| Mars Auto Parts & Engine Swaps (OH25) | OH    | Admitted |                 381 |   30 (7.19%) |       60 |      127 |
+| Lake Point Auto Recycling (UU23)      | UT    | Excluded |               1,215 | 179 (12.40%) |      336 | excluded |
+
+Norb's Auto Salvage follows all 51 makes and 667 model pages, then independently rereads 53 owner/directory controls. Closing badge drift is 0 makes / 0 models. The census excludes 398 rows and merges 43 duplicates. Supplier photos belong only to EE91. Its complete production connector fixture replay passes before admission.
+
+Its 4 native parts-page probes independently qualify only the NOR6, NOF generic bins: every page holds parts across unrelated makes and years without donor VIN claims. The 398 exclusions require both absent VIN claims and absent yard photographs; all other blank-VIN stocks remain rejects. The unchanged VIN/photo override still applies. These parts pages prove stock semantics only; their pagination is not used to enumerate donors. The unexcluded census had 1296 rejects, so this is an evidenced bin exclusion rather than a relaxed rejection limit.
+
+Lambert Auto Salvage follows all 47 makes and 512 model pages, then independently rereads 49 owner/directory controls. Closing badge drift is 0 makes / 0 models. The census excludes 0 rows and merges 9 duplicates. Supplier photos belong only to MS06. Its complete production connector fixture replay passes before admission.
+
+Southwest's complete 45-make, 372-model census passes 47 closing controls with zero badge drift. Its 653 rejects among 2,193 observations (29.78%) block admission. The 1,526 candidates are not admitted inventory.
+
+Its rejects comprise 569 blank VIN observations and 84 native-conflict observations. Unverified stocks remain rejects.
+
+Quick Recovery's complete 43-make, 474-model census passes 45 closing controls with zero badge drift. Its 706 rejects among 5,516 observations (12.80%) block admission. The 4,766 candidates are not admitted inventory.
+
+Its reject audit finds 204 blank VIN observations, 215 other invalid VIN observations and 287 native-conflict observations. Two destination failures overlap those reasons. Unverified stocks remain rejects.
+
+Riverbend stops after 74 model pages at the native 500-card boundary on its published [Malibu route](https://riverbendrecycled.com/parts/CHEVROLET/MALIBU/). It has no complete census or closing evidence and remains excluded.
+
+Its published Malibu badge is 62, but the response has 500 shared cards, including supplier photos from ff42, ia08, kk05, nn82. Only 16 photos belong to the own-yard code. Filtering this truncated pool cannot establish complete own-yard inventory.
+
+Mars Auto Parts & Engine Swaps follows all 7 makes and 41 model pages, then independently rereads 9 owner/directory controls. Closing badge drift is 0 makes / 0 models. The census excludes 0 rows and merges 6 duplicates. Supplier photos belong only to OH25. Its complete production connector fixture replay passes before admission.
+
+Lake Point's complete 36-make, 251-model census passes 38 closing controls with zero badge drift. Its 179 rejects among 1,444 eligible observations (12.40%) block admission. The 1,215 candidates are not admitted inventory.
+
+The independently proved NOF generic bin removes 45 non-donor observations from the original 224 rejects. The final eligible rejection rate is still 12.40%, above the unchanged 10% limit. Accepted candidates are not admitted inventory.
+
+Admitted censuses remain below the unchanged 10% rejection guard with at least
+0.5 percentage point headroom. No unverified part-bin whitelist, blank-VIN skip,
+shared-pool filtering or arrivals-only substitution was introduced. Each own-yard
+photo code and physical owner identity passes. The cap audit rejects a 500-card
+boundary, an empty model advertising at least 500, and 30 cards against a larger
+badge. Separately acquired closing controls retain the existing bounded badge
+drift rules. New absolute floors are one third of accepted unique donors, rounded
+down. The 50% previous-run and per-yard drift guards are unchanged.
+
+New yard coordinates reuse the saved November 16 Census address matches from the
+retry diagnosis. Lake Point uses its yard-published business map point instead.
+Each admitted tenant retains its own physical address, location code and website;
+no supplier bucket is used as a substitute location.
+
+The combined source has 58,160 accepted donors and a floor of 36,655. Conservative native-VIN overlap bounds leave every physical yard above its floor. A complete full-graph run requires 10,233 native responses and 1,737,146,330 bytes, below the 30,000-request / 8 GiB bounds. Configured response spacing alone costs 7.52 hours; observed response timing estimates 23.90 hours before retry overhead. These are qualification census costs. Daily incremental work is separate and unchanged here.
+
+The fresh ledger records 2,952 requests, including three for the separately qualified [Idaho Falls iPull source](idipull-ingestion.md). Its 568-row census admits 535 unique donors and rejects 33 (5.81%). Intermountain's full-service URG tenant remains excluded. Both sources remain default off; no source was enabled, deployed or merged.
+
+`fresh-census-qualification.json` records final outcomes, counts, floors and budget.
+`fresh-census-requests.jsonl.gz` records every fresh HTTP attempt with sanitized
+headers and response hashes. Admitted `<code>.jsonl.br` archives contain all
+opening model pages and independently acquired closing controls in connector
+order. `fresh-census-cap-photo.json` records complete model-cap and supplier-photo
+checks. `fresh-census-excluded.jsonl.br` preserves rejected or interrupted censuses
+and failed response bodies for audit, without admitting their candidate donors.
+`fresh-census-bin-proofs.json.br` preserves all four native Norb's NOR6/NOF
+parts-page proofs. `lakepoint-bin-proofs.json.br` preserves two independent native
+NOF parts pages and their exact supplier scripts. Those two detail-only hashes
+verify UU23 and the official domain, with matching MD5 filenames. They are static
+qualification proof and are not added to the runtime allowlist. Only blank-VIN,
+photo-free cards from explicitly qualified stocks may be excluded. Parts pages
+prove generic stock semantics, never a complete donor enumeration. `lakepoint-fresh-supplier-bundle.json.br` preserves the exact new script
+and initial stopped controls. Historical retry and batch captures remain intact.
+
+Final lint and typecheck pass. The focused connector, qualification, metadata,
+destination, flag and source-validation checks pass 436 tests across 18 files.
+After adding explicit required-hash checks, all 13 fresh qualification tests pass
+again. Complete Norb's, Lambert and MARS production connector replays pass with
+their serialized checkpoints, final accounting and independent closing controls.
+
+The requested `bun test --timeout 15000 src` prints 4,602 passes and zero failures
+across 433 files, then exits 143. Every one of those files subsequently passes in
+directory chunks, each with exit 0. Final affected checks cover the later tenant
+contracts, exact supplier literal and qualification fixtures. No test timeout or
+admission threshold was increased.

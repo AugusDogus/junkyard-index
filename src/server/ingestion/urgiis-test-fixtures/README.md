@@ -98,3 +98,16 @@ The retry probes also retain Lambert's three successful spaced Hummer H2 respons
 `retry-diagnostics.jsonl.br` retains diagnostic and failed-attempt captures with sanitized receipt headers. Failed transports without a response retain null HTML. MARS block pages redact the client IP. `retry-interrupted.jsonl.br` retains Southwest's 212 successful responses from the fresh run stopped on instruction, including the in-flight request that completed after the traversal stopped. There are no closing controls. This audit archive is not an admitted connector replay. The original exclusion archives and summaries remain historical records.
 
 `lambert-retry-failures.json.br` extracts the two historical H2 HTTP 500 bodies from PR #171, with source revision and path. They explicitly name Redis and database connection errors. They are existing captures, not additional requests in the fresh ledger.
+
+The fresh one-time seven-tenant qualification is recorded in
+`fresh-census-qualification.json`. `fresh-census-requests.jsonl.gz` preserves every
+fresh attempt, including transient failures and the three separate iPull GETs,
+with sanitized response headers, hashes and shared-gate timestamps.
+`fresh-census-cap-photo.json` records complete model counts, maximum card counts,
+30-card checks and own supplier-photo codes for every admitted census. New
+`<code>.jsonl.br` connector replays contain complete graphs and separately fetched
+closing controls. Coordinate fixtures preserve the retry diagnosis's published
+address or business-map proof. `fresh-census-excluded.jsonl.br` retains complete
+failed-quality censuses, any interrupted prefixes and failed HTTP bodies as audit
+evidence. These excluded captures never become inventory. Original batch and retry
+summaries remain historical and are not rewritten.

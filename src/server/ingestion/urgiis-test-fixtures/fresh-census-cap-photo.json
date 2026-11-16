@@ -1,0 +1,62 @@
+[
+  {
+    "code": "norbs",
+    "makes": 51,
+    "models": 667,
+    "maximumModelCards": 299,
+    "thirtyCardModels": [
+      {
+        "url": "https://norbsauto.com/parts/BUICK/CENTURY/",
+        "advertised": 29
+      },
+      {
+        "url": "https://norbsauto.com/parts/BUICK/LUCERNE/",
+        "advertised": 30
+      },
+      {
+        "url": "https://norbsauto.com/parts/CHEVROLET/HHR/",
+        "advertised": 30
+      },
+      {
+        "url": "https://norbsauto.com/parts/FORD/MUSTANG/",
+        "advertised": 30
+      },
+      {
+        "url": "https://norbsauto.com/parts/MAZDA/MAZDA_3/",
+        "advertised": 30
+      }
+    ],
+    "photos": {
+      "ee91": 7236
+    }
+  },
+  {
+    "code": "lambert",
+    "makes": 47,
+    "models": 512,
+    "maximumModelCards": 480,
+    "thirtyCardModels": [
+      {
+        "url": "https://www.lambertsalvage.com/parts/CHRYSLER/200/",
+        "advertised": 30
+      },
+      {
+        "url": "https://www.lambertsalvage.com/parts/FORD/FOCUS/",
+        "advertised": 30
+      }
+    ],
+    "photos": {
+      "ms06": 8965
+    }
+  },
+  {
+    "code": "mars",
+    "makes": 7,
+    "models": 41,
+    "maximumModelCards": 50,
+    "thirtyCardModels": [],
+    "photos": {
+      "oh25": 403
+    }
+  }
+]

@@ -1,0 +1,42 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "5924 Highway R, Denmark, WI 54208"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": {
+          "side": "L",
+          "tigerLineId": "148110427"
+        },
+        "coordinates": {
+          "x": -87.842097213438,
+          "y": 44.355595556606
+        },
+        "addressComponents": {
+          "zip": "54208",
+          "streetName": "R",
+          "preType": "CO RD",
+          "city": "DENMARK",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "5998",
+          "state": "WI",
+          "suffixType": "",
+          "toAddress": "5900",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "5924 CO RD R, DENMARK, WI, 54208"
+      }
+    ]
+  }
+}
