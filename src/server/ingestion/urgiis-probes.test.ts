@@ -2,7 +2,14 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { z } from "zod";
-import { iisCards, iisDirectory, iisOwnedUrl } from "./urgiis-catalog";
+import {
+  iisCards,
+  iisDirectory,
+  iisDocument,
+  iisOwnedUrl,
+} from "./urgiis-catalog";
+import { iisAttribute, iisClass, iisElements, iisText } from "./iis-html";
+import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisControlSchema } from "./urgiis-schema";
 import { assessIisRecord } from "./iis-record";
 
@@ -173,4 +180,46 @@ test("Metro reaches the shared 500-card boundary before its MN06 filter", () => 
         !r.image.includes("cloudfront.net/mn06/"),
     ),
   ).toBe(true);
+});
+
+test("Chuck's explicit bins contain parts from unrelated vehicles, while empty details remain rejects", () => {
+  const tenant = URGIIS_TENANTS.find((t) => t.code === "chucks");
+  if (!tenant) throw new Error("Missing qualified Chuck's tenant");
+  expect(tenant.placeholderStocks).toHaveLength(25);
+  for (const stock of tenant.placeholderStocks) {
+    const probe = probes.find(
+      (p) => p.i === 18 && p.kind === "detail" && p.key === "bin-" + stock,
+    );
+    if (!probe) throw new Error("Missing native Chuck's bin proof: " + stock);
+    const html = iisDocument(probe.html, tenant);
+    const values = (name: string) =>
+      [...html.matchAll(/<input\b[^>]*>/gi)].flatMap(([tag]) =>
+        iisAttribute(tag, "name") === name
+          ? [iisAttribute(tag, "value") ?? ""]
+          : [],
+      );
+    const stockClaims = values("stockno");
+    expect(stockClaims.length).toBeGreaterThanOrEqual(2);
+    expect(stockClaims.every((value) => value === stock)).toBe(true);
+    expect(new Set(values("make").filter(Boolean)).size).toBeGreaterThanOrEqual(
+      2,
+    );
+    expect(
+      new Set(values("yearin").filter((v) => v !== "" && v !== "0")).size,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      iisElements(html, "li", (tag) => iisClass(tag, "iis-lisku")).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      iisElements(html, "li", (tag) => iisClass(tag, "iispartpagevin")),
+    ).toHaveLength(0);
+  }
+  for (const stock of ["NEW", "RIDE"]) {
+    const probe = probes.find(
+      (p) => p.i === 18 && p.kind === "detail" && p.key === "bin-" + stock,
+    );
+    if (!probe) throw new Error("Missing empty Chuck's detail: " + stock);
+    expect(iisText(iisDocument(probe.html, tenant))).toContain("No Results");
+    expect(tenant.placeholderStocks).not.toContain(stock);
+  }
 });
