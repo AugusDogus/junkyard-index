@@ -12,7 +12,7 @@ export interface HtpSupplier {
   yard: Yard;
 }
 
-// Five Census Public_AR_Current exact-address interpolations and two OSM
+// Four Census Public_AR_Current exact-address interpolations and two OSM
 // house-address matches (Crest way 546691786, American way 274202609).
 // Original geocoder responses and request receipts are saved in the test corpus.
 export const HTP_SUPPLIERS = [
@@ -75,36 +75,6 @@ export const HTP_SUPPLIERS = [
       lng: -87.13434411735,
       websiteUrl:
         "https://www.heavytruckparts.net/search.php?fltpc=7641244&store=1",
-    },
-  },
-  {
-    code: "bw",
-    supplier: "1586091",
-    store: "1",
-    itemCategory: "Complete-Vehicle",
-    title: "Complete Vehicle",
-    location: "Sold by: B &amp; W Truck Center Location: AIKEN SC",
-    minimum: 15,
-    storeClaims: [
-      "B & W Truck Center",
-      "278 Jefferson Davis Hwy",
-      "AIKEN, SC 29801",
-    ],
-    yard: {
-      source: "heavytruckparts",
-      code: "bw",
-      name: "B & W Truck Center",
-      operator: "B  W  Truck Center",
-      address: "278 Jefferson Davis Hwy",
-      city: "Aiken",
-      state: "SC",
-      postalCode: "29801",
-      phone: "+18009223219",
-      email: null,
-      lat: 33.560740927579,
-      lng: -81.783961193702,
-      websiteUrl:
-        "https://www.heavytruckparts.net/search.php?fltpc=1586091&store=1",
     },
   },
   {

@@ -62,3 +62,36 @@ export const HTP_REJECTED_SUPPLIERS = [
     },
   },
 ] as const satisfies readonly HtpSupplier[];
+
+// B&W's complete roster is dealer stock, not a qualified salvage supplier.
+// Retained only to replay the saved retail evidence, including Please Call rows.
+export const HTP_RETAIL_SUPPLIER = {
+  code: "bw",
+  supplier: "1586091",
+  store: "1",
+  itemCategory: "Complete-Vehicle",
+  title: "Complete Vehicle",
+  location: "Sold by: B &amp; W Truck Center Location: AIKEN SC",
+  minimum: 15,
+  storeClaims: [
+    "B & W Truck Center",
+    "278 Jefferson Davis Hwy",
+    "AIKEN, SC 29801",
+  ],
+  yard: {
+    source: "heavytruckparts",
+    code: "bw",
+    name: "B & W Truck Center",
+    operator: "B  W  Truck Center",
+    address: "278 Jefferson Davis Hwy",
+    city: "Aiken",
+    state: "SC",
+    postalCode: "29801",
+    phone: "+18009223219",
+    email: null,
+    lat: 33.560740927579,
+    lng: -81.783961193702,
+    websiteUrl:
+      "https://www.heavytruckparts.net/search.php?fltpc=1586091&store=1",
+  },
+} as const satisfies HtpSupplier;

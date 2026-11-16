@@ -67,7 +67,7 @@ export function htpExclusion(
     return "unproven-salvage-unit";
   if (
     (r.price?.startsWith("$") ||
-      /\b(?:runs and drives|ready to (?:work|haul|go)|fleet maintained)\b/i.test(
+      /\b(?:[\d,]+\s+miles|test drvn|runs (?:and drives|great|good)|ready to (?:work|haul|go)|fleet maintained|super nice)\b/i.test(
         r.description,
       )) &&
     !salvage.test(r.description)
@@ -75,6 +75,12 @@ export function htpExclusion(
     return "retail-resale";
   return null;
 }
+// Exact native HTP labels, not make/model inference from descriptions or VINs.
+const makeAliases = new Map([
+  ["WESTERN STAR TR", "Western Star"],
+  ["WHITEGMC", "White GMC"],
+  ["UD TRUCK", "UD"],
+]);
 export function htpSupplierSnapshot(
   s: HtpSupplier,
   records: readonly HeavyTruckPartsRecord[],
@@ -122,7 +128,7 @@ export function htpSupplierSnapshot(
       source: "heavytruckparts",
       vin,
       year,
-      make: normalizeCanonicalMake(r.make),
+      make: makeAliases.get(key(r.make)) ?? normalizeCanonicalMake(r.make),
       model: r.model,
       stockNumber: null,
       color: null,
