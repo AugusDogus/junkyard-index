@@ -1,0 +1,39 @@
+{
+  "tenant": "borges",
+  "yard": "Borges Foreign Auto Parts",
+  "status": "excluded",
+  "reason": "rejection-guard",
+  "makes": 41,
+  "models": 399,
+  "modelCards": 4107,
+  "arrivals": 60,
+  "acceptedCandidates": 3660,
+  "recordsProcessed": 4167,
+  "recordsExcluded": 0,
+  "recordsRejected": 460,
+  "duplicateVehicles": 47,
+  "rejectionRate": 0.11039116870650348,
+  "supplierPhotos": {
+    "ma15": 3654,
+    "no-yard-photo": 513
+  },
+  "optimisticUnverifiedBins": {
+    "stocks": ["MISC", "MIS", "NEW"],
+    "accounting": {
+      "recordsProcessed": 4167,
+      "recordsExcluded": 41,
+      "recordsRejected": 419,
+      "duplicateVehicles": 47
+    },
+    "accepted": 3660,
+    "rejectionRate": 0.10155113911778962
+  },
+  "note": "No bins are qualified or excluded. Even hypothetically excluding MISC, MIS and NEW leaves 419 / 4126 observations rejected (10.15%). The full negative connector replays emit no inventory.",
+  "savedNativeResponses": 486,
+  "closingOwnershipAndDirectories": "passed",
+  "closingBadgeDrift": {
+    "makes": 0,
+    "models": 0
+  },
+  "closingBadgeLimit": 41
+}

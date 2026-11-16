@@ -1,0 +1,42 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "9042 Greenwood Road, Greenwood, LA 71033"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": {
+          "side": "R",
+          "tigerLineId": "614349065"
+        },
+        "coordinates": {
+          "x": -93.96234444712,
+          "y": 32.442781318339
+        },
+        "addressComponents": {
+          "zip": "71033",
+          "streetName": "GREENWOOD",
+          "preType": "",
+          "city": "GREENWOOD",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "8900",
+          "state": "LA",
+          "suffixType": "RD",
+          "toAddress": "9198",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "9042 GREENWOOD RD, GREENWOOD, LA, 71033"
+      }
+    ]
+  }
+}
