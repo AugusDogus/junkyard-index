@@ -1,6 +1,9 @@
+import type { SearchResponse } from "algoliasearch/lite";
+import type { AlgoliaVehicleHit } from "~/lib/search-vehicles";
 import { describe, expect, test } from "bun:test";
 import {
   getAlertMatchStatsWithClient,
+  getAlertMatchStatsBatchWithClient,
   type AlertSearchClient,
 } from "./alert-match-search";
 import { filtersSchema } from "./saved-search-filters";
@@ -154,4 +157,167 @@ test("invalid expression fails matching instead of completing an empty alert win
     ),
   ).rejects.toThrow("Cannot match saved search expression");
   expect(called).toBe(false);
+});
+
+test("batches alert windows into at most 50 queries per request", async () => {
+  const requests: unknown[] = [];
+  const client: AlertSearchClient = {
+    async searchForHits(
+      input: Parameters<AlertSearchClient["searchForHits"]>[0],
+    ) {
+      requests.push(input);
+      return {
+        results: input.requests.map(
+          () =>
+            ({
+              hits: [],
+              nbHits: 0,
+              nbPages: 0,
+              page: 0,
+              hitsPerPage: 100,
+              processingTimeMS: 1,
+              query: "",
+            }) satisfies SearchResponse<AlgoliaVehicleHit>,
+        ),
+      };
+    },
+  };
+  const results = await getAlertMatchStatsBatchWithClient(
+    client,
+    Array.from({ length: 103 }, (_, i) => ({
+      query: `query-${i}`,
+      filters: {},
+      lastCheckedAt: new Date(1000),
+    })),
+    new Date(2000),
+  );
+  expect(results).toHaveLength(103);
+  expect(
+    results.every(
+      (result) =>
+        result.status === "fulfilled" &&
+        result.value.completion.status === "complete",
+    ),
+  ).toBe(true);
+  expect(requests).toHaveLength(3);
+  expect(requests).toMatchObject([
+    { requests: Array.from({ length: 50 }, () => ({})) },
+    { requests: Array.from({ length: 50 }, () => ({})) },
+    { requests: [{}, {}, {}] },
+  ]);
+});
+
+test("skips windows without newer firstSeenAt seconds, including empty and failed publications", async () => {
+  let calls = 0;
+  const client = emptySearchClient(() => {
+    calls += 1;
+  });
+  const searches = [{ query: "", filters: {}, lastCheckedAt: new Date(1999) }];
+  for (const latest of [null, new Date(1000), new Date(1999)]) {
+    const results = await getAlertMatchStatsBatchWithClient(
+      client,
+      searches,
+      latest,
+    );
+    expect(results[0]).toEqual({
+      status: "fulfilled",
+      value: {
+        matchedCount: 0,
+        completion: { status: "complete" },
+        vehicles: [],
+      },
+    });
+  }
+  expect(calls).toBe(0);
+  await getAlertMatchStatsBatchWithClient(client, searches, new Date(2000));
+  expect(calls).toBe(1);
+});
+
+test("batched pagination retains each search's matches and incomplete scan handling", async () => {
+  const requests: number[] = [];
+  const client: AlertSearchClient = {
+    async searchForHits({ requests: batch }) {
+      requests.push(batch.length);
+      return {
+        results: batch
+          .filter((request) => request.query !== "missing")
+          .map((request) => {
+            const hits = Array.from(
+              {
+                length:
+                  request.query === "paged" && request.page === 0 ? 100 : 1,
+              },
+              (_, index) => ({
+                objectID: `${request.query}-${request.page}-${index}`,
+                source: "pyp",
+                vin: `${request.query}-${request.page}-${index}`,
+              }),
+            );
+            return {
+              hits,
+              nbHits: request.query === "paged" ? 101 : 1,
+              nbPages: request.query === "paged" ? 2 : 1,
+              exhaustiveNbHits: true,
+              page: request.page,
+              hitsPerPage: 100,
+              processingTimeMS: 1,
+              query: request.query,
+            };
+          }),
+      };
+    },
+  };
+  const searches = ["paged", "short", "missing"].map((query) => ({
+    query,
+    filters: {},
+    lastCheckedAt: new Date(1000),
+  }));
+  const batched = await getAlertMatchStatsBatchWithClient(
+    client,
+    searches,
+    new Date(2000),
+  );
+  expect(requests).toEqual([3, 1]);
+  for (const [index, search] of searches.entries()) {
+    const individual = await getAlertMatchStatsWithClient(
+      client,
+      search.query,
+      search.filters,
+      search.lastCheckedAt,
+    );
+    expect(batched[index]).toEqual({ status: "fulfilled", value: individual });
+  }
+  expect(batched[0]).toMatchObject({ value: { matchedCount: 101 } });
+  expect(batched[2]).toMatchObject({
+    value: { completion: { status: "incomplete", reason: "missing-page" } },
+  });
+});
+
+test("batched request failures remain failures for each affected search", async () => {
+  const failure = new Error("Algolia unavailable");
+  const results = await getAlertMatchStatsBatchWithClient(
+    {
+      async searchForHits() {
+        throw failure;
+      },
+    },
+    [{ query: "", filters: {}, lastCheckedAt: new Date(1000) }],
+    new Date(2000),
+  );
+  expect(results).toEqual([{ status: "rejected", reason: failure }]);
+});
+
+test("batched skipped windows still reject invalid expressions", async () => {
+  const results = await getAlertMatchStatsBatchWithClient(
+    emptySearchClient(),
+    [
+      {
+        query: "",
+        filters: { expression: "make:Volvo OR year:<2000" },
+        lastCheckedAt: new Date(2000),
+      },
+    ],
+    null,
+  );
+  expect(results[0]).toMatchObject({ status: "rejected" });
 });

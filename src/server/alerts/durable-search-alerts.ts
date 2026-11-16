@@ -1,7 +1,8 @@
 import { canMatchSettledIngestionAlerts } from "./settled-ingestion-alerts";
+import type { AlertMatchStats } from "~/lib/algolia-alert-search";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { env } from "~/env";
-import { getAlertMatchStats } from "~/server/alerts/algolia-alert-search";
+import { getAlertMatchStatsBatch } from "~/server/alerts/algolia-alert-search";
 import { db, dbClient } from "~/lib/db";
 import {
   SearchAlertMatch,
@@ -9,7 +10,7 @@ import {
 } from "~/lib/search-alert-data";
 import { parseSavedSearchFilters } from "~/lib/saved-search-filters";
 import { buildSearchUrl } from "~/lib/search-utils";
-import { ingestionRun, savedSearch } from "~/schema";
+import { ingestionRun, savedSearch, vehicle } from "~/schema";
 import {
   processAlertMatchBatch,
   QuarantinedAlertMatchError,
@@ -17,7 +18,7 @@ import {
 import { classifyDurableAlertRun } from "./durable-alert-run-state";
 import { savedSearchAlertCheckpointStatement } from "./alert-search-checkpoint";
 
-const MATCH_BATCH_SIZE = 20;
+const MATCH_BATCH_SIZE = 50;
 
 function intentId(
   runId: string,
@@ -167,8 +168,10 @@ async function matchSearch(params: {
   publicationSequence: number;
   expectedRunCursor: string | null;
   search: typeof savedSearch.$inferSelect;
+  checkedAt: Date;
+  matchResult: PromiseSettledResult<AlertMatchStats> | undefined;
 }) {
-  const checkedAt = new Date();
+  const checkedAt = params.checkedAt;
   const parsedFilters = parseSavedSearchFilters(params.search.filters);
   if (!parsedFilters.success || !params.search.lastCheckedAt) {
     await checkpointMatchedSearch({
@@ -181,11 +184,12 @@ async function matchSearch(params: {
     });
     return 0;
   }
-  const match = await getAlertMatchStats(
-    params.search.query,
-    parsedFilters.data,
-    params.search.lastCheckedAt,
-  );
+  if (!params.matchResult)
+    throw new Error(
+      `Saved search ${params.search.id} has no batched match result.`,
+    );
+  if (params.matchResult.status === "rejected") throw params.matchResult.reason;
+  const match = params.matchResult.value;
   if (match.completion.status !== "complete") {
     const message = `Saved search ${params.search.id} returned an incomplete Algolia scan (${match.completion.reason}).`;
     if (match.completion.reason === "pagination-limit") {
@@ -320,6 +324,31 @@ export async function runDurableAlertMatchingBatch(
           )
           .orderBy(asc(savedSearch.id))
           .limit(MATCH_BATCH_SIZE);
+  const checkedAt = new Date();
+  const [latest] = await db
+    .select({ firstSeenAt: sql<number | null>`max(${vehicle.firstSeenAt})` })
+    .from(vehicle);
+  const matchableSearches = searches.flatMap((search) => {
+    const filters = parseSavedSearchFilters(search.filters);
+    return filters.success && search.lastCheckedAt
+      ? [
+          {
+            id: search.id,
+            query: search.query,
+            filters: filters.data,
+            lastCheckedAt: search.lastCheckedAt,
+          },
+        ]
+      : [];
+  });
+  const latestFirstSeenAt = latest?.firstSeenAt ?? null;
+  const matches = await getAlertMatchStatsBatch(
+    matchableSearches,
+    latestFirstSeenAt === null ? null : new Date(latestFirstSeenAt),
+  );
+  const matchesById = new Map(
+    matchableSearches.map((search, index) => [search.id, matches[index]]),
+  );
   const intentsCreated = await processAlertMatchBatch(searches, {
     match: (search) =>
       matchSearch({
@@ -327,6 +356,8 @@ export async function runDurableAlertMatchingBatch(
         publicationSequence,
         expectedRunCursor: run.alertMatchCursor,
         search,
+        checkedAt,
+        matchResult: matchesById.get(search.id),
       }),
     recordFailure: (search, error) =>
       recordAlertMatchFailure(runId, search.id, error),

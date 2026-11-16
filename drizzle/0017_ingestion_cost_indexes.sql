@@ -1,0 +1,2 @@
+CREATE INDEX `ingestion_run_active_commit_idx` ON `ingestion_run` (`active_slot`,`commit_started_at`,`source`);--> statement-breakpoint
+CREATE INDEX `vehicle_source_vin_idx` ON `vehicle` (`source`,`vin`);

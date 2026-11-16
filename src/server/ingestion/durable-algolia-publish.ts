@@ -2,9 +2,12 @@ import { and, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ingestionRun, vehicleChange } from "~/schema";
 
+import { rebuildIndexName, deleteRebuildIndex } from "./algolia-rebuild-index";
+
 export const INDEX_GENERATION_KEY = "junkyardIndexGeneration";
 
 export interface ReindexAlgoliaClient {
+  deleteIndex(params: { indexName: string }): Promise<{ taskID: number }>;
   getSettings(params: { indexName: string }): Promise<{ userData?: unknown }>;
   operationIndex(params: {
     indexName: string;
@@ -43,10 +46,6 @@ export function withIndexGeneration(
       [INDEX_GENERATION_KEY]: runId,
     },
   };
-}
-
-function rebuildIndexName(runId: string, indexName: string): string {
-  return `${indexName}__rebuild_${runId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
 export type FullReindexPublishResult =
@@ -182,6 +181,8 @@ export async function publishFullReindexForRun(params: {
       );
     }
   }
+
+  await deleteRebuildIndex(params.algolia, params.indexName, params.runId);
 
   const publishedAt = new Date();
   const publishRun = params.database

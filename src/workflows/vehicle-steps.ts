@@ -11,6 +11,7 @@ import {
   cleanupDurableIngestionStateBatch,
   compactDurableWorkflowCursor,
   resolveDurableWorkflowCursor,
+  cleanupStaleDurableAlgoliaRebuilds,
   cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
   claimDurableIngestionCommit,
@@ -295,6 +296,17 @@ export async function cleanupStaleDurableIngestionSnapshotsStep() {
   }
 }
 cleanupStaleDurableIngestionSnapshotsStep.maxRetries = 2;
+
+export async function cleanupStaleDurableAlgoliaRebuildsStep() {
+  "use step";
+
+  try {
+    await cleanupStaleDurableAlgoliaRebuilds();
+  } catch (error) {
+    throwRetryableStepError("Cleanup stale Algolia rebuild indices", error);
+  }
+}
+cleanupStaleDurableAlgoliaRebuildsStep.maxRetries = 2;
 
 export async function runAlgoliaProjectorStep(runId: string) {
   "use step";

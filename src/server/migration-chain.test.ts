@@ -1,4 +1,4 @@
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
@@ -21,7 +21,7 @@ const LEGACY_SCHEMA = `
     created_at integer not null default 0,
     updated_at integer not null default 0
   );
-  create table saved_search (id text primary key);
+  create table saved_search (id text primary key, last_checked_at integer);
   create table vehicle (
     vin text primary key,
     source text not null default 'pyp',
@@ -226,4 +226,69 @@ describe("migration chain", () => {
       client.close();
     }
   });
+});
+
+test("publish-turn waits search active runs instead of scanning run history", async () => {
+  const client = await createMigratedClient();
+  try {
+    const { createDurableIngestionRepository } =
+      await import("./ingestion/durable-ingestion-repository");
+    const { IngestionSnapshotStore } =
+      await import("./ingestion/ingestion-snapshot-store");
+    const statements: Array<Parameters<Client["batch"]>[0][number]> = [];
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      {
+        async batch(batch, mode) {
+          statements.push(...batch);
+          return client.batch(batch, mode);
+        },
+      },
+      IngestionSnapshotStore.memory(),
+    );
+    await client.execute(
+      "insert into ingestion_run (id, source, status, stage, active_slot, started_at, last_progress_at) values ('claim', 'pyp', 'running', 'sources', 1, 0, 0)",
+    );
+    await repository.claimCommit("claim");
+    const claim = statements.at(-1);
+    if (!claim || typeof claim === "string" || Array.isArray(claim))
+      throw new Error("Expected a claim statement");
+    const plan = await client.execute({
+      ...claim,
+      sql: `EXPLAIN QUERY PLAN ${claim.sql}`,
+    });
+    const details = plan.rows.map((row) => String(row.detail));
+    expect(details.filter((detail) => detail.includes("SCAN other"))).toEqual(
+      [],
+    );
+    expect(
+      details.filter(
+        (detail) =>
+          detail.includes("SEARCH other") &&
+          detail.includes("ingestion_run_active_commit_idx"),
+      ),
+    ).toHaveLength(2);
+  } finally {
+    client.close();
+  }
+});
+
+test("source-scoped VIN pagination uses the source/VIN index", async () => {
+  const client = await createMigratedClient();
+  try {
+    const plan = await client.execute({
+      sql: "EXPLAIN QUERY PLAN SELECT vin, source, missing_since_at FROM vehicle WHERE source IN (?) AND vin > ? ORDER BY vin LIMIT 500",
+      args: ["pyp", "VIN-1"],
+    });
+    const details = plan.rows.map((row) => String(row.detail));
+    expect(
+      details.some((detail) =>
+        detail.includes(
+          "SEARCH vehicle USING INDEX vehicle_source_vin_idx (source=? AND vin>?)",
+        ),
+      ),
+    ).toBe(true);
+  } finally {
+    client.close();
+  }
 });

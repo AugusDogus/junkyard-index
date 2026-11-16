@@ -5,6 +5,7 @@ import { runDurableAlgoliaProjectionBatch } from "./algolia-projector";
 import {
   cleanupDurableIngestionStateBatch,
   resolveDurableWorkflowCursor,
+  cleanupStaleDurableAlgoliaRebuilds,
   cleanupStaleDurableIngestionSnapshots,
   initializeDurableIngestion,
   markDurableIngestionFailed,
@@ -30,7 +31,10 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
   const execution = await executeDurableIngestion({
     runId,
     operations: {
-      cleanupStale: cleanupStaleDurableIngestionSnapshots,
+      cleanupStale: async () => {
+        await cleanupStaleDurableIngestionSnapshots();
+        await cleanupStaleDurableAlgoliaRebuilds();
+      },
       initialize: initializeDurableIngestion,
       runChunk: async (currentRunId, workflowCursor) => {
         const cursor = await resolveDurableWorkflowCursor(

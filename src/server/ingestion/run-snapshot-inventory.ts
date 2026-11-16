@@ -24,6 +24,8 @@ export interface RunSnapshotInventory {
   /** VINs ordered for cursor-based reconciliation batches. */
   vins: string[];
   observedVins: Set<string>;
+  /** Observations ordered for bounded VIN lookups during missing reconciliation. */
+  observedVinOrder: string[];
   acceptedSources: Set<IngestionSource>;
   preservedUrgiisYards: Set<string>;
   preservedAutorecyclerYards: Set<string>;
@@ -78,6 +80,7 @@ export async function loadRunSnapshotInventory(params: {
     preservedUrgiisYards: new Set(),
     vehicles: new Map(),
     vins: [],
+    observedVinOrder: [],
     observedVins: new Set(),
     acceptedSources: new Set(accepted.map((row) => row.source)),
     preservedAutorecyclerYards: new Set(),
@@ -99,5 +102,6 @@ export async function loadRunSnapshotInventory(params: {
     for (const vin of snapshot.observedVins) inventory.observedVins.add(vin);
   }
   inventory.vins = [...inventory.vehicles.keys()].sort();
+  inventory.observedVinOrder = [...inventory.observedVins].sort();
   return inventory;
 }

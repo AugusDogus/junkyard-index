@@ -1549,3 +1549,143 @@ describe("bounded durable reconciliation", () => {
     }
   });
 });
+
+test("missing reconciliation reads only accepted sources, including resumed VIN pages", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const store = IngestionSnapshotStore.memory();
+    await drizzle(client).insert(ingestionRun).values({
+      id: "scoped",
+      source: "pyp",
+      status: "running",
+      stage: "reconcile_missing",
+      activeSlot: 1,
+      acceptedSources: '["pyp"]',
+      reconciliationCursor: "A",
+      startedAt: new Date(),
+      lastProgressAt: new Date(),
+    });
+    await client.executeMultiple(`
+      insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at)
+      values ('B', 'pyp', 2000, 'Ford', 'Focus', '1', 'Yard', 'City', 'Oklahoma', 'OK', 0, 0, 0, 0),
+             ('C', 'row52', 2000, 'Ford', 'Focus', '1', 'Yard', 'City', 'Oklahoma', 'OK', 0, 0, 0, 0);
+    `);
+    const reads: string[] = [];
+    const database = drizzle(client, {
+      logger: {
+        logQuery(query) {
+          if (query.startsWith("select") && query.includes('from "vehicle"'))
+            reads.push(query);
+        },
+      },
+    });
+    const result = await reconcileDurableIngestionRun({
+      runId: "scoped",
+      database,
+      batchClient: client,
+      snapshotStore: store,
+      budgetMs: 0,
+    });
+    expect(result.status).toBe("complete");
+    expect(
+      (
+        await client.execute(
+          "select vin, missing_run_count from vehicle order by vin",
+        )
+      ).rows,
+    ).toMatchObject([
+      { vin: "B", missing_run_count: 1 },
+      { vin: "C", missing_run_count: null },
+    ]);
+    expect(
+      reads.some(
+        (query) =>
+          query.includes('"vehicle"."source" in (?)') &&
+          query.includes('"vehicle"."vin" > ?'),
+      ),
+    ).toBe(true);
+  } finally {
+    client.close();
+  }
+});
+
+test("source-scoped missing scans preserve observations of another source's VIN across pages of unknown VINs", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const database = drizzle(client);
+    const store = IngestionSnapshotStore.memory();
+    const startedAt = new Date();
+    await database.insert(ingestionRun).values({
+      id: "observed-owner",
+      source: "pyp",
+      status: "running",
+      stage: "reconcile_missing",
+      activeSlot: 1,
+      acceptedSources: '["pyp"]',
+      startedAt,
+      lastProgressAt: startedAt,
+    });
+    const pathname = await store.put({
+      runId: "observed-owner",
+      source: "pyp",
+      chunk: {
+        vehicles: [],
+        observedVins: [
+          ...Array.from(
+            { length: 501 },
+            (_, index) => `A-${String(index).padStart(4, "0")}`,
+          ),
+          "C",
+        ],
+      },
+    });
+    await database.insert(ingestionSourceRun).values({
+      id: "observed-owner:pyp",
+      runId: "observed-owner",
+      source: "pyp",
+      status: "success",
+      acceptanceStatus: "accepted",
+      snapshotChunks: JSON.stringify([pathname]),
+      startedAt,
+    });
+    await client.executeMultiple(`
+      insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count)
+      values ('B', 'pyp', 2000, 'Ford', 'Focus', '1', 'Yard', 'City', 'Oklahoma', 'OK', 0, 0, 0, 0, null, 0),
+             ('C', 'row52', 2000, 'Ford', 'Focus', '1', 'Yard', 'City', 'Oklahoma', 'OK', 0, 0, 123, 123, 123, 2);
+    `);
+    for (let batch = 0; batch < 3; batch += 1) {
+      const result = await reconcileDurableIngestionRun({
+        runId: "observed-owner",
+        database,
+        batchClient: client,
+        snapshotStore: store,
+        budgetMs: 0,
+      });
+      if (result.status === "complete") break;
+    }
+    expect(
+      (
+        await client.execute(
+          "select vin, missing_run_count, first_seen_at from vehicle order by vin",
+        )
+      ).rows,
+    ).toMatchObject([
+      { vin: "B", missing_run_count: 1, first_seen_at: 0 },
+      { vin: "C", missing_run_count: 0, first_seen_at: 123 },
+    ]);
+    expect(
+      (
+        await client.execute(
+          "select vin, change_type from vehicle_change_v2 order by vin",
+        )
+      ).rows,
+    ).toMatchObject([
+      { vin: "B", change_type: "missing" },
+      { vin: "C", change_type: "upsert" },
+    ]);
+  } finally {
+    client.close();
+  }
+});
