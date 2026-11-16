@@ -40,6 +40,7 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 | United Auto Recyclers | Omaha       | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
 | Ace Auto Recyclers    | Iowa City   | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
 | Ding's Auto Parts     | Litchfield  | CT    |    1,110 |      109 |       0 |         24 |   800 |
+| Bishop's Auto Parts   | Middletown  | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
 
 Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
@@ -50,6 +51,8 @@ Linder's full census follows 41 makes, 426 model pages and 60 arrivals. It conta
 Ace Iowa follows 42 makes, 376 model pages and 60 arrivals. Its 465-response replay accepts 1,524 donors, rejects 172 observations (9.82%), excludes 125 verified bulk-part-bin observations and merges 56 duplicates. Saved native detail pages show DORMAN, BROCK, NOF, MONTE, DORMN, 114AFT, BERGER and ORDER holding parts across unrelated vehicles. EPL and AER returned empty details and remain rejects, as do unverified stocks and numeric donors. Every supplier photograph is OO76. Its floor is 1,200. The US Census point for 2752 S Riverside Dr, Iowa City, IA 52246 is 41.625474637231, -91.543835183719.
 
 Dings follows 36 makes, 246 model pages and 60 arrivals. Its 323-response replay accepts 1,110 donors, rejects 109 observations (8.77%), excludes none and merges 24 duplicates. Every supplier photograph is CT05. Its floor is 800. The US Census point for 99 Little Pitch Road, Litchfield, CT 06759 is 41.725760885077, -73.178934578762.
+
+Bishop's follows all 35 makes and 322 model pages, with no published arrival-card enumeration. Its 396-response replay accepts 3,362 donors, rejects 82 observations (2.38%), excludes none and has no duplicates. Every supplier photo is AA74. Separate closing owner and directory controls pass. Its floor is 2,600. Qualification recovered a slow Spark page with a 90-second timeout and ordinary curl retries; pacing is 3.5 seconds after responses. The US Census point for 120 Stantack Rd, Middletown, CT 06457 is 41.564414369713, -72.749473882561.
 
 ## Leads left out
 
