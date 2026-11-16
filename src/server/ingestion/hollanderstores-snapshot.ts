@@ -27,6 +27,16 @@ export const hollanderstoresMake = (value: string) =>
 const required = (value: string | null | undefined) =>
   !!value?.trim() &&
   !/^(?:unknown|none|other|null|n\/?a|0+)$/i.test(value.trim());
+function decodedMake(value: string | null | undefined, vin: string) {
+  if (!required(value)) return null;
+  if (value?.trim().toUpperCase() === "SPRINTER (DODGE OR FREIGHTLINER)") {
+    // NHTSA DecodeWMI lists Freightliner as WD2's concrete make, alongside
+    // this ambiguous model family. Prefer that real make when no native make
+    // is available. Other WMIs need independent qualification.
+    return vin.startsWith("WD2") ? "FREIGHTLINER" : null;
+  }
+  return value ?? null;
+}
 export function hollanderstoresSnapshot(
   pages: readonly HollanderstoresPage[],
   decoded: Readonly<Record<string, string | null>>,
@@ -84,7 +94,7 @@ export function hollanderstoresSnapshot(
       const vin = hollanderstoresVin(row.vin),
         year = hollanderstoresYear(row.displayYear);
       const native = required(row.make) ? row.make : null;
-      const lookup = vin ? decoded[vin] : null;
+      const lookup = vin ? decodedMake(decoded[vin], vin) : null;
       const make = native ?? (required(lookup) ? lookup : null);
       if (
         native &&

@@ -23,6 +23,7 @@ import {
   type HollanderstoresYard,
 } from "./hollanderstores-yard-metadata";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
+import { hollanderstoresCensusError } from "./hollanderstores-census";
 
 export interface HollanderstoresOptions<E, R> {
   startCursor?: unknown;
@@ -46,7 +47,7 @@ export interface HollanderstoresOptions<E, R> {
 }
 export interface HollanderstoresStreamResult {
   source: "hollanderstores";
-  status: "paused" | "complete";
+  status: "paused" | "complete" | "failed";
   cursor: HollanderstoresCursor;
   count: number;
   pagesProcessed: number;
@@ -116,7 +117,7 @@ export function streamHollanderstoresInventory<E, R>(
         decoded: current.decoded,
         requests: current.requests + 1,
       };
-      let next: HollanderstoresState;
+      let next: HollanderstoresState | { phase: "failed"; error: string };
       if (current.phase === "decoding") {
         const needed = hollanderstoresMissing(current).slice(
           Object.keys(current.decoded).length,
@@ -169,7 +170,7 @@ export function streamHollanderstoresInventory<E, R>(
           : fetchHollanderstoresPage(yard, undefined, pageNumber);
         next = yield* hollanderstoresAttempt(
           "complete native card view " + yard.code,
-          (): HollanderstoresState => {
+          (): HollanderstoresState | { phase: "failed"; error: string } => {
             const slice = parseHollanderstoresRoster(raw, yard, pageNumber);
             if (current.pending && current.pending.total !== slice.total)
               throw new Error(
@@ -206,10 +207,10 @@ export function streamHollanderstoresInventory<E, R>(
                 ? { ...completed, pages, phase: "decoding" }
                 : { ...completed, pages, phase: "closing", closed: 0 };
             }
-            if (JSON.stringify(page) !== JSON.stringify(current.pages[index]))
-              throw new Error(
-                "Closing census changed published count, fields, identities or destinations",
-              );
+            const opening = current.pages[index];
+            if (!opening) throw new Error("Missing opening yard census");
+            const error = hollanderstoresCensusError(opening, page);
+            if (error) return { phase: "failed", error };
             const closed = index + 1;
             return closed === HOLLANDERSTORES_YARDS.length
               ? { ...completed, phase: "ready", closed }
@@ -217,6 +218,16 @@ export function streamHollanderstoresInventory<E, R>(
           },
         );
       }
+      // A frozen opening cannot be repaired by re-POSTing the closing roster.
+      // A failed result ends the durable source without workflow step retries.
+      if (next.phase === "failed")
+        return {
+          ...empty,
+          status: "failed" as const,
+          cursor,
+          pagesProcessed: pagesProcessed + 1,
+          errors: [next.error],
+        };
       cursor = yield* hollanderstoresAttempt(
         "checkpoint advance",
         (): HollanderstoresCursor => HollanderstoresCursor.checkpoint(next),

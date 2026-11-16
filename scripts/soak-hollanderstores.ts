@@ -26,7 +26,8 @@ export async function soakHollanderstoresInventory(
       !Number.isSafeInteger(chunk.pagesProcessed) ||
       chunk.pagesProcessed < 1 ||
       chunk.pagesProcessed > budget ||
-      resumed.requests !== cursor.requests + chunk.pagesProcessed ||
+      (chunk.status !== "failed" &&
+        resumed.requests !== cursor.requests + chunk.pagesProcessed) ||
       (chunk.status === "complete") !== (resumed.phase === "complete") ||
       (chunk.status === "paused" &&
         (chunk.count !== 0 ||
@@ -38,7 +39,7 @@ export async function soakHollanderstoresInventory(
       );
     cursor = resumed;
     pagesProcessed += chunk.pagesProcessed;
-    if (chunk.status === "complete" || pagesProcessed === maxRequests)
+    if (chunk.status !== "paused" || pagesProcessed === maxRequests)
       return { ...chunk, cursor, pagesProcessed };
   }
   throw new Error(
