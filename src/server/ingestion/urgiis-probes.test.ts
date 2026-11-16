@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { z } from "zod";
-import { iisCards, iisOwnedUrl } from "./urgiis-catalog";
+import { iisCards, iisDirectory, iisOwnedUrl } from "./urgiis-catalog";
 import { UrgiisControlSchema } from "./urgiis-schema";
 import { assessIisRecord } from "./iis-record";
 
@@ -131,4 +131,46 @@ test("Brown's largest shared model reaches the 500-card cap before own-yard filt
   );
   expect(own.length).toBeGreaterThan(0);
   expect(own.length).toBeLessThan(500);
+});
+
+test("APS cannot complete its published make graph through an empty vehicle table", () => {
+  const site = probes.find((p) => p.i === 17 && p.kind === "model");
+  const makes = probes.find(
+    (p) => p.i === 17 && p.kind === "detail" && p.key === "makes",
+  );
+  if (!site || site.kind !== "model" || !makes)
+    throw new Error("Missing APS directory evidence");
+  const make = iisDirectory(makes.html, site.site).find(
+    (m) => m.path === "/parts/ROVER_-_STERLING",
+  );
+  if (!make) throw new Error("Missing published APS Rover make");
+  expect(make.count).toBe(1);
+  for (const key of ["make-42", "recovery-rover-0", "recovery-rover-1"]) {
+    const response = probes.find(
+      (p) => p.i === 17 && p.kind === "detail" && p.key === key,
+    );
+    if (!response) throw new Error("Missing APS response: " + key);
+    expect(() => iisDirectory(response.html, site.site, make)).toThrow(
+      "Expected one complete native inventory region",
+    );
+  }
+});
+
+test("Metro reaches the shared 500-card boundary before its MN06 filter", () => {
+  const site = probes.find((p) => p.i === 19 && p.kind === "model");
+  const response = probes.find(
+    (p) => p.i === 19 && p.kind === "detail" && p.key === "capped-f150",
+  );
+  if (!site || site.kind !== "model" || !response)
+    throw new Error("Missing Metro cap evidence");
+  const page = iisCards(response.html, site.site);
+  expect(page.records).toHaveLength(500);
+  expect(page.capped).toBe(true);
+  expect(
+    page.records.some(
+      (r) =>
+        r.image?.includes("cloudfront.net/") &&
+        !r.image.includes("cloudfront.net/mn06/"),
+    ),
+  ).toBe(true);
 });
