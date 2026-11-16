@@ -159,14 +159,25 @@ test("Tom's published blank Maserati model cannot form a complete graph", () => 
   expect(URGIIS_TENANTS.some((t) => t.code === "toms")).toBe(false);
 });
 
-test("Higgins' arrivals retain their incompatible native title", () => {
+test("Higgins' exact native arrivals title admits its donor cards", () => {
   const site = {
     origin: "https://higginsauto.com",
     urgid: "CA22",
     pathStyle: "parts" as const,
   };
-  expect(() =>
-    iisCards(capture("higgins", "arrivals").html, site, "arrivals"),
-  ).toThrow("native arrivals title");
+  const html = capture("higgins", "arrivals").html;
+  expect(iisCards(html, site, "arrivals").records).toHaveLength(60);
+  for (const title of [
+    "New Arrivals, Recycled Vehicles",
+    "New Arrivals, Recycled Vehicles - Another Yard",
+    "Used Auto Parts - Higgins Auto Parts",
+  ])
+    expect(() =>
+      iisCards(
+        html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`),
+        site,
+        "arrivals",
+      ),
+    ).toThrow("native arrivals title");
   expect(URGIIS_TENANTS.some((t) => t.code === "higgins")).toBe(false);
 });
