@@ -592,12 +592,17 @@ async function runMissingBatch(
   // (including resumed ones) must not make their own backfill look new.
   if (finishing && params.acceptedSources.length > 0) {
     statements.push({
-      sql: `insert into yard_arrival_baseline (source, location_code)
-        select distinct source, location_code from vehicle
+      sql: `insert into yard_arrival_baseline (source, location_code, established_at)
+        select distinct source, location_code, ? from vehicle
         where source in (${params.acceptedSources.map(() => "?").join(", ")})
           and ${guardSql("reconcile_missing")}
         on conflict(source, location_code) do nothing`,
-      args: [...params.acceptedSources, params.runId, params.cursor],
+      args: [
+        params.runTimestamp.getTime(),
+        ...params.acceptedSources,
+        params.runId,
+        params.cursor,
+      ],
     });
   }
   const checkpointIndex = statements.length;

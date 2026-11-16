@@ -178,9 +178,15 @@ describe("migration chain", () => {
       await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
       expect(
         (await client.execute("select * from yard_arrival_baseline")).rows.map(
-          (row) => ({ source: row.source, location_code: row.location_code }),
+          (row) => ({
+            source: row.source,
+            location_code: row.location_code,
+            established_at: row.established_at,
+          }),
         ),
-      ).toEqual([{ source: "pyp", location_code: "yard-1" }]);
+      ).toEqual([
+        { source: "pyp", location_code: "yard-1", established_at: 0 },
+      ]);
       expect(
         (
           await client.execute(

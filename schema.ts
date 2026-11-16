@@ -296,12 +296,19 @@ export const yardInventory = sqliteTable(
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
 );
 
-/** Retains published yard history even after its last vehicle is retired. */
+/**
+ * Retains published yard history even after its last vehicle is retired.
+ * `establishedAt` is the run timestamp of the yard's first published crawl;
+ * yards that already had inventory when this table was added use epoch 0.
+ */
 export const yardArrivalBaseline = sqliteTable(
   "yard_arrival_baseline",
   {
     source: text("source").notNull(),
     locationCode: text("location_code").notNull(),
+    establishedAt: integer("established_at", {
+      mode: "timestamp_ms",
+    }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
 );

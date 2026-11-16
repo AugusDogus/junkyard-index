@@ -187,6 +187,20 @@ describe("bounded durable reconciliation", () => {
         { vin: "C-new-yard", observed_arrival_at: null },
         { vin: "D-dated", observed_arrival_at: null },
       ]);
+      // Each yard keeps the run timestamp of its first published crawl.
+      expect(
+        (
+          await client.execute(
+            "select location_code, established_at from yard_arrival_baseline order by location_code",
+          )
+        ).rows.map((row) => ({
+          location_code: row.location_code,
+          established_at: row.established_at,
+        })),
+      ).toEqual([
+        { location_code: "yard-1", established_at: first.getTime() },
+        { location_code: "yard-2", established_at: second.getTime() },
+      ]);
       await publish("arrival-third", new Date("2026-11-17T12:00:00Z"), [
         ...backfill,
         { ...newCar, availableDate: datedCar.availableDate },
