@@ -7,6 +7,7 @@ import {
   ARIO_ORIGIN,
 } from "./autorecycler-ario-client";
 import {
+  arioDate,
   arioGeo,
   readArioYard,
   transformArioItem,
@@ -47,14 +48,34 @@ export function streamArioYard<E, R>(
           throw new Error(
             `Ario customer ${config.slug} is missing or changed ownership. Inspect the public directory; published inventory is preserved.`,
           );
-        const lat = yard.data.latitude ?? yard.data.mapCenter?.[1];
-        const lng = yard.data.longitude ?? yard.data.mapCenter?.[0];
+        const location =
+          "locationOverride" in config ? config.locationOverride : null;
+        const lat =
+          location?.lat ?? yard.data.latitude ?? yard.data.mapCenter?.[1];
+        const lng =
+          location?.lng ?? yard.data.longitude ?? yard.data.mapCenter?.[0];
         if (lat === undefined || lng === undefined || (lat === 0 && lng === 0))
           throw new Error(
             `Ario customer ${config.slug} has no valid yard coordinates`,
           );
-        const geo = arioGeo(config, yard.display_name, lat, lng, yard.address);
+        const geo = arioGeo(
+          config,
+          yard.display_name,
+          lat,
+          lng,
+          location?.address ?? yard.address,
+        );
         const inventory = await readArioYard(client, config);
+        const activeItems = inventory.items.filter(
+          (item) => !item.ario_date_removed,
+        );
+        if (
+          activeItems.length > 0 &&
+          !activeItems.some((item) => arioDate(item) !== null)
+        )
+          throw new Error(
+            `Ario ${config.slug} has ${activeItems.length} listings but no parseable addition dates. Expected date_placed or ario_date_placed in YYYY-MM-DD format. Published inventory is preserved; inspect the provider date contract before starting a new run.`,
+          );
         const vehicles: CanonicalVehicle[] = [];
         const seen = new Set<string>();
         let rejected = 0;

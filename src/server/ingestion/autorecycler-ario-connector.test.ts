@@ -2,10 +2,11 @@ import { z } from "zod";
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamArioYard } from "./autorecycler-ario-connector";
-import { readArioYard } from "./autorecycler-ario-inventory";
+import { ArioPageSchema, readArioYard } from "./autorecycler-ario-inventory";
 import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
 import type { ArioClient } from "./autorecycler-ario-client";
 import type { CanonicalVehicle } from "./types";
+import type { Yard } from "~/lib/yard";
 import { gunzipSync } from "node:zlib";
 
 async function savedClient(): Promise<ArioClient> {
@@ -161,4 +162,80 @@ test("a fresher legacy yard wins without Ario vehicles, metadata or VIN observat
   expect(result.accounting.recordsExcluded).toBe(
     result.accounting.recordsProcessed,
   );
+});
+
+test.each(["2026-11-14T00:00:00.000Z", null, undefined])(
+  "rejects a yard with no parseable addition dates (%s) before emitting inventory",
+  async (date) => {
+    const saved = await savedClient();
+    let emitted = 0;
+    await expect(
+      Effect.runPromise(
+        streamArioYard(
+          {
+            yardIndex: 0,
+            asOf: Date.parse("2026-11-15T12:00:00Z"),
+            onBatch: () =>
+              Effect.sync(() => {
+                emitted++;
+              }),
+            onYards: () =>
+              Effect.sync(() => {
+                emitted++;
+              }),
+          },
+          {
+            ...saved,
+            page: async (slug, offset) => {
+              const page = ArioPageSchema.parse(await saved.page(slug, offset));
+              return {
+                ...page,
+                items: page.items.map((item) => ({
+                  ...item,
+                  ario_date_placed: null,
+                  date_placed: date,
+                })),
+              };
+            },
+          },
+        ),
+      ),
+    ).rejects.toThrow("no parseable addition dates");
+    expect(emitted).toBe(0);
+  },
+);
+
+test("Birmingham publishes the verified Ruffner Road yard instead of the downtown placeholder", async () => {
+  const vehicles: CanonicalVehicle[] = [];
+  const yards: Yard[] = [];
+  await Effect.runPromise(
+    streamArioYard(
+      {
+        yardIndex: ARIO_CUSTOMER_YARDS.findIndex(
+          (yard) => yard.slug === "ez-pull-n-pay-birmingham",
+        ),
+        asOf: Date.parse("2026-11-15T12:00:00Z"),
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles.push(...batch);
+          }),
+        onYards: (batch) =>
+          Effect.sync(() => {
+            yards.push(...batch);
+          }),
+      },
+      await savedClient(),
+    ),
+  );
+  expect(vehicles).toHaveLength(725);
+  expect(yards).toHaveLength(1);
+  expect(yards[0]).toMatchObject({
+    address: "1849 Ruffner Rd, Birmingham, AL 35210",
+    lat: 33.5567534,
+    lng: -86.6903392,
+  });
+  for (const vehicle of vehicles) {
+    expect(vehicle.lat).toBe(33.5567534);
+    expect(vehicle.lng).toBe(-86.6903392);
+  }
 });

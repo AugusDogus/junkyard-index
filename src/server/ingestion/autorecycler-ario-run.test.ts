@@ -11,7 +11,11 @@ import {
   type ArioBatchClient,
 } from "./autorecycler-ario-client";
 import { ArioPageSchema } from "./autorecycler-ario-inventory";
-import { readArioRun, type ArioRunState } from "./autorecycler-ario-run";
+import {
+  loadArioState,
+  readArioRun,
+  type ArioRunState,
+} from "./autorecycler-ario-run";
 import { ARIO_CUSTOMER_YARDS } from "./autorecycler-ario-yards";
 import {
   AutorecyclerCursorSchema,
@@ -190,3 +194,99 @@ test("429 mid-run checkpoints, sleeps durably and resumes only the unfinished wi
   expect(result.calls.filter((call) => call.offset === 100)).toHaveLength(1);
   expect(result.calls).toHaveLength(35);
 }, 60_000);
+
+test("persistent 429 pauses fail the source after 24 checkpoints and preserve published inventory", async () => {
+  let checkpointState: unknown;
+  let calls = 0;
+  let waits = 0;
+  let failure = "";
+  const result = await ingestDurableSource({
+    runId: "ario-rate-limited",
+    initialCursor: initial,
+    operations: {
+      sleepUntil: async () => {
+        waits++;
+      },
+      runChunk: async (_runId, cursor) => {
+        if (cursor.phase !== "ario-read") throw new Error("Unexpected cursor");
+        const chunk = await Effect.runPromise(
+          readArioRun(
+            cursor,
+            async () => checkpointState,
+            () => ({
+              yards: async () => {
+                calls++;
+                if (calls > 24)
+                  throw new Error(
+                    "Exceeded the expected rate-limit retry bound",
+                  );
+                throw new ArioRateLimit(Date.now() + 3_600_000);
+              },
+              pages: async () => {
+                throw new Error("Directory did not complete");
+              },
+            }),
+          ),
+        );
+        checkpointState = chunk.checkpointState;
+        return {
+          ...chunk,
+          cursor: AutorecyclerCursorSchema.parse({
+            ...chunk.cursor,
+            statePath: "offline-state",
+          }),
+        };
+      },
+      markFailed: async (_runId, _source, message) => {
+        failure = message;
+        return {
+          cursor: initial,
+          status: "failed",
+          count: 0,
+          errors: [message],
+          pagesProcessed: 0,
+        };
+      },
+    },
+  });
+  expect(result.status).toBe("failed");
+  expect(calls).toBe(24);
+  expect(waits).toBe(23);
+  expect(failure).toContain("24 consecutive rate-limit pauses");
+  expect(failure).toContain("Published inventory is preserved");
+});
+
+test("a completed rank window resets the persisted consecutive rate-limit count", async () => {
+  const saved = await capturedGroupClient();
+  const recovered = await Effect.runPromise(
+    readArioRun(
+      { ...initial, statePath: "offline-state" },
+      async () => ({ session: {}, pages: {}, consecutiveRateLimits: 23 }),
+      () => saved.client,
+    ),
+  );
+  const state = await loadArioState(
+    "offline-state",
+    async () => recovered.checkpointState,
+  );
+  expect(state.consecutiveRateLimits).toBe(0);
+  if (recovered.cursor.phase !== "ario-read")
+    throw new Error("Expected the next rank window");
+  const paused = await Effect.runPromise(
+    readArioRun(
+      { ...recovered.cursor, statePath: "offline-state" },
+      async () => recovered.checkpointState,
+      () => ({
+        ...saved.client,
+        pages: async () => {
+          throw new ArioRateLimit(Date.now() + 3_600_000);
+        },
+      }),
+    ),
+  );
+  const resumed = await loadArioState(
+    "offline-state",
+    async () => paused.checkpointState,
+  );
+  expect(resumed.consecutiveRateLimits).toBe(1);
+});

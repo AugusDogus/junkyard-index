@@ -14,6 +14,7 @@ import { connectorChunkMetrics } from "./connector-chunk";
 import { Effect } from "effect";
 import type { CanonicalVehicle } from "./types";
 import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-connector";
+import type { AutorecyclerFreshness } from "./autorecycler-freshness-state";
 import { Database } from "./context";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import {
@@ -227,6 +228,7 @@ describe("bounded durable reconciliation", () => {
   );
   test("AutoRecycler preserves unresolved independent VINs across resume but lets excluded mirror VINs retire", async () => {
     const client = createClient({ url: ":memory:" });
+    const asOf = Date.now();
     const originalFetch = globalThis.fetch;
     const recordId = "1761169972557x110781710658965700";
     const org = `1348695171700984260__LOOKUP__${recordId}`;
@@ -242,6 +244,7 @@ describe("bounded durable reconciliation", () => {
         inventory_id_text: "1761173625126x883105909157925400",
         vin_text: ` ${presentVin.toLowerCase()} `,
         name_text: "2006 Kia Rio",
+        added_date_date: asOf,
       },
     };
     let geoRequests = 0;
@@ -322,8 +325,8 @@ describe("bounded durable reconciliation", () => {
       );
       const runId = "run-autorecycler-quarantine";
       await repository.initialize(runId);
-      const freshness = {
-        asOf: Date.now(),
+      let freshness: AutorecyclerFreshness = {
+        asOf,
         legacy: {},
         eligibleYards: [org, knownOrg],
       };
@@ -341,6 +344,7 @@ describe("bounded durable reconciliation", () => {
           inventory_id_text: `known-${index}`,
           vin_text: `1HGCM82633A${String(index).padStart(6, "0")}`,
           name_text: "2003 Honda Accord",
+          added_date_date: asOf,
         },
       }));
       const searchId = (index: number) => `${1_700_000_000_000 - index}x1`;
@@ -427,15 +431,26 @@ describe("bounded durable reconciliation", () => {
           ).pipe(Effect.provideService(Database, database)),
         );
         expect(result.status).toBe(startFrom === 0 ? "paused" : "complete");
+        const nextFreshness = {
+          ...freshness,
+          legacyDateEvidence: {
+            [org]: true,
+            ...(startFrom === 0 ? {} : { [knownOrg]: true }),
+          },
+        };
         expect(result.cursor).toEqual(
           startFrom === 0
             ? {
                 source: "autorecycler",
                 phase: "page",
                 beforeId: searchId(2),
-                freshness,
+                freshness: nextFreshness,
               }
-            : { source: "autorecycler", phase: "complete", freshness },
+            : {
+                source: "autorecycler",
+                phase: "complete",
+                freshness: nextFreshness,
+              },
         );
         expect(result.observedVins).toEqual([presentVin]);
         expect(result.errors).toEqual([]);
@@ -475,6 +490,7 @@ describe("bounded durable reconciliation", () => {
             observedVins: result.observedVins ?? [],
           },
         });
+        freshness = nextFreshness;
       }
       expect(offsets).toEqual([null, searchId(1), searchId(2), searchId(107)]);
       expect(geoRequests).toBe(6);

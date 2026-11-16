@@ -12,6 +12,10 @@ import { validateAutorecyclerPublishedInventory } from "./autorecycler-published
 import { streamAutorecyclerInventoryWithPageFetcher } from "./autorecycler-connector";
 import { Database } from "./context";
 import { makeVehicle, TEST_SCHEMA } from "./durable-ingestion-test-fixtures";
+import {
+  ARIO_CUSTOMER_YARDS,
+  AUTORECYCLER_LOOKUP_PREFIX,
+} from "./autorecycler-ario-yards";
 
 const asOf = Date.parse("2026-11-15T21:55:00Z");
 test("freshness accepts the exact 60-day boundary and rejects future, invalid and older additions", () => {
@@ -114,7 +118,7 @@ test("stale yard exclusions emit neither vehicles nor metadata nor VIN observati
   }
 });
 
-test("drift ignores deliberately retired yards while protecting every still-eligible yard", async () => {
+test("drift ignores unsupported retired yards while protecting every still-eligible yard", async () => {
   const client = createClient({ url: ":memory:" });
   try {
     await client.executeMultiple(TEST_SCHEMA);
@@ -149,6 +153,110 @@ test("drift ignores deliberately retired yards while protecting every still-elig
     expect(
       (await validateAutorecyclerPublishedInventory(db, current, [])).errors[0],
     ).toContain("ineligible yard");
+  } finally {
+    client.close();
+  }
+});
+
+test.each([20, 50, 51, 96])(
+  "bounds newly stale customer removals at 50%% of published customer inventory (%i%%)",
+  async (staleCount) => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      const stale = `${AUTORECYCLER_LOOKUP_PREFIX}${ARIO_CUSTOMER_YARDS[0].legacyId}`;
+      await client.execute(
+        "create table vehicle (vin text primary key, source text, location_code text, missing_since_at integer)",
+      );
+      for (let i = 0; i < 100; i++)
+        await client.execute({
+          sql: "insert into vehicle values (?, 'autorecycler', ?, null)",
+          args: [`VIN${i}`, i < staleCount ? stale : "active"],
+        });
+      const current = Array.from({ length: 100 - staleCount }, (_, i) => ({
+        ...makeVehicle(`VIN${i + staleCount}`),
+        source: "autorecycler" as const,
+        locationCode: "active",
+      }));
+      const result = await validateAutorecyclerPublishedInventory(
+        drizzle(client),
+        current,
+        ["active"],
+      );
+      expect(result.previousEligibleCount).toBe(100 - staleCount);
+      if (staleCount <= 50) expect(result.errors).toEqual([]);
+      else
+        expect(result.errors.join(" ")).toContain(
+          "50% stale-yard removal limit",
+        );
+    } finally {
+      client.close();
+    }
+  },
+);
+
+test.each([
+  undefined,
+  "2026-11-14T00:00:00Z",
+  asOf - AUTORECYCLER_FRESHNESS_MS - 1,
+])("validates legacy addition dates across checkpoints (%s)", async (date) => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    const run = (
+      beforeId: string | null,
+      dateEvidence?: Record<string, boolean>,
+    ) =>
+      streamAutorecyclerInventoryWithPageFetcher(
+        {
+          startCursor: {
+            source: "autorecycler",
+            phase: "page",
+            beforeId,
+            freshness: {
+              asOf,
+              legacy: {},
+              eligibleYards: [],
+              legacyDateEvidence: dateEvidence,
+            },
+          },
+          maxPages: 1,
+          onBatch: () => Effect.void,
+        },
+        async (before) => ({
+          responses: [
+            {
+              hits: {
+                hits: before
+                  ? []
+                  : [
+                      {
+                        _id: "1700000000000x1",
+                        _source: {
+                          vin_text: "KNADE123666155428",
+                          name_text: "2006 Kia Rio",
+                          inventory_id_text: "1700000000000x2",
+                          organization_custom_organization: "1700000000000x3",
+                          renamed_added_date: asOf,
+                          added_date_date: date,
+                        },
+                      },
+                    ],
+              },
+            },
+          ],
+        }),
+        (orgs) =>
+          Effect.succeed(new Map(orgs.map((org) => [org, "stale"] as const))),
+      ).pipe(Effect.provideService(Database, drizzle(client)));
+    const first = await Effect.runPromise(run(null));
+    expect(first.status).toBe("paused");
+    if (first.cursor.phase !== "page")
+      throw new Error("Expected another legacy page");
+    const complete = Effect.runPromise(
+      run("1700000000000x1", first.cursor.freshness?.legacyDateEvidence),
+    );
+    if (typeof date === "number")
+      expect((await complete).status).toBe("complete");
+    else await expect(complete).rejects.toThrow("no parseable addition dates");
   } finally {
     client.close();
   }
