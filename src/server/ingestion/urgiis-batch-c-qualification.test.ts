@@ -231,13 +231,12 @@ for (const qualification of [
     ],
   },
 ]) {
-  test(`${qualification.name} remains excluded after bounded failures interrupt its model graph`, () => {
+  test(`${qualification.name}'s initial census stops after bounded model request failures`, () => {
     const failure = metadata.failures.find(
       (f) => f.code === qualification.code,
     );
     if (!failure)
       throw new Error("Missing qualification: " + qualification.code);
-    expect(URGIIS_TENANTS.some((t) => t.code === failure.code)).toBe(false);
     const captured = responses.filter(
       (r) =>
         r.tenantCode === failure.code &&

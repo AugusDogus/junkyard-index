@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { z } from "zod";
-import { iisCards, iisDirectory } from "./urgiis-catalog";
+import { iisCards, iisDirectory, iisDocument } from "./urgiis-catalog";
 
 const probes = z
   .array(
@@ -10,7 +10,7 @@ const probes = z
       tenant: z.string(),
       url: z.string().url(),
       label: z.string(),
-      mode: z.enum(["browser", "plain"]),
+      mode: z.enum(["browser", "plain", "firefox"]),
       status: z.number(),
       exit: z.number(),
       startedAt: z.number(),
@@ -36,6 +36,7 @@ for (const { code, urgid, count } of [
   { code: "norbs", urgid: "EE91", count: 123 },
   { code: "quick-recovery", urgid: "QQ32", count: 4 },
   { code: "riverbend", urgid: "NN82", count: 58 },
+  { code: "lambert", urgid: "MS06", count: 3 },
 ]) {
   test(`${code}'s previously failing model recovers in spaced probes with both header sets`, () => {
     const recovered = probes.filter(
@@ -81,6 +82,30 @@ test("Quick Recovery's failed response names a site-side Redis connection error"
     (p) => p.tenant === "quick-recovery" && p.status === 500,
   );
   expect(failure?.html).toContain("Error establishing a Redis connection");
+});
+
+test("MARS blocks Chrome but serves its native supplier document to Firefox", () => {
+  const site = {
+    origin: "https://swaptheuniverse.com",
+    urgid: "OH25",
+    pathStyle: "parts",
+  } as const;
+  for (const index of [1, 2]) {
+    const chrome = probes.find(
+      (p) => p.tenant === "mars" && p.label === `owner-chrome-${index}`,
+    );
+    const firefox = probes.find(
+      (p) => p.tenant === "mars" && p.label === `owner-firefox-${index}`,
+    );
+    expect(chrome?.status).toBe(403);
+    expect(chrome?.html).toContain("Cloudflare");
+    expect(firefox?.status).toBe(200);
+    if (!chrome?.html || !firefox?.html)
+      throw new Error("Missing controlled MARS User-Agent comparison");
+    const blocked = chrome.html;
+    expect(() => iisDocument(blocked, site)).toThrow();
+    expect(iisDocument(firefox.html, site)).toContain("MARS");
+  }
 });
 
 test("Lake Point's exact supplier bundles cover live directories, models and arrivals", () => {

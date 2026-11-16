@@ -99,3 +99,30 @@ test("URG IIS encodes model-name parentheses without changing the published grap
     fetch.mockRestore();
   }
 });
+
+test("URG IIS sends the qualified tenant's User-Agent", async () => {
+  const firefox: UrgiisTenant = { ...tenant, userAgent: "firefox" };
+  const nativeResponse = () =>
+    new Response("native HTML", { headers: { "content-type": "text/html" } });
+  const fetch = spyOn(globalThis, "fetch")
+    .mockRejectedValue(
+      new Error("Unexpected extra request in offline IIS test"),
+    )
+    .mockResolvedValueOnce(nativeResponse())
+    .mockResolvedValueOnce(nativeResponse());
+  try {
+    for (const configured of [firefox, tenant])
+      await Effect.runPromise(readUrgiisPage(tenant.origin + "/", configured));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(
+      new Headers(fetch.mock.calls[0]?.[1]?.headers).get("user-agent"),
+    ).toBe(
+      "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0",
+    );
+    expect(
+      new Headers(fetch.mock.calls[1]?.[1]?.headers).get("user-agent"),
+    ).toContain("Chrome/142.0.0.0");
+  } finally {
+    fetch.mockRestore();
+  }
+});

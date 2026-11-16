@@ -18,6 +18,7 @@ export interface UrgiisTenant extends UrgiisSite {
   ownerPath: string;
   ownerClaims: readonly string[];
   cookie: string | null;
+  userAgent?: "firefox";
   pacingMs: number;
   requestTimeoutMs: number;
   minimumInventory: number;
