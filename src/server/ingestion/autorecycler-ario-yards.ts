@@ -173,6 +173,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "cfc-recycling",
+    vinValidation: "check-digit",
     id: "9e650335-4efb-4664-ba19-b4f22a0f1775",
     organizationId: "6ce46a2f-1870-4a07-9f57-52d64f524c68",
     city: "Dallas",
@@ -194,4 +195,9 @@ export function arioLocationCode(yard: ArioCustomerYard): string {
   return "legacyId" in yard
     ? `${AUTORECYCLER_LOOKUP_PREFIX}${yard.legacyId}`
     : `ario:${yard.id}`;
+}
+
+/** New customers validate check digits; migrated customers keep VIN admission. */
+export function requiresArioCheckDigit(yard: ArioCustomerYard): boolean {
+  return "vinValidation" in yard && yard.vinValidation === "check-digit";
 }

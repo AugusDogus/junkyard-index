@@ -1,3 +1,5 @@
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
+import { validateSourceSnapshot } from "./source-validation";
 import { inventoryVin } from "./inventory-vin";
 import { z } from "zod";
 import { expect, test } from "bun:test";
@@ -12,6 +14,7 @@ import {
 import {
   ARIO_CUSTOMER_YARDS,
   arioLocationCode,
+  requiresArioCheckDigit,
 } from "./autorecycler-ario-yards";
 import type { ArioClient } from "./autorecycler-ario-client";
 import type { CanonicalVehicle } from "./types";
@@ -71,7 +74,7 @@ const expectedCounts: Record<
   "prestige-pull-your-part-houston-tx": 1305,
   "samson-auto-salvage": 283,
   "santa-maria-recycling-center": 0,
-  "cfc-recycling": 407,
+  "cfc-recycling": 395,
 };
 
 test("replays complete Ario customer inventories with no network, including suppressed rank holes", async () => {
@@ -102,6 +105,24 @@ test("replays complete Ario customer inventories with no network, including supp
         result.accounting.recordsProcessed,
       );
     } else expect(vehicles.length).toBeGreaterThan(100);
+    if (requiresArioCheckDigit(yard)) {
+      expect(
+        validateSourceSnapshot({
+          source: "autorecycler",
+          terminal: true,
+          uniqueVehicles: vehicles.length,
+          vehiclesProcessed: result.accounting.recordsProcessed,
+          rejectedVehicles: result.accounting.recordsRejected,
+          duplicateVehicles: result.accounting.duplicateVehicles,
+          previousAcceptedCount: null,
+          errors: [],
+        }).errors,
+      ).toEqual([]);
+      for (const vehicle of vehicles)
+        expect(
+          inventoryVinWithCheckDigit(vehicle.vin, String(vehicle.year)),
+        ).toBe(vehicle.vin);
+    }
     for (const vehicle of vehicles) {
       expect(vehicle.locationCode).toBe(arioLocationCode(yard));
       expect(vehicle.stateAbbr).toBe(yard.state);
@@ -289,7 +310,7 @@ test("CFC uses its owned website point and native yard UUID, rejecting every mal
   expect(result.accounting).toEqual({
     recordsProcessed: 422,
     recordsExcluded: 0,
-    recordsRejected: 15,
+    recordsRejected: 27,
     duplicateVehicles: 0,
   });
   expect(yards).toHaveLength(1);
@@ -299,7 +320,7 @@ test("CFC uses its owned website point and native yard UUID, rejecting every mal
     lat: 32.6619785,
     lng: -96.6729032,
   });
-  expect(vehicles).toHaveLength(407);
+  expect(vehicles).toHaveLength(395);
   for (const vehicle of vehicles) {
     expect(vehicle.locationCode).toBe(
       "ario:9e650335-4efb-4664-ba19-b4f22a0f1775",
@@ -321,4 +342,13 @@ test("CFC uses its owned website point and native yard UUID, rejecting every mal
     config.locationOverride.lng,
   );
   for (const item of malformed) expect(transformArioItem(item, geo)).toBeNull();
+});
+
+test("every customer added after the original twenty validates VIN check digits", () => {
+  expect(ARIO_CUSTOMER_YARDS.slice(0, 20).some(requiresArioCheckDigit)).toBe(
+    false,
+  );
+  expect(ARIO_CUSTOMER_YARDS.slice(20).every(requiresArioCheckDigit)).toBe(
+    true,
+  );
 });

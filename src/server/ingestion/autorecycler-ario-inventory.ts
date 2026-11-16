@@ -2,8 +2,11 @@ import { z } from "zod";
 import { ARIO_ORIGIN, type ArioClient } from "./autorecycler-ario-client";
 import {
   arioLocationCode,
+  requiresArioCheckDigit,
+  ARIO_CUSTOMER_YARDS,
   type ArioCustomerYard,
 } from "./autorecycler-ario-yards";
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import { inventoryVin } from "./inventory-vin";
 import {
   normalizeCanonicalColor,
@@ -141,7 +144,12 @@ export function transformArioItem(
   geo: AutorecyclerOrgGeo,
 ): CanonicalVehicle | null {
   const year = Number(item.year);
-  const vin = inventoryVin(item.vin ?? "", String(item.year ?? ""));
+  const yard = ARIO_CUSTOMER_YARDS.find((yard) => yard.id === item.yard_id);
+  const parseVin =
+    yard && requiresArioCheckDigit(yard)
+      ? inventoryVinWithCheckDigit
+      : inventoryVin;
+  const vin = parseVin(item.vin ?? "", String(item.year ?? ""));
   const make = normalizeCanonicalMake(item.ario_make || item.make || "");
   const model = (item.ario_model || item.model || "").trim();
   if (
