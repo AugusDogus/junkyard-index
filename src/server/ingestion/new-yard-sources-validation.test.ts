@@ -151,9 +151,13 @@ const sources = [
     initial: UrgiisCursor.initial(),
     complete: UrgiisCursor.checkpoint({
       source: "urgiis",
-      version: 1,
+      version: 2,
       phase: "complete",
       scope: UrgiisCursor.initial().scope,
+      startedAt: null,
+      asOf: null,
+      statePath: null,
+      stateHash: null,
       requests: 1000,
       bytes: 1000000,
       completed: URGIIS_TENANTS.map((tenant) => ({
