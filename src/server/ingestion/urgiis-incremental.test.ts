@@ -387,3 +387,29 @@ test("carried donors still participate in full-snapshot admission and rejection 
     }),
   ).rejects.toThrow("admission");
 });
+
+test("native arrival labels refresh a same-count model when its donor link uses another route", async () => {
+  const model = target();
+  const [old, replacement] = model.records;
+  if (!old || !replacement) throw new Error("Missing captured pair");
+  const previous = await run({
+    now: start,
+    replace: { path: model.model.path, records: [old] },
+  });
+  const arrival = {
+    ...replacement,
+    destinations: replacement.destinations.map((url) =>
+      url.replace(model.model.path, model.model.path.replace(/\/$/, "_ALIAS/")),
+    ),
+  };
+  const result = await run({
+    previous: previous.cursor,
+    arrivals: [arrival],
+    replace: { path: model.model.path, records: [] },
+  });
+  expect(readModels(result)).toEqual([tenant.origin + model.model.path]);
+  expect(result.vehicles.map((v) => v.vin)).toContain(
+    replacement.vins[0] ?? "",
+  );
+  expect(result.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
+});
