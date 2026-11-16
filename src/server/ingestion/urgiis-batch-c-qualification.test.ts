@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { iisCards, iisDirectory, iisDocument } from "./urgiis-catalog";
 import { iisAttribute, iisContinuation, iisRegion, iisText } from "./iis-html";
@@ -98,10 +99,9 @@ test("Transwest remains excluded when the 30-card Titan result has no complete a
   ).toEqual([404, 404, 404]);
 });
 
-test("Lake Point remains excluded when official pages omit supplier identity", () => {
+test("Lake Point's exact optimized script references retain supplier identity", () => {
   const failure = metadata.failures.find((f) => f.code === "lakepoint");
   if (!failure) throw new Error("Missing Lake Point qualification evidence");
-  expect(URGIIS_TENANTS.some((t) => t.code === failure.code)).toBe(false);
   for (const path of [
     "/",
     "/contact/",
@@ -113,9 +113,68 @@ test("Lake Point remains excluded when official pages omit supplier identity", (
         r.tenantCode === failure.code && r.url === failure.site.origin + path,
     );
     if (!response) throw new Error("Missing official Lake Point page: " + path);
-    expect(() => iisDocument(response.html, failure.site)).toThrow(
-      "IIS supplier identity changed: expected UU23",
+    expect(() => iisDocument(response.html, failure.site)).not.toThrow();
+    for (const changed of [
+      response.html.replace(
+        /\/litespeed\/js\/[a-f0-9]+\.js/g,
+        "/litespeed/js/unknown.js",
+      ),
+      response.html.replaceAll(".js?ver=9a323", ".js?ver=changed"),
+      response.html.replace(
+        /<script data-optimized="1"[^>]*><\/script>/g,
+        "<!--$&-->",
+      ),
+      response.html.replace(
+        "</body>",
+        '<script data-optimized="1" src="https://lakepointauto.com/unknown.js"></script></body>',
+      ),
+      response.html.replace(
+        "</body>",
+        "<script>var urgid = 'OTHER';</script></body>",
+      ),
+    ])
+      expect(() => iisDocument(changed, failure.site)).toThrow(
+        "IIS supplier identity changed: expected UU23",
+      );
+    expect(() =>
+      iisDocument(response.html, {
+        ...failure.site,
+        origin: "https://other.example",
+      }),
+    ).toThrow("IIS supplier identity changed");
+    expect(() =>
+      iisDocument(response.html, { ...failure.site, urgid: "OTHER" }),
+    ).toThrow("IIS supplier identity changed");
+  }
+});
+
+test("Lake Point's allowlisted script hashes declare the native supplier and origin", () => {
+  const bundles = z
+    .array(z.object({ url: z.string().url(), script: z.string() }))
+    .parse(
+      JSON.parse(
+        brotliDecompressSync(
+          readFileSync(
+            new URL(
+              "./urgiis-test-fixtures/lakepoint-supplier-bundles.json.br",
+              import.meta.url,
+            ),
+          ),
+        ).toString(),
+      ),
     );
+  expect(bundles).toHaveLength(6);
+  for (const { url, script } of bundles) {
+    const hash = createHash("md5").update(script).digest("hex");
+    expect(url).toBe(
+      `https://lakepointauto.com/wp-content/litespeed/js/${hash}.js?ver=9a323`,
+    );
+    const declarations = [
+      ...script.matchAll(/\bvar\s+urgid\s*=\s*(['"])(.*?)\1\s*;/g),
+    ];
+    expect(declarations.length).toBeGreaterThan(0);
+    expect(new Set(declarations.map((m) => m[2]))).toEqual(new Set(["UU23"]));
+    expect(script).toContain("var iisHomeUrl='lakepointauto.com';");
   }
 });
 
