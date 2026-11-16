@@ -80,7 +80,7 @@ test("publishes the observed opening set after saved one-vehicle additions and r
   }
   expect(reads).toBe(HOLLANDERSTORES_YARDS.length);
   expect(batches).toEqual([expected.vehicles]);
-}, 180000);
+}, 300000);
 
 test("large identity turnover with an unchanged count fails once without publishing", async () => {
   const opening = pages();

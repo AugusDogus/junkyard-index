@@ -1,0 +1,16 @@
+[
+  {
+    "file": "strickerauto.html.gz",
+    "total": 12456,
+    "minRecordId": 408728,
+    "maxRecordId": 72789288,
+    "recordsSince2026": 423
+  },
+  {
+    "file": "strickerauto-closing.html.gz",
+    "total": 12456,
+    "minRecordId": 408728,
+    "maxRecordId": 72789288,
+    "recordsSince2026": 423
+  }
+]

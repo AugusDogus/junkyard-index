@@ -12,6 +12,7 @@ export function hollanderstoresFixtureBytes(file: string): Buffer {
     `${import.meta.dir}/${file}`,
     `${import.meta.dir}/expansion/${file}`,
     `${import.meta.dir}/pauls/${file}`,
+    `${import.meta.dir}/batch-2/${file}`,
   ].find((path) => existsSync(path));
   if (!path) throw new Error("Saved Hollander response missing: " + file);
   return gunzipSync(readFileSync(path));
@@ -45,6 +46,6 @@ export const hollanderstoresExpected = z
   })
   .parse(
     JSON.parse(
-      readFileSync(`${import.meta.dir}/expansion/qualification.json`, "utf8"),
+      readFileSync(`${import.meta.dir}/batch-2/qualification.json`, "utf8"),
     ),
   );

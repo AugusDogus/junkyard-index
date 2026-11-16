@@ -1,0 +1,104 @@
+[
+  {
+    "code": "macksautoparts",
+    "invalidVin": 1,
+    "missingModel": 2,
+    "conflictingVinClaims": 2
+  },
+  {
+    "code": "alsautosalvage",
+    "invalidVin": 10,
+    "missingModel": 1,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "aaautosalvage",
+    "invalidVin": 1,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "jakesautoparts",
+    "invalidVin": 1,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "gogoautoparts",
+    "invalidVin": 0,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "bobbysauto",
+    "invalidVin": 1,
+    "missingModel": 1,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "mstrecycling",
+    "invalidVin": 8,
+    "missingModel": 1,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "foreignusedpart",
+    "invalidVin": 27,
+    "missingModel": 4,
+    "conflictingVinClaims": 2
+  },
+  {
+    "code": "mkauto",
+    "invalidVin": 9,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "hartsparts",
+    "invalidVin": 1,
+    "missingModel": 1,
+    "conflictingVinClaims": 24
+  },
+  {
+    "code": "veldmans",
+    "invalidVin": 1,
+    "missingModel": 1,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "davissalvageky",
+    "invalidVin": 0,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "wellerauto",
+    "invalidVin": 0,
+    "missingModel": 0,
+    "conflictingVinClaims": 54
+  },
+  {
+    "code": "champion",
+    "invalidVin": 0,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "rainbowauto",
+    "invalidVin": 24,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  },
+  {
+    "code": "pascoauto",
+    "invalidVin": 19,
+    "missingModel": 11,
+    "conflictingVinClaims": 2
+  },
+  {
+    "code": "awcaw",
+    "invalidVin": 10,
+    "missingModel": 0,
+    "conflictingVinClaims": 0
+  }
+]

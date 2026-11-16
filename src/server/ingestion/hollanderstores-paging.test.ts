@@ -186,4 +186,4 @@ test("list pages resume durably and release inventory only after the closing ros
     mode.mockRestore();
     count.mockRestore();
   }
-}, 180000);
+}, 600_000);

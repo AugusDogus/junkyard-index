@@ -1,6 +1,6 @@
 # Hollander Stores ingestion
 
-The `hollanderstores` source ships disabled. It covers 35 physical yard locations belonging to 27 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR and IN. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
+The `hollanderstores` source ships disabled. It covers 52 physical yard locations belonging to 44 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK and WA. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
 
 ## Initial five-yard qualification on November 15, 2026
 
@@ -114,6 +114,74 @@ Eight points come from explicit map markers on Paul's own contact pages, each ti
 
 Paul's qualification made 101 additional serial live requests with three-second gaps, including 53 vPIC POSTs for 2,627 unique valid VINs with missing native makes that were absent from the previous seed. Prior successful makes were reused. One exploratory contact URL returned HTTP 404; the actual Logansport page linked by the business succeeded. Every successful decode extends the permanent seed. Opening, closing, address, Census, empty Nominatim, vPIC and error responses are saved under `hollanderstores-test-fixtures/pauls`, with exact byte counts and SHA-256 receipts. Tests replay all responses offline.
 
+## November 16 second tenant batch
+
+This batch qualifies 17 businesses in MO, FL, LA, MI, AL, CA, CO, GA, IN, KY, OK and WA: 17,226 accepted from 17,446 published rows, with 220 rejects. The configured source now has 52 locations and accepts 58,096 vehicles in fixture replay. New floors are `max(1, floor(published / 3))`, a broken-page sanity check. The source floor stays 30,000; the 50% previous-run drift guard and 10% per-yard rejection guard are unchanged. Shroyer is deliberately absent because URG owns that tenant.
+
+| Tenant                                         | State | Published | Accepted | Rejected (%) | Floor | Hollander / vPIC requests |
+| ---------------------------------------------- | ----- | --------: | -------: | -----------: | ----: | ------------------------: |
+| Mack's Auto Parts (`macksautoparts / 1626`)    | MO    |     1,160 |    1,155 |    5 (0.43%) |   386 |                     3 / 6 |
+| ALS Auto Salvage (`alsautosalvage / 257`)      | MO    |       714 |      703 |   11 (1.54%) |   238 |                     3 / 4 |
+| AA Auto Salvage (`aaautosalvage / 5074`)       | FL    |       341 |      340 |    1 (0.29%) |   113 |                     3 / 3 |
+| Jake's Auto Parts (`jakesautoparts / 5628`)    | LA    |       214 |      213 |    1 (0.47%) |    71 |                     3 / 1 |
+| Go Go Auto Parts (`gogoautoparts / 1201`)      | MI    |       171 |      171 |    0 (0.00%) |    57 |                     3 / 1 |
+| Bobby's Auto Parts (`bobbysauto / 5695`)       | AL    |       293 |      291 |    2 (0.68%) |    97 |                     3 / 1 |
+| MST Recycling (`mstrecycling / 5587`)          | CA    |       233 |      224 |    9 (3.86%) |    77 |                     3 / 1 |
+| Foreign Used Parts (`foreignusedpart / 1111`)  | CO    |     2,157 |    2,124 |   33 (1.53%) |   719 |                    3 / 12 |
+| M&K Used Auto Parts (`mkauto / 1779`)          | FL    |     2,018 |    2,009 |    9 (0.45%) |   672 |                    3 / 11 |
+| Hart's Parts & Recycling (`hartsparts / 7627`) | GA    |       393 |      367 |   26 (6.62%) |   131 |                     3 / 2 |
+| Veldman's Auto Parts (`veldmans / 2518`)       | IN    |       473 |      471 |    2 (0.42%) |   157 |                     3 / 3 |
+| Davis Salvage (`davissalvageky / 907`)         | KY    |       297 |      297 |    0 (0.00%) |    99 |                     3 / 5 |
+| Weller Auto Parts (`wellerauto / 2561`)        | MI    |     2,192 |    2,138 |   54 (2.46%) |   730 |                    3 / 14 |
+| Champion Auto Parts (`champion / 4427`)        | MI    |        72 |       72 |    0 (0.00%) |    24 |                     3 / 1 |
+| Rainbow Auto Salvage (`rainbowauto / 2050`)    | OK    |       328 |      304 |   24 (7.32%) |   109 |                     3 / 3 |
+| Pasco Auto Wrecking (`pascoauto / 1950`)       | WA    |     6,179 |    6,146 |   33 (0.53%) | 2,059 |                    3 / 49 |
+| All West Coast Auto Wrecking (`awcaw / 249`)   | WA    |       211 |      201 |   10 (4.74%) |    70 |                     3 / 2 |
+
+Stricker Auto Parts (`strickerauto / 2364`, Batavia OH) is excluded. Both full censuses reconcile 12,456 cards, unique destinations, VINs, stocks and headings, with no changes. Each body is 47,899,239 bytes, above the existing 40 MiB HTML cap. Production parsing correctly rejects it. Do not accept a partial roster or raise the cap as part of this batch. Its 423 records in the 2026 ID range establish currency, but do not overcome the transport bound. Qualification used two roster POSTs and one About Us GET.
+
+### Currency and roster evidence
+
+All 18 opening/closing pairs match without turnover or surviving-record changes. Production still permits only `max(3, floor(opening * 0.01))` changed identities, and preserves survivor fields and relative order. Every configured tenant has current record IDs or stock-prefix evidence; none of the 17 looks stale under the runbook test. The 70,870,000 boundary is the existing approximate early-2026 record-ID reference, not an arrival date. Keep every published donor and leave `availableDate` null.
+
+| Tenant            | Maximum record ID | IDs at least 70,870,000 | Additional currency evidence                                                                                                                        |
+| ----------------- | ----------------: | ----------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `macksautoparts`  |        72,660,508 |              55 / 1,160 | Latest stock 261006 (October 2026); 69 numeric 2026 month prefixes                                                                                  |
+| `alsautosalvage`  |        72,801,457 |               710 / 714 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `aaautosalvage`   |        72,734,039 |               101 / 341 | Latest stock 261166 (November 2026); 106 numeric 2026 month prefixes                                                                                |
+| `jakesautoparts`  |        72,792,414 |               214 / 214 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `gogoautoparts`   |        72,799,081 |               141 / 171 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `bobbysauto`      |        72,742,732 |                58 / 293 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `mstrecycling`    |        72,808,935 |               233 / 233 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `foreignusedpart` |        72,800,449 |             371 / 2,157 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `mkauto`          |        72,748,714 |             448 / 2,018 | Latest stock 261114 (November 2026); 519 numeric 2026 month prefixes                                                                                |
+| `hartsparts`      |        72,798,840 |               393 / 393 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `veldmans`        |        72,781,573 |               473 / 473 | Latest stock 260818 (August 2026); all 473 numeric 2026 month prefixes                                                                              |
+| `davissalvageky`  |        72,786,901 |               290 / 297 | Latest stock 261115 (November 2026); 293 numeric 2026 month prefixes                                                                                |
+| `wellerauto`      |        72,781,730 |           1,637 / 2,192 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `champion`        |        72,781,631 |                 72 / 72 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `rainbowauto`     |        72,533,886 |                 6 / 328 | Six 2026-range IDs; published stocks 26K424 and 26E420 support 2026 activity. Most of this roster is older; on-lot availability remains unverified. |
+| `pascoauto`       |        72,744,792 |             156 / 6,179 | Recent record IDs; no date inferred from the stock number                                                                                           |
+| `awcaw`           |        72,809,891 |               211 / 211 | Recent record IDs; no date inferred from the stock number                                                                                           |
+
+Champion qualifies despite its 72-row roster: all IDs are in the 2026 range, the newest is 72,781,631, both captures match and no rows are rejected. The runbook has no minimum candidate roster size; its new accepted floor is 24. Rainbow has the tightest rejection margin at 7.32%, still 2.68 percentage points below the guard. Hart's 6.62% includes 24 conflicting VIN claims; Weller's 54 rejects are conflicting claims. Shared duplicate quarantine is retained. `rejections.json` records invalid VIN, missing model and conflicting-claim counts (categories can overlap).
+
+### Location evidence
+
+Fourteen yards use exact-address Census points, all matching state and postal code. All West Coast publishes "60th East Anthony Road"; Census resolves the house-number spelling to 60 E Anthony Rd, Grapeview WA 98546, which is stored as the physical address. Mack's, Bobby's and Davis return empty Census results for both one-line and structured address requests. OSM street matches for Mack's and Davis are road centroids and are rejected. Bobby's OSM business node has a conflicting ZIP and is retained only as a cross-check.
+
+The three unresolved Census locations use named Google business markers with the full physical street address, state and ZIP. Mack's and Bobby's marker phones match Hollander. Their own sites confirm their addresses; Davis's contact page confirms 4745 Cumberland Falls Hwy. Mack's business marker (38.5483659, -90.2728385) is preferred over its site's inconsistent JSON-LD point and the generic building marker returned by an address-only query. Map camera centers are never used. `locations.json` binds every configured point to its response and address evidence.
+
+### Requests, replay and daily budgets
+
+The audit made 214 logical live requests: 54 Hollander requests (36 complete roster POSTs and 18 About Us GETs), 119 vPIC POSTs for 5,510 new unique check-digit-valid missing-make VINs, and 41 address, map, business-site and geocoder requests. Requests were serial with at least three seconds between completed responses and the next request. Ordinary Google Maps and Bobby's website redirects were followed; 301 discovery responses are retained. All response bodies, including empty geocoder/search results, have exact byte counts and SHA-256 receipts in `batch-2/requests.json`. All 5,510 decodes returned usable makes, extending the permanent seed. Prior successful seed entries are reused, no populated native make was sent for decoding, and the existing one unresolved decode remains an explicit reject.
+
+The daily source remains default-off. No production DB, Redis, Algolia, flags, deployment or notification action was invoked. Offline tests replay full opening/closing bodies through the production HTTP adapter, cache and durable state machine; per-yard snapshots, locations, currency, receipts, vPIC membership, no-partial-publication and terminal resume guards are verified.
+
+The expanded census is 58,964 rows, below 100,000, with an 11,155,467-byte ready cursor below 32 MiB. The default one-operation chunk yields 104 Hollander requests plus 323 logical decode batches, including cached batches: 427 source-fetch workflow steps versus 283 before this batch, below 5,000 logical operations. Source chunk workflow retries remain two, transport attempts remain at most three, chunk deadline remains 20 minutes, and census lifetime remains two hours. No budget was raised.
+
+Historical and current receipts provide timings for 94 of the 104 selected HTML requests: 1,326.9 seconds total, maximum 176.1 seconds. The original ten HTML timings were not retained. The 119 current vPIC requests average 2.555 seconds, maximum 5.092. Using these samples plus three-second gaps gives approximately 27.3 minutes of seeded transport or 57.2 minutes with every logical decode requiring transport. These are estimates excluding the original ten HTML requests, workflow scheduling, parsing, Redis, DB checkpointing, retries and publication. They leave substantial room under two hours at observed latency, but do not constitute a production timing guarantee. `daily-budget.json` retains the measured inputs.
+
 ## Identity, location and links
 
 Each tenant's `hpdcLogo` must match its verified business name, and each native per-vehicle link must remain on that tenant and its numeric tenant ID. Phone evidence from the investigation ties each tenant to its business. [Monster's website](https://monsterjunkyard.com/) publishes 1745 Page Blvd, resolving conflicting directory numbers. [Kirchhayn's website](https://www.kirchhayn.com/) publishes W4726 County Road A. [Petrillo's website](https://petrillosauto.com/) links its Hollander tenant. LeBlanc's published address and Standard's published address were verified in the supplied investigation.
@@ -134,7 +202,7 @@ If a published make contradicts an available decoded make, retain the published 
 
 POST `/VehicleDealerSearch` with `hdnChangeDisplay=card`, the site's own Card View form, once per configured yard for the opening pass and once per yard for the closing pass. Each configured tenant currently uses the complete card view. Reuse Beaver's HTML parsing helpers and the shared complete-response reader. Reconcile the published count against every card and enforce exact tenant destinations. Missing or duplicate destinations and truncation stop acceptance. Closing checks allow at most the larger of three vehicles or 1% of the opening yard roster (rounded down) in total additions plus removals. The bound counts changed identities, even when the net published count is unchanged. Surviving records must retain their parsed fields, destinations and relative order. Accepted runs publish the complete opening set that was enumerated and decoded; closing-only additions enter on the next run. Per-yard floors, rejection limits and source validation still apply. Excessive turnover or changed surviving records returns a terminal failed source result, preserving previous inventory and the last validated checkpoint without re-POSTing through workflow retries. Restart with a fresh opening census after inspecting the captures.
 
-The durable state machine gathers all 35 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 35 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
+The durable state machine gathers all 52 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 52 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
 
 The module-wide semaphore allows one Hollander/vPIC request at a time and holds through cancellation, response cleanup and a three-second gap, including failures. Use current browser headers, manual redirects, a combined five-minute HTML transport/body deadline, a two-minute vPIC deadline, and a 40 MiB HTML response cap (vPIC remains 4 MiB). Temporary `/Message` redirects and transport failures retry twice, with 20 seconds between attempts. A durable chunk permits one logical operation by default and has a twenty-minute deadline. A decode batch satisfied by cache still advances one logical operation. Maximum census size is 25,000 rows per yard, 100,000 rows overall and 5,000 logical operations, each allowing at most three physical attempts. Parser and quality failures do not retry within a chunk.
 

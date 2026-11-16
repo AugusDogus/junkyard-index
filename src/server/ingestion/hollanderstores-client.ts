@@ -10,7 +10,7 @@ import { hollanderstoresVin } from "./hollanderstores-vin";
 import { HOLLANDERSTORES_MAX_BODY_BYTES } from "./hollanderstores-limits";
 import seed from "./hollanderstores-vpic-seed.json";
 
-// Previously verified NHTSA batch responses, November 15, 2026. The seed also
+// Verified NHTSA batch responses, November 15-16, 2026. The seed also
 // lets us report known native-make conflicts without decoding populated rows.
 export const hollanderstoresSeed: Readonly<Record<string, string>> = seed;
 export class HollanderstoresProviderError extends Data.TaggedError(
