@@ -24,7 +24,7 @@ bun run soak:sources -- --sources=urgiis --max-pages=30000
 
 The soak serializes each checkpoint, reports accepted/rejected/excluded/duplicate counts, and writes no canonical inventory. A capped soak stays incomplete. On a failed guard, retain published inventory and inspect the named request, tenant, raw response and checkpoint. Restart after directory or qualification drift. Never force reconciliation from an incomplete cursor.
 
-Qualification uses saved public responses. Tests are offline. Complete replay archives retain separately fetched opening and closing controls; opening controls are never substituted for closing evidence. Replay order follows the connector; acquisition order is recorded in the HTTP receipts. Census coordinates come from the yard's published address unless a yard-published point is available.
+Qualification uses saved public responses. Tests are offline. Complete replay archives retain separately fetched opening and closing controls; opening controls are never substituted for closing evidence. Replay order follows the connector; acquisition order is recorded in the HTTP receipts. Large archives use Brotli-compressed JSONL so offline tests decode one raw response at a time. Census coordinates come from the yard's published address unless a yard-published point is available.
 
 Qualification began with serial censuses. Later acquisitions allow at most three active tenants, preserve each tenant's own response spacing, and limit combined request starts to one per 3.1 seconds. All tenant sites are conservatively treated as sharing one URG backend for that acquisition limit. The source connector itself traverses tenants serially.
 
