@@ -87,10 +87,24 @@ test.each([1, 2, 3, 32])(
       );
     }
     expect(reads()).toBe(budget === 1 ? 7 : 5);
-    expect(vehicles).toHaveLength(644);
-    expect(rejected).toBe(8);
+    expect(vehicles).toHaveLength(636);
+    expect(rejected).toBe(16);
+    expect(
+      vehicles.filter((vehicle) => vehicle.imageUrl !== null),
+    ).toHaveLength(302);
+    for (const invalid of [
+      "1G6DM57N7301581A4",
+      "1B3BD4FBFBN586782",
+      "1FTZR15E61TA58985",
+      "5N1AR18W37C612222",
+      "1J8FF28W68D557370",
+      "1GCDT136246216311",
+      "1J4GL48K26W287387",
+      "JHLRD78905C022937",
+    ])
+      expect(vehicles.some((vehicle) => vehicle.vin === invalid)).toBe(false);
     expect(processed).toBe(652);
-    expect(new Set(vehicles.map((v) => v.vin)).size).toBe(644);
+    expect(new Set(vehicles.map((v) => v.vin)).size).toBe(636);
     for (const vehicle of vehicles) {
       expect(vehicle).toMatchObject({
         source: "grandpajohns",
@@ -107,7 +121,7 @@ test.each([1, 2, 3, 32])(
     }
     expect(
       createHash("sha256").update(JSON.stringify(vehicles)).digest("hex"),
-    ).toBe("be6033a533994f8728fa25892fefaf07ab1fb6f922160908c81383b260811a81");
+    ).toBe("87ddc40a8ccc14ed038de0cc355db50e69c0d0a4091119bcd22c38e608fe6cb0");
     expect(
       validateSourceSnapshot({
         source: "grandpajohns",
@@ -190,7 +204,15 @@ test("Grandpa John's native first-page invalid VINs stay rejected and foreign ph
         transformUpullRecord(record, GRANDPAJOHNS_TENANT).status !==
         "available",
     ),
-  ).toHaveLength(8);
+  ).toHaveLength(14);
+  expect(page.records.filter((record) => record.imageUrl !== null).length).toBe(
+    306,
+  );
+  expect(
+    page.records.find((record) => record.stock === "STK013463")?.imageUrl,
+  ).toBe(
+    "https://da8h1v3w8q6n5.cloudfront.net/wi25/images/STK013463/STK013463-1-85POZI_1.jpg",
+  );
   const foreign = parseAlln1Page(
     saved.html.replaceAll("/wi25/images/", "/mo42/images/"),
     1,

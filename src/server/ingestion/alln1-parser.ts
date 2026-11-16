@@ -247,10 +247,17 @@ function photo(
       /^\/([a-z0-9]+)\/images\/([A-Z0-9-]+)\/([A-Z0-9-]+)_\d+\.jpg$/i.exec(
         url.pathname,
       );
-    return match &&
-      match[1]?.toLowerCase() === tenant.yard.code.toLowerCase() &&
-      match[2] === stock &&
-      match[3] === stock
+    // WI25 publishes stock-<photo number>-<native token> filenames.
+    const tenantPhoto =
+      tenant.source === "grandpajohns"
+        ? /^\/([a-z0-9]+)\/images\/([A-Z0-9-]+)\/([A-Z0-9-]+)-\d+-[A-Z0-9]+_\d+\.jpg$/i.exec(
+            url.pathname,
+          )
+        : match;
+    return tenantPhoto &&
+      tenantPhoto[1]?.toLowerCase() === tenant.yard.code.toLowerCase() &&
+      tenantPhoto[2] === stock &&
+      tenantPhoto[3] === stock
       ? url.href
       : null;
   } catch {
