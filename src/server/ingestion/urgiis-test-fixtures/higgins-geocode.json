@@ -1,0 +1,42 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "12825 S. Union Ave., Bakersfield, CA 93307"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": {
+          "side": "R",
+          "tigerLineId": "109443769"
+        },
+        "coordinates": {
+          "x": -119.003176129205,
+          "y": 35.238352730385
+        },
+        "addressComponents": {
+          "zip": "93307",
+          "streetName": "UNION",
+          "preType": "",
+          "city": "BAKERSFIELD",
+          "preDirection": "S",
+          "suffixDirection": "",
+          "fromAddress": "12039",
+          "state": "CA",
+          "suffixType": "AVE",
+          "toAddress": "12899",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "12825 S UNION AVE, BAKERSFIELD, CA, 93307"
+      }
+    ]
+  }
+}

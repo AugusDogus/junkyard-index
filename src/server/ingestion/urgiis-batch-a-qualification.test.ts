@@ -179,5 +179,54 @@ test("Higgins' exact native arrivals title admits its donor cards", () => {
         "arrivals",
       ),
     ).toThrow("native arrivals title");
-  expect(URGIIS_TENANTS.some((t) => t.code === "higgins")).toBe(false);
+  expect(URGIIS_TENANTS.some((t) => t.code === "higgins")).toBe(true);
+});
+
+test("Higgins' eight arrivals-only donors retain valid identities and empty native parts results", () => {
+  const site = {
+    origin: "https://higginsauto.com",
+    urgid: "CA22",
+    pathStyle: "parts" as const,
+  };
+  const arrivals = iisCards(
+    capture("higgins", "arrivals").html,
+    site,
+    "arrivals",
+  );
+  const details = z
+    .array(z.object({ url: z.string().url(), html: z.string() }))
+    .length(8)
+    .parse(
+      JSON.parse(
+        brotliDecompressSync(
+          readFileSync(
+            new URL(
+              "./urgiis-test-fixtures/higgins-arrivals-only.json.br",
+              import.meta.url,
+            ),
+          ),
+        ).toString(),
+      ),
+    );
+  for (const detail of details) {
+    const record = arrivals.records.find((r) =>
+      r.destinations.includes(detail.url),
+    );
+    if (!record)
+      throw new Error("Missing native Higgins arrival: " + detail.url);
+    expect(
+      assessIisRecord(
+        record,
+        { kind: "arrivals" },
+        {
+          ownedUrl: (raw) => iisOwnedUrl(raw, site),
+          pathStyle: "parts",
+          requireInquiry: false,
+        },
+      ).reasons,
+    ).toEqual([]);
+    const page = iisCards(detail.html, site);
+    expect(page.nativeEmpty).toBe(true);
+    expect(page.records).toHaveLength(0);
+  }
 });

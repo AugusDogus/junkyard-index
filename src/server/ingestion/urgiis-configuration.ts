@@ -455,6 +455,37 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       websiteUrl: "https://centralautorecyclers.com/",
     },
   },
+  {
+    ...standard,
+    code: "higgins",
+    origin: "https://higginsauto.com",
+    urgid: "CA22",
+    arrivalsPath: "/latest-arrivals/",
+    pacingMs: 3500,
+    requestTimeoutMs: 90000,
+    ownerClaims: [
+      "Higgins Auto Parts",
+      "12825 S. Union Ave.",
+      "Bakersfield, CA 93307",
+    ],
+    minimumInventory: 492,
+    photoCodes: ["ca22"],
+    yard: {
+      source: "urgiis",
+      code: "higgins",
+      name: "Higgins Auto Parts",
+      operator: "Higgins Auto Parts",
+      address: "12825 S. Union Ave.",
+      city: "Bakersfield",
+      state: "CA",
+      postalCode: "93307",
+      lat: 35.238352730385,
+      lng: -119.003176129205,
+      phone: "800-652-2886",
+      email: null,
+      websiteUrl: "https://higginsauto.com/",
+    },
+  },
 ];
 
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(

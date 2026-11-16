@@ -1,0 +1,87 @@
+{
+  "baselineUniqueVins": 38191,
+  "higginsAccepted": 1477,
+  "uniqueVins": 39668,
+  "crossTenantDuplicates": 0,
+  "sourceFloor": 30492,
+  "successfulNativeRequests": 8863,
+  "requestLimit": 30000,
+  "responseBytes": 1597323423,
+  "bodyLimitBytes": 8589934592,
+  "bounds": [
+    {
+      "yard": "eagle-martinsburg",
+      "floor": 1200,
+      "conservativeRemaining": 1448
+    },
+    {
+      "yard": "linders",
+      "floor": 2600,
+      "conservativeRemaining": 3274
+    },
+    {
+      "yard": "chuckran",
+      "floor": 2900,
+      "conservativeRemaining": 3671
+    },
+    {
+      "yard": "united",
+      "floor": 9800,
+      "conservativeRemaining": 12356
+    },
+    {
+      "yard": "ace-iowa",
+      "floor": 1200,
+      "conservativeRemaining": 1524
+    },
+    {
+      "yard": "lentini-ringoes",
+      "floor": 1900,
+      "conservativeRemaining": 2429
+    },
+    {
+      "yard": "lentini-port-murray",
+      "floor": 700,
+      "conservativeRemaining": 924
+    },
+    {
+      "yard": "dings",
+      "floor": 800,
+      "conservativeRemaining": 1110
+    },
+    {
+      "yard": "bishops",
+      "floor": 2600,
+      "conservativeRemaining": 3362
+    },
+    {
+      "yard": "ace-st-paul",
+      "floor": 2400,
+      "conservativeRemaining": 3015
+    },
+    {
+      "yard": "chucks",
+      "floor": 2000,
+      "conservativeRemaining": 2601
+    },
+    {
+      "yard": "central-nh",
+      "floor": 1900,
+      "conservativeRemaining": 2477
+    },
+    {
+      "yard": "higgins",
+      "floor": 492,
+      "conservativeRemaining": 1477
+    }
+  ],
+  "recordedFollowupAttempts": 466,
+  "requestDispositions": {
+    "higgins-menu-0": "Invalid local URL; no HTTP response.",
+    "quick-model-116": "Cancelled when the user assigned Quick Recovery to the batch C agent.",
+    "tnt-main": "Discarded comparison-host 404; not qualification evidence."
+  },
+  "quickRecovery": "ATS returned four cards on two of three follow-up attempts. Resumed acquisition stopped after 116 models on user handoff; batch C owns qualification.",
+  "sourceEnabled": false,
+  "canonicalWrites": 0
+}

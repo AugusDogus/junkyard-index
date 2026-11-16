@@ -1,0 +1,118 @@
+{
+  "tenantCode": "higgins",
+  "status": "qualified",
+  "makes": 36,
+  "models": 240,
+  "modelCards": 1516,
+  "arrivals": 60,
+  "acceptedCandidates": 1477,
+  "arrivalsOnly": [
+    {
+      "vin": "1GCRYDED4LZ251297",
+      "detailsUrl": "https://higginsauto.com/parts/CHEVROLET/SILVERADO_1500_PICKUP/26H073/2020"
+    },
+    {
+      "vin": "3KPF44AC1PE610179",
+      "detailsUrl": "https://higginsauto.com/parts/KIA/FORTE/26879/2023"
+    },
+    {
+      "vin": "KL77LHEPXSC155468",
+      "detailsUrl": "https://higginsauto.com/parts/CHEVROLET/TRAX/26867/2025"
+    },
+    {
+      "vin": "KL77LGE24RC096099",
+      "detailsUrl": "https://higginsauto.com/parts/CHEVROLET/TRAX/26865/2024"
+    },
+    {
+      "vin": "KMHLL4DG0TU117492",
+      "detailsUrl": "https://higginsauto.com/parts/HYUNDAI/ELANTRA/26863/2026"
+    },
+    {
+      "vin": "1N4BL4DV5TN310901",
+      "detailsUrl": "https://higginsauto.com/parts/NISSAN.DATSUN/ALTIMA/26H072/2026"
+    },
+    {
+      "vin": "3GKALMEV2KL233251",
+      "detailsUrl": "https://higginsauto.com/parts/GMC/TERRAIN/26861/2019"
+    },
+    {
+      "vin": "2HGFC2F66LH510525",
+      "detailsUrl": "https://higginsauto.com/parts/HONDA/CIVIC/26847/2020"
+    }
+  ],
+  "arrivalsOnlyDetails": [
+    {
+      "vin": "1GCRYDED4LZ251297",
+      "detailsUrl": "https://higginsauto.com/parts/CHEVROLET/SILVERADO_1500_PICKUP/26H073/2020",
+      "key": "higgins-arrivals-only-0",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "3KPF44AC1PE610179",
+      "detailsUrl": "https://higginsauto.com/parts/KIA/FORTE/26879/2023",
+      "key": "higgins-arrivals-only-1",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "KL77LHEPXSC155468",
+      "detailsUrl": "https://higginsauto.com/parts/CHEVROLET/TRAX/26867/2025",
+      "key": "higgins-arrivals-only-2",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "KL77LGE24RC096099",
+      "detailsUrl": "https://higginsauto.com/parts/CHEVROLET/TRAX/26865/2024",
+      "key": "higgins-arrivals-only-3",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "KMHLL4DG0TU117492",
+      "detailsUrl": "https://higginsauto.com/parts/HYUNDAI/ELANTRA/26863/2026",
+      "key": "higgins-arrivals-only-4",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "1N4BL4DV5TN310901",
+      "detailsUrl": "https://higginsauto.com/parts/NISSAN.DATSUN/ALTIMA/26H072/2026",
+      "key": "higgins-arrivals-only-5",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "3GKALMEV2KL233251",
+      "detailsUrl": "https://higginsauto.com/parts/GMC/TERRAIN/26861/2019",
+      "key": "higgins-arrivals-only-6",
+      "nativeEmpty": true,
+      "records": 0
+    },
+    {
+      "vin": "2HGFC2F66LH510525",
+      "detailsUrl": "https://higginsauto.com/parts/HONDA/CIVIC/26847/2020",
+      "key": "higgins-arrivals-only-7",
+      "nativeEmpty": true,
+      "records": 0
+    }
+  ],
+  "accounting": {
+    "recordsProcessed": 1576,
+    "recordsExcluded": 0,
+    "recordsRejected": 51,
+    "duplicateVehicles": 48
+  },
+  "rejectionRate": 0.03236040609137056,
+  "suppliers": {
+    "ca22": 1528,
+    "no-yard-photo": 48
+  },
+  "minimumInventory": 492,
+  "responseCount": 317,
+  "bytes": 138724467,
+  "emitted": 1477,
+  "closingEvidence": "passed",
+  "failure": null
+}

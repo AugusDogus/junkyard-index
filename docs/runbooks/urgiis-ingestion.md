@@ -48,6 +48,7 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 | Ace Auto Parts                     | St. Paul     | MN    |    3,015 |      185 |       0 |         54 | 2,400 |
 | Chuck's Auto Salvage               | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
 | Central Auto Recyclers             | Concord      | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
+| Higgins Auto Parts                 | Bakersfield  | CA    |    1,477 |       51 |       0 |         48 |   492 |
 
 Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
@@ -152,7 +153,7 @@ A separate anonymous browser visit to APS's published Google map observed 112 HT
 
 ## Validation
 
-Final qualification admits 38,191 unique vehicle identifiers across eleven tenants and twelve physical yards, with zero cross-tenant duplicates. The source floor is 30,000 and every physical-yard floor holds. All eleven complete connector replays pass across 8,546 separately captured native responses.
+The original qualification admitted 38,191 unique vehicle identifiers across eleven tenants and twelve physical yards, with zero cross-tenant duplicates. The source floor is 30,000 and every physical-yard floor holds. All eleven complete connector replays pass across 8,546 separately captured native responses.
 
 Lint, typecheck and formatting of all 63 changed text files pass. The affected set passes 58 tests. The full `bun test --timeout 15000 src` run passes 4,394 tests across 409 files with zero failures in 860.44 seconds, using CI's pinned Bun 1.4.1. Lentini's full replay completes in 336.56 seconds under its explicit 600-second per-test timeout. Tests use local responses only. No lockfile changed after the machine's global Bun upgrade.
 
@@ -160,7 +161,7 @@ Lint, typecheck and formatting of all 63 changed text files pass. The affected s
 
 ## Batch A qualification, November 16, 2026
 
-None of the ten screened batch A tenants qualifies. They remain outside `URGIIS_TENANTS`; no new inventory floors or exclusion whitelists are registered. The source stays disabled and the 50% previous-run drift guard is unchanged.
+At initial screening, none of the ten batch A tenants qualified. All remained outside `URGIIS_TENANTS`; no new inventory floors or exclusion whitelists were registered. Higgins subsequently qualified in the follow-up recorded below. The source stays disabled and the 50% previous-run drift guard is unchanged.
 
 | Tenant                      | URG owner | Recorded attempts | Exclusion                                                                                                                                                        |
 | --------------------------- | --------- | ----------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -185,7 +186,7 @@ The 1,103 recorded attempts include native pages, recovery probes, retries, two 
 
 Initial acquisition used a within-batch gate. After parent coordination, tenant requests used the shared cross-process `flock` gate on `/tmp/jyi-urg-gate.lock`, with epoch seconds in `/tmp/jyi-urg-gate.last`, a 3.1-second start gap and 3.5-second per-tenant response spacing. One known exception is retained: resuming a paused Borges crawler released a stale reservation, placing the contact request and model-135 starts 155 ms apart on November 16 at 15:02:40 UTC. Pausing around queued requests was discontinued. Both responses and the exception are recorded.
 
-No tenants are added to daily ingestion. The baseline offline audit remains 38,191 unique identifiers, zero cross-tenant duplicates, a 30,000 source floor and all twelve physical-yard floors satisfied. A complete source run still needs 8,546 successful native requests and 1,458,598,956 response bytes, below the 30,000-request and 8 GiB limits. Configured response spacing contributes 5.88 hours; serial wall time is approximately 8.25 hours at one second per response or 17.75 hours at five seconds per response. These are explicit latency scenarios, not a new live whole-source soak.
+At this initial stage, no tenants were added to daily ingestion. The baseline offline audit remained 38,191 unique identifiers, zero cross-tenant duplicates, a 30,000 source floor and all twelve physical-yard floors satisfied. A complete source run still needs 8,546 successful native requests and 1,458,598,956 response bytes, below the 30,000-request and 8 GiB limits. Configured response spacing contributes 5.88 hours; serial wall time is approximately 8.25 hours at one second per response or 17.75 hours at five seconds per response. These are explicit latency scenarios, not a new live whole-source soak.
 
 Batch A validation passes lint, typecheck, changed-file formatting and `bun test --timeout 15000 src`: 4,574 tests across 431 files, zero failures in 1,718.47 seconds on Bun 1.4.4. The twelve new offline tests cover cutoff evidence and complete negative replays. Lentini's existing full replay completes in 490.85 seconds under its explicit 600-second timeout.
 
@@ -210,3 +211,19 @@ Higgins' title is exactly `New Arrivals, Recycled Vehicles - Higgins Auto Parts`
 The same `?yr=2014` probe still returns 30 cards on I-17, Speedway and iDrive. Appending `/2014/` returns an empty result on I-17, a parts surface on Speedway and HTTP 404 on iDrive. Smith's sitemap index likewise lists only page and product sitemaps. Heritage's sitemap-published `/inventory/` alias renders unexpanded `[iis_upull_main][iis_upull_main_output]` shortcodes; `/search-inventory/` renders the ordinary year/make/model/part search form. Neither exposes a complete donor list.
 
 `cap-investigation.json.br` preserves research request receipts and deduplicated raw response bodies, including the downloaded bundles. Its SHA-256 body references bind each receipt to the saved response. These probes do not justify a stock-range crawler or a guessed pagination fallback.
+
+## Higgins follow-up qualification, November 16, 2026
+
+Higgins now qualifies after accepting its exact native arrivals title. Its complete census follows 36 makes, 240 model pages and 60 arrivals, with 1,516 model cards. The 317-response production connector replay includes independently acquired closing ownership and directory controls and serialized checkpoints. It emits 1,477 unique donors, rejects 51 of 1,576 observations (3.24%), excludes none and merges 48 duplicates. All 1,528 supplier-photo observations are CA22; 48 observations have no yard photo. The tenant floor is 492, with 3.5-second response spacing and a 90-second request timeout. The source remains disabled.
+
+Badges are informational and often exceed the observed native lists. Escape has 30 cards against badge 34, but all four recent Escape donors are present. Eight accepted arrivals are absent from their model results. Each of their published native detail URLs returns an explicit empty parts result. These eight donors retain valid native arrivals identities and remain admitted through arrivals under the existing connector contract. This census does not establish that badge totals count enumerable donors or solve the five excluded tenants' proven missing-model-donor cases.
+
+The published address is 12825 S. Union Ave., Bakersfield, CA 93307. Its saved US Census exact-address match is 35.238352730385, -119.003176129205. `higgins.jsonl.br` retains the complete connector replay; `higgins-qualification.json`, `higgins-geocode.json` and `higgins-arrivals-only.json.br` retain the accounting, address receipt and eight empty native detail responses.
+
+Quick Recovery's ATS route returned four cards on two of three follow-up attempts; the middle attempt returned HTTP 500 after roughly 78 seconds. Its resumed acquisition stopped after 116 model pages when qualification was handed to batch C (PR #170). No Quick Recovery contract is added here. No further full-tenant census was started after that handoff.
+
+`cap-investigation-requests.jsonl.gz` records 466 follow-up attempts, including research and census acquisition. The receipt distinguishes a malformed local Higgins URL with no HTTP response, the user-cancelled Quick Recovery request and a discarded mistaken comparison-host 404. `cap-investigation-qualification.json` records these dispositions and the final source audit. Earlier ledgers and qualification summaries remain historical evidence.
+
+The combined offline audit contains 39,668 unique identifiers across twelve tenants and thirteen physical yards, with zero cross-tenant duplicates. Every physical-yard floor holds, and the source floor is 30,492. Complete replays need 8,863 successful native requests and 1,597,323,423 response bytes, below the 30,000-request and 8 GiB limits. Higgins contributes 138,724,467 response bytes. No canonical inventory was written.
+
+Lint and typecheck pass. The full `bun test --timeout 15000 src` run passed 4,574 tests across 431 files with zero failures in 1,614.57 seconds after the title change, before Higgins registration and the new cap-investigation tests. After registration, the batch A and cap-investigation tests pass all eleven cases; the Higgins connector replay and metadata check pass two further cases. Tests use captured local responses only.
