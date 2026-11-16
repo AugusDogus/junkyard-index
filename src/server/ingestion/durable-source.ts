@@ -41,6 +41,7 @@ import { LonestarimportsCursor } from "./lonestarimports-cursor";
 import { HollanderstoresCursor } from "./hollanderstores-cursor";
 import { AlshnedCursor } from "./alshned-cursor";
 import { ArmyCursor } from "./army-cursor";
+import { BigdCursor } from "./bigd-cursor";
 import { IdipullCursor } from "./idipull-cursor";
 import { PullsavewaCursor } from "./pullsavewa-cursor";
 import { LittletonCursor } from "./littleton-cursor";
@@ -244,6 +245,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   army: { initialCursor: ArmyCursor.initial, maxPagesPerChunk: 1 },
   idipull: { initialCursor: IdipullCursor.initial, maxPagesPerChunk: 1 },
+  bigd: { initialCursor: BigdCursor.initial, maxPagesPerChunk: 4 },
   pullsavewa: { initialCursor: PullsavewaCursor.initial, maxPagesPerChunk: 1 },
   littleton: { initialCursor: LittletonCursor.initial, maxPagesPerChunk: 16 },
   michigantruck: {

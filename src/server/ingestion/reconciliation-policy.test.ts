@@ -89,6 +89,7 @@ describe("reconciliation policy", () => {
       "importapart",
       "army",
       "idipull",
+      "bigd",
       "pullsavewa",
       "littleton",
       "michigantruck",
@@ -154,7 +155,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 86",
+      "when 'autorecycler' then 87",
     );
   });
 

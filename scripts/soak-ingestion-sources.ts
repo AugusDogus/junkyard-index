@@ -1,3 +1,4 @@
+import { streamBigdInventory } from "../src/server/ingestion/bigd-connector";
 import { streamHawaiipartsInventory } from "../src/server/ingestion/hawaiiparts-connector";
 import { streamModernmuscleInventory } from "../src/server/ingestion/modernmuscle-connector";
 import { HawaiipartsCursor } from "../src/server/ingestion/hawaiiparts-cursor";
@@ -554,6 +555,13 @@ async function main(): Promise<void> {
               streamSandwInventoryFromProvider({
                 previousUniqueInventory: null,
                 maxPages: Math.min(config.maxPages ?? 5, 5),
+                onBatch,
+              }),
+            );
+          case "bigd":
+            return runProgram(
+              streamBigdInventory({
+                maxPages: Math.min(config.maxPages ?? 4, 4),
                 onBatch,
               }),
             );

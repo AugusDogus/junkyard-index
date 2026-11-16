@@ -334,6 +334,23 @@ describe("manual provider destinations across search, durable alerts and present
       expect(discord.description).toContain("Search its inventory table");
     },
   );
+  test("Big D searches its VIN table without claiming a vehicle permalink or stock number", async () => {
+    const url = "https://bigdsalvage.com/inventory/";
+    const restored = roundTripNotification({
+      ...vehicle("bigd", null),
+      stockNumber: "",
+    });
+    const { card, email, discord } = await renderSurfaces(restored);
+    for (const html of [card, email]) {
+      expect(html).toContain(`href="${url}"`);
+      expect(html).toContain("Search provider inventory");
+      expect(html).toContain("Search the inventory table by VIN");
+      expect(html).not.toContain("View vehicle");
+      expect(html).not.toContain("stock number");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain("Search the inventory table by VIN");
+  });
   for (const [source, inventoryUrl] of manualProviders) {
     test.each([null, "", inventoryUrl, `${inventoryUrl}?stock=STK123`])(
       `${source}: renders an honest search action for stored URL %j`,

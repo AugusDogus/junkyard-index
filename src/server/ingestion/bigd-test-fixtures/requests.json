@@ -1,0 +1,330 @@
+[
+  {
+    "name": "bigd-open",
+    "url": "https://bigdsalvage.com/inventory/",
+    "error": "HTTP Error 403: Forbidden",
+    "started": 1794832167.4440305,
+    "finished": 1794832167.6189702,
+    "status": 403
+  },
+  {
+    "name": "busbee-open",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "error": "HTTP Error 403: Forbidden",
+    "started": 1794832171.1190531,
+    "finished": 1794832171.2676554,
+    "status": 403
+  },
+  {
+    "name": "bigd-curl",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 403,
+    "started": 1794832180.0,
+    "finished": null,
+    "timingNote": "Response Date header only; request timing was not logged."
+  },
+  {
+    "name": "bigd-www",
+    "url": "https://www.bigdsalvage.com/inventory/",
+    "error": "HTTP Error 403: Forbidden",
+    "started": 1794832190.0661762,
+    "finished": 1794832190.2667603,
+    "status": 403
+  },
+  {
+    "name": "busbee-www",
+    "url": "https://www.busbeetruckparts.com/trucks/",
+    "error": "HTTP Error 403: Forbidden",
+    "started": 1794832193.7668383,
+    "finished": 1794832194.0840256,
+    "status": 403
+  },
+  {
+    "name": "bigd-native",
+    "url": "https://bigdsalvage.com/inventory/?qualification=20261116",
+    "error": "HTTP Error 403: Forbidden",
+    "started": 1794832198.2535777,
+    "finished": 1794832198.3498087,
+    "status": 403
+  },
+  {
+    "name": "busbee-native",
+    "url": "https://busbeetruckparts.com/trucks/?f-condition=nw",
+    "error": "HTTP Error 403: Forbidden",
+    "started": 1794832201.8498974,
+    "finished": 1794832201.9612038,
+    "status": 403
+  },
+  {
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 403,
+    "bytes": 5834,
+    "started": 1794832211.588,
+    "finished": 1794832211.686
+  },
+  {
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "bytes": 5826,
+    "started": 1794832215.189,
+    "finished": 1794832215.269
+  },
+  {
+    "name": "bigd-chrome",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 403,
+    "started": 1794832247.2709363,
+    "finished": 1794832247.3614333
+  },
+  {
+    "name": "busbee-chrome",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "started": 1794832250.8866153,
+    "finished": 1794832250.9729464
+  },
+  {
+    "name": "bigd-session-home",
+    "url": "https://bigdsalvage.com/",
+    "status": 403,
+    "bytes": 5416,
+    "started": 1794832276.611294,
+    "finished": 1794832276.69766,
+    "challenge": "challenge"
+  },
+  {
+    "name": "bigd-session-inventory",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794832280.6978447,
+    "finished": 1794832280.84698,
+    "challenge": null
+  },
+  {
+    "name": "busbee-session-home",
+    "url": "https://busbeetruckparts.com/",
+    "status": 403,
+    "bytes": 5421,
+    "started": 1794832284.851143,
+    "finished": 1794832284.9340737,
+    "challenge": "challenge"
+  },
+  {
+    "name": "busbee-session-inventory",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "bytes": 5442,
+    "started": 1794832288.9342387,
+    "finished": 1794832289.0345395,
+    "challenge": "challenge"
+  },
+  {
+    "name": "bigd-native-home",
+    "url": "https://bigdsalvage.com/",
+    "status": 403,
+    "bytes": 5416,
+    "started": 1794832324.981,
+    "finished": 1794832325.068
+  },
+  {
+    "name": "bigd-native-opening",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 403,
+    "bytes": 5446,
+    "started": 1794832329.069,
+    "finished": 1794832329.156
+  },
+  {
+    "name": "bigd-native-closing",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 403,
+    "bytes": 5446,
+    "started": 1794832333.157,
+    "finished": 1794832333.241
+  },
+  {
+    "name": "busbee-native-home",
+    "url": "https://busbeetruckparts.com/",
+    "status": 403,
+    "bytes": 5442,
+    "started": 1794832337.242,
+    "finished": 1794832337.327
+  },
+  {
+    "name": "busbee-native-opening",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "bytes": 5463,
+    "started": 1794832341.329,
+    "finished": 1794832341.409
+  },
+  {
+    "name": "busbee-native-closing",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "bytes": 5463,
+    "started": 1794832345.411,
+    "finished": 1794832345.494
+  },
+  {
+    "name": "bigd-session-home",
+    "url": "https://bigdsalvage.com/",
+    "status": 403,
+    "bytes": 5416,
+    "started": 1794832369.5311708,
+    "finished": 1794832369.6164532,
+    "challenge": "challenge"
+  },
+  {
+    "name": "bigd-session-inventory",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794832373.6166408,
+    "finished": 1794832373.7802684,
+    "challenge": null
+  },
+  {
+    "name": "bigd-session-closing",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794832377.7804549,
+    "finished": 1794832377.9339976,
+    "challenge": null
+  },
+  {
+    "name": "bigd-session-contact",
+    "url": "https://bigdsalvage.com/contact/",
+    "status": 200,
+    "bytes": 151223,
+    "started": 1794832381.9342377,
+    "finished": 1794832382.298001,
+    "challenge": null
+  },
+  {
+    "name": "busbee-session-home",
+    "url": "https://busbeetruckparts.com/",
+    "status": 403,
+    "bytes": 5421,
+    "started": 1794832386.302375,
+    "finished": 1794832386.391489,
+    "challenge": "challenge"
+  },
+  {
+    "name": "busbee-session-inventory",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "bytes": 5442,
+    "started": 1794832390.3916526,
+    "finished": 1794832390.4819996,
+    "challenge": "challenge"
+  },
+  {
+    "name": "busbee-session-closing",
+    "url": "https://busbeetruckparts.com/trucks/",
+    "status": 403,
+    "bytes": 5442,
+    "started": 1794832394.482171,
+    "finished": 1794832394.5692246,
+    "challenge": "challenge"
+  },
+  {
+    "name": "busbee-session-contact",
+    "url": "https://busbeetruckparts.com/contact/",
+    "status": 403,
+    "bytes": 5445,
+    "started": 1794832398.569806,
+    "finished": 1794832398.6722364,
+    "challenge": "challenge"
+  },
+  {
+    "name": "bigd-geocode",
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=1296%20E%20Iona%20Rd%2C%20Idaho%20Falls%2C%20ID%2083401&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "bytes": 655,
+    "started": 1794832423.5337365,
+    "finished": 1794832423.8394766
+  },
+  {
+    "name": "bigd-identity-home",
+    "url": "https://bigdsalvage.com/",
+    "status": 403,
+    "bytes": 5416,
+    "started": 1794832479.546,
+    "finished": 1794832479.698
+  },
+  {
+    "name": "bigd-identity-opening",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794832483.699,
+    "finished": 1794832483.865
+  },
+  {
+    "name": "production-bootstrap",
+    "url": "https://bigdsalvage.com/",
+    "status": 403,
+    "bytes": 5416,
+    "started": 1794832721.325,
+    "finished": 1794832721.429
+  },
+  {
+    "name": "production-contact",
+    "url": "https://bigdsalvage.com/contact/",
+    "status": 200,
+    "bytes": 151223,
+    "started": 1794832725.436,
+    "finished": 1794832725.576
+  },
+  {
+    "name": "production-opening",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794832729.584,
+    "finished": 1794832729.73
+  },
+  {
+    "name": "production-closing",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794832733.747,
+    "finished": 1794832733.91
+  },
+  {
+    "name": "production-closingContact",
+    "url": "https://bigdsalvage.com/contact/",
+    "status": 200,
+    "bytes": 151223,
+    "started": 1794832737.925,
+    "finished": 1794832738.058
+  },
+  {
+    "name": "production-resume-bootstrap",
+    "url": "https://bigdsalvage.com/",
+    "status": 200,
+    "bytes": 260208,
+    "started": 1794833160.7,
+    "finished": 1794833160.915
+  },
+  {
+    "name": "production-resume-closingContact",
+    "url": "https://bigdsalvage.com/contact/",
+    "status": 200,
+    "bytes": 151223,
+    "started": 1794833164.926,
+    "finished": 1794833165.068
+  },
+  {
+    "name": "production-resume-closing",
+    "url": "https://bigdsalvage.com/inventory/",
+    "status": 200,
+    "bytes": 243327,
+    "started": 1794833169.08,
+    "finished": 1794833169.224
+  }
+]

@@ -61,6 +61,7 @@ const providerWebsites = new Map<string, string>([
   ["allied", "https://alliedautowrecking.com/"],
   ["army", "https://armysauto.com/self-service-inventory/"],
   ["idipull", "https://ifipull.com/inventory/"],
+  ["bigd", "https://bigdsalvage.com/inventory/"],
   ["pullsavewa", "http://www.pullandsave.com/home.htm"],
   ["littleton", "https://littletonupullit.com/vehicle-inventory"],
   ["michigantruck", "https://michigantruck.com/trucks/"],
