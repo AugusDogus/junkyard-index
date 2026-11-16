@@ -99,8 +99,8 @@ test("benign repeated native identity keeps nullable optional disagreements", ()
 });
 
 test("minimum and rejection guards apply before emission", () => {
-  expect(() => validateKodakSnapshot(kodakSnapshot(donors(29)))).toThrow(
-    "30-donor",
+  expect(() => validateKodakSnapshot(kodakSnapshot(donors(11)))).toThrow(
+    "12-donor",
   );
   const invalid = (index: number) => ({ ...donor(index), fields: { VIN: "" } });
   expect(() =>

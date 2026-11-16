@@ -28,5 +28,5 @@ export const CALTON_CONTRACT = {
     lng: CALTON_YARD.lng,
   },
   // Complete 630-model native graph and arrivals union, minimum checked before emission.
-  minimumUniqueInventory: 11_000,
+  minimumUniqueInventory: 4_183,
 } satisfies CaltonContract;

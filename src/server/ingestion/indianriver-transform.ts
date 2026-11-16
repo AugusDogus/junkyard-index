@@ -195,6 +195,6 @@ export function validateIndianriverSnapshot(
         previous * SourceValidationPolicy.minimumPreviousRunRatio)
   )
     throw new Error(
-      "Indian River complete census failed reconciliation, the 900-donor floor, 10% rejection, 25% duplicate or 50% previous-count guard; prior inventory is preserved",
+      "Indian River complete census failed reconciliation, the 349-donor floor, 10% rejection, 25% duplicate or 50% previous-count guard; prior inventory is preserved",
     );
 }

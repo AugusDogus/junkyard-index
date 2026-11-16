@@ -143,9 +143,9 @@ export function validateScottsSnapshot(
   const { vehicles, accounting } = snapshot;
   const observed =
     vehicles.length + accounting.recordsRejected + accounting.duplicateVehicles;
-  if (observed !== accounting.recordsProcessed || vehicles.length < 800)
+  if (observed !== accounting.recordsProcessed || vehicles.length < 325)
     throw new Error(
-      "Scotts complete native accounting changed or accepted inventory is below 800 donors; preserve prior inventory",
+      "Scotts complete native accounting changed or accepted inventory is below 325 donors; preserve prior inventory",
     );
   if (
     accounting.recordsRejected / observed >

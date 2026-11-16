@@ -1,5 +1,7 @@
 # BYOT Auto Parts ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 BYOT has five self-service yards. All coordinates below are the yard's own
 published `GeoCoordinates`, checked against its published city, address and a
 city bounding box. No Census match or inferred highway address is required.
@@ -86,8 +88,8 @@ toward the unchanged 25% duplicate guard. Rejected repeats remain rejects rather
 than benign duplicates. Rejects remain inside the 10% rejection guard with no intentional exclusions.
 
 Each yard must retain at least 50% of its previous published count and meet its
-floor: Waco 1,000, Bryan 800, Beaumont 900, Port Allen 850 and Jackson 800.
-The source floor is 4,350, and durable validation also checks source-wide drift.
+floor: Waco 428, Bryan 322, Beaumont 357, Port Allen 345 and Jackson 323.
+The source floor is 1,775, and durable validation also checks source-wide drift.
 No vehicle or yard callback occurs until the complete daily slice validates.
 
 The November 15, 2026 feeds contain Waco 1,220, Bryan 967, Beaumont 1,083,
@@ -113,8 +115,7 @@ every native query exactly once.
 
 ## Operation
 
-The source ships disabled. The `ingestion-source-byot` flag must be explicitly
-enabled in a separate rollout. This change does not enable, deploy or merge it.
+The source runs by default. The `ingestion-source-byot` flag pauses it when it serves false. Qualification did not change production flags or publish inventory.
 
 Count-only daily soak:
 

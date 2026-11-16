@@ -18,7 +18,7 @@ export const BYOT_YARDS = [
     websiteUrl: "https://www.byotautoparts.com/locations/waco/",
     inventoryUrl: "https://www.byotautoparts.com/locations/waco/inventory/",
     stockPrefix: "STK",
-    minimumInventory: 1000,
+    minimumInventory: 428,
     stateName: "Texas",
     coordinateSource:
       "https://www.byotautoparts.com/locations/waco/ (published GeoCoordinates)",
@@ -41,7 +41,7 @@ export const BYOT_YARDS = [
     inventoryUrl:
       "https://www.byotautoparts.com/locations/bryan-college-station/inventory/",
     stockPrefix: "BCS",
-    minimumInventory: 800,
+    minimumInventory: 322,
     stateName: "Texas",
     coordinateSource:
       "https://www.byotautoparts.com/locations/bryan-college-station/ (published GeoCoordinates)",
@@ -62,7 +62,7 @@ export const BYOT_YARDS = [
     websiteUrl: "https://www.byotautoparts.com/locations/beaumont/",
     inventoryUrl: "https://www.byotautoparts.com/locations/beaumont/inventory/",
     stockPrefix: "BMT",
-    minimumInventory: 900,
+    minimumInventory: 357,
     stateName: "Texas",
     coordinateSource:
       "https://www.byotautoparts.com/locations/beaumont/ (published GeoCoordinates)",
@@ -84,7 +84,7 @@ export const BYOT_YARDS = [
     inventoryUrl:
       "https://www.byotautoparts.com/locations/baton-rouge/inventory/",
     stockPrefix: "BTR",
-    minimumInventory: 850,
+    minimumInventory: 345,
     stateName: "Louisiana",
     coordinateSource:
       "https://www.byotautoparts.com/locations/baton-rouge/ (published GeoCoordinates)",
@@ -106,7 +106,7 @@ export const BYOT_YARDS = [
     inventoryUrl:
       "https://www.byotautoparts.com/locations/jackson-ms/inventory/",
     stockPrefix: "JMS",
-    minimumInventory: 800,
+    minimumInventory: 323,
     stateName: "Mississippi",
     coordinateSource:
       "https://www.byotautoparts.com/locations/jackson/ (published GeoCoordinates)",

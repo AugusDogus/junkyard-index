@@ -1,6 +1,8 @@
 # Hagerman
 
-The default-off `hagerman` source covers Hagerman, Inc.'s own Dismantled Vehicles inventory at 82891 Bud Draper Road, Umatilla OR 97882. The native operator identifies its independent family ownership and two locations. All five qualified donors bind supplier 1125862/store 1 to Umatilla. Salem and the separate 22 retail trucks add no inventory or provider credit.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+The `hagerman` source covers Hagerman, Inc.'s own Dismantled Vehicles inventory at 82891 Bud Draper Road, Umatilla OR 97882. The native operator identifies its independent family ownership and two locations. All five qualified donors bind supplier 1125862/store 1 to Umatilla. Salem and the separate 22 retail trucks add no inventory or provider credit.
 
 The November 15, 2026 UTC census contains five native donor destinations. All primary details have literal VIN and year/make/model, with zero rejects or duplicates. The terminal category and operator closing responses match their opening bytes. Inventory, yard callbacks and accounting wait until complete detail, quality and closing proof.
 

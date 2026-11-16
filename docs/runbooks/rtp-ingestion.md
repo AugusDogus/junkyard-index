@@ -1,9 +1,11 @@
 # RTP Pick-A-Part ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source: `rtp`. The connector admits Lexington KY (native YardSmart ID `595`),
 Maiden NC (`1189`), Hebron KY (`232`), Louisville KY (`265`) and Savannah TN
-(`298`). It defaults disabled through
-`ingestion-source-rtp` until rollout. No new yards are counted as published.
+(`298`). It runs unless
+`ingestion-source-rtp` serves false. No new yards are counted as published.
 The user has directed local-only work. Do not push, open or merge a PR, deploy,
 or enable the source without new authorization.
 

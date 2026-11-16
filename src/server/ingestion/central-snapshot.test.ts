@@ -64,7 +64,7 @@ test("Central optional disagreement remains nullable without rejecting required 
   expect(snapshot.accounting.duplicateVehicles).toBe(1);
   expect(snapshot.vehicles[0]?.stockNumber).toBe("ST1");
 });
-test("Central enforces the 5000 donor floor and existing quality guards", () => {
+test("Central enforces the 1985 donor floor and existing quality guards", () => {
   const records = Array.from({ length: 5000 }, (_, index) =>
     centralFixtureRecord(index + 1),
   );
@@ -73,9 +73,10 @@ test("Central enforces the 5000 donor floor and existing quality guards", () => 
   expect(() =>
     validateCentralSnapshot({
       ...snapshot,
-      vehicles: snapshot.vehicles.slice(1),
+      vehicles: snapshot.vehicles.slice(0, 1984),
+      accounting: { ...snapshot.accounting, recordsProcessed: 1984 },
     }),
-  ).toThrow("5000");
+  ).toThrow("1985");
   expect(() =>
     validateCentralSnapshot({
       ...snapshot,

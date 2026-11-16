@@ -1,6 +1,8 @@
 # Chaz's Used Auto Parts & Towing
 
-Disabled local source `chaz`, yard `taneytown`, supplier `MD08`. Qualification
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Local source `chaz`, yard `taneytown`, supplier `MD08`. Qualification
 and application verification use saved public captures. No production flags,
 inventory, database, Algolia, deploys, pushes or pull requests were changed.
 
@@ -92,9 +94,9 @@ disagreements across recent refreshes when a model agrees with one refresh.
 All required VIN/YMM conflicts and destination collisions are classified before
 callbacks. Paused chunks return zero vehicles, accounting and VIN presence.
 Completion supplies disjoint accounting and independently valid rejected VIN
-presence. Callback failure supplies no completed checkpoint. The 900-donor
+presence. Callback failure supplies no completed checkpoint. The 354-donor
 floor, existing 10% rejection, 25% duplicate and 50% downstream drift guards
-apply. Shared enablement defaults off.
+apply. The source runs by default; serving false from its source flag pauses it.
 
 ## Evidence and verification
 

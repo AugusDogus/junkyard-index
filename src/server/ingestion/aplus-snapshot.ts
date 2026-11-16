@@ -198,9 +198,9 @@ export function validateAplusSnapshot(
   const { vehicles, accounting } = snapshot;
   const observed =
     vehicles.length + accounting.duplicateVehicles + accounting.recordsRejected;
-  if (observed !== accounting.recordsProcessed || vehicles.length < 1000)
+  if (observed !== accounting.recordsProcessed || vehicles.length < 407)
     throw new Error(
-      "Aplus finite native union accounting changed or accepted inventory is below 1000 donors",
+      "Aplus finite native union accounting changed or accepted inventory is below 407 donors",
     );
   if (
     accounting.recordsRejected / observed >

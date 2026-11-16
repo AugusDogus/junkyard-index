@@ -97,9 +97,10 @@ test("Scotts enforces complete graph, accounting, inventory floor and existing q
   expect(() =>
     validateScottsSnapshot({
       ...snapshot,
-      vehicles: snapshot.vehicles.slice(1),
+      vehicles: snapshot.vehicles.slice(0, 324),
+      accounting: { ...snapshot.accounting, recordsProcessed: 324 },
     }),
-  ).toThrow("800");
+  ).toThrow("325");
   expect(() =>
     validateScottsSnapshot({
       ...snapshot,

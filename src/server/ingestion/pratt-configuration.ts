@@ -22,5 +22,5 @@ export const PRATT_YARD = {
 export const PRATT_CONTRACT = {
   yard: PRATT_YARD,
   // Complete saved 468-model census: 5,930 clean unique candidates.
-  minimumUniqueInventory: 5_000,
+  minimumUniqueInventory: 1_977,
 } satisfies PrattContract;

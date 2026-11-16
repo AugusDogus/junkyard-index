@@ -23,7 +23,7 @@ export const BEAVERS_YARD = {
 } as const satisfies Omit<Yard, "source"> & { source: "beavers" };
 export type BeaversYard = typeof BEAVERS_YARD;
 // Complete 290-row census: 278 clean unique donors, 12 missing-make rejects.
-export const BEAVERS_MINIMUM_INVENTORY = 240;
+export const BEAVERS_MINIMUM_INVENTORY = 92;
 
 export function beaversPage(raw: string): number | null {
   const url = URL.parse(raw);

@@ -1,5 +1,7 @@
 # Pick-A-Part Virginia ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 The `pickapartva` connector reads the native global donor inventory for two
 verified physical yards: Fredericksburg (`TT87`, 9001 Patriot Hwy) and Stafford
 (`UU81`, 164 Norman Rd.). Native selectors and footer text establish ownership.
@@ -55,7 +57,7 @@ The saved census reconciles 7,449 cards to 7,422 unique donors, 7 invalid modern
 VINs and 20 duplicate cards. Fredericksburg has 5,168 unique donors and Stafford
 has 2,254. Fourteen accepted donors use older serials. Source and per-yard checks
 retain the existing 10% rejection and 25% duplicate limits. The measured source
-floor proposed to shared registration is 6,500, with the existing prior-run drift
+floor in shared registration is 2,474, with the existing prior-run drift
 and reconciliation guards retained by shared orchestration.
 
 Eighteen duplicate cards repeat identical native donors. Two other VIN groups

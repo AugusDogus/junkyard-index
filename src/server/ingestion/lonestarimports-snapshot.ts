@@ -230,7 +230,7 @@ export function lonestarimportsSnapshot(
   }
   const active = accounting.recordsProcessed - accounting.recordsExcluded;
   if (vehicles.size < LONESTARIMPORTS_MINIMUM_INVENTORY)
-    errors.push("Lonestar accepted inventory is below fixed source floor2000");
+    errors.push("Lonestar accepted inventory is below fixed source floor843");
   if (
     !active ||
     accounting.recordsRejected / active >

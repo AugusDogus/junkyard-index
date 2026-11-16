@@ -31,7 +31,7 @@ export function streamModernmuscleInventory<E, R>(
       catalogUrl: MODERNMUSCLE_FEED,
       yard: MODERNMUSCLE_YARD,
       state: "Michigan",
-      floor: 300,
+      floor: 115,
       readPage,
       parseOwner: parseModernmuscleOwner,
       parseInventory: parseModernmuscleInventory,

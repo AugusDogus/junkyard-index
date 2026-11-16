@@ -326,9 +326,9 @@ test("unchanged shared rejection cap rejects excessive required-field failures",
     3,
   );
 }, 20_000);
-test("a complete but undersized native catalog fails the 900 donor floor", async () => {
+test("a complete but undersized native catalog fails the 362 donor floor", async () => {
   const pdf = await changedPdf((document) => {
-    for (let index = 32; index >= 26; index--) {
+    for (let index = 32; index >= 8; index--) {
       const page = document.getPages()[index];
       if (!page) throw new Error("Missing page for minimized catalog");
       document.removePage(index);
@@ -337,7 +337,7 @@ test("a complete but undersized native catalog fails the 900 donor floor", async
   });
   await failsWithoutCallbacks(
     (index, body) => (index === 2 ? pdf : body),
-    "require 900 complete donors",
+    "require 362 complete donors",
     3,
   );
 }, 20_000);

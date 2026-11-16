@@ -1,5 +1,7 @@
 # Pratt's Auto Salvage ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Pratt's Auto Salvage is one full-service donor yard at 170 Industrial Dr,
 Hoxie, Arkansas 72433. Native AR18 inventory, the published address and embedded
 business feature bind the catalog to the independently verified business point.
@@ -22,7 +24,7 @@ must agree. Conflicting VIN/destination observations are quarantined together.
 Stock, photos and dates are optional; conflicting optional values become null.
 No VIN decoding, guessed aliases or image-prefix ownership inference is used.
 
-The source minimum is 5,000 unique donors. Existing 10% rejection, 25% duplicate
+The source minimum is 1,977 unique donors. Existing 10% rejection, 25% duplicate
 and 50% previous-inventory drift limits remain. The connector stages the entire
 graph and emits only after complete-source validation. Durable validation also
 requires an explicit complete cursor. Initial and tampered cursors cannot
@@ -50,7 +52,7 @@ Receipts are under `.scratchpad/coverage/parent-pratt-final01/`,
 `parallel-ut-co-ok/pratt-native-canonical25-oracle20/` and
 `parallel-ak-hi/pratt-physical267-review47/`.
 
-The source stays disabled by default and all work stays local. No production
+The source runs unless its pause flag serves false. Qualification was local only. No production
 write, deployment or source enablement is authorized. On a failed request or
 invalid checkpoint, preserve prior inventory and inspect the named operation.
 Resume only the last validated checkpoint under the unchanged contract.

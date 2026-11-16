@@ -1,6 +1,8 @@
 # Aero Auto Salvage inventory qualification
 
-Status on November 11, 2026: locally qualified, disabled and unpublished. A
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Status on November 11, 2026: locally qualified and unpublished. A
 saved-evidence replay through the revised connector emitted 135 donors from
 141 native rows and passed shared source validation. Six invalid or
 inconsistent identities were rejected. No production snapshot was accepted or
@@ -103,7 +105,7 @@ and the rejected BMW, not the five newly admitted donors. Two of those five
 have native photos outside the earlier HTTP/image audit; the other three have
 null photos. The saved replay makes no new external overlap claim.
 
-The source minimum remains 100 donors. The existing rejection limit (10%),
+The source minimum is 43 donors. The existing rejection limit (10%),
 previous-count drift limit (50%) and duplicate limit (25%) are unchanged.
 Shared validation accepted this local terminal snapshot. This is not production
 enablement or reconciliation.
@@ -125,9 +127,9 @@ action: **Search provider inventory**, followed by instructions to search the
 table and match VIN and stock. Tests verify this labeling across those surfaces.
 No claim is made that the bare link automatically opens a matching donor.
 
-`ingestion-source-aero` defaults false for missing, unreadable or malformed
-flags. The source remains disabled and unpublished under the user's local-only
-direction. Louisiana's published count stays three. Aero is one additional
+`ingestion-source-aero` pauses ingestion only when it serves false. Missing,
+unreadable or malformed flags keep the source enabled. Qualification remained
+local and unpublished. Louisiana's published count stays three. Aero is one additional
 locally qualified yard alongside the four RTP/Nevada yards.
 
 Validation for the revised contract: 63 focused Aero tests, changed-file

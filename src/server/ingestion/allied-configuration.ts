@@ -19,5 +19,5 @@ export const ALLIED_YARD = {
 } as const satisfies AlliedContract["yard"];
 export const ALLIED_CONTRACT = {
   yard: ALLIED_YARD,
-  minimumUniqueInventory: 2_000,
+  minimumUniqueInventory: 835,
 } satisfies AlliedContract;

@@ -1,5 +1,7 @@
 # Tri Town Auto Salvage
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 TriTown adds one physical yard in Mount Joy, Pennsylvania, using its native
 [current inventory](https://tritownautosalvage.com/cars/). Source ID: `tritown`.
 Yard code: `mount-joy`.

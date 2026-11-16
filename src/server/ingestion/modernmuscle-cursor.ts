@@ -6,6 +6,6 @@ import {
 export const ModernmuscleCursor = shopifyYardCursor("modernmuscle", {
   yard: MODERNMUSCLE_YARD,
   catalog: MODERNMUSCLE_FEED,
-  floor: 300,
+  floor: 115,
 });
 export type ModernmuscleCursor = ReturnType<typeof ModernmuscleCursor.initial>;

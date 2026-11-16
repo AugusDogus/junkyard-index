@@ -128,11 +128,11 @@ export function streamMillerstownInventoryWithRequestGate<E, R>(
         }
       }
       if (
-        vehicles.length < 900 ||
+        vehicles.length < 362 ||
         rejected / records.length > SourceValidationPolicy.maximumRejectionRatio
       )
         throw new Error(
-          `Catalog quality failed: ${vehicles.length} complete and ${rejected} rejected of ${records.length} source rows; require 900 complete donors and retain the shared 10% rejection limit`,
+          `Catalog quality failed: ${vehicles.length} complete and ${rejected} rejected of ${records.length} source rows; require 362 complete donors and retain the shared 10% rejection limit`,
         );
       return { vehicles, observedVins, rejected };
     });

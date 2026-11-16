@@ -1,139 +1,9 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { Reason } from "@vercel/flags-core";
+import { Reason, type EvaluationResult } from "@vercel/flags-core";
+import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 
 describe("IngestionSourceFlags.resolve", () => {
-  test("preserves exactly the fourteen established default-enabled sources", () => {
-    expect(IngestionSourceFlags.resolve({})).toEqual([
-      "row52",
-      "pyp",
-      "autorecycler",
-      "pullapart",
-      "upullitne",
-      "upullitdavie",
-      "gopullit",
-      "pullnsave",
-      "tearapart",
-      "wrenchapart",
-      "upullrparts",
-      "ipullupull",
-      "upullitwa",
-      "partsgalore",
-    ]);
-  });
-  test.each([
-    "rtp",
-    "nvpap",
-    "pontiac",
-    "aero",
-    "chesterfield",
-    "utpap",
-    "tritown",
-    "whitebradstreet",
-    "midway",
-    "rightway",
-    "ddauto",
-    "rivervalley",
-    "fenix",
-    "importapart",
-    "bigtruckpage",
-    "speedys",
-    "sandw",
-    "denton",
-    "beavers",
-    "indianriver",
-    "harrys",
-    "budget",
-    "scotts",
-    "oem",
-    "dutchers",
-    "chasencars",
-    "weberbrothers",
-    "hawaiiparts",
-    "modernmuscle",
-    "oemgarage",
-    "hagerman",
-    "kandr",
-    "jimsimport",
-    "lonestarimports",
-    "hollanderstores",
-    "alshned",
-    "allied",
-    "urgiis",
-    "byot",
-    "army",
-    "idipull",
-    "bigd",
-    "pullsavewa",
-    "littleton",
-    "michigantruck",
-    "joliet",
-    "alln1",
-    "grandpajohns",
-    "pickers",
-    "pipes",
-    "uwrench",
-    "millerstown",
-    "pickapartva",
-    "mccauley",
-    "rustyhook",
-    "aviation",
-    "chaz",
-    "citymotors",
-    "awap",
-    "clearsalvage",
-    "aplus",
-    "central",
-    "northwest",
-    "coutu",
-    "kodak",
-    "six03",
-    "rohner",
-    "pratt",
-    "cars4parts",
-    "meeks",
-    "brandywine",
-    "rmmdtp",
-    "calton",
-  ] as const)(
-    "requires explicit enablement for %s before rollout",
-    (source) => {
-      expect(IngestionSourceFlags.resolve({})).not.toContain(source);
-      expect(
-        IngestionSourceFlags.resolve({
-          [`ingestion-source-${source}`]: {
-            value: true,
-            variantId: "on",
-            reason: Reason.FALLTHROUGH,
-          },
-        }),
-      ).toContain(source);
-      const consoleError = spyOn(console, "error").mockImplementation(() => {});
-      try {
-        expect(
-          IngestionSourceFlags.resolve({
-            [`ingestion-source-${source}`]: {
-              value: "true",
-              variantId: "malformed",
-              reason: Reason.FALLTHROUGH,
-            },
-          }),
-        ).not.toContain(source);
-        expect(
-          IngestionSourceFlags.resolve({
-            [`ingestion-source-${source}`]: {
-              value: true,
-              variantId: null,
-              reason: Reason.ERROR,
-              errorMessage: "Failed to get OIDC token",
-            },
-          }),
-        ).not.toContain(source);
-      } finally {
-        consoleError.mockRestore();
-      }
-    },
-  );
   test("leaves out sources whose flag serves false", () => {
     expect(
       IngestionSourceFlags.resolve({
@@ -148,11 +18,7 @@ describe("IngestionSourceFlags.resolve", () => {
           reason: Reason.FALLTHROUGH,
         },
       }),
-    ).toEqual(
-      IngestionSourceFlags.resolve({}).filter(
-        (source) => source !== "upullrparts",
-      ),
-    );
+    ).toEqual(INGESTION_SOURCES.filter((source) => source !== "upullrparts"));
   });
 
   test("keeps sources enabled when their flag is missing or unreadable", () => {
@@ -172,10 +38,46 @@ describe("IngestionSourceFlags.resolve", () => {
             reason: Reason.FALLTHROUGH,
           },
         }),
-      ).toEqual(IngestionSourceFlags.resolve({}));
+      ).toEqual([...INGESTION_SOURCES]);
       expect(consoleError).toHaveBeenCalledTimes(2);
     } finally {
       consoleError.mockRestore();
     }
   });
 });
+
+test.each([...INGESTION_SOURCES])(
+  "%s runs by default and only a false flag pauses it",
+  (source) => {
+    const key = IngestionSourceFlags.key(source);
+    const consoleError = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(IngestionSourceFlags.resolve({})).toContain(source);
+      for (const result of [
+        { value: true, variantId: "on", reason: Reason.FALLTHROUGH },
+        {
+          value: false,
+          variantId: null,
+          reason: Reason.ERROR,
+          errorMessage: "Evaluation unavailable",
+        },
+        { value: "false", variantId: "malformed", reason: Reason.FALLTHROUGH },
+      ] satisfies EvaluationResult<unknown>[]) {
+        expect(IngestionSourceFlags.resolve({ [key]: result })).toContain(
+          source,
+        );
+      }
+      expect(
+        IngestionSourceFlags.resolve({
+          [key]: {
+            value: false,
+            variantId: "paused",
+            reason: Reason.FALLTHROUGH,
+          },
+        }),
+      ).not.toContain(source);
+    } finally {
+      consoleError.mockRestore();
+    }
+  },
+);

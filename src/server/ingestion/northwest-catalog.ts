@@ -75,10 +75,10 @@ export function validateNorthwestSnapshot(
 ) {
   if (
     snapshot.quality.issues.length ||
-    snapshot.vehicles.length < 5500 ||
+    snapshot.vehicles.length < 2_229 ||
     snapshot.missingDonors > snapshot.accounting.recordsProcessed * 0.01
   )
     throw new Error(
-      `Northwest complete graph failed admission: ${snapshot.missingDonors} unrecovered advertised donors / ${snapshot.accounting.recordsProcessed} observed (limit 1%); ${snapshot.accounting.recordsRejected} rejects; ${snapshot.vehicles.length} accepted (minimum 5500). Preserve prior inventory and inspect saved native evidence.`,
+      `Northwest complete graph failed admission: ${snapshot.missingDonors} unrecovered advertised donors / ${snapshot.accounting.recordsProcessed} observed (limit 1%); ${snapshot.accounting.recordsRejected} rejects; ${snapshot.vehicles.length} accepted (minimum 2229). Preserve prior inventory and inspect saved native evidence.`,
     );
 }

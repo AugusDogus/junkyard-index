@@ -1,8 +1,10 @@
 # VinPlus app yards
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `vinplus` is a generic, sequential traversal of independent businesses on
-Texn's public VIN+ app. It ships disabled. The boolean
-`ingestion-source-vinplus` flag requires explicit rollout. Qualification and a
+Texn's public VIN+ app. It runs by default. The boolean
+`ingestion-source-vinplus` pauses this source when it serves false. Qualification and a
 successful soak do not enable ingestion or authorize production writes.
 
 ## Published authority and physical yards
@@ -13,12 +15,12 @@ destinations for their vehicles. No unsupported vehicle permalink is constructed
 
 | Yard                               | Yard code        | State | Public app slug             | Minimum accepted |
 | ---------------------------------- | ---------------- | ----- | --------------------------- | ---------------: |
-| U Pull Auto Parts Pocatello        | pocatello        | ID    | u-pull-auto-parts-pocatello |              600 |
-| Ryan's Pick-A-Part                 | ryans            | MI    | ryans                       |            1,200 |
-| US Auto Supply of Sterling Heights | sterling-heights | MI    | us-auto-supply              |              900 |
-| YourPart (SA Recycling)            | hinesville       | GA    | yourpart                    |              400 |
-| 195 Used Auto Parts                | killeen          | TX    | 195-used-auto-parts         |            1,300 |
-| Pick Ur Part                       | lubbock          | TX    | pick-ur-part                |              850 |
+| U Pull Auto Parts Pocatello        | pocatello        | ID    | u-pull-auto-parts-pocatello |              236 |
+| Ryan's Pick-A-Part                 | ryans            | MI    | ryans                       |              468 |
+| US Auto Supply of Sterling Heights | sterling-heights | MI    | us-auto-supply              |              360 |
+| YourPart (SA Recycling)            | hinesville       | GA    | yourpart                    |              154 |
+| 195 Used Auto Parts                | killeen          | TX    | 195-used-auto-parts         |              519 |
+| Pick Ur Part                       | lubbock          | TX    | pick-ur-part                |              361 |
 | Indy U-Pull-It                     | indianapolis     | IN    | indy-u-pull-it              |              400 |
 
 App URLs are `https://vinplus.texnrewards.com/parts/<slug>`. Configuration maps
@@ -136,7 +138,7 @@ Unverified photo hosts and vehicle/parts links are null.
 
 Each yard independently enforces its accepted floor, at most 10% rejected donors
 and at most 25% duplicate donors. Raw repeated-stock occurrences also have a 25%
-guard. Production source validation requires at least 5,650 accepted vehicles,
+guard. Production source validation requires at least 2,498 accepted vehicles,
 the unchanged source rejection/duplicate limits and at least 50% of the previous
 accepted source count. A failure preserves prior accepted inventory.
 
@@ -207,8 +209,8 @@ stocks and one physical Indianapolis yard. Its official address has a unique
 Census Public_AR_Current match. The complete live opening/closing protocol uses
 154 serial requests and accounts for all 1,333 advertised donors: 1,316 accepted,
 17 rejected, zero duplicates and zero unreachable rows. Modern VINs pass check
-digits; one eligible pre-1981 serial is accepted. The new floor is 400. Existing
-floors and 50% drift protection remain unchanged.
+digits; one eligible pre-1981 serial is accepted. Indy retains its 400-donor floor. Other current floors use approximately
+one third of each accepted census. The 50% drift protection remains unchanged.
 
 `vinplusCensus()` appends the original `indy.json.gz` responses to the prior
 six-yard replay, for 1,077 total response bodies. Seven-yard replay accepts

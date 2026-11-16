@@ -105,9 +105,11 @@ test("Chase N Cars optional metadata remains nullable without rejecting valid id
     row: "1",
   });
   expect(
-    chasencarsSnapshot({ updated: "11/14/26", records: rows.slice(1) }, null)
-      .errors,
-  ).toContain("Chase N Cars accepted 549, below fixed source floor550");
+    chasencarsSnapshot(
+      { updated: "11/14/26", records: rows.slice(0, 219) },
+      null,
+    ).errors,
+  ).toContain("Chase N Cars accepted 219, below fixed source floor220");
 });
 test("Chase N Cars arrival dates cannot exceed the full report calendar date", () => {
   expect(chasencarsDate("12/01/26", "11/14/26")).toBeNull();

@@ -1,9 +1,11 @@
 # Big D Pick & Pull ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `bigd` covers Big D Pick & Pull at 1296 E Iona Rd, Idaho Falls, ID 83401,
 208-522-1100. The official contact page identifies the business as operating at
 D & C Salvage's former location. Its inventory footer repeats that address and
-phone. The source ships disabled behind `ingestion-source-bigd`.
+phone. The source runs by default. `ingestion-source-bigd` pauses it when it serves false.
 
 ## Qualification and native scope
 

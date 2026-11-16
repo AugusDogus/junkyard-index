@@ -248,7 +248,7 @@ export function validateJimsimportSnapshot(
   if (previous !== null && (!Number.isSafeInteger(previous) || previous < 0))
     throw new Error("Jim's Import previous count must be nonnegative or null");
   if (
-    n < 3000 ||
+    n < 1_216 ||
     a.recordsProcessed !== n + a.recordsRejected + a.duplicateVehicles ||
     a.recordsExcluded !== 0 ||
     a.recordsRejected / a.recordsProcessed >
@@ -259,6 +259,6 @@ export function validateJimsimportSnapshot(
       n < previous * SourceValidationPolicy.minimumPreviousRunRatio)
   )
     throw new Error(
-      "Jim's Import complete census failed the 3000-donor floor, rejection, duplicate, reconciliation or previous-count guards; prior inventory is preserved",
+      "Jim's Import complete census failed the 1216-donor floor, rejection, duplicate, reconciliation or previous-count guards; prior inventory is preserved",
     );
 }

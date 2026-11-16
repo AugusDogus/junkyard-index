@@ -186,9 +186,9 @@ export function validateChazSnapshot(
   const { vehicles, accounting } = snapshot;
   const observed =
     vehicles.length + accounting.duplicateVehicles + accounting.recordsRejected;
-  if (observed !== accounting.recordsProcessed || vehicles.length < 900)
+  if (observed !== accounting.recordsProcessed || vehicles.length < 354)
     throw new Error(
-      "Chaz finite native union accounting changed or accepted inventory is below 900 donors",
+      "Chaz finite native union accounting changed or accepted inventory is below 354 donors",
     );
   if (
     accounting.recordsRejected / observed >

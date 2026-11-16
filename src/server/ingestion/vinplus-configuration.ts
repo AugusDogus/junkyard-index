@@ -43,7 +43,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     timezone: "America/Denver",
     hiddenSearch: true,
     inventory: { kind: "crush", stockDigits: 6 },
-    minimum: 600,
+    minimum: 236,
     yard: yard(
       {
         code: "pocatello",
@@ -65,7 +65,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     timezone: "America/New_York",
     hiddenSearch: false,
     inventory: { kind: "crush", stockDigits: 6 },
-    minimum: 1200,
+    minimum: 468,
     yard: yard(
       {
         code: "ryans",
@@ -87,7 +87,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     timezone: "America/New_York",
     hiddenSearch: false,
     inventory: { kind: "crush", stockDigits: 6 },
-    minimum: 900,
+    minimum: 360,
     yard: yard(
       {
         code: "sterling-heights",
@@ -109,7 +109,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     timezone: "America/New_York",
     hiddenSearch: false,
     inventory: { kind: "crush", stockDigits: 6 },
-    minimum: 400,
+    minimum: 154,
     yard: yard(
       {
         code: "hinesville",
@@ -131,7 +131,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     timezone: "America/Chicago",
     hiddenSearch: false,
     inventory: { kind: "crush", stockDigits: 5 },
-    minimum: 1300,
+    minimum: 519,
     yard: yard(
       {
         code: "killeen",
@@ -153,7 +153,7 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
     timezone: "America/Chicago",
     hiddenSearch: false,
     inventory: { kind: "yardsmart", yardLocation: "Lubbock" },
-    minimum: 850,
+    minimum: 361,
     yard: yard(
       {
         code: "lubbock",

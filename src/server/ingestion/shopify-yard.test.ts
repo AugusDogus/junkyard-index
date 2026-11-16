@@ -388,9 +388,9 @@ describe("Shopify yard durable closure", () => {
     expect(() =>
       ModernmuscleCursor.parse(HawaiipartsCursor.initial()),
     ).toThrow();
-    expect(SourceValidationPolicy.minimumUniqueInventory.hawaiiparts).toBe(35);
+    expect(SourceValidationPolicy.minimumUniqueInventory.hawaiiparts).toBe(14);
     expect(SourceValidationPolicy.minimumUniqueInventory.modernmuscle).toBe(
-      300,
+      115,
     );
   });
 });

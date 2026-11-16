@@ -1,9 +1,11 @@
 # BigTruckPage ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 The local source covers Misiuk Motors LLC at 101 E Monticello ST, Strafford
 MO 65757, phone 5037805340. The native seller profile establishes ownership.
 An independent exact business, address and phone Google Maps match supplies
-the point 37.2761689, -93.1189117. The source defaults disabled.
+the point 37.2761689, -93.1189117. The source runs unless its pause flag serves false.
 
 ## Inventory and identity
 
@@ -36,7 +38,7 @@ checked before the complete cursor can be returned.
 Durable chunks contain two request units. Cursor phases are `profile`,
 `catalog`, `verify` and `complete`. Batches stage during opening traversal;
 only explicit complete status permits source validation and reconciliation.
-The accepted minimum is 40 donors. Existing 10% rejection, 25% duplicate and
+The accepted minimum is 16 donors. Existing 10% rejection, 25% duplicate and
 50% previous-run retention limits remain unchanged.
 
 Requests use a 1.6-second pacing interval, a 25-second timeout and bounded
@@ -54,7 +56,7 @@ census. Resume only a validated unchanged checkpoint.
 - Independent unchanged replay and admission authority: `.scratchpad/coverage/parent-bigtruckpage-independent01/application-validation.json` and `.scratchpad/coverage/bigtruckpage-local-admission.json`.
 
 Run `bun test src/server/ingestion/bigtruckpage-*.test.ts` and the shared
-durable-source, source-validation, default-off and reconciliation tests after
+durable-source, source-validation, and reconciliation tests after
 changes. The application proof uses saved responses and in-memory libSQL,
 refuses unmatched requests and preconnects, compares all 25 canonical fields,
 and exercises actual source validation, commit claiming and reconciliation.

@@ -64,7 +64,7 @@ async function collect(
 test("Denton serializes every chunk, counts redirects, stages only terminal data and makes completed reentry inert", async () => {
   const graph = dentonTestGraph();
   const result = await collect(graph);
-  expect(DENTON_MINIMUM_INVENTORY).toBe(2000);
+  expect(DENTON_MINIMUM_INVENTORY).toBe(765);
   expect(result.final.count).toBe(2000);
   expect(result.final.accounting).toEqual({
     recordsProcessed: 2000,
@@ -124,7 +124,7 @@ test("Denton resumes pending slash canonicalization with no hidden logical reque
 
 test("Denton source floor, rejection, duplicate and prior drift guards apply to the cumulative terminal corpus", async () => {
   for (const [options, prior, message] of [
-    [{ accepted: 1999 }, null, "qualified minimum is 2000"],
+    [{ accepted: 764 }, null, "qualified minimum is 765"],
     [{ accepted: 2000, rejectsPerPage: 50 }, null, "10% limit"],
     [
       { accepted: 2400, rowsPerPage: 300, duplicatesPerPage: 120 },

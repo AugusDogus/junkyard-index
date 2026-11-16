@@ -1,5 +1,7 @@
 # Rusty Hook Pittsburgh inventory
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 This connector covers only the native Pittsburgh catalog at `http://salvage.rustyhooktowing.com/`. The official Rusty Hook root separately publishes Pittsburgh and Harmony catalogs. Each catalog separates its Yard from Loose Parts. Native Pittsburgh details publish VIN, year, make, model and donor condition or parts notes. Catalog membership establishes donor scope; old notes, copyright years and individual sold components do not establish donor removal.
 
 The physical yard is Rusty Hook Auto Salvage, 3015 Mt. Troy Rd., Pittsburgh, PA 15212, base phone 412-657-9522. The catalog header says ext. 2 and the contact body says Extension 3. This discrepancy remains unresolved; metadata retains only the consistent base number.
@@ -16,7 +18,7 @@ Traversal starts with the exact catalog root. It follows the next numeric page's
 
 The cursor progresses through `catalog`, `details`, `closing` and `complete`. It retains thin native field maps, headings, literal posts, bound image references and body hash/byte receipts. Validation reconstructs the entire contiguous prefix, including rejected identities and optional metadata. Its checksum detects corruption and does not authenticate an externally supplied cursor. Serialized input is capped at 1 MiB before JSON parsing. A run is bounded to 32 listing pages, 384 donors, 448 requests and 32 MiB of response bytes. Growth beyond a bound fails without advancing the returned checkpoint.
 
-No vehicle or yard callback runs until all opening pages, details and closing pages validate. Completion requires at least one accepted donor and no more than the unchanged 10% required-field rejection limit. Duplicate URLs, native identities across donors (including rejected identities), or accepted stock numbers fail the traversal. Shared minimum-count, previous-run drift and cross-source overlap guards remain separate and must still pass. The parent owns source registration and minimum 20; this source stays disabled until separately authorized.
+No vehicle or yard callback runs until all opening pages, details and closing pages validate. Completion requires at least one accepted donor and no more than the unchanged 10% required-field rejection limit. Duplicate URLs, native identities across donors (including rejected identities), or accepted stock numbers fail the traversal. Shared minimum-count, previous-run drift and cross-source overlap guards remain separate and must still pass. The parent owns source registration and minimum 8; this source runs unless its pause flag serves false.
 
 One unit is one serial GET. A chunk accepts 1 through 3 units. Live calls wait 30 seconds before their first request and use a one-per-30-second limiter, preserving spacing across serial resumes. Active traversal is capped at 90 seconds, with a two-minute total live limit. The loop reserves 55 seconds for the next gate plus request and can pause after fewer units. Each request and complete body has one combined 25-second deadline. Responses must be unredirected HTTP 200 HTML without `Content-Range`, with the exact requested final URL. The bounded shared reader rejects invalid UTF-8, oversized bodies and mismatched uncompressed content length. Requests are never retried.
 

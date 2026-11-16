@@ -1,5 +1,7 @@
 # Cars4Parts ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Cars4Parts publishes the Carz R Us 1 own-yard catalog for two distinct Illinois
 locations: 1281 W Cleveland Street, Heyworth, and 614 W. 3Rd Street, Armington.
 Native donor-level branch labels bind each vehicle to its yard. Independent
@@ -21,7 +23,7 @@ rejected VIN claims remain presence evidence, including both contradictory
 Aspen VINs. Optional stock conflicts become null. No typo correction, guessed
 alias, VIN decoding or arbitrary conflict winner is used.
 
-The source minimum is 56 donors, with per-yard minima of 55 and one. Existing
+The source minimum is 24 donors, with per-yard minima of 23 and one. Existing
 10% rejection, 25% duplicate and 50% drift limits remain. Standalone connector
 callers supply previous complete per-yard counts. Registered durable validation
 also compares each yard with its currently persisted, non-missing Cars4Parts
@@ -53,7 +55,7 @@ Evidence is under `.scratchpad/coverage/parallel-al-ms-la/cars4parts-implementat
 Saved closure is not an atomic provider snapshot or proof of remote storage
 capacity. Source admission counts exclude artificial prior-preservation seeds.
 
-The source remains disabled by default and local only. On request, checkpoint,
+The source runs unless its pause flag serves false. Qualification was local only. On request, checkpoint,
 closure or quality failure, preserve previous inventory and inspect the named
 operation. Resume only the last validated cursor under the unchanged contract.
 Start a new run after metadata or policy changes. Never force reconciliation

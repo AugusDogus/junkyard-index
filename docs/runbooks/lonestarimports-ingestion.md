@@ -1,10 +1,12 @@
 # Lonestar Imports ingestion
 
-The default-off `lonestarimports` source covers Lonestar Imports, 6621 Liberty Rd, Houston TX 77028. The native root, about, contact and arrivals pages identify its own 22-acre dismantling yard. The named Google place point is 29.7951041, -95.2997656, rather than the map viewport or placeholder footer embed.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+The `lonestarimports` source covers Lonestar Imports, 6621 Liberty Rd, Houston TX 77028. The native root, about, contact and arrivals pages identify its own 22-acre dismantling yard. The named Google place point is 29.7951041, -95.2997656, rather than the map viewport or placeholder footer embed.
 
 The November 15, 2026 UTC census contains 128 opening and 128 separately captured closing API pages. Both passes contain 2,560 rows: 2,531 accepted donors, nine required-field rejects, 20 explicit sold/crushed exclusions and zero duplicates. Component-only sale notes do not exclude a donor. Native VINs and supported older serials are retained, including the 1967 Mercedes serial. Source category labels require an explicit native vehicle make. No VIN decoding fills missing fields.
 
-Every native page, field, identity, multiplicity and pagination control must match closing. Four ownership/control documents also bookend the census. One vehicle batch and one yard emit only after closing and source quality checks. Valid rejected identities protect presence. Conflicting identities and foreign stock/image joins stop acceptance. Shared validation enforces a 2,000-donor floor, the existing 10% rejection and 25% duplicate ceilings, and the previous-count drift guard. A terminal resume performs no work.
+Every native page, field, identity, multiplicity and pagination control must match closing. Four ownership/control documents also bookend the census. One vehicle batch and one yard emit only after closing and source quality checks. Valid rejected identities protect presence. Conflicting identities and foreign stock/image joins stop acceptance. Shared validation enforces a 843-donor floor, the existing 10% rejection and 25% duplicate ceilings, and the previous-count drift guard. A terminal resume performs no work.
 
 Vehicle destinations use the published stock filter at `/new-arrivals?stock=...`; parts links retain the native manufacturer, model code, year and stock. Optional images remain bound to the same donor GUID.
 

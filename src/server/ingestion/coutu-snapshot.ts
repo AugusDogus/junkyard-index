@@ -114,9 +114,9 @@ export function validateCoutuSnapshot(
   const { vehicles, accounting } = snapshot;
   const total =
     vehicles.length + accounting.duplicateVehicles + accounting.recordsRejected;
-  if (total !== accounting.recordsProcessed || vehicles.length < 1000)
+  if (total !== accounting.recordsProcessed || vehicles.length < 418)
     throw new Error(
-      "Coutu finite graph accounting changed or accepted inventory is below 1000 donors",
+      "Coutu finite graph accounting changed or accepted inventory is below 418 donors",
     );
   if (
     accounting.recordsRejected / total >

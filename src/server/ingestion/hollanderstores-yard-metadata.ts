@@ -19,7 +19,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 42.914677329593,
     lng: -73.188332856971,
     websiteUrl: "https://leblancsauto.hollanderstores.com/",
-    minimum: 450,
+    minimum: 180,
   },
   {
     source: "hollanderstores",
@@ -37,7 +37,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 42.149493339132,
     lng: -72.522477501396,
     websiteUrl: "https://blvdautoparts.hollanderstores.com/",
-    minimum: 65,
+    minimum: 27,
   },
   {
     source: "hollanderstores",
@@ -55,7 +55,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 42.23577481503,
     lng: -71.782114427868,
     websiteUrl: "https://standardauto.hollanderstores.com/",
-    minimum: 65,
+    minimum: 26,
   },
   {
     source: "hollanderstores",
@@ -73,7 +73,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.323233531351,
     lng: -72.886238222811,
     websiteUrl: "https://petrillosauto.hollanderstores.com/",
-    minimum: 45,
+    minimum: 19,
   },
   {
     source: "hollanderstores",
@@ -91,7 +91,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 43.469140113527,
     lng: -88.022746168222,
     websiteUrl: "https://kirchhaynautopa.hollanderstores.com/",
-    minimum: 90,
+    minimum: 38,
   },
   {
     source: "hollanderstores",
@@ -109,7 +109,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 40.746534050698,
     lng: -92.409599430145,
     websiteUrl: "https://piperautoparts.hollanderstores.com/",
-    minimum: 456,
+    minimum: 189,
   },
   {
     source: "hollanderstores",
@@ -127,7 +127,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.933672596381,
     lng: -91.67633114693,
     websiteUrl: "https://sunlineparts.hollanderstores.com/",
-    minimum: 197,
+    minimum: 82,
   },
   {
     source: "hollanderstores",
@@ -145,7 +145,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 40.750236725111,
     lng: -92.428702247522,
     websiteUrl: "https://spilmanautopart.hollanderstores.com/",
-    minimum: 392,
+    minimum: 163,
   },
   {
     source: "hollanderstores",
@@ -163,7 +163,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.769790671719,
     lng: -70.703986094003,
     websiteUrl: "https://robertsons.hollanderstores.com/",
-    minimum: 601,
+    minimum: 249,
   },
   {
     source: "hollanderstores",
@@ -181,7 +181,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.043881799632,
     lng: -74.373713342462,
     websiteUrl: "https://milfordmotorsus.hollanderstores.com/",
-    minimum: 84,
+    minimum: 34,
   },
   {
     source: "hollanderstores",
@@ -199,7 +199,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.644207445785,
     lng: -72.986709037427,
     websiteUrl: "https://terryvilleauto.hollanderstores.com/",
-    minimum: 213,
+    minimum: 88,
   },
   {
     source: "hollanderstores",
@@ -217,7 +217,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 45.101165403407,
     lng: -93.238172430803,
     websiteUrl: "https://aabcoautoparts.hollanderstores.com/",
-    minimum: 4266,
+    minimum: 1_776,
   },
   {
     source: "hollanderstores",
@@ -235,7 +235,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 45.201034348226,
     lng: -94.185403778129,
     websiteUrl: "https://flap.hollanderstores.com/",
-    minimum: 4589,
+    minimum: 1_879,
   },
   {
     source: "hollanderstores",
@@ -253,7 +253,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 45.3515025613,
     lng: -94.918279297667,
     websiteUrl: "https://windyhill.hollanderstores.com/",
-    minimum: 105,
+    minimum: 42,
   },
   {
     source: "hollanderstores",
@@ -271,7 +271,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 30.4840971,
     lng: -88.9083495,
     websiteUrl: "https://biloxiauto.hollanderstores.com/",
-    minimum: 1133,
+    minimum: 468,
   },
   {
     source: "hollanderstores",
@@ -289,7 +289,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 31.6292412,
     lng: -89.18308859999999,
     websiteUrl: "https://rogersauto.hollanderstores.com/",
-    minimum: 541,
+    minimum: 225,
   },
   {
     source: "hollanderstores",
@@ -307,7 +307,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 31.290074763716,
     lng: -89.588878286704,
     websiteUrl: "https://lamarautosalvag.hollanderstores.com/",
-    minimum: 447,
+    minimum: 183,
   },
   {
     source: "hollanderstores",
@@ -325,7 +325,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 34.828788117729,
     lng: -89.566464971797,
     websiteUrl: "https://brother.hollanderstores.com/",
-    minimum: 20,
+    minimum: 8,
   },
   {
     source: "hollanderstores",
@@ -343,7 +343,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 40.683077341077,
     lng: -73.387379810995,
     websiteUrl: "https://aplusparts.hollanderstores.com/",
-    minimum: 2292,
+    minimum: 946,
   },
   {
     source: "hollanderstores",
@@ -361,7 +361,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 44.045662965407,
     lng: -116.98555743749,
     websiteUrl: "https://northverdeauto.hollanderstores.com/",
-    minimum: 153,
+    minimum: 63,
   },
   {
     source: "hollanderstores",
@@ -379,7 +379,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 45.280880689864,
     lng: -118.015876462477,
     websiteUrl: "https://bandkautosalvag.hollanderstores.com/",
-    minimum: 104,
+    minimum: 41,
   },
   {
     source: "hollanderstores",
@@ -397,7 +397,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 44.6853766,
     lng: -91.6617765,
     websiteUrl: "https://conrads.hollanderstores.com/",
-    minimum: 2589,
+    minimum: 1_075,
   },
   {
     source: "hollanderstores",
@@ -415,7 +415,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 45.435714978205,
     lng: -90.84887247876,
     websiteUrl: "https://rockitopauto.hollanderstores.com/",
-    minimum: 200,
+    minimum: 83,
   },
   {
     source: "hollanderstores",
@@ -433,7 +433,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 42.996009,
     lng: -88.1998275,
     websiteUrl: "https://bandmauto.hollanderstores.com/",
-    minimum: 44,
+    minimum: 18,
   },
   {
     source: "hollanderstores",
@@ -451,7 +451,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 36.296927738606,
     lng: -94.117859132127,
     websiteUrl: "https://nwaupiautoparts.hollanderstores.com/",
-    minimum: 6060,
+    minimum: 2_487,
   },
   {
     source: "hollanderstores",
@@ -469,7 +469,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 35.405718628845,
     lng: -94.413808743583,
     websiteUrl: "https://branson.hollanderstores.com/",
-    minimum: 4,
+    minimum: 1,
   },
   {
     source: "hollanderstores",
@@ -487,7 +487,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.64183,
     lng: -86.25149,
     websiteUrl: "https://paulsouin.hollanderstores.com/",
-    minimum: 623,
+    minimum: 247,
   },
   {
     source: "hollanderstores",
@@ -505,7 +505,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.05821,
     lng: -85.16473,
     websiteUrl: "https://paulsfwin.hollanderstores.com/",
-    minimum: 1658,
+    minimum: 677,
   },
   {
     source: "hollanderstores",
@@ -523,7 +523,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.52733,
     lng: -86.93951,
     websiteUrl: "https://paulswvin.hollanderstores.com/",
-    minimum: 1295,
+    minimum: 520,
   },
   {
     source: "hollanderstores",
@@ -541,7 +541,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.49979,
     lng: -87.33624,
     websiteUrl: "https://paulmerin.hollanderstores.com/",
-    minimum: 1064,
+    minimum: 426,
   },
   {
     source: "hollanderstores",
@@ -559,7 +559,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.587009,
     lng: -87.2660551,
     websiteUrl: "https://paulslkin.hollanderstores.com/",
-    minimum: 1120,
+    minimum: 438,
   },
   {
     source: "hollanderstores",
@@ -577,7 +577,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.71494,
     lng: -86.0314,
     websiteUrl: "https://paulelkin.hollanderstores.com/",
-    minimum: 852,
+    minimum: 346,
   },
   {
     source: "hollanderstores",
@@ -595,7 +595,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.19428,
     lng: -87.17693,
     websiteUrl: "https://pauldemin.hollanderstores.com/",
-    minimum: 601,
+    minimum: 244,
   },
   {
     source: "hollanderstores",
@@ -613,7 +613,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 41.28771572454,
     lng: -86.490248862244,
     websiteUrl: "https://paulsknox.hollanderstores.com/",
-    minimum: 372,
+    minimum: 152,
   },
   {
     source: "hollanderstores",
@@ -631,7 +631,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 40.74461,
     lng: -86.34553,
     websiteUrl: "https://paullogin.hollanderstores.com/",
-    minimum: 420,
+    minimum: 172,
   },
   {
     source: "hollanderstores",
@@ -649,7 +649,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 38.5483659,
     lng: -90.27283849999999,
     websiteUrl: "https://macksautoparts.hollanderstores.com/",
-    minimum: 386,
+    minimum: 385,
   },
   {
     source: "hollanderstores",
@@ -667,7 +667,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 38.683165560211,
     lng: -90.294646774321,
     websiteUrl: "https://alsautosalvage.hollanderstores.com/",
-    minimum: 238,
+    minimum: 234,
   },
   {
     source: "hollanderstores",
@@ -757,7 +757,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 38.570959476523,
     lng: -121.256461748215,
     websiteUrl: "https://mstrecycling.hollanderstores.com/",
-    minimum: 77,
+    minimum: 74,
   },
   {
     source: "hollanderstores",
@@ -775,7 +775,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 39.772853697131,
     lng: -104.958111130437,
     websiteUrl: "https://foreignusedpart.hollanderstores.com/",
-    minimum: 719,
+    minimum: 708,
   },
   {
     source: "hollanderstores",
@@ -793,7 +793,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 28.973204744579,
     lng: -81.306266955433,
     websiteUrl: "https://mkauto.hollanderstores.com/",
-    minimum: 672,
+    minimum: 669,
   },
   {
     source: "hollanderstores",
@@ -811,7 +811,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 33.751194258584,
     lng: -85.054305603205,
     websiteUrl: "https://hartsparts.hollanderstores.com/",
-    minimum: 131,
+    minimum: 122,
   },
   {
     source: "hollanderstores",
@@ -883,7 +883,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 35.101214142814,
     lng: -96.428697222273,
     websiteUrl: "https://rainbowauto.hollanderstores.com/",
-    minimum: 109,
+    minimum: 101,
   },
   {
     source: "hollanderstores",
@@ -901,7 +901,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 46.226307101744,
     lng: -119.048528075066,
     websiteUrl: "https://pascoauto.hollanderstores.com/",
-    minimum: 2059,
+    minimum: 2_048,
   },
   {
     source: "hollanderstores",
@@ -919,7 +919,7 @@ export const HOLLANDERSTORES_YARDS = [
     lat: 47.282519010859,
     lng: -122.959477237944,
     websiteUrl: "https://awcaw.hollanderstores.com/",
-    minimum: 70,
+    minimum: 67,
   },
 ] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {

@@ -1,12 +1,14 @@
 # City Motors ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `citymotors` reads the native Cars catalog at
 `https://citymotorsparts.com/used-car-parts/cars/`. The physical yard is City
 Motors Chicago, 2150 West St, River Grove, IL 60171, 708-395-5602. Yard code is
 `river-grove`. Native `AutoPartsStore` JSON-LD supplies coordinates
 `41.9274, -87.8398` and agrees with the visible physical identity. The independent
 256-yard screen found no observed accepted-yard alias. Shared registration is
-disabled by default; the shared minimum is 150 unique donors.
+enabled unless its pause flag serves false; the shared minimum is 57 unique donors.
 
 ## Native population and identity
 

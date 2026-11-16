@@ -1,7 +1,9 @@
 # Nevada Pic-A-Part ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source: `nvpap`. North Las Vegas (`1074`) and Henderson (`1075`) remain
-disabled through `ingestion-source-nvpap` pending rollout. They are separate
+paused only when `ingestion-source-nvpap` serves false. They are separate
 physical yards from published Pick-n-Pull Carson City and Sparks. Neither
 candidate is counted as published.
 
@@ -59,7 +61,7 @@ Required-identity rejects only provide independently valid VIN presence evidence
 Each yard must finish with available listings and at most 10% rejection. Counters
 and unmatched broad controls survive checkpoint resumes. Existing shared
 duplicate, rejection and prior-run drift safeguards apply, with a minimum of
-2,500 complete vehicles for the two-yard source.
+1,092 complete vehicles for the two-yard source.
 
 Native `?p=<base64 JSON>` links restore the yard's vehicle-stock search with
 any manufacturer/model/year. Payload:
@@ -154,7 +156,7 @@ zero duplicate emissions and 38 independently valid rejected VINs retained as
 presence evidence. Available listings preserve 123 null colors and 28 null
 photos. All available listings retain genuine source stock, row and set-date.
 These counts describe the saved November 11 inventory and revised admission
-behavior. Both yards remain disabled and unpublished.
+behavior. Both yards remain unpublished. Serving false from a source flag pauses ingestion.
 
 Evidence and full emitted records are in
 `.scratchpad/coverage/parallel-az-nm-nv/evidence/nvpap-optional-replay-report.json`

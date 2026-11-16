@@ -1,11 +1,13 @@
 # Shopify-store yard inventory
 
-Hawaii Parts (`hawaiiparts`) and Modern Muscle Salvage (`modernmuscle`) are independent sources. Both ship disabled. Missing, unreadable or false `ingestion-source-hawaiiparts` and `ingestion-source-modernmuscle` flags keep them out of new production ingestion runs. This change does not enable either source.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Hawaii Parts (`hawaiiparts`) and Modern Muscle Salvage (`modernmuscle`) are independent sources. Both run by default. Serving false from `ingestion-source-hawaiiparts` or `ingestion-source-modernmuscle` pauses that source; missing or failed evaluations keep it enabled. No production flags were changed.
 
 | Source                | Physical yard                     | Native census, 2026-11-15           | Accepted | Excluded | Rejected | Floor |
 | --------------------- | --------------------------------- | ----------------------------------- | -------: | -------: | -------: | ----: |
-| Hawaii Parts          | 91-222 Olai St, Kapolei, HI 96707 | 44 counted cards at `/pages/yard`   |       44 |        0 |        0 |    35 |
-| Modern Muscle Salvage | 15980 32 Mile Rd, Ray, MI 48096   | 374 rows in its own storefront feed |      347 |       17 |       10 |   300 |
+| Hawaii Parts          | 91-222 Olai St, Kapolei, HI 96707 | 44 counted cards at `/pages/yard`   |       44 |        0 |        0 |    14 |
+| Modern Muscle Salvage | 15980 32 Mile Rd, Ray, MI 48096   | 374 rows in its own storefront feed |      347 |       17 |       10 |   115 |
 
 Hawaii Parts is the first Hawaii provider. Its Tampa location holds parts only and is not registered as a yard. The live roster contains 44 VIN-bearing cards, including two Land Rover cards missed by the earlier research regex. Each vehicle links to its existing `#car-<vin>` anchor. Three relative photo paths are omitted because they are not usable absolute media URLs.
 
@@ -47,4 +49,4 @@ Provider parsers and HTTP clients are imported only by fetching/soak code. Workf
 | LaChance / My Part Depot, Eagle WI | Its donor JSON lists 139 products, but only 14 contain a VIN in `body_html`. Product HTML might expose additional metafields, but repeated detail requests and the terminal-page probe returned HTTP 429 with Retry-After 60. Complete VIN coverage and sold/crushed status could not be qualified. No source is registered. Do not infer donor activity from the zero-dollar product's out-of-stock flag, or interpret “parts are sold individually” as a sold donor. A future implementation must inspect explicit donor sold/crushed markers, exclude inactive donors from observed VINs, close the paginated census, and pass the 10% rejection guard. |
 | CNC Autoworks, Winona MN           | Optional. Earlier evidence has six VIN-less vehicles among 48 (12.5% rejection), exceeding the unchanged 10% guard. Three paced live JSON attempts returned HTTP 429 with Retry-After 60, so improved coverage could not be confirmed. No source is registered.                                                                                                                                                                                                                                                                                                                                                                                            |
 
-Qualify deferred yards with slow sequential requests and saved responses before adding them. Keep every new source disabled until its own rollout is authorized.
+Qualify deferred yards with slow sequential requests and saved responses before adding them. New sources run by default; serving false from a source flag pauses it.

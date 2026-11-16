@@ -1,10 +1,12 @@
 # Littleton U-Pull-It ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Status on November 12, 2026: locally qualified with 1,079 accepted unique
 vehicles, 11 required-identity rejects and zero duplicates. Saved production
 connector replays with query budgets 1, 16 and 32 produce identical canonical
 output through the shared durable cursor codec. No production inventory was
-written; the source remains disabled by default.
+written; the source runs unless its pause flag serves false.
 
 Littleton is a single self-service yard at 8571 US Hwy. 85 N, Littleton CO
 80125, phone 303-791-1380. The official root states that its entire inventory
@@ -113,7 +115,7 @@ A complete cursor performs no requests or callbacks.
 
 The source retains the unchanged 10% cumulative required-field rejection cap,
 50% prior-count drift limit and shared duplicate/reconciliation guards. The
-source floor is 900 accepted unique vehicles. A paused or failed read cannot
+source floor is 359 accepted unique vehicles. A paused or failed read cannot
 reconcile inventory. The saved source contains 1,079 accepted identities,
 including three supported old serials, and 11 malformed modern VIN rejects.
 

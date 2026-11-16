@@ -1,6 +1,8 @@
 # U-Pull and Save Pontiac qualification
 
-Status on November 11, 2026: locally qualified, disabled and unpublished.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Status on November 11, 2026: locally qualified and unpublished.
 Under the current optional-field contract, replaying the saved audit emits
 1,307 donors, rejects none and excludes four missing detail endpoints. The
 historical fresh crawl emitted 1,303 donors and rejected three for color under
@@ -97,9 +99,8 @@ image in the union.
 
 ## Connector and validation
 
-The `pontiac` source defaults disabled, including absent, malformed and failed
-flag evaluations. Explicit rollout requires the boolean
-`ingestion-source-pontiac` flag and separate publication authorization.
+The `pontiac` source runs by default. `ingestion-source-pontiac` pauses it
+when it serves false. Absent, malformed and failed flag evaluations keep it enabled.
 
 The connector first verifies official yard contact metadata and recent-arrival
 controls, then enumerates years, year/make model directories, all distinct
@@ -133,7 +134,7 @@ serialized checkpoints.
 
 Incomplete active donors supply valid VIN presence evidence but cannot emit
 listings. Completion retains the unchanged 10% rejection guard. Shared source
-validation also requires at least 1,000 complete donors and the existing
+validation also requires at least 435 complete donors and the existing
 previous-snapshot drift limit.
 
 The historical cached connector replay under the original mandatory-field
@@ -172,7 +173,7 @@ changed-file lint and formatting, and `git diff --check`. Full-project validatio
 of the combined coverage work remains pending. Tests cover serialized traversal,
 mapping variants, positive controls, native search boundaries, identity conflicts, VIN/photo
 deduplication across resumes, missing details, rejection counts, malformed
-responses, body limits and default-disabled flags.
+responses, body limits and pause flags.
 
 Run the public read-only soak with:
 
@@ -210,7 +211,7 @@ fails instead of accepting a partial
 catalog. Optional unpublished specifications remain null.
 The user's local-only hold remains in effect. A separately authorized production
 rollout and confirmation in the live directory are still required before adding
-Pontiac to Michigan's published count. Keep its source flag disabled.
+Pontiac to Michigan's published count. Serve false from its source flag to pause ingestion when needed.
 
 Scratch receipts are under `.scratchpad/coverage/`: `pontiac-overlap-report.json`,
 `pontiac-field-union-report.json`, `pontiac-mapping-coverage-report.json` and

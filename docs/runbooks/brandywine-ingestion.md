@@ -1,8 +1,10 @@
 # Brandywine ingestion
 
-Status: registered and disabled by default. Shared source maps, durable cursor
-routing, dispatcher and the 1,500 minimum are wired. The
-`ingestion-source-brandywine` flag remains off by default. Implementation and
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Status: registered and enabled unless its pause flag serves false. Shared source maps, durable cursor
+routing, dispatcher and the 602 minimum are wired. The
+`ingestion-source-brandywine` flag pauses the source when it serves false. Implementation and
 verification used saved evidence only; they performed no source HTTP,
 enablement, production publication or production reconciliation.
 
@@ -38,7 +40,7 @@ absent or literal unknown optional positions become null. Placeholder makes and
 the unresolved native `AUSTIN/MG/TRIUMPH` lineage reject. Invalid optional color
 values, including numeric values, become null.
 
-The source minimum is 1,500 unique eligible vehicles. The shared 10% rejection,
+The source minimum is 602 unique eligible vehicles. The shared 10% rejection,
 25% duplicate and 50% prior accepted-count drift limits remain unchanged.
 Inactive exclusions are subtracted from the active denominator. Each donor
 contributes exactly one eligible occurrence, duplicate, reject or exclusion.

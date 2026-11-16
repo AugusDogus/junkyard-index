@@ -73,9 +73,9 @@ export function validateMccauleySnapshot(
   const { accounting, vehicles } = snapshot;
   const observed =
     vehicles.length + accounting.duplicateVehicles + accounting.recordsRejected;
-  if (observed !== accounting.recordsProcessed || vehicles.length < 20)
+  if (observed !== accounting.recordsProcessed || vehicles.length < 8)
     throw new Error(
-      "McCauley complete census accounting changed or accepted inventory is below the 20-donor minimum",
+      "McCauley complete census accounting changed or accepted inventory is below the 8-donor minimum",
     );
   if (
     accounting.recordsRejected / observed >

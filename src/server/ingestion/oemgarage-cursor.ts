@@ -16,7 +16,7 @@ const scope = oemgarageHash({
   version: 1,
   yard: OEMGARAGE_YARD,
   catalog: OEMGARAGE_CATALOG,
-  floor: 200,
+  floor: 79,
 });
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const base = {

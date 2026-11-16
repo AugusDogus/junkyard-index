@@ -1,8 +1,9 @@
 # Speedys donor inventory
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source `speedys` reads the source-owned PARTING OUT catalog at
-`https://parts.speedysgroup.com/partingout/`. The source remains disabled by
-default. This leaf does not admit a yard or change source flags.
+`https://parts.speedysgroup.com/partingout/`. The source runs unless its pause flag serves false. This leaf does not admit a yard or change source flags.
 
 The native catalog and donor address identify Speedy's Transmission at
 5300 Midlothian Turnpike, Richmond, VA 23225. The exact named Google business
@@ -103,4 +104,4 @@ This proves application behavior on saved responses, not a fresh live crawl.
 Evidence is in `.scratchpad/coverage/parent-speedys-independent01/`, with the
 admission receipt at `.scratchpad/coverage/speedys-local-admission.json`.
 All 3,502 tests, lint, typecheck and scoped formatting passed. This admission
-adds one local Virginia yard; the source remains disabled by default.
+adds one local Virginia yard; the source runs unless its pause flag serves false.

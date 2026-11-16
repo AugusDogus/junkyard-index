@@ -1,13 +1,15 @@
 # Kodak Auto inventory
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Kodak Auto Inc / American Auto Sales & Parts publishes a finite donor roster at
 `https://kodakauto.co/pull-a-part`. Its native root identifies the salvage lot at
 647 Asheville Hwy, Strawberry Plains, TN 37871 and links that roster. The source
 modules do not enable ingestion or write to the database, Algolia, or admission
-register. Shared integration must keep Kodak disabled by default.
+register. Kodak runs by default; serving false from its source flag pauses it.
 
 The saved 2026-11-12 catalog has 41 cards: 38 accepted, three malformed native
-identifiers rejected, no duplicate VINs. The complete snapshot floor is 30.
+identifiers rejected, no duplicate VINs. The complete snapshot floor is 12.
 Required rejection above 10% or benign duplication above 25% blocks completion.
 The coordinates 36.0198225, -83.6432872 come from the exact-name, address, phone,
 and domain ASYD business JSON-LD. They are a third-party business point.

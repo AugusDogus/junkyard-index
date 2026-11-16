@@ -1,6 +1,8 @@
 # HeavyTruckParts.net salvage suppliers
 
-`heavytruckparts` ships disabled (`ingestion-source-heavytruckparts`). It adds one marketplace credit in each of six states (MA, KY, TN, GA, FL, AZ); SC receives no credit. Dutchers (NY) and C&S (SD) retain their existing source keys, behavior and enumeration policies. No enablement, deployment or merge is included.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+`heavytruckparts` runs unless `ingestion-source-heavytruckparts` serves false. It adds one marketplace credit in each of six states (MA, KY, TN, GA, FL, AZ); SC receives no credit. Dutchers (NY) and C&S (SD) retain their existing source keys, behavior and enumeration policies. No enablement, deployment or merge is included.
 
 ## Qualified census
 
@@ -45,7 +47,7 @@ For each configured supplier, read the opening independent store count, every de
 
 A normal unchanged census costs 108 serial GETs. Checkpoints bind supplier order, scope/config, prior accepted count, request/byte accounting and the exact page frontier. Terminal resume fetches and emits nothing. Each chunk admits at most eight physical GETs, pauses after 60 seconds between requests and has a four-minute deadline. Whole runs stop at 512 requests or one hour. Responses are limited to 2 MiB and checkpoints to 8 MiB.
 
-Per-supplier minimum accepted counts are 5/450/30/175/3/2 in the table's order. Each supplier independently enforces the unchanged 10% rejection and 25% duplicate ceilings, excluding intentional out-of-scope rows from those denominators. Whole-source validation requires at least 700 unique vehicles and the existing 50% prior-run drift guard. An invalid count, drift, malformed page, ownership change, block or quality failure preserves previous inventory and the last committed checkpoint. Inspect saved evidence before restarting; do not raise a guard to admit bad data.
+Per-supplier minimum accepted counts are 2/188/13/72/1/1 in the table's order. Each supplier independently enforces the unchanged 10% rejection and 25% duplicate ceilings, excluding intentional out-of-scope rows from those denominators. Whole-source validation requires at least 277 unique vehicles and the existing 50% prior-run drift guard. An invalid count, drift, malformed page, ownership change, block or quality failure preserves previous inventory and the last committed checkpoint. Inspect saved evidence before restarting; do not raise a guard to admit bad data.
 
 HTP robots.txt publishes Crawl-delay 4 and disallows `page=` URLs. Explicit native pagination is used for these count-checked full catalogs, as in Dutchers: West Side alone spans 25 pages and requires a complete unfiltered roster, including older and malformed-year rows that year-range controls cannot prove. Every deployed HTP client, including Dutchers and C&S, reserves the same Upstash Redis host lease atomically (SET NX PX). The lease covers complete response bodies and four completed seconds, including failures. Token-checked release cannot clear another instance's reservation. A 90-second lease outlasts the five-second Redis acquisition, bounded 65-second request plus its four-second cancellation finalizer, and five-second release. A crashed instance leaves the host idle until lease expiry. A busy host waits at most two minutes; missing configuration, Redis errors, deadlines or lost lease ownership fail the chunk without a local fallback. Local tools and tests retain the process-wide semaphore. Requests have no retries, manual redirects, a 25-second response deadline and a separate 25-second body deadline. All three sources also retain the same process-wide semaphore.
 

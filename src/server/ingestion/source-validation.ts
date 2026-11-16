@@ -20,120 +20,120 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   upullitwa: 1_500,
   partsgalore: 500,
   rtp: 1_000,
-  nvpap: 2_500,
-  pontiac: 1_000,
+  nvpap: 1_092,
+  pontiac: 435,
   // Native inline table: 130 complete of 141 rows on 2026-11-11.
-  aero: 100,
+  aero: 43,
   // Three native yards: 2,111 field-complete donors on 2026-11-11.
-  chesterfield: 1_800,
-  // Two native Utah XML/PHP catalogs: 1,639 complete donors on 2026-11-12.
-  utpap: 1_500,
+  chesterfield: 703,
+  // Two native Utah XML/PHP catalogs: 1,727 complete donors on 2026-11-12.
+  utpap: 575,
   // Complete native catalogs audited under the existing required-field contract.
-  tritown: 400,
-  whitebradstreet: 350,
-  midway: 600,
-  rightway: 450,
-  ddauto: 50,
-  rivervalley: 1_300,
-  fenix: 4_000,
-  importapart: 60,
-  bigtruckpage: 40,
+  tritown: 156,
+  whitebradstreet: 127,
+  midway: 254,
+  rightway: 181,
+  ddauto: 22,
+  rivervalley: 517,
+  fenix: 1_531,
+  importapart: 25,
+  bigtruckpage: 16,
   // Complete native parting-out catalog: one active donor on 2026-11-13.
   speedys: 1,
   // Complete native Lithonia U-Pull report: 624 unique donors on 2026-11-15 UTC.
-  sandw: 500,
-  denton: 2_000,
+  sandw: 208,
+  denton: 765,
   // Complete native make/model census: 976 accepted of 1,064 cards.
-  scotts: 800,
+  scotts: 325,
   // Complete native model/arrivals union: 2,158 accepted donors.
-  oem: 1_800,
+  oem: 719,
   // Complete dual-sort native catalog: 579 accepted of 587 items.
-  dutchers: 500,
+  dutchers: 193,
   // Complete native inline report: 661 accepted of 680 rows.
-  chasencars: 550,
+  chasencars: 220,
   // Complete native catalog: 5,760 unique donors, 63 rejects, two duplicates.
-  weberbrothers: 5_000,
-  hawaiiparts: 35,
-  modernmuscle: 300,
-  oemgarage: 200,
-  hagerman: 5,
-  kandr: 40,
+  weberbrothers: 1_920,
+  hawaiiparts: 14,
+  modernmuscle: 115,
+  oemgarage: 79,
+  hagerman: 1,
+  kandr: 16,
   // Complete native NN38 model graph: 3,649 accepted among 4,016 rows.
-  jimsimport: 3_000,
-  // Complete native census: 2,532 accepted, nine rejects, 19 inactive exclusions.
-  lonestarimports: 2_000,
+  jimsimport: 1_216,
+  // Complete native census: 2,531 accepted, nine rejects, 19 inactive exclusions.
+  lonestarimports: 843,
   // Complete 43-donor native catalog and details: 41 accepted, two rejects.
-  alshned: 35,
-  // Five complete Hollander Stores yards, 876 accepted of 884 published cards.
-  hollanderstores: 30_000,
+  alshned: 13,
+  // 51 complete Hollander Stores yards, 55,958 accepted donors.
+  hollanderstores: 18_638,
   // Complete C&S native store: 59 accepted of 64 items.
-  cstruck: 50,
-  // Seven complete HTP supplier stores, with per-supplier quality floors.
-  heavytruckparts: 700,
+  cstruck: 19,
+  // Six complete HTP supplier stores, with per-supplier quality floors.
+  heavytruckparts: 277,
   // Complete 45-make, 482-model census: 2,507 accepted, 86 rejects, 778 exclusions.
-  allied: 2_000,
+  allied: 835,
   urgiis: URGIIS_MINIMUM_INVENTORY,
-  byot: 4_350,
-  vinplus: 5_650,
-  beavers: 240,
-  indianriver: 900,
+  byot: 1_775,
+  vinplus: 2_498,
+  beavers: 92,
+  indianriver: 349,
   harrys: HARRYS_MINIMUM,
   budget: BUDGET_MINIMUM,
-  army: 200,
+  army: 77,
   bigd: BIGD_MINIMUM_INVENTORY,
   // Fresh complete inline census: 535 accepted of 568 stocks.
   idipull: 178,
-  pullsavewa: 1_800,
-  littleton: 900,
-  michigantruck: 150,
-  joliet: 1_200,
-  alln1: 900,
-  grandpajohns: 500,
-  pickers: 450,
-  pipes: 500,
-  uwrench: 1_000,
-  millerstown: 900,
+  pullsavewa: 688,
+  littleton: 359,
+  michigantruck: 57,
+  joliet: 464,
+  alln1: 364,
+  grandpajohns: 212,
+  pickers: 180,
+  pipes: 178,
+  uwrench: 373,
+  millerstown: 362,
   // Two complete native Virginia catalogs: 7,422 unique donors on 2026-11-12.
-  pickapartva: 6_500,
+  pickapartva: 2_474,
   // Complete native Parts Vehicles census: 24 unique donors on 2026-11-12.
-  mccauley: 20,
+  mccauley: 8,
   // Complete Pittsburgh native census: 25 unique donors on 2026-11-12.
-  rustyhook: 20,
+  rustyhook: 8,
   // Complete finite native model/arrival union: 2,326 unique donors.
-  aviation: 2_000,
+  aviation: 775,
   // Complete finite native model/arrival union: 1,063 unique donors.
-  chaz: 900,
+  chaz: 354,
   // Complete six-page native catalog: 171 unique donors.
-  citymotors: 150,
+  citymotors: 57,
   // Complete eight-page native catalog: 183 unique donors.
-  awap: 160,
+  awap: 61,
   // Complete native roster and primary details: 177 unique donors.
-  clearsalvage: 150,
+  clearsalvage: 59,
   // Complete finite native model/arrival union: 1,222 unique donors.
-  aplus: 1_000,
+  aplus: 407,
   // Complete finite native model census: 5,957 unique donors.
-  central: 5_000,
-  northwest: 5_500,
+  central: 1_985,
+  northwest: 2_229,
   // Complete finite native vehicle-tab census: 1,254 unique donors.
-  coutu: 1_000,
+  coutu: 418,
   // Complete finite native roster: 38 unique donors.
-  kodak: 30,
+  kodak: 12,
   // Complete native donor article census: 973 unique donors.
-  six03: 800,
+  six03: 324,
   // Complete native census: 286 active donors, one explicitly sold vehicle.
-  rohner: 240,
+  rohner: 95,
   // Complete saved 468-model census: 5,930 clean candidates before arrivals union.
-  pratt: 5_000,
+  pratt: 1_977,
   // Complete native four-page catalog:69 Heyworth and2 Armington donors.
-  cars4parts: 56,
+  cars4parts: 24,
   // Complete full inventory with its secondary view checked:1,415 donors.
-  meeks: 1_200,
+  meeks: 471,
   // Complete native union: 1,807 active donors, 11 rejects, 209 inactive.
-  brandywine: 1_500,
+  brandywine: 602,
   // Complete five-page Corinne census: 103 donors, one reject, two sale exclusions.
-  rmmdtp: 80,
+  rmmdtp: 34,
   // Complete 630-model native graph and arrivals union, qualified locally only.
-  calton: 11_000,
+  calton: 4_183,
 };
 
 const MINIMUM_PREVIOUS_RUN_RATIO = 0.5;

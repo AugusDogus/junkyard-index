@@ -11,9 +11,9 @@ import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { PRATT_CONTRACT } from "./pratt-configuration";
 import { PrattCursor } from "./pratt-cursor";
 
-test("Pratt is registered for qualification and requires explicit rollout", () => {
+test("Pratt is registered for qualification and runs unless its flag serves false", () => {
   expect(INGESTION_SOURCES).toContain("pratt");
-  expect(IngestionSourceFlags.resolve({})).not.toContain("pratt");
+  expect(IngestionSourceFlags.resolve({})).toContain("pratt");
 });
 
 const initial = PrattCursor.initial(PRATT_CONTRACT);

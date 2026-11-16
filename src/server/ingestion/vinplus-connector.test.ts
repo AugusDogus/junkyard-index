@@ -128,7 +128,7 @@ test("complete frozen census replays through transport, chunking and durable che
 test("cursor rejects corruption, skipped controls, sibling tags, version and oversized wire", () => {
   const initial = VinplusCursor.initial();
   expect(DURABLE_SOURCE_DEFINITIONS.vinplus.maxPagesPerChunk).toBe(8);
-  expect(IngestionSourceFlags.resolve({})).not.toContain("vinplus");
+  expect(IngestionSourceFlags.resolve({})).toContain("vinplus");
   expect(() =>
     VinplusCursor.parse({ ...initial, phase: "complete" }),
   ).toThrow();

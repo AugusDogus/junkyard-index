@@ -7,7 +7,7 @@ import { classifyBrandywineSnapshot } from "./brandywine-snapshot";
 import { BRANDYWINE_YARD } from "./brandywine-yard-metadata";
 import { SourceValidationPolicy } from "./source-validation";
 
-export const BRANDYWINE_MINIMUM_INVENTORY = 1500;
+export const BRANDYWINE_MINIMUM_INVENTORY = 602;
 export type BrandywineCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
   source: "brandywine";
 };
@@ -79,6 +79,6 @@ export function validateBrandywineInventorySnapshot(
         ))
   )
     throw new Error(
-      "Brandywine complete snapshot fails its 1,500 minimum, accounting partition, 10% rejection, 25% duplicate or 50% prior-drift guard; prior inventory is preserved. Inspect required native claims and the authoritative prior accepted count",
+      "Brandywine complete snapshot fails its 602 minimum, accounting partition, 10% rejection, 25% duplicate or 50% prior-drift guard; prior inventory is preserved. Inspect required native claims and the authoritative prior accepted count",
     );
 }

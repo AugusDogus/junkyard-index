@@ -175,7 +175,7 @@ test("batch two qualifies each complete tenant independently and leaves exclusio
     }
     if (!yard) throw new Error("Qualified tenant missing: " + candidate.code);
     expect(candidate.state).toBe(yard.state);
-    expect(Math.max(1, Math.floor(candidate.total / 3))).toBe(yard.minimum);
+    expect(Math.max(1, Math.floor(candidate.accepted / 3))).toBe(yard.minimum);
     const opening = parseHollanderstoresRoster(
       body(`batch-2/${yard.code}.html.gz`),
       yard,
@@ -208,7 +208,7 @@ test("batch two qualifies each complete tenant independently and leaves exclusio
         .every((vehicle) => vehicle.availableDate === null),
     ).toBe(true);
   }
-  expect(IngestionSourceFlags.resolve({})).not.toContain("hollanderstores");
+  expect(IngestionSourceFlags.resolve({})).toContain("hollanderstores");
 }, 30000);
 
 test("batch two response receipts prove serial spaced requests and exact replay bytes", () => {

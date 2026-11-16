@@ -1,8 +1,10 @@
 # Pipes U-Pull-It ingestion
 
-Pipes is registered and disabled by default. Production enablement requires an explicit rollout of `ingestion-source-pipes`.
+See the current [source flags and census floors](provider-coverage-go-live.md).
 
-Shared snapshot acceptance requires at least 500 unique vehicles. The existing 10% rejection, 25% duplicate and 50% prior-count guards remain in force.
+Pipes is registered and enabled unless its pause flag serves false. Serving false from `ingestion-source-pipes` pauses it.
+
+Shared snapshot acceptance requires at least 178 unique vehicles. The existing 10% rejection, 25% duplicate and 50% prior-count guards remain in force.
 
 Source `pipes` covers one self-service yard, `shreveport`, at 806 Aero Drive, Shreveport LA 71107. The exact approved map coordinate is 32.5299208, -93.773648. Aero707 and UAPI809 are separate businesses. The manual destination is <https://www.pipesupullit.net/Home/Inventory>.
 

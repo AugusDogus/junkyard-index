@@ -5,7 +5,7 @@ export const CHASENCARS_OWNER = `${CHASENCARS_ORIGIN}/`;
 export const CHASENCARS_YARD_URL = `${CHASENCARS_ORIGIN}/visit-our-yard/`;
 export const CHASENCARS_CATALOG = `${CHASENCARS_ORIGIN}/inventory/`;
 // Complete native 680-row report: 661 accepted, 19 rejects on 2026-11-15 UTC.
-export const CHASENCARS_MINIMUM_INVENTORY = 550;
+export const CHASENCARS_MINIMUM_INVENTORY = 220;
 export const CHASENCARS_YARD = {
   source: "chasencars",
   code: "tulsa",

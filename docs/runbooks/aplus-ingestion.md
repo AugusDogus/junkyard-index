@@ -1,5 +1,7 @@
 # A Plus Auto LLC
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Local source `aplus`, yard `nicholasville`, supplier `QQ91`. Source implementation
 and verification use saved public captures. Shared registration and admission are
 owned by the parent workflow. No production writes or enablement are implied.
@@ -97,7 +99,7 @@ observations become null, including temporal arrival disagreements.
 All required VIN/YMM conflicts and destination collisions are classified before
 callbacks. Paused chunks emit no inventory, accounting or VIN presence.
 Completion supplies disjoint accounting and valid rejected VIN presence.
-Callback failure supplies no completed checkpoint. The source floor is 1,000
+Callback failure supplies no completed checkpoint. The source floor is 407
 accepted donors. Existing 10% rejection, 25% duplicate and downstream 50% drift
 guards apply.
 

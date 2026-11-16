@@ -31,7 +31,7 @@ export function streamHawaiipartsInventory<E, R>(
       catalogUrl: HAWAIIPARTS_CATALOG,
       yard: HAWAIIPARTS_YARD,
       state: "Hawaii",
-      floor: 35,
+      floor: 14,
       readPage,
       parseOwner: parseHawaiipartsOwner,
       parseInventory: parseHawaiipartsInventory,

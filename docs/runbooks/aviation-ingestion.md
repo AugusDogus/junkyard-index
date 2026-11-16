@@ -1,5 +1,7 @@
 # Aviation Auto Salvage
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Source-local implementation for one Tucson, Arizona yard. Shared registration,
 enablement and admission belong to the parent integration. No production writes,
 pushes or pull requests are authorized by this qualification.

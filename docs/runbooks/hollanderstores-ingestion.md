@@ -1,6 +1,8 @@
 # Hollander Stores ingestion
 
-The `hollanderstores` source ships disabled. It covers 51 physical yard locations belonging to 43 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK and WA. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+The `hollanderstores` source runs unless its pause flag serves false. It covers 51 physical yard locations belonging to 43 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK and WA. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
 
 ## Initial five-yard qualification on November 15, 2026
 
@@ -12,7 +14,7 @@ The `hollanderstores` source ships disabled. It covers 51 physical yard location
 | Petrillo's Used Auto Parts          | 150 Middletown Ave, New Haven CT 06513 | petrillosauto / 1975   |        61 |       59 |        2 |                   8 |
 | Kirchhayn Auto Parts                | W4726 County Road A, Fredonia WI 53021 | kirchhaynautopa / 6549 |       114 |      114 |        0 |                  24 |
 
-The initial five qualify: 876 accepted, eight rejects, no duplicate VINs or destinations. Standard's six rejected VINs include two short VINs and four check-digit failures, 7.1% of its published roster. Petrillo has two check-digit failures. Each yard must independently remain at or below 10% rejects; a larger census cannot conceal a failing smaller yard. Accepted floors are respectively 450, 65, 65, 45 and 90, plus an expanded 30,000-vehicle source floor. Shared validation applies the 50% previous-count drift and 25% duplicate guards. Conflicting duplicate VIN claims are rejected and their structurally valid VINs preserve existing presence.
+The initial five qualify: 876 accepted, eight rejects, no duplicate VINs or destinations. Standard's six rejected VINs include two short VINs and four check-digit failures, 7.1% of its published roster. Petrillo has two check-digit failures. Each yard must independently remain at or below 10% rejects; a larger census cannot conceal a failing smaller yard. Accepted floors are respectively 180, 27, 26, 19 and 38, plus an 18,638-vehicle source floor. Shared validation applies the 50% previous-count drift and 25% duplicate guards. Conflicting duplicate VIN claims are rejected and their structurally valid VINs preserve existing presence.
 
 Two independently captured card rosters per tenant match all parsed rows, counts, VINs, stock numbers, headings and vehicle destinations. Exact response bodies are saved as gzip fixtures with byte counts and SHA-256 receipts. Tests replay them offline. Qualification made ten serial Hollander POSTs, five Census GETs and two business-website GETs (normal website redirects followed), with three-second gaps between requests in each capture. No new vPIC requests were needed: the verified November 15 investigation already decoded all 884 VINs. Its successful VIN-to-make results bootstrap the production cache in `hollanderstores-vpic-seed.json`.
 
@@ -20,7 +22,7 @@ LeBlanc's published inventory contains 461/541 vehicle IDs below 68.24 million, 
 
 ## November 15 coverage expansion
 
-The 21 added yards publish 30,624 records: 30,321 accepted and 303 rejected. Before the Paul's addition, this capture accepted 31,197 records across 26 locations. Every added yard stays below the 10% rejection guard. New accepted floors are 80% of the verified published count, rounded down, with a minimum of one. Source validation requires at least 30,000 accepted vehicles. Rejected structurally valid VINs continue to protect prior presence. No make is inferred from a model name, and a populated native make is retained even when a cached VIN decode disagrees.
+The 21 added yards publish 30,624 records: 30,321 accepted and 303 rejected. Before the Paul's addition, this capture accepted 31,197 records across 26 locations. Every added yard stays below the 10% rejection guard. Accepted floors are one third of the qualified accepted count, rounded down, with a minimum of one. Source validation requires at least 18,638 accepted vehicles. Rejected structurally valid VINs continue to protect prior presence. No make is inferred from a model name, and a populated native make is retained even when a cached VIN decode disagrees.
 
 | Yard                     | City         | State | Published | Accepted | Rejected |
 | ------------------------ | ------------ | ----- | --------: | -------: | -------: |
@@ -116,26 +118,26 @@ Paul's qualification made 101 additional serial live requests with three-second 
 
 ## November 16 second tenant batch
 
-This batch qualifies 16 businesses in MO, FL, LA, MI, AL, CA, CO, GA, IN, KY, OK and WA: 15,088 accepted from 15,254 published rows, with 166 rejects. The configured source now has 51 locations and accepts 55,958 vehicles in fixture replay. New floors are `max(1, floor(published / 3))`, a broken-page sanity check. The source floor stays 30,000; the 50% previous-run drift guard and 10% per-yard rejection guard are unchanged. Shroyer is deliberately absent because URG owns that tenant.
+This batch qualifies 16 businesses in MO, FL, LA, MI, AL, CA, CO, GA, IN, KY, OK and WA: 15,088 accepted from 15,254 published rows, with 166 rejects. The configured source now has 51 locations and accepts 55,958 vehicles in fixture replay. New floors are `max(1, floor(accepted / 3))`, a broken-page sanity check. The source floor is 18,638; the 50% previous-run drift guard and 10% per-yard rejection guard are unchanged. Shroyer is deliberately absent because URG owns that tenant.
 
 | Tenant                                         | State | Published | Accepted | Rejected (%) | Floor | Hollander / vPIC requests |
 | ---------------------------------------------- | ----- | --------: | -------: | -----------: | ----: | ------------------------: |
-| Mack's Auto Parts (`macksautoparts / 1626`)    | MO    |     1,160 |    1,155 |    5 (0.43%) |   386 |                     3 / 6 |
-| ALS Auto Salvage (`alsautosalvage / 257`)      | MO    |       714 |      703 |   11 (1.54%) |   238 |                     3 / 4 |
+| Mack's Auto Parts (`macksautoparts / 1626`)    | MO    |     1,160 |    1,155 |    5 (0.43%) |   385 |                     3 / 6 |
+| ALS Auto Salvage (`alsautosalvage / 257`)      | MO    |       714 |      703 |   11 (1.54%) |   234 |                     3 / 4 |
 | AA Auto Salvage (`aaautosalvage / 5074`)       | FL    |       341 |      340 |    1 (0.29%) |   113 |                     3 / 3 |
 | Jake's Auto Parts (`jakesautoparts / 5628`)    | LA    |       214 |      213 |    1 (0.47%) |    71 |                     3 / 1 |
 | Go Go Auto Parts (`gogoautoparts / 1201`)      | MI    |       171 |      171 |    0 (0.00%) |    57 |                     3 / 1 |
 | Bobby's Auto Parts (`bobbysauto / 5695`)       | AL    |       293 |      291 |    2 (0.68%) |    97 |                     3 / 1 |
-| MST Recycling (`mstrecycling / 5587`)          | CA    |       233 |      224 |    9 (3.86%) |    77 |                     3 / 1 |
-| Foreign Used Parts (`foreignusedpart / 1111`)  | CO    |     2,157 |    2,124 |   33 (1.53%) |   719 |                    3 / 12 |
-| M&K Used Auto Parts (`mkauto / 1779`)          | FL    |     2,018 |    2,009 |    9 (0.45%) |   672 |                    3 / 11 |
-| Hart's Parts & Recycling (`hartsparts / 7627`) | GA    |       393 |      367 |   26 (6.62%) |   131 |                     3 / 2 |
+| MST Recycling (`mstrecycling / 5587`)          | CA    |       233 |      224 |    9 (3.86%) |    74 |                     3 / 1 |
+| Foreign Used Parts (`foreignusedpart / 1111`)  | CO    |     2,157 |    2,124 |   33 (1.53%) |   708 |                    3 / 12 |
+| M&K Used Auto Parts (`mkauto / 1779`)          | FL    |     2,018 |    2,009 |    9 (0.45%) |   669 |                    3 / 11 |
+| Hart's Parts & Recycling (`hartsparts / 7627`) | GA    |       393 |      367 |   26 (6.62%) |   122 |                     3 / 2 |
 | Veldman's Auto Parts (`veldmans / 2518`)       | IN    |       473 |      471 |    2 (0.42%) |   157 |                     3 / 3 |
 | Davis Salvage (`davissalvageky / 907`)         | KY    |       297 |      297 |    0 (0.00%) |    99 |                     3 / 5 |
 | Champion Auto Parts (`champion / 4427`)        | MI    |        72 |       72 |    0 (0.00%) |    24 |                     3 / 1 |
-| Rainbow Auto Salvage (`rainbowauto / 2050`)    | OK    |       328 |      304 |   24 (7.32%) |   109 |                     3 / 3 |
-| Pasco Auto Wrecking (`pascoauto / 1950`)       | WA    |     6,179 |    6,146 |   33 (0.53%) | 2,059 |                    3 / 49 |
-| All West Coast Auto Wrecking (`awcaw / 249`)   | WA    |       211 |      201 |   10 (4.74%) |    70 |                     3 / 2 |
+| Rainbow Auto Salvage (`rainbowauto / 2050`)    | OK    |       328 |      304 |   24 (7.32%) |   101 |                     3 / 3 |
+| Pasco Auto Wrecking (`pascoauto / 1950`)       | WA    |     6,179 |    6,146 |   33 (0.53%) | 2,048 |                    3 / 49 |
+| All West Coast Auto Wrecking (`awcaw / 249`)   | WA    |       211 |      201 |   10 (4.74%) |    67 |                     3 / 2 |
 
 Stricker Auto Parts (`strickerauto / 2364`, Batavia OH) is excluded. Both full censuses reconcile 12,456 cards, unique destinations, VINs, stocks and headings, with no changes. Each body is 47,899,239 bytes, above the existing 40 MiB HTML cap. Production parsing correctly rejects it. Do not accept a partial roster or raise the cap as part of this batch. Its 423 records in the 2026 ID range establish currency, but do not overcome the transport bound. Qualification used two roster POSTs and one About Us GET.
 
@@ -176,7 +178,7 @@ The three unresolved Census locations use named Google business markers with the
 
 The audit made 214 logical live requests: 54 Hollander requests (36 complete roster POSTs and 18 About Us GETs), 119 vPIC POSTs for 5,510 new unique check-digit-valid missing-make VINs, and 41 address, map, business-site and geocoder requests. Requests were serial with at least three seconds between completed responses and the next request. Ordinary Google Maps and Bobby's website redirects were followed; 301 discovery responses are retained. All response bodies, including empty geocoder/search results, have exact byte counts and SHA-256 receipts in `batch-2/requests.json`. All 5,510 decodes returned usable makes, extending the permanent seed. Prior successful seed entries are reused, no populated native make was sent for decoding, and the existing one unresolved decode remains an explicit reject.
 
-The daily source remains default-off. No production DB, Redis, Algolia, flags, deployment or notification action was invoked. Offline tests replay full opening/closing bodies through the production HTTP adapter, cache and durable state machine; per-yard snapshots, locations, currency, receipts, vPIC membership, no-partial-publication and terminal resume guards are verified.
+The daily source runs unless its pause flag serves false. No production DB, Redis, Algolia, flags, deployment or notification action was invoked. Offline tests replay full opening/closing bodies through the production HTTP adapter, cache and durable state machine; per-yard snapshots, locations, currency, receipts, vPIC membership, no-partial-publication and terminal resume guards are verified.
 
 The configured census is 56,772 rows, below 100,000, with a 10,740,390-byte ready census state (10,740,393 at `complete`), below 32 MiB. The one-operation chunk yields 102 Hollander requests plus 310 logical decode batches for 15,458 unique missing-make VINs: 412 source-fetch workflow steps, versus 283 before this batch and 427 before Weller's exclusion. Cached batches advance logical operations without HTTP requests. With the committed seed and the fixture's unresolved VIN still uncached, a run needs 102 Hollander requests and one vPIC POST, 103 provider requests before retries. If all 310 decode batches needed transport, it would make 412 provider requests. Source chunk workflow retries remain two, transport attempts at most three, chunk deadline twenty minutes and census lifetime two hours. No budget was raised.
 

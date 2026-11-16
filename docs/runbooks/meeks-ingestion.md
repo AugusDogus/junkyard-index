@@ -1,5 +1,7 @@
 # Meeks ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 Meeks Pic-N-Pull publishes one own-yard donor catalog at 1205 Virginia Avenue,
 Martinsville, Virginia 24112. The native owner page, full inventory heading and
 independent business marker bind the catalog to this yard. The nearby recycling
@@ -33,7 +35,7 @@ calendar day and follow the existing 20xx convention. All donor destinations
 honestly link to the full inventory page because no donor-specific detail URL
 is published. No inferred VIN, model alias or invented branch is used.
 
-The shared source minimum is 1,200 donors. Existing 10% rejection, 25% duplicate
+The shared source minimum is 471 donors. Existing 10% rejection, 25% duplicate
 and 50% source drift limits remain. One logical catalog chunk performs five
 sequential native requests, with the existing 1.6-second start-spacing rate
 limiter, 20-second header/body deadlines and 2 MiB document limits. Requests
@@ -58,7 +60,7 @@ Evidence is under `.scratchpad/coverage/parent-meeks-source-proof01/`,
 Saved closure does not establish an atomic provider snapshot or production
 storage capacity.
 
-The source remains disabled by default and local only. On request, ownership,
+The source runs unless its pause flag serves false. Qualification was local only. On request, ownership,
 closure or quality failure, preserve previous inventory and inspect both native
 views. Retry from the start cursor. Never force reconciliation from a failed
 or incomplete catalog.

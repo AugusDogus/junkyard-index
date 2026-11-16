@@ -212,6 +212,6 @@ export function validateSandwSnapshot(
         previous * SourceValidationPolicy.minimumPreviousRunRatio)
   )
     throw new Error(
-      "S&W complete census failed reconciliation, the 500-donor floor, 10% rejection, 25% duplicate or 50% previous-count guard; prior inventory is preserved",
+      "S&W complete census failed reconciliation, the 208-donor floor, 10% rejection, 25% duplicate or 50% previous-count guard; prior inventory is preserved",
     );
 }

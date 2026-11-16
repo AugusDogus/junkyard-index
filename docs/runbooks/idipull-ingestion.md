@@ -1,5 +1,7 @@
 # Idaho Falls iPull qualification
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 `idipull` is the self-service iPull by Intermountain Auto at 3015 N 15th E,
 Idaho Falls, ID 83401, 208-524-4461. It is distinct from Intermountain's excluded
 full-service URG catalog. Its existing registry, durable cursor, manual-search

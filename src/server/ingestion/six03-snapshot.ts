@@ -108,7 +108,7 @@ export function validateSix03Snapshot(
   const { accounting, vehicles } = snapshot;
   const total = accounting.recordsProcessed;
   if (
-    vehicles.length < 800 ||
+    vehicles.length < 324 ||
     total !==
       vehicles.length +
         accounting.recordsRejected +
@@ -117,7 +117,7 @@ export function validateSix03Snapshot(
     accounting.duplicateVehicles / total > 0.25
   )
     throw new Error(
-      "603 complete inventory is below 800 or exceeds 10% rejects / 25% duplicates; preserve prior inventory and inspect the retained native observations",
+      "603 complete inventory is below 324 or exceeds 10% rejects / 25% duplicates; preserve prior inventory and inspect the retained native observations",
     );
   if (
     snapshot.observedVins.some((vin) =>

@@ -154,7 +154,7 @@ test("cursor rejects tampering, wrong prior-count binding, oversized wire and ea
 });
 test("cumulative source floor, active rejection, duplicate and prior drift guards remain enforced", () => {
   expect(lonestarimportsSnapshot(rows.slice(0, 100), null).errors).toContain(
-    "Lonestar accepted inventory is below fixed source floor2000",
+    "Lonestar accepted inventory is below fixed source floor843",
   );
   const rejected = lonestarimportsSnapshot(
     rows.map((r, i) => (i < 300 ? { ...r, Manufacturer: null } : r)),

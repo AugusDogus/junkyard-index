@@ -1,6 +1,8 @@
 # Pull & Save Washington ingestion
 
-Source: `pullsavewa`. Keep it disabled until the source admission and production rollout are approved. This source is separate from `pullnsave` and Washington GO2 `upullitwa`.
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Source: `pullsavewa`. It runs unless its pause flag serves false. This source is separate from `pullnsave` and Washington GO2 `upullitwa`.
 
 The two physical yards are Mead (11125 N Market St, 509-928-4000) and Spokane Valley (10414 E Knox Ave, 509-921-8000). Each current official home identifies a completely self-service parts yard and links its own native inventory catalog. Both yard coordinates come from saved public directory JSON-LD matching the exact native addresses and official domain. Mead's native map `ll` coordinates identify a viewport center and remain separate evidence. The native Spokane map also contains a legacy University address target. That target does not establish an address alias or a third yard.
 
@@ -20,7 +22,7 @@ Catalog membership in that native self-service context supplies availability evi
 
 Require the native VIN or genuine pre-1981 serial, year, make and model. Use the shared `inventoryVin` validator without decoding, repairing or adding a checksum gate. Stock, source Date Set and position are optional. Missing or invalid optional values remain null. Calendar-invalid or future dates remain null. Preserve native stock case. Color remains null. Preserve a published native photo URL only when its yard folder, numeric filename and enclosing native stock detail anchor validate. Missing, ambiguous, invalid, foreign or placeholder photos remain null. Do not fetch image bytes or invent larger photo URLs.
 
-Each yard must emit at least one vehicle and remain within the existing 10% rejection limit. A valid identity on a metadata reject supplies presence evidence only. The complete-source minimum is 1,800 vehicles. Existing source validation and reconciliation policies still apply.
+Each yard must emit at least one vehicle and remain within the existing 10% rejection limit. A valid identity on a metadata reject supplies presence evidence only. The complete-source minimum is 688 vehicles. Existing source validation and reconciliation policies still apply.
 
 Snapshots are atomic per yard. Callbacks run only after complete snapshot validation. A failed callback returns no advanced checkpoint. The serialized cursor pauses after Mead and retains all valid identities, including rejected presence, to detect duplicates in Spokane Valley after resume. A complete cursor makes no requests.
 

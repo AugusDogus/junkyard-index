@@ -7,9 +7,9 @@ export const LONESTARIMPORTS_DOCUMENTS = [
   "/contact",
   "/new-arrivals",
 ] as const;
-// Complete native opening and genuine closing: 2,532 active, nine rejects,
+// Complete native opening and genuine closing: 2,531 active, nine rejects,
 // 19 native sold/crush exclusions on 2026-11-15 UTC.
-export const LONESTARIMPORTS_MINIMUM_INVENTORY = 2_000;
+export const LONESTARIMPORTS_MINIMUM_INVENTORY = 843;
 export const LONESTARIMPORTS_MAX_BODY_BYTES = 2 * 1024 * 1024;
 export const LONESTARIMPORTS_MAX_TOTAL_BYTES = 16 * 1024 * 1024;
 export const LONESTARIMPORTS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;

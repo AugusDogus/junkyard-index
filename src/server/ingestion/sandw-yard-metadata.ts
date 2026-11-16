@@ -26,4 +26,4 @@ export const SANDW_YARD = {
 } as const satisfies SandwYard;
 
 // Complete native report and closing capture: 624 unique field-complete donors.
-export const SANDW_MINIMUM_UNIQUE_INVENTORY = 500;
+export const SANDW_MINIMUM_UNIQUE_INVENTORY = 208;

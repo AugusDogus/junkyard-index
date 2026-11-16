@@ -1,6 +1,8 @@
 # Harry's U-Pull It and Budget U Pull It ingestion
 
-Sources `harrys` and `budget` ship disabled. Their flags are
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
+Sources `harrys` and `budget` run unless their pause flags serve false. Their flags are
 `ingestion-source-harrys` and `ingestion-source-budget`. Qualification is read-only:
 no production persistence, search publication, alerts, deployment or enablement.
 No credentials or schema migration are required.
@@ -152,7 +154,7 @@ Budget's separately acquired 78-response opening and closing replay accepts
 duplicates. All 38 native makes and every native model reconcile. Its update
 marker is November 16. Required-identity rejection includes the known malformed
 Chevrolet VINs; no VIN was repaired or decoded. The maximum serialized cursor
-was 356,923 bytes. This adds one qualified disabled Florida yard; it does not
+was 356,923 bytes. This adds one qualified Florida yard; it does not
 change the count of published yards.
 
 Harry's 4,283 native rows accept 4,105 unique donors, reject 177 (4.13%),
@@ -169,7 +171,7 @@ yard date is November 12. The serialized checkpoint stays below 750,000 bytes.
 
 Both providers satisfy their source floors, rejection and duplicate guards.
 No eligible inventory was excluded to improve those ratios. Modern VINs were
-validated as published, never repaired. Harry's adds three qualified disabled
+validated as published, never repaired. Harry's adds three qualified
 Pennsylvania yards; Budget adds the tenth qualified Florida provider on this
 stack. Neither changes published inventory until separately approved rollout.
 

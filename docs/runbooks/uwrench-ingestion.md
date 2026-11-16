@@ -1,5 +1,7 @@
 # Tri-State U-Wrench ingestion
 
+See the current [source flags and census floors](provider-coverage-go-live.md).
+
 The source and single physical yard codes are `uwrench`. The native business is
 Tri-State U-Wrench and Save, 3310 Old Cape Rd, Jackson MO 63755,
 573-987-3322, info@uwrenchandsave.com. Its native entry and vehicle destination
@@ -73,7 +75,7 @@ a century. Unsupported offset timestamps stay in raw API evidence and do not
 change this source's calendar-only canonical date contract.
 
 The union rejection ceiling is 10%, duplicate ceiling 25%, previous accepted
-count floor 50%, and shared minimum inventory 1,000. Same-owned quarantines
+count floor 50%, and shared minimum inventory 373. Same-owned quarantines
 cannot dilute the rejection denominator. Littleton and Joliet contracts and
 helpers remain unchanged.
 
@@ -110,8 +112,8 @@ performing inventory writes itself.
 
 ## Saved verification and admission
 
-The source defaults disabled. Parent approval and the remaining admission gates
-are required before enabling it.
+The source runs unless its pause flag serves false; missing or failed evaluations
+keep it enabled.
 
 `.scratchpad/coverage/parallel-ma-ct-ri/uwrench-implementation-replay/` retains
 the source tracer, actual connector/soak replay, global/domain codec round trips,

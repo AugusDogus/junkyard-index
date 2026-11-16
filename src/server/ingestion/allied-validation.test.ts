@@ -11,9 +11,9 @@ import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { ALLIED_CONTRACT } from "./allied-configuration";
 import { AlliedCursor } from "./allied-cursor";
 
-test("Allied is registered for qualification and requires explicit rollout", () => {
+test("Allied is registered for qualification and runs unless its flag serves false", () => {
   expect(INGESTION_SOURCES).toContain("allied");
-  expect(IngestionSourceFlags.resolve({})).not.toContain("allied");
+  expect(IngestionSourceFlags.resolve({})).toContain("allied");
 });
 
 const initial = AlliedCursor.initial(ALLIED_CONTRACT);
