@@ -1,5 +1,6 @@
 import type { Yard } from "~/lib/yard";
 import { inventoryVin } from "./inventory-vin";
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import {
   normalizeCanonicalColor,
   normalizeCanonicalMake,
@@ -16,7 +17,8 @@ export function shopifyYardSnapshot(
   previous: number | null,
 ) {
   const assessments = rows.map((row) => {
-    const vin = inventoryVin(row.vin, row.year);
+    const observedVin = inventoryVin(row.vin, row.year);
+    const vin = inventoryVinWithCheckDigit(row.vin, row.year);
     const reasons = [...row.reasons];
     if (!vin) reasons.push("missing-or-invalid-native-identity");
     if (
@@ -32,6 +34,7 @@ export function shopifyYardSnapshot(
     return {
       row,
       vin,
+      observedVin,
       reasons,
       signature: shopifyYardHash([
         row.year,
@@ -45,10 +48,10 @@ export function shopifyYardSnapshot(
   });
   const signatures = new Map<string, Set<string>>();
   for (const a of assessments)
-    if (a.vin)
+    if (a.observedVin)
       signatures.set(
-        a.vin,
-        new Set([...(signatures.get(a.vin) ?? []), a.signature]),
+        a.observedVin,
+        new Set([...(signatures.get(a.observedVin) ?? []), a.signature]),
       );
   const conflicts = new Set(
     [...signatures].filter(([, s]) => s.size > 1).map(([vin]) => vin),
@@ -61,13 +64,14 @@ export function shopifyYardSnapshot(
     recordsRejected: 0,
     duplicateVehicles: 0,
   };
-  for (const { row, vin, reasons } of assessments) {
-    const conflict = vin !== null && conflicts.has(vin);
+  for (const { row, vin, observedVin, reasons } of assessments) {
+    const conflict = observedVin !== null && conflicts.has(observedVin);
     if (row.status === "excluded" && !conflict) {
       accounting.recordsExcluded++;
       continue;
     }
-    if (vin) observedVins.add(vin);
+    // Preserve native presence even when its check digit prevents publication.
+    if (observedVin) observedVins.add(observedVin);
     if (!vin || reasons.length || conflict) {
       accounting.recordsRejected++;
       continue;
