@@ -1,1 +1,34 @@
-{"result":{"input":{"address":{"address":"2744 Eagle School Road, Martinsburg, WV 25404"},"benchmark":{"isDefault":true,"benchmarkDescription":"Public Address Ranges - Current Benchmark","id":"4","benchmarkName":"Public_AR_Current"}},"addressMatches":[{"tigerLine":{"side":"L","tigerLineId":"123386876"},"coordinates":{"x":-77.925464629822,"y":39.468480369268},"addressComponents":{"zip":"25404","streetName":"EAGLE SCHOOL","preType":"","city":"MARTINSBURG","preDirection":"","suffixDirection":"","fromAddress":"2744","state":"WV","suffixType":"RD","toAddress":"2588","suffixQualifier":"","preQualifier":""},"matchedAddress":"2744 EAGLE SCHOOL RD, MARTINSBURG, WV, 25404"}]}}
+{
+  "result": {
+    "input": {
+      "address": { "address": "2744 Eagle School Road, Martinsburg, WV 25404" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "L", "tigerLineId": "123386876" },
+        "coordinates": { "x": -77.925464629822, "y": 39.468480369268 },
+        "addressComponents": {
+          "zip": "25404",
+          "streetName": "EAGLE SCHOOL",
+          "preType": "",
+          "city": "MARTINSBURG",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "2744",
+          "state": "WV",
+          "suffixType": "RD",
+          "toAddress": "2588",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "2744 EAGLE SCHOOL RD, MARTINSBURG, WV, 25404"
+      }
+    ]
+  }
+}
