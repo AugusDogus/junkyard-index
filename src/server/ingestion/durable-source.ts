@@ -40,7 +40,7 @@ import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTRACT } from "./kandr-configuration";
 import { JimsimportCursor } from "./jimsimport-cursor";
 import { LonestarimportsCursor } from "./lonestarimports-cursor";
-import { HollanderstoresCursor } from "./hollanderstores-cursor";
+import { HollanderstoresDurableCursor } from "./hollanderstores-durable-cursor";
 import { AlshnedCursor } from "./alshned-cursor";
 import { ArmyCursor } from "./army-cursor";
 import { BigdCursor } from "./bigd-cursor";
@@ -389,7 +389,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     maxPagesPerChunk: 12,
   },
   hollanderstores: {
-    initialCursor: HollanderstoresCursor.initial(),
+    initialCursor: HollanderstoresDurableCursor.initial(),
     maxPagesPerChunk: 1,
   },
   cstruck: { initialCursor: CstruckCursor.initial(), maxPagesPerChunk: 8 },

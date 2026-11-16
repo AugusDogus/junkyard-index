@@ -417,7 +417,7 @@
   },
   {
     "code": "wellerauto",
-    "decision": "qualified",
+    "decision": "excluded",
     "name": "Weller Auto Parts",
     "tenant": "2561",
     "logo": "Weller Auto Parts",
@@ -446,7 +446,8 @@
       "vpic": 14,
       "location": 1,
       "total": 18
-    }
+    },
+    "reason": "Tenant 2561 serves Grand Rapids and Kalamazoo, but both saved 2,192-row rosters have no per-vehicle location field or verified stock-to-yard mapping. The About Us address is business-wide, not proof of each vehicle location. Exclude rather than assign all vehicles to Grand Rapids."
   },
   {
     "code": "champion",

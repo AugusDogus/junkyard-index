@@ -1,20 +1,73 @@
 {
-  "yards": 52,
-  "rows": 58964,
-  "accepted": 58096,
-  "missingMakeVins": 16111,
-  "decodeOperations": 323,
-  "htmlRequests": 104,
-  "logicalOperations": 427,
-  "cursorBytes": 11155467,
+  "yards": 51,
+  "rows": 56772,
+  "missingMakeVins": 15458,
+  "decodeOperations": 310,
+  "htmlRequests": 102,
+  "logicalOperations": 412,
+  "cursorBytes": 10740390,
+  "accepted": 55958,
   "unresolvedMakeVins": 1,
-  "timedHtmlRequests": 94,
-  "timedHtmlSeconds": 1326.893,
+  "timedHtmlRequests": 92,
+  "timedHtmlSeconds": 1300.728,
   "maxHtmlSeconds": 176.1,
   "newVpicRequests": 119,
   "newVpicMeanSeconds": 2.555,
   "newVpicMaxSeconds": 5.092,
   "serialGapSeconds": 3,
-  "estimatedColdTransportSeconds": 3433.3,
-  "estimatedSeededTransportSeconds": 1638.9
+  "estimatedColdTransportSeconds": 3328.8,
+  "estimatedSeededTransportSeconds": 1612.3,
+  "seededVpicRequests": 1,
+  "seededProviderRequests": 103,
+  "snapshotPuts": 412,
+  "snapshotLoadsDuringFetch": 411,
+  "workflowPayload": {
+    "input": 126102,
+    "output": 167475,
+    "maxInput": 307,
+    "maxOutput": 413,
+    "maxCursor": 242,
+    "runIdBytes": 36,
+    "pathnameBytes": 112,
+    "compression": "below 1024-byte threshold; devl format",
+    "method": "Workflow 5.4 serializers over every ordered operation frontier; fixed-width UUID run/path and checksum; terminal metrics from fixture replay; excludes event metadata, encryption, setup, validation and reconciliation"
+  },
+  "inlineCursorResultSample": {
+    "yards": 51,
+    "cursorJsonBytes": 10740393,
+    "resultJsonBytes": 10740539,
+    "devalueResultBytes": 11424704,
+    "compressedResultBytes": 2192457,
+    "compression": "zstd",
+    "method": "Actual fully validated 51-yard terminal state and repository-result shape through Workflow 5.4 serializers, Node 26.13.1, no encryption; hypothetical inline output after Weller exclusion"
+  },
+  "previous52YardFrontierModel": {
+    "yards": 52,
+    "needed": 16111,
+    "requests": 427,
+    "totals": {
+      "json": 4377478894,
+      "input": 4668271456,
+      "output": 4680199301,
+      "compressedInput": 882742748,
+      "compressedOutput": 884741759,
+      "maxOutput": 11875471,
+      "maxCompressedOutput": 2280378
+    },
+    "first": {
+      "requests": 1,
+      "json": 99298,
+      "output": 104962,
+      "compressedOutput": 21943,
+      "prefix": "zstd"
+    },
+    "last": {
+      "requests": 427,
+      "json": 11155470,
+      "output": 11875463,
+      "compressedOutput": 2279928,
+      "prefix": "zstd"
+    },
+    "method": "Size model of original 427 operation frontiers, original opening fixtures, fixed-width checksum, zero terminal metrics. Approximate aggregate baseline, not a production event log or failure reproduction. Workflow 5.4, Node 26.13.1, Zstandard, no encryption; excludes event metadata."
+  }
 }

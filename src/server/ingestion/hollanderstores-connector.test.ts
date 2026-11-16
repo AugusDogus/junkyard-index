@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { streamHollanderstoresInventory } from "./hollanderstores-connector";
+import { streamHollanderstoresDurableInventory } from "./hollanderstores-durable";
+import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import {
   hollanderstoresSeed,
   HollanderstoresProviderError,
@@ -141,18 +143,47 @@ describe("Hollander Stores saved complete census", () => {
       expect(vins.length).toBeLessThanOrEqual(50);
       return decode(vins);
     };
+    const store = IngestionSnapshotStore.memory();
+    const loadState = async (path: string) =>
+      (await store.load(path)).checkpointState;
     let cursor = getDurableSourceDefinition("hollanderstores").initialCursor;
     for (let step = 0; step < 1000; step++) {
       const result = await Effect.runPromise(
-        streamHollanderstoresInventory({
-          startCursor: cursor,
-          maxPages: 8,
-          readPage,
-          decodeBatch,
-          onBatch,
-        }),
+        streamHollanderstoresDurableInventory(
+          {
+            startCursor: cursor,
+            loadState,
+            maxPages: 8,
+            readPage,
+            onBatch,
+          },
+          (options) =>
+            streamHollanderstoresInventory({ ...options, decodeBatch }),
+        ),
       );
-      const serialized = serializeDurableSourceCursor(result.cursor);
+      const statePath = await store.put({
+        runId: "offline",
+        source: "hollanderstores",
+        chunk: {
+          vehicles: [],
+          observedVins: [],
+          checkpointState: result.checkpointState,
+        },
+      });
+      const persisted = { ...result.cursor, statePath };
+      const serialized = serializeDurableSourceCursor(persisted);
+      expect(Buffer.byteLength(serialized)).toBeLessThan(2048);
+      expect(
+        Buffer.byteLength(
+          JSON.stringify({
+            cursor: persisted,
+            status: result.status,
+            count: result.count,
+            pagesProcessed: result.pagesProcessed,
+            errors: result.errors,
+          }),
+        ),
+      ).toBeLessThan(2048);
       const resumed = parseDurableSourceCursor("hollanderstores", serialized);
       if (resumed.source !== "hollanderstores")
         throw new Error("Wrong durable source");
@@ -172,12 +203,16 @@ describe("Hollander Stores saved complete census", () => {
     expect(decoded.length).toBeGreaterThan(200);
     expect(batches).toHaveLength(1);
     const terminal = await Effect.runPromise(
-      streamHollanderstoresInventory({
-        startCursor: cursor,
-        readPage,
-        decodeBatch,
-        onBatch,
-      }),
+      streamHollanderstoresDurableInventory(
+        {
+          startCursor: cursor,
+          loadState,
+          readPage,
+          onBatch,
+        },
+        (options) =>
+          streamHollanderstoresInventory({ ...options, decodeBatch }),
+      ),
     );
     expect(terminal.count).toBe(0);
     expect(calls).toHaveLength(2 * HOLLANDERSTORES_YARDS.length);

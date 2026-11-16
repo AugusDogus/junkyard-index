@@ -6,6 +6,7 @@ import {
   hollanderstoresFixtureBody as body,
   hollanderstoresFixtureBytes as bytes,
   hollanderstoresFixturePages as pages,
+  hollanderstoresExpected as expected,
 } from "./hollanderstores-test-fixtures";
 import { HOLLANDERSTORES_YARDS } from "./hollanderstores-yard-metadata";
 import { parseHollanderstoresRoster } from "./hollanderstores-parser";
@@ -26,6 +27,11 @@ import {
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { beaversText } from "./beavers-html";
 import { stripInventoryRawText } from "./inventory-html";
+import { HollanderstoresDurableCursor } from "./hollanderstores-durable-cursor";
+import {
+  dehydrateStepReturnValue,
+  dehydrateWorkflowReturnValue,
+} from "@workflow/core/serialization";
 
 const root = `${import.meta.dir}/hollanderstores-test-fixtures/batch-2/`;
 const read = (file: string): unknown =>
@@ -71,6 +77,45 @@ const receipts = z
   )
   .parse(read("requests.json"));
 const codes = new Set(candidates.map((candidate) => candidate.code));
+
+const wellerTemplate = HOLLANDERSTORES_YARDS[0];
+if (!wellerTemplate) throw new Error("Missing Hollander yard template");
+const wellerResearchYard = {
+  ...wellerTemplate,
+  code: "wellerauto",
+  tenant: "2561",
+  logo: "Weller Auto Parts",
+  websiteUrl: "https://wellerauto.hollanderstores.com/",
+};
+
+test("Weller's shared tenant is excluded because the saved rosters cannot attribute vehicles to a physical yard", () => {
+  for (const file of ["wellerauto.html.gz", "wellerauto-closing.html.gz"]) {
+    const raw = body("batch-2/" + file);
+    const roster = parseHollanderstoresRoster(raw, wellerResearchYard);
+    expect(roster.total).toBe(2192);
+    expect(
+      roster.rows.every((row) =>
+        new URL(row.url).pathname.startsWith("/VehicleDealerShowParts/2561/"),
+      ),
+    ).toBe(true);
+    // The entire saved response, including scripts and hidden inputs, has no
+    // location field. Stock numbers have no verified location mapping.
+    expect(raw).not.toMatch(
+      /Kalamazoo|Grand Rapids|Chicago|(?:name|id)=["'][^"']*(?:location|branch|address|yardId|storeId)/i,
+    );
+  }
+  expect(
+    new Set<string>(HOLLANDERSTORES_YARDS.map((yard) => yard.code)).has(
+      "wellerauto",
+    ),
+  ).toBe(false);
+  expect(
+    candidates.find((candidate) => candidate.code === "wellerauto"),
+  ).toMatchObject({
+    decision: "excluded",
+    reason: expect.stringContaining("per-vehicle location"),
+  });
+});
 
 test("Stricker retains two complete matching censuses but exceeds the production response bound", () => {
   const base = HOLLANDERSTORES_YARDS[0];
@@ -316,7 +361,15 @@ test("batch two vPIC receipts decode exactly the new valid VINs with missing nat
   }
   const needed = new Set(
     hollanderstoresMissing({
-      pages: pages().filter((page) => codes.has(page.yard)),
+      // Audit membership reflects the original requests, including Weller's
+      // subsequently excluded roster. Retain every original receipt.
+      pages: [
+        ...pages().filter((page) => codes.has(page.yard)),
+        parseHollanderstoresRoster(
+          body("batch-2/wellerauto.html.gz"),
+          wellerResearchYard,
+        ),
+      ],
     }).filter((vin) => !previous.has(vin)),
   );
   const audited = new Set<string>();
@@ -354,7 +407,7 @@ test("batch two vPIC receipts decode exactly the new valid VINs with missing nat
   expect([...audited].sort()).toEqual([...needed].sort());
 }, 30000);
 
-test("expanded daily census remains inside row, cursor and logical operation budgets", () => {
+test("expanded daily census remains inside row, cursor and logical operation budgets", async () => {
   const opening = pages();
   const needed = hollanderstoresMissing({ pages: opening });
   const requests = opening.length * 2 + Math.ceil(needed.length / 50);
@@ -365,7 +418,7 @@ test("expanded daily census remains inside row, cursor and logical operation bud
     scope: initial.scope,
     previousAcceptedCount: null,
     pending: null,
-    phase: "ready",
+    phase: "complete",
     startedAt: Date.now(),
     pages: opening,
     decoded: Object.fromEntries(
@@ -381,4 +434,34 @@ test("expanded daily census remains inside row, cursor and logical operation bud
   expect(
     Buffer.byteLength(HollanderstoresCursor.serialize(cursor)),
   ).toBeLessThan(HOLLANDERSTORES_MAX_CURSOR_BYTES);
+  // Even the full expanded census crosses workflow boundaries only as a
+  // reference. Bound the real codecs with a maximum-length blob pathname.
+  const reference = {
+    ...HollanderstoresDurableCursor.checkpoint(cursor),
+    statePath: "x".repeat(256),
+  };
+  const rows = opening.reduce((sum, page) => sum + page.total, 0);
+  const output = {
+    cursor: reference,
+    status: "complete",
+    count: rows,
+    uniqueVehicles: expected.count,
+    duplicateVehicles: 0,
+    rejectedVehicles: rows - expected.count,
+    pagesProcessed: requests,
+    errors: [],
+  };
+  expect(Buffer.byteLength(JSON.stringify(reference))).toBeLessThan(2048);
+  for (const payload of [
+    await dehydrateStepReturnValue(output, "offline", undefined),
+    await dehydrateWorkflowReturnValue(
+      ["offline", reference],
+      "offline",
+      undefined,
+    ),
+  ]) {
+    if (!(payload instanceof Uint8Array))
+      throw new Error("Expected binary workflow payload");
+    expect(payload.byteLength).toBeLessThan(2048);
+  }
 }, 30000);
