@@ -1,5 +1,6 @@
 import { vinplusHash } from "./vinplus-parser";
 import { inventoryVin } from "./inventory-vin";
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import {
   normalizeCanonicalColor,
   normalizeCanonicalMake,
@@ -47,13 +48,19 @@ export function vinplusSnapshot(
     }
     const vin =
       typeof record.vin === "string"
-        ? inventoryVin(record.vin, String(record.year))
+        ? inventoryVinWithCheckDigit(record.vin, String(record.year))
         : null;
     const make = vinplusOptionalText(record.make),
       model = vinplusOptionalText(record.model);
     if (!vin || !make || !model) {
       rejected++;
-      if (vin) observedVins.push(vin);
+      // As in BYOT, a structurally valid rejected VIN still protects prior
+      // inventory presence, even when its check digit prevents publication.
+      const observedVin =
+        typeof record.vin === "string"
+          ? inventoryVin(record.vin, String(record.year))
+          : null;
+      if (observedVin) observedVins.push(observedVin);
       continue;
     }
     const identity = JSON.stringify([

@@ -75,8 +75,19 @@ function resolve(
   const yardUrl = vehicle.detailsUrl?.trim();
   if (
     vehicle.source === "vinplus" &&
+    yardUrl ===
+      "https://vinplus.texnrewards.com/parts/u-pull-auto-parts-pocatello"
+  ) {
+    return {
+      kind: "unavailable",
+      explanation:
+        "Pocatello's public app hides vehicle search. Contact U Pull Auto Parts Pocatello with the VIN and stock number to confirm availability.",
+    };
+  }
+  if (
+    vehicle.source === "vinplus" &&
     yardUrl &&
-    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(u-pull-auto-parts-pocatello|ryans|us-auto-supply|yourpart|195-used-auto-parts|pick-ur-part)$/.test(
+    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(ryans|us-auto-supply|yourpart|195-used-auto-parts|pick-ur-part)$/.test(
       yardUrl,
     )
   ) {
@@ -84,8 +95,7 @@ function resolve(
       kind: "manual-search",
       href: yardUrl,
       label: "Search provider inventory",
-      explanation:
-        "Match the VIN, stock number and physical yard. Contact the yard if vehicle search is hidden.",
+      explanation: "Match the VIN, stock number and physical yard.",
     };
   }
   const yardUrls =

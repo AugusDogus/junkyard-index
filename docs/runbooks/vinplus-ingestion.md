@@ -8,8 +8,8 @@ successful soak do not enable ingestion or authorize production writes.
 ## Published authority and physical yards
 
 Each tenant has its own canonical yard, stock namespace, address and coordinates.
-The public app is the inventory authority and the fallback destination for every
-vehicle. No unsupported vehicle permalink is constructed.
+The public app is the inventory authority. Searchable apps are the fallback
+destinations for their vehicles. No unsupported vehicle permalink is constructed.
 
 | Yard                               | Yard code        | State | Public app slug             | Minimum accepted |
 | ---------------------------------- | ---------------- | ----- | --------------------------- | ---------------: |
@@ -26,7 +26,12 @@ inventories. The first four use Crush with `STK` plus six digits; Killeen uses f
 uses YardSmart with numeric 12-digit, `PUP` or `XPUP` stocks and literal
 `yardLocation=Lubbock`. Pocatello deliberately permits the
 published `hide_vehicle_search=true` configuration. Its unauthenticated public
-inventory API qualifies even though its page hides the search form.
+inventory API qualifies even though its page hides the search form. Its public
+app asset exposes no vehicle-detail route, and no alternate inventory destination
+has been verified. Pocatello cards and alerts therefore explain that vehicle
+search is hidden and ask users to contact the yard with the VIN and stock number
+to confirm availability. They do not offer a misleading inventory link; the yard
+website remains the public app.
 
 Sterling Heights is a different physical yard from source `pontiac`. Ryan's is
 its own business in Detroit. YourPart's own site returned HTTP 500 during
@@ -61,7 +66,7 @@ Its saved opening census recovered 1,575 of 1,581 advertised rows after year/mak
 discovery, observed-make supplements and the public make directory. Six rows
 (0.379507%) are unreachable: four from 2006, one from 2007 and one from 2008.
 They are reported as a count warning, without inventing identities or adding them
-to rejected VIN presence. Of the reachable rows, 1,572 qualify and three are
+to rejected VIN presence. Of the reachable rows, 1,558 qualify and 17 are
 rejected. Its published address at `https://195usedautoparts.com/` has a Census
 exact-address match. No new live inventory requests were made for this update.
 
@@ -117,9 +122,12 @@ verbatim. Closing year counts,
 full public config, any used public make directory and app body must agree too.
 Only then can the canonical batch, rejected presence and yard callbacks run.
 
-Every donor requires `inventoryVin` (including valid pre-1981 serials), usable
-published year/make/model and the exact configured physical yard. No VIN-derived
-YMM, checksum restriction or identity repair is introduced. Optional color, row,
+Every donor requires `inventoryVinWithCheckDigit` (including valid pre-1981
+serials), usable published year/make/model and the exact configured physical
+yard. Modern 17-character VINs must pass the ISO 3779 check digit. As in BYOT,
+structurally valid VINs rejected for their check digit remain in observed-VIN
+presence to protect prior inventory, but are not published. No VIN-derived YMM
+or identity repair is introduced. Optional color, row,
 engine and transmission use the shared literal guards. Naive dates retain only
 the calendar date. Real UTC offsets and fractional seconds remain verbatim.
 Unverified photo hosts and vehicle/parts links are null.
@@ -166,10 +174,18 @@ propagation; they do not claim a live closing verification. Production still
 requires fresh closing reads. Provenance and deficit counts are recorded in
 `vinplus-test-fixtures/killeen-replay.json`.
 
-Qualification accepted 713/720 donors at Pocatello, 1,406/1,423 at Ryan's,
-1,083/1,084 at Sterling Heights, 479/490 at YourPart, 1,572/1,575 at Killeen and
-1,095/1,097 at Lubbock. Ryan's 1,428 raw backend rows include five repeated
-stocks. All six yards had zero distinct-stock VIN duplicates.
+Qualification accepted 710/720 donors at Pocatello, 1,406/1,423 at Ryan's,
+1,082/1,084 at Sterling Heights, 464/490 at YourPart, 1,558/1,575 at Killeen and
+1,085/1,097 at Lubbock: 6,305 accepted, including 38 pre-1981 serials, and 84
+rejected. Check-digit validation adds 43 rejected donors to the frozen census:
+3 at Pocatello, 0 at Ryan's, 1 at Sterling Heights, 15 at YourPart, 14 at Killeen
+and 10 at Lubbock. YourPart's total rejection rate is 26/490 (5.3061%) and
+Killeen's is 17/1,575 (1.0794%); all yards remain below 10% and above their
+accepted floors. Ryan's 1,428 raw backend rows include five repeated stocks.
+Its invalid-check-digit VIN `1C4NJCEB4HD189960` belongs to conflicting stock
+`STK229812`, which was already rejected without asserted VIN presence. Thus
+44 frozen VINs fail the check digit, but only 43 add donor rejections.
+All six yards had zero distinct-stock VIN duplicates.
 `qualification.json.gz` retains the cap example, original Killeen opening
 prefix, offset-bearing Lubbock sample and Census responses. Tests mock transport
 and never touch the network.
