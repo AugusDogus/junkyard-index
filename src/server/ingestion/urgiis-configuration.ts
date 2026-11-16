@@ -343,6 +343,36 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       websiteUrl: "https://chucksautosalvageinc.com/",
     },
   },
+  {
+    ...standard,
+    code: "central-nh",
+    origin: "https://centralautorecyclers.com",
+    urgid: "FF27",
+    arrivalsPath: "/latest-arrivals-2/",
+    requestTimeoutMs: 90000,
+    ownerClaims: [
+      "Central Auto Recyclers",
+      "54 Basin Street",
+      "Concord, NH 03301",
+    ],
+    minimumInventory: 1900,
+    photoCodes: ["ff27"],
+    yard: {
+      source: "urgiis",
+      code: "central-nh",
+      name: "Central Auto Recyclers",
+      operator: "Central Auto Recyclers",
+      address: "54 Basin Street",
+      city: "Concord",
+      state: "NH",
+      postalCode: "03301",
+      lat: 43.190099292255,
+      lng: -71.523265006371,
+      phone: "800-258-3215",
+      email: null,
+      websiteUrl: "https://centralautorecyclers.com/",
+    },
+  },
 ];
 
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(
