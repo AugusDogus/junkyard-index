@@ -22,7 +22,7 @@ The two rejected full VINs remain presence evidence, yielding 290 observed
 identifiers including accepted vehicles. Genuine pre-1981 serials follow the
 existing shared identity rule.
 
-The 250-vehicle floor is grounded in the 288 accepted baseline. Required rejects
+The 96-vehicle floor is one third of the 288 accepted baseline. Required rejects
 must remain at most 10% and identical duplicate observations at most 25% of raw
 rows. Every conflicting copy of a native identity is quarantined. Final durable
 source validation also requires the terminal cursor and at least 50% of the

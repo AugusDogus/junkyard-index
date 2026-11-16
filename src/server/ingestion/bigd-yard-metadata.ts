@@ -1,7 +1,7 @@
 import type { Yard } from "~/lib/yard";
 export const BIGD_ORIGIN = "https://bigdsalvage.com";
 export const BIGD_INVENTORY_URL = BIGD_ORIGIN + "/inventory/";
-export const BIGD_MINIMUM_INVENTORY = 250;
+export const BIGD_MINIMUM_INVENTORY = 96;
 // Census Public_AR_Current matches the native contact address. The contact
 // iframe queries 2396 rather than 1296 and is not coordinate evidence.
 export const BIGD_YARD = {

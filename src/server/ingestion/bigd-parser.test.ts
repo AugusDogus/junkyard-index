@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { parseBigdInventory, parseBigdYard } from "./bigd-parser";
 import { bigdSnapshot } from "./bigd-snapshot";
+import { BIGD_MINIMUM_INVENTORY } from "./bigd-yard-metadata";
 
 import { bigdNative } from "./bigd-test-fixtures";
 
@@ -71,17 +72,30 @@ test.each([
   expect(() => parseBigdInventory(patch(bigdNative.opening))).toThrow(),
 );
 
-test("keeps the source floor, rejection, duplicate, conflicting identity and prior-count guards", () => {
+test("rejects more than 10% invalid rows above the inventory floor", () => {
   const rows = parseBigdInventory(bigdNative.opening);
-  expect(() => bigdSnapshot(rows.slice(0, 240), null)).toThrow();
-  expect(() => bigdSnapshot(rows, 600)).toThrow();
-  expect(() => bigdSnapshot(rows, -1)).toThrow();
+  const first = rows[0];
+  if (!first) throw new Error("Missing saved Big D first row");
+  expect(bigdSnapshot(rows, null).vehicles).toHaveLength(288);
   expect(() =>
     bigdSnapshot(
-      rows.map((r, i) => (i < 40 ? { ...r, vin: "" } : r)),
+      [...rows, ...Array.from({ length: 40 }, () => ({ ...first, vin: "" }))],
       null,
     ),
-  ).toThrow();
+  ).toThrow("288 accepted, 47 rejected");
+});
+
+test("keeps the source floor, duplicate, conflicting identity and prior-count guards", () => {
+  const rows = parseBigdInventory(bigdNative.opening);
+  const acceptedVins = new Set(
+    bigdSnapshot(rows, null).vehicles.map((v) => v.vin),
+  );
+  const accepted = rows.filter((row) => acceptedVins.has(row.vin));
+  expect(BIGD_MINIMUM_INVENTORY).toBe(96);
+  expect(() => bigdSnapshot(accepted.slice(0, 95), null)).toThrow();
+  expect(bigdSnapshot(accepted.slice(0, 96), null).vehicles).toHaveLength(96);
+  expect(() => bigdSnapshot(rows, 600)).toThrow();
+  expect(() => bigdSnapshot(rows, -1)).toThrow();
   const repeated = rows[0];
   if (!repeated) throw new Error("Missing saved Big D first row");
   expect(() =>
