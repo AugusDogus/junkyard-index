@@ -1,3 +1,4 @@
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import { inventoryVin } from "./inventory-vin";
 import {
   alln1OptionalText,
@@ -27,7 +28,11 @@ export function transformUpullRecord<S extends Alln1Source>(
       position: "HOLD" | "YARD VAN" | "REBUILDER";
       vin: string | null;
     } {
-  const vin = inventoryVin(record.vin, record.year);
+  const parseVin =
+    tenant.vinValidation === "check-digit"
+      ? inventoryVinWithCheckDigit
+      : inventoryVin;
+  const vin = parseVin(record.vin, record.year);
   const position = record.position.trim();
   // These are literal source positions with unproven donor availability.
   // Quarantine is an admission decision, not an inferred native status meaning.

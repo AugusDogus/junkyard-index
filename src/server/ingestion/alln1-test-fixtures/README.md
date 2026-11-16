@@ -5,7 +5,7 @@ responses. No image bytes, private endpoints or production writes were used.
 `grandpajohns.json.br` contains five complete raw responses: opening owner,
 500-row first page, 152-row second page, separately fetched closing owner
 and separately fetched closing first page. The production connector accepts
-644 donors, rejects eight invalid identities and reports no exclusions or
+636 donors, rejects 16 invalid identities (including eight check-digit failures) and reports no exclusions or
 duplicates. Tests reuse opening captures only for extra resume anchors.
 
 `grandpajohns-vin-search.html.br` preserves the native GET search returning

@@ -38,9 +38,11 @@ export interface Alln1Tenant<S extends Alln1Source = Alln1Source> {
   ownerClaims: readonly string[];
   ownerPhoneDigits: string | null;
   ownerDescription: string;
+  vinValidation: "syntax" | "check-digit";
 }
 export const ALLN1_TENANT: Alln1Tenant<"alln1"> = {
   source: "alln1",
+  vinValidation: "syntax",
   origin: ALLN1_ORIGIN,
   inventoryUrl: ALLN1_INVENTORY_URL,
   yard: ALLN1_YARD,
@@ -52,6 +54,7 @@ export const ALLN1_TENANT: Alln1Tenant<"alln1"> = {
 // Census exact-address point, separately saved with the native owner controls.
 export const GRANDPAJOHNS_TENANT: Alln1Tenant<"grandpajohns"> = {
   source: "grandpajohns",
+  vinValidation: "check-digit",
   origin: "https://grandpajohnsautoparts.com",
   inventoryUrl:
     "https://grandpajohnsautoparts.com/inventory/ANY/ANY/?k=1&view=table",

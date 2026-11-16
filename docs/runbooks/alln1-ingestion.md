@@ -17,8 +17,11 @@ phone stays null rather than borrowing the neighboring full-service yard's.
 The Census exact-address point is 44.552055694176, -88.053118559214.
 
 Two complete pages contain 500 and 152 rows. The production connector accepts
-644 unique donors and rejects eight invalid identities, all on page one
-(1.23% overall), with no exclusions or duplicates. The yard floor is 500;
+636 unique donors and rejects 16 invalid identities
+(2.45% overall, 14 on page one and two on page two), with no exclusions or duplicates. Grandpa John's uses `inventoryVinWithCheckDigit`; eight previously accepted
+VINs fail ISO 3779 validation. Its 302 accepted native photo references survive
+the WI25 stock and filename guard; foreign MO42 photos remain null.
+The yard floor is 500;
 the existing 10% rejection cap, 25% duplicate cap and 50% prior-count drift
 guard remain unchanged. Separately fetched closing owner and first-page
 controls match. The native GET search for `1FMCU9GX9GUC13987` returns one
