@@ -21,6 +21,6 @@
   "uniqueStockInvalidObservations": 476,
   "rejectionRate": 0.24664561957379638,
   "optimisticRejectionRateAfterUnverifiedRepeatedStocks": 0.20425177157148813,
-  "note": "No placeholder exclusions were authorized. Even hypothetically excluding all repeated or blank-stock observations leaves rejection above 20%; unique year/model stocks with blank VINs remain unresolved donor claims.",
+  "note": "No placeholder stocks were excluded. Even hypothetically excluding all repeated or blank-stock observations leaves rejection above 20%; unique year/model stocks with blank VINs remain unresolved donor claims.",
   "savedNativeResponses": 481
 }

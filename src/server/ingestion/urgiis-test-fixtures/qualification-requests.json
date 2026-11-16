@@ -1,0 +1,161 @@
+{
+  "recordedAttempts": 10378,
+  "knownUnloggedAttempts": 6,
+  "recordedAndKnownAttempts": 10384,
+  "note": "Recorded HTTP attempts plus six known unlogged probes/timeouts. Redirect hops are not counted separately. This is not an exhaustive wire ledger. Google Maps browser resources are accounted separately.",
+  "tenants": [
+    {
+      "index": 0,
+      "yard": "Eagle Auto Parts",
+      "recordedAttempts": 368,
+      "knownUnloggedAttempts": 2
+    },
+    {
+      "index": 1,
+      "yard": "Brown's Auto Salvage",
+      "recordedAttempts": 9,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 2,
+      "yard": "Nordstrom's Automotive",
+      "recordedAttempts": 7,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 3,
+      "yard": "Nationwide Auto Recycling",
+      "recordedAttempts": 9,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 4,
+      "yard": "Linder's Inc",
+      "recordedAttempts": 519,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 5,
+      "yard": "Chuckran Auto Parts",
+      "recordedAttempts": 505,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 6,
+      "yard": "United Auto Recyclers",
+      "recordedAttempts": 626,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 7,
+      "yard": "Kosiski Auto Parts",
+      "recordedAttempts": 8,
+      "knownUnloggedAttempts": 1
+    },
+    {
+      "index": 8,
+      "yard": "H&H Auto Parts (Cozad)",
+      "recordedAttempts": 16,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 9,
+      "yard": "Riverbend Recycled Auto Parts",
+      "recordedAttempts": 34,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 10,
+      "yard": "Ace Auto Recyclers",
+      "recordedAttempts": 479,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 11,
+      "yard": "Intermountain Auto Recycling",
+      "recordedAttempts": 6,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 12,
+      "yard": "Lentini Auto Salvage",
+      "recordedAttempts": 4029,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 13,
+      "yard": "EL & M Auto Parts",
+      "recordedAttempts": 4,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 14,
+      "yard": "Dings Auto Sales and Salvage",
+      "recordedAttempts": 326,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 15,
+      "yard": "Bishop's Auto Parts",
+      "recordedAttempts": 404,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 16,
+      "yard": "Ace Auto Parts & Salvage",
+      "recordedAttempts": 436,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 17,
+      "yard": "Automotive Parts Solutions (APS)",
+      "recordedAttempts": 1080,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 18,
+      "yard": "Chuck's Auto Salvage",
+      "recordedAttempts": 542,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 19,
+      "yard": "Metro Auto Salvage",
+      "recordedAttempts": 10,
+      "knownUnloggedAttempts": 3
+    },
+    {
+      "index": 20,
+      "yard": "Central Auto Recyclers",
+      "recordedAttempts": 476,
+      "knownUnloggedAttempts": 0
+    },
+    {
+      "index": 21,
+      "yard": "John's Truck & Auto Salvage",
+      "recordedAttempts": 484,
+      "knownUnloggedAttempts": 0
+    }
+  ],
+  "otherRecordedAttempts": {
+    "directory": 1
+  },
+  "browser": {
+    "navigation": "https://www.google.com/maps?cid=1879335323470091631",
+    "observedBrowserHttpResources": 112,
+    "nonHttpResources": 78,
+    "hosts": {
+      "www.google.com": 75,
+      "maps.gstatic.com": 13,
+      "fonts.gstatic.com": 4,
+      "lh3.googleusercontent.com": 2,
+      "streetviewpixels-pa.googleapis.com": 2,
+      "www.gstatic.com": 4,
+      "mt0.google.com": 5,
+      "ogads-pa.clients6.google.com": 2,
+      "play.google.com": 4,
+      "tpc.googlesyndication.com": 1
+    },
+    "note": "One anonymous browser navigation to the yard-published map, including Google assets and background requests. Snapshot taken before closing the browser; not an exhaustive wire-level ledger."
+  }
+}

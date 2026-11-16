@@ -1,0 +1,42 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "130 US-202, Ringoes, NJ 08551"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": {
+          "side": "R",
+          "tigerLineId": "60038839"
+        },
+        "coordinates": {
+          "x": -74.861027850067,
+          "y": 40.469701869601
+        },
+        "addressComponents": {
+          "zip": "08551",
+          "streetName": "202",
+          "preType": "US HWY",
+          "city": "RINGOES",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "126",
+          "state": "NJ",
+          "suffixType": "",
+          "toAddress": "156",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "130 US HWY 202, RINGOES, NJ, 08551"
+      }
+    ]
+  }
+}
