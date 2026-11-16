@@ -1,0 +1,75 @@
+{
+  "qualifiedTenants": [],
+  "excluded": [
+    {
+      "tenant": "az",
+      "reason": "The published Kia Sportage route timed out after 90 seconds on all three paced attempts. All 27 make directories and 183 model links were discovered, but only 162 model pages completed. No independent closing controls were reached, so complete inventory is unproven."
+    },
+    {
+      "tenant": "southwest",
+      "reason": "The published Grand Marquis route returned HTTP 500, timed out after 90 seconds, and returned HTTP 500 on its final paced attempt. Its complete 45-make, 372-model directory is captured, but only 129 model pages completed. Complete inventory is unproven."
+    },
+    {
+      "tenant": "transwest",
+      "reason": "Titan advertises 38 observations but renders exactly 30 cards with no native continuation controls. The page=2 route returns 404 on all three attempts, and paged=2 repeats the identical 30 records. Complete enumeration is unproven."
+    },
+    {
+      "tenant": "lakepoint",
+      "reason": "No URG supplier declaration on the official home, contact, search or makes pages. UU23 ownership cannot pass the existing supplier guard."
+    },
+    {
+      "tenant": "norbs",
+      "reason": "The published Ford Taurus route failed DNS resolution on all three paced attempts. The complete 51-make, 672-model graph was discovered, but the model census is incomplete."
+    }
+  ],
+  "responseCount": 561,
+  "requests": {
+    "tenants": [
+      {
+        "tenant": "az",
+        "recordedAttempts": 195,
+        "knownUnloggedAttempts": 1,
+        "sharedGateAttempts": 170
+      },
+      {
+        "tenant": "transwest",
+        "recordedAttempts": 104,
+        "knownUnloggedAttempts": 0,
+        "sharedGateAttempts": 5
+      },
+      {
+        "tenant": "southwest",
+        "recordedAttempts": 183,
+        "knownUnloggedAttempts": 0,
+        "sharedGateAttempts": 78
+      },
+      {
+        "tenant": "lakepoint",
+        "recordedAttempts": 4,
+        "knownUnloggedAttempts": 0,
+        "sharedGateAttempts": 0
+      },
+      {
+        "tenant": "norbs",
+        "recordedAttempts": 87,
+        "knownUnloggedAttempts": 0,
+        "sharedGateAttempts": 0
+      }
+    ],
+    "recordedAttempts": 573,
+    "knownUnloggedAttempts": 1,
+    "note": "Attempts include retries, DNS failures and geocoding. One initial A-Z home request is known but unlogged. Paused acquisition requests use approximate process-start timestamps. Shared-file gate records begin after cross-batch coordination; earlier attempts used separate batch gates."
+  },
+  "dailyBudget": {
+    "addedNativeRequests": 0,
+    "nativeRequests": 8546,
+    "maximumNativeRequests": 30000,
+    "responseBytes": 1458598956,
+    "maximumResponseBytes": 8589934592,
+    "minimumPacingHours": 5.879416666666667,
+    "estimatedHours": 20.794517991017813,
+    "timedRequests": 7503,
+    "imputedRequests": 1043,
+    "note": "No batch C tenant qualified, so source request volume, physical-yard floors and the 50% previous-run guard are unchanged. Historical successful URL-matched receipt means plus configured response spacing, before retry overhead. Missing URL timings use the tenant mean or 10 seconds when none exist. This is an estimate, not a runtime guarantee. Reassess sibling additions after restacking."
+  }
+}

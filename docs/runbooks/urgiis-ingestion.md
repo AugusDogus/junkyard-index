@@ -30,6 +30,8 @@ Qualification uses saved public responses. Tests are offline. Complete replay ar
 
 Qualification began with serial censuses. Later acquisitions allow at most three active tenants, preserve each tenant's own response spacing, and limit combined request starts to one per 3.1 seconds. All tenant sites are conservatively treated as sharing one URG backend for that acquisition limit. The source connector itself traverses tenants serially.
 
+Concurrent qualification batches on one machine share `/tmp/jyi-urg-gate.lock` and `/tmp/jyi-urg-gate.last`. Before every tenant-origin request, take an exclusive `flock`, read the last timestamp as fractional Unix seconds, wait until 3.1 seconds have elapsed, write the current timestamp, release the lock, then send the request. Keep the tenant's response spacing as well. This cross-process gate belongs to qualification tooling, not product code.
+
 The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 1,200. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
 
 Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). The counts below describe the original qualification before that batch.
@@ -122,9 +124,19 @@ regression preserves the missing-donor evidence and the exclusion.
 
 John's NH completed 45 makes, 386 model pages and seven arrivals, with separate closing controls. It has 1,903 candidate donors, 625 rejected observations and six duplicates out of 2,534 observations (24.66% rejected). There are 611 missing or invalid native VIN observations, including 60 missing stock/destination fields. Even hypothetically skipping all 135 repeated or blank-stock observations leaves 490 / 2,399 rejected (20.43%). No placeholder stocks were excluded. The tenant remains out. The fixture receipt and complete 481-response raw census retain this failure for offline inspection.
 
+A-Z Auto Parts & Auto Sales (OK09, OK) remains excluded after its published `/parts/KIA/SPORTAGE/` route timed out after 90 seconds on all three paced attempts. The complete directory contains 27 makes and 183 models, but only 162 model pages completed and no closing controls were reached. Those pages contain 1,752 cards; the largest result is 118, twelve pages exceed 30, and none returns exactly 30 against a higher opening badge. The native arrivals page explicitly says vehicles may not have been parted out yet, so this is a donor-parts feed rather than retail auto-sales stock. Its exact known arrivals title is supported, but the interrupted census cannot qualify the tenant.
+
+Lake Point Auto Recycling (UU23, UT) remains excluded: its official home, contact, search and makes pages omit the native URG supplier declaration. Photographs under `uu23` do not replace the opening and closing supplier identity contract. The existing ownership guard rejects all four saved pages.
+
+Transwest Auto Parts (UT08, UT) remains excluded after its published Titan model advertises 38 observations but renders exactly 30 cards. There are no native continuation controls. The ordinary `?page=2` route returns HTTP 404 on all three spaced attempts; `?paged=2` repeats the same 30 records. Other models return more than 30, so this is an unresolved model-specific completeness boundary, not proof of a site-wide fixed limit. No partial inventory is admitted.
+
+Norb's Auto Salvage (EE91, WI) remains excluded after the published `/parts/FORD/TAURUS/` route failed DNS resolution on all three paced attempts. Its full directory graph contains 51 makes and 672 models, but the interrupted model census cannot prove complete inventory. Earlier large pages returned 299 F150 cards and 208 Explorer cards, rather than a 30-card result; this does not qualify the unread models.
+
+Southwest Auto Recycling (UT11, UT) remains excluded after the published `/parts/MERCURY/GRAND_MARQUIS/` route returned HTTP 500, timed out after 90 seconds, then returned HTTP 500 on its last paced attempt. Its complete 45-make, 372-model directory is saved, but only 129 model pages completed. No rejected stock was skipped to hide the interrupted census. `batch-c-excluded.jsonl.br` retains the partial captures and failure receipts for all five excluded leads.
+
 ## Live qualification requests
 
-The saved ledger records 10,378 HTTP attempts, including geocoding and retries. Six known unlogged attempts bring the recorded-plus-known count to 10,384: two initial Eagle requests, one Kosiski plugin script and three early Metro timeouts. Redirect hops are not counted separately, so this is not an exhaustive wire total. One shared public supplier-directory attempt is included in the ledger outside the per-tenant rows.
+The original qualification ledger records 10,378 HTTP attempts, including geocoding and retries. Six known unlogged attempts bring the recorded-plus-known count to 10,384: two initial Eagle requests, one Kosiski plugin script and three early Metro timeouts. Redirect hops are not counted separately, so this is not an exhaustive wire total. One shared public supplier-directory attempt is included in the ledger outside the per-tenant rows.
 
 | Tenant                           | Recorded HTTP attempts | Known unlogged attempts |
 | -------------------------------- | ---------------------: | ----------------------: |
@@ -153,11 +165,25 @@ The saved ledger records 10,378 HTTP attempts, including geocoding and retries. 
 
 A separate anonymous browser visit to APS's published Google map observed 112 HTTP resources and 78 non-HTTP resources. These are recorded separately from the HTTP ledger. The receipt retains sanitized public URLs, HTTP status where known and timing where recorded; browser tracking parameters and freeform error strings are omitted. Raw browser resource logs are not committed.
 
+Batch C adds a separate `batch-c-requests.jsonl.gz` ledger and `batch-c-qualification.json` summary. Its 573 recorded attempts plus one known unlogged A-Z home request total 574 recorded-plus-known attempts. Counts include retries, DNS failures and two geocoder requests. The shared file gate was introduced during acquisition; earlier attempts used separate batch gates. Every later tenant-origin attempt used the cross-process gate.
+
+| Batch C tenant              | Recorded HTTP attempts | Known unlogged attempts | Outcome                                    |
+| --------------------------- | ---------------------: | ----------------------: | ------------------------------------------ |
+| A-Z Auto Parts & Auto Sales |                    195 |                       1 | Excluded: three Sportage timeouts          |
+| Transwest Auto Parts        |                    104 |                       0 | Excluded: unresolved 30-card Titan result  |
+| Southwest Auto Recycling    |                    183 |                       0 | Excluded: bounded Grand Marquis failures   |
+| Lake Point Auto Recycling   |                      4 |                       0 | Excluded: missing native supplier identity |
+| Norb's Auto Salvage         |                     87 |                       0 | Excluded: three Taurus DNS failures        |
+
+No batch C tenant qualifies, so no per-tenant acceptance or final rejection rate is claimed. No production contract or floor is added. The 50% previous-run guard remains unchanged.
+
+The whole source still needs 8,546 successful native requests and 1,458,598,956 response bytes, within its 30,000-request and 8 GiB limits. Configured response spacing alone requires 5.88 hours. Historical successful URL-matched timings plus pacing estimate 20.79 hours per run before retry overhead: 7,503 timed requests and 1,043 timings imputed from tenant means (or ten seconds when none exist). This is an estimate, not a runtime guarantee. Batch C adds no daily cost; reassess the sibling additions after restacking before rollout.
+
 ## Validation
 
 The original qualification admitted 38,191 unique vehicle identifiers across eleven tenants and twelve physical yards, with zero cross-tenant duplicates. The source floor is 30,000 and every physical-yard floor holds. All eleven complete connector replays pass across 8,546 separately captured native responses.
 
-Lint, typecheck and formatting of all 63 changed text files pass. The affected set passes 58 tests. The full `bun test --timeout 15000 src` run passes 4,394 tests across 409 files with zero failures in 860.44 seconds, using CI's pinned Bun 1.4.1. Lentini's full replay completes in 336.56 seconds under its explicit 600-second per-test timeout. Tests use local responses only. No lockfile changed after the machine's global Bun upgrade.
+Baseline lint, typecheck and formatting of all 63 changed text files pass. The affected set passes 58 tests. The full `bun test --timeout 15000 src` run passes 4,394 tests across 409 files with zero failures in 860.44 seconds, using CI's pinned Bun 1.4.1. Lentini's full replay completes in 336.56 seconds under its explicit 600-second per-test timeout. Tests use local responses only. No lockfile changed after the machine's global Bun upgrade.
 
 `SKIP_ENV_VALIDATION=1 bunx next build` compiles 117 steps, four workflows and the Next application without `workflow-node-module-error`. Later page collection stops on a missing local PostHog API key. The source remains disabled; no inventory was enabled.
 
@@ -229,3 +255,5 @@ Quick Recovery's ATS route returned four cards on two of three follow-up attempt
 The combined offline audit contains 39,668 unique identifiers across twelve tenants and thirteen physical yards, with zero cross-tenant duplicates. Every physical-yard floor holds, and the source floor is 30,492. Complete replays need 8,863 successful native requests and 1,597,323,423 response bytes, below the 30,000-request and 8 GiB limits. Higgins contributes 138,724,467 response bytes. No canonical inventory was written.
 
 Lint and typecheck pass. The full `bun test --timeout 15000 src` run passed 4,574 tests across 431 files with zero failures in 1,614.57 seconds after the title change, before Higgins registration and the new cap-investigation tests. After registration, the batch A and cap-investigation tests pass all eleven cases; the Higgins connector replay and metadata check pass two further cases. Tests use captured local responses only.
+
+Batch C lint, typecheck, changed-file formatting and the 19 focused connector/qualification tests pass. The full `bun test --timeout 15000 src` run passes all 4,569 tests across 430 files in 1,721.70 seconds with CI's pinned Bun 1.4.1, including all eleven complete URG replays. An earlier Bun 1.4.4 full run passed 4,568 tests but timed out the existing Pickers Longview census at its 30-second limit (33.95 seconds). That case passed unchanged in isolation in 23.54 seconds and in the pinned full run in 25.96 seconds. No test timeout was changed.
