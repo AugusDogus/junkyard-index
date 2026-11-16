@@ -1,0 +1,34 @@
+{
+  "result": {
+    "input": {
+      "address": { "address": "5702 S 60th St, Omaha, NE 68117" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "R", "tigerLineId": "628115434" },
+        "coordinates": { "x": -96.004715979234, "y": 41.200697251758 },
+        "addressComponents": {
+          "zip": "68117",
+          "streetName": "60TH",
+          "preType": "",
+          "city": "OMAHA",
+          "preDirection": "S",
+          "suffixDirection": "",
+          "fromAddress": "5700",
+          "state": "NE",
+          "suffixType": "ST",
+          "toAddress": "5798",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "5702 S 60TH ST, OMAHA, NE, 68117"
+      }
+    ]
+  }
+}

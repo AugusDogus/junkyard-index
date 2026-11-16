@@ -157,6 +157,35 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       websiteUrl: "https://chuckransautoparts.com/",
     },
   },
+  {
+    ...standard,
+    code: "united",
+    origin: "https://unitedautorecyclers.com",
+    urgid: "NE02",
+    arrivalsPath: "/latest-arrivals/",
+    ownerClaims: [
+      "United Auto Recyclers",
+      "5702 So. 60th ST",
+      "Omaha, NE 68117",
+    ],
+    minimumInventory: 9800,
+    photoCodes: ["ne02"],
+    yard: {
+      source: "urgiis",
+      code: "united",
+      name: "United Auto Recyclers",
+      operator: "United Auto Recyclers",
+      address: "5702 So. 60th ST",
+      city: "Omaha",
+      state: "NE",
+      postalCode: "68117",
+      lat: 41.200697251758,
+      lng: -96.004715979234,
+      phone: "402-734-7016",
+      email: null,
+      websiteUrl: "https://unitedautorecyclers.com/",
+    },
+  },
 ];
 
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(
