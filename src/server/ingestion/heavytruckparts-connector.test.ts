@@ -8,7 +8,10 @@ import {
   htpCatalogUrl,
   htpStoreUrl,
 } from "./heavytruckparts-yard-metadata";
-import { HTP_REJECTED_SUPPLIERS } from "./heavytruckparts-qualification-fixtures";
+import {
+  HTP_REJECTED_SUPPLIERS,
+  HTP_RETAIL_SUPPLIER,
+} from "./heavytruckparts-qualification-fixtures";
 import { parseHtpCatalog, parseHtpStore } from "./heavytruckparts-catalog";
 import { htpRoster, type HtpPage } from "./heavytruckparts-census";
 import {
@@ -197,7 +200,7 @@ describe("HeavyTruckParts marketplace", () => {
   test("complete saved native rosters reconcile to each independent store count", () => {
     const censuses = HTP_SUPPLIERS.map(census);
     const snapshot = htpSnapshot(censuses, null);
-    expect(new Set(snapshot.vehicles.map((v) => v.stateAbbr)).size).toBe(7);
+    expect(new Set(snapshot.vehicles.map((v) => v.stateAbbr)).size).toBe(6);
     expect(
       snapshot.vehicles.every(
         (v) =>
@@ -207,15 +210,15 @@ describe("HeavyTruckParts marketplace", () => {
           v.lng !== 0,
       ),
     ).toBe(true);
-    expect(snapshot.vehicles).toHaveLength(857);
+    expect(snapshot.vehicles).toHaveLength(838);
     expect(snapshot.accounting).toEqual({
-      recordsProcessed: 1155,
+      recordsProcessed: 1125,
       recordsRejected: 20,
-      recordsExcluded: 266,
-      duplicateVehicles: 12,
+      recordsExcluded: 256,
+      duplicateVehicles: 11,
     });
     expect(snapshot.accounting.recordsExcluded).toBeGreaterThan(200);
-    expect(snapshot.accounting.duplicateVehicles).toBe(12);
+    expect(snapshot.accounting.duplicateVehicles).toBe(11);
   });
   test("retail stock stays out, while explicit non-running and salvage units qualify", () => {
     const results = HTP_SUPPLIERS.map((s) => {
@@ -228,15 +231,73 @@ describe("HeavyTruckParts marketplace", () => {
     expect(
       results.find((r) => r.s.code === "rydemore")?.snapshot.vehicles,
     ).toHaveLength(8);
-    expect(
-      results.find((r) => r.s.code === "bw")?.snapshot.vehicles,
-    ).toHaveLength(19);
+    expect(HTP_SUPPLIERS.map((s) => s.supplier)).not.toContain(
+      HTP_RETAIL_SUPPLIER.supplier,
+    );
     expect(
       results.find((r) => r.s.code === "american")?.snapshot.vehicles,
     ).toHaveLength(3);
     expect(
       results.find((r) => r.s.code === "catruck")?.snapshot.vehicles,
     ).toHaveLength(4);
+  });
+  test("saved Please Call dealer stock and Crest running firetruck stay out", () => {
+    const bw = HTP_RETAIL_SUPPLIER;
+    const c = census(bw);
+    const rows = htpRoster(bw, c.pages, c.total);
+    const sprinter = rows.find((r) => r.id === "9577");
+    if (!sprinter) throw new Error("Saved B&W Sprinter missing");
+    expect(sprinter.price).toBe("Please Call");
+    expect(sprinter.description).toContain("40,745 Miles");
+    expect(htpExclusion(sprinter, bw)).toBe("retail-resale");
+    const donor = rows.find((r) => /needs injection pump/i.test(r.description));
+    if (!donor) throw new Error("Saved non-running B&W truck missing");
+    expect(htpExclusion(donor, bw)).toBeNull();
+    const mileageStock = rows.filter(
+      (r) => r.price === "Please Call" && /[\d,]+\s+miles/i.test(r.description),
+    );
+    expect(mileageStock.length).toBeGreaterThan(0);
+    expect(
+      mileageStock.every((r) => htpExclusion(r, bw) === "retail-resale"),
+    ).toBe(true);
+    const crest = HTP_SUPPLIERS.find((s) => s.code === "crest");
+    if (!crest) throw new Error("Crest fixture missing");
+    const cc = census(crest);
+    const crestRows = htpRoster(crest, cc.pages, cc.total);
+    const firetruck = crestRows.find((r) =>
+      /TEST DRVN RUNS GREAT/i.test(r.description),
+    );
+    if (!firetruck) throw new Error("Saved retail Crest firetruck missing");
+    expect(htpExclusion(firetruck, crest)).toBe("retail-resale");
+    // A second listing for this VIN explicitly describes a dismantled donor.
+    const dismantled = crestRows.find((r) => r.id === "11549");
+    if (!dismantled) throw new Error("Saved dismantled Crest donor missing");
+    expect(dismantled.vin).toBe(firetruck.vin);
+    expect(htpExclusion(dismantled, crest)).toBeNull();
+    const snapshot = htpSupplierSnapshot(crest, crestRows);
+    expect(
+      snapshot.vehicles.find((v) => v.vin === firetruck.vin)?.detailsUrl,
+    ).toBe(dismantled.url);
+  });
+  test("native HTP make truncations resolve to canonical display makes", () => {
+    const aliases = [
+      ["WESTERN STAR TR", "Western Star"],
+      ["WHITEGMC", "White GMC"],
+      ["UD TRUCK", "UD"],
+    ] as const;
+    for (const [native, canonical] of aliases) {
+      const supplier = HTP_SUPPLIERS.find(
+        (s) => s.code === (native === "UD TRUCK" ? "crest" : "westside"),
+      );
+      if (!supplier) throw new Error("Saved supplier missing");
+      const c = census(supplier);
+      const row = htpRoster(supplier, c.pages, c.total).find(
+        (r) => r.make === native,
+      );
+      if (!row) throw new Error("Saved make missing: " + native);
+      const snapshot = htpSupplierSnapshot({ ...supplier, minimum: 1 }, [row]);
+      expect(snapshot.vehicles[0]?.make).toBe(canonical);
+    }
   });
   test.each([...HTP_REJECTED_SUPPLIERS])(
     "$code fails its own 10% guard",
@@ -444,6 +505,8 @@ describe("HeavyTruckParts marketplace", () => {
     expect(IngestionSourceFlags.resolve({})).not.toContain("heavytruckparts");
     for (const url of [
       "https://example.com/",
+      htpStoreUrl(HTP_RETAIL_SUPPLIER),
+      htpCatalogUrl(HTP_RETAIL_SUPPLIER, "DESC", 1),
       htpStoreUrl(first) + "&page=1",
       htpCatalogUrl(first, "ASC", 1) + "&year_start=2000",
       htpCatalogUrl(first, "DESC", 1).replace("4594927", "254076"),

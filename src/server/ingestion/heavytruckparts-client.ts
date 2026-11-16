@@ -1,11 +1,12 @@
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
+import { heavyTruckPartsHostSlot } from "./heavytruckparts-host-slot";
 import {
   fetchProviderResponse,
   type ProviderRequestGate,
 } from "./provider-http-client";
 
-// Both suppliers share this host. Hold the permit through body read and gap.
+// All three sources share this local gate and the deployed Redis host lease.
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const heavyTruckPartsRequestGate: ProviderRequestGate = (request) =>
   serial.withPermits(1)(request);
@@ -63,11 +64,12 @@ export function fetchHeavyTruckPartsPage(
           catch: (cause) => cause,
         });
       }).pipe(
-        // The caller's shared-host gate covers the complete body and completed gap.
+        // Keep the deployed host lease through the body and completed gap.
         Effect.ensuring(Effect.sleep("4 seconds")),
         Effect.mapError((cause) =>
           cause instanceof Error ? cause : new Error(String(cause)),
         ),
+        heavyTruckPartsHostSlot,
       ),
     ),
   );
