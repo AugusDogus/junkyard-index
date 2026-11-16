@@ -9,12 +9,17 @@ import {
   validateUrgiisEntry,
 } from "./urgiis-traversal";
 
-export const URGIIS_MAX_CURSOR_BYTES = 32 * 1024 * 1024;
+export const URGIIS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
 export const URGIIS_MAX_REQUESTS = 30_000;
 const base = {
   source: z.literal("urgiis"),
-  version: z.literal(1),
+  version: z.literal(2),
   scope: z.string(),
+  startedAt: z.number().int().nonnegative().nullable(),
+  asOf: z.number().int().nonnegative().nullable(),
+  // The repository installs this pointer atomically with the snapshot checkpoint.
+  statePath: z.string().min(1).nullable(),
+  stateHash: z.string().nullable(),
   requests: z.number().int().min(0).max(URGIIS_MAX_REQUESTS),
   bytes: z
     .number()
@@ -57,6 +62,13 @@ function checkpoint(
   const state = schema.parse(unsigned);
   if (state.scope !== urgiisFingerprint(tenants))
     throw new Error("IIS tenant qualification changed; restart from the owner");
+  if (
+    (state.startedAt === null) !== (state.asOf === null) ||
+    (state.startedAt !== null &&
+      state.asOf !== null &&
+      state.asOf < state.startedAt)
+  )
+    throw new Error("IIS census clock is inconsistent");
   state.completed.forEach((done, i) => {
     const tenant = tenants[i];
     if (
@@ -110,19 +122,36 @@ function checkpoint(
       (state.phase === "ready" && state.closed !== closingTasks.length)
     )
       throw new Error("IIS closing frontier is inconsistent");
-    const currentRequests = state.entries.length + state.closed;
+    const currentRequests =
+      state.entries.filter((e) => e.bytes > 0).length + state.closed;
+    if (
+      state.entries.some(
+        (e) =>
+          e.kind === "model" &&
+          (state.startedAt === null ||
+            state.asOf === null ||
+            e.freshness.readAt > state.asOf ||
+            (e.freshness.kind === "read"
+              ? e.freshness.readAt < state.startedAt || e.bytes === 0
+              : e.bytes !== 0)),
+      )
+    )
+      throw new Error("IIS model freshness is inconsistent with its run");
     if (
       state.requests < currentRequests ||
       state.bytes < state.entries.reduce((n, e) => n + e.bytes, 0)
     )
       throw new Error("IIS checkpoint request/body accounting is inconsistent");
   }
-  const cursor = { ...state, checksum: urgiisFingerprint(state) };
+  const cursor = {
+    ...state,
+    checksum: urgiisFingerprint({ ...state, statePath: undefined }),
+  };
   if (
     new TextEncoder().encode(JSON.stringify(cursor)).byteLength >
     URGIIS_MAX_CURSOR_BYTES
   )
-    throw new Error("IIS checkpoint exceeds 32 MiB; preserve prior inventory");
+    throw new Error("IIS checkpoint exceeds 16 MiB; preserve prior inventory");
   return cursor;
 }
 function parse(
@@ -141,8 +170,12 @@ export const UrgiisCursor = {
     return checkpoint(
       {
         source: "urgiis",
-        version: 1,
+        version: 2,
         scope: urgiisFingerprint(tenants),
+        startedAt: null,
+        asOf: null,
+        statePath: null,
+        stateHash: null,
         requests: 0,
         bytes: 0,
         completed: [],
@@ -163,7 +196,7 @@ export const UrgiisCursor = {
   },
   fromWire(raw: string, tenants: readonly UrgiisTenant[] = URGIIS_TENANTS) {
     if (new TextEncoder().encode(raw).byteLength > URGIIS_MAX_CURSOR_BYTES)
-      throw new Error("IIS checkpoint wire exceeds 32 MiB");
+      throw new Error("IIS checkpoint wire exceeds 16 MiB");
     return parse(JSON.parse(raw), tenants);
   },
 } as const;

@@ -7,6 +7,7 @@ import { streamUrgiisInventoryFromProvider } from "./urgiis-connector";
 import { streamCstruckInventory } from "./cstruck-connector";
 import { streamByotInventoryFromProvider } from "./byot-connector";
 import { loadByotPublishedCursor } from "./byot-history";
+import { loadUrgiisPublishedCursor } from "./urgiis-history";
 import { db } from "~/lib/db";
 import { streamAlliedInventoryFromProvider } from "./allied-connector";
 import { ALLIED_CONTRACT } from "./allied-configuration";
@@ -677,6 +678,16 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamUrgiisInventoryFromProvider({
           startCursor: cursor,
+          previousCursor:
+            cursor.startedAt === null
+              ? await loadUrgiisPublishedCursor(db)
+              : null,
+          loadCensus: async (path) =>
+            (
+              await IngestionSnapshotStore.vercelBlob(
+                env.BLOB_READ_WRITE_TOKEN,
+              ).load(path)
+            ).checkpointState,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,

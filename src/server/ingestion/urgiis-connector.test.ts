@@ -450,12 +450,14 @@ test("URG IIS preserves the completed tenant prefix across yard boundaries", asy
   };
   const tenants = [tenant, second];
   let cursor = UrgiisCursor.initial(tenants);
+  let censusState: unknown;
   const emitted: string[] = [];
   let reads = 0;
   while (cursor.phase !== "complete") {
     const result = await Effect.runPromise(
       streamUrgiisInventory({
         tenants,
+        censusState,
         startCursor: cursor,
         maxPages: 3,
         readPage: () =>
@@ -470,6 +472,7 @@ test("URG IIS preserves the completed tenant prefix across yard boundaries", asy
       UrgiisCursor.serialize(result.cursor, tenants),
       tenants,
     );
+    censusState = result.checkpointState ?? censusState;
     if (emitted.length === 1) {
       expect(cursor.completed).toEqual([{ code: "fixture", accepted: 1 }]);
       expect(cursor.phase).not.toBe("complete");

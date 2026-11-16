@@ -159,6 +159,7 @@ test("URG IIS derives detail tasks only from a completed native model frontier",
       {
         ...receipt,
         kind: "model",
+        freshness: { kind: "read", readAt: 0 },
         url: tenant.origin + model.path,
         records: [record],
       },

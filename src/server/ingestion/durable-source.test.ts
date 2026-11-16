@@ -187,7 +187,7 @@ describe("durable ingestion cursors", () => {
     ["alshned", 8],
     ["cstruck", 4],
     ["allied", 8],
-    ["urgiis", 32],
+    ["urgiis", 16],
     ["byot", 16],
   ] as const)(
     "%s preserves its source-specific wire byte guard",

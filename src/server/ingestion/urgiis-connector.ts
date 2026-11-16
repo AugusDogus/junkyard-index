@@ -1,3 +1,13 @@
+import {
+  resumeUrgiisCensus,
+  type UrgiisCensusHistory,
+} from "./urgiis-census-session";
+import {
+  UrgiisCensus,
+  urgiisCarry,
+  urgiisDefer,
+  URGIIS_SWEEP_MS,
+} from "./urgiis-census";
 import { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisDetailSeller } from "./urgiis-detail";
 import { Effect } from "effect";
@@ -22,8 +32,9 @@ import {
 import { readUrgiisPage, urgiisError, type UrgiisError } from "./urgiis-client";
 import { urgiisClosingEvidence } from "./urgiis-closing";
 
-export interface UrgiisOptions<E, R> {
+export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
   startCursor?: unknown;
+  now?: number;
   maxPages?: number;
   tenants?: readonly UrgiisTenant[];
   readPage: (
@@ -43,11 +54,13 @@ export interface UrgiisStreamResult {
   warnings: string[];
   observedVins: string[];
   accounting: ConnectorChunkAccounting;
+  checkpointState?: UrgiisCensus;
 }
 function parseEntry(
   raw: string,
   task: UrgiisTask,
   tenant: UrgiisTenant,
+  now: number,
 ): UrgiisEntry {
   const receipt = { url: task.url, bytes: Buffer.byteLength(raw) };
   if (task.kind === "owner") {
@@ -92,7 +105,14 @@ function parseEntry(
         task.url +
         "; narrow by the published year controls before emission",
     );
-  return { ...receipt, kind: task.kind, records: page.records };
+  return task.kind === "model"
+    ? {
+        ...receipt,
+        kind: "model",
+        records: page.records,
+        freshness: { kind: "read", readAt: now },
+      }
+    : { ...receipt, kind: "arrivals", records: page.records };
 }
 const boundary = <T>(operation: string, run: () => T) =>
   Effect.try({ try: run, catch: (cause) => urgiisError(operation, cause) });
@@ -126,6 +146,15 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         duplicateVehicles: 0,
       },
     };
+    if (cursor.phase === "complete")
+      return { ...result, status: "complete" as const };
+    const now = options.now ?? Date.now();
+    const resumed = yield* resumeUrgiisCensus(cursor, tenants, now, options);
+    cursor = resumed.cursor;
+    let census = resumed.census;
+    result.warnings.push(...resumed.warnings);
+    const startedAt = cursor.startedAt ?? now;
+    let unsealed = false;
     while (cursor.phase !== "complete") {
       const tenant = tenants[cursor.completed.length];
       if (!tenant)
@@ -133,6 +162,14 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           urgiisError("next tenant", "Qualified tenant is missing"),
         );
       const tasks = urgiisTasks(cursor.entries, tenant);
+      const previousTenant = census.tenants.find((t) => t.code === tenant.code);
+      if (unsealed && cursor.phase !== "opening") {
+        const sealed = yield* boundary("carried frontier checkpoint", () =>
+          UrgiisCursor.checkpoint(cursor, tenants),
+        );
+        cursor = { ...cursor, checksum: sealed.checksum };
+        unsealed = false;
+      }
       if (cursor.phase === "ready") {
         const pages: UrgiisModelPage[] = [];
         cursor.entries.forEach((entry, i) => {
@@ -146,6 +183,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             });
         });
         const cursorEntries = cursor.entries;
+        const acceptedAt = options.now ?? Date.now();
         const sellers = new Map(
           cursor.entries.flatMap((entry) =>
             entry.kind === "detail" ? [[entry.url, entry.seller] as const] : [],
@@ -160,8 +198,23 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             arrivals && "records" in arrivals ? arrivals.records : [],
           );
           validateUrgiisSnapshot(snapshot, tenant);
+          if (
+            cursorEntries.some(
+              (e) =>
+                e.kind === "model" &&
+                e.freshness.kind !== "read" &&
+                acceptedAt - e.freshness.readAt >= URGIIS_SWEEP_MS,
+            )
+          )
+            throw new Error(
+              "IIS carried model evidence reached seven days; restore the failing page before publishing",
+            );
           return snapshot;
         });
+        census = yield* boundary("accept census", () =>
+          UrgiisCensus.accept(census, tenant, cursorEntries, acceptedAt),
+        );
+        result.checkpointState = census;
         const count = snapshot.vehicles.length;
         if (options.onYards)
           yield* options.onYards(
@@ -188,7 +241,11 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           UrgiisCursor.checkpoint(
             {
               source: "urgiis",
-              version: 1,
+              version: 2,
+              startedAt,
+              asOf: acceptedAt,
+              statePath: cursor.statePath,
+              stateHash: urgiisFingerprint(census),
               scope: cursor.scope,
               requests: cursor.requests,
               bytes: cursor.bytes,
@@ -203,7 +260,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         // One validated tenant per chunk, keeping callback and checkpoint sizes bounded.
         break;
       }
-      if (result.pagesProcessed >= budget) break;
+
       if (
         cursor.requests >= URGIIS_MAX_REQUESTS ||
         cursor.bytes > 8 * 1024 * 1024 * 1024 - 4 * 1024 * 1024
@@ -228,9 +285,62 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             "Contiguous native frontier has no next task",
           ),
         );
-      const raw = yield* options.readPage(task.url, tenant);
+      const carried =
+        cursor.phase === "opening"
+          ? urgiisCarry(task, cursor.entries, previousTenant, now)
+          : undefined;
+      if (carried) {
+        const entries = [...cursor.entries, carried];
+        cursor = {
+          ...cursor,
+          entries,
+          asOf: Math.max(now, cursor.asOf ?? now),
+          phase:
+            entries.length === urgiisTasks(entries, tenant).length
+              ? "closing"
+              : "opening",
+        };
+        unsealed = true;
+        continue;
+      }
+      if (result.pagesProcessed >= budget) break;
+      const response = yield* options
+        .readPage(task.url, tenant)
+        .pipe(Effect.either);
+      if (response._tag === "Left") {
+        const failedAt = options.now ?? Date.now();
+        const deferred =
+          cursor.phase === "opening"
+            ? urgiisDefer(task, previousTenant, failedAt)
+            : undefined;
+        if (!deferred) return yield* Effect.fail(response.left);
+        const entries = [...cursor.entries, deferred];
+        cursor = yield* boundary("deferred model checkpoint", () =>
+          UrgiisCursor.checkpoint(
+            {
+              ...cursor,
+              entries,
+              asOf: failedAt,
+              requests: cursor.requests + 1,
+              phase:
+                entries.length === urgiisTasks(entries, tenant).length
+                  ? "closing"
+                  : "opening",
+            },
+            tenants,
+          ),
+        );
+        unsealed = false;
+        result.pagesProcessed++;
+        result.warnings.push(
+          `${tenant.code}: ${task.url} failed after retries; retaining model donors read at ${new Date(deferred.freshness.readAt).toISOString()}. Retry next run; publication stops at seven days.`,
+        );
+        continue;
+      }
+      const raw = response.right;
+      const readAt = options.now ?? Date.now();
       const parsed = yield* boundary("parse " + task.url, () =>
-        parseEntry(raw, task, tenant),
+        parseEntry(raw, task, tenant, readAt),
       ).pipe(Effect.either);
       if (parsed._tag === "Left") {
         if (cursor.phase !== "closing") return yield* Effect.fail(parsed.left);
@@ -246,6 +356,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const state = cursor;
       const base = {
         ...state,
+        asOf: readAt,
         requests: state.requests + 1,
         bytes: state.bytes + Buffer.byteLength(raw),
       };
@@ -301,11 +412,16 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           ),
         );
       }
+      unsealed = false;
       result.pagesProcessed++;
     }
     return {
       ...result,
-      cursor,
+      cursor: unsealed
+        ? yield* boundary("chunk checkpoint", () =>
+            UrgiisCursor.checkpoint(cursor, tenants),
+          )
+        : cursor,
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies UrgiisStreamResult;
   }).pipe(

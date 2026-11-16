@@ -19,7 +19,7 @@ const receipt = {
   bytes: z
     .number()
     .int()
-    .min(1)
+    .min(0)
     .max(4 * 1024 * 1024),
 };
 export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
@@ -43,8 +43,21 @@ export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
   z
     .object({
       ...receipt,
-      kind: z.enum(["model", "arrivals"]),
+      kind: z.literal("arrivals"),
       records: z.array(UrgiisRecordSchema).max(499),
+    })
+    .strict(),
+  z
+    .object({
+      ...receipt,
+      kind: z.literal("model"),
+      records: z.array(UrgiisRecordSchema).max(499),
+      freshness: z
+        .object({
+          kind: z.enum(["read", "carried", "deferred"]),
+          readAt: z.number().int().nonnegative(),
+        })
+        .strict(),
     })
     .strict(),
 ]);
@@ -173,6 +186,10 @@ export function validateUrgiisEntry(
 ) {
   if (entry.kind !== task.kind || entry.url !== task.url)
     throw new Error("IIS checkpoint loses its literal contiguous task prefix");
+  if (entry.bytes === 0 && entry.kind !== "model" && entry.kind !== "detail")
+    throw new Error(
+      "IIS current ownership, directories and arrivals require a response receipt",
+    );
   if (entry.kind === "owner") {
     if (entry.identity !== urgiisFingerprint(tenant.ownerClaims))
       throw new Error("IIS checkpoint ownership claims changed");

@@ -1,3 +1,4 @@
+import { urgiisPublishedStatePath } from "./urgiis-history";
 import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement } from "@libsql/client";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
@@ -143,12 +144,20 @@ export function createDurableIngestionRepository(
     rows: readonly { id: string; snapshotChunks: string }[],
   ): Promise<number> {
     let deleted = 0;
+    const retainedCensus = rows.length
+      ? await urgiisPublishedStatePath(database)
+      : null;
     for (const row of rows) {
-      const pathnames = parseSnapshotChunks(row.snapshotChunks);
+      const chunks = parseSnapshotChunks(row.snapshotChunks);
+      const pathnames = chunks.filter((path) => path !== retainedCensus);
       await snapshotStore.delete(pathnames);
       await database
         .update(ingestionSourceRun)
-        .set({ snapshotChunks: "[]" })
+        .set({
+          snapshotChunks: JSON.stringify(
+            chunks.filter((path) => path === retainedCensus),
+          ),
+        })
         .where(eq(ingestionSourceRun.id, row.id));
       deleted += pathnames.length;
     }
