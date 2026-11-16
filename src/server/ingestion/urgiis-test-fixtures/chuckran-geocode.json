@@ -1,0 +1,36 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "1775 Old Plymouth Street, Bridgewater, MA 02324"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "R", "tigerLineId": "87488002" },
+        "coordinates": { "x": -70.913539837235, "y": 41.990325748641 },
+        "addressComponents": {
+          "zip": "02324",
+          "streetName": "PLYMOUTH",
+          "preType": "",
+          "city": "BRIDGEWATER",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "1679",
+          "state": "MA",
+          "suffixType": "ST",
+          "toAddress": "1799",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "1775 PLYMOUTH ST, BRIDGEWATER, MA, 02324"
+      }
+    ]
+  }
+}
