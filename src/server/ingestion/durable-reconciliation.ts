@@ -5,7 +5,7 @@ import {
   mapIngestionSources,
   RETIRED_INGESTION_SOURCES,
 } from "~/lib/ingestion-source";
-import { ingestionRun, ingestionSourceRun, vehicle } from "~/schema";
+import { ingestionRun, ingestionSourceRun, vehicle, yardArrivalBaseline } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type {
   DurableIngestionResult,
@@ -32,7 +32,7 @@ import { yardInventoryRefreshStatements } from "./yard-inventory";
 const RECONCILIATION_BATCH_SIZE = 500;
 const MISSING_DELETE_AFTER_RUNS = 3;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
-const VEHICLE_VALUE_COLUMN_COUNT = 29;
+const VEHICLE_VALUE_COLUMN_COUNT = 30;
 
 // Leave most of a workflow step's duration for the batches' own writes.
 const RECONCILIATION_STEP_BUDGET_MS = 240_000;
@@ -118,6 +118,7 @@ function changeInsertStatement(params: {
 function toVehicleValues(params: {
   vehicle: CanonicalVehicle;
   firstSeenAt: Date;
+  observedArrivalAt: Date | null;
   runTimestamp: Date;
 }): InValue[] {
   const value = params.vehicle;
@@ -131,6 +132,7 @@ function toVehicleValues(params: {
     value.stockNumber,
     value.imageUrl,
     value.availableDate,
+    params.observedArrivalAt?.getTime() ?? null,
     value.locationCode,
     value.locationName,
     value.locationCity,
@@ -160,6 +162,7 @@ function vehicleUpsertStatement(params: {
   rows: Array<{
     vehicle: CanonicalVehicle;
     firstSeenAt: Date;
+    observedArrivalAt: Date | null;
     runTimestamp: Date;
   }>;
 }): InStatement | null {
@@ -178,7 +181,7 @@ function vehicleUpsertStatement(params: {
     sql: `
       insert into vehicle (
         vin, source, year, make, model, color, stock_number, image_url,
-        available_date, location_code, location_name, location_city, state,
+        available_date, observed_arrival_at, location_code, location_name, location_city, state,
         state_abbr, lat, lng, section, row, space, details_url, parts_url,
         prices_url, engine, trim, transmission, first_seen_at, last_seen_at,
         missing_since_at, missing_run_count
@@ -318,11 +321,22 @@ async function runUpsertBatch(
           .from(vehicle)
           .where(inArray(vehicle.vin, vins));
   const reconciled = reconciledSources(inventory.acceptedSources);
+  const baselines = await params.database
+    .select()
+    .from(yardArrivalBaseline)
+    .where(inArray(yardArrivalBaseline.source, [...inventory.acceptedSources]));
+  const publishedYards = new Map<string, Set<string>>();
+  for (const yard of baselines) {
+    const locations = publishedYards.get(yard.source) ?? new Set<string>();
+    locations.add(yard.locationCode);
+    publishedYards.set(yard.source, locations);
+  }
   const changed = planChangedVehicleUpserts({
     inventory: finalInventory,
     existingRows,
     runTimestamp: params.runTimestamp,
     acceptedSources: reconciled,
+    publishedYards,
   });
   const nextCursor = rows.at(-1)?.vin ?? params.cursor;
   const nextStage =
@@ -574,6 +588,18 @@ async function runMissingBatch(
   // The last batch commits the reconciled sources' yard summary with them.
   if (finishing)
     statements.push(...yardInventoryRefreshStatements([...reconciled], now));
+  // Only the publication batch establishes a baseline. Earlier upsert batches
+  // (including resumed ones) must not make their own backfill look new.
+  if (finishing && params.acceptedSources.length > 0) {
+    statements.push({
+      sql: `insert into yard_arrival_baseline (source, location_code)
+        select distinct source, location_code from vehicle
+        where source in (${params.acceptedSources.map(() => "?").join(", ")})
+          and ${guardSql("reconcile_missing")}
+        on conflict(source, location_code) do nothing`,
+      args: [...params.acceptedSources, params.runId, params.cursor],
+    });
+  }
   const checkpointIndex = statements.length;
   const deletedCount = transitions.filter(
     (transition) => transition.changeType === "delete",

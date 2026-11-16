@@ -3,6 +3,7 @@ import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { db as database, dbClient } from "~/lib/db";
 import { ingestionRun, vehicle, vehicleChange } from "~/schema";
 import {
+  mapDbVehicleToAlgolia,
   mapDbVehicleToCanonical,
   partitionVehicleChanges,
 } from "./algolia-projector-helpers";
@@ -12,7 +13,6 @@ import {
 } from "./durable-algolia-publish";
 import { runIngestionEffect } from "./runtime";
 import { syncToAlgoliaEffect } from "./sync-algolia";
-import { toAlgoliaRecord } from "./types";
 
 export { mapDbVehicleToCanonical, partitionVehicleChanges };
 
@@ -59,14 +59,7 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
     .select()
     .from(vehicle)
     .where(inArray(vehicle.vin, [...new Set(vins)]));
-  return rows.map((row) =>
-    toAlgoliaRecord(
-      mapDbVehicleToCanonical(row),
-      row.firstSeenAt,
-      row.missingSinceAt,
-      row.missingRunCount ?? 0,
-    ),
-  );
+  return rows.map(mapDbVehicleToAlgolia);
 }
 
 async function prepareFullReindex(runId: string) {
@@ -125,14 +118,7 @@ async function loadFullReindexBatch(
           .where(gt(vehicle.vin, cursor))
           .orderBy(asc(vehicle.vin))
           .limit(DURABLE_PROJECTOR_BATCH_SIZE);
-  const records = rows.map((row) =>
-    toAlgoliaRecord(
-      mapDbVehicleToCanonical(row),
-      row.firstSeenAt,
-      row.missingSinceAt,
-      row.missingRunCount ?? 0,
-    ),
-  );
+  const records = rows.map(mapDbVehicleToAlgolia);
   if (records.length > 0) {
     await runIngestionEffect(
       syncToAlgoliaEffect(records, [], {

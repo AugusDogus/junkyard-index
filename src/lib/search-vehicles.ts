@@ -1,3 +1,4 @@
+import { ArrivalDate } from "~/lib/arrival-date";
 import { calculateDistance } from "~/lib/utils";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource, SearchVehicle } from "~/lib/types";
@@ -11,6 +12,7 @@ export const ALGOLIA_VEHICLE_HIT_ATTRIBUTES = [
   "vin",
   "stockNumber",
   "availableDate",
+  "arrivalDate",
   "source",
   "locationCode",
   "locationName",
@@ -105,6 +107,8 @@ export function algoliaHitToSearchVehicle(
       ? new Date(missingSinceAtSeconds * 1000).toISOString()
       : undefined;
 
+  const yardArrival = ArrivalDate.from(hit.availableDate, null);
+
   return {
     id: parseOptionalString(hit.objectID) ?? parseString(hit.vin),
     year: parseNumber(hit.year),
@@ -113,7 +117,10 @@ export function algoliaHitToSearchVehicle(
     color: parseString(hit.color),
     vin: parseOptionalString(hit.vin) ?? parseString(hit.objectID),
     stockNumber: parseString(hit.stockNumber),
-    availableDate: parseString(hit.availableDate),
+    arrivalDate:
+      yardArrival.kind === "yard"
+        ? yardArrival
+        : ArrivalDate.parse(hit.arrivalDate),
     source,
     locationCode: parseString(hit.locationCode),
     locationName,

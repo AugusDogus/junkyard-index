@@ -106,6 +106,17 @@ describe("migration chain", () => {
         terms_version: null,
       });
 
+      const arrivalColumns = await client.execute("pragma table_info(vehicle)");
+      expect(
+        arrivalColumns.rows.find(
+          (column) => column.name === "observed_arrival_at",
+        ),
+      ).toMatchObject({
+        type: "INTEGER",
+        notnull: 0,
+        dflt_value: null,
+      });
+
       const operations = await client.execute(
         "select count(*) as count from billing_operation",
       );
@@ -152,6 +163,34 @@ describe("migration chain", () => {
         (fileName) => fileName.endsWith(".sql"),
       ).length;
       expect(journal.rows[0]?.count).toBe(migrationCount);
+    } finally {
+      client.close();
+    }
+  });
+
+  test("seeds existing yards without inventing observed dates", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(LEGACY_SCHEMA);
+      await client.execute(
+        "insert into vehicle (vin, source, location_code, first_seen_at) values ('old-car', 'pyp', 'yard-1', 123)",
+      );
+      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+      expect(
+        (await client.execute("select * from yard_arrival_baseline")).rows.map(
+          (row) => ({ source: row.source, location_code: row.location_code }),
+        ),
+      ).toEqual([{ source: "pyp", location_code: "yard-1" }]);
+      expect(
+        (
+          await client.execute(
+            "select observed_arrival_at, first_seen_at from vehicle",
+          )
+        ).rows.map((row) => ({
+          observed_arrival_at: row.observed_arrival_at,
+          first_seen_at: row.first_seen_at,
+        })),
+      ).toEqual([{ observed_arrival_at: null, first_seen_at: 123 }]);
     } finally {
       client.close();
     }

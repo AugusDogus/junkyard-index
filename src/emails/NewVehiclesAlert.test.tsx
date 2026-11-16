@@ -13,7 +13,7 @@ function makeVehicle(id: string): SearchVehicle {
     color: "Blue",
     vin: `VIN${id}`,
     stockNumber: id,
-    availableDate: "2026-08-21",
+    arrivalDate: { kind: "yard", date: "2026-08-21" },
     source: "pyp",
     locationCode: "yard-1",
     locationName: "Example Yard",

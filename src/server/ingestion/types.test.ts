@@ -33,7 +33,7 @@ describe("toAlgoliaRecord", () => {
     };
 
     const firstSeenAt = new Date("2026-01-15T10:00:00.000Z");
-    const record = toAlgoliaRecord(vehicle, firstSeenAt, null, 0);
+    const record = toAlgoliaRecord(vehicle, firstSeenAt, null, 0, null);
 
     expect(record.objectID).toBe("1FADP3F29FL123456");
     expect(record.searchTokens).toEqual([
@@ -78,7 +78,7 @@ describe("toAlgoliaRecord", () => {
     expect(record.missingRunCount).toBe(0);
   });
 
-  test("handles null availableDate with timestamp 0", () => {
+  test("distinguishes unknown, observed, and provider arrival dates", () => {
     const vehicle: CanonicalVehicle = {
       vin: "ABC123",
       source: "pyp",
@@ -112,9 +112,41 @@ describe("toAlgoliaRecord", () => {
       new Date("2026-02-21T00:00:00Z"),
       null,
       0,
+      null,
     );
 
     expect(record.availableDateTs).toBe(0);
+    expect(record.arrivalDate).toEqual({ kind: "unknown" });
+    expect(record.arrivalDateKnown).toBe(0);
+    const observed = new Date("2026-11-16T12:00:00Z");
+    const seen = toAlgoliaRecord(vehicle, observed, null, 0, observed);
+    expect(seen.arrivalDate).toEqual({
+      kind: "seen",
+      date: observed.toISOString(),
+    });
+    expect(seen.availableDateTs).toBe(observed.getTime() / 1000);
+    expect(seen.arrivalDateKnown).toBe(1);
+    const yard = toAlgoliaRecord(
+      { ...vehicle, availableDate: "2026-11-15T12:00:00Z" },
+      observed,
+      null,
+      0,
+      observed,
+    );
+    expect(yard.arrivalDate.kind).toBe("yard");
+    expect(yard.availableDateTs).toBe(
+      new Date("2026-11-15T12:00:00Z").getTime() / 1000,
+    );
+    expect(yard.arrivalDateKnown).toBe(1);
+    const invalid = toAlgoliaRecord(
+      { ...vehicle, availableDate: "garbage" },
+      observed,
+      null,
+      0,
+      null,
+    );
+    expect(invalid.arrivalDateKnown).toBe(0);
+    expect(invalid.availableDateTs).toBe(0);
     expect(record.color).toBeNull();
     expect(record.imageUrl).toBeNull();
     expect(record.locationCity).toBe("Sun Valley");

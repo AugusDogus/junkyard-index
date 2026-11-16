@@ -15,6 +15,7 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
+import { ArrivalDate } from "~/lib/arrival-date";
 import type { SearchAlertMatch } from "~/lib/search-alert-data";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 
@@ -141,6 +142,10 @@ export function NewVehiclesAlert({
                             </Text>
                             <Text className="m-0 text-xs text-gray-500">
                               {vehicle.locationCity}, {vehicle.stateAbbr}
+                            </Text>
+                            <Text className="m-0 text-xs text-gray-500">
+                              Available:{" "}
+                              {ArrivalDate.format(vehicle.arrivalDate)}
                             </Text>
                             {vehicle.row && (
                               <Text className="m-0 text-xs text-gray-500">

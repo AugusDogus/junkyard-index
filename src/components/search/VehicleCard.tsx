@@ -14,6 +14,7 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
+import { ArrivalDate } from "~/lib/arrival-date";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 import { VehicleDestination } from "~/lib/vehicle-destination";
@@ -53,22 +54,8 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
     }
   };
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-    } catch {
-      return "Date unknown";
-    }
-  };
-
   const missingLabel = vehicle.missingSinceAt
-    ? `Missing since ${formatDate(vehicle.missingSinceAt)}`
+    ? `Missing since ${ArrivalDate.format(ArrivalDate.from(vehicle.missingSinceAt, null))}`
     : "Marked missing";
 
   return (
@@ -123,7 +110,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
 
           <dt className="text-muted-foreground">Available</dt>
           <dd className="text-right tabular-nums">
-            {formatDate(vehicle.availableDate)}
+            {ArrivalDate.format(vehicle.arrivalDate)}
           </dd>
         </dl>
 

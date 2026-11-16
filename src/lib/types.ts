@@ -1,3 +1,4 @@
+import type { ArrivalDate } from "./arrival-date";
 import type { IngestionSource } from "./ingestion-source";
 
 export type DataSource = IngestionSource;
@@ -76,7 +77,7 @@ export interface SearchVehicle {
   color: string;
   vin: string;
   stockNumber: string;
-  availableDate: string;
+  arrivalDate: ArrivalDate;
   source: DataSource;
   locationCode: string;
   locationName: string;

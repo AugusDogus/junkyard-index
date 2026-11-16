@@ -1,3 +1,4 @@
+import { ArrivalDate } from "~/lib/arrival-date";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import {
@@ -5,7 +6,7 @@ import {
   type SearchAlertData,
 } from "~/lib/search-alert-data";
 
-const SearchVehicleSchema = z
+const SearchVehicleFields = z
   .object({
     id: z.string(),
     year: z.number(),
@@ -14,7 +15,6 @@ const SearchVehicleSchema = z
     color: z.string(),
     vin: z.string(),
     stockNumber: z.string(),
-    availableDate: z.string(),
     source: z.enum(INGESTION_SOURCES),
     locationCode: z.string(),
     locationName: z.string(),
@@ -39,6 +39,17 @@ const SearchVehicleSchema = z
     missingRunCount: z.number().optional(),
   })
   .strict();
+
+// Pending intents created before arrival provenance was added still carry a raw date.
+const SearchVehicleSchema = z.union([
+  SearchVehicleFields.extend({ arrivalDate: ArrivalDate.schema }),
+  SearchVehicleFields.extend({ availableDate: z.string() }).transform(
+    ({ availableDate, ...vehicle }) => ({
+      ...vehicle,
+      arrivalDate: ArrivalDate.from(availableDate, null),
+    }),
+  ),
+]);
 
 const IntentPayloadSchema = z
   .object({

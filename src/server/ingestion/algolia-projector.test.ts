@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { vehicle } from "~/schema";
 import {
+  mapDbVehicleToAlgolia,
   mapDbVehicleToCanonical,
   partitionVehicleChanges,
 } from "./algolia-projector-helpers";
@@ -33,6 +34,7 @@ describe("algolia-projector helpers", () => {
       engine: "2.0L",
       trim: "EX",
       transmission: "Automatic",
+      observedArrivalAt: null,
       firstSeenAt: new Date("2026-02-01T00:00:00.000Z"),
       lastSeenAt: new Date("2026-02-01T00:00:00.000Z"),
       missingSinceAt: null,
@@ -66,6 +68,25 @@ describe("algolia-projector helpers", () => {
       trim: "EX",
       transmission: "Automatic",
     });
+
+    const observedArrivalAt = new Date("2026-11-16T12:00:00Z");
+    const seenRecord = mapDbVehicleToAlgolia({
+      ...row,
+      availableDate: null,
+      observedArrivalAt,
+    });
+    expect(seenRecord.arrivalDate).toEqual({
+      kind: "seen",
+      date: observedArrivalAt.toISOString(),
+    });
+    expect(seenRecord.arrivalDateKnown).toBe(1);
+    expect(seenRecord.availableDateTs).toBe(observedArrivalAt.getTime() / 1000);
+    expect(
+      mapDbVehicleToAlgolia({ ...row, availableDate: null }).arrivalDate,
+    ).toEqual({ kind: "unknown" });
+    expect(
+      mapDbVehicleToAlgolia({ ...row, observedArrivalAt }).arrivalDate,
+    ).toEqual({ kind: "yard", date: "2026-02-01T00:00:00.000Z" });
 
     expect(
       mapDbVehicleToCanonical({ ...row, source: "upullitdavie" }).source,

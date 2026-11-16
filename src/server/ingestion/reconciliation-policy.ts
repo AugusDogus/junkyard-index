@@ -1,3 +1,4 @@
+import { ArrivalDate } from "~/lib/arrival-date";
 import { vehicle } from "~/schema";
 import type { CanonicalVehicle } from "./types";
 
@@ -187,11 +188,16 @@ export function planChangedVehicleUpserts(params: {
   existingRows: readonly ExistingVehicle[];
   runTimestamp: Date;
   acceptedSources: ReadonlySet<string>;
+  publishedYards: ReadonlyMap<string, ReadonlySet<string>>;
 }) {
   const existingByVin = new Map(
     params.existingRows.map((row) => [row.vin, row] as const),
   );
-  const changed: Array<{ vehicle: CanonicalVehicle; firstSeenAt: Date }> = [];
+  const changed: Array<{
+    vehicle: CanonicalVehicle;
+    firstSeenAt: Date;
+    observedArrivalAt: Date | null;
+  }> = [];
   for (const [vin, next] of params.inventory) {
     const existing = existingByVin.get(vin);
     if (keptByHigherPriorityOwner(existing, next, params.acceptedSources))
@@ -200,6 +206,12 @@ export function planChangedVehicleUpserts(params: {
     changed.push({
       vehicle: next,
       firstSeenAt: existing?.firstSeenAt ?? params.runTimestamp,
+      observedArrivalAt: existing
+        ? existing.observedArrivalAt
+        : ArrivalDate.from(next.availableDate, null).kind === "unknown" &&
+            params.publishedYards.get(next.source)?.has(next.locationCode)
+          ? params.runTimestamp
+          : null,
     });
   }
   return changed;
