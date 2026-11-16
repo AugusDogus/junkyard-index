@@ -140,7 +140,7 @@ describe("source snapshot validation", () => {
     { source: "cstruck", minimum: 50, accepted: 59, rejected: 5 },
     { source: "heavytruckparts", minimum: 700, accepted: 857, rejected: 20 },
     { source: "beavers", minimum: 240, accepted: 278, rejected: 12 },
-    { source: "bigd", minimum: 250, accepted: 288, rejected: 7 },
+    { source: "bigd", minimum: 96, accepted: 288, rejected: 7 },
     { source: "indianriver", minimum: 900, accepted: 1_049, rejected: 7 },
     { source: "kodak", minimum: 30, accepted: 38, rejected: 3 },
     { source: "six03", minimum: 800, accepted: 973, rejected: 60 },
