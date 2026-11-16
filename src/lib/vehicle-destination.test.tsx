@@ -442,6 +442,26 @@ describe("working destinations", () => {
 });
 
 describe("absent or unusable destinations", () => {
+  test("Pocatello explains hidden vehicle search across cards and alerts", async () => {
+    const href =
+      "https://vinplus.texnrewards.com/parts/u-pull-auto-parts-pocatello";
+    const restored = roundTripNotification(vehicle("vinplus", href));
+    expect(VehicleDestination.resolve(restored)).toEqual({
+      kind: "unavailable",
+      explanation:
+        "Pocatello's public app hides vehicle search. Contact U Pull Auto Parts Pocatello with the VIN and stock number to confirm availability.",
+    });
+    const { card, email, discord } = await renderSurfaces(restored);
+    for (const html of [card, email]) {
+      expect(html).toContain("public app hides vehicle search");
+      expect(html).toContain("confirm availability");
+      expect(html).not.toContain(href);
+      expect(html).not.toContain("Search provider inventory");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain("public app hides vehicle search");
+    expect(discord.description).not.toContain(href);
+  });
   test("Discord encodes link delimiters without double-encoding existing URL filters", () => {
     const href =
       "https://trusted.example/a) [Injected](https://evil.example?filter%5Byard%5D=STOCKTON";

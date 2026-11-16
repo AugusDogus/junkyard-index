@@ -16,15 +16,57 @@ const first = () => {
   return tenant;
 };
 test.each([
-  { index: 0, accepted: 713, processed: 720, rejected: 7, serials: 3 },
-  { index: 1, accepted: 1406, processed: 1423, rejected: 17, serials: 21 },
-  { index: 2, accepted: 1083, processed: 1084, rejected: 1, serials: 5 },
-  { index: 3, accepted: 479, processed: 490, rejected: 11, serials: 0 },
-  { index: 4, accepted: 1572, processed: 1575, rejected: 3, serials: 2 },
-  { index: 5, accepted: 1095, processed: 1097, rejected: 2, serials: 7 },
+  {
+    index: 0,
+    accepted: 710,
+    processed: 720,
+    rejected: 10,
+    observed: 3,
+    serials: 3,
+  },
+  {
+    index: 1,
+    accepted: 1406,
+    processed: 1423,
+    rejected: 17,
+    observed: 0,
+    serials: 21,
+  },
+  {
+    index: 2,
+    accepted: 1082,
+    processed: 1084,
+    rejected: 2,
+    observed: 1,
+    serials: 5,
+  },
+  {
+    index: 3,
+    accepted: 464,
+    processed: 490,
+    rejected: 26,
+    observed: 15,
+    serials: 0,
+  },
+  {
+    index: 4,
+    accepted: 1558,
+    processed: 1575,
+    rejected: 17,
+    observed: 14,
+    serials: 2,
+  },
+  {
+    index: 5,
+    accepted: 1085,
+    processed: 1097,
+    rejected: 12,
+    observed: 10,
+    serials: 7,
+  },
 ])(
   "complete frozen yard census: tenant=$index",
-  ({ index, accepted, processed, rejected, serials }) => {
+  ({ index, accepted, processed, rejected, observed, serials }) => {
     const tenant = VINPLUS_TENANTS[index];
     const bodies = vinplusCensus()[index];
     if (!tenant || !bodies)
@@ -33,6 +75,7 @@ test.each([
     if (result.kind !== "complete") throw new Error("Incomplete yard census");
     const snapshot = vinplusSnapshot(tenant, result.records);
     expect(snapshot.vehicles).toHaveLength(accepted);
+    expect(snapshot.observedVins).toHaveLength(observed);
     expect(
       snapshot.vehicles.filter((vehicle) => vehicle.vin.length !== 17),
     ).toHaveLength(serials);
@@ -95,10 +138,10 @@ describe("frozen public VinPlus protocol", () => {
     if (result.kind !== "complete")
       throw new Error("Pending terminal evidence");
     const snapshot = vinplusSnapshot(first(), result.records);
-    expect(snapshot.vehicles).toHaveLength(713);
+    expect(snapshot.vehicles).toHaveLength(710);
     expect(snapshot.accounting).toEqual({
       recordsProcessed: 720,
-      recordsRejected: 7,
+      recordsRejected: 10,
       recordsExcluded: 0,
       duplicateVehicles: 0,
     });

@@ -73,10 +73,12 @@ test("complete frozen census replays through transport, chunking and durable che
         onBatch: (vehicles) =>
           Effect.sync(() => {
             callbacks++;
-            expect(vehicles).toHaveLength(6_348);
+            expect(vehicles).toHaveLength(6_305);
             for (const vehicle of vehicles) {
               expect(VehicleDestination.resolve(vehicle).kind).toBe(
-                "manual-search",
+                vehicle.locationCode === "pocatello"
+                  ? "unavailable"
+                  : "manual-search",
               );
               expect(vehicle.lat).not.toBe(0);
               expect(vehicle.lng).not.toBe(0);
@@ -89,8 +91,17 @@ test("complete frozen census replays through transport, chunking and durable che
           }),
       }),
     );
-    if (result.status === "complete") warnings = result.warnings ?? [];
-    else expect(result.warnings).toEqual([]);
+    if (result.status === "complete") {
+      warnings = result.warnings ?? [];
+      expect(result.count).toBe(6_305);
+      expect(result.observedVins).toHaveLength(43);
+      expect(result.accounting).toEqual({
+        recordsProcessed: 6_389,
+        recordsRejected: 84,
+        recordsExcluded: 0,
+        duplicateVehicles: 0,
+      });
+    } else expect(result.warnings).toEqual([]);
     cursor = parseDurableSourceCursor(
       "vinplus",
       serializeDurableSourceCursor(result.cursor),
