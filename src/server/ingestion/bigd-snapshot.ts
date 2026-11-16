@@ -103,7 +103,7 @@ export function bigdSnapshot(
       vehicles.size < previous * SourceValidationPolicy.minimumPreviousRunRatio)
   )
     throw new Error(
-      `Big D complete table failed the 250-donor floor, 10% rejection, 25% duplicate or 50% previous-count guard (${vehicles.size} accepted, ${accounting.recordsRejected} rejected). Prior inventory is preserved; inspect the native census before restarting.`,
+      `Big D complete table failed the ${BIGD_MINIMUM_INVENTORY}-donor floor, 10% rejection, 25% duplicate or 50% previous-count guard (${vehicles.size} accepted, ${accounting.recordsRejected} rejected). Prior inventory is preserved; inspect the native census before restarting.`,
     );
   return {
     vehicles: [...vehicles.values()],
