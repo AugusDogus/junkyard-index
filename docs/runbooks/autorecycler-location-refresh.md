@@ -1,5 +1,15 @@
 # AutoRecycler inventory and owned locations
 
+The November 16 [customer expansion receipt](provider-coverage-ario-vinplus-tpi.md)
+adds twelve native Crush-fed yards, including Smith Auto, for 33 allowlisted yards with CFC Recycling.
+The daily grouped census remains 37 requests under the unchanged 48/hour budget.
+The November 15 baseline and migration evidence below remain historical receipts.
+
+Combined offline replay accepts 32,344 vehicles with 33 publication chunks.
+The saved 32-yard opening plus CFC yields 3,295 opening items across all 33 yards.
+The full run uses 33 rank windows, one closing check and three discovery/directory
+requests, 37 total with eleven requests below the 48/hour cap.
+
 ## CFC qualification, November 16, 2026
 
 CFC Recycling's official inventory page embeds the native Ario customer yard
@@ -16,7 +26,7 @@ All five 100-rank windows and a separately fetched closing window cover
 422 records: 407 accepted, 15 rejected, no exclusions or duplicates (3.55%
 rejected). Embedded spaces and Cyrillic look-alikes remain invalid under the
 existing VIN policy. No guessed corrections are applied. The complete saved
-Ario replay now accepts 19,212 vehicles across twenty current yards; Santa
+Ario replay at CFC qualification accepted 19,212 vehicles across twenty current yards; Santa
 Maria remains stale in this census.
 
 Qualification used fourteen serial live requests, including owner evidence,
@@ -27,7 +37,7 @@ so the daily budget stays **37 requests against the unchanged 48-request
 hourly cap**, with eleven requests of headroom. No quota-exhaustion probe
 was made. Group bounds remain exactly 100 items per allowlisted yard.
 
-Saved staging replay uses 34 capture chunks, 21 yard publication chunks and
+The CFC-only staging replay used 34 capture chunks, 21 yard publication chunks and
 one legacy terminal stand-in, 56 total versus 55 before CFC. Each capture
 chunk still reads one grouped window; publication uses saved responses and
 adds no HTTP requests. The workflow loops over chunks without a fixed total

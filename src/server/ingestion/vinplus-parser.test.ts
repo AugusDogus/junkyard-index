@@ -64,6 +64,14 @@ test.each([
     observed: 10,
     serials: 7,
   },
+  {
+    index: 6,
+    accepted: 1316,
+    processed: 1333,
+    rejected: 17,
+    observed: 5,
+    serials: 1,
+  },
 ])(
   "complete frozen yard census: tenant=$index",
   ({ index, accepted, processed, rejected, observed, serials }) => {

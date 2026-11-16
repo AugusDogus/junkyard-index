@@ -75,6 +75,18 @@ const expectedCounts: Record<
   "samson-auto-salvage": 283,
   "santa-maria-recycling-center": 0,
   "cfc-recycling": 395,
+  "smith-auto-inc-self-serve-pawnee-city-ne": 591,
+  "cash-n-carry-pull-your-part-savannah-ga": 669,
+  "wilberts-u-pull-it-williamson-ny": 2593,
+  "youngstown-u-pull-it-youngstown-oh": 1499,
+  "barry-s-u-pull-it-theodore-al": 684,
+  "roberts-parts-u-pick-moffett-ok": 1159,
+  "parts-you-pull-amite-la": 472,
+  "wilberts-u-pull-it-elma-ny": 1322,
+  "baughmans-u-pull-it-york-pa": 1087,
+  "a-1-crashed-cars-south-sioux-city-ne": 1112,
+  "wilberts-u-pull-it-bath-ny": 1116,
+  "milliron-auto-parts-mansfield-oh": 666,
 };
 
 test("replays complete Ario customer inventories with no network, including suppressed rank holes", async () => {

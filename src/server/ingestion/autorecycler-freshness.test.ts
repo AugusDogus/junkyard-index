@@ -160,7 +160,12 @@ test("drift ignores unsupported retired yards while protecting every still-eligi
 
 test.each(
   [20, 50, 51, 96].flatMap((staleCount) =>
-    ["ez-pull-n-pay-birmingham", "cfc-recycling"].map((slug) => ({
+    [
+      "ez-pull-n-pay-birmingham",
+      "a-a-auto-recycling",
+      "cfc-recycling",
+      "smith-auto-inc-self-serve-pawnee-city-ne",
+    ].map((slug) => ({
       staleCount,
       slug,
     })),

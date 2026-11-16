@@ -1,0 +1,122 @@
+[
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw",
+    "status": 200,
+    "bytes": 310470,
+    "at": "2026-11-16T14:10:59.572Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=2",
+    "status": 200,
+    "bytes": 315859,
+    "at": "2026-11-16T14:11:03.872Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=3",
+    "status": 200,
+    "bytes": 318649,
+    "at": "2026-11-16T14:11:08.239Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=4",
+    "status": 200,
+    "bytes": 318014,
+    "at": "2026-11-16T14:11:12.493Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=5",
+    "status": 200,
+    "bytes": 318447,
+    "at": "2026-11-16T14:11:16.295Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=6",
+    "status": 200,
+    "bytes": 315314,
+    "at": "2026-11-16T14:11:20.211Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=7",
+    "status": 200,
+    "bytes": 315129,
+    "at": "2026-11-16T14:11:24.644Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=8",
+    "status": 200,
+    "bytes": 312962,
+    "at": "2026-11-16T14:11:28.705Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=9",
+    "status": 200,
+    "bytes": 312108,
+    "at": "2026-11-16T14:11:32.731Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=10",
+    "status": 200,
+    "bytes": 315281,
+    "at": "2026-11-16T14:11:36.465Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=11",
+    "status": 200,
+    "bytes": 313253,
+    "at": "2026-11-16T14:11:40.216Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=12",
+    "status": 200,
+    "bytes": 314963,
+    "at": "2026-11-16T14:11:44.101Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=13",
+    "status": 200,
+    "bytes": 313676,
+    "at": "2026-11-16T14:11:47.942Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=14",
+    "status": 200,
+    "bytes": 317576,
+    "at": "2026-11-16T14:11:51.763Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=15",
+    "status": 200,
+    "bytes": 317714,
+    "at": "2026-11-16T14:11:55.855Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=16",
+    "status": 200,
+    "bytes": 316064,
+    "at": "2026-11-16T14:11:59.683Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=17",
+    "status": 200,
+    "bytes": 315599,
+    "at": "2026-11-16T14:12:03.992Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=18",
+    "status": 200,
+    "bytes": 316454,
+    "at": "2026-11-16T14:12:07.733Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=19",
+    "status": 200,
+    "bytes": 317561,
+    "at": "2026-11-16T14:12:11.907Z"
+  },
+  {
+    "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=20",
+    "status": 200,
+    "bytes": 311654,
+    "at": "2026-11-16T14:12:15.769Z"
+  }
+]

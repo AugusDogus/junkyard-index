@@ -1,0 +1,76 @@
+[
+  {
+    "url": "https://ario.autorecycler.io",
+    "status": 200,
+    "bytes": 8083,
+    "at": "2026-11-16T14:13:31.927Z"
+  },
+  {
+    "url": "https://ario.autorecycler.io/assets/index-oW1zBAeU.js",
+    "status": 200,
+    "bytes": 1566591,
+    "at": "2026-11-16T14:13:34.261Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/rest/v1/yards?select=id,slug,display_name,organization_id,address,city,state,website_url,phone,data&customer_facing_visible=eq.true",
+    "status": 200,
+    "bytes": 2448311,
+    "at": "2026-11-16T14:13:36.867Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"a-a-auto-recycling\",\"auto-parts-u-pull-nc\",\"auto-parts-u-pull-shelby-nc\",\"ez-pull-n-pay-atlanta\",\"ez-pull-n-pay-birmingham\",\"ez-pull-n-pay-columbus\",\"ez-pull-n-pay-decatur\",\"ez-pull-n-pay-montgomery\",\"ez-pull-n-pay-stockbridge\",\"ez-pull-n-pay-warner-robins\",\"foss-havelock\",\"foss-jacksonville\",\"foss-la-grange\",\"foss-recycling\",\"foss-wilson\",\"foss-winston-salem\",\"l-and-l-u-pull\",\"prestige-pull-your-part-houston-tx\",\"samson-auto-salvage\",\"santa-maria-recycling-center\",\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\",\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":0,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 2924181,
+    "at": "2026-11-16T14:13:39.992Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":100,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 62417,
+    "at": "2026-11-16T14:13:42.537Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":200,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 62614,
+    "at": "2026-11-16T14:13:45.029Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":300,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 62588,
+    "at": "2026-11-16T14:13:47.607Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":400,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 62346,
+    "at": "2026-11-16T14:13:50.214Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":500,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 62574,
+    "at": "2026-11-16T14:13:52.787Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":600,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 2627,
+    "at": "2026-11-16T14:13:55.320Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"smith-auto-inc-self-serve-pawnee-city-ne\"],\"per_yard_limit\":100,\"item_rank_offset\":0,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 62478,
+    "at": "2026-11-16T14:13:57.905Z"
+  }
+]

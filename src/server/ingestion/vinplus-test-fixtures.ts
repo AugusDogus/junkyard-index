@@ -13,6 +13,9 @@ function fixture(name: string): unknown {
 // Killeen closing reads reuse saved opening bodies for offline simulation.
 // See vinplus-test-fixtures/killeen-replay.json for capture provenance.
 export function vinplusCensus(): string[][] {
-  return z.array(z.array(z.string())).parse(fixture("census"));
+  return [
+    ...z.array(z.array(z.string())).parse(fixture("census")),
+    z.array(z.string()).parse(fixture("indy")),
+  ];
 }
 export const vinplusQualification = (): unknown => fixture("qualification");

@@ -195,6 +195,7 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
       hinesville: "yourpart",
       killeen: "195-used-auto-parts",
       lubbock: "pick-ur-part",
+      indianapolis: "indy-u-pull-it",
     };
     const slug = slugs[yard.code];
     if (slug)

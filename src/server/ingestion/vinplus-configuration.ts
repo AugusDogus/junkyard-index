@@ -168,4 +168,26 @@ export const VINPLUS_TENANTS: readonly VinplusTenant[] = [
       "pick-ur-part",
     ),
   },
+  {
+    yardId: "indy_u_pull_it",
+    slug: "indy-u-pull-it",
+    label: "Indy U-Pull-It",
+    timezone: "America/New_York",
+    hiddenSearch: false,
+    inventory: { kind: "crush", stockDigits: 6 },
+    minimum: 400,
+    yard: yard(
+      {
+        code: "indianapolis",
+        name: "Indy U-Pull-It",
+        address: "940 W 16th St",
+        city: "Indianapolis",
+        state: "IN",
+        postalCode: "46202",
+        lat: 39.788722423552,
+        lng: -86.175452072595,
+      },
+      "indy-u-pull-it",
+    ),
+  },
 ];

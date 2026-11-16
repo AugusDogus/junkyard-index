@@ -1,0 +1,203 @@
+[
+  {
+    "url": "https://ario.autorecycler.io",
+    "status": 200,
+    "bytes": 8083,
+    "at": "2026-11-16T14:02:27.211Z"
+  },
+  {
+    "url": "https://ario.autorecycler.io/assets/index-oW1zBAeU.js",
+    "status": 200,
+    "bytes": 1566591,
+    "at": "2026-11-16T14:02:29.524Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":0,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 658455,
+    "at": "2026-11-16T14:02:32.367Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":100,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 660005,
+    "at": "2026-11-16T14:02:35.079Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":200,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 659438,
+    "at": "2026-11-16T14:02:37.842Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":300,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 659392,
+    "at": "2026-11-16T14:02:40.488Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":400,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 648568,
+    "at": "2026-11-16T14:02:43.135Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":500,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 601165,
+    "at": "2026-11-16T14:02:45.810Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":600,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 591507,
+    "at": "2026-11-16T14:02:48.442Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":700,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 423669,
+    "at": "2026-11-16T14:02:51.077Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":800,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 418485,
+    "at": "2026-11-16T14:02:53.699Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":900,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 419254,
+    "at": "2026-11-16T14:02:56.404Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1000,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 431717,
+    "at": "2026-11-16T14:02:59.026Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1100,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 281343,
+    "at": "2026-11-16T14:03:02.195Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"roberts-parts-u-pick-moffett-ok\",\"wilberts-u-pull-it-elma-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1200,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 217950,
+    "at": "2026-11-16T14:03:04.791Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"wilberts-u-pull-it-elma-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1300,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 135488,
+    "at": "2026-11-16T14:03:07.382Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":1400,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 120484,
+    "at": "2026-11-16T14:03:09.970Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":1500,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 94288,
+    "at": "2026-11-16T14:03:12.536Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1600,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59948,
+    "at": "2026-11-16T14:03:15.009Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1700,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59840,
+    "at": "2026-11-16T14:03:17.583Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1800,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59790,
+    "at": "2026-11-16T14:03:20.153Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":1900,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59612,
+    "at": "2026-11-16T14:03:22.703Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":2000,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59455,
+    "at": "2026-11-16T14:03:25.296Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":2100,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59483,
+    "at": "2026-11-16T14:03:27.861Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":2200,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59416,
+    "at": "2026-11-16T14:03:30.428Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":2300,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59396,
+    "at": "2026-11-16T14:03:32.985Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":2400,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 59465,
+    "at": "2026-11-16T14:03:35.547Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"wilberts-u-pull-it-williamson-ny\"],\"per_yard_limit\":100,\"item_rank_offset\":2500,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 57775,
+    "at": "2026-11-16T14:03:38.145Z"
+  },
+  {
+    "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+    "body": "{\"yard_list\":[\"cash-n-carry-pull-your-part-savannah-ga\",\"wilberts-u-pull-it-williamson-ny\",\"youngstown-u-pull-it-youngstown-oh\",\"barry-s-u-pull-it-theodore-al\",\"roberts-parts-u-pick-moffett-ok\",\"parts-you-pull-amite-la\",\"wilberts-u-pull-it-elma-ny\",\"baughmans-u-pull-it-york-pa\",\"a-1-crashed-cars-south-sioux-city-ne\",\"wilberts-u-pull-it-bath-ny\",\"milliron-auto-parts-mansfield-oh\"],\"per_yard_limit\":100,\"item_rank_offset\":0,\"start_year\":null,\"end_year\":null,\"input_make\":null,\"input_model\":null}",
+    "status": 200,
+    "bytes": 658455,
+    "at": "2026-11-16T14:03:40.984Z"
+  }
+]
