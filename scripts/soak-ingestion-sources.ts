@@ -1057,10 +1057,11 @@ async function main(): Promise<void> {
             );
           case "urgiis":
             return soakUrgiisInventory(
-              (cursor, maxPages) =>
+              (cursor, maxPages, censusState) =>
                 runProgram(
                   streamUrgiisInventoryFromProvider({
                     startCursor: cursor,
+                    censusState,
                     maxPages,
                     onBatch,
                   }),

@@ -26,6 +26,7 @@ const menu = (counts: readonly number[]): UrgiisEntry => ({
 const models = (sizes: readonly number[]): UrgiisEntry[] =>
   sizes.map((size, i) => ({
     kind: "model",
+    freshness: { kind: "read", readAt: 0 },
     url: `https://example.com/parts/ACURA/M${i}/`,
     bytes: 100,
     records: Array.from({ length: size }, () => record),

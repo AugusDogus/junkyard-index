@@ -9,6 +9,7 @@ export async function soakUrgiisInventory(
   runChunk: (
     cursor: UrgiisCursor,
     maxPages: number,
+    censusState?: unknown,
   ) => Promise<UrgiisStreamResult>,
   maxRequests = URGIIS_MAX_REQUESTS,
 ): Promise<UrgiisStreamResult> {
@@ -16,6 +17,7 @@ export async function soakUrgiisInventory(
     throw new Error("URG IIS soak needs a positive request budget");
   let cursor = UrgiisCursor.initial();
   let pagesProcessed = 0;
+  let censusState: unknown;
   let count = 0;
   const accounting = {
     recordsProcessed: 0,
@@ -28,7 +30,9 @@ export async function soakUrgiisInventory(
     const chunk = await runChunk(
       cursor,
       Math.min(3, maxRequests - pagesProcessed),
+      censusState,
     );
+    censusState = chunk.checkpointState ?? censusState;
     const next = UrgiisCursor.fromWire(UrgiisCursor.serialize(chunk.cursor));
     if (
       chunk.status === "paused" &&
