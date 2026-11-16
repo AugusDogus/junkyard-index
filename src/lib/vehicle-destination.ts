@@ -95,7 +95,7 @@ function resolve(
   if (
     vehicle.source === "vinplus" &&
     yardUrl &&
-    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(ryans|us-auto-supply|yourpart|195-used-auto-parts|pick-ur-part)$/.test(
+    /^https:\/\/vinplus\.texnrewards\.com\/parts\/(ryans|us-auto-supply|yourpart|195-used-auto-parts|pick-ur-part|indy-u-pull-it)$/.test(
       yardUrl,
     )
   ) {

@@ -171,7 +171,7 @@ async function replay(failAt?: number) {
   expect(result.status).toBe("complete");
   expect(failures).toEqual([]);
   expect(closing).toBe(true);
-  expect(accepted).toBe(19_200);
+  expect(accepted).toBe(32_170);
   expect(bootstraps).toBe(1);
   expect(saved.directoryCalls()).toBe(1);
   return { ...saved, waits, chunks };
@@ -183,8 +183,8 @@ test("daily grouped census retains complete stable windows below the hourly budg
   expect(result.calls.length + 3).toBe(37); // HTML, bundle, directory.
   expect(result.calls.length + 3).toBeLessThan(ARIO_HOURLY_REQUEST_BUDGET);
   expect(result.waits).toEqual([]);
-  expect(result.chunks).toBe(56); // 34 capture, 21 publish, one legacy terminal stand-in.
-  expect(result.calls.at(-1)?.slugs).toHaveLength(21);
+  expect(result.chunks).toBe(68); // 34 capture, 33 publish, one legacy terminal stand-in.
+  expect(result.calls.at(-1)?.slugs).toHaveLength(ARIO_CUSTOMER_YARDS.length);
   expect(
     result.calls
       .filter((call) => call.slugs.includes("cfc-recycling"))
@@ -299,17 +299,43 @@ test("a completed rank window resets the persisted consecutive rate-limit count"
   expect(resumed.consecutiveRateLimits).toBe(1);
 });
 
-test("the saved live 21-customer response fits the grouped bounds with CFC intact", async () => {
+test("saved native opening responses fit the combined 33-customer bounds with CFC intact", async () => {
   const directory: unknown = await Bun.file(
     new URL("./fixtures/ario/yards.json", import.meta.url),
   ).json();
-  const raw: unknown = JSON.parse(
-    gunzipSync(
-      await Bun.file(
-        new URL("./fixtures/ario/cfc-group-21.json.gz", import.meta.url),
-      ).bytes(),
-    ).toString(),
+  const groupSchema = ArioPageSchema.extend({
+    items: ArioPageSchema.shape.items.max(ARIO_CUSTOMER_YARDS.length * 100),
+    yards_meta: ArioPageSchema.shape.yards_meta.max(ARIO_CUSTOMER_YARDS.length),
+  });
+  const opening = groupSchema.parse(
+    JSON.parse(
+      gunzipSync(
+        await Bun.file(
+          new URL("./fixtures/ario/expanded-opening.json.gz", import.meta.url),
+        ).bytes(),
+      ).toString(),
+    ),
   );
+  const cfc = groupSchema.parse(
+    JSON.parse(
+      gunzipSync(
+        await Bun.file(
+          new URL("./fixtures/ario/cfc-group-21.json.gz", import.meta.url),
+        ).bytes(),
+      ).toString(),
+    ),
+  );
+  const raw = {
+    ...opening,
+    items: [
+      ...opening.items,
+      ...cfc.items.filter((item) => item.yard === "cfc-recycling"),
+    ],
+    yards_meta: [
+      ...opening.yards_meta,
+      ...cfc.yards_meta.filter((meta) => meta.yard === "cfc-recycling"),
+    ],
+  };
   const result = await Effect.runPromise(
     readArioRun(initial, undefined, () => ({
       yards: async () => directory,
@@ -324,13 +350,13 @@ test("the saved live 21-customer response fits the grouped bounds with CFC intac
     "saved-live-group",
     async () => result.checkpointState,
   );
-  expect(Object.keys(state.pages)).toHaveLength(21);
+  expect(Object.keys(state.pages)).toHaveLength(33);
   expect(
     Object.values(state.pages).reduce(
       (sum, windows) => sum + (windows["0"]?.items.length ?? 0),
       0,
     ),
-  ).toBe(2095);
+  ).toBe(3295);
   expect(state.pages["cfc-recycling"]?.["0"]?.total).toBe(422);
   expect(state.pages["cfc-recycling"]?.["0"]?.items).toHaveLength(100);
 });

@@ -19,6 +19,7 @@ destinations for their vehicles. No unsupported vehicle permalink is constructed
 | YourPart (SA Recycling)            | hinesville       | GA    | yourpart                    |              400 |
 | 195 Used Auto Parts                | killeen          | TX    | 195-used-auto-parts         |            1,300 |
 | Pick Ur Part                       | lubbock          | TX    | pick-ur-part                |              850 |
+| Indy U-Pull-It                     | indianapolis     | IN    | indy-u-pull-it              |              400 |
 
 App URLs are `https://vinplus.texnrewards.com/parts/<slug>`. Configuration maps
 these to exact backend yard IDs and names. All admitted tenants are single-yard
@@ -36,7 +37,7 @@ website remains the public app.
 Sterling Heights is a different physical yard from source `pontiac`. Ryan's is
 its own business in Detroit. YourPart's own site returned HTTP 500 during
 qualification; its VinPlus app is the source and destination. Texas was qualified
-last; both Killeen and Pick Ur Part qualify. Pickers, including its
+before Indy; both Killeen and Pick Ur Part qualify. Pickers, including its
 native-authoritative enrichment and location resolution, keeps its existing
 behavior.
 
@@ -48,6 +49,7 @@ behavior.
 | YourPart            | 6880 US Highway 84, Hinesville GA 31313        | 31.767772464280, -81.643658295697  |
 | 195 Used Auto Parts | 12077 State Highway 195, Killeen TX 76542      | 31.017893889633, -97.753710608874  |
 | Pick Ur Part        | 4125 E Slaton Rd, Lubbock TX 79404             | 33.520132845259, -101.780012462231 |
+| Indy U-Pull-It      | 940 W 16th St, Indianapolis IN 46202           | 39.788722423552, -86.175452072595  |
 
 Coordinates come from US Census `Public_AR_Current` one-line exact-address
 matches. They are street-range interpolations, not rooftop points. Pocatello's
@@ -134,7 +136,7 @@ Unverified photo hosts and vehicle/parts links are null.
 
 Each yard independently enforces its accepted floor, at most 10% rejected donors
 and at most 25% duplicate donors. Raw repeated-stock occurrences also have a 25%
-guard. Production source validation requires at least 5,250 accepted vehicles,
+guard. Production source validation requires at least 5,650 accepted vehicles,
 the unchanged source rejection/duplicate limits and at least 50% of the previous
 accepted source count. A failure preserves prior accepted inventory.
 
@@ -197,3 +199,20 @@ bun run soak:sources -- --sources=vinplus --max-pages=2048
 
 The soak is read-only. Its driver roundtrips checkpoints, verifies progress and
 rejects premature donor accounting. It writes no database, index or feature flag.
+
+## Indy qualification, November 16, 2026
+
+Indy is the seventh tenant, backend yard `indy_u_pull_it`, with six-digit Crush
+stocks and one physical Indianapolis yard. Its official address has a unique
+Census Public_AR_Current match. The complete live opening/closing protocol uses
+154 serial requests and accounts for all 1,333 advertised donors: 1,316 accepted,
+17 rejected, zero duplicates and zero unreachable rows. Modern VINs pass check
+digits; one eligible pre-1981 serial is accepted. The new floor is 400. Existing
+floors and 50% drift protection remain unchanged.
+
+`vinplusCensus()` appends the original `indy.json.gz` responses to the prior
+six-yard replay, for 1,077 total response bodies. Seven-yard replay accepts
+7,621 vehicles and rejects 101. `indy-qualification.json.gz` retains original
+operator/address evidence; `indy-requests.json` records the live request ledger.
+See [the expansion receipt](provider-coverage-ario-vinplus-tpi.md) for per-yard
+counts, requests and qualification limits. No source enablement is included.

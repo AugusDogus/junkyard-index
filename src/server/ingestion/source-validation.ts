@@ -74,7 +74,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   allied: 2_000,
   urgiis: URGIIS_MINIMUM_INVENTORY,
   byot: 4_350,
-  vinplus: 5_250,
+  vinplus: 5_650,
   beavers: 240,
   indianriver: 900,
   harrys: HARRYS_MINIMUM,

@@ -835,8 +835,11 @@
     "website_url": "https://cashncarryparts.com",
     "phone": "912-352-0725",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 32.0337986,
-      "longitude": -81.1145402
+      "feed_host": "crush_ip",
+      "longitude": -81.1145402,
+      "crush_client_id": "1031"
     }
   },
   {
@@ -1048,8 +1051,11 @@
     "website_url": "https://smithautone.com",
     "phone": "402-852-2190",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 40.1127016,
-      "longitude": -96.1655934
+      "feed_host": "crush_ip",
+      "longitude": -96.1655934,
+      "crush_client_id": "1134"
     }
   },
   {
@@ -1108,8 +1114,11 @@
     "website_url": "https://www.wilberts.com/u-pull-it/",
     "phone": "315-589-2222",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 43.2238186,
-      "longitude": -77.1864012
+      "feed_host": "crush_ip",
+      "longitude": -77.1864012,
+      "crush_client_id": "1050"
     }
   },
   {
@@ -2262,8 +2271,11 @@
     "website_url": "https://youngstownupullit.com",
     "phone": "330-272-9486",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 41.1171983,
-      "longitude": -80.6330018
+      "feed_host": "crush_ip",
+      "longitude": -80.6330018,
+      "crush_client_id": "1140"
     }
   },
   {
@@ -2457,8 +2469,11 @@
     "website_url": "https://barrysupullit.net",
     "phone": "251-653-2925",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 30.5476941,
-      "longitude": -88.1752796
+      "feed_host": "crush_ip",
+      "longitude": -88.1752796,
+      "crush_client_id": "1039"
     }
   },
   {
@@ -2628,8 +2643,11 @@
     "website_url": "https://robertspartsupick.com",
     "phone": "918-875-6110",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 35.390369,
-      "longitude": -94.4468822
+      "feed_host": "crush_ip",
+      "longitude": -94.4468822,
+      "crush_client_id": "1047"
     }
   },
   {
@@ -2763,8 +2781,11 @@
     "website_url": "https://partsyoupull.co",
     "phone": "985-247-2773",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 30.7265747,
-      "longitude": -90.5089815
+      "feed_host": "crush_ip",
+      "longitude": -90.5089815,
+      "crush_client_id": "1148"
     }
   },
   {
@@ -2823,8 +2844,11 @@
     "website_url": "https://www.wilberts.com/u-pull-it/",
     "phone": "716-246-0606",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 42.8359446,
-      "longitude": -78.6806057
+      "feed_host": "crush_ip",
+      "longitude": -78.6806057,
+      "crush_client_id": "1217"
     }
   },
   {
@@ -3330,8 +3354,11 @@
     "website_url": "https://baughmansupullit.com",
     "phone": "717-846-3944",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 39.97685556,
-      "longitude": -76.70646185
+      "feed_host": "yard",
+      "longitude": -76.70646185,
+      "crush_client_id": "1143"
     }
   },
   {
@@ -3345,8 +3372,11 @@
     "website_url": "https://a1crashedcars.com",
     "phone": "402-494-4886",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 42.4824397,
-      "longitude": -96.4380759
+      "feed_host": "yard",
+      "longitude": -96.4380759,
+      "crush_client_id": "1062"
     }
   },
   {
@@ -3390,8 +3420,11 @@
     "website_url": "https://www.wilberts.com/u-pull-it/",
     "phone": "607-776-7662",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 42.37002,
-      "longitude": -77.366975
+      "feed_host": "crush_ip",
+      "longitude": -77.366975,
+      "crush_client_id": "1170"
     }
   },
   {
@@ -3621,8 +3654,11 @@
     "website_url": "https://www.millironyoupullit.com",
     "phone": "800-747-4566",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 40.6939625,
-      "longitude": -82.5879159
+      "feed_host": "crush_ip",
+      "longitude": -82.5879159,
+      "crush_client_id": "1068"
     }
   },
   {

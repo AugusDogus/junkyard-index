@@ -73,7 +73,7 @@ test("complete frozen census replays through transport, chunking and durable che
         onBatch: (vehicles) =>
           Effect.sync(() => {
             callbacks++;
-            expect(vehicles).toHaveLength(6_305);
+            expect(vehicles).toHaveLength(7_621);
             for (const vehicle of vehicles) {
               expect(VehicleDestination.resolve(vehicle).kind).toBe(
                 vehicle.locationCode === "pocatello"
@@ -93,11 +93,11 @@ test("complete frozen census replays through transport, chunking and durable che
     );
     if (result.status === "complete") {
       warnings = result.warnings ?? [];
-      expect(result.count).toBe(6_305);
-      expect(result.observedVins).toHaveLength(43);
+      expect(result.count).toBe(7_621);
+      expect(result.observedVins).toHaveLength(48);
       expect(result.accounting).toEqual({
-        recordsProcessed: 6_389,
-        recordsRejected: 84,
+        recordsProcessed: 7_722,
+        recordsRejected: 101,
         recordsExcluded: 0,
         duplicateVehicles: 0,
       });

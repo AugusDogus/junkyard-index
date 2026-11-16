@@ -1,0 +1,1080 @@
+[
+  {
+    "url": "https://vinplus.texnrewards.com/parts/indy-u-pull-it",
+    "body": null,
+    "status": 200,
+    "bytes": 7713,
+    "at": "2026-11-16T14:05:24.146Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/api/yard-info/indy_u_pull_it",
+    "body": null,
+    "status": 200,
+    "bytes": 1278,
+    "at": "2026-11-16T14:05:25.920Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/api/analytics/year-distribution?yard_id=indy_u_pull_it",
+    "body": null,
+    "status": 200,
+    "bytes": 1045,
+    "at": "2026-11-16T14:05:27.591Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 37045,
+    "at": "2026-11-16T14:05:30.699Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 36934,
+    "at": "2026-11-16T14:05:32.523Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":1976,\"year_max\":2000,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 28938,
+    "at": "2026-11-16T14:05:34.336Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2001,\"year_max\":2002,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 24515,
+    "at": "2026-11-16T14:05:36.196Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2003,\"year_max\":2003,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 18994,
+    "at": "2026-11-16T14:05:38.048Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2004,\"year_max\":2004,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 22674,
+    "at": "2026-11-16T14:05:39.859Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2005,\"year_max\":2005,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 28516,
+    "at": "2026-11-16T14:05:41.672Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2006,\"year_max\":2006,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 24833,
+    "at": "2026-11-16T14:05:43.553Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2007,\"year_max\":2007,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 35396,
+    "at": "2026-11-16T14:05:45.406Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2008,\"year_max\":2008,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 29975,
+    "at": "2026-11-16T14:05:47.437Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2009,\"year_max\":2009,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 25579,
+    "at": "2026-11-16T14:05:49.305Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2010,\"year_max\":2010,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 33704,
+    "at": "2026-11-16T14:05:51.148Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2011,\"year_max\":2011,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 32876,
+    "at": "2026-11-16T14:05:52.946Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"BMW\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 872,
+    "at": "2026-11-16T14:05:54.713Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"BUICK\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1983,
+    "at": "2026-11-16T14:05:56.531Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"CHEVROLET\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 10196,
+    "at": "2026-11-16T14:05:58.435Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"CHRYSLER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3902,
+    "at": "2026-11-16T14:06:00.321Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"DODGE\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3483,
+    "at": "2026-11-16T14:06:02.127Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"FORD\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 4898,
+    "at": "2026-11-16T14:06:04.016Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"GMC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2339,
+    "at": "2026-11-16T14:06:05.850Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"HONDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1988,
+    "at": "2026-11-16T14:06:07.721Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"HYUNDAI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2730,
+    "at": "2026-11-16T14:06:09.634Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"INFINITI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 522,
+    "at": "2026-11-16T14:06:11.463Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"JEEP\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 521,
+    "at": "2026-11-16T14:06:13.393Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"KIA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1240,
+    "at": "2026-11-16T14:06:15.294Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"MAZDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1252,
+    "at": "2026-11-16T14:06:17.146Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"MITSUBISHI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 894,
+    "at": "2026-11-16T14:06:18.979Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"NISSAN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3457,
+    "at": "2026-11-16T14:06:20.767Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"SUBARU\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 522,
+    "at": "2026-11-16T14:06:22.623Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"TOYOTA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 518,
+    "at": "2026-11-16T14:06:24.440Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"VOLKSWAGEN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1264,
+    "at": "2026-11-16T14:06:26.285Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"ACURA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 513,
+    "at": "2026-11-16T14:06:28.115Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"BMW\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 512,
+    "at": "2026-11-16T14:06:29.937Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"BUICK\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1990,
+    "at": "2026-11-16T14:06:31.730Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"CADILLAC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 522,
+    "at": "2026-11-16T14:06:33.530Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"CHEVROLET\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 11278,
+    "at": "2026-11-16T14:06:35.320Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"CHRYSLER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2014,
+    "at": "2026-11-16T14:06:37.112Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"DODGE\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1987,
+    "at": "2026-11-16T14:06:39.375Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"FORD\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 7459,
+    "at": "2026-11-16T14:06:41.227Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"GMC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1609,
+    "at": "2026-11-16T14:06:43.034Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"HYUNDAI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3104,
+    "at": "2026-11-16T14:06:44.855Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"INFINITI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 886,
+    "at": "2026-11-16T14:06:46.647Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"JEEP\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1252,
+    "at": "2026-11-16T14:06:48.438Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"KIA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3788,
+    "at": "2026-11-16T14:06:50.239Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"LINCOLN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 882,
+    "at": "2026-11-16T14:06:52.081Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MAZDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 885,
+    "at": "2026-11-16T14:06:53.910Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MITSUBISHI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 532,
+    "at": "2026-11-16T14:06:55.763Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"NISSAN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2353,
+    "at": "2026-11-16T14:06:57.699Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"SUBARU\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 891,
+    "at": "2026-11-16T14:06:59.524Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"TOYOTA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 887,
+    "at": "2026-11-16T14:07:01.361Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"VOLKSWAGEN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 529,
+    "at": "2026-11-16T14:07:03.202Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2014,\"year_max\":2014,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 29255,
+    "at": "2026-11-16T14:07:05.304Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2015,\"year_max\":2015,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 27417,
+    "at": "2026-11-16T14:07:07.350Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2016,\"year_max\":2017,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 32298,
+    "at": "2026-11-16T14:07:09.175Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2018,\"year_max\":2023,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 16373,
+    "at": "2026-11-16T14:07:10.972Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"ACURA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:07:12.808Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"AUDI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 513,
+    "at": "2026-11-16T14:07:14.632Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"CADILLAC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 156,
+    "at": "2026-11-16T14:07:16.447Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"FIAT\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 152,
+    "at": "2026-11-16T14:07:18.404Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"FREIGHTLINER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 160,
+    "at": "2026-11-16T14:07:20.191Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"HUMMER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 154,
+    "at": "2026-11-16T14:07:22.003Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"LAND ROVER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 534,
+    "at": "2026-11-16T14:07:23.974Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"LEXUS\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:07:25.834Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"LINCOLN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 155,
+    "at": "2026-11-16T14:07:27.686Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"MERCEDES-BENZ\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 536,
+    "at": "2026-11-16T14:07:29.521Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"AUDI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 152,
+    "at": "2026-11-16T14:07:31.344Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"FIAT\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 152,
+    "at": "2026-11-16T14:07:33.200Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"FREIGHTLINER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 160,
+    "at": "2026-11-16T14:07:35.017Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"HONDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:07:36.792Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"HUMMER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 154,
+    "at": "2026-11-16T14:07:38.596Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"LAND ROVER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 158,
+    "at": "2026-11-16T14:07:40.550Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"LEXUS\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:07:42.436Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MERCEDES-BENZ\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 161,
+    "at": "2026-11-16T14:07:44.243Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MERCURY\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 155,
+    "at": "2026-11-16T14:07:46.064Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MINI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 519,
+    "at": "2026-11-16T14:07:48.023Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":1976,\"year_max\":2000,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 28938,
+    "at": "2026-11-16T14:07:49.944Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2001,\"year_max\":2002,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 24515,
+    "at": "2026-11-16T14:07:51.760Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2003,\"year_max\":2003,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 18994,
+    "at": "2026-11-16T14:07:53.568Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2004,\"year_max\":2004,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 22674,
+    "at": "2026-11-16T14:07:55.369Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2005,\"year_max\":2005,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 28516,
+    "at": "2026-11-16T14:07:57.180Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2006,\"year_max\":2006,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 24833,
+    "at": "2026-11-16T14:07:58.976Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2007,\"year_max\":2007,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 35396,
+    "at": "2026-11-16T14:08:00.918Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2008,\"year_max\":2008,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 29975,
+    "at": "2026-11-16T14:08:02.808Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2009,\"year_max\":2009,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 25579,
+    "at": "2026-11-16T14:08:04.622Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2010,\"year_max\":2010,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 33704,
+    "at": "2026-11-16T14:08:06.483Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2011,\"year_max\":2011,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 32876,
+    "at": "2026-11-16T14:08:08.291Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"BMW\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 872,
+    "at": "2026-11-16T14:08:10.301Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"BUICK\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1983,
+    "at": "2026-11-16T14:08:12.421Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"CHEVROLET\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 10196,
+    "at": "2026-11-16T14:08:14.289Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"CHRYSLER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3902,
+    "at": "2026-11-16T14:08:16.452Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"DODGE\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3483,
+    "at": "2026-11-16T14:08:18.288Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"FORD\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 4898,
+    "at": "2026-11-16T14:08:20.177Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"GMC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2339,
+    "at": "2026-11-16T14:08:22.007Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"HONDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1988,
+    "at": "2026-11-16T14:08:23.905Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"HYUNDAI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2730,
+    "at": "2026-11-16T14:08:25.822Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"INFINITI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 522,
+    "at": "2026-11-16T14:08:27.611Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"JEEP\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 521,
+    "at": "2026-11-16T14:08:29.438Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"KIA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1240,
+    "at": "2026-11-16T14:08:31.266Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"MAZDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1252,
+    "at": "2026-11-16T14:08:33.080Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"MITSUBISHI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 894,
+    "at": "2026-11-16T14:08:34.921Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"NISSAN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3457,
+    "at": "2026-11-16T14:08:36.783Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"SUBARU\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 522,
+    "at": "2026-11-16T14:08:38.576Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"TOYOTA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 518,
+    "at": "2026-11-16T14:08:40.358Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"VOLKSWAGEN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1264,
+    "at": "2026-11-16T14:08:42.336Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"ACURA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 513,
+    "at": "2026-11-16T14:08:44.161Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"BMW\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 512,
+    "at": "2026-11-16T14:08:45.982Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"BUICK\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1990,
+    "at": "2026-11-16T14:08:47.919Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"CADILLAC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 522,
+    "at": "2026-11-16T14:08:49.751Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"CHEVROLET\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 11278,
+    "at": "2026-11-16T14:08:51.759Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"CHRYSLER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2014,
+    "at": "2026-11-16T14:08:53.691Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"DODGE\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1987,
+    "at": "2026-11-16T14:08:55.507Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"FORD\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 7459,
+    "at": "2026-11-16T14:08:57.433Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"GMC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1609,
+    "at": "2026-11-16T14:08:59.362Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"HYUNDAI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3104,
+    "at": "2026-11-16T14:09:01.197Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"INFINITI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 886,
+    "at": "2026-11-16T14:09:03.015Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"JEEP\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 1252,
+    "at": "2026-11-16T14:09:04.843Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"KIA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 3788,
+    "at": "2026-11-16T14:09:06.779Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"LINCOLN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 882,
+    "at": "2026-11-16T14:09:08.604Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MAZDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 885,
+    "at": "2026-11-16T14:09:10.419Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MITSUBISHI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 532,
+    "at": "2026-11-16T14:09:12.400Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"NISSAN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 2353,
+    "at": "2026-11-16T14:09:14.317Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"SUBARU\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 891,
+    "at": "2026-11-16T14:09:16.757Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"TOYOTA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 887,
+    "at": "2026-11-16T14:09:18.604Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"VOLKSWAGEN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 529,
+    "at": "2026-11-16T14:09:20.402Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2014,\"year_max\":2014,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 29255,
+    "at": "2026-11-16T14:09:22.317Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2015,\"year_max\":2015,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 27417,
+    "at": "2026-11-16T14:09:24.208Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2016,\"year_max\":2017,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 32298,
+    "at": "2026-11-16T14:09:26.039Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2018,\"year_max\":2023,\"make\":null,\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 16373,
+    "at": "2026-11-16T14:09:28.061Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"ACURA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:09:29.897Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"AUDI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 513,
+    "at": "2026-11-16T14:09:31.702Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"CADILLAC\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 156,
+    "at": "2026-11-16T14:09:33.555Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"FIAT\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 152,
+    "at": "2026-11-16T14:09:35.409Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"FREIGHTLINER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 160,
+    "at": "2026-11-16T14:09:37.221Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"HUMMER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 154,
+    "at": "2026-11-16T14:09:39.058Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"LAND ROVER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 534,
+    "at": "2026-11-16T14:09:40.875Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"LEXUS\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:09:42.709Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"LINCOLN\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 155,
+    "at": "2026-11-16T14:09:44.602Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2012,\"year_max\":2012,\"make\":\"MERCEDES-BENZ\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 536,
+    "at": "2026-11-16T14:09:46.488Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"AUDI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 152,
+    "at": "2026-11-16T14:09:48.337Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"FIAT\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 152,
+    "at": "2026-11-16T14:09:50.161Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"FREIGHTLINER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 160,
+    "at": "2026-11-16T14:09:51.978Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"HONDA\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:09:53.786Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"HUMMER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 154,
+    "at": "2026-11-16T14:09:55.580Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"LAND ROVER\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 158,
+    "at": "2026-11-16T14:09:57.485Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"LEXUS\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 153,
+    "at": "2026-11-16T14:09:59.301Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MERCEDES-BENZ\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 161,
+    "at": "2026-11-16T14:10:01.112Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MERCURY\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 155,
+    "at": "2026-11-16T14:10:03.316Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/searchVehicleHttp",
+    "body": "{\"yard_id\":\"indy_u_pull_it\",\"year_min\":2013,\"year_max\":2013,\"make\":\"MINI\",\"model\":null,\"language\":\"en\",\"location_id\":null}",
+    "status": 200,
+    "bytes": 519,
+    "at": "2026-11-16T14:10:05.174Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/api/analytics/year-distribution?yard_id=indy_u_pull_it",
+    "body": null,
+    "status": 200,
+    "bytes": 1045,
+    "at": "2026-11-16T14:10:06.881Z"
+  },
+  {
+    "url": "https://inventory-search-api-581547763015.us-central1.run.app/api/yard-info/indy_u_pull_it",
+    "body": null,
+    "status": 200,
+    "bytes": 1278,
+    "at": "2026-11-16T14:10:08.666Z"
+  },
+  {
+    "url": "https://vinplus.texnrewards.com/parts/indy-u-pull-it",
+    "body": null,
+    "status": 200,
+    "bytes": 7713,
+    "at": "2026-11-16T14:10:10.381Z"
+  }
+]
