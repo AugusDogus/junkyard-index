@@ -20,6 +20,7 @@ import {
 } from "~/server/ingestion/durable-post-ingestion-orchestrator";
 import {
   cleanupDurableIngestionStateBatchStep,
+  cleanupStaleDurableAlgoliaRebuildsStep,
   cleanupStaleDurableIngestionSnapshotsStep,
   attachDurableIngestionWorkflowStep,
   claimDurableIngestionCommitStep,
@@ -112,7 +113,10 @@ export async function vehicleIngestionPassWorkflow(day: string) {
   });
   // Only the pass that ran sources refreshes the homepage. Rebuilding it
   // scans every live vehicle, and an hourly refresh stalled the homepage.
-  if (outcome === "completed") await refreshHomepageStep();
+  if (outcome === "completed") {
+    await cleanupStaleDurableAlgoliaRebuildsStep();
+    await refreshHomepageStep();
+  }
   return { status: outcome, day };
 }
 

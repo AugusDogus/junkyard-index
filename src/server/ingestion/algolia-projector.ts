@@ -11,6 +11,11 @@ import {
   publishFullReindexForRun,
   withIndexGeneration,
 } from "./durable-algolia-publish";
+import {
+  rebuildIndexName,
+  discardFailedRebuild,
+  cleanupInactiveRunRebuild,
+} from "./algolia-rebuild-index";
 import { runIngestionEffect } from "./runtime";
 import { syncToAlgoliaEffect } from "./sync-algolia";
 
@@ -26,13 +31,6 @@ export type DurableAlgoliaProjectionBatchResult =
       recordsProcessed: number;
     }
   | { status: "complete"; searchPublishedAt: Date };
-
-function rebuildIndexName(
-  runId: string,
-  indexName = ALGOLIA_INDEX_NAME,
-): string {
-  return `${indexName}__rebuild_${runId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-}
 
 async function waitForAlgoliaTask(indexName: string, taskID: number) {
   await algoliaAdminClient.waitForTask({ indexName, taskID });
@@ -63,7 +61,7 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
 }
 
 async function prepareFullReindex(runId: string) {
-  const temporaryIndex = rebuildIndexName(runId);
+  const temporaryIndex = rebuildIndexName(runId, ALGOLIA_INDEX_NAME);
   const copied = await algoliaAdminClient.operationIndex({
     indexName: ALGOLIA_INDEX_NAME,
     operationIndexParams: {
@@ -122,7 +120,7 @@ async function loadFullReindexBatch(
   if (records.length > 0) {
     await runIngestionEffect(
       syncToAlgoliaEffect(records, [], {
-        indexName: rebuildIndexName(runId),
+        indexName: rebuildIndexName(runId, ALGOLIA_INDEX_NAME),
       }),
     );
   }
@@ -284,7 +282,7 @@ async function projectChangeBatch(
   };
 }
 
-export async function runDurableAlgoliaProjectionBatch(
+async function projectDurableAlgoliaBatch(
   runId: string,
   options?: { configureIndex?: boolean },
 ): Promise<DurableAlgoliaProjectionBatchResult> {
@@ -331,5 +329,33 @@ export async function runDurableAlgoliaProjectionBatch(
       throw new Error(
         `Ingestion run ${runId} cannot project Algolia from stage ${run.stage}.`,
       );
+  }
+}
+
+export async function runDurableAlgoliaProjectionBatch(
+  runId: string,
+  options?: { configureIndex?: boolean },
+): Promise<DurableAlgoliaProjectionBatchResult> {
+  const cleanup = {
+    runId,
+    database,
+    algolia: algoliaAdminClient,
+    indexName: ALGOLIA_INDEX_NAME,
+  };
+  try {
+    const result = await projectDurableAlgoliaBatch(runId, options);
+    if (result.status === "stopped") await cleanupInactiveRunRebuild(cleanup);
+    return result;
+  } catch (error) {
+    try {
+      await discardFailedRebuild(cleanup);
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        `Algolia rebuild ${runId} failed and its temporary index could not be removed. Retry ingestion to rebuild and clean up the copy.`,
+        { cause: error },
+      );
+    }
+    throw error;
   }
 }

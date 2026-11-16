@@ -482,19 +482,44 @@ async function runMissingBatch(
     acceptedSources: string[];
   },
 ): Promise<DurableReconciliationBatchResult> {
-  const rows =
-    params.cursor === null
-      ? await params.database
-          .select({
-            vin: vehicle.vin,
-            source: vehicle.source,
-            locationCode: vehicle.locationCode,
-            missingSinceAt: vehicle.missingSinceAt,
-            missingRunCount: vehicle.missingRunCount,
-          })
-          .from(vehicle)
-          .orderBy(asc(vehicle.vin))
-          .limit(RECONCILIATION_BATCH_SIZE)
+  const sourceRows = await params.database
+    .select({
+      vin: vehicle.vin,
+      source: vehicle.source,
+      locationCode: vehicle.locationCode,
+      missingSinceAt: vehicle.missingSinceAt,
+      missingRunCount: vehicle.missingRunCount,
+    })
+    .from(vehicle)
+    .where(
+      and(
+        inArray(vehicle.source, params.acceptedSources),
+        params.cursor === null ? undefined : gt(vehicle.vin, params.cursor),
+      ),
+    )
+    .orderBy(asc(vehicle.vin))
+    .limit(RECONCILIATION_BATCH_SIZE);
+  const inventory = await params.inventory();
+  // An accepted source can observe a VIN whose canonical owner is outside
+  // this run. Preserve that restoration with bounded primary-key lookups.
+  const observationStart = firstVinAfter(
+    inventory.observedVinOrder,
+    params.cursor,
+  );
+  const observations = inventory.observedVinOrder.slice(
+    observationStart,
+    observationStart + RECONCILIATION_BATCH_SIZE,
+  );
+  const candidates = [
+    ...new Set([...sourceRows.map((row) => row.vin), ...observations]),
+  ]
+    .sort()
+    .slice(0, RECONCILIATION_BATCH_SIZE);
+  const sourceVins = new Set(sourceRows.map((row) => row.vin));
+  const lookupVins = candidates.filter((vin) => !sourceVins.has(vin));
+  const observedRows =
+    lookupVins.length === 0
+      ? []
       : await params.database
           .select({
             vin: vehicle.vin,
@@ -504,10 +529,12 @@ async function runMissingBatch(
             missingRunCount: vehicle.missingRunCount,
           })
           .from(vehicle)
-          .where(gt(vehicle.vin, params.cursor))
-          .orderBy(asc(vehicle.vin))
-          .limit(RECONCILIATION_BATCH_SIZE);
-  const inventory = await params.inventory();
+          .where(inArray(vehicle.vin, lookupVins));
+  const candidateSet = new Set(candidates);
+  const rows = [
+    ...sourceRows.filter((row) => candidateSet.has(row.vin)),
+    ...observedRows,
+  ];
   const presentVins = new Set(
     rows
       .map((row) => row.vin)
@@ -542,8 +569,8 @@ async function runMissingBatch(
     deleteAfterMs: MISSING_DELETE_AFTER_MS,
   });
 
-  const finishing = rows.length < RECONCILIATION_BATCH_SIZE;
-  const nextCursor = rows.at(-1)?.vin ?? params.cursor;
+  const finishing = candidates.length < RECONCILIATION_BATCH_SIZE;
+  const nextCursor = candidates.at(-1) ?? params.cursor;
   const now = Date.now();
   const statements: InStatement[] = [];
   const changes = changeInsertStatement({

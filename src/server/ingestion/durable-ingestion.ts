@@ -1,5 +1,10 @@
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
+import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
+import {
+  cleanupStaleRebuildIndices,
+  cleanupInactiveRunRebuild,
+} from "./algolia-rebuild-index";
 import { env } from "~/env";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { db, dbClient } from "~/lib/db";
@@ -204,11 +209,17 @@ export async function markDurableIngestionFailed(
   await persistDurableIngestionFailure(runId, message);
 }
 
-export function persistDurableIngestionFailure(
+export async function persistDurableIngestionFailure(
   runId: string,
   message: string,
 ): Promise<void> {
-  return repository.markRunFailed(runId, message);
+  await repository.markRunFailed(runId, message);
+  await cleanupInactiveRunRebuild({
+    runId,
+    database: db,
+    algolia: algoliaAdminClient,
+    indexName: ALGOLIA_INDEX_NAME,
+  });
 }
 
 /**
@@ -254,11 +265,26 @@ export function cleanupStaleDurableIngestionSnapshots(): Promise<void> {
   return repository.cleanupStaleSnapshots();
 }
 
-export function abandonDurableIngestion(
+export function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
+  return cleanupStaleRebuildIndices({
+    database: db,
+    algolia: algoliaAdminClient,
+    indexName: ALGOLIA_INDEX_NAME,
+  });
+}
+
+export async function abandonDurableIngestion(
   runId: string,
   force = false,
 ): Promise<string | null> {
-  return repository.abandon(runId, force);
+  const workflowRunId = await repository.abandon(runId, force);
+  await cleanupInactiveRunRebuild({
+    runId,
+    database: db,
+    algolia: algoliaAdminClient,
+    indexName: ALGOLIA_INDEX_NAME,
+  });
+  return workflowRunId;
 }
 
 export const compactDurableWorkflowCursor = <

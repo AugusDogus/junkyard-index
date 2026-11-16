@@ -77,6 +77,7 @@ describe("durable Algolia full-index publication", () => {
           database: drizzle(client),
           indexName: "vehicles",
           algolia: {
+            deleteIndex: async () => ({ taskID: 123 }),
             getSettings: async () => ({}),
             operationIndex: async () => {
               throw error;
@@ -118,12 +119,17 @@ describe("durable Algolia full-index publication", () => {
         startedAt,
       });
       let settingsCalls = 0;
+      const deleted: string[] = [];
       const result = await publishFullReindexForRun({
         runId: "run-1",
         runStartedAt: new Date(startedAt),
         database: drizzle(client),
         indexName: "vehicles",
         algolia: {
+          deleteIndex: async ({ indexName }) => {
+            deleted.push(indexName);
+            return { taskID: 123 };
+          },
           getSettings: async () => ({
             userData:
               settingsCalls++ === 0
@@ -138,6 +144,7 @@ describe("durable Algolia full-index publication", () => {
             return { taskID: 42 };
           },
           waitForTask: async ({ taskID }) => {
+            if (taskID === 123) return;
             expect(taskID).toBe(42);
             const row = await client.execute(
               "select full_reindex_move_task_id from ingestion_run where id = 'run-1'",
@@ -148,6 +155,7 @@ describe("durable Algolia full-index publication", () => {
       });
 
       expect(result.status).toBe("complete");
+      expect(deleted).toEqual(["vehicles__rebuild_run-1"]);
       const row = await client.execute(
         "select stage, full_reindex_move_task_id from ingestion_run where id = 'run-1'",
       );
@@ -182,6 +190,7 @@ describe("durable Algolia full-index publication", () => {
         database: drizzle(client),
         indexName: "vehicles",
         algolia: {
+          deleteIndex: async () => ({ taskID: 123 }),
           getSettings: async () => ({
             userData: published
               ? { [INDEX_GENERATION_KEY]: "run-1" }
@@ -192,6 +201,7 @@ describe("durable Algolia full-index publication", () => {
             return { taskID: 100 };
           },
           waitForTask: async ({ taskID }) => {
+            if (taskID === 123) return;
             expect(taskID).toBe(99);
             published = true;
           },
@@ -235,12 +245,17 @@ describe("durable Algolia full-index publication", () => {
         startedAt: startedAt + 1,
       });
       let moveCalls = 0;
+      const deleted: string[] = [];
       const result = await publishFullReindexForRun({
         runId: "run-1",
         runStartedAt: new Date(startedAt),
         database: drizzle(client),
         indexName: "vehicles",
         algolia: {
+          deleteIndex: async ({ indexName }) => {
+            deleted.push(indexName);
+            return { taskID: 123 };
+          },
           getSettings: async () => ({
             userData: { [INDEX_GENERATION_KEY]: "run-1" },
           }),
@@ -253,6 +268,7 @@ describe("durable Algolia full-index publication", () => {
       });
 
       expect(result.status).toBe("complete");
+      expect(deleted).toEqual(["vehicles__rebuild_run-1"]);
       expect(moveCalls).toBe(0);
       const rows = await client.execute(
         "select id, stage, full_reindex_required from ingestion_run order by id",
@@ -304,6 +320,7 @@ describe("durable Algolia full-index publication", () => {
         database: drizzle(client),
         indexName: "vehicles",
         algolia: {
+          deleteIndex: async () => ({ taskID: 123 }),
           getSettings: async () => ({
             userData: { [INDEX_GENERATION_KEY]: "run-1" },
           }),
@@ -352,6 +369,7 @@ describe("durable Algolia full-index publication", () => {
           database: drizzle(client),
           indexName: "vehicles",
           algolia: {
+            deleteIndex: async () => ({ taskID: 123 }),
             getSettings: async () => ({
               userData: { [INDEX_GENERATION_KEY]: "run-1" },
             }),
@@ -390,6 +408,7 @@ describe("durable Algolia full-index publication", () => {
         database: drizzle(client),
         indexName: "vehicles",
         algolia: {
+          deleteIndex: async () => ({ taskID: 123 }),
           getSettings: async () => ({
             userData: { [INDEX_GENERATION_KEY]: "run-abandoned" },
           }),
@@ -450,6 +469,7 @@ describe("durable Algolia full-index publication", () => {
           database: drizzle(client),
           indexName: "vehicles",
           algolia: {
+            deleteIndex: async () => ({ taskID: 123 }),
             getSettings: async () => ({
               userData: { [INDEX_GENERATION_KEY]: "run-1" },
             }),

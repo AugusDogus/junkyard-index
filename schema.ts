@@ -349,6 +349,7 @@ export const vehicle = sqliteTable(
   },
   (table) => [
     index("vehicle_source_idx").on(table.source),
+    index("vehicle_source_vin_idx").on(table.source, table.vin),
     index("vehicle_make_model_idx").on(table.make, table.model),
     index("vehicle_first_seen_at_idx").on(table.firstSeenAt),
     // The homepage's newest live vehicles: filter, sort, and tie-break from
@@ -424,6 +425,11 @@ export const ingestionRun = sqliteTable(
     uniqueIndex("ingestion_run_active_source_idx").on(
       table.source,
       table.activeSlot,
+    ),
+    index("ingestion_run_active_commit_idx").on(
+      table.activeSlot,
+      table.commitStartedAt,
+      table.source,
     ),
     index("ingestion_run_schedule_key_idx").on(table.scheduleKey),
     index("ingestion_run_search_published_at_idx").on(table.searchPublishedAt),
