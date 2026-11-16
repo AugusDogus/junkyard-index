@@ -1,0 +1,22 @@
+{
+  "source": "yard-published JSON-LD",
+  "url": "https://www.ace-autoparts.com/contact/",
+  "place": {
+    "@type": "Place",
+    "@id": "https://www.ace-autoparts.com/#place",
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": "44.963964848401794",
+      "longitude": " -93.10545003558208"
+    },
+    "hasMap": "https://www.google.com/maps/search/?api=1&amp;query=44.963964848401794, -93.10545003558208",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "754 Rice Street",
+      "addressLocality": "St. Paul",
+      "addressRegion": "MN",
+      "postalCode": "55117",
+      "addressCountry": "US"
+    }
+  }
+}
