@@ -160,11 +160,11 @@ describe("Shopify yard native census", () => {
       300,
       null,
     );
-    expect(result.vehicles).toHaveLength(349);
+    expect(result.vehicles).toHaveLength(347);
     expect(result.accounting).toEqual({
       recordsProcessed: 374,
       recordsExcluded: 17,
-      recordsRejected: 8,
+      recordsRejected: 10,
       duplicateVehicles: 0,
     });
     for (const row of muscle().filter((r) => r.status === "excluded"))
@@ -172,10 +172,15 @@ describe("Shopify yard native census", () => {
     expect(result.vehicles.some((v) => v.stockNumber === "2247")).toBe(true); // New arrival, waiting to be dismantled.
     expect(
       result.vehicles.some((v) =>
-        ["1057", "2016", "1092", "2055"].includes(v.stockNumber ?? ""),
+        ["1057", "2016", "1092", "2055", "SNOW2", "1029"].includes(
+          v.stockNumber ?? "",
+        ),
       ),
     ).toBe(false);
     expect(result.observedVins).toContain("1GKEK63U84J172749");
+    // Rejected check digits still protect alphabet-valid native claims.
+    expect(result.observedVins).toContain("2BP5168581V000013");
+    expect(result.observedVins).toContain("WBAHE6327SGF24417");
     expect(
       result.vehicles.find((v) => v.stockNumber === "2247")?.detailsUrl,
     ).toBe("https://modernmusclesalvage.com/pages/shop-by-vehicle?stock=2247");
@@ -366,7 +371,7 @@ describe("Shopify yard durable closure", () => {
       }),
     );
     expect(result.status).toBe("complete");
-    expect(emitted).toHaveLength(349);
+    expect(emitted).toHaveLength(347);
   });
   test("registers bounded cursors, inventory floors and rejects corrupt, cross-source checkpoints", () => {
     for (const [source, cursor] of [

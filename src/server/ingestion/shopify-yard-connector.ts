@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Clock, Effect } from "effect";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import type { Yard } from "~/lib/yard";
 import { ShopifyYardProviderError } from "./shopify-yard-client";
@@ -16,7 +16,10 @@ export interface ShopifyYardOptions<E, R> {
   previousUniqueInventory: number | null;
   startCursor?: unknown;
   maxPages?: number;
-  readPage?: (url: string) => Effect.Effect<string, ShopifyYardProviderError>;
+  readPage?: (
+    url: string,
+    options: { deadline: number },
+  ) => Effect.Effect<string, ShopifyYardProviderError>;
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: Yard[]) => Effect.Effect<void, E, R>;
 }
@@ -29,7 +32,10 @@ export function streamShopifyYard<S extends IngestionSource, E, R>(
     yard: Yard & { lat: number; lng: number };
     state: string;
     floor: number;
-    readPage: (url: string) => Effect.Effect<string, ShopifyYardProviderError>;
+    readPage: (
+      url: string,
+      options: { deadline: number },
+    ) => Effect.Effect<string, ShopifyYardProviderError>;
     parseOwner: (raw: string) => void;
     parseInventory: (raw: string) => ShopifyYardDonor[];
   },
@@ -42,6 +48,7 @@ export function streamShopifyYard<S extends IngestionSource, E, R>(
         new ShopifyYardProviderError(config.source, operation, cause),
     });
   return Effect.gen(function* () {
+    const deadline = (yield* Clock.currentTimeMillis) + 180_000;
     const budget = options.maxPages ?? 4;
     if (
       !Number.isSafeInteger(budget) ||
@@ -82,6 +89,7 @@ export function streamShopifyYard<S extends IngestionSource, E, R>(
         current.phase === "owner" || current.phase === "owner-closing"
           ? config.ownerUrl
           : config.catalogUrl,
+        { deadline },
       );
       pagesProcessed++;
       if (current.phase === "owner") {
