@@ -32,18 +32,20 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 
 ## Qualified yards
 
-| Yard                   | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |
-| ---------------------- | ------------ | ----- | -------: | -------: | ------: | ---------: | ----: |
-| Eagle Auto Parts       | Martinsburg  | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
-| Linder's Inc           | Worcester    | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
-| Chuckran Auto Parts    | Bridgewater  | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
-| United Auto Recyclers  | Omaha        | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
-| Ace Auto Recyclers     | Iowa City    | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
-| Ding's Auto Parts      | Litchfield   | CT    |    1,110 |      109 |       0 |         24 |   800 |
-| Bishop's Auto Parts    | Middletown   | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
-| Ace Auto Parts         | St. Paul     | MN    |    3,015 |      185 |       0 |         54 | 2,400 |
-| Chuck's Auto Salvage   | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
-| Central Auto Recyclers | Concord      | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
+| Yard                               | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |
+| ---------------------------------- | ------------ | ----- | -------: | -------: | ------: | ---------: | ----: |
+| Eagle Auto Parts                   | Martinsburg  | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
+| Linder's Inc                       | Worcester    | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
+| Chuckran Auto Parts                | Bridgewater  | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
+| United Auto Recyclers              | Omaha        | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
+| Ace Auto Recyclers                 | Iowa City    | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
+| Lentini Auto Salvage - Ringoes     | Ringoes      | NJ    |    2,429 |   shared |       0 |     shared | 1,900 |
+| Lentini Auto Salvage - Port Murray | Port Murray  | NJ    |      924 |   shared |       0 |     shared |   700 |
+| Ding's Auto Parts                  | Litchfield   | CT    |    1,110 |      109 |       0 |         24 |   800 |
+| Bishop's Auto Parts                | Middletown   | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
+| Ace Auto Parts                     | St. Paul     | MN    |    3,015 |      185 |       0 |         54 | 2,400 |
+| Chuck's Auto Salvage               | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
+| Central Auto Recyclers             | Concord      | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
 
 Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
@@ -52,6 +54,10 @@ United's full census follows 46 makes, 526 model pages and six arrivals. Its 623
 Linder's full census follows 41 makes, 426 model pages and 60 arrivals. It contains 3,427 model cards, with only MA09 supplier photographs. Its eligible rejection rate is 159 / 3,487 (4.56%). The 513-response replay includes separately acquired closing controls. Its US Census point is 42.23811894312, -71.782708739098 for 211 Granite St, Worcester, MA 01607.
 
 Ace Iowa follows 42 makes, 376 model pages and 60 arrivals. Its 465-response replay accepts 1,524 donors, rejects 172 observations (9.82%), excludes 125 verified bulk-part-bin observations and merges 56 duplicates. Saved native detail pages show DORMAN, BROCK, NOF, MONTE, DORMN, 114AFT, BERGER and ORDER holding parts across unrelated vehicles. EPL and AER returned empty details and remain rejects, as do unverified stocks and numeric donors. Every supplier photograph is OO76. Its floor is 1,200. The US Census point for 2752 S Riverside Dr, Iowa City, IA 52246 is 41.625474637231, -91.543835183719.
+
+Lentini's complete 3,969-response production connector replay passes. It follows all 39 makes, 336 model pages and 60 arrivals, with per-donor parts pages and separate closing controls fetched after those details. It accepts 2,429 donors for Ringoes and 924 for Port Murray. Its tenant-wide accounting is 375 rejected observations (9.52%), zero exclusions and 211 duplicates across 3,939 observations. Rejections cannot always be assigned to one physical yard, so the table marks those totals as shared. Its tenant floor is 2,600, with separate yard floors of 1,900 and 700. NJ12 and NJ29 map to Ringoes; II08 maps to Port Murray. The shared NJ12 photo bucket is never used to assign a physical yard. Every admitted donor requires agreeing native stock, year, seller and SKU prefix, with no contradictory native part VIN. The native VIN guard was reapplied to all saved details at final admission.
+
+Ringoes publishes 130 US-202, Ringoes, NJ 08551; its Census point is 40.469701869601, -74.861027850067. Port Murray publishes 89 Brickyard Rd., Port Murray, NJ 07865; its Census point is 40.7837265065, -74.91716279734. Separate Census receipts and a filtered public supplier-to-city mapping are fixtures.
 
 Dings follows 36 makes, 246 model pages and 60 arrivals. Its 323-response replay accepts 1,110 donors, rejects 109 observations (8.77%), excludes none and merges 24 duplicates. Every supplier photograph is CT05. Its floor is 800. The US Census point for 99 Little Pitch Road, Litchfield, CT 06759 is 41.725760885077, -73.178934578762.
 
@@ -73,10 +79,49 @@ Central NH follows all 43 makes, 380 model pages and 60 arrivals. Its 471-respon
 | Kosiski Auto Parts            | NE      | F150 stops at 500 shared cards, including AA69 photos. A supplier query does not constrain the pool. Published year search returns parts rather than a complete donor list.                                                                                                               |
 | H&H Auto Parts                | NE / CO | NE16, CO26 and CO15 share the NE16 photo bucket. Part details expose supplier prefixes, but official contact information publishes only Cozad and Hudson, and directory searches do not resolve both Colorado supplier mappings. No stock-prefix or physical-yard assignment was guessed. |
 | Intermountain Auto Recycling  | ID      | Published model routes are empty or return a capped pool of 500 foreign cars. The normal model-name and supplier-query variants do not reveal a complete own-yard route. Arrivals alone are incomplete.                                                                                   |
-| Riverbend Recycled Auto Parts | IA      | The published Ford E250 van model route returned HTTP 500 on all three spaced attempts. The interrupted census cannot establish complete enumeration.                                                                                                                                     |
+| Riverbend Recycled Auto Parts | IA      | The published Ford E250 van model route failed all three spaced attempts: two read timeouts followed by HTTP 500. The interrupted census cannot establish complete enumeration.                                                                                                           |
 | EL&M Auto Parts               | NJ      | Explorer reaches 500 shared cards before filtering to NJ15. The 22 NJ15 photos in that truncated result do not prove complete own-yard coverage.                                                                                                                                          |
 | Automotive Parts Solutions    | MN      | The published `/parts/ROVER_-_STERLING` make advertises one donor but renders an empty vehicle table instead of a model directory. Two ordinary spaced curl retries return the same incomplete graph. Rockville's MN12 attribution was verified, but arrivals alone cannot qualify.       |
 | Metro Auto Salvage            | MN      | The published Ford F150 Pickup model route returns 500 shared cards before the MN06 own-yard filter. Filtering the truncated pool cannot prove complete inventory.                                                                                                                        |
 | John's Truck & Auto Salvage   | NH      | Complete enumeration fails the rejection guard: 625 / 2,534 observations rejected (24.66%), largely for missing or invalid VINs. Even skipping every repeated or blank-stock observation would leave rejection above 20%.                                                                 |
 
-John's NH completed 45 makes, 386 model pages and seven arrivals, with separate closing controls. It has 1,903 candidate donors, 625 rejected observations and six duplicates out of 2,534 observations (24.66% rejected). There are 611 missing or invalid native VIN observations, including 60 missing stock/destination fields. Even hypothetically skipping all 135 repeated or blank-stock observations leaves 490 / 2,399 rejected (20.43%). No such exclusions were approved. The tenant remains out. The fixture receipt and complete 481-response raw census retain this failure for offline inspection.
+John's NH completed 45 makes, 386 model pages and seven arrivals, with separate closing controls. It has 1,903 candidate donors, 625 rejected observations and six duplicates out of 2,534 observations (24.66% rejected). There are 611 missing or invalid native VIN observations, including 60 missing stock/destination fields. Even hypothetically skipping all 135 repeated or blank-stock observations leaves 490 / 2,399 rejected (20.43%). No placeholder stocks were excluded. The tenant remains out. The fixture receipt and complete 481-response raw census retain this failure for offline inspection.
+
+## Live qualification requests
+
+The saved ledger records 10,378 HTTP attempts, including geocoding and retries. Six known unlogged attempts bring the recorded-plus-known count to 10,384: two initial Eagle requests, one Kosiski plugin script and three early Metro timeouts. Redirect hops are not counted separately, so this is not an exhaustive wire total. One shared public supplier-directory attempt is included in the ledger outside the per-tenant rows.
+
+| Tenant                           | Recorded HTTP attempts | Known unlogged attempts |
+| -------------------------------- | ---------------------: | ----------------------: |
+| Eagle Auto Parts                 |                    368 |                       2 |
+| Brown's Auto Salvage             |                      9 |                       0 |
+| Nordstrom's Automotive           |                      7 |                       0 |
+| Nationwide Auto Recycling        |                      9 |                       0 |
+| Linder's Inc                     |                    519 |                       0 |
+| Chuckran Auto Parts              |                    505 |                       0 |
+| United Auto Recyclers            |                    626 |                       0 |
+| Kosiski Auto Parts               |                      8 |                       1 |
+| H&H Auto Parts (Cozad)           |                     16 |                       0 |
+| Riverbend Recycled Auto Parts    |                     34 |                       0 |
+| Ace Auto Recyclers               |                    479 |                       0 |
+| Intermountain Auto Recycling     |                      6 |                       0 |
+| Lentini Auto Salvage             |                  4,029 |                       0 |
+| EL & M Auto Parts                |                      4 |                       0 |
+| Dings Auto Sales and Salvage     |                    326 |                       0 |
+| Bishop's Auto Parts              |                    404 |                       0 |
+| Ace Auto Parts & Salvage         |                    436 |                       0 |
+| Automotive Parts Solutions (APS) |                  1,080 |                       0 |
+| Chuck's Auto Salvage             |                    542 |                       0 |
+| Metro Auto Salvage               |                     10 |                       3 |
+| Central Auto Recyclers           |                    476 |                       0 |
+| John's Truck & Auto Salvage      |                    484 |                       0 |
+
+A separate anonymous browser visit to APS's published Google map observed 112 HTTP resources and 78 non-HTTP resources. These are recorded separately from the HTTP ledger. The receipt retains sanitized public URLs, HTTP status where known and timing where recorded; browser tracking parameters and freeform error strings are omitted. Raw browser resource logs are not committed.
+
+## Validation
+
+Final qualification admits 38,191 unique vehicle identifiers across eleven tenants and twelve physical yards, with zero cross-tenant duplicates. The source floor is 30,000 and every physical-yard floor holds. All eleven complete connector replays pass across 8,546 separately captured native responses.
+
+Lint, typecheck and formatting of all 63 changed text files pass. The affected set passes 58 tests. The full `bun test --timeout 15000 src` run passes 4,394 tests across 409 files with zero failures in 860.44 seconds, using CI's pinned Bun 1.4.1. Lentini's full replay completes in 336.56 seconds under its explicit 600-second per-test timeout. Tests use local responses only. No lockfile changed after the machine's global Bun upgrade.
+
+`SKIP_ENV_VALIDATION=1 bunx next build` compiles 117 steps, four workflows and the Next application without `workflow-node-module-error`. Later page collection stops on a missing local PostHog API key. The source remains disabled; no inventory was enabled.

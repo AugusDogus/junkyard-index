@@ -1,0 +1,92 @@
+{
+  "accepted": 38191,
+  "crossTenantDuplicates": 0,
+  "uniqueVins": 38191,
+  "sourceFloor": 30000,
+  "bounds": [
+    {
+      "yard": "eagle-martinsburg",
+      "accepted": 1448,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 1448,
+      "floor": 1200
+    },
+    {
+      "yard": "linders",
+      "accepted": 3274,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3274,
+      "floor": 2600
+    },
+    {
+      "yard": "chuckran",
+      "accepted": 3671,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3671,
+      "floor": 2900
+    },
+    {
+      "yard": "united",
+      "accepted": 12356,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 12356,
+      "floor": 9800
+    },
+    {
+      "yard": "ace-iowa",
+      "accepted": 1524,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 1524,
+      "floor": 1200
+    },
+    {
+      "yard": "lentini-port-murray",
+      "accepted": 924,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 924,
+      "floor": 700
+    },
+    {
+      "yard": "lentini-ringoes",
+      "accepted": 2429,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2429,
+      "floor": 1900
+    },
+    {
+      "yard": "dings",
+      "accepted": 1110,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 1110,
+      "floor": 800
+    },
+    {
+      "yard": "bishops",
+      "accepted": 3362,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3362,
+      "floor": 2600
+    },
+    {
+      "yard": "ace-st-paul",
+      "accepted": 3015,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 3015,
+      "floor": 2400
+    },
+    {
+      "yard": "chucks",
+      "accepted": 2601,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2601,
+      "floor": 2000
+    },
+    {
+      "yard": "central-nh",
+      "accepted": 2477,
+      "maximumDuplicateLoss": 0,
+      "conservativeRemaining": 2477,
+      "floor": 1900
+    }
+  ]
+}
