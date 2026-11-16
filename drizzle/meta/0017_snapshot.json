@@ -2464,6 +2464,13 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "established_at": {
+          "name": "established_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
