@@ -1,80 +1,90 @@
-# Idaho Falls I-Pull qualification
+# Idaho Falls iPull qualification
 
-The Idaho Falls source is local only, disabled and unpublished. Do not enable,
-deploy or write inventory to production without separate authorization.
+`idipull` is the self-service iPull by Intermountain Auto at 3015 N 15th E,
+Idaho Falls, ID 83401, 208-524-4461. It is distinct from Intermountain's excluded
+full-service URG catalog. Its existing registry, durable cursor, manual-search
+destination and `ingestion-source-idipull` flag are retained. The source defaults
+off. No production inventory, source flags or deployment changed.
 
-The complete saved native catalog contains 583 rows. The connector admits 555
-unique donors and rejects 28 rows (4.80%), below the unchanged 10% limit. Twenty
-rows have malformed modern VINs and two have no model. Three repeated-VIN groups
-have different source stocks, so all six ambiguous rows are rejected. Their valid
-VINs, and both valid VINs with missing models, remain presence evidence only.
-Identical repeated rows are deduplicated, subject to the unchanged 25% limit.
+## Fresh qualification
 
-The accepted 1973 Ford Mustang retains native serial `8532970167`. No identifiers,
-model years or missing models are reconstructed. Source color, stock and vehicle
-row are retained when usable. Photos are absent and remain null. The source uses
-two-digit arrival years, so the canonical date remains null without inventing a
-century or timezone; the parser retains the original arrival text.
+The November 16, 2026 census contains 568 unique stocks and 565 unique VIN strings.
+The connector accepts 535 unique donors and rejects 33 observations (5.81%):
+25 invalid VINs (seven fail only the modern check digit), two missing models and
+all six rows in three conflicting repeated-VIN groups. No rows are excluded and
+no identical duplicates occur. Valid structural VINs rejected for check digits,
+incomplete metadata or ambiguity remain presence evidence only.
 
-## Ownership and enumeration
+The existing duplicate policy rejects every conflicting copy of a VIN, including
+copies with agreeing year/make/model but different stocks or rows. Stock numbers
+never choose a winner. Exact repeated rows deduplicate subject to the unchanged
+25% duplicate limit. Different VINs claiming one usable stock fail the snapshot.
+Modern VINs must pass ISO 3779 check digits. The accepted 1973 Ford Mustang keeps
+its native serial `8532970167`; no identity or missing model is reconstructed.
 
-The official [root](https://ifipull.com/) calls the linked inventory its
-"in-stock vehicles" and describes customers bringing tools to pull parts.
-The physical yard is 3015 N 15th E, Idaho Falls ID 83401, 208-524-4461.
-The matching native Google Maps address anchor supplies the business point
-43.523078 / -112.006206 through its `!3d` / `!4d` values. Its map viewport center
-has a different longitude and is not used.
+Three serial public GETs captured a fresh root, an opening inventory and an
+independently fetched closing inventory. Acquisition used the same cross-process
+`flock /tmp/jyi-urg-gate.lock` gate and timestamp `/tmp/jyi-urg-gate.last` as the URG
+qualification, with at least 3.1 seconds between request starts. All three return
+HTTP 200. Both inventory controls show `Updated: 11/16/26`; every parsed field and
+row multiplicity agrees. The latest admitted arrival is November 13, 2026.
 
-The unfiltered [inventory page](https://ifipull.com/inventory/) returns all 583
-rows and nine labeled columns in one HTML table. Its inspected DataTables
-initializer performs client pagination, without an Ajax or server-side option.
-The parser rejects changed columns, incomplete markup, additional filters or
-pagination links, and a changed initializer until enumeration is proved again.
-The saved page says `Updated: 11/11/26` and was captured November 11 at 19:04 UTC.
+The prior November 11 census (555 accepted of 583 rows) is historical evidence.
+The fresh saved replay supersedes its totals and applies check-digit validation.
 
-There are no donor permalinks. The destination is the source inventory page,
-presented as a manual search. Search the table by VIN or stock to identify the
-vehicle. Do not fabricate a donor URL or a prefilled search parameter. Featured
-cars and the separate retail car catalog do not join to this donor inventory.
+## Ownership, enumeration and destinations
 
-## Connector behavior
+The official [root](https://ifipull.com/) calls the linked catalog its in-stock
+vehicles, updated daily, and describes bringing tools to pull parts. Root and
+inventory pages independently retain the yard's address, phone and exact native
+Google Maps address link. The link's `!3d` / `!4d` business point is
+43.523078, -112.006206. Its `@` viewport center is not the yard location.
 
-One checkpoint reads the root and complete inventory, through the existing
-1,600 ms request gate. Only complete HTTP 200 HTML at the verified destinations
-is accepted. Redirects, partial responses, wrong MIME, invalid UTF-8, inconsistent
-body lengths, oversized bodies and read failures block reconciliation. Requests
-have 20-second timeouts, no automatic retry and a two-minute catalog budget.
+One unfiltered [inventory GET](https://ifipull.com/inventory/) contains all nine
+columns and every row. The inspected DataTables initializer paginates that HTML
+locally, with no AJAX or server-side source. Changed initialization, filters,
+pagination links, columns, labels or incomplete structure fail closed. The row
+cap is 10,000 and the document/body bound is 4 MB.
 
-Ownership, enumeration, required identities and quality limits are checked
-before yard or vehicle callbacks. Callback failure returns no completed cursor.
-Strict `start` and `complete` checkpoints use the durable source codec; resuming
-`complete` makes no request. Shared registration requires a 450-donor floor and
-retains the existing rejection, duplicate and previous-run drift guards.
+No donor permalink is published. The destination remains the inventory page,
+presented as a manual search by VIN or stock. No search parameters or donor URLs
+are fabricated. Photos are absent and remain null. Native color, stock and row
+are retained when usable. Qualification confirms arrival dates use MM/DD/YY in
+the 2000s; valid dates at or before the report date become calendar-only
+`availableDate` values. Invalid or future optional arrival dates remain null.
 
-## Local proof
+## Connector guards
 
-Source evidence lives in
-`.scratchpad/coverage/new-leads/near-qualified-controls/id-ipull-inventory.html`
-and `.scratchpad/coverage/new-leads/id-ipull.html`. No recrawl was required.
+A checkpoint fetches the root and two complete inventory controls serially through
+the existing 1,600 ms request gate. The closing comparison includes the update
+label, every native field and multiplicity, while allowing table row reordering.
+All checks precede yard and vehicle callbacks. A failed callback returns no
+completed cursor; resuming a strict `complete` cursor performs no requests.
 
-The research and actual connector replay are under
-`.scratchpad/coverage/parallel-ut-co-ok/refill-20261112/`:
+Currency requires at least one admitted arrival in the preceding 60 days,
+matching the existing addition-based freshness window used by AutoRecycler.
+A current `Updated` label alone cannot revive stale inventory. Future report
+labels, future arrivals and recent rejected donors cannot establish currency.
+No old donor is removed merely because its individual arrival is old.
 
-- `evidence/id-ipull-qualification-review.json` and `id-ipull-native-records.json`.
-- `evidence/id-ipull-identity-review.json` and `id-ipull-native-coordinates.json`.
-- `idipull-implementation-replay.ts` and `idipull-implementation-replay/`.
+Only complete, unredirected HTTP 200 HTML from the verified routes is accepted.
+Manual redirects, partial responses, wrong MIME, invalid UTF-8, inconsistent body
+lengths, oversized responses and read failures block reconciliation. Each GET has
+a combined 20-second request/body deadline, no automatic retry, and the catalog
+has a two-minute total deadline. The absolute floor is 178 (535 / 3, rounded down).
+The existing 10% rejection, 25% duplicate and 50% previous-run guards remain.
 
-The replay runs the application connector and soak over the saved bodies,
-checks every parsed native field against the independent 583-row extraction,
-and compares the emitted VIN set to the 555 unambiguous source records. It also
-checks five valid rejected VINs, both actual durable codec round trips, terminal
-no-request behavior and shared source validation. Canonical records, yards,
-request provenance and checkpoints are saved separately.
+## Offline proof
 
-Focused checks:
+`src/server/ingestion/fixtures/idipull-census.json.gz` retains all three raw public
+responses, sanitized receipts and SHA-256 hashes. Request order in replay is root,
+opening inventory, closing inventory; receipts preserve acquisition timestamps.
+`idipull-replay.test.ts` runs the real connector, checks 568 stocks / 565 unique
+VIN strings, emitted identities, rejected presence, arrival currency, coordinates,
+destination and the shared source validation policy. Tests make no live requests.
 
 ```sh
 bun test src/server/ingestion/idipull-*.test.ts
-bunx oxlint src/server/ingestion/idipull-*.ts scripts/soak-idipull.ts
+bun run lint
 bun run typecheck
 ```

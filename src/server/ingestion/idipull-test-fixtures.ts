@@ -16,7 +16,7 @@ export const idipullTestRecord = {
   color: "GREEN",
   stockNumber: "STK015489",
   row: "53",
-  arrivalDate: "03/30/26",
+  arrivalDate: "11/10/26",
 };
 const labels = [
   "Year",
