@@ -254,6 +254,37 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       websiteUrl: "https://dingsautoparts.com/",
     },
   },
+  {
+    ...standard,
+    code: "bishops",
+    origin: "https://bishopsautoparts.com",
+    urgid: "AA74",
+    arrivalsPath: null,
+    pacingMs: 3500,
+    requestTimeoutMs: 90000,
+    ownerClaims: [
+      "Bishop's Auto Parts",
+      "120 Stantack Rd.",
+      "Middleton, CT 06457",
+    ],
+    minimumInventory: 2600,
+    photoCodes: ["aa74"],
+    yard: {
+      source: "urgiis",
+      code: "bishops",
+      name: "Bishop's Auto Parts",
+      operator: "Bishop's Auto Parts",
+      address: "120 Stantack Rd.",
+      city: "Middletown",
+      state: "CT",
+      postalCode: "06457",
+      lat: 41.564414369713,
+      lng: -72.749473882561,
+      phone: "800-634-8733",
+      email: null,
+      websiteUrl: "https://bishopsautoparts.com/",
+    },
+  },
 ];
 
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(
