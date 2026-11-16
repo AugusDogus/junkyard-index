@@ -4,7 +4,7 @@ export const HARRYS_CATALOG = HARRYS_ORIGIN + "/our-inventory/";
 export const HARRYS_OWNER = HARRYS_ORIGIN + "/contact/";
 export const HARRYS_PAGE_SIZE = 15;
 export const HARRYS_MAX_PAGES = 500;
-export const HARRYS_MINIMUM = 3_500;
+export const HARRYS_MINIMUM = 1_368;
 export type HarrysYard = Omit<Yard, "source" | "lat" | "lng"> & {
   source: "harrys";
   lat: number;
@@ -58,10 +58,11 @@ export const HARRYS_YARDS = [
     websiteUrl: HARRYS_ORIGIN + "/",
   },
 ] as const satisfies readonly HarrysYard[];
-export const HARRYS_YARD_MINIMUM = 500;
-export const HARRYS_MINIMUM_BY_YARD: ReadonlyMap<string, number> = new Map(
-  HARRYS_YARDS.map((yard) => [yard.code, HARRYS_YARD_MINIMUM]),
-);
+export const HARRYS_MINIMUM_BY_YARD: ReadonlyMap<string, number> = new Map([
+  ["allentown", 178],
+  ["hazle-township", 909],
+  ["pennsburg", 281],
+]);
 export function harrysPageUrl(index: number): string {
   if (!Number.isInteger(index) || index < 0 || index >= HARRYS_MAX_PAGES)
     throw new Error("Harry's page is outside the bounded native inventory");

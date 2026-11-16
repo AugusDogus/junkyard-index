@@ -11,16 +11,22 @@ Both sources require the native year, make, model and physical yard, plus a
 full VIN accepted by `inventoryVinWithCheckDigit` or a genuine pre-1981 serial.
 Repeated-character placeholder serials are rejected. Optional color, stock,
 photos, inventory date and yard position remain nullable. Missing optional
-fields do not reject a donor. No identity or location is inferred from VINs.
+fields do not reject a donor. No identity, year or location is inferred from VINs.
+Harry's uses 1901 as an unknown-year placeholder. All 18 such fixture rows are
+rejected, including modern VINs and old Packard, Plymouth and Chevy serials.
+Serial text such as `1940PACKARD` does not establish a model year. Valid rejected
+identities with a known yard remain presence evidence.
 
 Required-field failures count as rejections, never exclusions. Independently
 valid rejected VINs retain presence evidence only when yard attribution is
 usable. Conflicting required claims for a VIN reject every conflicting row.
 Budget also rejects contradictory claims for the same published stock.
 Source admission requires at most 10% rejected and 25% duplicate rows. The
-source floors are 3,500 for Harry's and 1,500 for Budget. Durable reconciliation
+source floors are 1,368 for Harry's and 535 for Budget, roughly one third of
+the accepted census. Durable reconciliation
 repeats those checks and requires at least 50% of the preceding accepted source
-count. Every Harry's yard requires at least 500 accepted donors and at most 10%
+count. Harry's yard floors are 178 for Allentown, 909 for Hazle Township and
+281 for Pennsburg, roughly one third of each accepted census, with at most 10%
 rejected rows. Final durable validation repeats yard floors after deduplication
 and checks each yard against 50% of its persisted, non-missing inventory.
 
@@ -76,11 +82,15 @@ only the three qualified cities. Plains is not assigned another yard's
 inventory or counted as a qualified inventory yard. Unknown row cities reject;
 a changed selector requires requalification.
 
-Native detail links identify individual donors. A saved detail control confirms
-`item-298` matches its table VIN, year, make, model and Allentown yard. Published
-slashless links receive an owned canonical slash redirect; canonical destinations
-retain the slash. The list supplies no verified vehicle photos or stock number,
-so those remain null. Manufacturer is not silently repurposed as engine/trim.
+Native `item-<id>` detail links use dense import row numbers that can be
+reassigned to different vehicles or yards when the feed reloads. The saved
+`item-298` control agrees with its table row only at acquisition time and does
+not establish a stable vehicle destination. No stable VIN/stock URL is verified
+in the saved pages. Canonical `detailsUrl` is null. Search and alerts, including
+stored row-ID links, use **Search provider inventory** at the official inventory
+page and explain how to select make/model/yard and match VIN and yard row.
+The list supplies no verified vehicle photos or stock number, so those remain
+null. Manufacturer is not silently repurposed as engine/trim.
 
 Requests are serial with a 3.5-second completion gap, a combined 25-second
 request/body deadline and a 2 MiB HTML limit (16 KiB for challenges). There are
@@ -145,7 +155,7 @@ Chevrolet VINs; no VIN was repaired or decoded. The maximum serialized cursor
 was 356,923 bytes. This adds one qualified disabled Florida yard; it does not
 change the count of published yards.
 
-Harry's 4,283 native rows accept 4,122 unique donors, reject 160 (3.74%),
+Harry's 4,283 native rows accept 4,105 unique donors, reject 177 (4.13%),
 exclude none and merge one benign duplicate. The 286-page opening and separately
 acquired 286-page closing census agree on every parsed donor field, native ID,
 order, multiplicity and total. Both ownership controls pass. The newest published
@@ -154,8 +164,8 @@ yard date is November 12. The serialized checkpoint stays below 750,000 bytes.
 | Physical yard  | Native rows | Accepted | Rejected | Duplicates |
 | -------------- | ----------: | -------: | -------: | ---------: |
 | Allentown      |         556 |      535 |       20 |          1 |
-| Hazle Township |       2,863 |    2,741 |      122 |          0 |
-| Pennsburg      |         864 |      846 |       18 |          0 |
+| Hazle Township |       2,863 |    2,727 |      136 |          0 |
+| Pennsburg      |         864 |      843 |       21 |          0 |
 
 Both providers satisfy their source floors, rejection and duplicate guards.
 No eligible inventory was excluded to improve those ratios. Modern VINs were

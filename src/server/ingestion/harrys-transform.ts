@@ -5,9 +5,8 @@ import type { CanonicalVehicle } from "./types";
 import type { HarrysRecord } from "./harrys-parser";
 import {
   HARRYS_YARDS,
-  HARRYS_ORIGIN,
   HARRYS_MINIMUM,
-  HARRYS_YARD_MINIMUM,
+  HARRYS_MINIMUM_BY_YARD,
 } from "./harrys-yard-metadata";
 export type HarrysCanonicalVehicle = Omit<CanonicalVehicle, "source"> & {
   source: "harrys";
@@ -52,6 +51,8 @@ export function harrysSnapshot(records: readonly HarrysRecord[]) {
       !vin ||
       /^([A-Z0-9])\1+$/.test(vin) ||
       !/^\d{4}$/.test(r.year) ||
+      // The feed uses 1901 for unknown years, including modern VINs.
+      year === 1901 ||
       year < 1886 ||
       year > 2100 ||
       !usable(r.make) ||
@@ -88,7 +89,8 @@ export function harrysSnapshot(records: readonly HarrysRecord[]) {
       row: usable(r.row) ? r.row : null,
       section: null,
       space: null,
-      detailsUrl: HARRYS_ORIGIN + "/inventory-item/item-" + r.id + "/",
+      // Import row IDs can be reassigned to another car on the next feed load.
+      detailsUrl: null,
       partsUrl: null,
       pricesUrl: null,
       engine: null,
@@ -116,7 +118,7 @@ export function validateHarrysSnapshot(
       SourceValidationPolicy.maximumDuplicateRatio
   )
     throw new Error(
-      "Harry's complete inventory failed its 3500-donor floor, 10% rejection or 25% duplicate guard",
+      `Harry's complete inventory failed its ${HARRYS_MINIMUM}-donor floor, 10% rejection or 25% duplicate guard`,
     );
   for (const yard of HARRYS_YARDS) {
     const rows = vehicles.filter((v) => v.locationCode === yard.code);
@@ -128,7 +130,7 @@ export function validateHarrysSnapshot(
     ).length;
     if (
       !a.recordsProcessed ||
-      rows.length < HARRYS_YARD_MINIMUM ||
+      rows.length < (HARRYS_MINIMUM_BY_YARD.get(yard.code) ?? Infinity) ||
       (native.length > 0 &&
         yardRejected / native.length >
           SourceValidationPolicy.maximumRejectionRatio)

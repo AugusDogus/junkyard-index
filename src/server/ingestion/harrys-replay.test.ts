@@ -7,6 +7,9 @@ import { z } from "zod";
 import { HarrysCursor } from "./harrys-cursor";
 import { streamHarrysInventory } from "./harrys-connector";
 import { HarrysProviderError } from "./harrys-client";
+import { parseHarrysPage } from "./harrys-parser";
+import { harrysSnapshot, validateHarrysSnapshot } from "./harrys-transform";
+import { HARRYS_MINIMUM, HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import { validateSourceSnapshot } from "./source-validation";
 import type { CanonicalVehicle } from "./types";
@@ -104,12 +107,12 @@ test("Harry's replays separately acquired complete opening and closing censuses 
   const r = await replay();
   expect(r.index).toBe(574);
   expect(r.maxBytes).toBeLessThan(750_000);
-  expect(r.vehicles).toHaveLength(4122);
+  expect(r.vehicles).toHaveLength(4105);
   expect(r.yards).toEqual(["allentown", "hazle-township", "pennsburg"]);
-  expect(new Set(r.vehicles.map((v) => v.vin)).size).toBe(4122);
+  expect(new Set(r.vehicles.map((v) => v.vin)).size).toBe(4105);
   expect(r.accounting).toEqual({
     recordsProcessed: 4283,
-    recordsRejected: 160,
+    recordsRejected: 177,
     recordsExcluded: 0,
     duplicateVehicles: 1,
   });
@@ -117,7 +120,7 @@ test("Harry's replays separately acquired complete opening and closing censuses 
     r.yards.map(
       (yard) => r.vehicles.filter((v) => v.locationCode === yard).length,
     ),
-  ).toEqual([535, 2741, 846]);
+  ).toEqual([535, 2727, 843]);
   for (const v of r.vehicles)
     expect(inventoryVinWithCheckDigit(v.vin, String(v.year))).toBe(v.vin);
   expect(
@@ -142,4 +145,75 @@ test("Harry's rejects closing donor drift before any callbacks", async () => {
         : raw,
     ),
   ).rejects.toThrow("Closing census changed");
+});
+
+const openingRecords = receipts
+  .slice(1, 287)
+  .flatMap((receipt, index) => parseHarrysPage(receipt.raw, index).records);
+
+test("Harry's rejects all saved 1901 placeholders, including modern VINs and old serials", () => {
+  const placeholders = openingRecords.filter(
+    (record) => record.year === "1901",
+  );
+  expect(placeholders).toHaveLength(18);
+  for (const vin of [
+    "1FAHP35N88W198703",
+    "1940PACKARD",
+    "1941PLYMUTH",
+    "1940CHEVY",
+  ])
+    expect(placeholders.some((record) => record.vin === vin)).toBe(true);
+  const snapshot = harrysSnapshot(placeholders);
+  expect(snapshot.vehicles).toHaveLength(0);
+  expect(snapshot.accounting.recordsRejected).toBe(18);
+  expect(snapshot.rejectedIds.size).toBe(18);
+  expect(snapshot.observedVins).toContain("1FAHP35N88W198703");
+});
+
+test("Harry's admits roughly one third of each yard census and rejects a yard below its floor", () => {
+  const snapshot = harrysSnapshot(openingRecords);
+  const accepted = new Set(snapshot.vehicles.map((vehicle) => vehicle.vin));
+  const unique = [
+    ...new Map(
+      openingRecords
+        .filter((record) => accepted.has(record.vin))
+        .map((record) => [record.vin, record]),
+    ).values(),
+  ];
+  const minimum = [...HARRYS_MINIMUM_BY_YARD].flatMap(([code, floor]) => {
+    const yard = snapshot.vehicles.find(
+      (vehicle) => vehicle.locationCode === code,
+    );
+    if (!yard) throw new Error("Missing saved Harry's yard " + code);
+    return unique
+      .filter((record) => record.yard === yard.locationCity.toUpperCase())
+      .slice(0, floor);
+  });
+  expect(minimum).toHaveLength(HARRYS_MINIMUM);
+  expect([...HARRYS_MINIMUM_BY_YARD.values()]).toEqual([178, 909, 281]);
+  expect(() =>
+    validateHarrysSnapshot(harrysSnapshot(minimum), minimum),
+  ).not.toThrow();
+  for (const [code] of HARRYS_MINIMUM_BY_YARD) {
+    const yard = snapshot.vehicles.find(
+      (vehicle) => vehicle.locationCode === code,
+    );
+    if (!yard) throw new Error("Missing saved Harry's yard " + code);
+    const removed = minimum.find(
+      (record) => record.yard === yard.locationCity.toUpperCase(),
+    );
+    const replacement = unique.find(
+      (record) =>
+        record.yard !== yard.locationCity.toUpperCase() &&
+        !minimum.includes(record),
+    );
+    if (!removed || !replacement)
+      throw new Error("Missing floor boundary fixture donors");
+    const below = minimum
+      .filter((record) => record !== removed)
+      .concat(replacement);
+    expect(() => validateHarrysSnapshot(harrysSnapshot(below), below)).toThrow(
+      code,
+    );
+  }
 });

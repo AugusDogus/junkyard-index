@@ -1,4 +1,6 @@
 import { BIGD_MINIMUM_INVENTORY } from "./bigd-yard-metadata";
+import { HARRYS_MINIMUM } from "./harrys-yard-metadata";
+import { BUDGET_MINIMUM } from "./budget-yard-metadata";
 import { URGIIS_MINIMUM_INVENTORY } from "./urgiis-configuration";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
@@ -75,8 +77,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   vinplus: 5_250,
   beavers: 240,
   indianriver: 900,
-  harrys: 3_500,
-  budget: 1_500,
+  harrys: HARRYS_MINIMUM,
+  budget: BUDGET_MINIMUM,
   army: 200,
   idipull: 450,
   bigd: BIGD_MINIMUM_INVENTORY,

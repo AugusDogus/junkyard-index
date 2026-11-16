@@ -1,6 +1,6 @@
 import type { Yard } from "~/lib/yard";
 export const BUDGET_CATALOG = "https://budgetupullit.com/current-inventory/";
-export const BUDGET_MINIMUM = 1_500;
+export const BUDGET_MINIMUM = 535;
 export type BudgetYard = Omit<Yard, "source" | "lat" | "lng"> & {
   source: "budget";
   lat: number;
