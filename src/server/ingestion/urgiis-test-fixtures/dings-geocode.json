@@ -1,0 +1,34 @@
+{
+  "result": {
+    "input": {
+      "address": { "address": "99 Little Pitch Road, Litchfield, CT 06759" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "L", "tigerLineId": "3107508" },
+        "coordinates": { "x": -73.178934578762, "y": 41.725760885077 },
+        "addressComponents": {
+          "zip": "06759",
+          "streetName": "LITTLE PITCH",
+          "preType": "",
+          "city": "LITCHFIELD",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "1",
+          "state": "CT",
+          "suffixType": "RD",
+          "toAddress": "199",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "99 LITTLE PITCH RD, LITCHFIELD, CT, 06759"
+      }
+    ]
+  }
+}
