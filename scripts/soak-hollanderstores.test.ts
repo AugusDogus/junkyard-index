@@ -51,3 +51,29 @@ test("Hollander Stores soak rejects false request progress", async () => {
     })),
   ).rejects.toThrow("no valid progress");
 });
+
+test("Hollander Stores soak stops on a failed census without another request", async () => {
+  let calls = 0;
+  const result = await soakHollanderstoresInventory(async (cursor) => {
+    calls++;
+    return {
+      source: "hollanderstores",
+      status: "failed",
+      cursor,
+      count: 0,
+      pagesProcessed: 1,
+      accounting: {
+        recordsProcessed: 0,
+        recordsRejected: 0,
+        recordsExcluded: 0,
+        duplicateVehicles: 0,
+      },
+      observedVins: [],
+      errors: ["Closing census exceeds turnover limit"],
+      warnings: [],
+    };
+  });
+  expect(result.status).toBe("failed");
+  expect(result.errors).toEqual(["Closing census exceeds turnover limit"]);
+  expect(calls).toBe(1);
+});

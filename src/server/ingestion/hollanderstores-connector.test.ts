@@ -228,7 +228,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(() =>
       HollanderstoresCursor.parse({ ...checked, requests: 99 }),
     ).toThrow();
-    const result = await Effect.runPromiseExit(
+    const result = await Effect.runPromise(
       streamHollanderstoresInventory({
         startCursor: first.cursor,
         maxPages: 8,
@@ -241,7 +241,8 @@ describe("Hollander Stores saved complete census", () => {
           Effect.succeed(fixture(yard.code).replace("A18031", "OTHER")),
       }),
     );
-    expect(result._tag).toBe("Failure");
+    expect(result.status).toBe("failed");
+    expect(result.errors.join(" ")).toContain("surviving vehicle fields");
     expect(emitted).toBe(false);
     expect(requests).toBe(HOLLANDERSTORES_YARDS.length);
   }, 180000);

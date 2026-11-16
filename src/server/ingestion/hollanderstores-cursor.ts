@@ -27,7 +27,7 @@ function checksum(value: unknown): string {
 }
 const scope = checksum([
   HOLLANDERSTORES_YARDS,
-  "card-or-paged-list/blank-make-vpic/check-digit/double-census-v2",
+  "card-or-paged-list/blank-make-vpic/check-digit/bounded-census-v3",
 ]);
 const pendingSchema = z
   .object({
