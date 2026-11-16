@@ -26,6 +26,8 @@ The soak serializes each checkpoint, reports accepted/rejected/excluded/duplicat
 
 Qualification uses saved public responses. Tests are offline. Complete replay archives retain separately fetched opening and closing controls; opening controls are never substituted for closing evidence. Replay order follows the connector; acquisition order is recorded in the HTTP receipts. Census coordinates come from the yard's published address unless a yard-published point is available.
 
+Qualification began with serial censuses. Later acquisitions allow at most three active tenants, preserve each tenant's own response spacing, and limit combined request starts to one per 3.1 seconds. All tenant sites are conservatively treated as sharing one URG backend for that acquisition limit. The source connector itself traverses tenants serially.
+
 The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 1,200. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
 
 ## Qualified yards
