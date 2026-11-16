@@ -9,7 +9,6 @@ import { URGIIS_TENANTS } from "./urgiis-configuration";
 import {
   urgiisTasks,
   urgiisFingerprint,
-  urgiisEntryFingerprint,
   type UrgiisEntry,
   type UrgiisTask,
 } from "./urgiis-traversal";
@@ -21,6 +20,7 @@ import {
   type UrgiisModelPage,
 } from "./urgiis-snapshot";
 import { readUrgiisPage, urgiisError, type UrgiisError } from "./urgiis-client";
+import { urgiisClosingEvidence } from "./urgiis-closing";
 
 export interface UrgiisOptions<E, R> {
   startCursor?: unknown;
@@ -35,7 +35,7 @@ export interface UrgiisOptions<E, R> {
 }
 export interface UrgiisStreamResult {
   source: "urgiis";
-  status: "paused" | "complete";
+  status: "paused" | "complete" | "failed";
   cursor: UrgiisCursor;
   count: number;
   pagesProcessed: number;
@@ -229,9 +229,20 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           ),
         );
       const raw = yield* options.readPage(task.url, tenant);
-      const entry = yield* boundary("parse " + task.url, () =>
+      const parsed = yield* boundary("parse " + task.url, () =>
         parseEntry(raw, task, tenant),
-      );
+      ).pipe(Effect.either);
+      if (parsed._tag === "Left") {
+        if (cursor.phase !== "closing") return yield* Effect.fail(parsed.left);
+        return {
+          ...result,
+          cursor,
+          status: "failed" as const,
+          pagesProcessed: result.pagesProcessed + 1,
+          errors: [parsed.left.message],
+        };
+      }
+      const entry = parsed.right;
       const state = cursor;
       const base = {
         ...state,
@@ -242,22 +253,32 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         const opening = state.entries.find(
           (e) => e.url === entry.url && e.kind === entry.kind,
         );
-        if (
-          !opening ||
-          urgiisEntryFingerprint(opening) !== urgiisEntryFingerprint(entry)
-        )
-          return yield* Effect.fail(
-            urgiisError(
-              "closing graph drift",
-              "Official owner or published controls changed for " +
-                tenant.code +
-                "; restart this run",
-            ),
-          );
+        const closing = urgiisClosingEvidence(
+          opening,
+          entry,
+          state.entries,
+          state.badgeDrift ?? { makes: 0, models: 0 },
+        );
+        // Frozen opening evidence cannot be repaired by rereading closing pages.
+        // A failed result ends the durable source without workflow step retries.
+        if (closing.kind === "drift")
+          return {
+            ...result,
+            cursor,
+            status: "failed" as const,
+            pagesProcessed: result.pagesProcessed + 1,
+            errors: [
+              urgiisError(
+                "closing graph drift",
+                `${tenant.code}: ${closing.message}; inspect the captures and restart this run`,
+              ).message,
+            ],
+          };
         cursor = yield* boundary("closing checkpoint", () =>
           UrgiisCursor.checkpoint(
             {
               ...base,
+              badgeDrift: closing.badgeDrift,
               closed: state.closed + 1,
               phase:
                 state.closed + 1 === closingTasks.length ? "ready" : "closing",

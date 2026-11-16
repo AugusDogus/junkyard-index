@@ -69,6 +69,48 @@ const responses = [
   menu,
 ];
 
+test("URG IIS publishes observed donors through one-car badge additions and removals", async () => {
+  for (const [openingCount, closingCount] of [
+    [1, 2],
+    [2, 1],
+    [1, 4],
+  ]) {
+    let reads = 0;
+    let batches = 0;
+    let cursor = UrgiisCursor.initial([tenant]);
+    while (cursor.phase !== "complete") {
+      const result = await Effect.runPromise(
+        streamUrgiisInventory({
+          tenants: [tenant],
+          startCursor: cursor,
+          maxPages: 1,
+          readPage: () => {
+            const index = reads++;
+            return Effect.succeed(
+              (responses[index] ?? "").replace(
+                ">1<",
+                `>${index < 5 ? openingCount : closingCount}<`,
+              ),
+            );
+          },
+          onBatch: (vehicles) =>
+            Effect.sync(() => {
+              expect(vehicles.map((v) => v.vin)).toEqual(["19UDE2F70GA016398"]);
+              batches++;
+            }),
+        }),
+      );
+      expect(result.errors).toEqual([]);
+      cursor = UrgiisCursor.fromWire(
+        UrgiisCursor.serialize(result.cursor, [tenant]),
+        [tenant],
+      );
+    }
+    expect(reads).toBe(8);
+    expect(batches).toBe(1);
+  }
+});
+
 test("URG IIS resumes tenants, requires closing evidence, and never refetches a complete cursor", async () => {
   let reads = 0;
   let batches = 0;
@@ -127,15 +169,73 @@ test("URG IIS resumes tenants, requires closing evidence, and never refetches a 
   expect(batches).toBe(1);
   expect(reads).toBe(8);
 });
+test("URG IIS accumulates model badge drift across resumed closing menus and fails without retrying", async () => {
+  const secondModelPath = "/parts/OTHER/ILX/";
+  const fixture = [
+    document(""),
+    makes.replace("</div>", `${link("/parts/OTHER", "OTHER", 1)}</div>`),
+    responses[2] ?? "",
+    menu,
+    menu.replaceAll("/parts/ACURA", "/parts/OTHER"),
+    page,
+    page.replaceAll("/parts/ACURA/ILX/", secondModelPath),
+    document(""),
+    makes.replace("</div>", `${link("/parts/OTHER", "OTHER", 1)}</div>`),
+    menu.replace(">1<", ">3<"),
+    menu.replaceAll("/parts/ACURA", "/parts/OTHER").replace(">1<", ">3<"),
+  ];
+  let reads = 0;
+  let batches = 0;
+  let cursor = UrgiisCursor.initial([tenant]);
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        startCursor: cursor,
+        maxPages: 1,
+        readPage: () => Effect.succeed(fixture[reads++] ?? ""),
+        onBatch: () =>
+          Effect.sync(() => {
+            batches++;
+          }),
+      }),
+    );
+    if (result.status === "failed") {
+      expect(result.errors.join(" ")).toContain("models badges changed by 4");
+      expect(result.pagesProcessed).toBe(1);
+      expect(reads).toBe(fixture.length);
+      expect(batches).toBe(0);
+      return;
+    }
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(result.cursor, [tenant]),
+      [tenant],
+    );
+  }
+  throw new Error("Expected terminal closing failure");
+});
 test("URG IIS fails closed on directory drift, source mixing, caps and corrupt checkpoints", async () => {
   for (const [changedIndex, changed] of [
-    [6, makes.replace(">1<", ">2<")],
+    [5, document("").replace("123 Main St", "456 Other St")],
+    [6, makes.replace(">ACURA<", ">Acura<")],
+    [6, makes.replace("/parts/ACURA", "/parts/OTHER")],
+    [6, makes.replace(">1<", ">5<")],
+    [7, menu.replace(">1<", ">5<")],
+    [7, menu.replace(model.label, "OTHER")],
+    [
+      7,
+      menu.replace(
+        "</div>",
+        `${link("/parts/ACURA/OTHER/", "OTHER", 1)}</div>`,
+      ),
+    ],
     [4, document(`<div class="card-deck">${card().repeat(500)}</div>`)],
   ] as const) {
     let reads = 0;
     let batches = 0;
     let cursor = UrgiisCursor.initial([tenant]);
     let failure: unknown;
+    let failedStatus = false;
     try {
       while (cursor.phase !== "complete") {
         const result = await Effect.runPromise(
@@ -155,6 +255,10 @@ test("URG IIS fails closed on directory drift, source mixing, caps and corrupt c
               }),
           }),
         );
+        if (result.status === "failed") {
+          failedStatus = true;
+          throw new Error(result.errors.join("; "));
+        }
         cursor = result.cursor;
       }
     } catch (cause) {
@@ -162,6 +266,8 @@ test("URG IIS fails closed on directory drift, source mixing, caps and corrupt c
     }
     expect(failure).toBeDefined();
     expect(batches).toBe(0);
+    expect(reads).toBe(changedIndex + 1);
+    expect(failedStatus).toBe(changedIndex > 4);
   }
   expect(() =>
     iisCards(page.replaceAll("'AA01'", "'FOREIGN'"), tenant),

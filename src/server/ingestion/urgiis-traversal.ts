@@ -160,7 +160,7 @@ export function urgiisEntryFingerprint(entry: UrgiisEntry) {
     entry.kind === "owner"
       ? entry.identity
       : "controls" in entry
-        ? entry.controls
+        ? entry.controls.map(({ path, label }) => ({ path, label }))
         : "records" in entry
           ? entry.records
           : entry.seller,

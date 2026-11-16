@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { UrgiisBadgeDriftSchema, urgiisBadgeLimit } from "./urgiis-closing";
 import {
   UrgiisEntrySchema,
   urgiisTasks,
@@ -32,6 +33,8 @@ const working = {
   ...base,
   entries: z.array(UrgiisEntrySchema).max(12_000),
   closed: z.number().int().min(0).max(1026),
+  // Older v1 checkpoints required exact badge equality, so omitted drift is zero.
+  badgeDrift: UrgiisBadgeDriftSchema.optional(),
 };
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...working, phase: z.literal("opening") }).strict(),
@@ -70,6 +73,17 @@ function checkpoint(
     const tenant = tenants[state.completed.length];
     if (!tenant) throw new Error("IIS working cursor has no next tenant");
     const tasks = urgiisTasks(state.entries, tenant);
+    const drift = state.badgeDrift ?? { makes: 0, models: 0 };
+    const limit = urgiisBadgeLimit(state.entries);
+    if (
+      drift.makes > limit ||
+      drift.models > limit ||
+      (state.closed < 2 && drift.makes !== 0) ||
+      (state.closed < 3 && drift.models !== 0)
+    )
+      throw new Error(
+        "IIS checkpoint badge drift exceeds its closing frontier or tenant limit",
+      );
     if (
       state.entries.length > tasks.length ||
       (state.phase === "opening"
