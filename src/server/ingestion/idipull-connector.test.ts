@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { Effect } from "effect";
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import { streamIdipullInventoryWithRequestGate } from "./idipull-connector";
 import { IdipullCursor, IdipullCursorSchema } from "./idipull-cursor";
 import type { IdipullRecord } from "./idipull-parser";
@@ -56,16 +57,30 @@ const run = (
 ) =>
   Effect.runPromise(
     streamIdipullInventoryWithRequestGate(
-      { onBatch, startCursor, maxPages },
+      {
+        onBatch,
+        startCursor,
+        maxPages,
+        asOf: new Date("2026-11-16T12:00:00Z"),
+      },
       gate,
     ),
   );
 function records(count: number): IdipullRecord[] {
-  return Array.from({ length: count }, (_, index) => ({
-    ...idipullTestRecord,
-    vin: "1GBJG31K58" + String(1198313 + index),
-    stockNumber: "STK" + String(15489 + index).padStart(6, "0"),
-  }));
+  return Array.from({ length: count }, (_, index) => {
+    const raw = "1GBJG31K58" + String(1198313 + index);
+    const vin = [..."0123456789X"]
+      .map((digit) => raw.slice(0, 8) + digit + raw.slice(9))
+      .find(
+        (candidate) => inventoryVinWithCheckDigit(candidate, "2008") !== null,
+      );
+    if (!vin) throw new Error("Missing check-digit-valid test VIN");
+    return {
+      ...idipullTestRecord,
+      vin,
+      stockNumber: "STK" + String(15489 + index).padStart(6, "0"),
+    };
+  });
 }
 
 test("Idaho Falls validates ownership and complete scope before emitting one batch", async () => {
@@ -76,7 +91,7 @@ test("Idaho Falls validates ownership and complete scope before emitting one bat
       emitted.push(...batch);
     }),
   );
-  expect(requests).toEqual(["/", "/inventory/"]);
+  expect(requests).toEqual(["/", "/inventory/", "/inventory/"]);
   expect(result).toMatchObject({
     status: "complete",
     count: 1,
@@ -263,3 +278,64 @@ test("Idaho Falls propagates callbacks and validates cursors and budgets before 
   ).toBe(0);
   expect(requests).toEqual([]);
 });
+
+test("Idaho Falls blocks emission when the closing inventory changes a donor field", async () => {
+  let reads = 0;
+  mockInventory({
+    rewrite: (html, path) => {
+      if (path !== "/inventory/") return html;
+      return ++reads === 2 ? html.replace("EXPRESS", "SILVERADO") : html;
+    },
+  });
+  let callbacks = 0;
+  await expect(
+    run(() =>
+      Effect.sync(() => {
+        callbacks++;
+      }),
+    ),
+  ).rejects.toThrow("closing inventory");
+  expect(callbacks).toBe(0);
+});
+
+test.each(["", "01/01/25", "11/30/26", "02/30/26"])(
+  "Idaho Falls blocks stale or unusable arrival currency despite a recent Updated label (%s)",
+  async (arrivalDate) => {
+    mockInventory({ records: [{ ...idipullTestRecord, arrivalDate }] });
+    let callbacks = 0;
+    await expect(
+      run(() =>
+        Effect.sync(() => {
+          callbacks++;
+        }),
+      ),
+    ).rejects.toThrow("no admitted arrival");
+    expect(callbacks).toBe(0);
+  },
+);
+
+test("Idaho Falls cannot establish currency from a rejected donor", async () => {
+  const rows = records(10).map((record, index) => ({
+    ...record,
+    arrivalDate: index === 9 ? "11/10/26" : "01/01/25",
+    model: index === 9 ? "" : record.model,
+  }));
+  mockInventory({ records: rows });
+  await expect(run()).rejects.toThrow("no admitted arrival");
+});
+
+test.each([
+  (html: string) => html.replace("11/11/26", "11/12/26"),
+  (html: string) => html.replace("<tbody>", "<tbody>" + idipullTestRow()),
+  (html: string) => html.replace("GREEN", "BLUE"),
+])(
+  "Idaho Falls closing evidence includes update label, multiplicity and optional fields (%#)",
+  async (rewriteClosing) => {
+    let reads = 0;
+    mockInventory({
+      rewrite: (html, path) =>
+        path === "/inventory/" && ++reads === 2 ? rewriteClosing(html) : html,
+    });
+    await expect(run()).rejects.toThrow("closing inventory");
+  },
+);

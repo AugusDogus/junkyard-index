@@ -28,41 +28,49 @@ export function fetchIdipullPage(
   gate: ProviderRequestGate,
 ) {
   const url = IDIPULL_ORIGIN + path;
-  return Effect.gen(function* () {
-    const response = yield* fetchProviderResponse({
-      url,
-      context: "Idaho Falls " + path,
-      requestGate: gate,
-      retry: { timeoutMs: 20_000, retryLimit: 0, retryNetworkErrors: false },
-      onResponse: (response) => {
-        const mime = response.headers
-          .get("content-type")
-          ?.split(";")[0]
-          ?.trim()
-          .toLowerCase();
-        if (
-          response.status !== 200 ||
-          response.redirected ||
-          response.headers.has("content-range") ||
-          (response.url && response.url !== url) ||
-          mime !== "text/html"
-        ) {
-          throw new Error(
-            "Expected complete HTTP 200 HTML at the verified destination, received " +
-              response.status,
-          );
-        }
-      },
-    });
-    return yield* Effect.tryPromise({
-      try: () =>
-        readIPullUPullResponseText(
-          response,
-          "Idaho Falls " + path,
-          AbortSignal.timeout(20_000),
-        ),
-      catch: (cause) => cause,
-    });
+  return Effect.suspend(() => {
+    const deadline = AbortSignal.timeout(20_000);
+    return Effect.gen(function* () {
+      const response = yield* fetchProviderResponse({
+        url,
+        context: "Idaho Falls " + path,
+        redirect: "manual",
+        requestGate: gate,
+        retry: { timeoutMs: 20_000, retryLimit: 0, retryNetworkErrors: false },
+        onResponse: (response) => {
+          const mime = response.headers
+            .get("content-type")
+            ?.split(";")[0]
+            ?.trim()
+            .toLowerCase();
+          if (
+            response.status !== 200 ||
+            response.redirected ||
+            response.headers.has("content-range") ||
+            (response.url && response.url !== url) ||
+            mime !== "text/html"
+          ) {
+            throw new Error(
+              "Expected complete HTTP 200 HTML at the verified destination, received " +
+                response.status,
+            );
+          }
+        },
+      });
+      return yield* Effect.tryPromise({
+        try: () =>
+          readIPullUPullResponseText(response, "Idaho Falls " + path, deadline),
+        catch: (cause) => cause,
+      });
+    }).pipe(
+      Effect.timeoutFail({
+        duration: "20 seconds",
+        onTimeout: () =>
+          new Error(
+            "Combined request and complete-body deadline exceeded 20 seconds",
+          ),
+      }),
+    );
   }).pipe(
     Effect.mapError(
       (cause) => new IdipullProviderError({ operation: path, cause }),

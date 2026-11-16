@@ -1,4 +1,6 @@
+import { IdipullCatalog } from "./idipull-catalog";
 import { inventoryVin } from "./inventory-vin";
+import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import {
   normalizeCanonicalColor,
   normalizeCanonicalMake,
@@ -14,14 +16,17 @@ export type IdipullVehicleResult =
 
 export function transformIdipullRecord(
   record: IdipullRecord,
+  referenceDate = new Date().toISOString().slice(0, 10),
 ): IdipullVehicleResult {
   const vin = inventoryVin(record.vin, record.year);
+  const arrived = IdipullCatalog.date(record.arrivalDate);
   const year = Number(record.year);
   const make = normalizeCanonicalMake(record.make);
   const model = record.model.trim();
   const unknown = /^(?:unknown|other|n\/?a|none|null|undefined|[-?]+)$/i;
   if (
     !vin ||
+    inventoryVinWithCheckDigit(record.vin, record.year) === null ||
     !/^\d{4}$/.test(record.year) ||
     year < 1886 ||
     year > 2100 ||
@@ -49,9 +54,8 @@ export function transformIdipullRecord(
         ? record.stockNumber
         : null,
       row: /^\d{1,4}$/.test(record.row) ? record.row : null,
-      // The source publishes MM/DD/YY only. Keep the raw value in the parser;
-      // do not invent a century or timezone for a nullable canonical date.
-      availableDate: null,
+      availableDate:
+        arrived !== null && arrived <= referenceDate ? arrived : null,
       imageUrl: null,
       detailsUrl: IDIPULL_INVENTORY_URL,
       partsUrl: null,

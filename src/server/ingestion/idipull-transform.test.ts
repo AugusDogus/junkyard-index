@@ -3,7 +3,7 @@ import { transformIdipullRecord } from "./idipull-transform";
 import { idipullTestRecord } from "./idipull-test-fixtures";
 
 test("Idaho Falls preserves identity, native stock and row with a manual inventory destination", () => {
-  const result = transformIdipullRecord(idipullTestRecord);
+  const result = transformIdipullRecord(idipullTestRecord, "2026-11-16");
   expect(result).toMatchObject({
     status: "available",
     vehicle: {
@@ -15,7 +15,7 @@ test("Idaho Falls preserves identity, native stock and row with a manual invento
       row: "53",
       color: "Green",
       imageUrl: null,
-      availableDate: null,
+      availableDate: "2026-11-10",
       detailsUrl: "https://ifipull.com/inventory/",
       lat: 43.523078,
       lng: -112.006206,
@@ -83,3 +83,12 @@ test.each(["none", "null", "undefined", "---", "???"])(
     });
   },
 );
+
+test("Idaho Falls rejects modern VIN check-digit failures while preserving structural presence", () => {
+  expect(
+    transformIdipullRecord({ ...idipullTestRecord, vin: "4T1BK36B06U116717" }),
+  ).toEqual({
+    status: "incomplete",
+    vin: "4T1BK36B06U116717",
+  });
+});

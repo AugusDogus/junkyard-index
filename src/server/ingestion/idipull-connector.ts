@@ -2,22 +2,20 @@ import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { fetchIdipullPage, IdipullProviderError } from "./idipull-client";
 import { IdipullCursor, IdipullCursorSchema } from "./idipull-cursor";
-import {
-  parseIdipullInventory,
-  parseIdipullYard,
-  type IdipullRecord,
-} from "./idipull-parser";
+import { parseIdipullYard, type IdipullRecord } from "./idipull-parser";
 import {
   transformIdipullRecord,
   type IdipullCanonicalVehicle,
 } from "./idipull-transform";
 import type { IdipullYard } from "./idipull-yard-metadata";
+import { IdipullCatalog } from "./idipull-catalog";
 import { inventoryVin } from "./inventory-vin";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
 
 interface IdipullOptions<E, R> {
   startCursor?: IdipullCursor;
+  asOf?: Date;
   maxPages?: number;
   onBatch: (vehicles: IdipullCanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: IdipullYard[]) => Effect.Effect<void, E, R>;
@@ -27,7 +25,8 @@ export type IdipullStreamResult = ConnectorChunkResult<
   IdipullCursor
 >;
 
-function validateCatalog(records: IdipullRecord[]) {
+function validateCatalog(catalog: IdipullCatalog, asOf: Date) {
+  const records = catalog.records;
   const groups = new Map<string, IdipullRecord[]>();
   for (const record of records) {
     const vin = inventoryVin(record.vin, record.year);
@@ -66,7 +65,7 @@ function validateCatalog(records: IdipullRecord[]) {
   let rejected = 0;
   let duplicates = 0;
   for (const record of records) {
-    const result = transformIdipullRecord(record);
+    const result = transformIdipullRecord(record, catalog.updated);
     const vin = inventoryVin(record.vin, record.year);
     if (vin && conflicts.has(vin)) {
       rejected++;
@@ -102,6 +101,11 @@ function validateCatalog(records: IdipullRecord[]) {
         " rows; retain the 10% rejection limit",
     );
   }
+  IdipullCatalog.validateCurrency(
+    catalog,
+    vehicles.map((vehicle) => vehicle.availableDate),
+    asOf,
+  );
   return { vehicles, observedVins: [...observedVins], rejected, duplicates };
 }
 
@@ -144,11 +148,24 @@ export function streamIdipullInventoryWithRequestGate<E, R>(
     if (parsed.data.phase === "complete") return empty;
     const home = yield* fetchIdipullPage("/", gate);
     const html = yield* fetchIdipullPage("/inventory/", gate);
+    const closingHtml = yield* fetchIdipullPage("/inventory/", gate);
     const snapshot = yield* Effect.try({
       try: () => {
         const yard = parseIdipullYard(home);
-        const records = parseIdipullInventory(html);
-        return { yard, processed: records.length, ...validateCatalog(records) };
+        const opening = IdipullCatalog.parse(html);
+        const closing = IdipullCatalog.parse(closingHtml);
+        if (
+          IdipullCatalog.signature(opening) !==
+          IdipullCatalog.signature(closing)
+        )
+          throw new Error(
+            "Idaho Falls closing inventory changed native rows or its update label; restart with fresh opening evidence",
+          );
+        return {
+          yard,
+          processed: opening.records.length,
+          ...validateCatalog(opening, options.asOf ?? new Date()),
+        };
       },
       catch: (cause) =>
         new IdipullProviderError({

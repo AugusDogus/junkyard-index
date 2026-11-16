@@ -80,8 +80,9 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   harrys: HARRYS_MINIMUM,
   budget: BUDGET_MINIMUM,
   army: 200,
-  idipull: 450,
   bigd: BIGD_MINIMUM_INVENTORY,
+  // Fresh complete inline census: 535 accepted of 568 stocks.
+  idipull: 178,
   pullsavewa: 1_800,
   littleton: 900,
   michigantruck: 150,
