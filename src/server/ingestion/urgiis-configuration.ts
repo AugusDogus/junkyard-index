@@ -575,6 +575,33 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
       websiteUrl: "https://revolutionautoparts.com/",
     },
   },
+  {
+    ...standard,
+    code: "az",
+    origin: "https://a-zautoparts.com",
+    urgid: "OK09",
+    arrivalsPath: "/latest-arrivals/",
+    ownerClaims: ["A-Z Auto Parts & Auto Sales", "10824 NE 23rd St", "73141"],
+    pacingMs: 3500,
+    requestTimeoutMs: 90000,
+    minimumInventory: 579,
+    photoCodes: ["ok09"],
+    yard: {
+      source: "urgiis",
+      code: "az",
+      name: "A-Z Auto Parts & Auto Sales",
+      operator: "A-Z Auto Parts & Auto Sales",
+      address: "10824 NE 23rd St",
+      city: "Oklahoma City",
+      state: "OK",
+      postalCode: "73141",
+      lat: 35.492984796916,
+      lng: -97.340050574078,
+      phone: "405-769-4122",
+      email: null,
+      websiteUrl: "https://a-zautoparts.com/",
+    },
+  },
 ];
 
 export const URGIIS_MINIMUM_INVENTORY = URGIIS_TENANTS.reduce(
