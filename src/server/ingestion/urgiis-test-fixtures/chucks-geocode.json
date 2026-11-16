@@ -1,0 +1,36 @@
+{
+  "result": {
+    "input": {
+      "address": {
+        "address": "30187 E Bass Lake Road, Grand Rapids, MN 55744"
+      },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "R", "tigerLineId": "611747670" },
+        "coordinates": { "x": -93.604031442421, "y": 47.314234240213 },
+        "addressComponents": {
+          "zip": "55744",
+          "streetName": "BASS LAKE",
+          "preType": "",
+          "city": "GRAND RAPIDS",
+          "preDirection": "E",
+          "suffixDirection": "",
+          "fromAddress": "30199",
+          "state": "MN",
+          "suffixType": "RD",
+          "toAddress": "30101",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "30187 E BASS LAKE RD, GRAND RAPIDS, MN, 55744"
+      }
+    ]
+  }
+}

@@ -10,11 +10,11 @@ No tenant emits until its entire graph, closing evidence, ownership and admissio
 
 Directory badges are informational, not asserted donor totals. The traversal follows every literal make/model link and accounts for cards or an explicit native empty result. A page with 500 cards is incomplete. An empty model advertising at least 500 is also blocked, since the same native boundary can render an empty result. The connector does not truncate these pages or assume filtering a capped shared pool recovers every owned car. Unknown continuation controls, partial documents, supplier changes and unowned destinations fail closed.
 
-Single-yard catalogs reject unexpected supplier photo codes. Shared-pool tenants require an explicit own-photo filter and exclude unassignable photos. Multi-yard catalogs use agreeing native seller and SKU prefixes, with matching stock/year evidence, then map each supplier to a verified physical yard. A shared image bucket is not a yard location.
+Single-yard catalogs reject unexpected supplier photo codes. Shared-pool tenants require an explicit own-photo filter and exclude unassignable photos. Multi-yard catalogs use agreeing native seller and SKU prefixes, with matching stock/year evidence and no contradictory native part VIN, then map each supplier to a verified physical yard. A shared image bucket is not a yard location.
 
 Only explicitly qualified part-bin stocks may be excluded when native VIN claims and yard photographs are absent. Older numeric-stock donors with missing VINs remain rejects. A real VIN claim or yard photograph overrides the bin exclusion. Nationwide's requested blank-VIN exclusion is supported independently. Exclusions never dilute the 10% rejection denominator. Duplicates must stay at or below 25%. Each tenant has an absolute floor; multi-yard tenants also require each yard's floor. Published per-yard inventory must retain at least 50% of its preceding persisted, non-missing count. Final durable validation reapplies every physical yard floor after source-wide deduplication. Source-wide validation also repeats the usual floor, duplicate, rejection and preceding-run checks.
 
-Requests use a current browser User-Agent, normal headers, an explicit public verification cookie where qualified, manual redirects, a combined request/body timeout, a 4 MiB body cap, and a shared serial gate that waits at least two seconds after responses, including failures. There are two paced retries with exponential backoff. Each chunk allows three native pages and eight minutes. Whole runs allow 30,000 successful native requests and 8 GiB of response bodies. Retries are additionally bounded per page. Checkpoints are capped at 32 MiB, bind the complete tenant qualification contract and retain only the current tenant's evidence plus the completed prefix. Completed cursors make no further requests.
+Requests use a current browser User-Agent, normal headers, an explicit public verification cookie where qualified, manual redirects, a combined request/body timeout, a 4 MiB body cap, and a shared serial gate that waits at least two seconds after responses, including failures. HTTP requests percent-encode parentheses in model names while checkpoints and destinations retain the published links. There are two paced retries with exponential backoff. Each chunk allows three native pages and eight minutes. Whole runs allow 30,000 successful native requests and 8 GiB of response bodies. Retries are additionally bounded per page. Checkpoints are capped at 32 MiB, bind the complete tenant qualification contract and retain only the current tenant's evidence plus the completed prefix. Completed cursors make no further requests.
 
 Run a count-only soak with:
 
@@ -32,15 +32,16 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 
 ## Qualified yards
 
-| Yard                  | City        | State | Accepted | Rejected | Skipped | Duplicates | Floor |
-| --------------------- | ----------- | ----- | -------: | -------: | ------: | ---------: | ----: |
-| Eagle Auto Parts      | Martinsburg | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
-| Linder's Inc          | Worcester   | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
-| Chuckran Auto Parts   | Bridgewater | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
-| United Auto Recyclers | Omaha       | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
-| Ace Auto Recyclers    | Iowa City   | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
-| Ding's Auto Parts     | Litchfield  | CT    |    1,110 |      109 |       0 |         24 |   800 |
-| Bishop's Auto Parts   | Middletown  | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
+| Yard                  | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |
+| --------------------- | ------------ | ----- | -------: | -------: | ------: | ---------: | ----: |
+| Eagle Auto Parts      | Martinsburg  | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
+| Linder's Inc          | Worcester    | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
+| Chuckran Auto Parts   | Bridgewater  | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
+| United Auto Recyclers | Omaha        | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
+| Ace Auto Recyclers    | Iowa City    | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
+| Ding's Auto Parts     | Litchfield   | CT    |    1,110 |      109 |       0 |         24 |   800 |
+| Bishop's Auto Parts   | Middletown   | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
+| Chuck's Auto Salvage  | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
 
 Chuckran's full census follows 43 makes, 407 model pages and 19 arrivals. Its 498-response replay accepts 3,671 donors, rejects 369 observations (9.10%), excludes no rows and merges 13 duplicates. All supplier photographs are MA23. Its floor is 2,900, pacing is 3.5 seconds after responses, and each request has a 90-second timeout. The US Census point for its published Bridgewater address is 41.990325748641, -70.913539837235.
 
@@ -53,6 +54,8 @@ Ace Iowa follows 42 makes, 376 model pages and 60 arrivals. Its 465-response rep
 Dings follows 36 makes, 246 model pages and 60 arrivals. Its 323-response replay accepts 1,110 donors, rejects 109 observations (8.77%), excludes none and merges 24 duplicates. Every supplier photograph is CT05. Its floor is 800. The US Census point for 99 Little Pitch Road, Litchfield, CT 06759 is 41.725760885077, -73.178934578762.
 
 Bishop's follows all 35 makes and 322 model pages, with no published arrival-card enumeration. Its 396-response replay accepts 3,362 donors, rejects 82 observations (2.38%), excludes none and has no duplicates. Every supplier photo is AA74. Separate closing owner and directory controls pass. Its floor is 2,600. Qualification recovered a slow Spark page with a 90-second timeout and ordinary curl retries; pacing is 3.5 seconds after responses. The US Census point for 120 Stantack Rd, Middletown, CT 06457 is 41.564414369713, -72.749473882561.
+
+Chuck's follows all 41 makes, 415 model pages and 43 arrivals. Its 502-response replay accepts 2,601 donors, rejects 283 observations (9.68%), excludes 480 verified part-bin observations and merges 40 duplicates. Each of the 25 explicit NOF stocks has native parts from multiple makes and years, with no donor VIN claims. A native VIN or yard photo overrides the bin exclusion. NEW, RIDE and unverified NOF stocks remain rejects. All supplier photos are PP42. Its floor is 2,000, tenant spacing is 3.5 seconds and the public `urg_hv=1` cookie is required. The Census point for 30187 E. Bass Lake Road, Grand Rapids, MN 55744 is 47.314234240213, -93.604031442421.
 
 ## Leads left out
 
