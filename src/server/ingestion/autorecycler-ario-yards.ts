@@ -188,6 +188,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "cash-n-carry-pull-your-part-savannah-ga",
+    vinValidation: "check-digit",
     id: "370e9a2c-5ec6-461f-944c-7bcf059ecfa9",
     organizationId: "d4478d4c-51e4-4c12-bdc2-80163276ba87",
     legacyId: null,
@@ -196,6 +197,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "wilberts-u-pull-it-williamson-ny",
+    vinValidation: "check-digit",
     id: "211f79c5-1032-4159-aae2-f21abf6d8d49",
     organizationId: "a5113ec5-851a-40af-8d17-3dc29863c5b4",
     legacyId: null,
@@ -204,6 +206,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "youngstown-u-pull-it-youngstown-oh",
+    vinValidation: "check-digit",
     id: "a74441d5-8fb9-4bde-a762-ccd5b0f62785",
     organizationId: "397a7439-0ce8-43ab-947f-b84f0696d979",
     legacyId: null,
@@ -212,6 +215,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "barry-s-u-pull-it-theodore-al",
+    vinValidation: "check-digit",
     id: "d08c2971-b885-41d7-a323-b92ddc6aa25d",
     organizationId: "62c30ac3-173e-4b94-860f-361d14edeb3f",
     legacyId: null,
@@ -220,6 +224,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "roberts-parts-u-pick-moffett-ok",
+    vinValidation: "check-digit",
     id: "a3d2b44f-54d5-4d05-93f2-75547f462d91",
     organizationId: "0200ac05-96d8-4733-9754-e2b3d9f907df",
     legacyId: null,
@@ -228,6 +233,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "parts-you-pull-amite-la",
+    vinValidation: "check-digit",
     id: "1d432bd0-a24f-4b80-922a-a26aa5bd82cd",
     organizationId: "574e97df-7106-43ac-8e83-14ce47c8d096",
     legacyId: null,
@@ -236,6 +242,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "wilberts-u-pull-it-elma-ny",
+    vinValidation: "check-digit",
     id: "81b46a86-d0de-4acd-ba52-9182b4393e78",
     organizationId: "a5113ec5-851a-40af-8d17-3dc29863c5b4",
     legacyId: null,
@@ -244,6 +251,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "baughmans-u-pull-it-york-pa",
+    vinValidation: "check-digit",
     id: "406af702-6e28-43b7-88ca-a82d3e6287ee",
     organizationId: "dc7b46c2-68ed-4f8f-bcc2-9cd86a560fd5",
     legacyId: null,
@@ -252,6 +260,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "a-1-crashed-cars-south-sioux-city-ne",
+    vinValidation: "check-digit",
     id: "04ed1ce5-f1a6-4f90-b9ef-9568c78e5af2",
     organizationId: "9f04fb6e-10bd-4892-b709-8514b6f41f6c",
     legacyId: null,
@@ -260,6 +269,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "wilberts-u-pull-it-bath-ny",
+    vinValidation: "check-digit",
     id: "6ee4e7ab-e8dc-4a55-a4c7-cc9d0caa9542",
     organizationId: "a5113ec5-851a-40af-8d17-3dc29863c5b4",
     legacyId: null,
@@ -268,6 +278,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "milliron-auto-parts-mansfield-oh",
+    vinValidation: "check-digit",
     id: "5c1156bd-0690-4e5b-89bc-381015aae45a",
     organizationId: "edcaed58-d7e0-4f1d-bf94-1c90b9c12280",
     legacyId: null,
@@ -276,6 +287,7 @@ export const ARIO_CUSTOMER_YARDS = [
   },
   {
     slug: "smith-auto-inc-self-serve-pawnee-city-ne",
+    vinValidation: "check-digit",
     id: "bae5ae1b-6417-48f2-8e04-342b3e23293a",
     organizationId: "86c977b3-5ef2-4de7-85ea-6d2cf46f1147",
     legacyId: null,

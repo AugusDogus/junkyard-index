@@ -18,24 +18,30 @@ host. The three Wilbert's yards have distinct yard IDs and stock namespaces.
 
 | Yard                                   | State | Crush client | Advertised |   Accepted | Rejected | Search reads touching yard |
 | -------------------------------------- | ----- | -----------: | ---------: | ---------: | -------: | -------------------------: |
-| a-1 Crashed Cars, South Sioux City     | NE    |         1062 |      1,124 |      1,121 |        3 |                         13 |
-| Wilbert's, Williamson                  | NY    |         1050 |      2,597 |      2,594 |        3 |                         27 |
+| a-1 Crashed Cars, South Sioux City     | NE    |         1062 |      1,124 |      1,112 |       12 |                         13 |
+| Wilbert's, Williamson                  | NY    |         1050 |      2,597 |      2,593 |        4 |                         27 |
 | Wilbert's, Elma                        | NY    |         1217 |      1,325 |      1,322 |        3 |                         15 |
 | Wilbert's, Bath                        | NY    |         1170 |      1,116 |      1,116 |        0 |                         13 |
-| Youngstown U-Pull-It                   | OH    |         1140 |      1,557 |      1,524 |       33 |                         17 |
-| Milliron Auto Parts, Mansfield         | OH    |         1068 |        701 |        695 |        6 |                          9 |
-| Roberts Parts-U-Pick, Moffett          | OK    |         1047 |      1,263 |      1,228 |       35 |                         14 |
-| Baughmans U Pull It, York              | PA    |         1143 |      1,120 |      1,099 |       21 |                         13 |
+| Youngstown U-Pull-It                   | OH    |         1140 |      1,557 |      1,499 |       58 |                         17 |
+| Milliron Auto Parts, Mansfield         | OH    |         1068 |        701 |        666 |       35 |                          9 |
+| Roberts Parts-U-Pick, Moffett          | OK    |         1047 |      1,263 |      1,159 |      104 |                         14 |
+| Baughmans U Pull It, York              | PA    |         1143 |      1,120 |      1,087 |       33 |                         13 |
 | Barry's U Pull It, Theodore            | AL    |         1039 |        685 |        684 |        1 |                          8 |
-| Cash-N-Carry, Savannah                 | GA    |         1031 |        707 |        680 |       27 |                          9 |
-| Parts YoU Pull, Amite                  | LA    |         1148 |        481 |        473 |        8 |                          6 |
-| Smith Auto inc Self Serve, Pawnee City | NE    |         1134 |        604 |        596 |        8 |                          8 |
-| **Total**                              |       |              | **13,280** | **13,132** |  **148** |      Shared requests below |
+| Cash-N-Carry, Savannah                 | GA    |         1031 |        707 |        669 |       38 |                          9 |
+| Parts YoU Pull, Amite                  | LA    |         1148 |        481 |        472 |        9 |                          6 |
+| Smith Auto inc Self Serve, Pawnee City | NE    |         1134 |        604 |        591 |       13 |                          8 |
+| **Total**                              |       |              | **13,280** | **12,970** |  **310** |      Shared requests below |
 
 All yards have zero duplicates and zero exclusions in the captured census.
-Existing VIN, addition-date freshness, canonical identity and 50% drift rules
-remain unchanged. Modern Ario VINs retain the existing structural validator;
-VinPlus's stricter check-digit rule is not retrofitted onto this provider.
+New Ario yards, including CFC, use `inventoryVinWithCheckDigit`. The twelve
+additions reject 162 additional check-digit failures, accepting 12,970 donors
+and rejecting 310 (2.33%). Every yard remains under the 10% rejection guard;
+Roberts is highest at 104/1,263 (8.23%). Rejections remain explicit accounting.
+Addition-date freshness, canonical identity, duplicate and 50% drift rules are
+unchanged. The original 20 migrated Ario yards retain their existing VIN behavior:
+264 failures among 18,805 fresh-yard candidates, plus 62 in stale Santa Maria.
+The complete audit and compatibility decision are in
+[`ario-vin-admission.md`](ario-vin-admission.md). No Ario yard flag was added.
 
 Barry's official inventory page links both Alabama and Mississippi businesses.
 Its captured table contains exactly 685 stocks and VINs, all matching the 685
@@ -55,7 +61,7 @@ in the same eligible-yard and stale-customer drift checks.
 
 Opening enumeration visits every 100-rank window through each yard's advertised
 bound. Independently fetched closing inventory agrees after the production
-schema projection. Combined connector replay accepts 32,344 Ario vehicles across
+schema projection. Combined connector replay accepts 32,170 Ario vehicles across
 the expanded 33-yard allowlist, including CFC and the previously qualified customers;
 stale Santa Maria remains excluded by freshness.
 
