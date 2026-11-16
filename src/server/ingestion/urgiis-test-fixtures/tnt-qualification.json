@@ -1,0 +1,39 @@
+{
+  "tenant": "tnt",
+  "yard": "TNT Auto Parts",
+  "status": "excluded",
+  "reason": "rejection-guard",
+  "makes": 35,
+  "models": 256,
+  "modelCards": 1286,
+  "arrivals": 60,
+  "acceptedCandidates": 1043,
+  "recordsProcessed": 1346,
+  "recordsExcluded": 0,
+  "recordsRejected": 252,
+  "duplicateVehicles": 51,
+  "rejectionRate": 0.18722139673105498,
+  "supplierPhotos": {
+    "uu50": 1112,
+    "no-yard-photo": 234
+  },
+  "optimisticUnverifiedBins": {
+    "stocks": ["AFT", "NOF", "CPO", "DLRS"],
+    "accounting": {
+      "recordsProcessed": 1346,
+      "recordsExcluded": 97,
+      "recordsRejected": 155,
+      "duplicateVehicles": 51
+    },
+    "accepted": 1043,
+    "rejectionRate": 0.12409927942353884
+  },
+  "note": "No bins are qualified or excluded. Even hypothetically excluding AFT, NOF, CPO and DLRS leaves 155 / 1249 observations rejected (12.41%). The full negative connector replays emit no inventory.",
+  "savedNativeResponses": 331,
+  "closingOwnershipAndDirectories": "passed",
+  "closingBadgeDrift": {
+    "makes": 0,
+    "models": 0
+  },
+  "closingBadgeLimit": 12
+}

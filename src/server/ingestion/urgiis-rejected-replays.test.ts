@@ -1,0 +1,159 @@
+import { expect, test } from "bun:test";
+import { Effect } from "effect";
+import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { streamUrgiisInventory } from "./urgiis-connector";
+import { UrgiisCursor } from "./urgiis-cursor";
+import { urgiisError } from "./urgiis-client";
+import { UrgiisReplayArchive } from "./urgiis-replay-archive";
+import type { UrgiisTenant } from "./urgiis-tenant";
+
+const standard = {
+  pathStyle: "parts",
+  ownerPath: "/",
+  makesPath: "/parts/makes/",
+  cookie: "urg_hv=1",
+  pacingMs: 3500,
+  requestTimeoutMs: 90000,
+  placeholderStocks: [],
+  skipBlankVin: false,
+  attribution: { kind: "site" },
+} as const;
+
+const cases: readonly {
+  tenant: UrgiisTenant;
+  optimisticStocks: readonly string[];
+  rejection: string;
+  optimisticRejection: string;
+}[] = [
+  {
+    tenant: {
+      ...standard,
+      code: "tnt",
+      origin: "https://picktnt.com",
+      urgid: "UU50",
+      arrivalsPath: "/recent-arrivals/",
+      ownerClaims: [
+        "TNT Auto Parts",
+        "9042 Greenwood Road",
+        "Greenwood, LA 71033",
+      ],
+      minimumInventory: 347,
+      photoCodes: ["uu50"],
+      yard: {
+        source: "urgiis",
+        code: "tnt",
+        name: "TNT Auto Parts",
+        operator: "TNT Auto Parts",
+        address: "9042 Greenwood Road",
+        city: "Greenwood",
+        state: "LA",
+        postalCode: "71033",
+        lat: 32.442781318339,
+        lng: -93.96234444712,
+        phone: "318-938-7299",
+        email: null,
+        websiteUrl: "https://picktnt.com/",
+      },
+    },
+    optimisticStocks: ["AFT", "NOF", "CPO", "DLRS"],
+    rejection: "252/1346 rejected",
+    optimisticRejection: "155/1249 rejected",
+  },
+  {
+    tenant: {
+      ...standard,
+      code: "borges",
+      origin: "https://borgesauto.com",
+      urgid: "MA15",
+      arrivalsPath: "/latest-arrivals-2/",
+      ownerClaims: [
+        "Borges Foreign Auto Parts",
+        "2200 Lewis Street",
+        "Dighton, MA 02715",
+      ],
+      minimumInventory: 1220,
+      photoCodes: ["ma15"],
+      yard: {
+        source: "urgiis",
+        code: "borges",
+        name: "Borges Foreign Auto Parts",
+        operator: "Borges Foreign Auto Parts",
+        address: "2200 Lewis Street",
+        city: "Dighton",
+        state: "MA",
+        postalCode: "02715",
+        lat: 41.8208961,
+        lng: -71.1830139,
+        phone: "508-669-6288",
+        email: null,
+        websiteUrl: "https://borgesauto.com/",
+      },
+    },
+    optimisticStocks: ["MISC", "MIS", "NEW"],
+    rejection: "460/4167 rejected",
+    optimisticRejection: "419/4126 rejected",
+  },
+];
+
+for (const candidate of cases) {
+  for (const placeholderStocks of [[], candidate.optimisticStocks]) {
+    test(`${candidate.tenant.yard.name} complete replay rejects admission with ${placeholderStocks.length ? "optimistic unverified bins" : "no exclusions"}`, async () => {
+      const tenant = { ...candidate.tenant, placeholderStocks };
+      const archive = await UrgiisReplayArchive.open(
+        tenant.code + "-rejected-census",
+      );
+      let cursor = UrgiisCursor.initial([tenant]);
+      let reads = 0;
+      let emissions = 0;
+      let rejected = false;
+      try {
+        while (cursor.phase !== "complete") {
+          const outcome = await Effect.runPromise(
+            streamUrgiisInventory({
+              tenants: [tenant],
+              startCursor: cursor,
+              maxPages: 3,
+              readPage: (url) =>
+                Effect.tryPromise({
+                  try: async () => {
+                    const response = await archive.next();
+                    if (!response || response.url !== url)
+                      throw new Error(
+                        "Unexpected rejected census request: " + url,
+                      );
+                    reads++;
+                    return response.html;
+                  },
+                  catch: (cause) =>
+                    urgiisError("rejected census offline replay", cause),
+                }),
+              onBatch: () =>
+                Effect.sync(() => {
+                  emissions++;
+                }),
+            }).pipe(Effect.either),
+          );
+          if (outcome._tag === "Left") {
+            expect(outcome.left.operation).toBe("snapshot " + tenant.code);
+            expect(outcome.left.message).toContain(
+              placeholderStocks.length
+                ? candidate.optimisticRejection
+                : candidate.rejection,
+            );
+            rejected = true;
+            break;
+          }
+          expect(outcome.right.status).not.toBe("failed");
+          cursor = outcome.right.cursor;
+        }
+        expect(rejected).toBe(true);
+        expect(emissions).toBe(0);
+        expect(reads).toBe(archive.responseCount);
+        expect(await archive.next()).toBeUndefined();
+        expect(URGIIS_TENANTS.some((t) => t.code === tenant.code)).toBe(false);
+      } finally {
+        archive.close();
+      }
+    }, 120_000);
+  }
+}

@@ -1,0 +1,281 @@
+{
+  "batch": "A",
+  "date": "2026-11-16",
+  "baseCommit": "c83ecc0502bac0b8859b41c02495a90ac33eb119",
+  "recordedAttempts": 1103,
+  "pacing": {
+    "sharedGateLock": "/tmp/jyi-urg-gate.lock",
+    "sharedTimestamp": "/tmp/jyi-urg-gate.last",
+    "sharedStartGapMs": 3100,
+    "tenantResponseGapMs": 3500,
+    "note": "Initial requests used the within-batch gate. After parent coordination, URG tenant requests used the cross-process shared gate. The one known exception is retained below.",
+    "exceptions": [
+      {
+        "code": "borges",
+        "earlierKey": "contact",
+        "laterKey": "model-135",
+        "earlierRequestStart": "2026-11-16T15:02:40.626Z",
+        "earlierResponseEnd": "2026-11-16T15:02:40.771Z",
+        "laterRequestStart": "2026-11-16T15:02:40.781Z",
+        "requestStartGapMs": 155,
+        "responseEndGapMs": 10,
+        "requiredSharedStartGapMs": 3100,
+        "requiredTenantResponseGapMs": 3500,
+        "cause": "The crawler was paused for the contact lookup, then resumed with a completed gate reservation. Both responses are retained. Pausing around queued requests was discontinued."
+      }
+    ]
+  },
+  "tenants": [
+    {
+      "code": "heritage",
+      "urgid": "NN36",
+      "yard": "Heritage Auto Parts",
+      "state": "AL",
+      "recordedAttempts": 43,
+      "publishedMakes": 55,
+      "status": "excluded",
+      "reason": "Ford F250SD returns 30 cards against badge 74. Two valid own-yard arrivals are missing from the result, and a native donor detail still resolves. No continuation is published; page=2 returns 404, and per_page=500 repeats the same 30 cards. Maserati also publishes an unlabeled /parts/MASERATI// model control."
+    },
+    {
+      "code": "i17",
+      "urgid": "AZ29",
+      "yard": "I-17 Used Auto Parts",
+      "state": "AZ",
+      "recordedAttempts": 10,
+      "publishedMakes": 43,
+      "status": "excluded",
+      "reason": "Lexus GS300 returns 30 cards against badge 52. No continuation is published; page=2 returns 404, and per_page=500 repeats the same 30 cards. The native arrivals title also fails the connector guard."
+    },
+    {
+      "code": "higgins",
+      "urgid": "CA22",
+      "yard": "Higgins Auto Parts",
+      "state": "CA",
+      "recordedAttempts": 9,
+      "publishedMakes": 36,
+      "status": "excluded",
+      "reason": "The published /latest-arrivals/ page has donor cards but its native HTML title fails the arrivals identity guard. The three largest-make probes return 67, 28 and 37 cards, so they do not show a 30-card cutoff."
+    },
+    {
+      "code": "stadium",
+      "urgid": "CO10",
+      "yard": "Stadium Auto Parts",
+      "state": "CO",
+      "recordedAttempts": 16,
+      "publishedMakes": 40,
+      "status": "excluded",
+      "reason": "F150 returns 500 shared cards from CC24 and CO10 before owner filtering; Dodge 1500 also returns 500 shared cards. Own-photo filtering cannot recover an incomplete pool."
+    },
+    {
+      "code": "toms",
+      "urgid": "TT68",
+      "yard": "Tom's Auto Salvage",
+      "state": "CO",
+      "recordedAttempts": 32,
+      "publishedMakes": 45,
+      "status": "excluded",
+      "reason": "The published Maserati menu contains an unlabeled /parts/MASERATI// model control advertising one donor. The complete graph cannot be enumerated. Ford F150 returns 47 cards, so that probe does not show a 30-card cutoff."
+    },
+    {
+      "code": "speedway",
+      "urgid": "IL22",
+      "yard": "Speedway Auto Parts",
+      "state": "IL",
+      "recordedAttempts": 43,
+      "publishedMakes": 43,
+      "status": "excluded",
+      "reason": "Equinox returns 30 cards against badge 86, all with MI34 photographs despite IL22 ownership. No continuation is published; page=2 returns 404, and per_page=500 repeats the same 30 cards."
+    },
+    {
+      "code": "quick-recovery",
+      "urgid": "QQ32",
+      "yard": "Quick Recovery Auto Salvage",
+      "state": "LA",
+      "recordedAttempts": 110,
+      "publishedMakes": 43,
+      "status": "excluded",
+      "reason": "The complete make graph identifies 474 models, but Cadillac ATS returns HTTP500 on all three paced attempts. Only 58 model pages complete. The largest tested models return more than 30 cards."
+    },
+    {
+      "code": "tnt",
+      "urgid": "UU50",
+      "yard": "TNT Auto Parts",
+      "state": "LA",
+      "recordedAttempts": 336,
+      "publishedMakes": 35,
+      "census": {
+        "code": "tnt",
+        "makes": 35,
+        "models": 256,
+        "modelCards": 1286,
+        "capped": [],
+        "responseCount": 331
+      },
+      "acceptedCandidates": 1043,
+      "accounting": {
+        "recordsProcessed": 1346,
+        "recordsExcluded": 0,
+        "recordsRejected": 252,
+        "duplicateVehicles": 51
+      },
+      "rejectionRate": 0.18722139673105498,
+      "supplierPhotoObservations": {
+        "uu50": 1112,
+        "no-yard-photo": 234
+      },
+      "closingOwnershipAndDirectories": "passed",
+      "closingBadgeDrift": {
+        "makes": 0,
+        "models": 0
+      },
+      "closingBadgeLimit": 12,
+      "optimisticUnverifiedBins": {
+        "stocks": ["AFT", "NOF", "CPO", "DLRS"],
+        "accounting": {
+          "recordsProcessed": 1346,
+          "recordsExcluded": 97,
+          "recordsRejected": 155,
+          "duplicateVehicles": 51
+        },
+        "accepted": 1043,
+        "rejectionRate": 0.12409927942353884
+      },
+      "status": "excluded",
+      "reason": "Full census rejects 252 / 1346 observations (18.72%). Even hypothetically excluding all AFT, NOF, CPO and DLRS bins leaves 155 / 1249 rejected (12.41%). No bins are qualified or excluded."
+    },
+    {
+      "code": "borges",
+      "urgid": "MA15",
+      "yard": "Borges Foreign Auto Parts",
+      "state": "MA",
+      "recordedAttempts": 494,
+      "publishedMakes": 41,
+      "census": {
+        "code": "borges",
+        "makes": 41,
+        "models": 399,
+        "modelCards": 4107,
+        "capped": [],
+        "responseCount": 486
+      },
+      "acceptedCandidates": 3660,
+      "accounting": {
+        "recordsProcessed": 4167,
+        "recordsExcluded": 0,
+        "recordsRejected": 460,
+        "duplicateVehicles": 47
+      },
+      "rejectionRate": 0.11039116870650348,
+      "supplierPhotoObservations": {
+        "ma15": 3654,
+        "no-yard-photo": 513
+      },
+      "closingOwnershipAndDirectories": "passed",
+      "closingBadgeDrift": {
+        "makes": 0,
+        "models": 0
+      },
+      "closingBadgeLimit": 41,
+      "optimisticUnverifiedBins": {
+        "stocks": ["MISC", "MIS", "NEW"],
+        "accounting": {
+          "recordsProcessed": 4167,
+          "recordsExcluded": 41,
+          "recordsRejected": 419,
+          "duplicateVehicles": 47
+        },
+        "accepted": 3660,
+        "rejectionRate": 0.10155113911778962
+      },
+      "status": "excluded",
+      "reason": "Full census rejects 460 / 4167 observations (11.04%). Even hypothetically excluding all MISC, MIS and NEW bins leaves 419 / 4126 rejected (10.15%). No bins are qualified or excluded."
+    },
+    {
+      "code": "idrive",
+      "urgid": "MI47",
+      "yard": "iDrive Auto Parts",
+      "state": "MI",
+      "recordedAttempts": 10,
+      "publishedMakes": 39,
+      "status": "excluded",
+      "reason": "Ford F150 returns 30 cards against badge 83. No continuation is published; page=2 returns 404, and per_page=500 repeats the same 30 cards."
+    }
+  ],
+  "sourceAfterAdditions": {
+    "acceptedBeforeSourceDeduplication": 38191,
+    "uniqueVins": 38191,
+    "crossTenantDuplicates": 0,
+    "floor": 30000,
+    "successfulNativeRequests": 8546,
+    "requestLimit": 30000,
+    "responseBytes": 1458598956,
+    "bodyLimitBytes": 8589934592,
+    "pacingHours": 5.879416666666667,
+    "capturedNewTenantResponseHours": 0.0,
+    "estimatedSerialHoursWithOneSecondBaseResponses": 8.253305555555556,
+    "estimatedSerialHoursWithFiveSecondBaseResponses": 17.74886111111111,
+    "bounds": [
+      {
+        "yard": "eagle-martinsburg",
+        "floor": 1200,
+        "conservativeRemaining": 1448
+      },
+      {
+        "yard": "linders",
+        "floor": 2600,
+        "conservativeRemaining": 3274
+      },
+      {
+        "yard": "chuckran",
+        "floor": 2900,
+        "conservativeRemaining": 3671
+      },
+      {
+        "yard": "united",
+        "floor": 9800,
+        "conservativeRemaining": 12356
+      },
+      {
+        "yard": "ace-iowa",
+        "floor": 1200,
+        "conservativeRemaining": 1524
+      },
+      {
+        "yard": "lentini-ringoes",
+        "floor": 1900,
+        "conservativeRemaining": 2429
+      },
+      {
+        "yard": "lentini-port-murray",
+        "floor": 700,
+        "conservativeRemaining": 924
+      },
+      {
+        "yard": "dings",
+        "floor": 800,
+        "conservativeRemaining": 1110
+      },
+      {
+        "yard": "bishops",
+        "floor": 2600,
+        "conservativeRemaining": 3362
+      },
+      {
+        "yard": "ace-st-paul",
+        "floor": 2400,
+        "conservativeRemaining": 3015
+      },
+      {
+        "yard": "chucks",
+        "floor": 2000,
+        "conservativeRemaining": 2601
+      },
+      {
+        "yard": "central-nh",
+        "floor": 1900,
+        "conservativeRemaining": 2477
+      }
+    ],
+    "note": "Whole-source wall time is a pacing-plus-response estimate, not a live end-to-end soak. Base response latency is modeled explicitly; added tenant latency uses its captured native responses. Qualification used a separate shared cross-batch gate. The source remains disabled."
+  }
+}

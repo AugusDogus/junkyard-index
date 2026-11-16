@@ -1,0 +1,61 @@
+{
+  "method": "yard-published-map",
+  "ownerUrl": "https://borgesauto.com/contact-us/",
+  "publishedMapUrl": "https://maps.app.goo.gl/iEptMf2jynuExhBo8",
+  "publishedLocationHtml": "<a class=\"x-anchor x-anchor-button e290-e15 m82-t m82-u m82-v m82-w m82-13 m82-14 m82-15\" tabindex=\"0\" href=\"https://maps.app.goo.gl/iEptMf2jynuExhBo8\" target=\"_blank\" rel=\"noopener noreferrer\"><div class=\"x-anchor-content\"><div class=\"x-anchor-text\"><span class=\"x-anchor-text-primary\">2200 Lewis Street</span><span class=\"x-anchor-text-secondary\">Dighton, MA 02715</span></div></div><span class=\"x-new-tab-notice\">(opens in a new tab)</span></a>",
+  "redirectStatus": 302,
+  "resolvedMapUrl": "https://www.google.com/maps/place/Borges+Foreign+Auto+Parts/@41.8208961,-71.1830139,15z/data=!4m6!3m5!1s0x89e4f618bd8944f9:0xfc35e8a0c0de520e!8m2!3d41.8208961!4d-71.1830139!16s%2Fg%2F1tdzg_y0",
+  "lat": 41.8208961,
+  "lng": -71.1830139,
+  "note": "Coordinates are the explicit !3d/!4d place point in the redirect from the map link published beside the yard address. Census returned no match for the published address, without ZIP, or with North Dighton.",
+  "censusAttempts": [
+    {
+      "result": {
+        "input": {
+          "address": {
+            "address": "2200 Lewis Street, Dighton, MA 02715"
+          },
+          "benchmark": {
+            "isDefault": true,
+            "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+            "id": "4",
+            "benchmarkName": "Public_AR_Current"
+          }
+        },
+        "addressMatches": []
+      }
+    },
+    {
+      "result": {
+        "input": {
+          "address": {
+            "address": "2200 Lewis St, Dighton, MA"
+          },
+          "benchmark": {
+            "isDefault": true,
+            "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+            "id": "4",
+            "benchmarkName": "Public_AR_Current"
+          }
+        },
+        "addressMatches": []
+      }
+    },
+    {
+      "result": {
+        "input": {
+          "address": {
+            "address": "2200 Lewis Street, North Dighton, MA"
+          },
+          "benchmark": {
+            "isDefault": true,
+            "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+            "id": "4",
+            "benchmarkName": "Public_AR_Current"
+          }
+        },
+        "addressMatches": []
+      }
+    }
+  ]
+}
