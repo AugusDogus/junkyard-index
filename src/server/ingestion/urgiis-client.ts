@@ -35,12 +35,15 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
         "URL is outside the qualified native graph: " + url,
       ),
     );
+  // Some WordPress filters reject literal parentheses in native model slugs.
+  // Encode them for HTTP while retaining the published graph and checkpoints.
+  const requestUrl = url.replaceAll("(", "%28").replaceAll(")", "%29");
   return Effect.suspend(() => {
     const request = Effect.tryPromise({
       try: async (signal) => {
         const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
         const combined = AbortSignal.any([signal, timeout]);
-        const response = await fetch(url, {
+        const response = await fetch(requestUrl, {
           signal: combined,
           redirect: "manual",
           headers: {
@@ -59,7 +62,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
         if (
           response.status !== 200 ||
           response.redirected ||
-          (response.url && response.url !== url) ||
+          (response.url && response.url !== requestUrl) ||
           response.headers.has("content-range") ||
           response.headers
             .get("content-type")
