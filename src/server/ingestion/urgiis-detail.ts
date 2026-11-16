@@ -7,7 +7,7 @@ import type { UrgiisTenant } from "./urgiis-tenant";
 export function urgiisDetailSeller(
   raw: string,
   tenant: UrgiisTenant,
-  expected: { stock: string; year: string },
+  expected: { stock: string; year: string; vin: string },
 ): string | null {
   const html = iisDocument(raw, tenant);
   if (tenant.attribution.kind !== "seller")
@@ -26,6 +26,16 @@ export function urgiisDetailSeller(
     return supplied.length > 0 && supplied.every((v) => v === expected);
   };
   if (!matches("stockno", expected.stock) || !matches("yearin", expected.year))
+    return null;
+  const vins = iisElements(html, "li", (tag) => iisClass(tag, "iispartpagevin"))
+    .map(({ body }) =>
+      iisText(body)
+        .replace(/^VIN\s*:\s*/i, "")
+        .trim()
+        .toUpperCase(),
+    )
+    .filter(Boolean);
+  if (vins.some((vin) => vin !== expected.vin.trim().toUpperCase()))
     return null;
   const sellers = values("sellingurgid");
   const prefixes = iisElements(html, "li", (tag) =>

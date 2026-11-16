@@ -50,7 +50,7 @@ export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
 ]);
 export type UrgiisEntry = z.infer<typeof UrgiisEntrySchema>;
 export type UrgiisTask =
-  | { kind: "detail"; url: string; stock: string; year: string }
+  | { kind: "detail"; url: string; stock: string; year: string; vin: string }
   | { kind: "owner"; url: string }
   | { kind: "makes"; url: string }
   | { kind: "arrivals"; url: string }
@@ -111,7 +111,13 @@ export function urgiisTasks(
     )
       return prefix;
     for (const record of entry.records) {
-      if (!record.vins.some((v) => v.trim())) continue;
+      const vins = [
+        ...new Set(
+          record.vins.map((v) => v.trim().toUpperCase()).filter(Boolean),
+        ),
+      ];
+      const vin = vins.length === 1 ? vins[0] : undefined;
+      if (!vin) continue;
       const destination = [...new Set(record.destinations)];
       const url =
         destination.length === 1 ? URL.parse(destination[0] ?? "") : null;
@@ -143,6 +149,7 @@ export function urgiisTasks(
         url: url.href,
         stock: record.stock,
         year,
+        vin,
       });
     }
   }
