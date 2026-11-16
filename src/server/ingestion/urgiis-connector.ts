@@ -1,3 +1,4 @@
+import { urgiisArrivalsCoverage } from "./urgiis-arrivals";
 import {
   resumeUrgiisCensus,
   type UrgiisCensusHistory,
@@ -163,6 +164,16 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         );
       const tasks = urgiisTasks(cursor.entries, tenant);
       const previousTenant = census.tenants.find((t) => t.code === tenant.code);
+      if (
+        cursor.phase === "opening" &&
+        cursor.entries.length === tasks.findIndex((t) => t.kind === "model")
+      ) {
+        const coverage = urgiisArrivalsCoverage(cursor.entries, previousTenant);
+        if (coverage.kind === "overflow")
+          result.warnings.push(
+            `${tenant.code}: arrivals window may have overflowed (${coverage.reason}); requiring a full census today. Failed model requests cannot carry old donors in this census.`,
+          );
+      }
       if (unsealed && cursor.phase !== "opening") {
         const sealed = yield* boundary("carried frontier checkpoint", () =>
           UrgiisCursor.checkpoint(cursor, tenants),
@@ -311,7 +322,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         const failedAt = options.now ?? Date.now();
         const deferred =
           cursor.phase === "opening"
-            ? urgiisDefer(task, previousTenant, failedAt)
+            ? urgiisDefer(task, cursor.entries, previousTenant, failedAt)
             : undefined;
         if (!deferred) return yield* Effect.fail(response.left);
         const entries = [...cursor.entries, deferred];

@@ -1,3 +1,4 @@
+import { urgiisArrivalsCoverage, urgiisDonorIdentity } from "./urgiis-arrivals";
 import { z } from "zod";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import {
@@ -13,7 +14,7 @@ import type { UrgiisRecord } from "./urgiis-schema";
 export const URGIIS_DAY_MS = 24 * 60 * 60 * 1000;
 export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
 // Bump this whenever admission, traversal or interpretation of cached evidence changes.
-const contract = "incremental-census-v1";
+const contract = "incremental-census-v2";
 const tenantSchema = z
   .object({
     code: z.string(),
@@ -52,11 +53,6 @@ function validate(
       throw new Error("IIS accepted model evidence is dated in the future");
   });
 }
-const identity = (record: UrgiisRecord) =>
-  JSON.stringify({
-    stock: record.stock,
-    vins: record.vins.map((v) => v.trim().toUpperCase()).sort(),
-  });
 function previousModel(
   task: UrgiisTask,
   previous: UrgiisTenantCensus | undefined,
@@ -118,7 +114,12 @@ export function urgiisCarry(
     return detail ? { ...detail, bytes: 0 } : undefined;
   }
   const before = previousModel(task, previous);
-  if (!before || task.kind !== "model") return undefined;
+  if (
+    !before ||
+    task.kind !== "model" ||
+    urgiisArrivalsCoverage(entries, previous).kind === "overflow"
+  )
+    return undefined;
   const index = entries
     .flatMap((e) => (e.kind === "menu" ? e.controls : []))
     .findIndex((c) => c.path === task.model.path);
@@ -139,12 +140,12 @@ export function urgiisCarry(
     e.kind === "arrivals" ? e.records.filter(belongs) : [],
   );
   const known = new Set(
-    [...before.entry.records, ...previousArrivals].map(identity),
+    [...before.entry.records, ...previousArrivals].map(urgiisDonorIdentity),
   );
   const unknownArrival =
     arrivals?.kind === "arrivals" &&
     arrivals.records.some(
-      (record) => belongs(record) && !known.has(identity(record)),
+      (record) => belongs(record) && !known.has(urgiisDonorIdentity(record)),
     );
   if (
     before.model.count !== task.model.count ||
@@ -161,12 +162,14 @@ export function urgiisCarry(
 }
 export function urgiisDefer(
   task: UrgiisTask,
+  entries: readonly UrgiisEntry[],
   previous: UrgiisTenantCensus | undefined,
   now: number,
 ) {
   const before = previousModel(task, previous);
   if (
     !before ||
+    urgiisArrivalsCoverage(entries, previous).kind === "overflow" ||
     task.kind !== "model" ||
     task.model.count >= 500 ||
     now - before.entry.freshness.readAt >= URGIIS_SWEEP_MS

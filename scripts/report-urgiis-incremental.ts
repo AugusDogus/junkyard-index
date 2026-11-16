@@ -1,3 +1,4 @@
+import { urgiisArrivalDate } from "../src/server/ingestion/urgiis-arrivals";
 import { URGIIS_TENANTS } from "../src/server/ingestion/urgiis-configuration";
 import { UrgiisReplayArchive } from "../src/server/ingestion/urgiis-replay-archive";
 import { iisCards, iisDirectory } from "../src/server/ingestion/urgiis-catalog";
@@ -17,6 +18,7 @@ import {
 // Offline request accounting. The latency scenario is explicit, not a live timing
 // claim: 6 seconds per HTML response plus each tenant's configured response gate.
 const rows = [];
+const start = Date.UTC(2026, 10, 16);
 for (const tenant of URGIIS_TENANTS) {
   const archive = await UrgiisReplayArchive.open(tenant.code);
   const entries: UrgiisEntry[] = [];
@@ -61,14 +63,18 @@ for (const tenant of URGIIS_TENANTS) {
                 ...receipt,
                 kind: "model",
                 records,
-                freshness: { kind: "read", readAt: 0 },
+                freshness: { kind: "read", readAt: start },
               }
             : { ...receipt, kind: "arrivals", records },
         );
       }
     }
-    const census = UrgiisCensus.accept(UrgiisCensus.empty(), tenant, entries, 0)
-      .tenants[0];
+    const census = UrgiisCensus.accept(
+      UrgiisCensus.empty(),
+      tenant,
+      entries,
+      start,
+    ).tenants[0];
     let previous = census;
     const tasks = urgiisTasks(entries, tenant);
     const closingRequests = tasks.filter(
@@ -81,13 +87,21 @@ for (const tenant of URGIIS_TENANTS) {
       tasks.forEach((task, index) => {
         const original = entries[index];
         if (!original) throw new Error("Missing fixture entry");
-        const carry = urgiisCarry(task, today, previous, day * URGIIS_DAY_MS);
+        const carry = urgiisCarry(
+          task,
+          today,
+          previous,
+          start + day * URGIIS_DAY_MS,
+        );
         today.push(
           carry ??
             (original.kind === "model"
               ? {
                   ...original,
-                  freshness: { kind: "read", readAt: day * URGIIS_DAY_MS },
+                  freshness: {
+                    kind: "read",
+                    readAt: start + day * URGIIS_DAY_MS,
+                  },
                 }
               : original),
         );
@@ -98,7 +112,7 @@ for (const tenant of URGIIS_TENANTS) {
         UrgiisCensus.empty(),
         tenant,
         today,
-        day * URGIIS_DAY_MS,
+        start + day * URGIIS_DAY_MS,
       ).tenants[0];
     }
     const average = requests.reduce((a, b) => a + b, 0) / 7;
@@ -118,6 +132,28 @@ for (const tenant of URGIIS_TENANTS) {
     const overlap = [...arrivalStocks].filter((stock) =>
       modelStocks.has(stock),
     ).length;
+    const arrivalDates = arrivals.map(urgiisArrivalDate);
+    let comparableDatePairs = 0;
+    let outOfOrderDatePairs = 0;
+    let comparablePurchasePairs = 0;
+    let outOfOrderPurchasePairs = 0;
+    for (let index = 1; index < arrivals.length; index++) {
+      const before = arrivalDates[index - 1];
+      const current = arrivalDates[index];
+      if (
+        before === null ||
+        before === undefined ||
+        current === null ||
+        current === undefined
+      )
+        continue;
+      comparableDatePairs++;
+      if (current > before) outOfOrderDatePairs++;
+      if (arrivals[index - 1]?.purchaseDate && arrivals[index]?.purchaseDate) {
+        comparablePurchasePairs++;
+        if (current > before) outOfOrderPurchasePairs++;
+      }
+    }
     const seconds = tenant.pacingMs / 1000 + 6;
     rows.push({
       tenant: tenant.code,
@@ -131,6 +167,14 @@ for (const tenant of URGIIS_TENANTS) {
       afterMinutes: +((average * seconds) / 60).toFixed(1),
       modelStocks: modelStocks.size,
       arrivalStocks: arrivalStocks.size,
+      purchaseDatedArrivals: arrivals.filter(
+        (r) => r.purchaseDate !== undefined && r.purchaseDate !== null,
+      ).length,
+      datedArrivals: arrivalDates.filter((date) => date !== null).length,
+      comparableDatePairs,
+      outOfOrderDatePairs,
+      comparablePurchasePairs,
+      outOfOrderPurchasePairs,
       arrivalModelOverlap: overlap,
       arrivalsOnly: arrivalStocks.size - overlap,
       censusBytes: new TextEncoder().encode(JSON.stringify(census)).length,

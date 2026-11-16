@@ -282,6 +282,9 @@ export function iisCards(
       stock: optional("stock") ?? optional("stock #"),
       image: tag ? optionalImage(tag) : null,
       date: optional("enter date"),
+      ...(optional("purchase date") === null
+        ? {}
+        : { purchaseDate: optional("purchase date") }),
     };
   });
   return {
