@@ -40,3 +40,26 @@ No live provider requests were made for this audit.
 | samson-auto-salvage                |               283 |                              1 |                         282 |                               13 |
 | santa-maria-recycling-center       |              3276 |                             62 |                        3214 |                               82 |
 | cfc-recycling                      |               407 |                             12 |                         395 |                               27 |
+
+## Additional native yards in #168
+
+The twelve subsequent yards also require check-digit validation. Their saved
+13,280 rows now yield 12,970 accepted and 310 rejected (162 additional rejections).
+Every yard remains below 10%; Roberts is highest at 8.23%. CFC and all twelve
+additions together accept 13,365 donors, and the full fresh Ario replay accepts
+32,170. No enablement flag was introduced. No live provider requests were made.
+
+| Yard                                     | Previous accepted | Additional check-digit rejects | Accepted | Rejected | Rejection rate |
+| ---------------------------------------- | ----------------: | -----------------------------: | -------: | -------: | -------------: |
+| cash-n-carry-pull-your-part-savannah-ga  |               680 |                             11 |      669 |       38 |          5.37% |
+| wilberts-u-pull-it-williamson-ny         |              2594 |                              1 |     2593 |        4 |          0.15% |
+| youngstown-u-pull-it-youngstown-oh       |              1524 |                             25 |     1499 |       58 |          3.73% |
+| barry-s-u-pull-it-theodore-al            |               684 |                              0 |      684 |        1 |          0.15% |
+| roberts-parts-u-pick-moffett-ok          |              1228 |                             69 |     1159 |      104 |          8.23% |
+| parts-you-pull-amite-la                  |               473 |                              1 |      472 |        9 |          1.87% |
+| wilberts-u-pull-it-elma-ny               |              1322 |                              0 |     1322 |        3 |          0.23% |
+| baughmans-u-pull-it-york-pa              |              1099 |                             12 |     1087 |       33 |          2.95% |
+| a-1-crashed-cars-south-sioux-city-ne     |              1121 |                              9 |     1112 |       12 |          1.07% |
+| wilberts-u-pull-it-bath-ny               |              1116 |                              0 |     1116 |        0 |          0.00% |
+| milliron-auto-parts-mansfield-oh         |               695 |                             29 |      666 |       35 |          4.99% |
+| smith-auto-inc-self-serve-pawnee-city-ne |               596 |                              5 |      591 |       13 |          2.15% |
