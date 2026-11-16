@@ -183,7 +183,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(calls).toHaveLength(2 * HOLLANDERSTORES_YARDS.length);
     expect(batches).toHaveLength(1);
     expect(IngestionSourceFlags.resolve({})).not.toContain("hollanderstores");
-  }, 180000);
+  }, 600_000);
   test("closing drift and corrupt checkpoints cannot emit", async () => {
     let requests = 0,
       emitted = false;
@@ -245,7 +245,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(result.errors.join(" ")).toContain("surviving vehicle fields");
     expect(emitted).toBe(false);
     expect(requests).toBe(HOLLANDERSTORES_YARDS.length);
-  }, 180000);
+  }, 600_000);
   test("provider failures never release partial inventory", async () => {
     let emitted = false;
     const result = await Effect.runPromiseExit(

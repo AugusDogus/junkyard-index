@@ -1,0 +1,20 @@
+{
+  "yards": 52,
+  "rows": 58964,
+  "accepted": 58096,
+  "missingMakeVins": 16111,
+  "decodeOperations": 323,
+  "htmlRequests": 104,
+  "logicalOperations": 427,
+  "cursorBytes": 11155467,
+  "unresolvedMakeVins": 1,
+  "timedHtmlRequests": 94,
+  "timedHtmlSeconds": 1326.893,
+  "maxHtmlSeconds": 176.1,
+  "newVpicRequests": 119,
+  "newVpicMeanSeconds": 2.555,
+  "newVpicMaxSeconds": 5.092,
+  "serialGapSeconds": 3,
+  "estimatedColdTransportSeconds": 3433.3,
+  "estimatedSeededTransportSeconds": 1638.9
+}

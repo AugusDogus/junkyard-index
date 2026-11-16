@@ -160,4 +160,4 @@ test("all saved opening and closing bodies replay through production HTTP with c
   } finally {
     fetchSpy.mockRestore();
   }
-}, 180000);
+}, 600_000);

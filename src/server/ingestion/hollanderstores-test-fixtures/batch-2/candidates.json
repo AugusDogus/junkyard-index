@@ -1,0 +1,583 @@
+[
+  {
+    "code": "strickerauto",
+    "decision": "excluded",
+    "name": "Stricker Auto Parts",
+    "tenant": "2364",
+    "state": "OH",
+    "total": 12456,
+    "reason": "Complete card response is 47,899,239 bytes, exceeding the 40 MiB production body cap. Both full 12,456-row censuses match. No partial inventory or body-limit relaxation.",
+    "currency": {
+      "minRecordId": 408728,
+      "maxRecordId": 72789288,
+      "recordsSince2026": 423
+    },
+    "requests": {
+      "hollander": 3,
+      "vpic": 0,
+      "location": 0,
+      "total": 3
+    }
+  },
+  {
+    "code": "macksautoparts",
+    "decision": "qualified",
+    "name": "Mack's Auto Parts",
+    "tenant": "1626",
+    "logo": "Mack's Auto Parts",
+    "state": "MO",
+    "total": 1160,
+    "currency": {
+      "minRecordId": 38930081,
+      "maxRecordId": 72660508,
+      "recordsSince2026": 55,
+      "leadingStocks": [
+        "261006",
+        "261005",
+        "261004",
+        "261003",
+        "261002",
+        "261001",
+        "260904",
+        "260903"
+      ],
+      "numeric2026StockPrefixes": 69
+    },
+    "accepted": 1155,
+    "rejected": 5,
+    "requests": {
+      "hollander": 3,
+      "vpic": 6,
+      "location": 9,
+      "total": 18
+    }
+  },
+  {
+    "code": "alsautosalvage",
+    "decision": "qualified",
+    "name": "ALS Auto Salvage",
+    "tenant": "257",
+    "logo": "ALS AUTO SALVAGE",
+    "state": "MO",
+    "total": 714,
+    "currency": {
+      "minRecordId": 65727030,
+      "maxRecordId": 72801457,
+      "recordsSince2026": 710,
+      "leadingStocks": [
+        "VW1385",
+        "VW1384",
+        "VW1383",
+        "VW1382",
+        "VW1381",
+        "VW1380",
+        "VW1379",
+        "VW1378"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 703,
+    "rejected": 11,
+    "requests": {
+      "hollander": 3,
+      "vpic": 4,
+      "location": 1,
+      "total": 8
+    }
+  },
+  {
+    "code": "aaautosalvage",
+    "decision": "qualified",
+    "name": "AA Auto Salvage",
+    "tenant": "5074",
+    "logo": "AA Auto Salvage",
+    "state": "FL",
+    "total": 341,
+    "currency": {
+      "minRecordId": 58312884,
+      "maxRecordId": 72734039,
+      "recordsSince2026": 101,
+      "leadingStocks": [
+        "261166",
+        "261165",
+        "261105",
+        "261099",
+        "261096",
+        "261088",
+        "261052",
+        "261012"
+      ],
+      "numeric2026StockPrefixes": 106
+    },
+    "accepted": 340,
+    "rejected": 1,
+    "requests": {
+      "hollander": 3,
+      "vpic": 3,
+      "location": 1,
+      "total": 7
+    }
+  },
+  {
+    "code": "jakesautoparts",
+    "decision": "qualified",
+    "name": "Jake's Auto Parts",
+    "tenant": "5628",
+    "logo": "Jake's Auto Parts",
+    "state": "LA",
+    "total": 214,
+    "currency": {
+      "minRecordId": 71273290,
+      "maxRecordId": 72792414,
+      "recordsSince2026": 214,
+      "leadingStocks": [
+        "26K810",
+        "26K809",
+        "26K808",
+        "26K807",
+        "26K806",
+        "26K805",
+        "26K804",
+        "26J802"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 213,
+    "rejected": 1,
+    "requests": {
+      "hollander": 3,
+      "vpic": 1,
+      "location": 1,
+      "total": 5
+    }
+  },
+  {
+    "code": "gogoautoparts",
+    "decision": "qualified",
+    "name": "Go Go Auto Parts",
+    "tenant": "1201",
+    "logo": "Go Go Auto Parts",
+    "state": "MI",
+    "total": 171,
+    "currency": {
+      "minRecordId": 40723244,
+      "maxRecordId": 72799081,
+      "recordsSince2026": 141,
+      "leadingStocks": [
+        "110865",
+        "110864",
+        "110863",
+        "110861",
+        "110860",
+        "110858",
+        "110857",
+        "110855"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 171,
+    "rejected": 0,
+    "requests": {
+      "hollander": 3,
+      "vpic": 1,
+      "location": 1,
+      "total": 5
+    }
+  },
+  {
+    "code": "bobbysauto",
+    "decision": "qualified",
+    "name": "Bobby's Auto Parts",
+    "tenant": "5695",
+    "logo": "Bobby's Auto Parts",
+    "state": "AL",
+    "total": 293,
+    "currency": {
+      "minRecordId": 30697431,
+      "maxRecordId": 72742732,
+      "recordsSince2026": 58,
+      "leadingStocks": [
+        "Y21316",
+        "L39531",
+        "L13147",
+        "G43280",
+        "D03193",
+        "C81361",
+        "C34334",
+        "C17267"
+      ],
+      "numeric2026StockPrefixes": 1
+    },
+    "accepted": 291,
+    "rejected": 2,
+    "requests": {
+      "hollander": 3,
+      "vpic": 1,
+      "location": 9,
+      "total": 13
+    }
+  },
+  {
+    "code": "mstrecycling",
+    "decision": "qualified",
+    "name": "MST Recycling",
+    "tenant": "5587",
+    "logo": "MSTRecycling",
+    "state": "CA",
+    "total": 233,
+    "currency": {
+      "minRecordId": 71546912,
+      "maxRecordId": 72808935,
+      "recordsSince2026": 233,
+      "leadingStocks": [
+        "Z26562",
+        "Z26560",
+        "z26550",
+        "Z26547",
+        "Z26546",
+        "Z26545",
+        "Z26544",
+        "Z26543"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 224,
+    "rejected": 9,
+    "requests": {
+      "hollander": 3,
+      "vpic": 1,
+      "location": 1,
+      "total": 5
+    }
+  },
+  {
+    "code": "foreignusedpart",
+    "decision": "qualified",
+    "name": "Foreign Used Parts",
+    "tenant": "1111",
+    "logo": "Foreign Used Parts",
+    "state": "CO",
+    "total": 2157,
+    "currency": {
+      "minRecordId": 539774,
+      "maxRecordId": 72800449,
+      "recordsSince2026": 371,
+      "leadingStocks": [
+        "9B3881",
+        "9B3879",
+        "9B3878",
+        "9B3876",
+        "9B3875",
+        "9B3872",
+        "9B3870",
+        "9B3865"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 2124,
+    "rejected": 33,
+    "requests": {
+      "hollander": 3,
+      "vpic": 12,
+      "location": 1,
+      "total": 16
+    }
+  },
+  {
+    "code": "mkauto",
+    "decision": "qualified",
+    "name": "M&K Used Auto Parts",
+    "tenant": "1779",
+    "logo": "M&K Used Auto Parts",
+    "state": "FL",
+    "total": 2018,
+    "currency": {
+      "minRecordId": 39790944,
+      "maxRecordId": 72748714,
+      "recordsSince2026": 448,
+      "leadingStocks": [
+        "261114",
+        "261106",
+        "261104",
+        "261059",
+        "261058",
+        "261057",
+        "261056",
+        "261055"
+      ],
+      "numeric2026StockPrefixes": 519
+    },
+    "accepted": 2009,
+    "rejected": 9,
+    "requests": {
+      "hollander": 3,
+      "vpic": 11,
+      "location": 1,
+      "total": 15
+    }
+  },
+  {
+    "code": "hartsparts",
+    "decision": "qualified",
+    "name": "Hart's Parts & Recycling",
+    "tenant": "7627",
+    "logo": "Hart's Parts",
+    "state": "GA",
+    "total": 393,
+    "currency": {
+      "minRecordId": 71458356,
+      "maxRecordId": 72798840,
+      "recordsSince2026": 393,
+      "leadingStocks": [
+        "6L0216",
+        "6L0215",
+        "6L0214",
+        "6L0213",
+        "6L0212",
+        "6L0211",
+        "6L0210",
+        "6L0207"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 367,
+    "rejected": 26,
+    "requests": {
+      "hollander": 3,
+      "vpic": 2,
+      "location": 1,
+      "total": 6
+    }
+  },
+  {
+    "code": "veldmans",
+    "decision": "qualified",
+    "name": "Veldman's Auto Parts",
+    "tenant": "2518",
+    "logo": "Veldman's Auto Parts",
+    "state": "IN",
+    "total": 473,
+    "currency": {
+      "minRecordId": 71155211,
+      "maxRecordId": 72781573,
+      "recordsSince2026": 473,
+      "leadingStocks": [
+        "260818",
+        "260817",
+        "260812",
+        "260811",
+        "260810",
+        "260809",
+        "260807",
+        "260806"
+      ],
+      "numeric2026StockPrefixes": 473
+    },
+    "accepted": 471,
+    "rejected": 2,
+    "requests": {
+      "hollander": 3,
+      "vpic": 3,
+      "location": 1,
+      "total": 7
+    }
+  },
+  {
+    "code": "davissalvageky",
+    "decision": "qualified",
+    "name": "Davis Salvage",
+    "tenant": "907",
+    "logo": "Davis Salvage",
+    "state": "KY",
+    "total": 297,
+    "currency": {
+      "minRecordId": 68898758,
+      "maxRecordId": 72786901,
+      "recordsSince2026": 290,
+      "leadingStocks": [
+        "261115",
+        "261109",
+        "261108",
+        "261107",
+        "261106",
+        "261105",
+        "261103",
+        "261102"
+      ],
+      "numeric2026StockPrefixes": 293
+    },
+    "accepted": 297,
+    "rejected": 0,
+    "requests": {
+      "hollander": 3,
+      "vpic": 5,
+      "location": 9,
+      "total": 17
+    }
+  },
+  {
+    "code": "wellerauto",
+    "decision": "qualified",
+    "name": "Weller Auto Parts",
+    "tenant": "2561",
+    "logo": "Weller Auto Parts",
+    "state": "MI",
+    "total": 2192,
+    "currency": {
+      "minRecordId": 69613702,
+      "maxRecordId": 72781730,
+      "recordsSince2026": 1637,
+      "leadingStocks": [
+        "99126U",
+        "93243",
+        "93224",
+        "93178",
+        "93139",
+        "93133",
+        "93130",
+        "93116"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 2138,
+    "rejected": 54,
+    "requests": {
+      "hollander": 3,
+      "vpic": 14,
+      "location": 1,
+      "total": 18
+    }
+  },
+  {
+    "code": "champion",
+    "decision": "qualified",
+    "name": "Champion Auto Parts",
+    "tenant": "4427",
+    "logo": "Champion Auto Parts",
+    "state": "MI",
+    "total": 72,
+    "currency": {
+      "minRecordId": 71182072,
+      "maxRecordId": 72781631,
+      "recordsSince2026": 72,
+      "leadingStocks": [
+        "049228",
+        "049227",
+        "049224",
+        "049223",
+        "049222",
+        "049221",
+        "049219",
+        "049218"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 72,
+    "rejected": 0,
+    "requests": {
+      "hollander": 3,
+      "vpic": 1,
+      "location": 1,
+      "total": 5
+    }
+  },
+  {
+    "code": "rainbowauto",
+    "decision": "qualified",
+    "name": "Rainbow Auto Salvage",
+    "tenant": "2050",
+    "logo": "Rainbow Auto Salvage",
+    "state": "OK",
+    "total": 328,
+    "currency": {
+      "minRecordId": 239228,
+      "maxRecordId": 72533886,
+      "recordsSince2026": 6,
+      "leadingStocks": [
+        "26K424",
+        "26E420",
+        "26D419",
+        "26D418",
+        "26B416",
+        "26B415",
+        "26B414",
+        "26B413"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 304,
+    "rejected": 24,
+    "requests": {
+      "hollander": 3,
+      "vpic": 3,
+      "location": 1,
+      "total": 7
+    }
+  },
+  {
+    "code": "pascoauto",
+    "decision": "qualified",
+    "name": "Pasco Auto Wrecking",
+    "tenant": "1950",
+    "logo": "Pasco Auto Wrecking",
+    "state": "WA",
+    "total": 6179,
+    "currency": {
+      "minRecordId": 305668,
+      "maxRecordId": 72744792,
+      "recordsSince2026": 156,
+      "leadingStocks": [
+        "35330",
+        "35329",
+        "35328",
+        "35327",
+        "35326",
+        "35325",
+        "35324",
+        "35323"
+      ],
+      "numeric2026StockPrefixes": 30
+    },
+    "accepted": 6146,
+    "rejected": 33,
+    "requests": {
+      "hollander": 3,
+      "vpic": 49,
+      "location": 1,
+      "total": 53
+    }
+  },
+  {
+    "code": "awcaw",
+    "decision": "qualified",
+    "name": "All West Coast Auto Wrecking",
+    "tenant": "249",
+    "logo": "All West Coast Auto",
+    "state": "WA",
+    "total": 211,
+    "currency": {
+      "minRecordId": 71492714,
+      "maxRecordId": 72809891,
+      "recordsSince2026": 211,
+      "leadingStocks": [
+        "N15615",
+        "N15611",
+        "N15604",
+        "N15603",
+        "N15602",
+        "N15601",
+        "N15600",
+        "N15599"
+      ],
+      "numeric2026StockPrefixes": 0
+    },
+    "accepted": 201,
+    "rejected": 10,
+    "requests": {
+      "hollander": 3,
+      "vpic": 2,
+      "location": 1,
+      "total": 6
+    }
+  }
+]

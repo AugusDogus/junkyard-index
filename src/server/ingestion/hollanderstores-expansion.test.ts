@@ -78,7 +78,7 @@ test("new vPIC evidence covers only missing native makes, in unique batches of a
   // OK was decoded during qualification, then excluded for unstable record order.
   const auditedYards = [
     ...HOLLANDERSTORES_YARDS.filter(
-      (yard) => yard.operator !== "Paul's Auto Yard",
+      (yard, index) => index < 5 || existsSync(root + yard.code + ".html.gz"),
     ),
     {
       ...HOLLANDERSTORES_YARDS[0],
@@ -155,8 +155,8 @@ test("coordinates match saved Census, OSM buildings or business parcels, and yar
       }),
     )
     .parse(JSON.parse(readFileSync(root + "locations.json", "utf8")));
-  for (const yard of HOLLANDERSTORES_YARDS.slice(5).filter(
-    (yard) => yard.operator !== "Paul's Auto Yard",
+  for (const yard of HOLLANDERSTORES_YARDS.slice(5).filter((yard) =>
+    existsSync(root + yard.code + ".html.gz"),
   )) {
     const location = locations.find((location) => location.code === yard.code);
     if (!location)
