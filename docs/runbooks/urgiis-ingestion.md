@@ -36,7 +36,7 @@ Concurrent qualification batches on one machine share `/tmp/jyi-urg-gate.lock` a
 
 The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then included six arrival observations. It accepted 1,448 unique vehicles, rejected 127 observations, excluded 143 part bins and merged five duplicates. Of 1,717 model cards, 257 had blank VINs (85.0% carried a nonblank VIN). The eligible rejection rate is 127 / 1,580 (8.04%). Its floor is 1,200. The US Census point for 2744 Eagle School Road, Martinsburg, WV 25404 is 39.468480369268, -77.925464629822. The saved geocoder receipt and full 363-response replay are fixtures.
 
-Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). The counts below describe the original qualification before that batch.
+Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). Its historical counts predate the full restacked configuration; the incremental estimate below includes every configured tenant.
 
 ## Incremental daily census
 
@@ -66,9 +66,9 @@ A sold car replaced by another car of the same model without the replacement app
 
 If one car sells and another enters the same model on the same day, a new arrival triggers that model’s complete read and catches both changes that day. If the whole arrivals window is new, the full-census fallback catches them. When the replacement never appears in arrivals, unchanged badges cannot reveal the swap: the old car can stay listed and the new one absent until that model’s next sweep, within about seven days when daily runs succeed. A newly entered donor with an old purchase date can be buried below the arrivals window immediately. That backdated case relies on the sweep as well.
 
-The saved windows contain 415 dated cards out of 434, including 180 cards with explicit purchase dates. All 177 adjacent purchase-date pairs are in descending or equal order, with zero inversions; all 406 comparable purchase/entry-date pairs likewise have zero inversions. Chuckran’s 19 cards publish neither date. This measures static display order only. It does **not** estimate how often a newly entered car has an old purchase date, because the fixtures have no before/after insertion times. Zero inversions must not be presented as a zero backdating rate. Successive dated captures or an authoritative entry timestamp are needed to measure that rate. The JSON report retains per-tenant date coverage and ordering counts.
+The saved windows contain 647 dated cards out of 726, including 254 cards with explicit purchase dates. All 249 adjacent purchase-date pairs are in descending or equal order, with zero inversions; all 632 comparable purchase/entry-date pairs likewise have zero inversions. Chuckran’s 19 cards and A-Z’s 60 cards publish neither date. This measures static display order only. It does **not** estimate how often a newly entered car has an old purchase date, because the fixtures have no before/after insertion times. Zero inversions must not be presented as a zero backdating rate. Successive dated captures or an authoritative entry timestamp are needed to measure that rate. The JSON report retains per-tenant date coverage and ordering counts.
 
-The saved censuses contain 434 distinct tenant/stock arrivals, of which 398 also occur in captured model cards and 36 are arrivals-only (33 Ding’s, two Ace St. Paul, one Central NH). Bishop’s exposes no arrival cards. These fixtures establish that arrivals add useful donors, but contain no longitudinal before/after donor census. They cannot measure the fraction of genuinely new daily donors caught by arrivals or establish a recall percentage. That requires successive dated censuses. The weekly sweep remains necessary even if an arrival happens to be covered in these captures.
+The full restacked saved censuses contain 726 distinct tenant/stock arrivals, of which 628 also occur in captured model cards and 98 are arrivals-only. Bishop’s exposes no arrival cards. These fixtures establish that arrivals add useful donors, but contain no longitudinal before/after donor census. They cannot measure the fraction of genuinely new daily donors caught by arrivals or establish a recall percentage. That requires successive dated censuses. The weekly sweep remains necessary even if an arrival happens to be covered in these captures.
 
 ### Offline request and runtime estimate
 
@@ -78,9 +78,9 @@ Reproduce the saved [per-tenant evidence](urgiis-incremental-estimates.json) wit
 bun scripts/report-urgiis-incremental.ts
 ```
 
-This exact parent base (`c83ecc0502bac0b8859b41c02495a90ac33eb119`) qualifies 11 tenants and 12 physical yards. Its full saved replay costs 8,546 requests, rather than the approximate 9,800 in the wider workload estimate. The steady unchanged seven-day replay averages 2,032.6 requests/day, a 76.2% reduction. Badge changes, new arrivals, failures and retries add work. The no-sweep column is the fixed daily ownership/menu/arrivals cost. Lentini’s weekly detail reads account for most of its remaining traffic.
+The restacked configuration qualifies 19 tenants and 20 physical yards, including Higgins, Premier, Junior Sinn, Revolution, A-Z, Norb's, Lambert and MARS. Idaho Falls remains its separate `idipull` source. The full saved replay costs 11,808 requests. The steady unchanged seven-day replay averages 3,022.3 requests/day, a 74.4% reduction. Badge changes, new arrivals, failures and retries add work. The no-sweep column is the fixed daily ownership/menu/arrivals cost. Lentini’s weekly detail reads account for most of its remaining traffic.
 
-Times below assume six seconds per HTML response plus the configured 2.2 or 3.5 second post-response gate, serially, without retries or orchestration/storage overhead. That explicit latency scenario puts the baseline at about 20.1 hours and incremental days at 4.8 hours. Saved receipts do not provide sufficient per-response timing for a measured runtime forecast. These are estimates, not live timing claims.
+Times below assume six seconds per HTML response plus the configured 2.2 or 3.5 second post-response gate, serially, without retries or orchestration/storage overhead. That explicit latency scenario puts the baseline at about 28.7 hours and incremental days at 7.4 hours. Saved receipts do not provide sufficient per-response timing for a measured runtime forecast. These are estimates, not live timing claims.
 
 | Tenant      | Full requests | Menus/arrivals only | Incremental requests/day (7-day mean) | Full minutes | Incremental minutes |
 | ----------- | ------------: | ------------------: | ------------------------------------: | -----------: | ------------------: |
@@ -95,27 +95,35 @@ Times below assume six seconds per HTML response plus the configured 2.2 or 3.5 
 | ace-st-paul |           423 |                  81 |                                 129.9 |         67.0 |                20.6 |
 | chucks      |           502 |                  87 |                                 146.3 |         79.5 |                23.2 |
 | central-nh  |           471 |                  91 |                                 145.3 |         64.4 |                19.9 |
-| **Total**   |     **8,546** |             **936** |                           **2,032.6** |  **1,207.2** |           **289.6** |
+| higgins     |           317 |                  77 |                                 111.3 |         50.2 |                17.6 |
+| premier     |           339 |                  75 |                                 112.7 |         53.7 |                17.8 |
+| junior-sinn |           440 |                  85 |                                 135.7 |         69.7 |                21.5 |
+| revolution  |           479 |                  90 |                                 145.6 |         75.8 |                23.0 |
+| az          |           242 |                  59 |                                  85.1 |         38.3 |                13.5 |
+| lambert     |           611 |                  99 |                                 172.1 |         96.7 |                27.3 |
+| norbs       |           774 |                 107 |                                 202.3 |        122.5 |                32.0 |
+| mars        |            60 |                  19 |                                  24.9 |          9.5 |                 3.9 |
+| **Total**   |    **11,808** |           **1,547** |                           **3,022.3** |  **1,723.6** |           **446.2** |
 
 The replay keeps provider documents fixed and advances seven real daily slices, replacing successful buckets each day. Per-tenant daily distributions and arrival overlap counts are retained in the JSON evidence. All raw donor/ownership qualification still comes from the existing saved archives. The incremental tests use a small derived graph of real Eagle model pages and captured donor pairs to simulate count changes and same-count replacement, plus durable history and cleanup tests.
 
 ## Qualified yards
 
-| Yard                               | City         | State | Accepted | Rejected | Skipped | Duplicates | Floor |
-| ---------------------------------- | ------------ | ----- | -------: | -------: | ------: | ---------: | ----: |
-| Eagle Auto Parts                   | Martinsburg  | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
-| Linder's Inc                       | Worcester    | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
-| Chuckran Auto Parts                | Bridgewater  | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
-| United Auto Recyclers              | Omaha        | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
-| Ace Auto Recyclers                 | Iowa City    | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
-| Lentini Auto Salvage - Ringoes     | Ringoes      | NJ    |    2,429 |   shared |       0 |     shared | 1,900 |
-| Lentini Auto Salvage - Port Murray | Port Murray  | NJ    |      924 |   shared |       0 |     shared |   700 |
-| Ding's Auto Parts                  | Litchfield   | CT    |    1,110 |      109 |       0 |         24 |   800 |
-| Bishop's Auto Parts                | Middletown   | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
-| Ace Auto Parts                     | St. Paul     | MN    |    3,015 |      185 |       0 |         54 | 2,400 |
-| Chuck's Auto Salvage               | Grand Rapids | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
-| Central Auto Recyclers             | Concord      | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
-| Higgins Auto Parts                 | Bakersfield  | CA    |    1,477 |       51 |       0 |         48 |   492 |
+| Yard                               | City          | State | Accepted | Rejected | Skipped | Duplicates | Floor |
+| ---------------------------------- | ------------- | ----- | -------: | -------: | ------: | ---------: | ----: |
+| Eagle Auto Parts                   | Martinsburg   | WV    |    1,448 |      127 |     143 |          5 | 1,200 |
+| Linder's Inc                       | Worcester     | MA    |    3,274 |      159 |       0 |         54 | 2,600 |
+| Chuckran Auto Parts                | Bridgewater   | MA    |    3,671 |      369 |       0 |         13 | 2,900 |
+| United Auto Recyclers              | Omaha         | NE    |   12,356 |       56 |       0 |          5 | 9,800 |
+| Ace Auto Recyclers                 | Iowa City     | IA    |    1,524 |      172 |     125 |         56 | 1,200 |
+| Lentini Auto Salvage - Ringoes     | Ringoes       | NJ    |    2,429 |   shared |       0 |     shared | 1,900 |
+| Lentini Auto Salvage - Port Murray | Port Murray   | NJ    |      924 |   shared |       0 |     shared |   700 |
+| Ding's Auto Parts                  | Litchfield    | CT    |    1,110 |      109 |       0 |         24 |   800 |
+| Bishop's Auto Parts                | Middletown    | CT    |    3,362 |       82 |       0 |          0 | 2,600 |
+| Ace Auto Parts                     | St. Paul      | MN    |    3,015 |      185 |       0 |         54 | 2,400 |
+| Chuck's Auto Salvage               | Grand Rapids  | MN    |    2,601 |      283 |     480 |         40 | 2,000 |
+| Central Auto Recyclers             | Concord       | NH    |    2,477 |      193 |       0 |         52 | 1,900 |
+| Higgins Auto Parts                 | Bakersfield   | CA    |    1,477 |       51 |       0 |         48 |   492 |
 | A-Z Auto Parts & Auto Sales        | Oklahoma City | OK    |    1,739 |       54 |       0 |         39 |   579 |
 | Norb's Auto Salvage                | Denmark       | WI    |    8,864 |      898 |     398 |         43 | 2,954 |
 | Lambert Auto Salvage               | Booneville    | MS    |    8,985 |      329 |       0 |          9 | 2,995 |
