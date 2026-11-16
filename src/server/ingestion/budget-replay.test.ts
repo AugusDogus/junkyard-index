@@ -7,6 +7,9 @@ import { z } from "zod";
 import { BudgetCursor } from "./budget-cursor";
 import { streamBudgetInventory } from "./budget-connector";
 import { BudgetProviderError } from "./budget-client";
+import { parseBudgetPage } from "./budget-parser";
+import { budgetSnapshot, validateBudgetSnapshot } from "./budget-transform";
+import { BUDGET_MINIMUM } from "./budget-yard-metadata";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import { validateSourceSnapshot } from "./source-validation";
 import type { CanonicalVehicle } from "./types";
@@ -111,4 +114,27 @@ test("Budget aborts closing drift instead of emitting the saved opening inventor
         : raw,
     ),
   ).rejects.toThrow("field labels changed");
+});
+
+test("Budget admits one third of the saved census and rejects below its floor", () => {
+  const rows = receipts
+    .slice(1, 39)
+    .flatMap(
+      (receipt) =>
+        parseBudgetPage(
+          receipt.raw,
+          new URL(receipt.url).searchParams.get("make") ?? "",
+        ).records,
+    );
+  const accepted = new Set(
+    budgetSnapshot(rows).vehicles.map((vehicle) => vehicle.vin),
+  );
+  const valid = rows.filter((record) => accepted.has(record.vin));
+  expect(BUDGET_MINIMUM).toBe(535);
+  expect(() =>
+    validateBudgetSnapshot(budgetSnapshot(valid.slice(0, 534))),
+  ).toThrow("floor");
+  expect(() =>
+    validateBudgetSnapshot(budgetSnapshot(valid.slice(0, 535))),
+  ).not.toThrow();
 });

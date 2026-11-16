@@ -29,6 +29,7 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
   army: "https://armysauto.com/self-service-inventory/",
   idipull: "https://ifipull.com/inventory/",
   bigd: "https://bigdsalvage.com/inventory/",
+  harrys: "https://wegotused.com/our-inventory/",
   littleton: "https://littletonupullit.com/vehicle-inventory",
   joliet: "https://www.jolietupullit.com/inventory",
   pickers: "https://pickerstxk.com/Home/Inventory",
@@ -44,6 +45,8 @@ function manualSearchExplanation(source: DataSource): string {
       return "Search the yard inventory by VIN or stock number, then match the year, make, model and yard row.";
     case "bigd":
       return "Search the inventory table by VIN, then match the year, make, model and yard row.";
+    case "harrys":
+      return "Select the vehicle make, model and yard, then match its VIN and yard row. Detail links use import row numbers that can change vehicles.";
     case "budget":
       return "Select the vehicle make, then match its VIN, stock number and yard row in the inventory table.";
     case "indianriver":

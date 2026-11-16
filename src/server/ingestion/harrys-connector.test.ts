@@ -122,8 +122,12 @@ describe("Harry's native census", () => {
       imageUrl: null,
       stockNumber: null,
       row: "204",
+      detailsUrl: null,
       availableDate: "2026-11-12",
     });
+    expect(harrysSnapshot([{ ...record, id: "9999" }]).vehicles).toEqual(
+      harrysSnapshot([record]).vehicles,
+    );
     for (const change of [
       { vin: "1C3CCCAB0FN746659" },
       { vin: "" },

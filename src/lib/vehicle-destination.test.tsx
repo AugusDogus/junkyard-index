@@ -542,17 +542,28 @@ test.each([
   });
 });
 
-test("Harry's preserves the verified VIN-bearing native donor destination", () => {
-  expect(
-    VehicleDestination.resolve({
-      source: "harrys",
-      detailsUrl: "https://wegotused.com/inventory-item/item-298/",
-    }),
-  ).toMatchObject({
-    kind: "inventory",
-    href: "https://wegotused.com/inventory-item/item-298/",
-  });
-});
+test.each([null, "https://wegotused.com/inventory-item/item-298/"])(
+  "Harry's replaces unstable row links with explicit manual matching: %j",
+  async (detailsUrl) => {
+    const restored = roundTripNotification(vehicle("harrys", detailsUrl));
+    const { card, email, discord } = await renderSurfaces(restored);
+    const href = "https://wegotused.com/our-inventory/";
+    expect(VehicleDestination.resolve(restored)).toMatchObject({
+      kind: "manual-search",
+      href,
+      explanation: expect.stringContaining("can change vehicles"),
+    });
+    for (const html of [card, email]) {
+      expect(html).toContain(`href="${href}"`);
+      expect(html).toContain("Search provider inventory");
+      expect(html).toContain("match its VIN and yard row");
+      expect(html).not.toContain("inventory-item/item-");
+    }
+    expect(discord.url).toBeUndefined();
+    expect(discord.description).toContain(href);
+    expect(discord.description).not.toContain("inventory-item/item-");
+  },
+);
 test.each(["FORD", "MERCEDES-BENZ", "LAND ROVER"])(
   "Budget retains the native make partition for %s with explicit manual matching",
   (make) => {

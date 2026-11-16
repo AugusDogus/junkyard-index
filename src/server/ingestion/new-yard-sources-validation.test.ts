@@ -1,3 +1,4 @@
+import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { BigdCursor } from "./bigd-cursor";
 import { HarrysCursor } from "./harrys-cursor";
 import { BudgetCursor } from "./budget-cursor";
@@ -204,7 +205,7 @@ const sources = [
   },
   {
     source: "harrys",
-    minimum: 3_500,
+    minimum: 1_368,
     initial: HarrysCursor.initial(),
     complete: HarrysCursor.checkpoint({
       ...HarrysCursor.initial(),
@@ -213,7 +214,7 @@ const sources = [
   },
   {
     source: "budget",
-    minimum: 1_500,
+    minimum: 535,
     initial: BudgetCursor.initial(),
     complete: BudgetCursor.checkpoint({
       ...BudgetCursor.initial(),
@@ -318,10 +319,15 @@ for (const { source, minimum, initial, complete } of sources) {
           source,
         }));
         if (source === "harrys") {
-          const codes = ["allentown", "hazle-township", "pennsburg"];
-          donors.forEach((donor, index) => {
-            donor.locationCode = codes[index % 3] ?? "allentown";
-          });
+          let assigned = 0;
+          for (const [code, floor] of HARRYS_MINIMUM_BY_YARD) {
+            for (let index = 0; index < floor; index++) {
+              const donor = donors[assigned++];
+              if (!donor)
+                throw new Error("Harry's yard floors exceed its source floor");
+              donor.locationCode = code;
+            }
+          }
         }
         if (source === "urgiis") {
           const first = URGIIS_TENANTS[0];

@@ -116,6 +116,6 @@ export function validateBudgetSnapshot(s: ReturnType<typeof budgetSnapshot>) {
       SourceValidationPolicy.maximumDuplicateRatio
   )
     throw new Error(
-      "Budget complete inventory failed its 1500-donor floor, 10% rejection or 25% duplicate guard",
+      `Budget complete inventory failed its ${BUDGET_MINIMUM}-donor floor, 10% rejection or 25% duplicate guard`,
     );
 }
