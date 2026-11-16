@@ -192,6 +192,46 @@ test("URG IIS resumes tenants, requires closing evidence, and never refetches a 
   expect(batches).toBe(1);
   expect(reads).toBe(8);
 });
+
+test("URG IIS resumes a transient model failure from the saved frontier before emitting", async () => {
+  let reads = 0;
+  let batches = 0;
+  let cursor = UrgiisCursor.initial([tenant]);
+  const run = (failModel: boolean) =>
+    Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        startCursor: cursor,
+        maxPages: 1,
+        readPage: (url) => {
+          if (failModel) {
+            expect(url).toBe(tenant.origin + model.path);
+            return Effect.fail(urgiisError("request/body " + url, "HTTP500"));
+          }
+          const raw = responses[reads++];
+          return raw
+            ? Effect.succeed(raw)
+            : Effect.fail(urgiisError("fixture", "Unexpected request"));
+        },
+        onBatch: (vehicles) =>
+          Effect.sync(() => {
+            expect(reads).toBe(responses.length);
+            expect(vehicles.map((v) => v.vin)).toEqual(["19UDE2F70GA016398"]);
+            batches++;
+          }),
+      }),
+    );
+  while (reads < 4) cursor = (await run(false)).cursor;
+  const saved = UrgiisCursor.serialize(cursor, [tenant]);
+  await expect(run(true)).rejects.toThrow("HTTP500");
+  expect(UrgiisCursor.serialize(cursor, [tenant])).toEqual(saved);
+  expect(batches).toBe(0);
+  cursor = UrgiisCursor.fromWire(saved, [tenant]);
+  while (cursor.phase !== "complete") cursor = (await run(false)).cursor;
+  expect(reads).toBe(responses.length);
+  expect(batches).toBe(1);
+});
+
 test("URG IIS accumulates model badge drift across resumed closing menus and fails without retrying", async () => {
   const secondModelPath = "/parts/OTHER/ILX/";
   const fixture = [
