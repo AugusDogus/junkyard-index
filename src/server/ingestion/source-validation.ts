@@ -1,3 +1,4 @@
+import { BIGD_MINIMUM_INVENTORY } from "./bigd-yard-metadata";
 import { URGIIS_MINIMUM_INVENTORY } from "./urgiis-configuration";
 import type { IngestionSource } from "~/lib/ingestion-source";
 
@@ -76,7 +77,7 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   indianriver: 900,
   army: 200,
   idipull: 450,
-  bigd: 250,
+  bigd: BIGD_MINIMUM_INVENTORY,
   pullsavewa: 1_800,
   littleton: 900,
   michigantruck: 150,

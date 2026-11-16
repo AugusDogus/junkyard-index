@@ -213,7 +213,7 @@ const sources = [
   },
   {
     source: "bigd",
-    minimum: 250,
+    minimum: 96,
     initial: BigdCursor.initial,
     complete: { source: "bigd", version: 1, phase: "complete" },
   },
