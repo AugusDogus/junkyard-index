@@ -1,5 +1,26 @@
 # Next VIN-bearing provider candidates
 
+## November 17 small-state yard sweep
+
+The [DE/WV/ME/RI/VT/HI census and evidence](runbooks/provider-small-east-2026-11-17/README.md)
+record the yard-by-yard pass. No additional provider qualified. Access failures
+and listing-only businesses remain unresolved, so this is not proof that any
+state has no qualifying public inventory.
+
+- **West Side, Laurel DE:** custom JSON API advertises 5,987 donors. Four checked
+  details have no donor VIN and 133 null part VIN fields. Needs public identity
+  coverage and actual acquisition freshness, then complete enumeration.
+- **Capital City, Johnston RI:** URG `CC02`; native vehicle graph and public
+  year/make AJAX search return WordPress HTTP 500. Needs a working graph before
+  census, VIN and freshness checks.
+- **I-81, Martinsburg WV:** native donor galleries lack observed VINs; advertised
+  Hollander tenant redirects to generic HollanderParts. Needs an owned complete
+  VIN-bearing current roster.
+- **K & R, Providence RI:** advertised arrivals PDF has 2014 metadata and
+  2013/2014 photo stamps. Needs a current complete VIN-bearing feed.
+
+## September discovery samples
+
 Public-source research on September 15, 2026. Wrench-A-Part and U Pull R Parts
 have separate implementation runbooks. iPull-uPull, Washington U-Pull-It, and
 Parts Galore are now implemented; see [their runbook](runbooks/independent-yard-ingestion.md)

@@ -1,0 +1,133 @@
+{
+  "observedAt": "2026-11-17",
+  "qualification": "No new provider qualified. Samples below do not establish complete enumeration.",
+  "westSide": {
+    "yard": "West Side Auto Parts, Laurel DE",
+    "location": "4740 Sharptown Road, Laurel, DE 19956",
+    "platform": "Custom JSON API",
+    "listReceipt": {
+      "requested": "https://westsideparts.com/api/vehicles?sort=newest&page=1&pageSize=100",
+      "status": 200,
+      "time": "2026-11-17T21:13:31Z"
+    },
+    "listBodySha256": "bd43bc6541948b6df039aa1433c7e582e8a3f55ce2fb8ec001929aaeec1733b4",
+    "advertisedTotal": 5987,
+    "observedListRows": 100,
+    "sample": [
+      {
+        "receipt": {
+          "requested": "https://westsideparts.com/api/vehicles/009685",
+          "status": 200,
+          "time": "2026-11-17T21:13:35Z"
+        },
+        "bodySha256": "00430ddebde96db9cfa3f50eb0d9228cc1e37a5f6cd28934b9784478e7144594",
+        "stock": "009685",
+        "year": 2012,
+        "make": "Toyota",
+        "model": "Tundra",
+        "topLevelVinFieldPresent": false,
+        "partRows": 19,
+        "nullPartVinRows": 19
+      },
+      {
+        "receipt": {
+          "requested": "https://westsideparts.com/api/vehicles/009682",
+          "status": 200,
+          "time": "2026-11-17T21:16:45Z"
+        },
+        "bodySha256": "14581caf0866f7a45e8bc6a116423661b1c4a7bb62eb3f332e40742d7acf0432",
+        "stock": "009682",
+        "year": 2023,
+        "make": "Ford",
+        "model": "Bronco Sport",
+        "topLevelVinFieldPresent": false,
+        "partRows": 4,
+        "nullPartVinRows": 4
+      },
+      {
+        "receipt": {
+          "requested": "https://westsideparts.com/api/vehicles/009670",
+          "status": 200,
+          "time": "2026-11-17T21:33:31Z"
+        },
+        "bodySha256": "e03f1e350deeba5f4d694978704388a731c1d4af052036b17f831036687907cc",
+        "stock": "009670",
+        "year": 2015,
+        "make": "Jeep",
+        "model": "Grand Cherokee",
+        "topLevelVinFieldPresent": false,
+        "partRows": 44,
+        "nullPartVinRows": 44
+      },
+      {
+        "receipt": {
+          "requested": "https://westsideparts.com/api/vehicles/009653",
+          "status": 200,
+          "time": "2026-11-17T21:33:44Z"
+        },
+        "bodySha256": "f7c9899db61d6b7ba48a1b164f3eb91a590c97ea4e6be44479cb90e3ebcc0e0c",
+        "stock": "009653",
+        "year": 2022,
+        "make": "Chevrolet",
+        "model": "Colorado",
+        "topLevelVinFieldPresent": false,
+        "partRows": 66,
+        "nullPartVinRows": 66
+      }
+    ],
+    "freshness": "Part createdAt timestamps describe imported part records, not a demonstrated donor acquisition date.",
+    "enumeration": "Not completed after donor identity failed the sample. 5987 is advertised, not a verified accepted census.",
+    "conditionalRunBudget": "If VINs become available only on details: 60 list pages plus 5987 donor details, or 6047 requests at this advertised total. Pagination, identity and freshness would still need verification."
+  },
+  "i81": {
+    "yard": "I-81 Auto Parts & Recycling, Martinsburg WV",
+    "galleryPages": [
+      "https://i81autoparts.com/vehicles",
+      "https://i81autoparts.com/vehicles-2",
+      "https://i81autoparts.com/vehicles-3-1"
+    ],
+    "observation": "Checked galleries expose YMM and photos, with no donor VIN found. The advertised Hollander tenant /VehicleDealerSearch redirects to generic HollanderParts.",
+    "unblocker": "Owned complete VIN-bearing roster and current acquisition evidence."
+  },
+  "capitalCity": {
+    "yard": "Capital City Salvage, Johnston RI",
+    "location": "77 Armento Street, Johnston, RI 02919",
+    "platform": "URG Inventory InSite",
+    "urgId": "CC02",
+    "partsDirectory": "used-parts",
+    "vehicleRoute": "http://www.capitalcitysalvage.com/used-parts/makes/",
+    "observation": "Native route returns WordPress critical error HTTP 500 on HTTP and HTTPS, including a retry with browser headers and the public urg_hv cookie. Public year-selector AJAX search getMakesIIS also returns HTTP 500.",
+    "unblocker": "Restore native vehicle graph/API, then verify full census, VIN checksums, own-yard location and acquisition freshness.",
+    "receipts": [
+      {
+        "requested": "http://www.capitalcitysalvage.com/used-parts/makes/",
+        "status": 500,
+        "time": "2026-11-17T22:11:12Z",
+        "bodySha256": "5ed47bc8e9c912d7c8f11b902282ce6f866263bb5384c4ec2aa820e79e99feda"
+      },
+      {
+        "requested": "https://www.capitalcitysalvage.com/used-parts/makes/",
+        "status": 500,
+        "time": "2026-11-17T22:10:37Z",
+        "bodySha256": "0ede3817613630d94b4bddab9a05eea6297a8a64dea15244a15dd24b763050c0"
+      },
+      {
+        "requested": "http://www.capitalcitysalvage.com/wp-admin/admin-ajax.php",
+        "status": 500,
+        "time": "2026-11-17T22:28:16Z",
+        "bodySha256": "b3dd0d0398b78e8d10cde4373ec870e874e758401192d1a534b5b2dd7f764e2f",
+        "method": "POST",
+        "action": "getMakesIIS",
+        "year": 2026
+      }
+    ]
+  },
+  "kAndR": {
+    "yard": "K & R Auto Salvage, Providence RI",
+    "pdf": "http://kandrparts.com/pdf/newArrivals.pdf",
+    "pages": 5,
+    "pdfCreationAndModificationDate": "2014-09-05",
+    "observation": "All five rendered pages inspected. Ten YMM donor photos, camera stamps in 2013/2014, no complete VIN list or current acquisition evidence.",
+    "unblocker": "Current complete VIN-bearing donor feed with acquisition dates."
+  }
+}
