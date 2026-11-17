@@ -8,6 +8,12 @@ describe("search index migration validation", () => {
     expect(requests.map((request) => request.indexName)).toEqual([
       ...ALGOLIA_SEARCH_INDEX_NAMES,
     ]);
+    expect(requests.map((request) => request.indexName)).toEqual([
+      "vehicles",
+      "vehicles_oldest",
+      "vehicles_year_desc",
+      "vehicles_year_asc",
+    ]);
     expect(requests.every((request) => request.filters.length > 0)).toBe(true);
     expect(
       requests.every((request) => request.filters.includes("searchTokens:")),

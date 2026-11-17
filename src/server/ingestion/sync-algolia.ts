@@ -1,7 +1,6 @@
 import { Effect } from "effect";
-import type { IndexSettings } from "algoliasearch";
 import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
-import { buildAlgoliaSettingsPlan } from "./algolia-settings-plan";
+import { applyAlgoliaSettingsPlan } from "./algolia-settings-plan";
 import type { AlgoliaVehicleRecord } from "./types";
 
 const BATCH_SIZE = 1000;
@@ -79,37 +78,6 @@ function waitForTaskEffect(
   }).pipe(Effect.asVoid);
 }
 
-function setIndexSettingsEffect(params: {
-  indexName: string;
-  indexSettings: IndexSettings;
-  forwardToReplicas?: boolean;
-}): Effect.Effect<void, Error> {
-  return Effect.gen(function* () {
-    const response = yield* Effect.tryPromise({
-      try: () =>
-        algoliaAdminClient.setSettings({
-          indexName: params.indexName,
-          indexSettings: params.indexSettings,
-          forwardToReplicas: params.forwardToReplicas,
-        }),
-      catch: (cause) =>
-        cause instanceof Error ? cause : new Error(String(cause)),
-    });
-    const taskID = extractTaskIds(response).at(-1);
-    if (taskID !== undefined) {
-      yield* Effect.tryPromise({
-        try: () =>
-          algoliaAdminClient.waitForTask({
-            indexName: params.indexName,
-            taskID,
-          }),
-        catch: (cause) =>
-          cause instanceof Error ? cause : new Error(String(cause)),
-      });
-    }
-  }).pipe(Effect.asVoid);
-}
-
 function saveObjectsBatchEffect(
   objects: ReadonlyArray<Record<string, unknown>>,
   indexName: string,
@@ -173,9 +141,11 @@ function waitForFinalTask(
 export function configureAlgoliaIndexEffect(): Effect.Effect<void, Error> {
   return Effect.gen(function* () {
     yield* Effect.logInfo("[Algolia] Configuring index settings...");
-    for (const operation of buildAlgoliaSettingsPlan()) {
-      yield* setIndexSettingsEffect(operation);
-    }
+    yield* Effect.tryPromise({
+      try: () => applyAlgoliaSettingsPlan(algoliaAdminClient),
+      catch: (cause) =>
+        cause instanceof Error ? cause : new Error(String(cause)),
+    });
     yield* Effect.logInfo("[Algolia] Index settings configured");
   });
 }

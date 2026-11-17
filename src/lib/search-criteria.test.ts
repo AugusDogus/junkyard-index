@@ -1,8 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { SearchCriteria } from "./search-criteria";
 import { savedSearchMatchCriteriaKey } from "./saved-search-filters";
+import { buildSearchUrl } from "./search-utils";
 
 describe("shared search criteria", () => {
+  test("legacy distance saves reopen and resave with the stable distance key", () => {
+    for (const sortBy of ["distance", "vehicles_distance"]) {
+      const draft = SearchCriteria.fromSavedSearch("civic", { sortBy });
+      expect(draft.sortBy).toBe("distance");
+      const saved = SearchCriteria.toSavedSearch(draft);
+      expect(saved).toMatchObject({
+        success: true,
+        data: { query: "civic", filters: { sortBy: "distance" } },
+      });
+      expect(buildSearchUrl("civic", { sortBy })).toContain(`sort=${sortBy}`);
+    }
+  });
   test("preserves saved Boolean criteria and future-inventory values on a rename", () => {
     const query = '(Ford OR Ram) "crew cab" !diesel';
     const filters = {

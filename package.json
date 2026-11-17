@@ -5,6 +5,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
+    "algolia:settings:apply": "bun --conditions=react-server scripts/apply-algolia-settings.ts",
     "bench:row52": "bun scripts/row52-benchmark.ts",
     "soak:sources": "tsx scripts/soak-ingestion-sources.ts",
     "build": "next build",
