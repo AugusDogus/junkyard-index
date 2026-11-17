@@ -119,7 +119,7 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `jimsimport`                      |                     3,649 |          3,000 |     1,216 |
 | `lonestarimports`                 |                     2,531 |          2,000 |       843 |
 | `alshned`                         |                        41 |             35 |        13 |
-| `hollanderstores`                 |                    68,288 |         18,638 |    22,748 |
+| `hollanderstores`                 |                    69,540 |         18,638 |    23,164 |
 | `cstruck`                         |                        59 |             50 |        19 |
 | `heavytruckparts`                 |                       838 |            700 |       277 |
 | `beavers`                         |                       278 |            240 |        92 |
@@ -168,3 +168,8 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `cars4parts/heyworth`             |                        69 |             55 |        23 |
 
 Harry's, Budget, Big D, Idaho Falls, Speedy's and the recent URG additions already have suitable floors. RTP retains its existing 1,000-donor floor for a 3,195-donor census. One-third floors remain sanity checks; complete enumeration is still required.
+
+November 17 west/plains additions run under the same enabled Hollander source:
+A-1 Auto Recyclers NM (993 accepted, floor 331), Kramer's NE (5, floor 1),
+Horseshoe WA (33, floor 11), Midwest OK (221, floor 73). These new yards had no
+prior floor. See [qualification and request budget](provider-coverage-west-plains.md).

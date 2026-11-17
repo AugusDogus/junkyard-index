@@ -13,6 +13,7 @@ export function hollanderstoresFixtureBytes(file: string): Buffer {
     `${import.meta.dir}/expansion/${file}`,
     `${import.meta.dir}/pauls/${file}`,
     `${import.meta.dir}/batch-2/${file}`,
+    `${import.meta.dir}/west-plains/${file}`,
   ].find((path) => existsSync(path));
   if (!path) throw new Error("Saved Hollander response missing: " + file);
   return gunzipSync(readFileSync(path));
@@ -29,23 +30,49 @@ export function hollanderstoresFixturePages(): HollanderstoresPage[] {
   return structuredClone(parsed);
 }
 
-export const hollanderstoresExpected = z
-  .object({
-    perYard: z.array(
-      z.object({
-        code: z.string(),
-        accepted: z.number(),
-        rejected: z.number(),
-        duplicates: z.number(),
-        total: z.number(),
-      }),
-    ),
-    count: z.number(),
-    observedVins: z.array(z.string()),
-    failedMakeVins: z.array(z.string()),
-  })
-  .parse(
+// Each qualification retains its independent frozen census. Merge shared yards
+// once so later provider batches extend the same complete replay oracle.
+const qualificationSchema = z.object({
+  perYard: z.array(
+    z.object({
+      code: z.string(),
+      accepted: z.number(),
+      rejected: z.number(),
+      duplicates: z.number(),
+      total: z.number(),
+    }),
+  ),
+  count: z.number(),
+  observedVins: z.array(z.string()),
+  failedMakeVins: z.array(z.string()),
+});
+const qualifications = ["stricker", "west-plains"].map((directory) =>
+  qualificationSchema.parse(
     JSON.parse(
-      readFileSync(`${import.meta.dir}/stricker/qualification.json`, "utf8"),
+      readFileSync(
+        `${import.meta.dir}/${directory}/qualification.json`,
+        "utf8",
+      ),
     ),
-  );
+  ),
+);
+const perYard = new Map(
+  qualifications.flatMap((qualification) =>
+    qualification.perYard.map((yard) => [yard.code, yard] as const),
+  ),
+);
+export const hollanderstoresExpected = {
+  perYard: HOLLANDERSTORES_YARDS.map((yard) => {
+    const census = perYard.get(yard.code);
+    if (!census)
+      throw new Error("Missing frozen Hollander census: " + yard.code);
+    return census;
+  }),
+  count: [...perYard.values()].reduce((sum, yard) => sum + yard.accepted, 0),
+  observedVins: [
+    ...new Set(qualifications.flatMap((q) => q.observedVins)),
+  ].sort(),
+  failedMakeVins: [
+    ...new Set(qualifications.flatMap((q) => q.failedMakeVins)),
+  ].sort(),
+};
