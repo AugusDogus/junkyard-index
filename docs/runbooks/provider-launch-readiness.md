@@ -225,3 +225,10 @@ assertion. Small fixtures retain wire roundtrips at every individual checkpoint.
 A complete saved Lentini replay passed all 16,777 assertions in 150.43 seconds
 on Bun 1.4.4 under concurrent CPU load, versus the reproduced 600-second timeout.
 This is CPU work, so a fake lease cannot remove the remaining runtime.
+
+Beaver's grouped negative replay also exceeded its 15-second deadline under
+concurrent full-suite load. Closing drift, rejection-rate failure and previous-run
+collapse now have independent 15-second deadlines, with identical inputs and
+assertions. All 13 Beaver's/Lone Star tests pass together in 40.86 seconds under
+load; Lone Star's complete 264-request wire-resume replay remains unchanged and
+passed in 15.46 seconds against its existing 30-second limit.
