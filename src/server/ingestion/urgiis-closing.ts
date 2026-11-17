@@ -1,6 +1,9 @@
 import { urgiisBrokenModelRoute } from "./urgiis-model-coverage";
 import { z } from "zod";
-import { URGIIS_EMPTY_MODEL_MINIMUM } from "./urgiis-schema";
+import {
+  type UrgiisControl,
+  URGIIS_EMPTY_MODEL_MINIMUM,
+} from "./urgiis-schema";
 import { urgiisEntryFingerprint, type UrgiisEntry } from "./urgiis-traversal";
 
 export const UrgiisBadgeDriftSchema = z
@@ -31,6 +34,7 @@ export function urgiisClosingEvidence(
   previous: UrgiisBadgeDrift,
 ):
   | { kind: "valid"; badgeDrift: UrgiisBadgeDrift }
+  | { kind: "retry"; models: UrgiisControl[]; badgeDrift: UrgiisBadgeDrift }
   | { kind: "drift"; message: string } {
   const drift = (message: string) => ({ kind: "drift" as const, message });
   if (
@@ -45,6 +49,7 @@ export function urgiisClosingEvidence(
   if (!("controls" in opening) || !("controls" in closing))
     return { kind: "valid", badgeDrift: previous };
   let changed = 0;
+  const retry: UrgiisControl[] = [];
   for (const [i, control] of closing.controls.entries()) {
     const before = opening.controls[i];
     if (!before)
@@ -70,14 +75,10 @@ export function urgiisClosingEvidence(
       if (
         observed.records.length === 0 &&
         control.count >= URGIIS_EMPTY_MODEL_MINIMUM &&
-        !urgiisBrokenModelRoute(control)
+        !urgiisBrokenModelRoute(control) &&
+        !(observed.kind === "model" && observed.freshness.kind === "deferred")
       )
-        return drift(
-          "Growing model advertises " +
-            control.count +
-            " donors after an explicit empty result at " +
-            control.path,
-        );
+        retry.push(control);
     }
   }
   const level = closing.kind === "makes" ? "makes" : "models";
@@ -87,5 +88,7 @@ export function urgiisClosingEvidence(
     return drift(
       `${level} badges changed by ${badgeDrift[level]}, above the tenant limit ${limit}`,
     );
-  return { kind: "valid", badgeDrift };
+  return retry.length
+    ? { kind: "retry", models: retry, badgeDrift }
+    : { kind: "valid", badgeDrift };
 }
