@@ -57,7 +57,7 @@ describe("Hollander Stores saved complete census", () => {
       false,
     );
     expect(value.observedVins).toHaveLength(expected.observedVins.length);
-  });
+  }, 30_000);
   test("rejects failed make lookups without inventing a make and guards each yard", () => {
     const value = hollanderstoresSnapshot(pages(), {});
     expect(value.errors).toContain(

@@ -1,0 +1,22 @@
+{
+  "list": {
+    "url": "https://strickerauto.hollanderstores.com/VehicleDealerSearch?page=1",
+    "method": "POST",
+    "body": "hdnChangeDisplay=list",
+    "status": 200,
+    "bytes": 41009,
+    "sha256": "f8cd8bc0948fbd3518ebf1b1a1608f2ddea0b27cae4a449dbb70cb2b87b60b7d",
+    "total": 12458,
+    "rowsPerPage": 20,
+    "openingAndClosingRequests": 1246
+  },
+  "geocode": {
+    "url": "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=4955%20Benton%20Rd%20Batavia%20OH%2045103&benchmark=Public_AR_Current&format=json",
+    "status": 200,
+    "bytes": 641,
+    "sha256": "b8148073070518eb3dbbb206b0a4d26a4480d32ae8ef3937bb84cef3bc56693f",
+    "file": "geocode.json.gz"
+  },
+  "date": "2026-11-17",
+  "timing": "Individual request start/end times were not retained for these two probes."
+}

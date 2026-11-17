@@ -921,6 +921,24 @@ export const HOLLANDERSTORES_YARDS = [
     websiteUrl: "https://awcaw.hollanderstores.com/",
     minimum: 67,
   },
+  {
+    source: "hollanderstores",
+    code: "strickerauto",
+    tenant: "2364",
+    name: "Stricker Auto Parts",
+    logo: "Stricker Auto Parts",
+    operator: "Stricker Auto Parts",
+    address: "4955 Benton Rd",
+    city: "Batavia",
+    state: "OH",
+    postalCode: "45103",
+    phone: "(513) 732-1152",
+    email: null,
+    lat: 39.106869609566,
+    lng: -84.155604584862,
+    websiteUrl: "https://strickerauto.hollanderstores.com/",
+    minimum: 4_110,
+  },
 ] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {
   source: "hollanderstores";

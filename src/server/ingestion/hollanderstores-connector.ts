@@ -119,7 +119,8 @@ export function streamHollanderstoresInventory<E, R>(
       };
       let next: HollanderstoresState | { phase: "failed"; error: string };
       if (current.phase === "decoding") {
-        const needed = hollanderstoresMissing(current).slice(
+        const missing = hollanderstoresMissing(current);
+        const needed = missing.slice(
           Object.keys(current.decoded).length,
           Object.keys(current.decoded).length + 50,
         );
@@ -145,8 +146,7 @@ export function streamHollanderstoresInventory<E, R>(
                 );
               values[vin] = make;
             }
-            return Object.keys(values).length ===
-              hollanderstoresMissing(current).length
+            return Object.keys(values).length === missing.length
               ? { ...common, decoded: values, phase: "closing", closed: 0 }
               : { ...common, decoded: values, phase: "decoding" };
           },

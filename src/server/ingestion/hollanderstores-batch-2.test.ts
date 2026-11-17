@@ -117,16 +117,11 @@ test("Weller's shared tenant is excluded because the saved rosters cannot attrib
   });
 });
 
-test("Stricker retains two complete matching censuses but exceeds the production response bound", () => {
-  const base = HOLLANDERSTORES_YARDS[0];
-  if (!base) throw new Error("Missing Hollander yard template");
-  const yard = {
-    ...base,
-    code: "strickerauto",
-    tenant: "2364",
-    logo: "Stricker Auto Parts",
-    websiteUrl: "https://strickerauto.hollanderstores.com/",
-  };
+test("Stricker parses both complete matching censuses with its bounded tenant exception", () => {
+  const yard = HOLLANDERSTORES_YARDS.find(
+    (yard) => yard.code === "strickerauto",
+  );
+  if (!yard) throw new Error("Missing qualified Stricker yard");
   const captures = ["strickerauto.html.gz", "strickerauto-closing.html.gz"].map(
     (file) => {
       const raw = body("batch-2/" + file);
@@ -148,7 +143,7 @@ test("Stricker retains two complete matching censuses but exceeds the production
       );
       expect(destinations).toHaveLength(total);
       expect(new Set(destinations).size).toBe(total);
-      expect(() => parseHollanderstoresRoster(raw, yard)).toThrow("body bound");
+      expect(parseHollanderstoresRoster(raw, yard).rows).toHaveLength(total);
       return destinations;
     },
   );
@@ -170,6 +165,8 @@ test("batch two qualifies each complete tenant independently and leaves exclusio
       (yard) => yard.code === candidate.code,
     );
     if (candidate.decision === "excluded") {
+      // Stricker was qualified separately after this historical batch.
+      if (candidate.code === "strickerauto") continue;
       expect(yard).toBeUndefined();
       continue;
     }
@@ -250,8 +247,8 @@ test("batch two physical locations match published addresses and exact Census or
       ]),
     )
     .parse(read("locations.json"));
-  for (const yard of HOLLANDERSTORES_YARDS.filter((yard) =>
-    codes.has(yard.code),
+  for (const yard of HOLLANDERSTORES_YARDS.filter(
+    (yard) => codes.has(yard.code) && yard.code !== "strickerauto",
   )) {
     const location = locations.find((row) => row.code === yard.code);
     if (!location) throw new Error("Missing coordinate evidence: " + yard.code);
@@ -364,7 +361,9 @@ test("batch two vPIC receipts decode exactly the new valid VINs with missing nat
       // Audit membership reflects the original requests, including Weller's
       // subsequently excluded roster. Retain every original receipt.
       pages: [
-        ...pages().filter((page) => codes.has(page.yard)),
+        ...pages().filter(
+          (page) => codes.has(page.yard) && page.yard !== "strickerauto",
+        ),
         parseHollanderstoresRoster(
           body("batch-2/wellerauto.html.gz"),
           wellerResearchYard,

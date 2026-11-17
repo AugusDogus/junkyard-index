@@ -65,8 +65,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   lonestarimports: 843,
   // Complete 43-donor native catalog and details: 41 accepted, two rejects.
   alshned: 13,
-  // 51 complete Hollander Stores yards, 55,958 accepted donors.
-  hollanderstores: 18_638,
+  // 52 complete Hollander Stores yards, 68,288 accepted donors.
+  hollanderstores: 22_748,
   // Complete C&S native store: 59 accepted of 64 items.
   cstruck: 19,
   // Six complete HTP supplier stores, with per-supplier quality floors.
