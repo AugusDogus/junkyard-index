@@ -65,6 +65,8 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `hollanderstores/pascoauto`       |                     6,146 |          2,059 |     2,048 |
 | `hollanderstores/awcaw`           |                       201 |             70 |        67 |
 | `hollanderstores/strickerauto`    |                    12,330 |            n/a |     4,110 |
+| `hollanderstores/florasauto`      |                       581 |       New yard |       193 |
+| `hollanderstores/tvilleauto`      |                       318 |       New yard |       106 |
 | `heavytruckparts/rydemore`        |                         8 |              5 |         2 |
 | `heavytruckparts/westside`        |                       565 |            450 |       188 |
 | `heavytruckparts/allcounty`       |                        40 |             30 |        13 |
@@ -119,7 +121,7 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `jimsimport`                      |                     3,649 |          3,000 |     1,216 |
 | `lonestarimports`                 |                     2,531 |          2,000 |       843 |
 | `alshned`                         |                        41 |             35 |        13 |
-| `hollanderstores`                 |                    69,540 |         18,638 |    23,164 |
+| `hollanderstores`                 |                    70,439 |         18,638 |    23,463 |
 | `cstruck`                         |                        59 |             50 |        19 |
 | `heavytruckparts`                 |                       838 |            700 |       277 |
 | `beavers`                         |                       278 |            240 |        92 |
