@@ -111,3 +111,5 @@ address or business-map proof. `fresh-census-excluded.jsonl.br` retains complete
 failed-quality censuses, any interrupted prefixes and failed HTTP bodies as audit
 evidence. These excluded captures never become inventory. Original batch and retry
 summaries remain historical and are not rewritten.
+
+`coverage-route-probes.json.br` retains all 31 November 17 coverage probes, including failed route aliases and successful raw-ampersand model requests for Ace St. Paul and Norb's, the unchanged recovered Eagle Atlas route, a raw-parenthesis Norb's probe and one Ace native donor detail. Every response includes original UTF-8 HTML, its SHA-256, URL/status, and start/end timestamps. The shared gate was held through each response, with at least 3.5 seconds after its prior timestamp. The request reader sent no project or owner identity. Original archives are unchanged; offline replays substitute the qualified ampersand request once per model, and retain Eagle's original empty until its later retry. The raw-parenthesis probe is evidence only and does not change runtime encoding.

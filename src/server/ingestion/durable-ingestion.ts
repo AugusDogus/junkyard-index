@@ -26,6 +26,7 @@ import type { IngestionPassPlan } from "./ingestion-pass-orchestrator";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { BetterStackProviders } from "./better-stack-providers";
+import { reportUrgiisCensusProgress } from "./urgiis-progress";
 
 export type {
   DurableIngestionResult,
@@ -137,11 +138,32 @@ export async function runDurableSourceChunk<
     },
   );
   if (!("vehicles" in fetched)) return fetched;
-  return repository.checkpointChunk({
+  const result = await repository.checkpointChunk({
     runId: params.runId,
     requestedCursor: params.cursor,
     fetched,
   });
+  if (process.env.VERCEL_ENV === "production") {
+    try {
+      await reportUrgiisCensusProgress({
+        database: db,
+        runId: params.runId,
+        before: params.cursor,
+        result,
+        ping: () =>
+          BetterStackProviders.progress({
+            providers: betterStackProviders,
+            source: "urgiis",
+          }),
+      });
+    } catch (error) {
+      console.error(
+        "Could not report URG cold census progress; the saved checkpoint is preserved",
+        error,
+      );
+    }
+  }
+  return result;
 }
 
 export function markDurableSourceFailed<

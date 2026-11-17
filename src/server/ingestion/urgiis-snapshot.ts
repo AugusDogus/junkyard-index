@@ -8,6 +8,7 @@ import { quarantineIisClaims } from "./iis-quarantine";
 import { iisOwnedUrl } from "./urgiis-catalog";
 import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import { SourceValidationPolicy } from "./source-validation";
+import { urgiisModelRoute } from "./urgiis-model-route";
 
 export interface UrgiisModelPage {
   make: UrgiisControl;
@@ -21,11 +22,19 @@ export function urgiisSnapshot(
   sellers: ReadonlyMap<string, string | null> = new Map(),
   arrivals: readonly UrgiisRecord[] = [],
 ) {
+  const donorModel = (model: UrgiisControl) => ({
+    ...model,
+    path: urgiisModelRoute(model.path, tenant).donorPath,
+  });
   const all = [
     ...pages.flatMap((p) =>
       p.records.map((record) => ({
         record,
-        context: { kind: "model" as const, make: p.make, model: p.model },
+        context: {
+          kind: "model" as const,
+          make: p.make,
+          model: donorModel(p.model),
+        },
       })),
     ),
     ...arrivals.map((record) => ({
@@ -33,7 +42,10 @@ export function urgiisSnapshot(
       context: { kind: "arrivals" as const },
     })),
   ];
-  const published = pages.map(({ make, model }) => ({ make, model }));
+  const published = pages.map(({ make, model }) => ({
+    make,
+    model: donorModel(model),
+  }));
   // Explicitly qualified generic part-bin stocks are not donor cars. A real
   // VIN or yard photograph overrides this exclusion and enters normal validation.
   const rows = all.filter(({ record }) => {

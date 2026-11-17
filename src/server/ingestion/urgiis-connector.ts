@@ -191,13 +191,14 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           `URG IIS provider cooldown lasts until ${new Date(cursor.retryAt).toISOString()}; no requests made.`,
         ],
       };
-    if (wallNow - startedAt >= URGIIS_DAY_MS - 8 * 60_000)
+    const runDays = cursor.runKind === "cold" ? 3 : 1;
+    if (wallNow - startedAt >= runDays * URGIIS_DAY_MS - 8 * 60_000)
       return {
         ...result,
         cursor,
         status: "failed" as const,
         errors: [
-          "URG IIS census has less than one chunk left before its one-day deadline; restart with fresh evidence. Prior inventory is preserved.",
+          `URG IIS census has less than one chunk left before its ${runDays === 1 ? "one-day" : "three-day cold census"} deadline; restart with fresh evidence. Prior inventory is preserved.`,
         ],
       };
     let unsealed = false;
@@ -208,7 +209,10 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           urgiisError("next tenant", "Qualified tenant is missing"),
         );
       const tasks = urgiisTasks(cursor.entries, tenant);
-      const previousTenant = census.tenants.find((t) => t.code === tenant.code);
+      const previousTenant =
+        cursor.runKind === "cold"
+          ? undefined
+          : census.tenants.find((t) => t.code === tenant.code);
       if (
         cursor.phase === "opening" &&
         cursor.entries.length === tasks.findIndex((t) => t.kind === "model")

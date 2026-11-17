@@ -4,6 +4,7 @@ import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
 import type { UrgiisTenant } from "./urgiis-tenant";
+import { urgiisModelRoute } from "./urgiis-model-route";
 
 export type UrgiisError = {
   tag: "UrgiisError";
@@ -43,7 +44,12 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
     );
   // Some WordPress filters reject literal parentheses in native model slugs.
   // Encode them for HTTP while retaining the published graph and checkpoints.
-  const requestUrl = url.replaceAll("(", "%28").replaceAll(")", "%29");
+  const requestUrl = new URL(
+    urgiisModelRoute(owned.pathname, tenant).requestPath,
+    tenant.origin,
+  ).href
+    .replaceAll("(", "%28")
+    .replaceAll(")", "%29");
   return Effect.suspend(() => {
     const request = Effect.tryPromise({
       try: async (signal) => {

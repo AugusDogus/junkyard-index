@@ -342,6 +342,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "ace-st-paul",
+    modelEncoding: "literal-ampersand",
     origin: "https://www.ace-autoparts.com",
     urgid: "MN25",
     ownerPath: "/contact/",
@@ -632,6 +633,7 @@ export const URGIIS_TENANTS: readonly UrgiisTenant[] = [
   {
     ...standard,
     code: "norbs",
+    modelEncoding: "literal-ampersand",
     origin: "https://norbsauto.com",
     urgid: "EE91",
     arrivalsPath: "/latest-arrivals/",

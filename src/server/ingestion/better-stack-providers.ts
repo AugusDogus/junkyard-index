@@ -43,12 +43,31 @@ export type ProviderReportState = "published" | "retrying";
 
 /**
  * The public status page shows a row per provider. Red comes from Better
- * Stack itself: a heartbeat stops (pinged after each accepted publication) or
+ * Stack itself: a heartbeat stops (pinged after each accepted publication or
+ * distinct validated cold-census tenant) or
  * a monitor of /api/status/<source> sees the inventory stale. Yellow is a
  * status report on the row while the latest attempt failed but the last good
  * inventory is still shown; it resolves on the next accepted publication.
  */
 export const BetterStackProviders = {
+  /** A completed, durably staged cold-census tenant proves finite progress.
+   * Unlike publication, this must never resolve an existing delay report. */
+  async progress(params: {
+    providers: BetterStackProviders;
+    source: IngestionSource;
+    fetchImpl?: typeof fetch;
+  }): Promise<void> {
+    const heartbeatUrl = params.providers[params.source]?.heartbeatUrl;
+    if (!heartbeatUrl) return;
+    const response = await (params.fetchImpl ?? fetch)(heartbeatUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(PING_TIMEOUT_MS),
+    });
+    if (!response.ok)
+      throw new Error(
+        `Pinging the ${INGESTION_SOURCE_DISPLAY_NAMES[params.source]} Better Stack progress heartbeat returned HTTP ${response.status}; the staged census is preserved. Inspect heartbeat delivery before the 30-hour window expires.`,
+      );
+  },
   /** Parses BETTERSTACK_PROVIDERS: a JSON object of source to row settings. */
   parse(json: string | undefined): BetterStackProviders {
     if (json === undefined || json.trim() === "") return {};

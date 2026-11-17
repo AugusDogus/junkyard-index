@@ -73,6 +73,7 @@ export function resumeUrgiisCensus(
             {
               ...cursor,
               startedAt: now,
+              runKind: census.tenants.length ? "incremental" : "cold",
               asOf: now,
               statePath,
               stateHash: census.tenants.length

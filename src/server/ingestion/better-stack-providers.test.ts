@@ -100,3 +100,26 @@ describe("BetterStackProviders.parse", () => {
     expect(BetterStackProviders.parse(undefined)).toEqual({});
   });
 });
+
+test("cold census progress pings only the heartbeat and leaves delay reports open", async () => {
+  const requests: string[] = [];
+  const fetchImpl = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(`${init?.method ?? "GET"} ${String(input)}`);
+      return new Response(null, { status: 200 });
+    },
+    { preconnect: fetch.preconnect },
+  );
+  await BetterStackProviders.progress({ providers, source: "pyp", fetchImpl });
+  await BetterStackProviders.progress({
+    providers,
+    source: "tearapart",
+    fetchImpl,
+  });
+  await BetterStackProviders.progress({
+    providers,
+    source: "row52",
+    fetchImpl,
+  });
+  expect(requests).toEqual([`HEAD ${HEARTBEAT}`]);
+});

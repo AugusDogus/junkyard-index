@@ -19,6 +19,8 @@ export interface UrgiisTenant extends UrgiisSite {
   ownerClaims: readonly string[];
   cookie: string | null;
   userAgent?: "firefox";
+  /** Qualified model requests use raw &, while donor links publish and__. */
+  modelEncoding?: "literal-ampersand";
   pacingMs: number;
   requestTimeoutMs: number;
   minimumInventory: number;

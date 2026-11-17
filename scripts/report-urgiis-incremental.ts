@@ -1,4 +1,7 @@
-import { urgiisEquinoxProbe } from "../src/server/ingestion/urgiis-route-probe";
+import {
+  urgiisCoverageProbe,
+  urgiisEquinoxProbe,
+} from "../src/server/ingestion/urgiis-route-probe";
 import {
   urgiisBrokenModelRoute,
   urgiisModelCoverage,
@@ -72,7 +75,11 @@ for (const tenant of URGIIS_TENANTS) {
           seller: urgiisDetailSeller(response.html, tenant, task),
         });
       else {
-        const page = iisCards(response.html, tenant, task.kind);
+        const html =
+          task.kind === "model" && tenant.code !== "eagle"
+            ? (urgiisCoverageProbe(tenant, task.url)?.html ?? response.html)
+            : response.html;
+        const page = iisCards(html, tenant, task.kind);
         if (task.kind === "model") {
           try {
             iisValidateModelPage(page, task.model);
@@ -102,16 +109,16 @@ for (const tenant of URGIIS_TENANTS) {
     );
     let retryRequests = 0;
     for (const model of ordinary) {
-      const probe = urgiisEquinoxProbe();
-      if (
-        tenant.code === "revolution" &&
-        tenant.origin + model.path === probe.url
-      ) {
-        const entry = entries.find(
-          (e) => e.kind === "model" && e.url === probe.url,
-        );
+      const url = tenant.origin + model.path;
+      const probe =
+        urgiisCoverageProbe(tenant, url) ??
+        (tenant.code === "revolution" && url === urgiisEquinoxProbe().url
+          ? urgiisEquinoxProbe()
+          : undefined);
+      if (probe) {
+        const entry = entries.find((e) => e.kind === "model" && e.url === url);
         if (entry?.kind !== "model")
-          throw new Error("Missing Equinox model entry");
+          throw new Error("Missing retried model entry");
         entry.records = iisCards(probe.html, tenant).records;
         retryRequests++;
       }

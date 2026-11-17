@@ -892,3 +892,123 @@ test("URG entry receipts preserve legacy cursors and bind changed donor evidence
     ]),
   ).toThrow("exceeds 16 MiB");
 });
+
+test("cold census checkpoints can resume after 40 hours but stop before three days", async () => {
+  const initial = UrgiisCursor.initial([tenant]);
+  const cold = UrgiisCursor.fromWire(
+    UrgiisCursor.serialize(
+      UrgiisCursor.checkpoint(
+        { ...initial, startedAt: 1000, asOf: 1000, runKind: "cold" },
+        [tenant],
+      ),
+      [tenant],
+    ),
+    [tenant],
+  );
+  const resumed = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      startCursor: cold,
+      now: 1000 + 40 * 3600_000,
+      maxPages: 1,
+      readPage: () => Effect.succeed(responses[0] ?? ""),
+      onBatch: () => Effect.die("An opening owner response must not publish"),
+    }),
+  );
+  expect(resumed.status).toBe("paused");
+  expect(resumed.pagesProcessed).toBe(1);
+  expect(resumed.cursor.startedAt).toBe(1000);
+  const stopped = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      startCursor: cold,
+      now: 1000 + 72 * 3600_000 - 8 * 60_000,
+      readPage: () => Effect.die("Expired cold census must not make requests"),
+      onBatch: () => Effect.die("Expired cold census must not publish"),
+    }),
+  );
+  expect(stopped.status).toBe("failed");
+  expect(stopped.pagesProcessed).toBe(0);
+  expect(stopped.errors.join(" ")).toContain("three-day cold census deadline");
+});
+
+test("a cold census completes distinct tenants across 40 hours with one fixed clock", async () => {
+  const other = {
+    ...tenant,
+    code: "other",
+    yard: { ...tenant.yard, code: "other" },
+  };
+  const tenants = [tenant, other];
+  let cursor = UrgiisCursor.initial(tenants);
+  let censusState: unknown;
+  let reads = 0;
+  let batches = 0;
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants,
+        startCursor: cursor,
+        censusState,
+        now: 1000 + (cursor.completed.length ? 40 * 3600_000 : 0),
+        maxPages: 1,
+        readPage: () =>
+          Effect.succeed(responses[reads++ % responses.length] ?? ""),
+        onBatch: () =>
+          Effect.sync(() => {
+            batches++;
+          }),
+      }),
+    );
+    expect(result.status).not.toBe("failed");
+    expect(result.cursor.runKind).toBe("cold");
+    expect(result.cursor.startedAt).toBe(1000);
+    censusState = result.checkpointState ?? censusState;
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(result.cursor, tenants),
+      tenants,
+    );
+  }
+  expect(reads).toBe(responses.length * 2);
+  expect(batches).toBe(2);
+  expect(cursor.completed).toEqual([
+    { code: tenant.code, accepted: 1 },
+    { code: other.code, accepted: 1 },
+  ]);
+});
+
+test("cold checkpoints reject carried model evidence even inside the extended deadline", async () => {
+  let cursor = UrgiisCursor.initial([tenant]);
+  let reads = 0;
+  while (cursor.phase === "opening") {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        startCursor: cursor,
+        now: 1000,
+        maxPages: 1,
+        readPage: () => Effect.succeed(responses[reads++] ?? ""),
+        onBatch: () => Effect.die("The opening graph must not publish"),
+      }),
+    );
+    cursor = result.cursor;
+  }
+  if (cursor.phase !== "closing")
+    throw new Error("Expected closing model frontier");
+  expect(() =>
+    UrgiisCursor.checkpoint(
+      {
+        ...cursor,
+        entries: cursor.entries.map((e) =>
+          e.kind === "model"
+            ? {
+                ...e,
+                bytes: 0,
+                freshness: { ...e.freshness, kind: "carried" },
+              }
+            : e,
+        ),
+      },
+      [tenant],
+    ),
+  ).toThrow("cold census cannot carry prior model evidence");
+});

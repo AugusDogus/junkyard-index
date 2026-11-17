@@ -9,8 +9,36 @@ import { urgiisError } from "./urgiis-client";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
 
 import { iisCards } from "./urgiis-catalog";
-import { urgiisEquinoxProbe } from "./urgiis-route-probe";
+import { urgiisCoverageProbe, urgiisEquinoxProbe } from "./urgiis-route-probe";
 import estimates from "../../../docs/runbooks/urgiis-incremental-estimates.json";
+import type { ConnectorChunkAccounting } from "./connector-chunk";
+
+const recoveredAccounting: Record<string, ConnectorChunkAccounting> = {
+  eagle: {
+    recordsProcessed: 2,
+    recordsExcluded: 0,
+    recordsRejected: 0,
+    duplicateVehicles: 0,
+  },
+  "ace-st-paul": {
+    recordsProcessed: 56,
+    recordsExcluded: 0,
+    recordsRejected: 0,
+    duplicateVehicles: 1,
+  },
+  norbs: {
+    recordsProcessed: 93,
+    recordsExcluded: 2,
+    recordsRejected: 5,
+    duplicateVehicles: 0,
+  },
+  revolution: {
+    recordsProcessed: 91,
+    recordsExcluded: 0,
+    recordsRejected: 1,
+    duplicateVehicles: 0,
+  },
+};
 
 for (const tenant of URGIIS_TENANTS) {
   test(
@@ -51,6 +79,8 @@ for (const tenant of URGIIS_TENANTS) {
                     if (emptyResponses.has(url)) {
                       reads++;
                       retries++;
+                      const recovered = urgiisCoverageProbe(tenant, url);
+                      if (recovered) return recovered.html;
                       return tenant.code === "revolution"
                         ? urgiisEquinoxProbe().html
                         : (emptyResponses.get(url) ?? "");
@@ -68,7 +98,10 @@ for (const tenant of URGIIS_TENANTS) {
                       iisCards(response.html, tenant).nativeEmpty
                     )
                       emptyResponses.set(url, response.html);
-                    return response.html;
+                    return tenant.code !== "eagle"
+                      ? (urgiisCoverageProbe(tenant, url)?.html ??
+                          response.html)
+                      : response.html;
                   },
                   catch: (cause) => urgiisError("offline replay", cause),
                 }),
@@ -145,19 +178,21 @@ for (const tenant of URGIIS_TENANTS) {
         expect(cursor.completed[0]).toHaveProperty("accepted");
         expect(batches).toBe(1);
         expect(count).toBe(expected.accepted);
+        const added = recoveredAccounting[tenant.code];
         expect(accounting).toEqual({
           recordsProcessed:
-            archive.expected.recordsProcessed +
-            (tenant.code === "revolution" ? 91 : 0),
-          recordsExcluded: archive.expected.recordsExcluded,
+            archive.expected.recordsProcessed + (added?.recordsProcessed ?? 0),
+          recordsExcluded:
+            archive.expected.recordsExcluded + (added?.recordsExcluded ?? 0),
           recordsRejected:
-            archive.expected.recordsRejected +
-            (tenant.code === "revolution" ? 1 : 0),
-          duplicateVehicles: archive.expected.duplicateVehicles,
+            archive.expected.recordsRejected + (added?.recordsRejected ?? 0),
+          duplicateVehicles:
+            archive.expected.duplicateVehicles +
+            (added?.duplicateVehicles ?? 0),
         });
         expect(reads).toBe(archive.responseCount + retries);
         expect(byYard).toEqual(
-          tenant.code === "revolution"
+          ["revolution", "ace-st-paul", "norbs", "eagle"].includes(tenant.code)
             ? { [tenant.yard.code]: expected.accepted }
             : archive.expected.byYard,
         );
