@@ -1,0 +1,2080 @@
+{
+  "observedDate": "2026-11-17",
+  "source": "vanderhaags",
+  "yard": "sioux-falls",
+  "catalogUrl": "https://www.vanderhaags.com/New-Salvage.php?inventorytype=parts-unit&order=new-salvage&items=500",
+  "catalogPages": 5,
+  "catalogUniqueIds": 2112,
+  "yardDonors": 287,
+  "accepted": 276,
+  "rejected": 11,
+  "duplicateVins": 0,
+  "sourceAndYardFloor": 95,
+  "freshnessEvidence": {
+    "donorId": "26038856",
+    "videoUrl": "https://www.youtube.com/watch?v=nr8iKJ9-PTc",
+    "published": "2026-11-10T08:29:49-08:00",
+    "arrivalDateInferred": false
+  },
+  "requestBudget": {
+    "detailsPerCheckpoint": 12,
+    "checkpoints": 24,
+    "detailDocuments": 287,
+    "openingCatalogDocuments": 120,
+    "closingCatalogDocuments": 5,
+    "totalInventoryDocuments": 412,
+    "serialSpacingMs": 1600,
+    "checkpointTimeoutMinutes": 4,
+    "browserAssetsAndChallengeTrafficIncluded": false
+  },
+  "productionTransportCheckpoint": {
+    "chunk": {
+      "source": "vanderhaags",
+      "status": "paused",
+      "cursor": {
+        "source": "vanderhaags",
+        "phase": "details",
+        "catalogHash": "7f61a64ce6aacb95ee3f8323a1c6986557612c66b2f9c3d53a9ff37c5ae4cb88",
+        "offset": 12,
+        "rejected": 0,
+        "seenVins": [
+          "2NKHHM7X6HM164968",
+          "2WKEDDJH2YK961037",
+          "2HSCNAPR37C340522",
+          "2NKHHM7X0GM480865",
+          "JALC4W165G7K02128",
+          "1FUJA6CV24DM34052",
+          "1XKAD49X59R245759",
+          "2NKHHM7X9HM175494",
+          "1XPHD49X3BD120867",
+          "2NKHHM7X3KM243845",
+          "3HSJGTKR8FN573362",
+          "1FDXF46P76ED35952"
+        ]
+      },
+      "count": 12,
+      "pagesProcessed": 12,
+      "errors": [],
+      "warnings": [],
+      "observedVins": [],
+      "accounting": {
+        "recordsProcessed": 12,
+        "recordsExcluded": 0,
+        "recordsRejected": 0,
+        "duplicateVehicles": 0
+      }
+    },
+    "requests": 17
+  },
+  "donors": [
+    {
+      "id": "26038856",
+      "stock": "17KN110",
+      "catalogTitle": "2017 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X6HM164968",
+      "status": "available"
+    },
+    {
+      "id": "26074031",
+      "stock": "00WS028",
+      "catalogTitle": "2000 Western Star Trucks 4900EX Parts Unit: Truck Dsl Ta",
+      "vin": "2WKEDDJH2YK961037",
+      "status": "available"
+    },
+    {
+      "id": "26077749",
+      "stock": "07IH849",
+      "catalogTitle": "2007 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCNAPR37C340522",
+      "status": "available"
+    },
+    {
+      "id": "26038867",
+      "stock": "16KN156",
+      "catalogTitle": "2016 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X0GM480865",
+      "status": "available"
+    },
+    {
+      "id": "26045232",
+      "stock": "16IS005",
+      "catalogTitle": "2016 Isuzu NPR Parts Unit: Truck Dsl Sa",
+      "vin": "JALC4W165G7K02128",
+      "status": "available"
+    },
+    {
+      "id": "26073040",
+      "stock": "04WH434",
+      "catalogTitle": "2004 Freightliner COLUMBIA 120 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJA6CV24DM34052",
+      "status": "available"
+    },
+    {
+      "id": "26082650",
+      "stock": "09KN107",
+      "catalogTitle": "2009 Kenworth T660 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKAD49X59R245759",
+      "status": "available"
+    },
+    {
+      "id": "26032908",
+      "stock": "17KN111",
+      "catalogTitle": "2017 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X9HM175494",
+      "status": "available"
+    },
+    {
+      "id": "26017578",
+      "stock": "11PB159",
+      "catalogTitle": "2011 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHD49X3BD120867",
+      "status": "available"
+    },
+    {
+      "id": "26041157",
+      "stock": "19KN082",
+      "catalogTitle": "2019 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X3KM243845",
+      "status": "available"
+    },
+    {
+      "id": "26012284",
+      "stock": "15CA007",
+      "catalogTitle": "2015 Cat CT660 Parts Unit: Truck Dsl Ta",
+      "vin": "3HSJGTKR8FN573362",
+      "status": "available"
+    },
+    {
+      "id": "26065541",
+      "stock": "06FD043",
+      "catalogTitle": "2006 Ford F450 Super Duty Parts Unit: Truck Dsl Sa",
+      "vin": "1FDXF46P76ED35952",
+      "status": "available"
+    },
+    {
+      "id": "26049541",
+      "stock": "05PB126",
+      "catalogTitle": "2005 Peterbilt 378 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPFDU9X55N878909",
+      "status": "available"
+    },
+    {
+      "id": "26060363",
+      "stock": "90VV048",
+      "catalogTitle": "1990 Volvo WCA Parts Unit: Truck Dsl Ta",
+      "vin": "4V1VDBBE5LN626571",
+      "status": "available"
+    },
+    {
+      "id": "26060360",
+      "stock": "96IH278",
+      "catalogTitle": "1996 International 8100 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSHCADRXTH274229",
+      "status": "available"
+    },
+    {
+      "id": "26054407",
+      "stock": "13FD019",
+      "catalogTitle": "2013 Ford F550 Super Duty Parts Unit: Truck Dsl Sa",
+      "vin": "1FDGF5GT4DEA69496",
+      "status": "available"
+    },
+    {
+      "id": "26057592",
+      "stock": "98IH320",
+      "catalogTitle": "1998 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFMATR2WC035338",
+      "status": "available"
+    },
+    {
+      "id": "26058271",
+      "stock": "97WH215",
+      "catalogTitle": "1997 Freightliner FLD120 Parts Unit: Truck Dsl Ta",
+      "vin": "2FUYDDYB9VA863114",
+      "status": "available"
+    },
+    {
+      "id": "26052589",
+      "stock": "99KN129",
+      "catalogTitle": "1999 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "1NKDLT0X2XJ834166",
+      "status": "available"
+    },
+    {
+      "id": "26054460",
+      "stock": "07IH844",
+      "catalogTitle": "2007 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCNAPR97C310764",
+      "status": "available"
+    },
+    {
+      "id": "26056083",
+      "stock": "98WH314",
+      "catalogTitle": "1998 Freightliner FL112 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUYTMEB2WHA38573",
+      "status": "available"
+    },
+    {
+      "id": "26064485",
+      "stock": "84IH158",
+      "catalogTitle": "1984 International S1900 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTAA19E2EHA18469",
+      "status": "available"
+    },
+    {
+      "id": "26056081",
+      "stock": "12MK034",
+      "catalogTitle": "2012 Mack CHU Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AN07Y0CM007996",
+      "status": "available"
+    },
+    {
+      "id": "26056502",
+      "stock": "07KN218",
+      "catalogTitle": "2007 Kenworth W900L Parts Unit: Truck Dsl Ta",
+      "vin": "1XKWDB9XX7J157988",
+      "status": "available"
+    },
+    {
+      "id": "26053779",
+      "stock": "00SL246",
+      "catalogTitle": "2000 Sterling A9513 Parts Unit: Truck Dsl Ta",
+      "vin": "2FWWJECB4YAF16253",
+      "status": "available"
+    },
+    {
+      "id": "26043158",
+      "stock": "16IH164",
+      "catalogTitle": "2016 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJAPR5GN464256",
+      "status": "available"
+    },
+    {
+      "id": "26042769",
+      "stock": "07IH843",
+      "catalogTitle": "2007 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCNAPR57C424650",
+      "status": "available"
+    },
+    {
+      "id": "26061638",
+      "stock": "24WS001",
+      "catalogTitle": "2024 Western Star Trucks 49X Parts Unit: Truck Dsl Ta",
+      "vin": "5KJNBWD15RPVD7035",
+      "status": "available"
+    },
+    {
+      "id": "26053224",
+      "stock": "96VV064",
+      "catalogTitle": "1996 Volvo WG Parts Unit: Truck Dsl Ta",
+      "vin": "4V4JDBRF8TN845542",
+      "status": "available"
+    },
+    {
+      "id": "26053476",
+      "stock": "12KN197",
+      "catalogTitle": "2012 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2XKHAN8X4CM322019",
+      "status": "available"
+    },
+    {
+      "id": "26049367",
+      "stock": "14WH349",
+      "catalogTitle": "2014 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJGEDV3ELFW3757",
+      "status": "available"
+    },
+    {
+      "id": "26054991",
+      "stock": "02KN077",
+      "catalogTitle": "2002 Kenworth W900L Parts Unit: Truck Dsl Ta",
+      "vin": "1XKWDB9X22J893364",
+      "status": "available"
+    },
+    {
+      "id": "26057247",
+      "stock": "10PB140",
+      "catalogTitle": "2010 Peterbilt 387 Parts Unit: Truck Dsl Ta",
+      "vin": "1XP7D49X6AD790231",
+      "status": "available"
+    },
+    {
+      "id": "26052354",
+      "stock": "07FD027",
+      "catalogTitle": "2007 Ford F750 Parts Unit: Truck Dsl Sa",
+      "vin": "3FRXF75G07V479505",
+      "status": "available"
+    },
+    {
+      "id": "26033769",
+      "stock": "85IH101",
+      "catalogTitle": "1985 International 9670 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSRDJWR5FHB14183",
+      "status": "available"
+    },
+    {
+      "id": "26061404",
+      "stock": "20IH078",
+      "catalogTitle": "2020 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZTZR3LN812180",
+      "status": "available"
+    },
+    {
+      "id": "26049355",
+      "stock": "12PB169",
+      "catalogTitle": "2012 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHD49X0CD127003",
+      "status": "available"
+    },
+    {
+      "id": "26044994",
+      "stock": "13WH355",
+      "catalogTitle": "2013 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUBGDBG5DSFD9804",
+      "status": "available"
+    },
+    {
+      "id": "26044995",
+      "stock": "02GM031",
+      "catalogTitle": "2002 GMC C7500 Parts Unit: Truck Dsl Ta",
+      "vin": "1GDP7H1C82J500126",
+      "status": "available"
+    },
+    {
+      "id": "26032898",
+      "stock": "11KN079",
+      "catalogTitle": "2011 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7XXBM293769",
+      "status": "available"
+    },
+    {
+      "id": "26049284",
+      "stock": "01GM043",
+      "catalogTitle": "2001 GMC C7500 Parts Unit: Truck Dsl Sa",
+      "vin": "1GDJ7H1E21J900480",
+      "status": "available"
+    },
+    {
+      "id": "26052568",
+      "stock": "04PB094",
+      "catalogTitle": "2004 Peterbilt 387 Parts Unit: Truck Dsl Ta",
+      "vin": "1XP7DB9X24D820754",
+      "status": "available"
+    },
+    {
+      "id": "26041160",
+      "stock": "91IH216",
+      "catalogTitle": "1991 International 8200 Parts Unit: Truck Dsl Sa",
+      "vin": "1HSHEGGN7MH334877",
+      "status": "available"
+    },
+    {
+      "id": "26038450",
+      "stock": "84FD153",
+      "catalogTitle": "1984 Ford LT8000 Parts Unit: Truck Dsl Ta",
+      "vin": "1FDYU80U8EVA44990",
+      "status": "available"
+    },
+    {
+      "id": "26058270",
+      "stock": "04VV147",
+      "catalogTitle": "2004 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9TJ64N355709",
+      "status": "available"
+    },
+    {
+      "id": "26044767",
+      "stock": "13PB153",
+      "catalogTitle": "2013 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHD49X8DD183143",
+      "status": "available"
+    },
+    {
+      "id": "26042894",
+      "stock": "16MK037",
+      "catalogTitle": "2016 Mack CXU613 Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AW21Y5GM057025",
+      "status": "rejected"
+    },
+    {
+      "id": "26055756",
+      "stock": "01WH411",
+      "catalogTitle": "2001 Freightliner FLD120 Classic Parts Unit: Truck Dsl Ta",
+      "vin": "1FUPDXYB11LH11526",
+      "status": "available"
+    },
+    {
+      "id": "26032746",
+      "stock": "15FD026",
+      "catalogTitle": "2015 Ford F750 Parts Unit: Truck Dsl Sa",
+      "vin": "3FRXF7FG3FV099426",
+      "status": "available"
+    },
+    {
+      "id": "26028435",
+      "stock": "13WH353",
+      "catalogTitle": "2013 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGEDV3DSFG1523",
+      "status": "available"
+    },
+    {
+      "id": "26027167",
+      "stock": "17KN109",
+      "catalogTitle": "2017 Kenworth T680 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKYDP9X9HJ983481",
+      "status": "available"
+    },
+    {
+      "id": "25727019",
+      "stock": "88IH142",
+      "catalogTitle": "1988 International 8300 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSJXGFN4JH533636",
+      "status": "available"
+    },
+    {
+      "id": "25955310",
+      "stock": "95WH201",
+      "catalogTitle": "1995 Freightliner FLD120 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUYDCYB5SH550810",
+      "status": "available"
+    },
+    {
+      "id": "25912854",
+      "stock": "20KN071",
+      "catalogTitle": "2020 Kenworth T880 Parts Unit: Truck Dsl Ta",
+      "vin": "3WKZDP9X1LF411483",
+      "status": "available"
+    },
+    {
+      "id": "26035612",
+      "stock": "19PB081",
+      "catalogTitle": "2019 Peterbilt 579 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPBD49X3KD611090",
+      "status": "available"
+    },
+    {
+      "id": "26034030",
+      "stock": "12MK033",
+      "catalogTitle": "2012 Mack CXU613 Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AW07Y0CM021684",
+      "status": "rejected"
+    },
+    {
+      "id": "26034025",
+      "stock": "94KN060",
+      "catalogTitle": "1994 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKADR9X1RR621998",
+      "status": "available"
+    },
+    {
+      "id": "26032277",
+      "stock": "06KN158",
+      "catalogTitle": "2006 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKADU9X66R115789",
+      "status": "available"
+    },
+    {
+      "id": "26033264",
+      "stock": "14PB131",
+      "catalogTitle": "2014 Peterbilt 384 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPVDP9X6ED239554",
+      "status": "available"
+    },
+    {
+      "id": "26035594",
+      "stock": "12MK032",
+      "catalogTitle": "2012 Mack CXU613 Parts Unit: Truck Dsl Sa",
+      "vin": "1M1AW01Y8CM004835",
+      "status": "rejected"
+    },
+    {
+      "id": "26033742",
+      "stock": "13WH352",
+      "catalogTitle": "2013 Freightliner 108SD Parts Unit: Truck Dsl Ta",
+      "vin": "1FVAG0DT3DHFE0215",
+      "status": "available"
+    },
+    {
+      "id": "26028705",
+      "stock": "14MK030",
+      "catalogTitle": "2014 Mack CXU613 Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AW21Y4EM035658",
+      "status": "rejected"
+    },
+    {
+      "id": "26031288",
+      "stock": "06PB161",
+      "catalogTitle": "2006 Peterbilt 379 Parts Unit: Truck Dsl Ta",
+      "vin": "1XP5D49X96D849514",
+      "status": "available"
+    },
+    {
+      "id": "26031096",
+      "stock": "16KN151",
+      "catalogTitle": "2016 Kenworth T880 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKZDP8X9GJ129997",
+      "status": "available"
+    },
+    {
+      "id": "26033371",
+      "stock": "20MK014",
+      "catalogTitle": "2020 Mack Anthem (AN) Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AN4GY5LM014594",
+      "status": "rejected"
+    },
+    {
+      "id": "26032986",
+      "stock": "12KN195",
+      "catalogTitle": "2012 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM6X6CM296381",
+      "status": "available"
+    },
+    {
+      "id": "26029129",
+      "stock": "18VV025",
+      "catalogTitle": "2018 Volvo VNL Parts Unit: Truck Dsl Sa",
+      "vin": "4V4N39TG2JN892707",
+      "status": "available"
+    },
+    {
+      "id": "26031472",
+      "stock": "99WH464",
+      "catalogTitle": "1999 Freightliner FLD120 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUYDSEBXXPF07787",
+      "status": "available"
+    },
+    {
+      "id": "26028284",
+      "stock": "98WH313",
+      "catalogTitle": "1998 Freightliner FLD120 Parts Unit: Truck Dsl Ta",
+      "vin": "2FUYDSEB2WA926970",
+      "status": "available"
+    },
+    {
+      "id": "26021391",
+      "stock": "25MK001",
+      "catalogTitle": "2025 Mack Anthem (AN) Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AN4GY2SM051147",
+      "status": "rejected"
+    },
+    {
+      "id": "26031448",
+      "stock": "14KN176",
+      "catalogTitle": "2014 Kenworth T660 Parts Unit: Truck Dsl Ta",
+      "vin": "1NKAD39X1EJ419792",
+      "status": "available"
+    },
+    {
+      "id": "26031162",
+      "stock": "26PB001",
+      "catalogTitle": "2026 Peterbilt 567 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPCDP9X6TD781371",
+      "status": "available"
+    },
+    {
+      "id": "26030426",
+      "stock": "06PB160",
+      "catalogTitle": "2006 Peterbilt 378 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPFD49X36D887745",
+      "status": "available"
+    },
+    {
+      "id": "26031350",
+      "stock": "00PB125",
+      "catalogTitle": "2000 Peterbilt 378 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPFDT9XXYN534295",
+      "status": "available"
+    },
+    {
+      "id": "26027258",
+      "stock": "17KN108",
+      "catalogTitle": "2017 Kenworth T880 Parts Unit: Truck Dsl Ta",
+      "vin": "1NKZX70X9HJ162626",
+      "status": "available"
+    },
+    {
+      "id": "26030920",
+      "stock": "20PB064",
+      "catalogTitle": "2020 Peterbilt 579 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPBDP9X7LD643527",
+      "status": "available"
+    },
+    {
+      "id": "26030939",
+      "stock": "16PB142",
+      "catalogTitle": "2016 Peterbilt 567 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPCDP9X9GD351758",
+      "status": "available"
+    },
+    {
+      "id": "26031478",
+      "stock": "07IH839",
+      "catalogTitle": "2007 International 4300 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMMAAM67H333914",
+      "status": "available"
+    },
+    {
+      "id": "26031460",
+      "stock": "13MK039",
+      "catalogTitle": "2013 Mack CXU613 Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AW09Y0DM027483",
+      "status": "rejected"
+    },
+    {
+      "id": "26031483",
+      "stock": "22IH014",
+      "catalogTitle": "2022 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZAPR3NN288264",
+      "status": "available"
+    },
+    {
+      "id": "26030557",
+      "stock": "07CH021",
+      "catalogTitle": "2007 Chevrolet C5500 Parts Unit: Truck Dsl Sa",
+      "vin": "1GBE5V1207F401354",
+      "status": "available"
+    },
+    {
+      "id": "26031140",
+      "stock": "16KN150",
+      "catalogTitle": "2016 Kenworth T880 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKZDP8X3GJ130000",
+      "status": "available"
+    },
+    {
+      "id": "26027483",
+      "stock": "94KN059",
+      "catalogTitle": "1994 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKADB9X2RS629012",
+      "status": "available"
+    },
+    {
+      "id": "25858939",
+      "stock": "13WH351",
+      "catalogTitle": "2013 Freightliner 108SD Parts Unit: Truck Dsl Sa",
+      "vin": "1FVAG0DTXDHFE0213",
+      "status": "available"
+    },
+    {
+      "id": "26028324",
+      "stock": "15KN162",
+      "catalogTitle": "2015 Kenworth T680 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKYDP9X6FJ434446",
+      "status": "available"
+    },
+    {
+      "id": "26027960",
+      "stock": "19WH151",
+      "catalogTitle": "2019 Freightliner CASCADIA Parts Unit: Truck Dsl Sa",
+      "vin": "3AKBHSDVXKSKC7970",
+      "status": "available"
+    },
+    {
+      "id": "26032349",
+      "stock": "01IH389",
+      "catalogTitle": "2001 International 8100 Parts Unit: Truck Dsl Sa",
+      "vin": "1HSHBADN91H354151",
+      "status": "available"
+    },
+    {
+      "id": "26026791",
+      "stock": "13KN162",
+      "catalogTitle": "2013 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKDDP9X6DJ363115",
+      "status": "available"
+    },
+    {
+      "id": "25927351",
+      "stock": "06VV276",
+      "catalogTitle": "2006 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9TJ56N414929",
+      "status": "available"
+    },
+    {
+      "id": "26029174",
+      "stock": "03IH361",
+      "catalogTitle": "2003 International 4300 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMMAAP13H598082",
+      "status": "available"
+    },
+    {
+      "id": "26008711",
+      "stock": "03SL135",
+      "catalogTitle": "2003 Sterling A9513 Parts Unit: Truck Dsl Ta",
+      "vin": "2FWJA3AS33AL05794",
+      "status": "available"
+    },
+    {
+      "id": "25997355",
+      "stock": "20IH062",
+      "catalogTitle": "2020 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HCDZAPR8LL845593",
+      "status": "available"
+    },
+    {
+      "id": "25993470",
+      "stock": "05SL265",
+      "catalogTitle": "2005 Sterling L8513 Parts Unit: Truck Dsl Ta",
+      "vin": "2FZHAWDC75AV00579",
+      "status": "available"
+    },
+    {
+      "id": "26001707",
+      "stock": "11VV060",
+      "catalogTitle": "2011 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9TH3BN298010",
+      "status": "available"
+    },
+    {
+      "id": "26005213",
+      "stock": "11WH227",
+      "catalogTitle": "2011 Freightliner COLUMBIA 120 Parts Unit: Truck Dsl Ta",
+      "vin": "1FVXA7CG0BLBB2637",
+      "status": "available"
+    },
+    {
+      "id": "25954345",
+      "stock": "16WH339",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLD66GSGV1075",
+      "status": "available"
+    },
+    {
+      "id": "26022850",
+      "stock": "22KN029",
+      "catalogTitle": "2022 Kenworth T880 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKZDP9X6NJ131900",
+      "status": "available"
+    },
+    {
+      "id": "26028784",
+      "stock": "07WH745",
+      "catalogTitle": "2007 Freightliner M2 106 Parts Unit: Truck Dsl Sa",
+      "vin": "1FVACWCS97HY94950",
+      "status": "available"
+    },
+    {
+      "id": "25986694",
+      "stock": "15KN163",
+      "catalogTitle": "2015 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2XKHAJ7X1FM462639",
+      "status": "available"
+    },
+    {
+      "id": "26012562",
+      "stock": "17WH179",
+      "catalogTitle": "2017 Freightliner CASCADIA Parts Unit: Truck Dsl Sa",
+      "vin": "1FUBGEDV9HLHL6948",
+      "status": "available"
+    },
+    {
+      "id": "26026529",
+      "stock": "20IH070",
+      "catalogTitle": "2020 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZTZR3LN397684",
+      "status": "available"
+    },
+    {
+      "id": "26021521",
+      "stock": "13WH347",
+      "catalogTitle": "2013 Freightliner 108SD Parts Unit: Truck Dsl Sa",
+      "vin": "1FVAG0DT8DHFE0212",
+      "status": "available"
+    },
+    {
+      "id": "26022721",
+      "stock": "22WH028",
+      "catalogTitle": "2022 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJHHDR7NSKU3344",
+      "status": "available"
+    },
+    {
+      "id": "26017995",
+      "stock": "03PB111",
+      "catalogTitle": "2003 Peterbilt 330 Parts Unit: Truck Dsl Sa",
+      "vin": "2NPNHZ7X03M802537",
+      "status": "available"
+    },
+    {
+      "id": "26017924",
+      "stock": "11PB158",
+      "catalogTitle": "2011 Peterbilt 330 Parts Unit: Truck Dsl Sa",
+      "vin": "2NPNHM6X0BM117702",
+      "status": "available"
+    },
+    {
+      "id": "26013589",
+      "stock": "03IH360",
+      "catalogTitle": "2003 International 7600 Parts Unit: Truck Dsl Ta",
+      "vin": "1HTWYATT33J072455",
+      "status": "available"
+    },
+    {
+      "id": "26017899",
+      "stock": "98PB121",
+      "catalogTitle": "1998 Peterbilt 379 Parts Unit: Truck Dsl Ta",
+      "vin": "1XP5D69X7WD451455",
+      "status": "available"
+    },
+    {
+      "id": "26014635",
+      "stock": "04MK051",
+      "catalogTitle": "2004 Mack CX Vision Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AE06Y04N020406",
+      "status": "rejected"
+    },
+    {
+      "id": "26004793",
+      "stock": "15KN161",
+      "catalogTitle": "2015 Kenworth T680 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKYDP9X1FJ398360",
+      "status": "available"
+    },
+    {
+      "id": "26012498",
+      "stock": "93KN040",
+      "catalogTitle": "1993 Kenworth T400 Parts Unit: Truck Dsl Sa",
+      "vin": "1XKBD58X2NJ570907",
+      "status": "available"
+    },
+    {
+      "id": "26012567",
+      "stock": "92KN047",
+      "catalogTitle": "1992 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKAD69X4NS575908",
+      "status": "available"
+    },
+    {
+      "id": "25962842",
+      "stock": "98PB120",
+      "catalogTitle": "1998 Peterbilt 377 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPCDT9X5WN443421",
+      "status": "available"
+    },
+    {
+      "id": "26012549",
+      "stock": "78FD132",
+      "catalogTitle": "1978 Ford LN8000 Parts Unit: Truck Dsl Ta",
+      "vin": "U80DVBJ7725",
+      "status": "available"
+    },
+    {
+      "id": "26009490",
+      "stock": "05CH044",
+      "catalogTitle": "2005 Chevrolet C4500 Parts Unit: Truck Dsl Sa",
+      "vin": "1GBE4C1285F505837",
+      "status": "available"
+    },
+    {
+      "id": "25987141",
+      "stock": "15WH353",
+      "catalogTitle": "2015 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJGLBG5FLGN0330",
+      "status": "available"
+    },
+    {
+      "id": "26006470",
+      "stock": "16IH162",
+      "catalogTitle": "2016 International DURASTAR (4300) Parts Unit: Truck Dsl Sa",
+      "vin": "3HAMMMML5GL119625",
+      "status": "available"
+    },
+    {
+      "id": "26003937",
+      "stock": "06WH615",
+      "catalogTitle": "2006 Freightliner FLD120SD Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJALCK46DW11482",
+      "status": "available"
+    },
+    {
+      "id": "26012358",
+      "stock": "14IH221",
+      "catalogTitle": "2014 International WORKSTAR Parts Unit: Truck Dsl Sa",
+      "vin": "1HTWAAAR0EH492700",
+      "status": "available"
+    },
+    {
+      "id": "26003936",
+      "stock": "20IH064",
+      "catalogTitle": "2020 International RH Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDWTZR8LN810160",
+      "status": "available"
+    },
+    {
+      "id": "25990114",
+      "stock": "97IH232",
+      "catalogTitle": "1997 International 9300 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFBAMR3VC037053",
+      "status": "available"
+    },
+    {
+      "id": "25707802",
+      "stock": "14IH220",
+      "catalogTitle": "2014 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJSJR2EN016102",
+      "status": "available"
+    },
+    {
+      "id": "25998882",
+      "stock": "21IH035",
+      "catalogTitle": "2021 International MV607 Parts Unit: Truck Dsl Sa",
+      "vin": "3HAEUMML0ML308389",
+      "status": "available"
+    },
+    {
+      "id": "25999311",
+      "stock": "04PB090",
+      "catalogTitle": "2004 Peterbilt 330 Parts Unit: Truck Dsl Ta",
+      "vin": "2NPNHZ8X84M836676",
+      "status": "available"
+    },
+    {
+      "id": "25999421",
+      "stock": "00KN167",
+      "catalogTitle": "2000 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKDDU9X8YS853893",
+      "status": "available"
+    },
+    {
+      "id": "25997494",
+      "stock": "95WH200",
+      "catalogTitle": "1995 Freightliner FLD112 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUY3ECB8SP751564",
+      "status": "available"
+    },
+    {
+      "id": "25997528",
+      "stock": "98IH318",
+      "catalogTitle": "1998 International 9100 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFRAMR5WC055101",
+      "status": "available"
+    },
+    {
+      "id": "26007559",
+      "stock": "16WH343",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBGXGSHM9084",
+      "status": "available"
+    },
+    {
+      "id": "25998120",
+      "stock": "11WH222",
+      "catalogTitle": "2011 Freightliner M2 106 Parts Unit: Truck Dsl Sa",
+      "vin": "1FVACWDT8BHBA7436",
+      "status": "available"
+    },
+    {
+      "id": "25987109",
+      "stock": "17IH081",
+      "catalogTitle": "2017 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJAPRXHN480034",
+      "status": "available"
+    },
+    {
+      "id": "25995129",
+      "stock": "78MI012",
+      "catalogTitle": "1978 Ottawa YT Parts Unit: Truck Dsl Sa",
+      "vin": "51564",
+      "status": "available"
+    },
+    {
+      "id": "25995993",
+      "stock": "06SL359",
+      "catalogTitle": "2006 Sterling L9522 Parts Unit: Truck Dsl Ta",
+      "vin": "2FZHAZCVX6AV38636",
+      "status": "available"
+    },
+    {
+      "id": "25987885",
+      "stock": "15IH173",
+      "catalogTitle": "2015 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJAPR1FN687814",
+      "status": "available"
+    },
+    {
+      "id": "25995101",
+      "stock": "18WH139",
+      "catalogTitle": "2018 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJHHFG4JSJS7105",
+      "status": "available"
+    },
+    {
+      "id": "25987856",
+      "stock": "20PB061",
+      "catalogTitle": "2020 Peterbilt 567 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPCDP9X6LD635424",
+      "status": "available"
+    },
+    {
+      "id": "25987119",
+      "stock": "16WH337",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBG6GSGZ8652",
+      "status": "available"
+    },
+    {
+      "id": "25828714",
+      "stock": "04WH430",
+      "catalogTitle": "2004 Freightliner M2 106 Parts Unit: Truck Dsl Sa",
+      "vin": "1FVACXCS54HN04301",
+      "status": "available"
+    },
+    {
+      "id": "25939350",
+      "stock": "96IH275",
+      "catalogTitle": "1996 International S2500 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTGBAAR8TH262207",
+      "status": "available"
+    },
+    {
+      "id": "25988073",
+      "stock": "18IH105",
+      "catalogTitle": "2018 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZTZR3JN655697",
+      "status": "available"
+    },
+    {
+      "id": "25885094",
+      "stock": "14WH336",
+      "catalogTitle": "2014 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLD51ESFY3692",
+      "status": "available"
+    },
+    {
+      "id": "25998779",
+      "stock": "06VV270",
+      "catalogTitle": "2006 Volvo VNM Parts Unit: Truck Dsl Ta",
+      "vin": "4V4MC9GF26N425582",
+      "status": "available"
+    },
+    {
+      "id": "25989808",
+      "stock": "19VV030",
+      "catalogTitle": "2019 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EJ3KN873349",
+      "status": "available"
+    },
+    {
+      "id": "25989985",
+      "stock": "05VV176",
+      "catalogTitle": "2005 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9GHX5N394439",
+      "status": "available"
+    },
+    {
+      "id": "25988211",
+      "stock": "15WH350",
+      "catalogTitle": "2015 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBG1FSGR3731",
+      "status": "available"
+    },
+    {
+      "id": "25989670",
+      "stock": "03MK066",
+      "catalogTitle": "2003 Mack CX Vision Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AE07Y33W015210",
+      "status": "rejected"
+    },
+    {
+      "id": "25988129",
+      "stock": "07IH834",
+      "catalogTitle": "2007 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCNAPR77C358327",
+      "status": "available"
+    },
+    {
+      "id": "25988185",
+      "stock": "16WH335",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBGXGSGZ8640",
+      "status": "available"
+    },
+    {
+      "id": "25988076",
+      "stock": "15WH352",
+      "catalogTitle": "2015 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJGLBG5FLGN0327",
+      "status": "available"
+    },
+    {
+      "id": "25989923",
+      "stock": "03VV106",
+      "catalogTitle": "2003 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9GH43N349381",
+      "status": "available"
+    },
+    {
+      "id": "25987991",
+      "stock": "18IH103",
+      "catalogTitle": "2018 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZTZR8JN657588",
+      "status": "available"
+    },
+    {
+      "id": "25976167",
+      "stock": "97WH208",
+      "catalogTitle": "1997 Freightliner C120 Century Parts Unit: Truck Dsl Ta",
+      "vin": "1FUYSDYB6VL831396",
+      "status": "available"
+    },
+    {
+      "id": "25988155",
+      "stock": "15IH172",
+      "catalogTitle": "2015 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJAPR3FN667385",
+      "status": "available"
+    },
+    {
+      "id": "25939740",
+      "stock": "00IH473",
+      "catalogTitle": "2000 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCEAHR0YC052506",
+      "status": "available"
+    },
+    {
+      "id": "25989902",
+      "stock": "02IH294",
+      "catalogTitle": "2002 International 4700 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTSCABM02H545709",
+      "status": "available"
+    },
+    {
+      "id": "25982852",
+      "stock": "12PB166",
+      "catalogTitle": "2012 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHDP9X7CD126710",
+      "status": "available"
+    },
+    {
+      "id": "25983019",
+      "stock": "93IH252",
+      "catalogTitle": "1993 International 4900 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTSDPNP9PH533071",
+      "status": "available"
+    },
+    {
+      "id": "25987120",
+      "stock": "18IH102",
+      "catalogTitle": "2018 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZTZR9JN656028",
+      "status": "available"
+    },
+    {
+      "id": "25989789",
+      "stock": "21PB014",
+      "catalogTitle": "2021 Peterbilt 579 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPBDP9X7MD755987",
+      "status": "available"
+    },
+    {
+      "id": "25988197",
+      "stock": "18IH104",
+      "catalogTitle": "2018 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZTZR2JN655867",
+      "status": "available"
+    },
+    {
+      "id": "25988093",
+      "stock": "15WH351",
+      "catalogTitle": "2015 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBG6FSGR3725",
+      "status": "available"
+    },
+    {
+      "id": "25826707",
+      "stock": "15WH347",
+      "catalogTitle": "2015 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKNGLD16FSGB2051",
+      "status": "available"
+    },
+    {
+      "id": "25983614",
+      "stock": "03CH029",
+      "catalogTitle": "2003 Chevrolet C4500 Parts Unit: Truck Dsl Sa",
+      "vin": "1GBC4E1E43F503478",
+      "status": "available"
+    },
+    {
+      "id": "25975872",
+      "stock": "17MK013",
+      "catalogTitle": "2017 Mack CXU613 Parts Unit: Truck Dsl Sa",
+      "vin": "1M1AW01XXHM009629",
+      "status": "rejected"
+    },
+    {
+      "id": "25988166",
+      "stock": "17IH080",
+      "catalogTitle": "2017 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJAPR2HN480030",
+      "status": "available"
+    },
+    {
+      "id": "25980446",
+      "stock": "94IH192",
+      "catalogTitle": "1994 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFMAHR1RC013165",
+      "status": "available"
+    },
+    {
+      "id": "25988098",
+      "stock": "16WH334",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBG0GSGZ8629",
+      "status": "available"
+    },
+    {
+      "id": "25988046",
+      "stock": "18IH106",
+      "catalogTitle": "2018 International LT Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDZAPR4JN541988",
+      "status": "available"
+    },
+    {
+      "id": "25979189",
+      "stock": "03MK065",
+      "catalogTitle": "2003 Mack CH600 Parts Unit: Truck Dsl Ta",
+      "vin": "1M1AA18Y93W153964",
+      "status": "rejected"
+    },
+    {
+      "id": "25987909",
+      "stock": "16WH336",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLBG0GSGZ8646",
+      "status": "available"
+    },
+    {
+      "id": "25967093",
+      "stock": "14CA004",
+      "catalogTitle": "2014 Cat CT660 Parts Unit: Truck Dsl Ta",
+      "vin": "3HSJGTKT9EN021881",
+      "status": "available"
+    },
+    {
+      "id": "25861578",
+      "stock": "01SL127",
+      "catalogTitle": "2001 Sterling A9522 Parts Unit: Truck Dsl Ta",
+      "vin": "2FWYHWEB61AH63285",
+      "status": "available"
+    },
+    {
+      "id": "25963983",
+      "stock": "24HI001",
+      "catalogTitle": "2024 Hino L6 Parts Unit: Truck Dsl Sa",
+      "vin": "5PVNJ7BY7R5T50174",
+      "status": "available"
+    },
+    {
+      "id": "25975976",
+      "stock": "10IH246",
+      "catalogTitle": "2010 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSCUAPR5AN246084",
+      "status": "available"
+    },
+    {
+      "id": "25972342",
+      "stock": "19VV029",
+      "catalogTitle": "2019 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EH7KN219323",
+      "status": "available"
+    },
+    {
+      "id": "25971900",
+      "stock": "04SL161",
+      "catalogTitle": "2004 Sterling ACTERRA Parts Unit: Truck Dsl Ta",
+      "vin": "2FZHCHAK94AM14416",
+      "status": "available"
+    },
+    {
+      "id": "25965749",
+      "stock": "16PB138",
+      "catalogTitle": "2016 Peterbilt 579 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPBDP9X8GD359975",
+      "status": "available"
+    },
+    {
+      "id": "25948363",
+      "stock": "18WH134",
+      "catalogTitle": "2018 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJHHDR9JSJR1015",
+      "status": "available"
+    },
+    {
+      "id": "25957722",
+      "stock": "11IH244",
+      "catalogTitle": "2011 International DURASTAR (4400) Parts Unit: Truck Dsl Ta",
+      "vin": "1HTMSAARXBJ398185",
+      "status": "available"
+    },
+    {
+      "id": "25963747",
+      "stock": "13KN158",
+      "catalogTitle": "2013 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X8DM354538",
+      "status": "available"
+    },
+    {
+      "id": "25966433",
+      "stock": "03SL132",
+      "catalogTitle": "2003 Sterling ACTERRA Parts Unit: Truck Dsl Sa",
+      "vin": "2FZAAHAL03AL05700",
+      "status": "available"
+    },
+    {
+      "id": "25951780",
+      "stock": "90IH207",
+      "catalogTitle": "1990 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFHG2R4LC042229",
+      "status": "available"
+    },
+    {
+      "id": "25954363",
+      "stock": "97WH207",
+      "catalogTitle": "1997 Freightliner FLD112SD Parts Unit: Truck Dsl Ta",
+      "vin": "2FUY6MDBXVA777679",
+      "status": "available"
+    },
+    {
+      "id": "25953789",
+      "stock": "18WH132",
+      "catalogTitle": "2018 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJHHDR5JSJR0234",
+      "status": "available"
+    },
+    {
+      "id": "25958463",
+      "stock": "20WH080",
+      "catalogTitle": "2020 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJHHDR8LLLN1433",
+      "status": "available"
+    },
+    {
+      "id": "25938227",
+      "stock": "02PB063",
+      "catalogTitle": "2002 Peterbilt 378 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPFDU9X42N575440",
+      "status": "available"
+    },
+    {
+      "id": "25958770",
+      "stock": "16VV087",
+      "catalogTitle": "2016 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EH6GN949280",
+      "status": "available"
+    },
+    {
+      "id": "25958521",
+      "stock": "18WH133",
+      "catalogTitle": "2018 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJHHDR7JSJU8650",
+      "status": "available"
+    },
+    {
+      "id": "25780675",
+      "stock": "07IH828",
+      "catalogTitle": "2007 International 4300 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMMAAM97H334703",
+      "status": "available"
+    },
+    {
+      "id": "25958512",
+      "stock": "15WH341",
+      "catalogTitle": "2015 Freightliner 122SD Parts Unit: Truck Dsl Ta",
+      "vin": "3AKNGND10FDGH6229",
+      "status": "available"
+    },
+    {
+      "id": "25955326",
+      "stock": "10PB137",
+      "catalogTitle": "2010 Peterbilt 389 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPXD49X1AD798561",
+      "status": "available"
+    },
+    {
+      "id": "25954559",
+      "stock": "21FD004",
+      "catalogTitle": "2021 Ford F650 Parts Unit: Truck Dsl Sa",
+      "vin": "1FDWF6DE4MDF07639",
+      "status": "available"
+    },
+    {
+      "id": "25932659",
+      "stock": "94GM084",
+      "catalogTitle": "1994 GMC C6500 Parts Unit: Truck Gas",
+      "vin": "1GDG6H1P8RJ517833",
+      "status": "available"
+    },
+    {
+      "id": "25954320",
+      "stock": "01IH384",
+      "catalogTitle": "2001 International 9100 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCBAHR41C001234",
+      "status": "available"
+    },
+    {
+      "id": "25929172",
+      "stock": "19WH142",
+      "catalogTitle": "2019 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJHHDR9KSKH0133",
+      "status": "available"
+    },
+    {
+      "id": "25932662",
+      "stock": "90FD136",
+      "catalogTitle": "1990 Ford F600 Parts Unit: Truck Gas",
+      "vin": "1FDNF60H5LVA22432",
+      "status": "available"
+    },
+    {
+      "id": "25934551",
+      "stock": "11HI003",
+      "catalogTitle": "2011 Hino 338 Parts Unit: Truck Dsl Sa",
+      "vin": "5PVNV8JV3B4S51834",
+      "status": "available"
+    },
+    {
+      "id": "25954381",
+      "stock": "06IH501",
+      "catalogTitle": "2006 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCEAPR36C246316",
+      "status": "available"
+    },
+    {
+      "id": "25954409",
+      "stock": "07IH824",
+      "catalogTitle": "2007 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCEAPR37C385797",
+      "status": "available"
+    },
+    {
+      "id": "25954244",
+      "stock": "00IH471",
+      "catalogTitle": "2000 International 9100 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSCBAHRXYJ070294",
+      "status": "available"
+    },
+    {
+      "id": "25954911",
+      "stock": "98WH308",
+      "catalogTitle": "1998 Freightliner C120 Century Parts Unit: Truck Dsl Ta",
+      "vin": "1FUYSCYB2WPA29788",
+      "status": "available"
+    },
+    {
+      "id": "25913948",
+      "stock": "00IH470",
+      "catalogTitle": "2000 International 9100 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSCBAHR9YJ086907",
+      "status": "available"
+    },
+    {
+      "id": "25931914",
+      "stock": "16VV084",
+      "catalogTitle": "2016 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EH9GN947572",
+      "status": "available"
+    },
+    {
+      "id": "25937598",
+      "stock": "86IH141",
+      "catalogTitle": "1986 International 9300 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFBJSR5GCA11093",
+      "status": "available"
+    },
+    {
+      "id": "25930781",
+      "stock": "15PB127",
+      "catalogTitle": "2015 Peterbilt 567 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPCD40X2FD280798",
+      "status": "available"
+    },
+    {
+      "id": "25908326",
+      "stock": "06SL355",
+      "catalogTitle": "2006 Sterling L8513 Parts Unit: Truck Dsl Sa",
+      "vin": "2FZAAVDC56AW25464",
+      "status": "available"
+    },
+    {
+      "id": "25908323",
+      "stock": "91KN016",
+      "catalogTitle": "1991 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKDDE8X5MS559109",
+      "status": "available"
+    },
+    {
+      "id": "25908331",
+      "stock": "00WH703",
+      "catalogTitle": "2000 Freightliner Classic Xl Parts Unit: Truck Dsl Ta",
+      "vin": "1FUPCSZB3YPB99890",
+      "status": "available"
+    },
+    {
+      "id": "25933331",
+      "stock": "05KN151",
+      "catalogTitle": "2005 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKDDB9X75J102922",
+      "status": "available"
+    },
+    {
+      "id": "25908344",
+      "stock": "96WH239",
+      "catalogTitle": "1996 Freightliner FLD120 Parts Unit: Truck Dsl Ta",
+      "vin": "2FUYDSEB5TA688737",
+      "status": "available"
+    },
+    {
+      "id": "25907946",
+      "stock": "16WH317",
+      "catalogTitle": "2016 Freightliner M2 106 Parts Unit: Truck Dsl Sa",
+      "vin": "3ALACWDT9GDHN7345",
+      "status": "available"
+    },
+    {
+      "id": "25908298",
+      "stock": "09IH284",
+      "catalogTitle": "2009 International WORKSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "1HTWHAAT49J159650",
+      "status": "available"
+    },
+    {
+      "id": "25908466",
+      "stock": "07IH823",
+      "catalogTitle": "2007 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCESBR07C436797",
+      "status": "available"
+    },
+    {
+      "id": "25908316",
+      "stock": "97VV154",
+      "catalogTitle": "1997 Volvo WIA Parts Unit: Truck Dsl Ta",
+      "vin": "4V4WDBGH3VN733941",
+      "status": "available"
+    },
+    {
+      "id": "25923977",
+      "stock": "20VV026",
+      "catalogTitle": "2020 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EH8LN234320",
+      "status": "available"
+    },
+    {
+      "id": "25923881",
+      "stock": "13KN156",
+      "catalogTitle": "2013 Kenworth T660 Parts Unit: Truck Dsl Sa",
+      "vin": "1XKAA48X6DJ354720",
+      "status": "available"
+    },
+    {
+      "id": "25913007",
+      "stock": "05FD034",
+      "catalogTitle": "2005 Ford F650 Parts Unit: Truck Dsl Sa",
+      "vin": "3FRPF65G05V106357",
+      "status": "available"
+    },
+    {
+      "id": "25914518",
+      "stock": "90FD135",
+      "catalogTitle": "1990 Ford CF6000 Parts Unit: Truck Dsl Sa",
+      "vin": "9BFPH60P2LDM01432",
+      "status": "available"
+    },
+    {
+      "id": "25870411",
+      "stock": "18KN062",
+      "catalogTitle": "2018 Kenworth T680 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKYDP9X5JJ223196",
+      "status": "available"
+    },
+    {
+      "id": "25915204",
+      "stock": "98FD199",
+      "catalogTitle": "1998 Ford F800 Parts Unit: Truck Dsl Sa",
+      "vin": "1FDNF80C2WVA23669",
+      "status": "available"
+    },
+    {
+      "id": "25906955",
+      "stock": "90FD134",
+      "catalogTitle": "1990 Ford LN8000 Parts Unit: Truck Dsl Sa",
+      "vin": "1FDPR82A2LVA45663",
+      "status": "available"
+    },
+    {
+      "id": "25921458",
+      "stock": "05PB123",
+      "catalogTitle": "2005 Peterbilt 387 Parts Unit: Truck Dsl Ta",
+      "vin": "1XP7DB9X35D873173",
+      "status": "available"
+    },
+    {
+      "id": "25939955",
+      "stock": "00SL241",
+      "catalogTitle": "2000 Sterling L9511 Parts Unit: Truck Dsl Ta",
+      "vin": "2FZNEEDB4YAG73878",
+      "status": "available"
+    },
+    {
+      "id": "25908355",
+      "stock": "01IH380",
+      "catalogTitle": "2001 International 4700 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTSMABM91H388757",
+      "status": "available"
+    },
+    {
+      "id": "25908356",
+      "stock": "98IH315",
+      "catalogTitle": "1998 International 4700 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTSMABM3WH560322",
+      "status": "available"
+    },
+    {
+      "id": "25908357",
+      "stock": "00IH469",
+      "catalogTitle": "2000 International 4700 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTSMABM4YH251610",
+      "status": "available"
+    },
+    {
+      "id": "25902546",
+      "stock": "98IH316",
+      "catalogTitle": "1998 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFMAXRXWC064161",
+      "status": "available"
+    },
+    {
+      "id": "25912316",
+      "stock": "05WH622",
+      "catalogTitle": "2005 Freightliner Classic Xl Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJAPCK75DN55785",
+      "status": "available"
+    },
+    {
+      "id": "25906952",
+      "stock": "09IH282",
+      "catalogTitle": "2009 International DURASTAR (4400) Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMKAAN89H160253",
+      "status": "available"
+    },
+    {
+      "id": "25909146",
+      "stock": "10IH240",
+      "catalogTitle": "2010 International DURASTAR (4300) Parts Unit: Truck Dsl Sa",
+      "vin": "1HTJTSKM1AH172809",
+      "status": "available"
+    },
+    {
+      "id": "25899899",
+      "stock": "15VV113",
+      "catalogTitle": "2015 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EG9FN909068",
+      "status": "available"
+    },
+    {
+      "id": "25885613",
+      "stock": "21KN020",
+      "catalogTitle": "2021 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X6MM436462",
+      "status": "available"
+    },
+    {
+      "id": "25902469",
+      "stock": "00WH701",
+      "catalogTitle": "2000 Freightliner FLD112SD Parts Unit: Truck Dsl Sa",
+      "vin": "1FUY6WDB5YLB93140",
+      "status": "available"
+    },
+    {
+      "id": "25818837",
+      "stock": "06VV263",
+      "catalogTitle": "2006 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9GH96N413841",
+      "status": "available"
+    },
+    {
+      "id": "25531655",
+      "stock": "08VV099",
+      "catalogTitle": "2008 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9KH88N493854",
+      "status": "available"
+    },
+    {
+      "id": "25908460",
+      "stock": "08IH349",
+      "catalogTitle": "2008 International WORKSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "1HTWHAAT48J039555",
+      "status": "available"
+    },
+    {
+      "id": "25885667",
+      "stock": "20KN061",
+      "catalogTitle": "2020 Kenworth T370 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHM7X1LM400242",
+      "status": "available"
+    },
+    {
+      "id": "25902140",
+      "stock": "95WH199",
+      "catalogTitle": "1995 Freightliner FLD112 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUY3EDB7SH678518",
+      "status": "available"
+    },
+    {
+      "id": "25900353",
+      "stock": "07WH722",
+      "catalogTitle": "2007 Freightliner M2 106 Parts Unit: Truck Dsl Sa",
+      "vin": "1FVACXCS57HX59843",
+      "status": "available"
+    },
+    {
+      "id": "25900751",
+      "stock": "07IH812",
+      "catalogTitle": "2007 International 9200 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCEAPR17C426430",
+      "status": "available"
+    },
+    {
+      "id": "25900752",
+      "stock": "05IH656",
+      "catalogTitle": "2005 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSCNAPR05C147984",
+      "status": "available"
+    },
+    {
+      "id": "25898961",
+      "stock": "14VV101",
+      "catalogTitle": "2014 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9EH5EN156680",
+      "status": "available"
+    },
+    {
+      "id": "25874583",
+      "stock": "92CH037",
+      "catalogTitle": "1992 Chevrolet KODIAK Parts Unit: Truck Gas",
+      "vin": "1GBJ7H1P6NJ103715",
+      "status": "available"
+    },
+    {
+      "id": "25900730",
+      "stock": "90KN030",
+      "catalogTitle": "1990 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKADB9X4LJ546534",
+      "status": "available"
+    },
+    {
+      "id": "25863881",
+      "stock": "94PB042",
+      "catalogTitle": "1994 Peterbilt 377 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPCDR8X6RD346033",
+      "status": "available"
+    },
+    {
+      "id": "25879539",
+      "stock": "15IH163",
+      "catalogTitle": "2015 International DURASTAR (4300) Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMMMML4FH696019",
+      "status": "available"
+    },
+    {
+      "id": "25899095",
+      "stock": "02IH292",
+      "catalogTitle": "2002 International 4300 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMMAAP02H514509",
+      "status": "available"
+    },
+    {
+      "id": "25899028",
+      "stock": "16KN137",
+      "catalogTitle": "2016 Kenworth T680 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKYD49X8GJ463611",
+      "status": "available"
+    },
+    {
+      "id": "25899329",
+      "stock": "95KN071",
+      "catalogTitle": "1995 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "2XKDDB9XXSM661840",
+      "status": "available"
+    },
+    {
+      "id": "25908448",
+      "stock": "00KN165",
+      "catalogTitle": "2000 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKADR9X0YJ957851",
+      "status": "available"
+    },
+    {
+      "id": "25899312",
+      "stock": "95KN072",
+      "catalogTitle": "1995 Kenworth T800 Parts Unit: Truck Dsl Ta",
+      "vin": "2XKDDB9X3SM661842",
+      "status": "available"
+    },
+    {
+      "id": "25892720",
+      "stock": "15IH160",
+      "catalogTitle": "2015 International DURASTAR (4400) Parts Unit: Truck Dsl Ta",
+      "vin": "3HAMSAZR3FL574974",
+      "status": "available"
+    },
+    {
+      "id": "25891957",
+      "stock": "11IH238",
+      "catalogTitle": "2011 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "1HSCUAPR9BJ361503",
+      "status": "available"
+    },
+    {
+      "id": "25892149",
+      "stock": "13HI012",
+      "catalogTitle": "2013 Hino 338 Parts Unit: Truck Dsl Sa",
+      "vin": "5PVNV8JM0D4S50425",
+      "status": "available"
+    },
+    {
+      "id": "25897212",
+      "stock": "14IH212",
+      "catalogTitle": "2014 International DURASTAR (4300) Parts Unit: Truck Dsl Sa",
+      "vin": "3HAMMAAP9EL499233",
+      "status": "available"
+    },
+    {
+      "id": "25891203",
+      "stock": "00WH700",
+      "catalogTitle": "2000 Freightliner FLD120 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUYDSZB6YPB86343",
+      "status": "available"
+    },
+    {
+      "id": "25897721",
+      "stock": "16WH313",
+      "catalogTitle": "2016 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJGLDR0GLGV8125",
+      "status": "available"
+    },
+    {
+      "id": "25888150",
+      "stock": "01VV128",
+      "catalogTitle": "2001 Volvo VNL Parts Unit: Truck Dsl Ta",
+      "vin": "4V4NC9GF91N320017",
+      "status": "available"
+    },
+    {
+      "id": "25923817",
+      "stock": "10PB133",
+      "catalogTitle": "2010 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHDU9X8AD107630",
+      "status": "available"
+    },
+    {
+      "id": "25881720",
+      "stock": "05WH618",
+      "catalogTitle": "2005 Freightliner COLUMBIA 120 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJA6CK35LV10052",
+      "status": "available"
+    },
+    {
+      "id": "25910458",
+      "stock": "09PB136",
+      "catalogTitle": "2009 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHD49X09D773022",
+      "status": "available"
+    },
+    {
+      "id": "25892276",
+      "stock": "06WH608",
+      "catalogTitle": "2006 Freightliner COLUMBIA 112 Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJF0DE86LV64360",
+      "status": "available"
+    },
+    {
+      "id": "25890129",
+      "stock": "99IH499",
+      "catalogTitle": "1999 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFHAER2XC085448",
+      "status": "available"
+    },
+    {
+      "id": "25890138",
+      "stock": "96FD094",
+      "catalogTitle": "1996 Ford LN8000 Parts Unit: Truck Dsl Sa",
+      "vin": "1FDXR82E3TVA23447",
+      "status": "available"
+    },
+    {
+      "id": "25888870",
+      "stock": "05IH655",
+      "catalogTitle": "2005 International 8600 Parts Unit: Truck Dsl Sa",
+      "vin": "1HSHWAHN85J027253",
+      "status": "available"
+    },
+    {
+      "id": "25888407",
+      "stock": "08GM028",
+      "catalogTitle": "2008 GMC C5500 Parts Unit: Truck Dsl Sa",
+      "vin": "1GDJ5C1G48F900018",
+      "status": "available"
+    },
+    {
+      "id": "25910468",
+      "stock": "09PB137",
+      "catalogTitle": "2009 Peterbilt 386 Parts Unit: Truck Dsl Ta",
+      "vin": "1XPHD49XX9D773013",
+      "status": "available"
+    },
+    {
+      "id": "25887735",
+      "stock": "02IH291",
+      "catalogTitle": "2002 International 4300 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMMAAM82H527546",
+      "status": "available"
+    },
+    {
+      "id": "25885653",
+      "stock": "04SL158",
+      "catalogTitle": "2004 Sterling ACTERRA Parts Unit: Truck Dsl Ta",
+      "vin": "2FZHCHAK04AM14417",
+      "status": "available"
+    },
+    {
+      "id": "25867708",
+      "stock": "01IH379",
+      "catalogTitle": "2001 International 8100 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSHCAHR41H343777",
+      "status": "available"
+    },
+    {
+      "id": "25861204",
+      "stock": "17WH156",
+      "catalogTitle": "2017 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "3AKJGLDR2HSHL4501",
+      "status": "available"
+    },
+    {
+      "id": "25801380",
+      "stock": "07VV340",
+      "catalogTitle": "2007 Volvo VNL Parts Unit: Truck Dsl Sa",
+      "vin": "4V4N19TG07N486228",
+      "status": "available"
+    },
+    {
+      "id": "25871533",
+      "stock": "86IH140",
+      "catalogTitle": "1986 International S1700 Parts Unit: Truck Dsl Sa",
+      "vin": "1HTLCHXM1GHA27155",
+      "status": "available"
+    },
+    {
+      "id": "25879091",
+      "stock": "16IH145",
+      "catalogTitle": "2016 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "3HSDJAPR4GN224857",
+      "status": "available"
+    },
+    {
+      "id": "25876218",
+      "stock": "89IH134",
+      "catalogTitle": "1989 International S2300 Parts Unit: Truck Dsl Sa",
+      "vin": "1HSZDGFN5KH646671",
+      "status": "available"
+    },
+    {
+      "id": "25877911",
+      "stock": "12WH375",
+      "catalogTitle": "2012 Freightliner CASCADIA Parts Unit: Truck Dsl Ta",
+      "vin": "1FUJGEBG1CSBS9778",
+      "status": "available"
+    },
+    {
+      "id": "25878340",
+      "stock": "09KN102",
+      "catalogTitle": "2009 Kenworth T270 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKHHN6X19M256563",
+      "status": "available"
+    },
+    {
+      "id": "25876234",
+      "stock": "08IH346",
+      "catalogTitle": "2008 International DURASTAR (4300) Parts Unit: Truck Dsl Sa",
+      "vin": "3HTMMAAN88N682881",
+      "status": "available"
+    },
+    {
+      "id": "25876291",
+      "stock": "92VV036",
+      "catalogTitle": "1992 Volvo WIA Parts Unit: Truck Dsl Ta",
+      "vin": "4V1WDBRF1NU511011",
+      "status": "available"
+    },
+    {
+      "id": "25868135",
+      "stock": "11WH213",
+      "catalogTitle": "2011 Freightliner M2 106 Parts Unit: Truck Dsl Sa",
+      "vin": "1FVACWDT7BHBB8119",
+      "status": "available"
+    },
+    {
+      "id": "25873843",
+      "stock": "96IH272",
+      "catalogTitle": "1996 International 8200 Parts Unit: Truck Dsl Ta",
+      "vin": "1HSHGAHR2TH249419",
+      "status": "available"
+    },
+    {
+      "id": "25867745",
+      "stock": "11IH234",
+      "catalogTitle": "2011 International PROSTAR Parts Unit: Truck Dsl Ta",
+      "vin": "1HSCUAPR3BJ363375",
+      "status": "available"
+    },
+    {
+      "id": "25899416",
+      "stock": "14KN164",
+      "catalogTitle": "2014 Kenworth T370 Parts Unit: Truck Dsl Ta",
+      "vin": "2NKHLJ9XXEM392218",
+      "status": "available"
+    },
+    {
+      "id": "25872952",
+      "stock": "14WH317",
+      "catalogTitle": "2014 Freightliner 122SD Parts Unit: Truck Dsl Ta",
+      "vin": "3ALMGNDR7EDFL0961",
+      "status": "available"
+    },
+    {
+      "id": "25870496",
+      "stock": "92IH147",
+      "catalogTitle": "1992 International 9400 Parts Unit: Truck Dsl Ta",
+      "vin": "2HSFHLKR6NC056466",
+      "status": "available"
+    },
+    {
+      "id": "25885609",
+      "stock": "05KN150",
+      "catalogTitle": "2005 Kenworth T300 Parts Unit: Truck Dsl Sa",
+      "vin": "2NKMHD7X55M073782",
+      "status": "available"
+    },
+    {
+      "id": "25885633",
+      "stock": "02SL095",
+      "catalogTitle": "2002 Sterling ACTERRA Parts Unit: Truck Dsl Sa",
+      "vin": "2FZAAKAK52AJ46269",
+      "status": "available"
+    },
+    {
+      "id": "25885626",
+      "stock": "12IH360",
+      "catalogTitle": "2012 International DURASTAR (4400) Parts Unit: Truck Dsl Sa",
+      "vin": "1HTMKAAL3CH146136",
+      "status": "available"
+    },
+    {
+      "id": "25870385",
+      "stock": "95KN069",
+      "catalogTitle": "1995 Kenworth T600 Parts Unit: Truck Dsl Ta",
+      "vin": "1XKADB9XXSS655170",
+      "status": "available"
+    }
+  ]
+}

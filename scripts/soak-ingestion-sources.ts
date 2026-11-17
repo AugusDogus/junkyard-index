@@ -71,6 +71,8 @@ import { streamNvpapInventory } from "../src/server/ingestion/nvpap-connector";
 import { soakNvpapInventory } from "./soak-nvpap";
 import { streamPontiacInventory } from "../src/server/ingestion/pontiac-connector";
 import { soakPontiacInventory } from "./soak-pontiac";
+import { streamVanderHaagsInventory } from "../src/server/ingestion/vanderhaags-connector";
+import { soakVanderHaagsInventory } from "./soak-vanderhaags";
 import { streamAeroInventory } from "../src/server/ingestion/aero-connector";
 import { streamChesterfieldInventory } from "../src/server/ingestion/chesterfield-connector";
 import { DonorPhotoStore } from "../src/server/ingestion/donor-photo-store";
@@ -1152,6 +1154,18 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamPullsavewaInventory({ startCursor, maxPages, onBatch }),
+                ),
+              config.maxPages,
+            );
+          case "vanderhaags":
+            return soakVanderHaagsInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamVanderHaagsInventory({
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
                 ),
               config.maxPages,
             );

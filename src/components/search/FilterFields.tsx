@@ -104,6 +104,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   rmmdtp: "Rocky Mountain Medium Duty Truck Parts",
   calton: "Calton Auto Parts Recyclers",
   aero: "Aero Auto Parts",
+  vanderhaags: "Vander Haag’s Sioux Falls",
   row52: "Row52 / Pick-n-Pull",
   autorecycler: "AutoRecycler.io",
 };

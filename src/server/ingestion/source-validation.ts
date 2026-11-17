@@ -24,6 +24,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   pontiac: 435,
   // Native inline table: 130 complete of 141 rows on 2026-11-11.
   aero: 43,
+  // Sioux Falls: 276 accepted of 287 native donor trucks on 2026-11-17.
+  vanderhaags: 95,
   // Three native yards: 2,111 field-complete donors on 2026-11-11.
   chesterfield: 703,
   // Two native Utah XML/PHP catalogs: 1,727 complete donors on 2026-11-12.
