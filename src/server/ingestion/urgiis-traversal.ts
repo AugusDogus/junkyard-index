@@ -12,8 +12,16 @@ import type { UrgiisTenant } from "./urgiis-tenant";
  * not hostile signatures. Owned routes and the complete task prefix are validated separately. */
 export function urgiisFingerprint(value: unknown): string {
   let hash = 2166136261;
-  for (const char of JSON.stringify(value))
-    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  const encoded = JSON.stringify(value);
+  for (let i = 0; i < encoded.length; i++) {
+    const code = encoded.charCodeAt(i);
+    hash = Math.imul(hash ^ code, 16777619);
+    // Preserve the original code-point iteration for surrogate pairs.
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < encoded.length) {
+      const next = encoded.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) i++;
+    }
+  }
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 const receipt = {
@@ -24,7 +32,7 @@ const receipt = {
     .min(0)
     .max(4 * 1024 * 1024),
 };
-export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
+const entrySchema = z.discriminatedUnion("kind", [
   z
     .object({ ...receipt, kind: z.literal("owner"), identity: z.string() })
     .strict(),
@@ -63,7 +71,34 @@ export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
     })
     .strict(),
 ]);
-export type UrgiisEntry = z.infer<typeof UrgiisEntrySchema>;
+export type UrgiisEntry = z.infer<typeof entrySchema>;
+
+/** Checkpoint-owned evidence is immutable. Reuse only the exact frozen object
+ * already parsed here; new wire objects always receive full schema validation. */
+export function freezeUrgiisEvidence(value: unknown): void {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value))
+    return;
+  for (const item of Object.values(value)) freezeUrgiisEvidence(item);
+  Object.freeze(value);
+}
+const validatedEntries = new WeakMap<object, UrgiisEntry>();
+export const UrgiisEntrySchema = z
+  .unknown()
+  .transform((input, context): UrgiisEntry => {
+    const cached =
+      input !== null && typeof input === "object"
+        ? validatedEntries.get(input)
+        : undefined;
+    if (cached) return cached;
+    const parsed = entrySchema.safeParse(input);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) context.addIssue(issue);
+      return z.NEVER;
+    }
+    freezeUrgiisEvidence(parsed.data);
+    validatedEntries.set(parsed.data, parsed.data);
+    return parsed.data;
+  });
 export type UrgiisTask =
   | { kind: "detail"; url: string; stock: string; year: string; vin: string }
   | { kind: "owner"; url: string }
@@ -71,10 +106,28 @@ export type UrgiisTask =
   | { kind: "arrivals"; url: string }
   | { kind: "menu"; url: string; make: UrgiisControl }
   | { kind: "model"; url: string; make: UrgiisControl; model: UrgiisControl };
+const validatedGraphs = new WeakMap<
+  UrgiisEntry,
+  {
+    scope: string;
+    prefix: readonly UrgiisEntry[];
+    tasks: UrgiisTask[];
+  }
+>();
 export function urgiisTasks(
   entries: readonly UrgiisEntry[],
   tenant: UrgiisTenant,
 ): UrgiisTask[] {
+  const root = entries[0];
+  const cached = root ? validatedGraphs.get(root) : undefined;
+  const scope =
+    tenant.attribution.kind === "seller" ? urgiisFingerprint(tenant) : "";
+  if (
+    cached &&
+    cached.scope === scope &&
+    cached.prefix.every((e, i) => entries[i] === e)
+  )
+    return cached.tasks;
   const fixed: UrgiisTask[] = [
     { kind: "owner", url: tenant.origin + tenant.ownerPath },
     { kind: "makes", url: tenant.origin + tenant.makesPath },
@@ -168,7 +221,15 @@ export function urgiisTasks(
       });
     }
   }
-  return [...prefix, ...details.values()];
+  const tasks = [...prefix, ...details.values()];
+  // Seller task discovery scans every model donor. Once that complete prefix
+  // is immutable, later detail checkpoints cannot alter the graph it defines.
+  const graph = entries.slice(0, prefix.length);
+  if (root && graph.every((e) => validatedEntries.has(e))) {
+    freezeUrgiisEvidence(tasks);
+    validatedGraphs.set(root, { scope, prefix: graph, tasks });
+  }
+  return tasks;
 }
 export function urgiisEntryFingerprint(entry: UrgiisEntry) {
   return urgiisFingerprint(

@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { urgiisDetailSeller } from "./urgiis-detail";
 import { UrgiisTenant } from "./urgiis-tenant";
-import { urgiisTasks, type UrgiisEntry } from "./urgiis-traversal";
+import {
+  UrgiisEntrySchema,
+  urgiisTasks,
+  type UrgiisEntry,
+} from "./urgiis-traversal";
 
 const yard = {
   source: "urgiis",
@@ -153,18 +157,27 @@ test("URG IIS derives detail tasks only from a completed native model frontier",
     image: null,
     date: null,
   };
-  const tasks = urgiisTasks(
-    [
-      ...prefix,
-      {
-        ...receipt,
-        kind: "model",
-        freshness: { kind: "read", readAt: 0 },
-        url: tenant.origin + model.path,
-        records: [record],
-      },
-    ],
-    tenant,
+  const entries = [
+    ...prefix,
+    {
+      ...receipt,
+      kind: "model",
+      freshness: { kind: "read", readAt: 0 },
+      url: tenant.origin + model.path,
+      records: [record],
+    },
+  ].map((entry) => UrgiisEntrySchema.parse(entry));
+  const tasks = urgiisTasks(entries, tenant);
+  expect(urgiisTasks(entries, tenant)).toBe(tasks);
+  expect(Object.isFrozen(tasks)).toBe(true);
+  const changed = entries.map((e) =>
+    e.kind === "model" ? UrgiisEntrySchema.parse({ ...e, records: [] }) : e,
+  );
+  expect(urgiisTasks(changed, tenant).some((t) => t.kind === "detail")).toBe(
+    false,
+  );
+  expect(urgiisTasks(entries, { ...tenant, minimumInventory: 3 })).not.toBe(
+    tasks,
   );
   expect(tasks.at(-1)).toEqual({
     kind: "detail",
