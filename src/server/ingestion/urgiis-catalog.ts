@@ -292,6 +292,20 @@ export function iisCards(
   };
 }
 
+// Tiny badges can include stale part-bin entries. Three advertised donors with
+// no cards is incomplete evidence, even far below the native 500-card boundary.
+export function iisValidateModelPage(
+  page: ReturnType<typeof iisCards>,
+  model: UrgiisControl,
+) {
+  if (page.capped)
+    throw new Error("IIS native 500-card boundary reached at " + model.path);
+  if (page.nativeEmpty && model.count >= 3)
+    throw new Error(
+      `IIS model ${model.path} advertises ${model.count} donors but returns an explicit empty result; enumeration is incomplete`,
+    );
+}
+
 function optionalImage(tag: string): string | null {
   try {
     return attr(tag, "data-src") ?? attr(tag, "src");
