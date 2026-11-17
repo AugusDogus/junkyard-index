@@ -6,6 +6,16 @@ For complete censuses, opening and closing ownership, makes and every model dire
 
 All sites are conservatively treated as sharing a URG backend. Each tenant is serial, with at least 3.5 seconds after its preceding response. At most three tenants are active. Initial acquisitions use a process-wide 3.1-second start gate. After coordination with batches A and C, each request additionally takes an exclusive `flock` on `/tmp/jyi-urg-gate.lock`, waits until 3.1 seconds after the timestamp in `/tmp/jyi-urg-gate.last`, writes a new timestamp and releases the lock before sending. Saved captures are reused without HTTP requests. The receipt ledger records acquisition order, while replay archives follow connector order.
 
+## Review correction, November 17, 2026
+
+The original qualification below missed badged explicit-empty model results. The saved Premier Town & Country page advertises 9, Junior Sinn Town & Country 18 and Town Car 6, and Revolution Equinox 91 and Town & Country 23. These captures cannot establish complete enumeration. Historical counts and budgets below describe those captures, not a newly qualified census.
+
+Eight serial read-only requests through the shared `flock` gate are retained in `model-route-probes.json.br`, with start/end times, status, final URL and complete response bodies. Revolution's original `/parts/CHEVROLET/EQUINOX/` now returns 91 cards. The prefixed `CHEVROLET_EQUINOX` and percent-encoded `%45QUINOX` variants are empty. The original route reaches the donors, so Revolution remains configured, but its earlier explicit empty is intermittent and must never be accepted as a complete census.
+
+Premier's `TOWN_and__COUNTRY` and `TOWN_%26_COUNTRY` variants and Junior Sinn's `LINCOLN_and__TOWN_CAR`, `LINCOLN_%26_TOWN_CAR` and percent-encoded `BLAZER.JIMMY_%28FULL_SIZE%29` all return explicit empty results. No alternate route is established. The existing HTTP client already percent-encodes parentheses. No guessed slug substitution is enabled. These models stay subject to the incomplete-enumeration guard. The two-card Blazer and Town Car results remain below the general three-donor threshold; their enumeration gap is recorded rather than represented as recovered coverage.
+
+`iisValidateModelPage` rejects capped pages and explicit empties advertising at least three donors. The batch B audit now exercises that rejection for every affected capture instead of treating badges below 500 as safe. The incremental connector in #172 applies the same guard before accepting a model page, and rejects old census contracts so these incomplete captures cannot seed carries. No tenant may publish a partial set from a guarded empty result. A complete successful guarded census is required for publication.
+
 ## Qualification decisions
 
 | Tenant                                | Decision | Candidate donors | Rejected observations | Rejection rate | Duplicates | Floor |

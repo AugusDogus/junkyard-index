@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { z } from "zod";
-import { iisCards, iisDirectory, iisDocument } from "./urgiis-catalog";
+import {
+  iisCards,
+  iisDirectory,
+  iisDocument,
+  iisValidateModelPage,
+} from "./urgiis-catalog";
 import { iisAttribute } from "./iis-html";
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
@@ -13,11 +18,32 @@ import { URGIIS_TENANTS } from "./urgiis-configuration";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
 for (const census of [
-  { code: "premier", makes: 35, models: 264 },
-  { code: "junior-sinn", makes: 40, models: 355 },
-  { code: "revolution", makes: 43, models: 389 },
+  {
+    code: "premier",
+    makes: 35,
+    models: 264,
+    incomplete: ["/parts/CHRYSLER/TOWN_-and_COUNTRY/"],
+  },
+  {
+    code: "junior-sinn",
+    makes: 40,
+    models: 355,
+    incomplete: [
+      "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+      "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+    ],
+  },
+  {
+    code: "revolution",
+    makes: 43,
+    models: 389,
+    incomplete: [
+      "/parts/CHEVROLET/EQUINOX/",
+      "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+    ],
+  },
 ]) {
-  test(`URG qualification checks every ${census.code} model for native cutoffs`, async () => {
+  test(`URG qualification checks every ${census.code} model for native cutoffs and badged empty results`, async () => {
     const tenant = URGIIS_TENANTS.find((item) => item.code === census.code);
     if (!tenant) throw new Error("Missing qualified tenant " + census.code);
     const archive = await UrgiisReplayArchive.open(census.code);
@@ -26,6 +52,7 @@ for (const census of [
     const seen = new Set<string>();
     let checked = 0;
     let largest = 0;
+    const incomplete: string[] = [];
     try {
       let response;
       while ((response = await archive.next())) {
@@ -45,13 +72,19 @@ for (const census of [
             if (!model) continue;
             const page = iisCards(response.html, tenant);
             expect(page.capped).toBe(false);
-            expect(page.nativeEmpty && model.count >= 500).toBe(false);
+            if (page.nativeEmpty && model.count >= 3) {
+              expect(() => iisValidateModelPage(page, model)).toThrow(
+                "enumeration is incomplete",
+              );
+              incomplete.push(model.path);
+            } else iisValidateModelPage(page, model);
             expect(page.records.length === 30 && model.count > 30).toBe(false);
             largest = Math.max(largest, page.records.length);
             checked++;
           }
         }
       }
+      expect(incomplete).toEqual(census.incomplete);
       expect(makes.size).toBe(census.makes);
       expect(models.size).toBe(census.models);
       expect(checked).toBe(census.models);
@@ -278,4 +311,63 @@ test("URG qualification excludes Creston's 30-card pages with a verified missing
       : [],
   );
   expect([...new Set(suppliers)]).toEqual(["II57"]);
+});
+
+test("URG model route probes preserve intermittent empties and reject unsupported slug fixes", () => {
+  const responses = z
+    .object({
+      responses: z.array(
+        z.object({
+          tenant: z.string(),
+          urgid: z.string(),
+          url: z.string().url(),
+          status: z.literal(200),
+          finalUrl: z.string().url(),
+          html: z.string(),
+          startedAt: z.number(),
+          finishedAt: z.number(),
+        }),
+      ),
+    })
+    .parse(
+      JSON.parse(
+        brotliDecompressSync(
+          readFileSync(
+            new URL(
+              "./urgiis-test-fixtures/model-route-probes.json.br",
+              import.meta.url,
+            ),
+          ),
+        ).toString(),
+      ),
+    ).responses;
+  expect(responses).toHaveLength(8);
+  for (const [index, response] of responses.entries()) {
+    if (index > 0)
+      expect(
+        response.startedAt - (responses[index - 1]?.finishedAt ?? 0),
+      ).toBeGreaterThanOrEqual(3.1);
+    expect(response.finalUrl).toBe(response.url);
+    const page = iisCards(response.html, {
+      origin: new URL(response.url).origin,
+      urgid: response.urgid,
+      pathStyle: "parts",
+    });
+    const model = {
+      path: new URL(response.url).pathname,
+      label: "Captured model",
+      count: 3,
+    };
+    if (index === 0) {
+      expect(page.records).toHaveLength(91);
+      expect(() =>
+        iisValidateModelPage(page, { ...model, count: 91 }),
+      ).not.toThrow();
+    } else {
+      expect(page.nativeEmpty).toBe(true);
+      expect(() => iisValidateModelPage(page, model)).toThrow(
+        "enumeration is incomplete",
+      );
+    }
+  }
 });
