@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
+import { UrgiisEntrySchema, urgiisFingerprint } from "./urgiis-traversal";
 import { UrgiisCursor } from "./urgiis-cursor";
 import { streamUrgiisInventory } from "./urgiis-connector";
 import { urgiisError } from "./urgiis-client";
@@ -789,3 +790,35 @@ for (const status of [403, 429] as const) {
     expect(result.pagesProcessed).toBe(1);
   });
 }
+
+test("URG checkpoint reuse accepts only identical immutable validated evidence", () => {
+  const cursor = UrgiisCursor.initial([tenant]);
+  expect(Object.isFrozen(cursor)).toBe(true);
+  expect(UrgiisCursor.parse(cursor, [tenant])).toBe(cursor);
+  const entry = UrgiisEntrySchema.parse({
+    kind: "model",
+    url: tenant.origin + model.path,
+    bytes: 1,
+    records: iisCards(page, tenant).records,
+    freshness: { kind: "read", readAt: 0 },
+  });
+  expect(UrgiisEntrySchema.parse(entry)).toBe(entry);
+  expect(Object.isFrozen(entry)).toBe(true);
+  if (entry.kind !== "model") throw new Error("Expected model entry");
+  expect(Object.isFrozen(entry.records[0]?.vins)).toBe(true);
+  const changed: unknown = {
+    ...entry,
+    records: [{ ...entry.records[0], vins: [123] }],
+  };
+  expect(() => UrgiisEntrySchema.parse(changed)).toThrow();
+  expect(() =>
+    UrgiisCursor.parse({ ...cursor, requests: 1 }, [tenant]),
+  ).toThrow("checksum changed");
+  expect(() =>
+    UrgiisCursor.parse(cursor, [{ ...tenant, ownerClaims: ["Changed owner"] }]),
+  ).toThrow("qualification changed");
+});
+
+test("URG fingerprint preserves existing Unicode checkpoint checksums", () => {
+  expect(urgiisFingerprint({ name: "A😀Z", value: 12 })).toBe("c32354ba");
+});

@@ -5,6 +5,7 @@ import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisBadgeDriftSchema, urgiisBadgeLimit } from "./urgiis-closing";
 import {
   UrgiisEntrySchema,
+  freezeUrgiisEvidence,
   urgiisTasks,
   urgiisFingerprint,
   validateUrgiisEntry,
@@ -55,6 +56,7 @@ const schema = z.discriminatedUnion("phase", [
 ]);
 type State = z.infer<typeof schema>;
 export type UrgiisCursor = State & { checksum: string };
+const validatedCursors = new WeakMap<object, UrgiisCursor>();
 function checkpoint(
   input: unknown,
   tenants: readonly UrgiisTenant[] = URGIIS_TENANTS,
@@ -185,12 +187,19 @@ function checkpoint(
     URGIIS_MAX_CURSOR_BYTES
   )
     throw new Error("IIS checkpoint exceeds 16 MiB; preserve prior inventory");
+  freezeUrgiisEvidence(cursor);
+  validatedCursors.set(cursor, cursor);
   return cursor;
 }
 function parse(
   input: unknown,
   tenants: readonly UrgiisTenant[] = URGIIS_TENANTS,
 ) {
+  const cached =
+    input !== null && typeof input === "object"
+      ? validatedCursors.get(input)
+      : undefined;
+  if (cached && cached.scope === urgiisFingerprint(tenants)) return cached;
   const signed = z.object({ checksum: z.string() }).passthrough().parse(input);
   const { checksum, ...state } = signed;
   const cursor = checkpoint(state, tenants);

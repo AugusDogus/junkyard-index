@@ -27,6 +27,8 @@ for (const tenant of URGIIS_TENANTS) {
         );
         if (!expected) throw new Error("Missing publish outcome");
         let batches = 0;
+        let persistedAt = 0;
+        let persistedPhase = "opening";
         let cursor = UrgiisCursor.initial([tenant]);
         let count = 0;
         const byYard: Record<string, number> = {};
@@ -42,6 +44,7 @@ for (const tenant of URGIIS_TENANTS) {
               tenants: [tenant],
               startCursor: cursor,
               maxPages: 3,
+              now: Date.UTC(2026, 10, 17),
               readPage: (url) =>
                 Effect.tryPromise({
                   try: async () => {
@@ -117,10 +120,21 @@ for (const tenant of URGIIS_TENANTS) {
             "duplicateVehicles",
           ] as const)
             accounting[key] += result.accounting[key];
-          cursor = UrgiisCursor.fromWire(
-            UrgiisCursor.serialize(result.cursor, [tenant]),
-            [tenant],
-          );
+          // Keep chunk/resume and wire coverage while avoiding a multi-MiB
+          // JSON roundtrip after every three saved seller-detail responses.
+          // Small fixtures exercise every individual checkpoint boundary.
+          cursor = result.cursor;
+          if (
+            cursor.requests - persistedAt >= 96 ||
+            cursor.phase !== persistedPhase
+          ) {
+            cursor = UrgiisCursor.fromWire(
+              UrgiisCursor.serialize(cursor, [tenant]),
+              [tenant],
+            );
+            persistedAt = cursor.requests;
+            persistedPhase = cursor.phase;
+          }
         }
         if (expected.status === "blocked") {
           expect(batches).toBe(0);
