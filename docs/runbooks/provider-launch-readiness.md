@@ -42,6 +42,45 @@ Evidence and policy: [`reconciliation-policy.ts`](../../src/server/ingestion/rec
 Tests cover a lower publication during a native fetch, ready-source precedence,
 source-filtered final ownership with preserved first-seen time, missing inventory,
 transient retries, deterministic rejection, exhaustion, and expired days.
+The first-deploy regression starts all 90 registered sources together: AutoRecycler,
+Harry's and Budget each claim the commit five minutes later while URG and every
+other higher-priority source remain in `sources`. Restoring the old claim condition
+makes all three cases return `busy`. The settled-alert gate remains closed.
+
+### First URG census and monitoring windows
+
+Ready-only publication removes URG's fetch from other sources' publication and
+heartbeat critical paths. The publication lifecycle reports each released source's
+health even when its alert matching was deferred. URG's own first publication still
+has a monitoring-window risk; this change does not make that census fast.
+
+The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate) estimates
+28.7 hours for the current 11,808-request census and 7.4 hours for a mean incremental
+day, using six seconds per response plus its existing tenant gaps. Its separate
+23.9-hour figure describes the earlier 10,233-response qualification graph.
+Neither includes this PR's shared queue. URG retains its local post-response gap
+outside the shared lease, so the new 3.5-second shared gap adds 11.48 hours to the
+current full-census scenario: approximately **40.2 hours**, or **10.4 hours** for the
+mean incremental day. Even removing the duplicate local gap would leave 31.16
+hours for 11,808 responses at six seconds plus the shared 3.5-second gap. Retries,
+storage/orchestration overhead and competing native IIS sources add more time.
+These are explicit sizing scenarios, not measured live runtimes or upper bounds.
+
+Repository freshness is 30 hours after the last accepted search publication
+([`durable-health.ts`](../../src/server/ingestion/durable-health.ts)); starting or
+progressing a crawl does not refresh it. A source with no accepted publication is
+stale immediately. Its `/api/status/<source>` monitor returns 503 until publication,
+with a ten-minute freshness cache and the documented three-minute monitor polling.
+Configured heartbeats are pinged only after accepted publication; the Better Stack
+integration documents a 30-hour missing-ping window. Actual deployed monitor
+settings were not queried. A cold URG census, or a later full-census fallback, can
+therefore leave its own row red beyond that window. Bootstrap maintenance/monitor
+activation remains a rollout decision. No window was widened and no progress
+heartbeat was substituted for fresh inventory.
+
+A census crossing the ingestion-day boundary also cannot start alert matching for
+its expired day. Earlier sources still publish and report health; their saved-search
+windows remain intact until a subsequent current-day pass settles.
 
 ## Shared backend pacing
 
