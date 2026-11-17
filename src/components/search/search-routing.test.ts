@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { ALGOLIA_INDEX_NAME } from "~/lib/constants";
-import { createSearchRouting } from "./search-routing";
+import {
+  createSearchRouting,
+  getSearchSortIndex,
+  getSearchSortKey,
+  SEARCH_SORT_OPTIONS,
+} from "./search-routing";
 
 const LOCATION = {
   href: "https://example.com/search?q=1fadp3f29fl123456",
@@ -8,6 +13,30 @@ const LOCATION = {
 };
 
 describe("search routing", () => {
+  test("round-trips both distance URL forms without conflating distance with newest", () => {
+    const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
+    for (const sort of ["distance", "vehicles_distance"]) {
+      const location = {
+        href: `https://example.com/search?sort=${sort}`,
+        search: `?sort=${sort}`,
+      };
+      const parsed = routing.router.parseURL({ location });
+      const state = routing.stateMapping.routeToState(parsed);
+      expect(state).toEqual({ vehicles: { sortBy: "vehicles_distance" } });
+      expect(
+        routing.router.createURL({
+          location,
+          routeState: routing.stateMapping.stateToRoute(state),
+        }),
+      ).toBe("https://example.com/search?sort=distance");
+    }
+    expect(getSearchSortIndex("distance")).toBe("vehicles_distance");
+    expect(getSearchSortKey("vehicles_distance")).toBe("distance");
+    expect(getSearchSortKey("vehicles")).toBe("newest");
+    expect(
+      SEARCH_SORT_OPTIONS.find((option) => option.key === "distance")?.label,
+    ).toBe("Distance (Nearest)");
+  });
   test("keeps a ready VIN pattern out of Algolia's text query state", () => {
     const readyRouting = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
     const disabledRouting = createSearchRouting(

@@ -54,6 +54,11 @@ const client = {
         }));
     return {
       results: requests.map(({ indexName, params }) => {
+        if (indexName === "vehicles_distance") {
+          throw new Error(
+            "The retired distance index must not receive requests",
+          );
+        }
         const query = params?.query ?? "";
         const hits = vehicles.filter(
           (vehicle) =>

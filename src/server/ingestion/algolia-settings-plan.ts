@@ -1,16 +1,20 @@
-import type { IndexSettings } from "algoliasearch";
+import type { IndexSettings, SearchClient } from "algoliasearch";
 import {
+  ALGOLIA_DISTANCE_SORT_ALIAS,
   ALGOLIA_INDEX_NAME,
   ALGOLIA_PAGINATION_LIMIT,
   ALGOLIA_REPLICA_INDEX_NAMES,
   type AlgoliaSearchIndexName,
 } from "~/lib/constants";
 
-export interface AlgoliaSettingsOperation {
-  indexName: AlgoliaSearchIndexName;
-  indexSettings: IndexSettings;
-  forwardToReplicas: boolean;
-}
+export type AlgoliaSettingsOperation =
+  | {
+      kind: "settings";
+      indexName: AlgoliaSearchIndexName;
+      indexSettings: IndexSettings;
+      forwardToReplicas: boolean;
+    }
+  | { kind: "delete"; indexName: typeof ALGOLIA_DISTANCE_SORT_ALIAS };
 
 export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   searchableAttributes: [
@@ -44,7 +48,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
 } satisfies IndexSettings;
 
 export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] {
-  const [oldestIndex, yearDescIndex, yearAscIndex, distanceIndex] =
+  const [oldestIndex, yearDescIndex, yearAscIndex] =
     ALGOLIA_REPLICA_INDEX_NAMES;
   const virtualReplicaDefaults = {
     hitsPerPage: 1000,
@@ -53,55 +57,28 @@ export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] 
 
   return [
     {
+      kind: "settings",
       indexName: ALGOLIA_INDEX_NAME,
       indexSettings: {
         replicas: [
           `virtual(${oldestIndex})`,
           `virtual(${yearDescIndex})`,
           `virtual(${yearAscIndex})`,
-          distanceIndex,
         ],
       },
       forwardToReplicas: false,
     },
     {
+      kind: "settings",
       indexName: ALGOLIA_INDEX_NAME,
       indexSettings: COMMON_ALGOLIA_INDEX_SETTINGS,
       forwardToReplicas: true,
     },
     {
+      kind: "settings",
       indexName: ALGOLIA_INDEX_NAME,
-      indexSettings: { customRanking: ["desc(availableDateTs)"] },
-      forwardToReplicas: false,
-    },
-    {
-      indexName: oldestIndex,
       indexSettings: {
-        ...virtualReplicaDefaults,
-        customRanking: ["asc(availableDateTs)"],
-      },
-      forwardToReplicas: false,
-    },
-    {
-      indexName: yearDescIndex,
-      indexSettings: {
-        ...virtualReplicaDefaults,
-        customRanking: ["desc(year)"],
-      },
-      forwardToReplicas: false,
-    },
-    {
-      indexName: yearAscIndex,
-      indexSettings: {
-        ...virtualReplicaDefaults,
-        customRanking: ["asc(year)"],
-      },
-      forwardToReplicas: false,
-    },
-    {
-      indexName: distanceIndex,
-      indexSettings: {
-        ...COMMON_ALGOLIA_INDEX_SETTINGS,
+        // Pin the default explicitly so geo sorting doesn't depend on dashboard drift.
         ranking: [
           "typo",
           "geo",
@@ -112,9 +89,58 @@ export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] 
           "exact",
           "custom",
         ],
-        customRanking: [],
+        customRanking: ["desc(availableDateTs)"],
       },
       forwardToReplicas: false,
     },
+    {
+      kind: "settings",
+      indexName: oldestIndex,
+      indexSettings: {
+        ...virtualReplicaDefaults,
+        customRanking: ["asc(availableDateTs)"],
+      },
+      forwardToReplicas: false,
+    },
+    {
+      kind: "settings",
+      indexName: yearDescIndex,
+      indexSettings: {
+        ...virtualReplicaDefaults,
+        customRanking: ["desc(year)"],
+      },
+      forwardToReplicas: false,
+    },
+    {
+      kind: "settings",
+      indexName: yearAscIndex,
+      indexSettings: {
+        ...virtualReplicaDefaults,
+        customRanking: ["asc(year)"],
+      },
+      forwardToReplicas: false,
+    },
+    // Removing a replica only detaches it. Delete the now-independent copy
+    // after every settings task completes so it stops counting toward billing.
+    { kind: "delete", indexName: ALGOLIA_DISTANCE_SORT_ALIAS },
   ];
+}
+
+export async function applyAlgoliaSettingsPlan(
+  client: Pick<SearchClient, "setSettings" | "deleteIndex" | "waitForTask">,
+): Promise<void> {
+  for (const operation of buildAlgoliaSettingsPlan()) {
+    const response =
+      operation.kind === "settings"
+        ? await client.setSettings({
+            indexName: operation.indexName,
+            indexSettings: operation.indexSettings,
+            forwardToReplicas: operation.forwardToReplicas,
+          })
+        : await client.deleteIndex({ indexName: operation.indexName });
+    await client.waitForTask({
+      indexName: operation.indexName,
+      taskID: response.taskID,
+    });
+  }
 }

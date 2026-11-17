@@ -1,4 +1,5 @@
 import {
+  ALGOLIA_DISTANCE_SORT_ALIAS,
   ALGOLIA_INDEX_NAME,
   ALGOLIA_REPLICA_INDEX_NAMES,
 } from "~/lib/constants";
@@ -28,7 +29,7 @@ export const SEARCH_SORT_OPTIONS: readonly {
     label: "Year (Low to High)",
   },
   {
-    indexName: ALGOLIA_REPLICA_INDEX_NAMES[3],
+    indexName: ALGOLIA_DISTANCE_SORT_ALIAS,
     key: "distance",
     label: "Distance (Nearest)",
   },

@@ -2,6 +2,33 @@ import { expect, test } from "bun:test";
 import { z } from "zod";
 import { renderSharedSearchFixture } from "../../../tests/browser/fixtures/build-shared-search";
 
+for (const sort of ["distance", "vehicles_distance"]) {
+  test(`shared distance search hydrates its sort alias after querying the primary: ${sort}`, async () => {
+    const html = await renderSharedSearchFixture(
+      `q=toyota+venza&states=Alabama&sort=${sort}`,
+    );
+    const match = html.match(
+      /window\[Symbol\.for\("InstantSearchInitialResults"\)\] = ([^<]+)/,
+    );
+    const initial = z
+      .object({
+        vehicles: z.object({
+          state: z.object({ index: z.literal("vehicles_distance") }),
+          results: z.array(
+            z.object({
+              index: z.literal("vehicles_distance"),
+              hits: z.array(z.object({ objectID: z.string() })),
+            }),
+          ),
+        }),
+      })
+      .parse(JSON.parse(match?.[1] ?? "null"));
+    expect(initial.vehicles.results[0]?.hits).toMatchObject([
+      { objectID: "venza-al" },
+    ]);
+  }, 15_000);
+}
+
 test("server results honor the shared query and state before hydration", async () => {
   const html = await renderSharedSearchFixture();
   const match = html.match(

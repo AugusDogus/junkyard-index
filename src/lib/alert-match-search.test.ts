@@ -3,6 +3,7 @@ import {
   getAlertMatchStatsWithClient,
   type AlertSearchClient,
 } from "./alert-match-search";
+import { filtersSchema } from "./saved-search-filters";
 
 function emptySearchClient(onSearch?: (input: unknown) => void) {
   return {
@@ -26,6 +27,33 @@ function emptySearchClient(onSearch?: (input: unknown) => void) {
 }
 
 describe("alert match search", () => {
+  test("saved distance sorts still scan the primary without geo restrictions", async () => {
+    for (const sortBy of ["distance", "vehicles_distance"]) {
+      const requests: unknown[] = [];
+      await getAlertMatchStatsWithClient(
+        emptySearchClient((input) => requests.push(input)),
+        "civic",
+        filtersSchema.parse({ sortBy, makes: ["Honda"] }),
+        null,
+      );
+      expect(requests[0]).toEqual({
+        requests: [
+          {
+            indexName: "vehicles",
+            query: "civic",
+            filters: 'make:"Honda"',
+            advancedSyntax: true,
+            advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
+            hitsPerPage: 100,
+            page: 0,
+            attributesToRetrieve: expect.any(Array),
+            attributesToHighlight: [],
+            attributesToSnippet: [],
+          },
+        ],
+      });
+    }
+  });
   test("compiles filters and scans through an injected search client", async () => {
     const requests: unknown[] = [];
     const result = await getAlertMatchStatsWithClient(

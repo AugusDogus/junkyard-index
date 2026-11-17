@@ -489,9 +489,8 @@ function AlgoliaSearchInner({
     { skipSuspense: true },
   );
 
-  // Server-side sorting via Algolia replicas.
-  // Virtual replicas for date/year (share records with primary).
-  // Standard replica for distance (separate index with geo-dominant ranking).
+  // Date/year use virtual replicas. Distance uses a UI alias for the primary;
+  // the search client maps it without conflating distance and newest state.
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
     useSortBy({ items: SEARCH_SORT_ITEMS }, { skipSuspense: true });
 
@@ -1152,7 +1151,7 @@ function AlgoliaSearchInner({
   // showMore and isLastPage are passed as props.
 
   // Only send geo params when distance sort is active.
-  // The distance replica has a geo-dominant ranking array.
+  // The primary's default ranking already puts geo before text/custom ranking.
   // Other sorts must NOT send aroundLatLng or geo would override customRanking.
   const aroundLatLng =
     isDistanceSort && resolvedUserLocation
