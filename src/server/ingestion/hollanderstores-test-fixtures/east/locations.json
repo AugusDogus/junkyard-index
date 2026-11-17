@@ -1,0 +1,28 @@
+[
+  {
+    "code": "florasauto",
+    "address": "6233 N State Road 15",
+    "publishedAddress": "6233 North State Road 15",
+    "city": "Leesburg",
+    "state": "IN",
+    "postalCode": "46538",
+    "lat": 41.323142147077,
+    "lng": -85.853812765981,
+    "coordinateFile": "florasauto-geocode.json.gz",
+    "addressFile": "floras-operator.html.gz",
+    "provider": "census"
+  },
+  {
+    "code": "tvilleauto",
+    "address": "794 Radio Station Rd",
+    "publishedAddress": "794 Radio Station Rd.",
+    "city": "Tompkinsville",
+    "state": "KY",
+    "postalCode": "42167",
+    "lat": 36.723999637267,
+    "lng": -85.67420453905,
+    "coordinateFile": "tvilleauto-geocode.json.gz",
+    "addressFile": "tville-contact.html.gz",
+    "provider": "census"
+  }
+]

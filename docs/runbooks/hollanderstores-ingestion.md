@@ -2,13 +2,15 @@
 
 See the current [source flags and census floors](provider-coverage-go-live.md).
 
-The `hollanderstores` source runs unless its pause flag serves false. It covers 56 physical yard locations belonging to 48 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK, WA, OH, NM and NE. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
+The `hollanderstores` source runs unless its pause flag serves false. It covers 58 physical yard locations belonging to 50 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK, WA, OH, NM and NE. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
 
 The November 17 [west/plains expansion](provider-coverage-west-plains.md) adds
 A-1 Auto Recyclers (NM), Kramer's Auto Parts (NE), Horseshoe Auto Wrecking (WA)
 and Midwest Auto Parts (OK): 1,252 accepted donors, eight daily roster requests
-and independent one-third floors. Current combined replay accepts 69,540; the
-source floor is 23,164. Earlier batch counts below are historical.
+and independent one-third floors. Current combined replay accepts 70,439; the
+source floor is 23,463. Earlier batch counts below are historical.
+
+The [November 17 east expansion](provider-coverage-east.md) adds Floras Auto Parts (IN) and T-ville Auto Salvage (KY), with 899 accepted donors and four daily roster requests.
 
 ## Initial five-yard qualification on November 15, 2026
 
@@ -236,7 +238,7 @@ If a published make contradicts an available decoded make, retain the published 
 
 POST `/VehicleDealerSearch` with `hdnChangeDisplay=card`, the site's own Card View form, once per configured yard for the opening pass and once per yard for the closing pass. Each configured tenant currently uses the complete card view. Reuse Beaver's HTML parsing helpers and the shared complete-response reader. Reconcile the published count against every card and enforce exact tenant destinations. Missing or duplicate destinations and truncation stop acceptance. Closing checks allow at most the larger of three vehicles or 1% of the opening yard roster (rounded down) in total additions plus removals. The bound counts changed identities, even when the net published count is unchanged. Surviving records must retain their parsed fields, destinations and relative order. Accepted runs publish the complete opening set that was enumerated and decoded; closing-only additions enter on the next run. Per-yard floors, rejection limits and source validation still apply. Excessive turnover or changed surviving records returns a terminal failed source result, preserving previous inventory and the last validated checkpoint without re-POSTing through workflow retries. Restart with a fresh opening census after inspecting the captures.
 
-The durable state machine gathers all 56 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 56 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
+The durable state machine gathers all 58 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 58 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
 
 The module-wide semaphore allows one Hollander/vPIC request at a time and holds through cancellation, response cleanup and a three-second gap, including failures. Use current browser headers, manual redirects, a combined five-minute HTML transport/body deadline, a two-minute vPIC deadline, and a 40 MiB HTML response cap (vPIC remains 4 MiB). Temporary `/Message` redirects and transport failures retry twice, with 20 seconds between attempts. A durable chunk permits one logical operation by default and has a twenty-minute deadline. A decode batch satisfied by cache still advances one logical operation. Maximum census size is 25,000 rows per yard, 100,000 rows overall and 5,000 logical operations, each allowing at most three physical attempts. Parser and quality failures do not retry within a chunk.
 

@@ -1,7 +1,7 @@
 import type { Yard } from "~/lib/yard";
 
 // Verified street addresses and Census, OSM, or named business map markers.
-// Evidence and coordinate receipts: hollanderstores-test-fixtures/{expansion,pauls,batch-2}/locations.json.
+// Evidence and coordinate receipts: hollanderstores-test-fixtures/{expansion,pauls,batch-2,east}/locations.json.
 // West/plains additions: Census exact-address points; Kramer uses its
 // exact-address Google business marker. Evidence: test-fixtures/west-plains.
 export const HOLLANDERSTORES_YARDS = [
@@ -1012,6 +1012,42 @@ export const HOLLANDERSTORES_YARDS = [
     lng: -98.3581909,
     websiteUrl: "https://kramers.hollanderstores.com/",
     minimum: 1,
+  },
+  {
+    source: "hollanderstores",
+    code: "florasauto",
+    tenant: "7176",
+    name: "Floras Auto Parts",
+    logo: "Floras Auto Parts",
+    operator: "Floras Auto Parts",
+    address: "6233 N State Road 15",
+    city: "Leesburg",
+    state: "IN",
+    postalCode: "46538",
+    phone: "(574) 253-6661",
+    email: null,
+    lat: 41.323142147077,
+    lng: -85.853812765981,
+    websiteUrl: "https://florasauto.hollanderstores.com/",
+    minimum: 193,
+  },
+  {
+    source: "hollanderstores",
+    code: "tvilleauto",
+    tenant: "2445",
+    name: "T-ville Auto Salvage",
+    logo: "T-ville Auto Salvage",
+    operator: "T-ville Auto Salvage",
+    address: "794 Radio Station Rd",
+    city: "Tompkinsville",
+    state: "KY",
+    postalCode: "42167",
+    phone: "(270) 487-0016",
+    email: null,
+    lat: 36.723999637267,
+    lng: -85.67420453905,
+    websiteUrl: "https://tvilleauto.hollanderstores.com/",
+    minimum: 106,
   },
 ] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {
