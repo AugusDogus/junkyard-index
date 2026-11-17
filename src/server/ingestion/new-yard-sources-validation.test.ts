@@ -1,3 +1,5 @@
+import { AlsautoCursor } from "./alsauto-cursor";
+import { alsautoEvidence } from "./alsauto-test-fixtures";
 import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { BigdCursor } from "./bigd-cursor";
 import { HarrysCursor } from "./harrys-cursor";
@@ -144,7 +146,18 @@ const completeWeber = WeberbrothersCursor.checkpoint({
   closing: [weberPage],
 });
 
+let alsauto = AlsautoCursor.initial();
+for (const raw of alsautoEvidence)
+  alsauto = AlsautoCursor.advance(alsauto, raw);
+const completeAlsauto = AlsautoCursor.complete(alsauto);
+
 const sources = [
+  {
+    source: "alsauto",
+    minimum: 231,
+    initial: AlsautoCursor.initial(),
+    complete: completeAlsauto,
+  },
   {
     source: "urgiis",
     minimum: URGIIS_MINIMUM_INVENTORY,

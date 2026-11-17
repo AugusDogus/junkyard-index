@@ -115,6 +115,7 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `scotts`                          |                       976 |            800 |       325 |
 | `oem`                             |                     2,158 |          1,800 |       719 |
 | `dutchers`                        |                       579 |            500 |       193 |
+| `alsauto`                         |                       693 |              - |       231 |
 | `chasencars`                      |                       661 |            550 |       220 |
 | `weberbrothers`                   |                     5,760 |          5,000 |     1,920 |
 | `oemgarage`                       |                       239 |            200 |        79 |

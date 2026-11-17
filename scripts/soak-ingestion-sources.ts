@@ -1,3 +1,5 @@
+import { streamAlsautoInventoryFromProvider } from "../src/server/ingestion/alsauto-connector";
+import { soakAlsautoInventory } from "./soak-alsauto";
 import { streamBigdInventory } from "../src/server/ingestion/bigd-connector";
 import { streamHarrysInventory } from "../src/server/ingestion/harrys-connector";
 import { streamBudgetInventory } from "../src/server/ingestion/budget-connector";
@@ -749,6 +751,19 @@ async function main(): Promise<void> {
                 runProgram(
                   streamOemgarageInventoryFromProvider({
                     previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "alsauto":
+            return soakAlsautoInventory(
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamAlsautoInventoryFromProvider({
+                    previousAcceptedCount: null,
                     startCursor,
                     maxPages,
                     onBatch,

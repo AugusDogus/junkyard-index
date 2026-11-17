@@ -1,3 +1,4 @@
+import { AlsautoCursor } from "./alsauto-cursor";
 import { HarrysCursor } from "./harrys-cursor";
 import { BudgetCursor } from "./budget-cursor";
 import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
@@ -379,6 +380,10 @@ const DURABLE_CURSOR_DEFINITIONS = {
   weberbrothers: {
     parse: WeberbrothersCursor.parse,
     serialize: WeberbrothersCursor.serialize,
+  },
+  alsauto: {
+    parse: AlsautoCursor.fromWire,
+    serialize: AlsautoCursor.serialize,
   },
   chasencars: {
     parse: ChasencarsCursor.fromWire,
