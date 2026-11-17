@@ -46,6 +46,22 @@ test("excludes verified direct-provider ownership, not matching names or partner
   expect(calls).toBe(1);
 });
 
+test("excludes former customers that are now read directly, even if their feed revives", async () => {
+  const pauls = "1761071937027x514174316460297860";
+  const ryans = "1757515768480x772759259987457800";
+  const policy = AutorecyclerSourcePolicy.create(async () => ({
+    docs: [doc(pauls), doc(ryans), doc(independent)],
+  }));
+  const result = await Effect.runPromise(
+    policy([lookup(pauls), lookup(ryans), lookup(independent)]),
+  );
+  expect([...result.values()]).toEqual([
+    "direct-provider",
+    "direct-provider",
+    "independent",
+  ]);
+});
+
 test("keeps an explicit missing organization unresolved instead of treating it as owned", async () => {
   const policy = AutorecyclerSourcePolicy.create(async () => ({
     docs: [{ _id: independent, found: false }],
