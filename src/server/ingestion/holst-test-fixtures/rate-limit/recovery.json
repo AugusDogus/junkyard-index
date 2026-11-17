@@ -1,0 +1,10 @@
+{
+  "url": "https://holsttruck.com/trucks/?f-condition=nw&page_number=20",
+  "file": "recovery-page-020.html.gz",
+  "status": 200,
+  "bytes": 311137,
+  "sha256": "f9331a50d63340374a2746940fa4fbcd8a0da549ce113f0dee6a4f1640057cee",
+  "startedAt": "2026-11-17T20:26:06.782867+00:00",
+  "completedAt": "2026-11-17T20:26:10.080913+00:00",
+  "retryAfter": null
+}
