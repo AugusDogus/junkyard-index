@@ -31,7 +31,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   // Complete native catalogs audited under the existing required-field contract.
   tritown: 156,
   whitebradstreet: 127,
-  midway: 254,
+  // Muncie/Liberty 763 plus Tulsa 1,064 accepted donors.
+  midway: 609,
   rightway: 181,
   ddauto: 22,
   rivervalley: 517,
@@ -89,7 +90,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   joliet: 464,
   alln1: 364,
   grandpajohns: 212,
-  pickers: 180,
+  // Texarkana 540, Longview 843 and Reno 545 accepted donors.
+  pickers: 642,
   pipes: 178,
   uwrench: 373,
   millerstown: 362,

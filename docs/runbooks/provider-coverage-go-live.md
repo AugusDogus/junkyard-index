@@ -17,7 +17,7 @@ floor and per-yard 50% previous-run drift checks stay unchanged. Native new Ario
 yards retain their VIN, complete-census, freshness and rejection checks.
 
 The following changes use only committed qualification evidence, with no live
-provider requests. These values supersede historical qualification receipts.
+provider requests. These values supersede historical qualification receipts. Pickers includes Texarkana, Longview and Reno (540 + 843 + 545 = 1,928); Midway includes Muncie, Liberty and Tulsa (763 + 1,064 = 1,827). Their source floors are 642 and 609, respectively.
 
 | Source or yard                    | Qualified accepted census | Previous floor | New floor |
 | --------------------------------- | ------------------------: | -------------: | --------: |
@@ -99,7 +99,7 @@ provider requests. These values supersede historical qualification receipts.
 | `utpap`                           |                     1,727 |          1,500 |       575 |
 | `tritown`                         |                       470 |            400 |       156 |
 | `whitebradstreet`                 |                       382 |            350 |       127 |
-| `midway`                          |                       763 |            600 |       254 |
+| `midway`                          |                     1,827 |            600 |       609 |
 | `rightway`                        |                       543 |            450 |       181 |
 | `ddauto`                          |                        67 |             50 |        22 |
 | `rivervalley`                     |                     1,553 |          1,300 |       517 |
@@ -131,7 +131,7 @@ provider requests. These values supersede historical qualification receipts.
 | `joliet`                          |                     1,392 |          1,200 |       464 |
 | `alln1`                           |                     1,093 |            900 |       364 |
 | `grandpajohns`                    |                       636 |            500 |       212 |
-| `pickers`                         |                       540 |            450 |       180 |
+| `pickers`                         |                     1,928 |            450 |       642 |
 | `pipes`                           |                       535 |            500 |       178 |
 | `uwrench`                         |                     1,121 |          1,000 |       373 |
 | `millerstown`                     |                     1,087 |            900 |       362 |
