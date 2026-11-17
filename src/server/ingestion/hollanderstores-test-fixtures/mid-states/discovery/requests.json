@@ -1,0 +1,248 @@
+[
+  {
+    "url": "https://www.hollanderparts.com/SellerDirectory/GetSellersByPostalCodeRadius?postalcode=64101&radius=3000",
+    "data": null,
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/SellerDirectory/GetSellersByPostalCodeRadius?postalcode=64101&radius=3000",
+    "file": "sellers-all.gz",
+    "bytes": 5361570,
+    "sha256": "7a67da6c2b5c7a3b9c46c8a3683ca6fdb406522c61260ebb7b99b4fa8dfbec24",
+    "startedAt": 1794947012.2086947,
+    "completedAt": 1794947034.9635074
+  },
+  {
+    "url": "https://sac-city-public-inventory.poxtpox.chatgpt.site/api/inventory?catalog=2025-2026&photos=1",
+    "data": null,
+    "status": 200,
+    "finalUrl": "https://sac-city-public-inventory.poxtpox.chatgpt.site/api/inventory?catalog=2025-2026&photos=1",
+    "file": "saccity-photos-manifest.gz",
+    "bytes": 16378,
+    "sha256": "d93d4ea9932b5eed73bcf18e622341e31983a9e9e5697427448836f63a6eb957",
+    "startedAt": 1794948479.9443781,
+    "completedAt": 1794948481.5752263
+  },
+  {
+    "url": "https://mandersdiesel.com/trucks/salvage-trucks/",
+    "data": null,
+    "status": 200,
+    "finalUrl": "https://mandersdiesel.com/trucks/salvage-trucks/",
+    "file": "manders-salvage-native.gz",
+    "bytes": 39044,
+    "sha256": "16303f3fa672e6f03763c06ee116e54f06aa7e85bdf1416b3e2ef5105529d8d2",
+    "startedAt": 1794948612.155114,
+    "completedAt": 1794948614.288908
+  },
+  {
+    "url": "https://mercedesintenational.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "mercedesintenational-opening.gz",
+    "bytes": 99679,
+    "sha256": "97f60b560398c93613ed79288868131f9f69104dcca694becd1f9b55a14fd1ce",
+    "startedAt": 1794947077.2256293,
+    "completedAt": 1794947079.1932857
+  },
+  {
+    "url": "https://utahauto.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://utahauto.hollanderstores.com/VehicleDealerSearch",
+    "file": "utahauto-opening.gz",
+    "bytes": 3278388,
+    "sha256": "4fc6b196bea9ea0033d828cebf0a41f3178460b0bfedc01525a1b1b94380c426",
+    "startedAt": 1794947082.6947556,
+    "completedAt": 1794947106.1615388
+  },
+  {
+    "url": "https://autoquest.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "autoquest-opening.gz",
+    "bytes": 99679,
+    "sha256": "1cc4c242c2c6c90705d473138bd07185ed3898341e98b17d92ef71bcf7a2fa65",
+    "startedAt": 1794947109.667777,
+    "completedAt": 1794947111.2626774
+  },
+  {
+    "url": "https://qqaw.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "qqaw-opening.gz",
+    "bytes": 99679,
+    "sha256": "97f60b560398c93613ed79288868131f9f69104dcca694becd1f9b55a14fd1ce",
+    "startedAt": 1794947114.7641761,
+    "completedAt": 1794947116.4723616
+  },
+  {
+    "url": "https://albertsautoparts.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "albertsautoparts-opening.gz",
+    "bytes": 99679,
+    "sha256": "97f60b560398c93613ed79288868131f9f69104dcca694becd1f9b55a14fd1ce",
+    "startedAt": 1794947119.972678,
+    "completedAt": 1794947122.169438
+  },
+  {
+    "url": "https://mmauto.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "mmauto-opening.gz",
+    "bytes": 99679,
+    "sha256": "97f60b560398c93613ed79288868131f9f69104dcca694becd1f9b55a14fd1ce",
+    "startedAt": 1794947125.669753,
+    "completedAt": 1794947132.7442818
+  },
+  {
+    "url": "https://junctionauto.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "junctionauto-opening.gz",
+    "bytes": 99679,
+    "sha256": "1cc4c242c2c6c90705d473138bd07185ed3898341e98b17d92ef71bcf7a2fa65",
+    "startedAt": 1794947284.9271302,
+    "completedAt": 1794947286.3804657
+  },
+  {
+    "url": "https://abcautoparts.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "abcautoparts-opening.gz",
+    "bytes": 99679,
+    "sha256": "97f60b560398c93613ed79288868131f9f69104dcca694becd1f9b55a14fd1ce",
+    "startedAt": 1794947289.883603,
+    "completedAt": 1794947294.149818
+  },
+  {
+    "url": "https://bcauto.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://bcauto.hollanderstores.com/VehicleDealerSearch",
+    "file": "bcauto-opening.gz",
+    "bytes": 30663,
+    "sha256": "1e92b78f20f226ad1769a4886beb5184aedf7799c53a3f21592dabdcc8e707a8",
+    "startedAt": 1794947297.6502008,
+    "completedAt": 1794947298.4374957
+  },
+  {
+    "url": "https://hubcapheaven.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://hubcapheaven.hollanderstores.com/VehicleDealerSearch",
+    "file": "hubcapheaven-opening.gz",
+    "bytes": 30675,
+    "sha256": "b9085fa729446a7edf6dda416afd1183d7bb239fa803efb870f4f2ff1d736e77",
+    "startedAt": 1794947365.5599706,
+    "completedAt": 1794947366.64557
+  },
+  {
+    "url": "https://wheelcosmo.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://www.hollanderparts.com/",
+    "file": "wheelcosmo-opening.gz",
+    "bytes": 99679,
+    "sha256": "97f60b560398c93613ed79288868131f9f69104dcca694becd1f9b55a14fd1ce",
+    "startedAt": 1794947370.1464267,
+    "completedAt": 1794947375.1600153
+  },
+  {
+    "url": "https://dennishallauto.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://dennishallauto.hollanderstores.com/VehicleDealerSearch",
+    "file": "dennishallauto-opening.gz",
+    "bytes": 5570267,
+    "sha256": "dcd1dcc8bbbdb57f32f766399968f84429f79b3a144008ebfcfa5c2029cb9bd8",
+    "startedAt": 1794947750.5917683,
+    "completedAt": 1794947781.7552266
+  },
+  {
+    "url": "https://2and92truckpart.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://2and92truckpart.hollanderstores.com/VehicleDealerSearch",
+    "file": "2and92truckpart-opening.gz",
+    "bytes": 2321012,
+    "sha256": "738120b188039039d2bbfc4992a13dc32842df054f958008ddbeeed79635ace1",
+    "startedAt": 1794947785.264419,
+    "completedAt": 1794947804.0834188
+  },
+  {
+    "url": "https://hutchautoparts.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://hutchautoparts.hollanderstores.com/VehicleDealerSearch",
+    "file": "hutchautoparts-opening.gz",
+    "bytes": 34513,
+    "sha256": "1174499f9765e7718676b02ebec1b7f86d8bd97effbd3b08f06406d1237ea6aa",
+    "startedAt": 1794947807.5867078,
+    "completedAt": 1794947811.3922193
+  },
+  {
+    "url": "https://das.hollanderstores.com/VehicleDealerSearch",
+    "data": {
+      "hdnChangeDisplay": "card"
+    },
+    "status": 200,
+    "finalUrl": "https://das.hollanderstores.com/VehicleDealerSearch",
+    "file": "das-opening.gz",
+    "bytes": 30660,
+    "sha256": "5c2e5cd88f597e340f159fa17052736ab3b3ea21760e71eaa2edb8fb6e2d32f2",
+    "startedAt": 1794947814.892766,
+    "completedAt": 1794947817.6654813
+  },
+  {
+    "url": "https://cncautoworkstowing.com/collections/parts-vehicle/products.json?limit=250&page=1",
+    "status": 200,
+    "startedAt": "2026-11-17T20:59:46.747Z",
+    "completedAt": "2026-11-17T20:59:48.032Z",
+    "file": "cnc-parts-vehicle.json.gz",
+    "bytes": 260032,
+    "sha256": "1f8257106417736559bdd542974ec4d64bf84e32a1e60c7752102d5a53a24786"
+  },
+  {
+    "url": "https://cncautoworkstowing.com/products/2015-ford-f350-super-duty",
+    "status": 200,
+    "startedAt": "2026-11-17T21:00:47.584Z",
+    "completedAt": "2026-11-17T21:00:48.019Z",
+    "file": "cnc-vinless-detail.html.gz",
+    "bytes": 293761,
+    "sha256": "a0b86558d2fde785d9550d46b7bf1909c8ce70e326d87f9fd3871364cc0e218e"
+  }
+]
