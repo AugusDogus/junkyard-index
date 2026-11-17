@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { urgiisBrokenModelRoute } from "./urgiis-model-coverage";
 import {
   UrgiisControlSchema,
   URGIIS_EMPTY_MODEL_MINIMUM,
@@ -55,7 +56,7 @@ export const UrgiisEntrySchema = z.discriminatedUnion("kind", [
       records: z.array(UrgiisRecordSchema).max(499),
       freshness: z
         .object({
-          kind: z.enum(["read", "carried", "deferred"]),
+          kind: z.enum(["read", "carried", "deferred", "retry"]),
           readAt: z.number().int().nonnegative(),
         })
         .strict(),
@@ -195,7 +196,10 @@ export function validateUrgiisEntry(
     entry.kind === "model" &&
     task.kind === "model" &&
     entry.records.length === 0 &&
-    task.model.count >= URGIIS_EMPTY_MODEL_MINIMUM
+    task.model.count >= URGIIS_EMPTY_MODEL_MINIMUM &&
+    !urgiisBrokenModelRoute(task.model) &&
+    entry.freshness.kind !== "retry" &&
+    entry.freshness.kind !== "deferred"
   )
     throw new Error(
       "IIS checkpoint contains an incomplete badged empty model: " + task.url,

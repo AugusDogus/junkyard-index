@@ -1,5 +1,6 @@
 import { urgiisArrivalsCoverage, urgiisDonorIdentity } from "./urgiis-arrivals";
 import { z } from "zod";
+import { urgiisModelCoverage } from "./urgiis-model-coverage";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import {
   UrgiisEntrySchema,
@@ -16,7 +17,7 @@ export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
 // Reserve one day for a run to finish before the seven-day evidence ceiling.
 const carryMs = 6 * URGIIS_DAY_MS;
 // Bump this whenever admission, traversal or interpretation of cached evidence changes.
-const contract = "incremental-census-v3";
+const contract = "incremental-census-v4";
 const tenantSchema = z
   .object({
     code: z.string(),
@@ -47,11 +48,19 @@ function validate(
   const tasks = urgiisTasks(census.entries, tenant);
   if (tasks.length !== census.entries.length)
     throw new Error("IIS accepted census has an incomplete native graph");
+  if (urgiisModelCoverage(census.entries).blocked)
+    throw new Error(
+      "IIS accepted census exceeds the platform-unreachable allowance",
+    );
   census.entries.forEach((entry, index) => {
     const task = tasks[index];
     if (!task) throw new Error("IIS accepted census has excess evidence");
     validateUrgiisEntry(entry, task, tenant);
-    if (entry.kind === "model" && entry.freshness.readAt > census.acceptedAt)
+    if (
+      entry.kind === "model" &&
+      (entry.freshness.kind === "retry" ||
+        entry.freshness.readAt > census.acceptedAt)
+    )
       throw new Error("IIS accepted model evidence is dated in the future");
   });
 }

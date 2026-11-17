@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UrgiisControlSchema } from "./urgiis-schema";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisBadgeDriftSchema, urgiisBadgeLimit } from "./urgiis-closing";
@@ -29,9 +30,12 @@ const base = {
     .max(8 * 1024 * 1024 * 1024),
   completed: z
     .array(
-      z
-        .object({ code: z.string(), accepted: z.number().int().positive() })
-        .strict(),
+      z.union([
+        z
+          .object({ code: z.string(), accepted: z.number().int().positive() })
+          .strict(),
+        z.object({ code: z.string(), blocked: z.string().min(1) }).strict(),
+      ]),
     )
     .max(100),
 };
@@ -41,6 +45,7 @@ const working = {
   closed: z.number().int().min(0).max(1026),
   // Older v1 checkpoints required exact badge equality, so omitted drift is zero.
   badgeDrift: UrgiisBadgeDriftSchema.optional(),
+  closingModels: z.array(UrgiisControlSchema).max(10000).optional(),
 };
 const schema = z.discriminatedUnion("phase", [
   z.object({ ...working, phase: z.literal("opening") }).strict(),
@@ -75,7 +80,7 @@ function checkpoint(
     if (
       !tenant ||
       done.code !== tenant.code ||
-      done.accepted < tenant.minimumInventory
+      ("accepted" in done && done.accepted < tenant.minimumInventory)
     )
       throw new Error("IIS completed tenant prefix or qualified floor changed");
   });
@@ -100,7 +105,11 @@ function checkpoint(
     if (
       state.entries.length > tasks.length ||
       (state.phase === "opening"
-        ? state.entries.length >= tasks.length || state.closed !== 0
+        ? (state.entries.length >= tasks.length &&
+            !state.entries.some(
+              (e) => e.kind === "model" && e.freshness.kind === "retry",
+            )) ||
+          state.closed !== 0
         : state.entries.length !== tasks.length ||
           state.closed >
             (state.entries[1]?.kind === "makes"
@@ -110,11 +119,34 @@ function checkpoint(
       throw new Error(
         "IIS checkpoint has an incomplete or noncontiguous frontier",
       );
+    if (
+      state.phase !== "opening" &&
+      state.entries.some(
+        (e) => e.kind === "model" && e.freshness.kind === "retry",
+      )
+    )
+      throw new Error("IIS pending empty model must be retried before closing");
     state.entries.forEach((entry, i) => {
       const task = tasks[i];
       if (!task) throw new Error("IIS checkpoint has excess evidence");
       validateUrgiisEntry(entry, task, tenant);
     });
+    if (state.closingModels) {
+      const expected = state.entries
+        .filter((e) => e.kind === "menu")
+        .slice(0, Math.max(0, state.closed - 2))
+        .flatMap((e) => (e.kind === "menu" ? e.controls : []));
+      if (
+        state.closingModels.length !== expected.length ||
+        state.closingModels.some(
+          (c, i) =>
+            c.path !== expected[i]?.path || c.label !== expected[i]?.label,
+        )
+      )
+        throw new Error(
+          "IIS closing model coverage loses its contiguous directory prefix",
+        );
+    }
     const closingTasks = tasks.filter(
       (t) => t.kind === "owner" || t.kind === "makes" || t.kind === "menu",
     );
@@ -132,7 +164,7 @@ function checkpoint(
           (state.startedAt === null ||
             state.asOf === null ||
             e.freshness.readAt > state.asOf ||
-            (e.freshness.kind === "read"
+            (e.freshness.kind === "read" || e.freshness.kind === "retry"
               ? e.freshness.readAt < state.startedAt || e.bytes === 0
               : e.bytes !== 0)),
       )
@@ -188,6 +220,32 @@ export const UrgiisCursor = {
     );
   },
   checkpoint,
+  nextTenant(
+    cursor: UrgiisCursor,
+    done: z.infer<typeof base.completed>[number],
+    tenants: readonly UrgiisTenant[],
+    stateHash: string,
+  ): UrgiisCursor {
+    const completed = [...cursor.completed, done];
+    return checkpoint(
+      {
+        source: cursor.source,
+        version: cursor.version,
+        scope: cursor.scope,
+        startedAt: cursor.startedAt,
+        asOf: cursor.asOf,
+        statePath: cursor.statePath,
+        requests: cursor.requests,
+        bytes: cursor.bytes,
+        stateHash,
+        completed,
+        ...(completed.length === tenants.length
+          ? { phase: "complete" }
+          : { phase: "opening", entries: [], closed: 0 }),
+      },
+      tenants,
+    );
+  },
   parse,
   serialize(
     cursor: UrgiisCursor,

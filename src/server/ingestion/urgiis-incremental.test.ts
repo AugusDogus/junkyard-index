@@ -1,3 +1,4 @@
+import { urgiisBrokenModelRoute } from "./urgiis-model-coverage";
 import { beforeAll, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
@@ -55,6 +56,11 @@ const cards = (records: UrgiisRecord[]) =>
     : empty;
 interface Day {
   previous?: unknown;
+  emptyReads?: { path: string; times: number };
+  specialCount?: number;
+  closingSpecialCount?: number;
+  tenantList?: typeof tenants;
+  emptyTenant?: string;
   now?: number;
   arrivals?: UrgiisRecord[];
   badge?: string;
@@ -70,24 +76,47 @@ interface Day {
 }
 async function run(day: Day = {}) {
   const now = day.now ?? start + 3600_000;
-  let cursor = UrgiisCursor.initial(tenants);
+  const tenantList = day.tenantList ?? tenants;
+  let cursor = UrgiisCursor.initial(tenantList);
   const reads = day.reads ?? [];
   const checkpoints: { pages: number; deferred: number }[] = [];
   const vehicles: CanonicalVehicle[] = [];
   const warnings: string[] = [];
   let peakCursorBytes = 0;
-  const active = models.filter((m) => m.model.path !== day.remove);
+  const special = {
+    path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+    label: "Town & Country",
+    count: day.specialCount ?? 0,
+  };
+  const first = models[0];
+  if (!first) throw new Error("Missing first fixture model");
+  const active = [
+    ...models.filter((m) => m.model.path !== day.remove),
+    ...(day.specialCount === undefined
+      ? []
+      : [
+          {
+            make: first.make,
+            model: {
+              ...special,
+              path: first.make.path.replace(/\/$/, "") + "/TOWN_-and_COUNTRY/",
+            },
+            raw: empty,
+            records: [],
+          },
+        ]),
+  ];
   const makes = [...new Map(active.map((m) => [m.make.path, m.make])).values()];
   for (let chunks = 0; cursor.phase !== "complete" && chunks < 200; chunks++) {
     const result = await Effect.runPromise(
       streamUrgiisInventory({
-        tenants,
+        tenants: tenantList,
         startCursor: cursor,
         previousCursor: day.previous,
         now: day.clock?.(chunks) ?? now,
         loadCensus: async (path) => (await store.load(path)).checkpointState,
         maxPages: day.maxPages ?? 1,
-        readPage: (url) => {
+        readPage: (url, currentTenant) => {
           reads.push(url);
           const path = new URL(url).pathname;
           if (
@@ -110,19 +139,29 @@ async function run(day: Day = {}) {
               .map((m) => ({
                 ...m.model,
                 count:
-                  m.model.path === day.badge
-                    ? (day.badgeCount ?? m.model.count + 1)
-                    : m.model.count +
-                      (Array.isArray(day.fail) &&
-                      day.fail.includes(m.model.path)
-                        ? 1
-                        : 0),
+                  m.model.label === "Town & Country" &&
+                  day.closingSpecialCount !== undefined &&
+                  reads.filter((u) => u === url).length > 1
+                    ? day.closingSpecialCount
+                    : m.model.path === day.badge
+                      ? (day.badgeCount ?? m.model.count + 1)
+                      : m.model.count +
+                        (Array.isArray(day.fail) &&
+                        day.fail.includes(m.model.path)
+                          ? 1
+                          : 0),
               }));
             if (day.drift === path && reads.filter((u) => u === url).length > 1)
               controls.reverse();
             return Effect.succeed(directory(controls, "menu"));
           }
           const model = active.find((m) => m.model.path === path);
+          if (
+            day.emptyReads?.path === path &&
+            (!day.emptyTenant || currentTenant.code === day.emptyTenant) &&
+            reads.filter((u) => u === url).length <= day.emptyReads.times
+          )
+            return Effect.succeed(empty);
           if (model)
             return Effect.succeed(
               day.malformed === path
@@ -163,14 +202,14 @@ async function run(day: Day = {}) {
           checkpointState: result.checkpointState,
         },
       });
-      next = UrgiisCursor.checkpoint({ ...next, statePath }, tenants);
+      next = UrgiisCursor.checkpoint({ ...next, statePath }, tenantList);
     }
-    const wire = UrgiisCursor.serialize(next, tenants);
+    const wire = UrgiisCursor.serialize(next, tenantList);
     peakCursorBytes = Math.max(
       peakCursorBytes,
       new TextEncoder().encode(wire).length,
     );
-    cursor = UrgiisCursor.fromWire(wire, tenants);
+    cursor = UrgiisCursor.fromWire(wire, tenantList);
   }
   expect(cursor.phase).toBe("complete");
   return { cursor, reads, vehicles, warnings, peakCursorBytes, checkpoints };
@@ -581,4 +620,145 @@ test("model deferrals checkpoint individually and a second distinct failure stop
   expect(
     reads.filter((url) => failures.includes(new URL(url).pathname)),
   ).toHaveLength(2);
+});
+
+test("broken model route rule recognizes native punctuation and ampersand slugs only", () => {
+  for (const [label, slug] of [
+    ["Town & Country", "TOWN_-and_COUNTRY"],
+    ["Lincoln Town Car", "LINCOLN_-and_TOWN_CAR"],
+    ["Chevrolet Pass.", "CHEVROLET_PASS."],
+    ["Blazer/Jimmy (Full Size)", "BLAZER.JIMMY_(FULL_SIZE)"],
+    ["Safari (GMC)", "SAFARI_%28GMC%29"],
+  ])
+    expect(
+      urgiisBrokenModelRoute({
+        label: label ?? "",
+        path: `/parts/MAKE/${slug}/`,
+        count: 2,
+      }),
+    ).toBe(true);
+  for (const label of [
+    "EQUINOX",
+    "ATLAS",
+    "TOWN_CAR",
+    "GRAND_CARAVAN",
+    "LAND_AND_RANGE",
+  ])
+    expect(
+      urgiisBrokenModelRoute({
+        label,
+        path: `/parts/MAKE/${label}/`,
+        count: 2,
+      }),
+    ).toBe(false);
+});
+test("special-slug unreachable donors within 1% publish with model counts in a warning", async () => {
+  const result = await run({
+    specialCount: 2,
+    badge: target().model.path,
+    badgeCount:
+      200 -
+      models.reduce((n, m) => n + m.model.count, 0) +
+      target().model.count -
+      2,
+  });
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  expect(
+    result.warnings.some(
+      (w) =>
+        w.includes("platform-unreachable") && w.includes("Town & Country: 2"),
+    ),
+  ).toBe(true);
+});
+test("special-slug unreachable donors above 1% block the tenant", async () => {
+  const result = await run({ specialCount: 200 });
+  expect(result.vehicles).toEqual([]);
+  expect(result.cursor.completed[0]).toMatchObject({
+    blocked: expect.stringContaining("maximum is 1%"),
+  });
+});
+test("ordinary explicit empty is retried later and carries prior accepted donors", async () => {
+  const path = target().model.path;
+  const result = await run({
+    previous: baseline.cursor,
+    badge: path,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  expect(result.reads.filter((u) => u === tenant.origin + path)).toHaveLength(
+    2,
+  );
+  expect(
+    result.warnings.some((w) => w.includes("later retry; retaining donors")),
+  ).toBe(true);
+  expect(result.checkpoints.some((c) => c.deferred === 1)).toBe(true);
+});
+test("ordinary explicit empty cannot extend the six-day carry age bound", async () => {
+  const path = target().model.path;
+  const result = await run({
+    previous: baseline.cursor,
+    now: start + 6 * DAY,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.vehicles).toEqual([]);
+  expect(result.cursor.completed[0]).toHaveProperty("blocked");
+});
+test("cold ordinary empty blocks only that tenant and the following tenant publishes", async () => {
+  const path = target().model.path;
+  const result = await run({
+    tenantList: [tenant, { ...tenant, code: "healthy" }],
+    emptyTenant: tenant.code,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.cursor.completed[0]).toHaveProperty("blocked");
+  expect(result.cursor.completed[1]).toHaveProperty("accepted");
+  expect(result.vehicles).toEqual(baseline.vehicles);
+});
+test("an intermittent ordinary empty recovers on the later retry", async () => {
+  const path = target().model.path;
+  const result = await run({ emptyReads: { path, times: 1 } });
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  const first = result.reads.indexOf(tenant.origin + path);
+  const retry = result.reads.lastIndexOf(tenant.origin + path);
+  expect(retry).toBeGreaterThan(first + 1);
+});
+
+test("closing badges reapply the aggregate 1% unreachable limit", async () => {
+  const result = await run({
+    specialCount: 2,
+    closingSpecialCount: 3,
+    badge: target().model.path,
+    badgeCount: 200,
+  });
+  expect(result.vehicles).toEqual([]);
+  expect(result.cursor.completed[0]).toMatchObject({
+    blocked: expect.stringContaining("maximum is 1%"),
+  });
+});
+test("arrivals-only donors in an unreachable special model retain their arrivals destination", async () => {
+  const source = target();
+  const record = source.records[0];
+  const make = models[0]?.make;
+  const denominator = models.find((m) => m.model.path !== source.model.path);
+  if (!record || !make || !denominator)
+    throw new Error("Missing captured arrival identity");
+  const specialPath = make.path.replace(/\/$/, "") + "/TOWN_-and_COUNTRY/";
+  const arrival = {
+    ...record,
+    titles: [make.label + " Town & Country"],
+    inquiries: [],
+    destinations: [
+      tenant.origin + specialPath + record.stock + "/" + record.years[0],
+    ],
+  };
+  const result = await run({
+    remove: source.model.path,
+    specialCount: 2,
+    badge: denominator.model.path,
+    badgeCount: 1000,
+    arrivals: [arrival],
+  });
+  expect(
+    result.vehicles.find((v) => v.vin === record.vins[0])?.detailsUrl,
+  ).toBe(tenant.origin + tenant.arrivalsPath);
 });

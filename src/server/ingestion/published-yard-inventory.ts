@@ -12,6 +12,7 @@ export async function validatePublishedYardInventory(
   current: Iterable<CanonicalVehicle>,
   source: CanonicalVehicle["source"],
   minimumByYard: ReadonlyMap<string, number> = new Map(),
+  preservedYards: ReadonlySet<string> = new Set(),
 ): Promise<string[]> {
   const previous = await database
     .select({ code: vehicle.locationCode, count: count() })
@@ -32,6 +33,7 @@ export async function validatePublishedYardInventory(
   return [
     ...floorErrors,
     ...previous.flatMap((yard) => {
+      if (preservedYards.has(yard.code)) return [];
       const accepted = counts.get(yard.code) ?? 0;
       return accepted <
         yard.count * SourceValidationPolicy.minimumPreviousRunRatio

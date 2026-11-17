@@ -198,6 +198,7 @@ for (const tenant of rejectedTenants) {
     expect(() => validateUrgiisSnapshot(assessed, tenant)).toThrow("rejected");
     let cursor = UrgiisCursor.initial([tenant]);
     let reads = 0;
+    const emptyResponses = new Map<string, string>();
     let published = false;
     try {
       while (cursor.phase !== "complete") {
@@ -209,10 +210,21 @@ for (const tenant of rejectedTenants) {
             readPage: (url) =>
               Effect.tryPromise({
                 try: async () => {
+                  if (emptyResponses.has(url)) {
+                    reads++;
+                    return emptyResponses.get(url) ?? "";
+                  }
                   const response = await archive.next();
                   reads++;
                   if (!response || response.url !== url)
                     throw new Error("Unexpected failed-census request " + url);
+                  if (
+                    new URL(url).pathname.split("/").filter(Boolean).length ===
+                      3 &&
+                    /No Results/i.test(response.html) &&
+                    iisCards(response.html, tenant).nativeEmpty
+                  )
+                    emptyResponses.set(url, response.html);
                   return response.html;
                 },
                 catch: (cause) => urgiisError("offline rejected census", cause),
@@ -224,21 +236,31 @@ for (const tenant of rejectedTenants) {
           }).pipe(Effect.either),
         );
         if (result._tag === "Left") {
-          const expectedPath =
-            tenant.code === "airport"
-              ? "/parts/CHRYSLER/NEW_YORKER_(FWD)/"
-              : "/parts/CHRYSLER/TOWN_-and_COUNTRY/";
-          expect(result.left.operation).toBe(
-            "parse " + tenant.origin + expectedPath,
-          );
-          expect(result.left.message).toContain("enumeration is incomplete");
+          expect(result.left.operation).toBe("snapshot " + tenant.code);
+          expect(result.left.message).toContain("failed admission");
           expect(
             archive.expected.recordsRejected /
               (archive.expected.recordsProcessed -
                 archive.expected.recordsExcluded),
           ).toBeGreaterThan(0.1);
-          expect(reads).toBeLessThan(archive.responseCount);
+          expect(reads).toBe(archive.responseCount);
           expect(published).toBe(false);
+          return;
+        }
+        if (result.right.cursor.completed.some((c) => "blocked" in c)) {
+          expect(published).toBe(false);
+          expect(result.right.cursor.completed[0]).toMatchObject({
+            blocked: expect.stringContaining(
+              "still returns an explicit empty result",
+            ),
+          });
+          const snapshot = await UrgiisReplayArchive.assess(
+            tenant.code + "-rejected-census",
+            tenant,
+          );
+          expect(() => validateUrgiisSnapshot(snapshot, tenant)).toThrow(
+            "failed admission",
+          );
           return;
         }
         expect(result.right.status).toBe("paused");

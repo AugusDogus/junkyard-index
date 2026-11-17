@@ -1,14 +1,14 @@
 import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
-import { URGIIS_MINIMUM_BY_YARD } from "./urgiis-configuration";
+import { urgiisPublication } from "./urgiis-publication";
 import { validatePublishedYardInventory } from "./published-yard-inventory";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
   isIngestionSource,
   type IngestionSource,
 } from "~/lib/ingestion-source";
-import { ingestionRun, ingestionSourceRun } from "~/schema";
+import { ingestionRun, ingestionSourceRun, vehicle } from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { loadSourceSnapshot } from "./run-snapshot-inventory";
@@ -111,6 +111,7 @@ export async function validateDurableSourceRuns(params: {
   }
   const countBySource = new Map<string, number>();
   const yardErrorsBySource = new Map<string, string[]>();
+  const urgiisLimits = new Map<string, { minimum: number; previous: number }>();
   const autorecyclerBaselines = new Map<string, number>();
   for (const row of sourceRows) {
     const snapshot = await loadSourceSnapshot(
@@ -167,16 +168,38 @@ export async function validateDurableSourceRuns(params: {
       row.source === "urgiis" &&
       row.status === "success" &&
       hasTerminalCursor(row.source, row.nextCursor)
-    )
+    ) {
+      const cursor = parseDurableSourceCursor("urgiis", row.nextCursor ?? "");
+      const scope = urgiisPublication(cursor);
+      const [baseline] = await params.database
+        .select({ count: count() })
+        .from(vehicle)
+        .where(
+          and(
+            eq(vehicle.source, "urgiis"),
+            isNull(vehicle.missingSinceAt),
+            inArray(vehicle.locationCode, [...scope.minimumByYard.keys()]),
+          ),
+        );
+      urgiisLimits.set(row.source, {
+        minimum: scope.minimum,
+        previous: baseline?.count ?? 0,
+      });
       yardErrorsBySource.set(
         row.source,
         await validatePublishedYardInventory(
           params.database,
           snapshot.vehicles.values(),
           "urgiis",
-          URGIIS_MINIMUM_BY_YARD,
+          scope.minimumByYard,
+          scope.preservedYards,
         ),
       );
+      if (!cursor.completed.some((c) => "accepted" in c))
+        yardErrorsBySource.set(row.source, [
+          "URG IIS has no publishing tenants; prior inventory is preserved",
+        ]);
+    }
   }
 
   const validations: Array<{
@@ -220,8 +243,12 @@ export async function validateDurableSourceRuns(params: {
         ...parseIngestionErrors(row.errors),
         ...(yardErrorsBySource.get(row.source) ?? []),
       ],
+      minimumUniqueInventory: urgiisLimits.get(row.source)?.minimum,
       previousAcceptedCount:
-        autorecyclerBaselines.get(row.source) ?? previous?.count ?? null,
+        urgiisLimits.get(row.source)?.previous ??
+        autorecyclerBaselines.get(row.source) ??
+        previous?.count ??
+        null,
     });
     validations.push({
       source: row.source,

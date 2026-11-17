@@ -1,3 +1,9 @@
+import { urgiisEquinoxProbe } from "../src/server/ingestion/urgiis-route-probe";
+import {
+  urgiisBrokenModelRoute,
+  urgiisModelCoverage,
+} from "../src/server/ingestion/urgiis-model-coverage";
+import { urgiisSnapshot } from "../src/server/ingestion/urgiis-snapshot";
 import { urgiisArrivalDate } from "../src/server/ingestion/urgiis-arrivals";
 import { URGIIS_TENANTS } from "../src/server/ingestion/urgiis-configuration";
 import { UrgiisReplayArchive } from "../src/server/ingestion/urgiis-replay-archive";
@@ -22,6 +28,7 @@ import {
 // Offline request accounting. The latency scenario is explicit, not a live timing
 // claim: 6 seconds per HTML response plus each tenant's configured response gate.
 const rows = [];
+const outcomes = [];
 const blocked: {
   tenant: string;
   models: { path: string; reason: string }[];
@@ -89,8 +96,83 @@ for (const tenant of URGIIS_TENANTS) {
         );
       }
     }
-    if (incompleteModels.length) {
-      blocked.push({ tenant: tenant.code, models: incompleteModels });
+    const coverage = urgiisModelCoverage(entries);
+    const ordinary = incompleteModels.filter(
+      (m) => !urgiisBrokenModelRoute({ path: m.path, label: "", count: 2 }),
+    );
+    let retryRequests = 0;
+    for (const model of ordinary) {
+      const probe = urgiisEquinoxProbe();
+      if (
+        tenant.code === "revolution" &&
+        tenant.origin + model.path === probe.url
+      ) {
+        const entry = entries.find(
+          (e) => e.kind === "model" && e.url === probe.url,
+        );
+        if (entry?.kind !== "model")
+          throw new Error("Missing Equinox model entry");
+        entry.records = iisCards(probe.html, tenant).records;
+        retryRequests++;
+      }
+    }
+    const unrecovered = ordinary.filter((m) =>
+      entries.some(
+        (e) =>
+          e.kind === "model" &&
+          e.url === tenant.origin + m.path &&
+          e.records.length === 0,
+      ),
+    );
+    const pages = urgiisTasks(entries, tenant).flatMap((task, i) => {
+      const entry = entries[i];
+      return task.kind === "model" && entry?.kind === "model"
+        ? [
+            {
+              make: task.make,
+              model: task.model,
+              records: entry.records,
+              hash: "",
+            },
+          ]
+        : [];
+    });
+    const snapshot = urgiisSnapshot(
+      pages,
+      tenant,
+      new Map(
+        entries.flatMap((e) =>
+          e.kind === "detail" ? [[e.url, e.seller] as const] : [],
+        ),
+      ),
+      entries.flatMap((e) => (e.kind === "arrivals" ? e.records : [])),
+    );
+    const reasons = [
+      ...unrecovered.map(
+        (m) =>
+          m.reason + "; no saved successful retry or prior accepted census",
+      ),
+      ...(coverage.blocked ? [coverage.message] : []),
+    ];
+    outcomes.push({
+      tenant: tenant.code,
+      status: reasons.length ? "blocked" : "published",
+      accepted: reasons.length ? 0 : snapshot.vehicles.length,
+      candidates: snapshot.vehicles.length,
+      advertised: coverage.advertised,
+      unreachable: coverage.count,
+      unreachableModels: coverage.unreachable,
+      warnings: coverage.count && !coverage.blocked ? [coverage.message] : [],
+      reasons,
+      retryRequests,
+    });
+    if (reasons.length) {
+      blocked.push({
+        tenant: tenant.code,
+        models: incompleteModels.filter(
+          (m) => unrecovered.includes(m) || coverage.blocked,
+        ),
+      });
       continue;
     }
     const census = UrgiisCensus.accept(
@@ -183,11 +265,14 @@ for (const tenant of URGIIS_TENANTS) {
       tenant: tenant.code,
       makes: closingRequests - 2,
       models: entries.filter((e) => e.kind === "model").length,
-      fullRequests: archive.responseCount,
+      fullRequests: archive.responseCount + retryRequests,
       unchangedNoSweep: closingRequests * 2 + (tenant.arrivalsPath ? 1 : 0),
       weeklyRequests: requests,
       dailyAverage: +average.toFixed(1),
-      beforeMinutes: +((archive.responseCount * seconds) / 60).toFixed(1),
+      beforeMinutes: +(
+        ((archive.responseCount + retryRequests) * seconds) /
+        60
+      ).toFixed(1),
       afterMinutes: +((average * seconds) / 60).toFixed(1),
       modelStocks: modelStocks.size,
       arrivalStocks: arrivalStocks.size,
@@ -212,8 +297,14 @@ console.log(
     {
       latencySeconds: 6,
       blocked,
+      outcomes,
       rows,
       totals: {
+        publishedTenants: outcomes.filter((o) => o.status === "published")
+          .length,
+        blockedTenants: outcomes.filter((o) => o.status === "blocked").length,
+        accepted: outcomes.reduce((n, o) => n + o.accepted, 0),
+        unreachableAdvertised: outcomes.reduce((n, o) => n + o.unreachable, 0),
         beforeRequests: rows.reduce((n, r) => n + r.fullRequests, 0),
         afterRequests: +rows.reduce((n, r) => n + r.dailyAverage, 0).toFixed(1),
         beforeMinutes: +rows

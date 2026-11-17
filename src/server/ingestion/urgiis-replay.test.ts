@@ -8,30 +8,9 @@ import { streamUrgiisInventory } from "./urgiis-connector";
 import { urgiisError } from "./urgiis-client";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
 
-// These original captures contain proven enumeration gaps. Keep their raw
-// evidence and require the connector to stop at the exact badged empty page.
-const incomplete = new Map([
-  ["eagle", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
-  ["linders", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 2 }],
-  ["chuckran", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 3 }],
-  ["united", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 29 }],
-  ["ace-iowa", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 5 }],
-  ["lentini", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
-  ["dings", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 2 }],
-  ["ace-st-paul", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 54 }],
-  ["chucks", { path: "/parts/CHEVROLET/CHEVROLET_PASS./", count: 2 }],
-  ["central-nh", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 11 }],
-  ["higgins", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
-  ["premier", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 9 }],
-  [
-    "junior-sinn",
-    { path: "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/", count: 2 },
-  ],
-  ["revolution", { path: "/parts/CHEVROLET/EQUINOX/", count: 91 }],
-  ["az", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 2 }],
-  ["lambert", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 13 }],
-  ["norbs", { path: "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/", count: 3 }],
-]);
+import { iisCards } from "./urgiis-catalog";
+import { urgiisEquinoxProbe } from "./urgiis-route-probe";
+import estimates from "../../../docs/runbooks/urgiis-incremental-estimates.json";
 
 for (const tenant of URGIIS_TENANTS) {
   test(
@@ -41,6 +20,12 @@ for (const tenant of URGIIS_TENANTS) {
       try {
         expect(archive.tenantCode).toBe(tenant.code);
         let reads = 0;
+        let retries = 0;
+        const emptyResponses = new Map<string, string>();
+        const expected = estimates.outcomes.find(
+          (o) => o.tenant === tenant.code,
+        );
+        if (!expected) throw new Error("Missing publish outcome");
         let batches = 0;
         let cursor = UrgiisCursor.initial([tenant]);
         let count = 0;
@@ -60,12 +45,26 @@ for (const tenant of URGIIS_TENANTS) {
               readPage: (url) =>
                 Effect.tryPromise({
                   try: async () => {
+                    if (emptyResponses.has(url)) {
+                      reads++;
+                      retries++;
+                      return tenant.code === "revolution"
+                        ? urgiisEquinoxProbe().html
+                        : (emptyResponses.get(url) ?? "");
+                    }
                     const response = await archive.next();
                     reads++;
                     if (!response || response.url !== url)
                       throw new Error(
                         `Unexpected native request ${url} at ${reads}`,
                       );
+                    if (
+                      new URL(url).pathname.split("/").filter(Boolean)
+                        .length === 3 &&
+                      /No Results/i.test(response.html) &&
+                      iisCards(response.html, tenant).nativeEmpty
+                    )
+                      emptyResponses.set(url, response.html);
                     return response.html;
                   },
                   catch: (cause) => urgiisError("offline replay", cause),
@@ -77,7 +76,7 @@ for (const tenant of URGIIS_TENANTS) {
                 }),
               onBatch: (vehicles) =>
                 Effect.sync(() => {
-                  expect(reads).toBe(archive.responseCount);
+                  expect(reads).toBe(archive.responseCount + retries);
                   expect(new Set(vehicles.map((v) => v.vin)).size).toBe(
                     vehicles.length,
                   );
@@ -106,19 +105,7 @@ for (const tenant of URGIIS_TENANTS) {
                 }),
             }).pipe(Effect.either),
           );
-          if (outcome._tag === "Left") {
-            const expected = incomplete.get(tenant.code);
-            if (!expected) throw new Error(outcome.left.message);
-            expect(outcome.left.operation).toBe(
-              "parse " + tenant.origin + expected.path,
-            );
-            expect(outcome.left.message).toContain(
-              `advertises ${expected.count} donors but returns an explicit empty result`,
-            );
-            expect(batches).toBe(0);
-            expect(count).toBe(0);
-            return;
-          }
+          if (outcome._tag === "Left") throw new Error(outcome.left.message);
           const result = outcome.right;
           if (result.status === "failed")
             throw new Error(result.errors.join("; "));
@@ -135,17 +122,31 @@ for (const tenant of URGIIS_TENANTS) {
             [tenant],
           );
         }
-        expect(incomplete.has(tenant.code)).toBe(false);
+        if (expected.status === "blocked") {
+          expect(batches).toBe(0);
+          expect(count).toBe(0);
+          expect(cursor.completed[0]).toHaveProperty("blocked");
+          return;
+        }
+        expect(cursor.completed[0]).toHaveProperty("accepted");
         expect(batches).toBe(1);
-        expect(count).toBe(archive.expected.accepted);
+        expect(count).toBe(expected.accepted);
         expect(accounting).toEqual({
-          recordsProcessed: archive.expected.recordsProcessed,
+          recordsProcessed:
+            archive.expected.recordsProcessed +
+            (tenant.code === "revolution" ? 91 : 0),
           recordsExcluded: archive.expected.recordsExcluded,
-          recordsRejected: archive.expected.recordsRejected,
+          recordsRejected:
+            archive.expected.recordsRejected +
+            (tenant.code === "revolution" ? 1 : 0),
           duplicateVehicles: archive.expected.duplicateVehicles,
         });
-        expect(reads).toBe(archive.responseCount);
-        expect(byYard).toEqual(archive.expected.byYard);
+        expect(reads).toBe(archive.responseCount + retries);
+        expect(byYard).toEqual(
+          tenant.code === "revolution"
+            ? { [tenant.yard.code]: expected.accepted }
+            : archive.expected.byYard,
+        );
         expect(await archive.next()).toBeUndefined();
       } finally {
         archive.close();
