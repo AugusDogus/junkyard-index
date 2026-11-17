@@ -54,17 +54,21 @@ heartbeat critical paths. The publication lifecycle reports each released source
 health even when its alert matching was deferred. URG's own first publication still
 has a monitoring-window risk; this change does not make that census fast.
 
-The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate) estimates
-28.7 hours for the current 11,808-request census and 7.4 hours for a mean incremental
-day, using six seconds per response plus its existing tenant gaps. Its separate
-23.9-hour figure describes the earlier 10,233-response qualification graph.
-Neither includes this PR's shared queue. URG retains its local post-response gap
-outside the shared lease, so the new 3.5-second shared gap adds 11.48 hours to the
-current full-census scenario: approximately **40.2 hours**, or **10.4 hours** for the
-mean incremental day. Even removing the duplicate local gap would leave 31.16
-hours for 11,808 responses at six seconds plus the shared 3.5-second gap. Retries,
-storage/orchestration overhead and competing native IIS sources add more time.
-These are explicit sizing scenarios, not measured live runtimes or upper bounds.
+The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate) now
+estimates 16 eligible publishing tenants with 57,467 donors, 10,249 full-census
+requests and 2,951.7 mean incremental requests/day. At six seconds per response
+plus existing local gaps, that is 1,484.7 minutes (24.7 hours) for a full census
+and 432.4 minutes (7.2 hours) for a mean incremental day. Three blocked tenants
+remain outside these eligible subtotals and preserve prior inventory.
+
+Neither estimate includes this PR's shared queue. URG retains its local
+post-response gap outside the shared lease, so the additional 3.5-second shared
+gap adds 9.96 full-census hours or 2.87 incremental hours: approximately
+**34.7 hours** and **10.1 hours**, respectively. Even removing the duplicate
+local gap would leave 27.05 hours for 10,249 responses at six seconds plus the
+shared 3.5-second gap. Blocked tenant work, retries, storage/orchestration overhead
+and competing native IIS sources add more time. These are explicit sizing
+scenarios, not measured live runtimes or upper bounds.
 
 Repository freshness is 30 hours after the last accepted search publication
 ([`durable-health.ts`](../../src/server/ingestion/durable-health.ts)); starting or
@@ -207,3 +211,17 @@ Account plans, pricing, abandoned Algolia rebuild cleanup, missing-scan indexes,
 run-history pruning, Sentry sampling, alert request batching, and flag rollout are
 outside these six fixes. They remain launch-analysis follow-ups. No production
 verification or live load qualification was performed.
+
+## Offline replay timing
+
+The Lentini replay injects saved responses and a fixed run clock. It never enters
+the provider client, shared host lease or real-time pacing. Its former 600-second
+timeout came from repeatedly validating, deriving and encoding multi-MiB
+checkpoints. Validated evidence and complete seller-task graphs now reuse only
+identical immutable objects. New wire input still receives full validation.
+The large replay keeps three-page chunks, wire resumes at phase transitions and
+every 96 requests, and every existing donor, yard, destination and accounting
+assertion. Small fixtures retain wire roundtrips at every individual checkpoint.
+A complete saved Lentini replay passed all 16,777 assertions in 150.43 seconds
+on Bun 1.4.4 under concurrent CPU load, versus the reproduced 600-second timeout.
+This is CPU work, so a fake lease cannot remove the remaining runtime.
