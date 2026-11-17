@@ -301,10 +301,15 @@ export function iisCards(
 export function iisValidateModelPage(
   page: ReturnType<typeof iisCards>,
   model: UrgiisControl,
+  retryExplicitEmpty = false,
 ) {
   if (page.capped)
     throw new Error("IIS native 500-card boundary reached at " + model.path);
-  if (page.nativeEmpty && model.count >= URGIIS_EMPTY_MODEL_MINIMUM)
+  if (
+    page.nativeEmpty &&
+    model.count >= URGIIS_EMPTY_MODEL_MINIMUM &&
+    (!retryExplicitEmpty || model.count >= 500)
+  )
     throw new Error(
       `IIS model ${model.path} advertises ${model.count} donors but returns an explicit empty result; enumeration is incomplete`,
     );

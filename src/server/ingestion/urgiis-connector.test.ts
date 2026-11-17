@@ -583,45 +583,52 @@ test("URG IIS cannot qualify an arrivals window without admitted own-yard model 
   );
 });
 
-test("URG IIS never publishes a badged explicit-empty model below the native cap", async () => {
+test("URG IIS retries an ordinary badged empty and blocks its cold tenant", async () => {
   let cursor = UrgiisCursor.initial([tenant]);
-  let reads = 0;
+  let modelReads = 0;
   let published = false;
-  await expect(
-    (async () => {
-      while (cursor.phase !== "complete") {
-        const result = await Effect.runPromise(
-          streamUrgiisInventory({
-            tenants: [tenant],
-            startCursor: cursor,
-            maxPages: 1,
-            readPage: () => {
-              const index = reads++;
-              return Effect.succeed(
-                index === 3
-                  ? menu.replace(">1<", ">91<")
-                  : index === 4
-                    ? document(
-                        "No Results Found. Try Browsing Our Parts Or Search Again",
-                      )
-                    : (responses[index] ?? ""),
-              );
-            },
-            onBatch: () =>
-              Effect.sync(() => {
-                published = true;
-              }),
+  while (cursor.phase !== "complete") {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        startCursor: cursor,
+        maxPages: 1,
+        readPage: (url) => {
+          if (url === tenant.origin + model.path) {
+            modelReads++;
+            return Effect.succeed(
+              document(
+                "No Results Found. Try Browsing Our Parts Or Search Again",
+              ),
+            );
+          }
+          const index = responses.findIndex(
+            (_, i) =>
+              [
+                tenant.origin + tenant.ownerPath,
+                tenant.origin + tenant.makesPath,
+                tenant.origin + tenant.arrivalsPath,
+                tenant.origin + make.path,
+              ][i] === url,
+          );
+          return Effect.succeed(
+            index === 3
+              ? menu.replace(">1<", ">91<")
+              : (responses[index] ?? ""),
+          );
+        },
+        onBatch: () =>
+          Effect.sync(() => {
+            published = true;
           }),
-        );
-        if (result.status === "failed")
-          throw new Error(result.errors.join("; "));
-        cursor = result.cursor;
-      }
-    })(),
-  ).rejects.toThrow(
-    "advertises 91 donors but returns an explicit empty result",
-  );
-  expect(reads).toBe(5);
+      }),
+    );
+    cursor = result.cursor;
+  }
+  expect(modelReads).toBe(2);
+  expect(cursor.completed[0]).toMatchObject({
+    blocked: expect.stringContaining("later retry"),
+  });
   expect(published).toBe(false);
 });
 

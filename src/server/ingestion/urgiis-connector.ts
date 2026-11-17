@@ -1,3 +1,8 @@
+import {
+  urgiisBrokenModelRoute,
+  urgiisModelCoverage,
+} from "./urgiis-model-coverage";
+import { URGIIS_EMPTY_MODEL_MINIMUM } from "./urgiis-schema";
 import { urgiisArrivalsCoverage } from "./urgiis-arrivals";
 import {
   resumeUrgiisCensus,
@@ -103,7 +108,7 @@ function parseEntry(
     tenant,
     task.kind === "arrivals" ? "arrivals" : "model",
   );
-  if (task.kind === "model") iisValidateModelPage(page, task.model);
+  if (task.kind === "model") iisValidateModelPage(page, task.model, true);
   else if (page.capped)
     throw new Error(
       "IIS native 500-card arrivals boundary reached at " + task.url,
@@ -113,7 +118,15 @@ function parseEntry(
         ...receipt,
         kind: "model",
         records: page.records,
-        freshness: { kind: "read", readAt: now },
+        freshness: {
+          kind:
+            page.nativeEmpty &&
+            task.model.count >= URGIIS_EMPTY_MODEL_MINIMUM &&
+            !urgiisBrokenModelRoute(task.model)
+              ? "retry"
+              : "read",
+          readAt: now,
+        },
       }
     : { ...receipt, kind: "arrivals", records: page.records };
 }
@@ -210,6 +223,22 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         unsealed = false;
       }
       if (cursor.phase === "ready") {
+        const openingCoverage = urgiisModelCoverage(cursor.entries);
+        const coverage = openingCoverage.blocked
+          ? openingCoverage
+          : urgiisModelCoverage(cursor.entries, cursor.closingModels);
+        if (coverage.count)
+          result.warnings.push(`${tenant.code}: ${coverage.message}.`);
+        if (coverage.blocked) {
+          cursor = UrgiisCursor.nextTenant(
+            cursor,
+            { code: tenant.code, blocked: coverage.message },
+            tenants,
+            urgiisFingerprint(census),
+          );
+          result.checkpointState = census;
+          break;
+        }
         const pages: UrgiisModelPage[] = [];
         cursor.entries.forEach((entry, i) => {
           const task = tasks[i];
@@ -272,28 +301,12 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         result.warnings.push(
           `${tenant.yard.name}: ${count} accepted, ${snapshot.accounting.recordsRejected} rejected, ${snapshot.accounting.recordsExcluded} explicitly excluded.`,
         );
-        const completed = [
-          ...cursor.completed,
-          { code: tenant.code, accepted: count },
-        ];
         cursor = yield* boundary("next tenant checkpoint", () =>
-          UrgiisCursor.checkpoint(
-            {
-              source: "urgiis",
-              version: 2,
-              startedAt,
-              asOf: acceptedAt,
-              statePath: cursor.statePath,
-              stateHash: urgiisFingerprint(census),
-              scope: cursor.scope,
-              requests: cursor.requests,
-              bytes: cursor.bytes,
-              completed,
-              ...(completed.length === tenants.length
-                ? { phase: "complete" }
-                : { phase: "opening", entries: [], closed: 0 }),
-            },
+          UrgiisCursor.nextTenant(
+            cursor,
+            { code: tenant.code, accepted: count },
             tenants,
+            urgiisFingerprint(census),
           ),
         );
         // One validated tenant per chunk, keeping callback and checkpoint sizes bounded.
@@ -313,10 +326,20 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       const closingTasks = tasks.filter(
         (t) => t.kind === "owner" || t.kind === "makes" || t.kind === "menu",
       );
-      const task =
+      const pendingIndex = cursor.entries.findIndex(
+        (e) => e.kind === "model" && e.freshness.kind === "retry",
+      );
+      const nextTask =
         cursor.phase === "closing"
           ? closingTasks[cursor.closed]
           : tasks[cursor.entries.length];
+      // Retry ordinary empty pages after the other model pages, before seller
+      // requests or closing. Pending entries survive serialized chunk boundaries.
+      const retrying =
+        cursor.phase === "opening" &&
+        pendingIndex >= 0 &&
+        nextTask?.kind !== "model";
+      const task = retrying ? tasks[pendingIndex] : nextTask;
       if (!task)
         return yield* Effect.fail(
           urgiisError(
@@ -325,7 +348,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           ),
         );
       const carried =
-        cursor.phase === "opening"
+        cursor.phase === "opening" && !retrying
           ? urgiisCarry(task, cursor.entries, previousTenant, now)
           : undefined;
       if (carried) {
@@ -335,7 +358,10 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           entries,
           asOf: Math.max(now, cursor.asOf ?? now),
           phase:
-            entries.length === urgiisTasks(entries, tenant).length
+            entries.length === urgiisTasks(entries, tenant).length &&
+            !entries.some(
+              (e) => e.kind === "model" && e.freshness.kind === "retry",
+            )
               ? "closing"
               : "opening",
         };
@@ -400,7 +426,9 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             ? urgiisDefer(task, cursor.entries, previousTenant, failedAt)
             : undefined;
         if (!deferred) return yield* Effect.fail(response.left);
-        const entries = [...cursor.entries, deferred];
+        const entries = retrying
+          ? cursor.entries.map((e, i) => (i === pendingIndex ? deferred : e))
+          : [...cursor.entries, deferred];
         cursor = yield* boundary("deferred model checkpoint", () =>
           UrgiisCursor.checkpoint(
             {
@@ -409,7 +437,10 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
               asOf: failedAt,
               requests: cursor.requests + 1,
               phase:
-                entries.length === urgiisTasks(entries, tenant).length
+                entries.length === urgiisTasks(entries, tenant).length &&
+                !entries.some(
+                  (e) => e.kind === "model" && e.freshness.kind === "retry",
+                )
                   ? "closing"
                   : "opening",
             },
@@ -439,7 +470,40 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           errors: [parsed.left.message],
         };
       }
-      const entry = parsed.right;
+      let entry = parsed.right;
+      if (
+        retrying &&
+        entry.kind === "model" &&
+        entry.freshness.kind === "retry"
+      ) {
+        const deferred = urgiisDefer(task, cursor.entries, previousTenant, now);
+        const alreadyDeferred = cursor.entries.some(
+          (e) => e.kind === "model" && e.freshness.kind === "deferred",
+        );
+        if (!deferred || alreadyDeferred) {
+          const reason = `${task.url} still returns an explicit empty result after a later retry; no eligible prior model evidence can be carried. Prior tenant inventory is preserved.`;
+          const counted = {
+            ...cursor,
+            requests: cursor.requests + 1,
+            bytes: cursor.bytes + Buffer.byteLength(raw),
+          };
+          cursor = UrgiisCursor.nextTenant(
+            counted,
+            { code: tenant.code, blocked: reason },
+            tenants,
+            urgiisFingerprint(census),
+          );
+          result.checkpointState = census;
+          result.pagesProcessed++;
+          result.warnings.push(`${tenant.code}: ${reason}`);
+          break;
+        }
+        entry = deferred;
+        result.warnings.push(
+          `${tenant.code}: ${task.url} remains explicitly empty after a later retry; retaining donors read at ${new Date(deferred.freshness.readAt).toISOString()}. Retry next run; age bound unchanged.`,
+        );
+      }
+
       const state = cursor;
       const base = {
         ...state,
@@ -477,6 +541,10 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             {
               ...base,
               badgeDrift: closing.badgeDrift,
+              closingModels:
+                entry.kind === "menu"
+                  ? [...(state.closingModels ?? []), ...entry.controls]
+                  : state.closingModels,
               closed: state.closed + 1,
               phase:
                 state.closed + 1 === closingTasks.length ? "ready" : "closing",
@@ -485,7 +553,9 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           ),
         );
       } else {
-        const entries = [...state.entries, entry];
+        const entries = retrying
+          ? state.entries.map((e, i) => (i === pendingIndex ? entry : e))
+          : [...state.entries, entry];
         const nextTasks = urgiisTasks(entries, tenant);
         cursor = yield* boundary("opening checkpoint", () =>
           UrgiisCursor.checkpoint(
@@ -493,7 +563,12 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
               ...base,
               entries,
               phase:
-                entries.length === nextTasks.length ? "closing" : "opening",
+                entries.length === nextTasks.length &&
+                !entries.some(
+                  (e) => e.kind === "model" && e.freshness.kind === "retry",
+                )
+                  ? "closing"
+                  : "opening",
             },
             tenants,
           ),
@@ -501,6 +576,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       }
       unsealed = false;
       result.pagesProcessed++;
+      if (entry.kind === "model" && entry.freshness.kind === "deferred") break;
     }
     return {
       ...result,

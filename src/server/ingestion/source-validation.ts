@@ -149,6 +149,7 @@ export interface SourceValidationInput {
   rejectedVehicles: number;
   errors: string[];
   previousAcceptedCount: number | null;
+  minimumUniqueInventory?: number;
 }
 
 export type SourceValidationResult =
@@ -167,7 +168,8 @@ export function validateSourceSnapshot(
     errors.push(`${input.source} did not provide terminal cursor evidence`);
   }
 
-  const minimum = MINIMUM_UNIQUE_INVENTORY[input.source];
+  const minimum =
+    input.minimumUniqueInventory ?? MINIMUM_UNIQUE_INVENTORY[input.source];
   if (input.uniqueVehicles < minimum) {
     errors.push(
       `${input.source} produced ${input.uniqueVehicles} unique vehicles; minimum is ${minimum}`,

@@ -1,3 +1,4 @@
+import { iisCards } from "./urgiis-catalog";
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
@@ -119,6 +120,7 @@ for (const candidate of cases) {
       );
       let cursor = UrgiisCursor.initial([tenant]);
       let reads = 0;
+      const emptyResponses = new Map<string, string>();
       let emissions = 0;
       let rejected = false;
       try {
@@ -131,12 +133,23 @@ for (const candidate of cases) {
               readPage: (url) =>
                 Effect.tryPromise({
                   try: async () => {
+                    if (emptyResponses.has(url)) {
+                      reads++;
+                      return emptyResponses.get(url) ?? "";
+                    }
                     const response = await archive.next();
                     if (!response || response.url !== url)
                       throw new Error(
                         "Unexpected rejected census request: " + url,
                       );
                     reads++;
+                    if (
+                      new URL(url).pathname.split("/").filter(Boolean)
+                        .length === 3 &&
+                      /No Results/i.test(response.html) &&
+                      iisCards(response.html, tenant).nativeEmpty
+                    )
+                      emptyResponses.set(url, response.html);
                     return response.html;
                   },
                   catch: (cause) =>
@@ -149,19 +162,29 @@ for (const candidate of cases) {
             }).pipe(Effect.either),
           );
           if (outcome._tag === "Left") {
-            expect(outcome.left.operation).toBe(
-              "parse " + tenant.origin + candidate.emptyPath,
+            expect(outcome.left.operation).toBe("snapshot " + tenant.code);
+            expect(outcome.left.message).toContain(
+              placeholderStocks.length
+                ? candidate.optimisticRejection
+                : candidate.rejection,
             );
-            expect(outcome.left.message).toContain("enumeration is incomplete");
             rejected = true;
             break;
           }
           expect(outcome.right.status).not.toBe("failed");
           cursor = outcome.right.cursor;
+          if (cursor.completed.some((c) => "blocked" in c)) {
+            expect(cursor.completed[0]).toMatchObject({
+              blocked: expect.stringContaining("maximum is 1%"),
+            });
+            rejected = true;
+          }
         }
         expect(rejected).toBe(true);
         expect(emissions).toBe(0);
-        expect(reads).toBeLessThan(archive.responseCount);
+        expect(reads).toBeLessThanOrEqual(
+          archive.responseCount + emptyResponses.size,
+        );
         expect(URGIIS_TENANTS.some((t) => t.code === tenant.code)).toBe(false);
       } finally {
         archive.close();

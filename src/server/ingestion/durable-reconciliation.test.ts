@@ -1,3 +1,5 @@
+import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { UrgiisCursor } from "./urgiis-cursor";
 import { createClient } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
@@ -227,6 +229,122 @@ describe("bounded durable reconciliation", () => {
       }
     },
   );
+  test("URG publishes healthy tenants while blocked yards keep their missing and deletion counters", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const snapshotStore = IngestionSnapshotStore.memory();
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        snapshotStore,
+      );
+      const runId = "urg-tenant-isolation";
+      await repository.initialize(runId, async () => ["urgiis"]);
+      const healthy = URGIIS_TENANTS.find((t) => t.code === "mars");
+      const blocked = URGIIS_TENANTS.find((t) => t.code === "eagle");
+      if (!healthy || !blocked)
+        throw new Error("Missing configured test yards");
+      const initial = UrgiisCursor.initial();
+      const cursor = UrgiisCursor.checkpoint({
+        source: initial.source,
+        version: initial.version,
+        scope: initial.scope,
+        startedAt: null,
+        asOf: null,
+        statePath: null,
+        stateHash: null,
+        requests: 0,
+        bytes: 0,
+        phase: "complete",
+        completed: URGIIS_TENANTS.map((t) =>
+          t === healthy
+            ? { code: t.code, accepted: t.minimumInventory }
+            : {
+                code: t.code,
+                blocked: "Ordinary model remains empty after retry",
+              },
+        ),
+      });
+      const vehicles = Array.from(
+        { length: healthy.minimumInventory },
+        (_, i): CanonicalVehicle => ({
+          ...snapshot("pyp", "Blue"),
+          source: "urgiis",
+          locationCode: healthy.yard.code,
+          vin: "URG-NEW-" + i,
+        }),
+      );
+      const chunk = await snapshotStore.put({
+        runId,
+        source: "urgiis",
+        chunk: { vehicles, observedVins: [] },
+      });
+      await database
+        .update(ingestionSourceRun)
+        .set({
+          status: "success",
+          vehiclesProcessed: vehicles.length,
+          uniqueVehicles: vehicles.length,
+          nextCursor: serializeDurableSourceCursor(cursor),
+          snapshotChunks: JSON.stringify([chunk]),
+        })
+        .where(eq(ingestionSourceRun.id, runId + ":urgiis"));
+      for (const [vin, code, missing, runs] of [
+        ["URG-BLOCKED", blocked.yard.code, 1, 2],
+        ["URG-RETIRED", healthy.yard.code, null, 0],
+      ] as const) {
+        await client.execute({
+          sql: "insert into vehicle (vin, source, year, make, model, location_code, location_name, location_city, state, state_abbr, lat, lng, first_seen_at, last_seen_at, missing_since_at, missing_run_count) values (?, 'urgiis', 2018, 'Ford', 'Focus', ?, 'Yard', 'City', 'Oklahoma', 'OK', 1, 1, 1, 1, ?, ?)",
+          args: [vin, code, missing, runs],
+        });
+      }
+      const validation = await validateDurableSourceRuns({
+        runId,
+        database,
+        batchClient: client,
+        snapshotStore,
+      });
+      expect(validation).toMatchObject({
+        status: "ready",
+        acceptedSources: ["urgiis"],
+      });
+      const result = await reconcileDurableIngestionRun({
+        runId,
+        database,
+        batchClient: client,
+        snapshotStore,
+      });
+      expect(result.status).toBe("complete");
+      const preserved = (
+        await client.execute(
+          "select missing_since_at, missing_run_count, last_seen_at from vehicle where vin = 'URG-BLOCKED'",
+        )
+      ).rows[0];
+      expect(preserved).toMatchObject({
+        missing_since_at: 1,
+        missing_run_count: 2,
+        last_seen_at: 1,
+      });
+      expect(
+        (
+          await client.execute(
+            "select missing_run_count from vehicle where vin = 'URG-RETIRED'",
+          )
+        ).rows[0]?.missing_run_count,
+      ).toBe(1);
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle where vin like 'URG-NEW-%'",
+          )
+        ).rows[0]?.count,
+      ).toBe(healthy.minimumInventory);
+    } finally {
+      client.close();
+    }
+  });
   test("AutoRecycler preserves unresolved independent VINs across resume but lets excluded mirror VINs retire", async () => {
     const client = createClient({ url: ":memory:" });
     const asOf = Date.now();

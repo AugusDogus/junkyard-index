@@ -1,3 +1,4 @@
+import { urgiisBrokenModelRoute } from "./urgiis-model-coverage";
 import { z } from "zod";
 import { URGIIS_EMPTY_MODEL_MINIMUM } from "./urgiis-schema";
 import { urgiisEntryFingerprint, type UrgiisEntry } from "./urgiis-traversal";
@@ -68,7 +69,8 @@ export function urgiisClosingEvidence(
         );
       if (
         observed.records.length === 0 &&
-        control.count >= URGIIS_EMPTY_MODEL_MINIMUM
+        control.count >= URGIIS_EMPTY_MODEL_MINIMUM &&
+        !urgiisBrokenModelRoute(control)
       )
         return drift(
           "Growing model advertises " +

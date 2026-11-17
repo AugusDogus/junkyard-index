@@ -459,6 +459,7 @@ async function runMissingBatch(
           .select({
             vin: vehicle.vin,
             source: vehicle.source,
+            locationCode: vehicle.locationCode,
             missingSinceAt: vehicle.missingSinceAt,
             missingRunCount: vehicle.missingRunCount,
           })
@@ -469,6 +470,7 @@ async function runMissingBatch(
           .select({
             vin: vehicle.vin,
             source: vehicle.source,
+            locationCode: vehicle.locationCode,
             missingSinceAt: vehicle.missingSinceAt,
             missingRunCount: vehicle.missingRunCount,
           })
@@ -498,7 +500,11 @@ async function runMissingBatch(
   const acceptedSources = new Set(params.acceptedSources);
   const transitions = planMissingVehicleTransitions({
     presentVins,
-    existingRows: rows,
+    existingRows: rows.filter(
+      (row) =>
+        row.source !== "urgiis" ||
+        !inventory.preservedUrgiisYards.has(row.locationCode),
+    ),
     runTimestamp: params.runTimestamp,
     acceptedSources,
     deleteAfterRuns: MISSING_DELETE_AFTER_RUNS,
