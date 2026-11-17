@@ -1,3 +1,4 @@
+import { AlsautoCursor } from "./alsauto-cursor";
 import { HarrysCursor } from "./harrys-cursor";
 import { BudgetCursor } from "./budget-cursor";
 import { HeavytruckpartsCursor } from "./heavytruckparts-cursor";
@@ -348,6 +349,7 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
     initialCursor: DutchersCursor.initial(),
     maxPagesPerChunk: 8,
   },
+  alsauto: { initialCursor: AlsautoCursor.initial(), maxPagesPerChunk: 8 },
   chasencars: {
     initialCursor: ChasencarsCursor.initial(null),
     maxPagesPerChunk: 6,

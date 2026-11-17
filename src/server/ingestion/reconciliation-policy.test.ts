@@ -130,6 +130,7 @@ describe("reconciliation policy", () => {
       "scotts",
       "oem",
       "dutchers",
+      "alsauto",
       "chasencars",
       "weberbrothers",
       "hawaiiparts",
@@ -158,7 +159,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 90",
+      "when 'autorecycler' then 91",
     );
   });
 

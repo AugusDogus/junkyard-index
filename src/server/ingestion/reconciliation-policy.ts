@@ -75,6 +75,7 @@ export const RECONCILIATION_SOURCE_PRIORITY: readonly SourceName[] = [
   "scotts",
   "oem",
   "dutchers",
+  "alsauto",
   "chasencars",
   "weberbrothers",
   "hawaiiparts",

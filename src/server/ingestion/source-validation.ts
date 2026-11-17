@@ -50,6 +50,8 @@ const MINIMUM_UNIQUE_INVENTORY: Record<IngestionSource, number> = {
   oem: 719,
   // Complete dual-sort native catalog: 579 accepted of 587 items.
   dutchers: 193,
+  // Complete native widget census: 693 accepted of 703 lots.
+  alsauto: 231,
   // Complete native inline report: 661 accepted of 680 rows.
   chasencars: 220,
   // Complete native catalog: 5,760 unique donors, 63 rejects, two duplicates.

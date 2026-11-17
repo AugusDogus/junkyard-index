@@ -1,0 +1,479 @@
+{
+  "captured": "2026-11-17",
+  "transport": "readAlsautoPage: complete HTTP 200, exact destination, MIME, body length and 256 KiB bound verified for all requests",
+  "requests": [
+    {
+      "url": "https://www.alsautosalvagewi.com/latest-inventory",
+      "at": "2026-11-17T22:24:07.020Z",
+      "bytes": 97461,
+      "file": "01.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=1",
+      "at": "2026-11-17T22:24:08.910Z",
+      "bytes": 60324,
+      "file": "02.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=2",
+      "at": "2026-11-17T22:24:10.808Z",
+      "bytes": 60301,
+      "file": "03.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=3",
+      "at": "2026-11-17T22:24:12.704Z",
+      "bytes": 60307,
+      "file": "04.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=4",
+      "at": "2026-11-17T22:24:14.602Z",
+      "bytes": 59881,
+      "file": "05.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=5",
+      "at": "2026-11-17T22:24:16.514Z",
+      "bytes": 59860,
+      "file": "06.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=6",
+      "at": "2026-11-17T22:24:18.437Z",
+      "bytes": 58895,
+      "file": "07.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=7",
+      "at": "2026-11-17T22:24:20.474Z",
+      "bytes": 60255,
+      "file": "08.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=8",
+      "at": "2026-11-17T22:24:22.515Z",
+      "bytes": 60435,
+      "file": "09.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=9",
+      "at": "2026-11-17T22:24:25.090Z",
+      "bytes": 59368,
+      "file": "10.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=10",
+      "at": "2026-11-17T22:24:27.047Z",
+      "bytes": 60428,
+      "file": "11.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=11",
+      "at": "2026-11-17T22:24:29.166Z",
+      "bytes": 60321,
+      "file": "12.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=12",
+      "at": "2026-11-17T22:24:31.109Z",
+      "bytes": 60301,
+      "file": "13.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=13",
+      "at": "2026-11-17T22:24:33.064Z",
+      "bytes": 60431,
+      "file": "14.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=14",
+      "at": "2026-11-17T22:24:35.051Z",
+      "bytes": 60265,
+      "file": "15.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=15",
+      "at": "2026-11-17T22:24:37.071Z",
+      "bytes": 60346,
+      "file": "16.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=16",
+      "at": "2026-11-17T22:24:39.458Z",
+      "bytes": 60389,
+      "file": "17.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=17",
+      "at": "2026-11-17T22:24:41.581Z",
+      "bytes": 60393,
+      "file": "18.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=18",
+      "at": "2026-11-17T22:24:43.751Z",
+      "bytes": 60267,
+      "file": "19.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=19",
+      "at": "2026-11-17T22:24:45.724Z",
+      "bytes": 60487,
+      "file": "20.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=20",
+      "at": "2026-11-17T22:24:47.692Z",
+      "bytes": 60282,
+      "file": "21.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=21",
+      "at": "2026-11-17T22:24:49.689Z",
+      "bytes": 59801,
+      "file": "22.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=22",
+      "at": "2026-11-17T22:24:51.672Z",
+      "bytes": 60378,
+      "file": "23.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=23",
+      "at": "2026-11-17T22:24:53.701Z",
+      "bytes": 60409,
+      "file": "24.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=24",
+      "at": "2026-11-17T22:24:55.818Z",
+      "bytes": 60323,
+      "file": "25.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=25",
+      "at": "2026-11-17T22:24:57.900Z",
+      "bytes": 60372,
+      "file": "26.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=26",
+      "at": "2026-11-17T22:24:59.974Z",
+      "bytes": 60350,
+      "file": "27.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=27",
+      "at": "2026-11-17T22:25:02.003Z",
+      "bytes": 60309,
+      "file": "28.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=28",
+      "at": "2026-11-17T22:25:04.111Z",
+      "bytes": 60371,
+      "file": "29.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=29",
+      "at": "2026-11-17T22:25:06.351Z",
+      "bytes": 60191,
+      "file": "30.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=30",
+      "at": "2026-11-17T22:25:08.504Z",
+      "bytes": 37894,
+      "file": "31.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=1",
+      "at": "2026-11-17T22:25:10.609Z",
+      "bytes": 60324,
+      "file": "32.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=2",
+      "at": "2026-11-17T22:25:12.935Z",
+      "bytes": 60301,
+      "file": "33.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=3",
+      "at": "2026-11-17T22:25:15.107Z",
+      "bytes": 60307,
+      "file": "34.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=4",
+      "at": "2026-11-17T22:25:17.529Z",
+      "bytes": 59881,
+      "file": "35.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=5",
+      "at": "2026-11-17T22:25:19.634Z",
+      "bytes": 59860,
+      "file": "36.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=6",
+      "at": "2026-11-17T22:25:21.720Z",
+      "bytes": 58895,
+      "file": "37.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=7",
+      "at": "2026-11-17T22:25:23.865Z",
+      "bytes": 60255,
+      "file": "38.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=8",
+      "at": "2026-11-17T22:25:26.009Z",
+      "bytes": 60435,
+      "file": "39.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=9",
+      "at": "2026-11-17T22:25:28.174Z",
+      "bytes": 59368,
+      "file": "40.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=10",
+      "at": "2026-11-17T22:25:30.622Z",
+      "bytes": 60428,
+      "file": "41.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=11",
+      "at": "2026-11-17T22:25:32.783Z",
+      "bytes": 60321,
+      "file": "42.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=12",
+      "at": "2026-11-17T22:25:34.973Z",
+      "bytes": 60301,
+      "file": "43.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=13",
+      "at": "2026-11-17T22:25:37.118Z",
+      "bytes": 60431,
+      "file": "44.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=14",
+      "at": "2026-11-17T22:25:39.451Z",
+      "bytes": 60265,
+      "file": "45.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=15",
+      "at": "2026-11-17T22:25:41.686Z",
+      "bytes": 60346,
+      "file": "46.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=16",
+      "at": "2026-11-17T22:25:44.093Z",
+      "bytes": 60389,
+      "file": "47.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=17",
+      "at": "2026-11-17T22:25:46.300Z",
+      "bytes": 60393,
+      "file": "48.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=18",
+      "at": "2026-11-17T22:25:49.019Z",
+      "bytes": 60267,
+      "file": "49.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=19",
+      "at": "2026-11-17T22:25:51.186Z",
+      "bytes": 60487,
+      "file": "50.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=20",
+      "at": "2026-11-17T22:25:53.360Z",
+      "bytes": 60282,
+      "file": "51.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=21",
+      "at": "2026-11-17T22:25:55.542Z",
+      "bytes": 59801,
+      "file": "52.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=22",
+      "at": "2026-11-17T22:25:57.693Z",
+      "bytes": 60378,
+      "file": "53.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=23",
+      "at": "2026-11-17T22:25:59.857Z",
+      "bytes": 60409,
+      "file": "54.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=24",
+      "at": "2026-11-17T22:26:01.947Z",
+      "bytes": 60323,
+      "file": "55.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=25",
+      "at": "2026-11-17T22:26:04.134Z",
+      "bytes": 60372,
+      "file": "56.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=26",
+      "at": "2026-11-17T22:26:06.693Z",
+      "bytes": 60350,
+      "file": "57.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=27",
+      "at": "2026-11-17T22:26:09.018Z",
+      "bytes": 60309,
+      "file": "58.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=28",
+      "at": "2026-11-17T22:26:11.202Z",
+      "bytes": 60371,
+      "file": "59.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=29",
+      "at": "2026-11-17T22:26:13.518Z",
+      "bytes": 60191,
+      "file": "60.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/index.php?route=extension/module/als_vehicles_widget/filter&page=30",
+      "at": "2026-11-17T22:26:15.794Z",
+      "bytes": 37894,
+      "file": "61.body"
+    },
+    {
+      "url": "https://www.alsautosalvagewi.com/latest-inventory",
+      "at": "2026-11-17T22:26:18.172Z",
+      "bytes": 97461,
+      "file": "62.body"
+    }
+  ],
+  "result": {
+    "source": "alsauto",
+    "status": "complete",
+    "count": 693,
+    "pagesProcessed": 62,
+    "errors": [],
+    "warnings": [
+      "Al's Auto Salvage retains 10 required-field rejects; valid rejected/conflicting identities protect existing records during reconciliation."
+    ],
+    "observedVins": ["L5YACBPZ1K1114929"],
+    "accounting": {
+      "recordsProcessed": 703,
+      "recordsRejected": 10,
+      "recordsExcluded": 0,
+      "duplicateVehicles": 0
+    },
+    "rejections": [
+      {
+        "year": 1963,
+        "make": "AVION",
+        "model": "H-24 CAMPER",
+        "vin": "Not listed",
+        "lot": "67603746",
+        "acquired": "2026-10-19"
+      },
+      {
+        "year": 2001,
+        "make": "GOLF",
+        "model": "CART",
+        "vin": "Not listed",
+        "lot": "70243146",
+        "acquired": "2026-10-13"
+      },
+      {
+        "year": 2016,
+        "make": "UNICARIERS",
+        "model": "FORKLIFT",
+        "vin": "Not listed",
+        "lot": "53842276",
+        "acquired": "2026-10-05"
+      },
+      {
+        "year": 2015,
+        "make": "TOYOTA",
+        "model": "FORKLIFT",
+        "vin": "Not listed",
+        "lot": "57892986",
+        "acquired": "2026-10-05"
+      },
+      {
+        "year": 1988,
+        "make": "SEA",
+        "model": "NYMPH SUNFISHER PONTOON BOAT",
+        "vin": "Not listed",
+        "lot": "61794016",
+        "acquired": "2026-09-30"
+      },
+      {
+        "year": 1996,
+        "make": "YALE",
+        "model": "GLC050RFNUAE082 FORKLIFT",
+        "vin": "Not listed",
+        "lot": "65810076",
+        "acquired": "2026-09-14"
+      },
+      {
+        "year": 2016,
+        "make": "CUB",
+        "model": "CADET GT2542 LAWN MOWER",
+        "vin": "Not listed",
+        "lot": "65707886",
+        "acquired": "2026-09-11"
+      },
+      {
+        "year": 2005,
+        "make": "ROADMASTER",
+        "model": "RME510SA ENCLOSED CARGO TRAILER",
+        "vin": "5DTZ11D1651054676",
+        "lot": "60026406",
+        "acquired": "2026-07-27"
+      },
+      {
+        "year": 2019,
+        "make": "OTHER",
+        "model": "CYCLE OTHER",
+        "vin": "L5YACBPZ1K1114929",
+        "lot": "60261246",
+        "acquired": "2026-07-16"
+      },
+      {
+        "year": 1968,
+        "make": "PLYMOUTH",
+        "model": "GRAN FURY",
+        "vin": "Not listed",
+        "lot": "55557416",
+        "acquired": "2026-07-02"
+      }
+    ],
+    "requests": 62,
+    "evidenceCount": 62
+  }
+}

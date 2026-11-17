@@ -1,3 +1,4 @@
+import { streamAlsautoInventoryFromProvider } from "./alsauto-connector";
 import { streamBigdInventory } from "./bigd-connector";
 import { streamHarrysInventory } from "./harrys-connector";
 import { streamBudgetInventory } from "./budget-connector";
@@ -370,6 +371,22 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
             SourceValidationPolicy.minimumUniqueInventory.weberbrothers,
           // Durable validation compares the prior published complete count.
           previousUniqueInventory: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  alsauto: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamAlsautoInventoryFromProvider({
+          // Durable validation checks the prior published count before reconciliation.
+          previousAcceptedCount: null,
+          startCursor: cursor,
+          maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
         }),

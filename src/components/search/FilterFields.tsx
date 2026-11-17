@@ -49,6 +49,7 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   scotts: "Scott's Used Parts",
   oem: "OEM Auto Recyclers",
   dutchers: "Dutcher's Inc. Heavy Truck Division",
+  alsauto: "Al's Auto Salvage",
   chasencars: "Chase N Cars",
   weberbrothers: "Weber Brothers Auto",
   hawaiiparts: "Hawaii Parts",

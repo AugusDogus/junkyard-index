@@ -12,6 +12,7 @@ export type VehicleDestination =
 
 // Verified public entry points, not vehicle permalinks. See docs/runbooks/provider-media-links.md.
 const manualSearchUrls: Partial<Record<DataSource, string>> = {
+  alsauto: "https://www.alsautosalvagewi.com/latest-inventory",
   chasencars: "https://chasencarsauto.com/inventory/",
   sandw: "https://www.sandwauto.com/inventory-search",
   indianriver: "https://indianriverautosalvage.com/inventory-3/",
@@ -41,6 +42,8 @@ const manualSearchUrls: Partial<Record<DataSource, string>> = {
 
 function manualSearchExplanation(source: DataSource): string {
   switch (source) {
+    case "alsauto":
+      return "Search the parts inventory by VIN or lot number, then confirm availability with Al's Auto Salvage.";
     case "chasencars":
       return "Search the yard inventory by VIN or stock number, then match the year, make, model and yard row.";
     case "bigd":
