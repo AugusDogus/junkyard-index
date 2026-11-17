@@ -430,7 +430,7 @@ test("native arrival labels refresh a same-count model when its donor link uses 
   const previous = await run({
     now: start,
     badge: model.model.path,
-    badgeCount: 2,
+    badgeCount: 1,
     replace: { path: model.model.path, records: [old] },
   });
   const arrival = {
@@ -442,7 +442,7 @@ test("native arrival labels refresh a same-count model when its donor link uses 
   const result = await run({
     previous: previous.cursor,
     badge: model.model.path,
-    badgeCount: 2,
+    badgeCount: 1,
     arrivals: [arrival, knownArrival()],
     replace: { path: model.model.path, records: [] },
   });

@@ -7,6 +7,19 @@
         {
           "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
           "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 6 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/VOLKSWAGEN/ATLAS/",
+          "reason": "IIS model /parts/VOLKSWAGEN/ATLAS/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "linders",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
         }
       ]
     },
@@ -34,6 +47,10 @@
         {
           "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
           "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 5 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/SUBARU/SUBARU_PASS./",
+          "reason": "IIS model /parts/SUBARU/SUBARU_PASS./ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
         }
       ]
     },
@@ -47,17 +64,34 @@
       ]
     },
     {
+      "tenant": "dings",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
       "tenant": "ace-st-paul",
       "models": [
         {
           "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
           "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 54 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
         }
       ]
     },
     {
       "tenant": "chucks",
       "models": [
+        {
+          "path": "/parts/CHEVROLET/CHEVROLET_PASS./",
+          "reason": "IIS model /parts/CHEVROLET/CHEVROLET_PASS./ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
+        },
         {
           "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
           "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 19 donors but returns an explicit empty result; enumeration is incomplete"
@@ -103,6 +137,10 @@
       "tenant": "junior-sinn",
       "models": [
         {
+          "path": "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
+          "reason": "IIS model /parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
           "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
           "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 18 donors but returns an explicit empty result; enumeration is incomplete"
         },
@@ -122,6 +160,19 @@
         {
           "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
           "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 23 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "az",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
         }
       ]
     },
@@ -146,6 +197,10 @@
           "reason": "IIS model /parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/ advertises 3 donors but returns an explicit empty result; enumeration is incomplete"
         },
         {
+          "path": "/parts/CHEVROLET/CHEVROLET_PASS./",
+          "reason": "IIS model /parts/CHEVROLET/CHEVROLET_PASS./ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
           "path": "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
           "reason": "IIS model /parts/CHRYSLER/NEW_YORKER_(FWD)/ advertises 5 donors but returns an explicit empty result; enumeration is incomplete"
         },
@@ -165,50 +220,6 @@
     }
   ],
   "rows": [
-    {
-      "tenant": "linders",
-      "makes": 41,
-      "models": 426,
-      "fullRequests": 513,
-      "unchangedNoSweep": 87,
-      "weeklyRequests": [148, 147, 148, 148, 148, 209, 209],
-      "dailyAverage": 165.3,
-      "beforeMinutes": 70.1,
-      "afterMinutes": 22.6,
-      "modelStocks": 3340,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 60,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 59,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 60,
-      "arrivalsOnly": 0,
-      "censusBytes": 1211555
-    },
-    {
-      "tenant": "dings",
-      "makes": 36,
-      "models": 246,
-      "fullRequests": 323,
-      "unchangedNoSweep": 77,
-      "weeklyRequests": [112, 112, 113, 112, 112, 147, 147],
-      "dailyAverage": 122.1,
-      "beforeMinutes": 44.1,
-      "afterMinutes": 16.7,
-      "modelStocks": 1090,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 60,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 59,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 27,
-      "arrivalsOnly": 33,
-      "censusBytes": 456342
-    },
     {
       "tenant": "bishops",
       "makes": 35,
@@ -230,28 +241,6 @@
       "arrivalModelOverlap": 0,
       "arrivalsOnly": 0,
       "censusBytes": 1198234
-    },
-    {
-      "tenant": "az",
-      "makes": 27,
-      "models": 183,
-      "fullRequests": 242,
-      "unchangedNoSweep": 59,
-      "weeklyRequests": [85, 85, 86, 85, 85, 111, 111],
-      "dailyAverage": 92.6,
-      "beforeMinutes": 38.3,
-      "afterMinutes": 14.7,
-      "modelStocks": 1752,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 0,
-      "comparableDatePairs": 0,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 40,
-      "arrivalsOnly": 20,
-      "censusBytes": 630857
     },
     {
       "tenant": "mars",
@@ -277,10 +266,10 @@
     }
   ],
   "totals": {
-    "beforeRequests": 1534,
-    "afterRequests": 539.7,
-    "beforeMinutes": 224.7,
-    "afterMinutes": 79.3,
-    "censusBytes": 3644716
+    "beforeRequests": 456,
+    "afterRequests": 159.7,
+    "beforeMinutes": 72.2,
+    "afterMinutes": 25.3,
+    "censusBytes": 1345962
   }
 }

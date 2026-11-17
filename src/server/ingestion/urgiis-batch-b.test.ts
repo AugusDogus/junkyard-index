@@ -16,6 +16,7 @@ import { urgiisError } from "./urgiis-client";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { validateUrgiisSnapshot } from "./urgiis-snapshot";
+import { URGIIS_EMPTY_MODEL_MINIMUM } from "./urgiis-schema";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
 for (const census of [
@@ -30,6 +31,7 @@ for (const census of [
     makes: 40,
     models: 355,
     incomplete: [
+      "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
       "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
       "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
     ],
@@ -41,6 +43,7 @@ for (const census of [
     incomplete: [
       "/parts/CHEVROLET/EQUINOX/",
       "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+      "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
     ],
   },
 ]) {
@@ -73,7 +76,7 @@ for (const census of [
             if (!model) continue;
             const page = iisCards(response.html, tenant);
             expect(page.capped).toBe(false);
-            if (page.nativeEmpty && model.count >= 3) {
+            if (page.nativeEmpty && model.count >= URGIIS_EMPTY_MODEL_MINIMUM) {
               expect(() => iisValidateModelPage(page, model)).toThrow(
                 "enumeration is incomplete",
               );
@@ -221,28 +224,21 @@ for (const tenant of rejectedTenants) {
           }).pipe(Effect.either),
         );
         if (result._tag === "Left") {
-          if (tenant.code === "airport") {
-            expect(result.left.operation).toBe(
-              "parse " + tenant.origin + "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
-            );
-            expect(result.left.message).toContain("enumeration is incomplete");
-            expect(reads).toBeLessThan(archive.responseCount);
-            expect(published).toBe(false);
-            return;
-          }
-          expect(result.left.operation).toBe("snapshot " + tenant.code);
-          const eligible =
-            archive.expected.recordsProcessed -
-            archive.expected.recordsExcluded;
-          expect(archive.expected.recordsRejected / eligible).toBeGreaterThan(
-            0.1,
+          const expectedPath =
+            tenant.code === "airport"
+              ? "/parts/CHRYSLER/NEW_YORKER_(FWD)/"
+              : "/parts/CHRYSLER/TOWN_-and_COUNTRY/";
+          expect(result.left.operation).toBe(
+            "parse " + tenant.origin + expectedPath,
           );
-          expect(result.left.message).toContain(
-            `${archive.expected.recordsRejected}/${eligible} rejected`,
-          );
-          expect(reads).toBe(archive.responseCount);
+          expect(result.left.message).toContain("enumeration is incomplete");
+          expect(
+            archive.expected.recordsRejected /
+              (archive.expected.recordsProcessed -
+                archive.expected.recordsExcluded),
+          ).toBeGreaterThan(0.1);
+          expect(reads).toBeLessThan(archive.responseCount);
           expect(published).toBe(false);
-          expect(await archive.next()).toBeUndefined();
           return;
         }
         expect(result.right.status).toBe("paused");

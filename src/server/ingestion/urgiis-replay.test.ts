@@ -12,17 +12,23 @@ import { UrgiisReplayArchive } from "./urgiis-replay-archive";
 // evidence and require the connector to stop at the exact badged empty page.
 const incomplete = new Map([
   ["eagle", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
+  ["linders", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 2 }],
   ["chuckran", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 3 }],
   ["united", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 29 }],
   ["ace-iowa", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 5 }],
   ["lentini", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
+  ["dings", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 2 }],
   ["ace-st-paul", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 54 }],
-  ["chucks", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 19 }],
+  ["chucks", { path: "/parts/CHEVROLET/CHEVROLET_PASS./", count: 2 }],
   ["central-nh", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 11 }],
   ["higgins", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
   ["premier", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 9 }],
-  ["junior-sinn", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 18 }],
+  [
+    "junior-sinn",
+    { path: "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/", count: 2 },
+  ],
   ["revolution", { path: "/parts/CHEVROLET/EQUINOX/", count: 91 }],
+  ["az", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 2 }],
   ["lambert", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 13 }],
   ["norbs", { path: "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/", count: 3 }],
 ]);

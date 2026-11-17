@@ -12,4 +12,4 @@ export interface UrgiisSite {
   pathStyle: "parts" | "used-parts";
 }
 
-export const URGIIS_EMPTY_MODEL_MINIMUM = 3;
+export const URGIIS_EMPTY_MODEL_MINIMUM = 2;

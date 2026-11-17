@@ -58,7 +58,7 @@ const cases: readonly {
       },
     },
     optimisticStocks: ["AFT", "NOF", "CPO", "DLRS"],
-    emptyPath: "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+    emptyPath: "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
     rejection: "252/1346 rejected",
     optimisticRejection: "155/1249 rejected",
   },
