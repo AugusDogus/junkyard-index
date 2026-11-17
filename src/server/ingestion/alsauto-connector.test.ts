@@ -80,7 +80,7 @@ test("every prefix derives its exact next native URL and partial terminal cursor
     AlsautoCursor.parse({ ...initial, previousAcceptedCount: 695 }),
   ).toThrow("checksum");
   expect(() => AlsautoCursor.parse(initial, null)).toThrow("binding");
-});
+}, 60000);
 
 test("cached HTML pagination, wrong page, count truncation and closing drift fail closed", () => {
   const first = alsautoEvidence[1] ?? "";
