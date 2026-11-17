@@ -502,8 +502,10 @@ async function runMissingBatch(
     presentVins,
     existingRows: rows.filter(
       (row) =>
-        row.source !== "urgiis" ||
-        !inventory.preservedUrgiisYards.has(row.locationCode),
+        (row.source !== "urgiis" ||
+          !inventory.preservedUrgiisYards.has(row.locationCode)) &&
+        (row.source !== "autorecycler" ||
+          !inventory.preservedAutorecyclerYards.has(row.locationCode)),
     ),
     runTimestamp: params.runTimestamp,
     acceptedSources,

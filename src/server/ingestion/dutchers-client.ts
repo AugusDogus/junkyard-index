@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { fetchHeavyTruckPartsPage } from "./heavytruckparts-client";
 import { type ProviderRequestGate } from "./provider-http-client";
@@ -18,7 +19,7 @@ export class DutchersProviderError extends Data.TaggedError(
   }
 }
 export const dutchersValidated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new DutchersProviderError({ operation, cause }),
   });

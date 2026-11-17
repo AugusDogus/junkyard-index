@@ -1,0 +1,56 @@
+[
+  {
+    "source": "brandywine",
+    "evidence": "full repository census fixture, terminal",
+    "canonicalBytes": 4172508,
+    "inputBytes": 2797461,
+    "resultBytes": 2797493,
+    "compactInputBytes": 264,
+    "compactResultBytes": 313
+  },
+  {
+    "source": "lonestarimports",
+    "evidence": "largest of 33 checkpoints, 264 repository response bodies",
+    "canonicalBytes": 999969,
+    "inputBytes": 974427,
+    "resultBytes": 974485,
+    "compactInputBytes": 274,
+    "compactResultBytes": 323
+  },
+  {
+    "source": "weberbrothers",
+    "evidence": "weberbrothers-root-complete-cursor.json",
+    "canonicalBytes": 6284993,
+    "inputBytes": 5259401,
+    "resultBytes": 5258813,
+    "compactInputBytes": 270,
+    "compactResultBytes": 319
+  },
+  {
+    "source": "oem",
+    "evidence": "research/oh_mi_wi/refill02/oem-closing-cursor.json",
+    "canonicalBytes": 1649882,
+    "inputBytes": 1422148,
+    "resultBytes": 1422140,
+    "compactInputBytes": 250,
+    "compactResultBytes": 299
+  },
+  {
+    "source": "denton",
+    "evidence": "research/ks_ok_nm_tx/denton-live-closing-checkpoint.json (unchanged graph, current scope/hash for offline sizing only)",
+    "canonicalBytes": 1998384,
+    "inputBytes": 1774405,
+    "resultBytes": 1774451,
+    "compactInputBytes": 256,
+    "compactResultBytes": 305
+  },
+  {
+    "source": "urgiis",
+    "evidence": "largest reconstructed current-tenant graph across all repository replays; prior-prefix counts use floors",
+    "canonicalBytes": 4308110,
+    "inputBytes": 4975985,
+    "resultBytes": 4976044,
+    "compactInputBytes": 256,
+    "compactResultBytes": 305
+  }
+]

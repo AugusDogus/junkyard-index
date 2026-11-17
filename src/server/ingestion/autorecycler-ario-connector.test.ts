@@ -364,3 +364,58 @@ test("every customer added after the original twenty validates VIN check digits"
     true,
   );
 });
+
+test("quarantines only the Ario yard above the rejection guard", async () => {
+  const saved = await savedClient();
+  const batches: CanonicalVehicle[] = [];
+  const yards: Yard[] = [];
+  const result = await Effect.runPromise(
+    streamArioYard(
+      {
+        yardIndex: 0,
+        asOf: Date.parse("2026-11-15T12:00:00Z"),
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            batches.push(...batch);
+          }),
+        onYards: (batch) =>
+          Effect.sync(() => {
+            yards.push(...batch);
+          }),
+      },
+      {
+        ...saved,
+        page: async (slug, offset) => {
+          const page = ArioPageSchema.parse(await saved.page(slug, offset));
+          return {
+            ...page,
+            items: page.items.map((item, index) =>
+              index % 2 === 0 ? { ...item, vin: "invalid" } : item,
+            ),
+          };
+        },
+      },
+    ),
+  );
+  expect(result.selection).toBe("quarantined");
+  expect(batches).toEqual([]);
+  expect(yards).toEqual([]);
+  expect(result.errors).toEqual([]);
+  expect(result.warnings.join(" ")).toContain("10%");
+  expect(result.accounting.recordsExcluded).toBe(
+    result.accounting.recordsProcessed,
+  );
+  expect(result.accounting.recordsRejected).toBe(0);
+  const next = await Effect.runPromise(
+    streamArioYard(
+      {
+        yardIndex: 1,
+        asOf: Date.parse("2026-11-15T12:00:00Z"),
+        onBatch: () => Effect.void,
+      },
+      saved,
+    ),
+  );
+  expect(next.selection).toBe("ario");
+  expect(next.count).toBeGreaterThan(100);
+});

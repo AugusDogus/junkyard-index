@@ -1,3 +1,4 @@
+import { SourceValidationPolicy } from "./source-validation";
 import { selectAutorecyclerFeed } from "./autorecycler-freshness";
 import { Effect } from "effect";
 import {
@@ -103,15 +104,27 @@ export function streamArioYard<E, R>(
           options.legacyNewest ?? null,
           options.asOf ?? Date.now(),
         );
-        const published = selection === "ario" ? vehicles : [];
+        const observed = vehicles.length + rejected + duplicates;
+        const quarantined =
+          selection === "ario" &&
+          (rejected > observed * SourceValidationPolicy.maximumRejectionRatio ||
+            duplicates >
+              observed * SourceValidationPolicy.maximumDuplicateRatio);
+        const accepted = selection === "ario" && !quarantined;
+        const published = accepted ? vehicles : [];
         return {
-          selection,
+          selection: quarantined ? ("quarantined" as const) : selection,
+          warnings: quarantined
+            ? [
+                `Ario ${config.slug} exceeds the 10% rejection or 25% duplicate yard guard (${rejected} rejected, ${duplicates} duplicates of ${observed}). This yard is quarantined; its prior inventory is preserved. Other yards can publish. Inspect the saved catalog before the next daily run.`,
+              ]
+            : [],
           vehicles: published,
           geo,
           pages: inventory.pages,
-          rejected: selection === "ario" ? rejected : 0,
-          duplicates: selection === "ario" ? duplicates : 0,
-          excluded: selection === "ario" ? excluded : inventory.total,
+          rejected: accepted ? rejected : 0,
+          duplicates: accepted ? duplicates : 0,
+          excluded: accepted ? excluded : inventory.total,
           total: inventory.total,
           website: `${ARIO_ORIGIN}/yard/${config.slug}`,
         };
@@ -134,6 +147,7 @@ export function streamArioYard<E, R>(
       cursor,
       count: result.vehicles.length,
       errors: [],
+      warnings: result.warnings,
       pagesProcessed: result.pages,
       accounting: {
         recordsProcessed: result.total,
@@ -142,7 +156,7 @@ export function streamArioYard<E, R>(
         duplicateVehicles: result.duplicates,
       },
     } satisfies ConnectorChunkResult<"autorecycler", AutorecyclerCursor> & {
-      selection: "ario" | "legacy" | "stale";
+      selection: "ario" | "legacy" | "stale" | "quarantined";
     };
   });
 }

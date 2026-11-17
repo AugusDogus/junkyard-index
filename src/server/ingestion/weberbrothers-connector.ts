@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import type { ProviderRequestGate } from "~/server/ingestion/provider-http-client";
 import type { ConnectorChunkAccounting } from "~/server/ingestion/connector-chunk";
@@ -51,7 +52,7 @@ export interface WeberbrothersStreamResult {
   accounting: ConnectorChunkAccounting;
 }
 const validated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new WeberbrothersProviderError({ operation, cause }),
   });

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import { ArmyProviderError, fetchArmyCatalog } from "./army-client";
 import { ArmyCursor, ArmyCursorSchema } from "./army-cursor";
@@ -59,7 +60,7 @@ export function streamArmyInventoryWithRequestGate<E, R>(
     };
     if (parsed.data.phase === "complete") return empty;
     const html = yield* fetchArmyCatalog(gate);
-    const snapshot = yield* Effect.try({
+    const snapshot = yield* ingestionValidation({
       try: () => {
         const records = parseArmyCatalog(html);
         const vehicles = new Map<string, ArmyCanonicalVehicle>();

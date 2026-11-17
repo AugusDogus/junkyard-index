@@ -1,3 +1,5 @@
+import { ingestionValidation } from "./ingestion-validation";
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -84,6 +86,7 @@ function read(
       catch: (cause) => cause,
     });
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new LittletonProviderError({ operation: url, cause }),
     ),
@@ -99,7 +102,7 @@ export function fetchLittletonContext(gate: ProviderRequestGate) {
       "application/json",
       gate,
     );
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => {
         parseLittletonOwner(owner);
         const table = parseLittletonInventory(inventory);
@@ -151,7 +154,7 @@ export function fetchLittletonSearch(
     JSON.stringify(littletonQuery(pair)),
   ).pipe(
     Effect.flatMap((raw) =>
-      Effect.try({
+      ingestionValidation({
         try: () => ({
           records: parseLittletonSearch(raw, pair),
           hash: littletonHash(raw),

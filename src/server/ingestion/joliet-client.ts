@@ -1,3 +1,5 @@
+import { ingestionValidation } from "./ingestion-validation";
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -45,7 +47,7 @@ export class JolietProviderError extends Data.TaggedError(
   }
 }
 export const validateJoliet = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new JolietProviderError({ operation, cause }),
   });
@@ -99,6 +101,7 @@ function read(
       catch: (cause) => cause,
     });
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new JolietProviderError({ operation: url, cause }),
     ),

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -25,7 +26,7 @@ export class ClearsalvageProviderError extends Data.TaggedError(
   }
 }
 export const clearsalvageValidated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new ClearsalvageProviderError({ operation, cause }),
   });

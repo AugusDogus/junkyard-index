@@ -7,10 +7,18 @@ export interface IngestionSourceDay {
   published: boolean;
   attempts: number;
   lastStartedAt: number | null;
+  lastCompletedAt: number | null;
+  validationRejected: boolean;
 }
 
 const MAX_ATTEMPTS_PER_DAY = 3;
 const RETRY_DELAY_MS = 2 * 60 * 60 * 1000;
+
+function retryAt(day: IngestionSourceDay): number {
+  return (
+    Math.max(day.lastStartedAt ?? 0, day.lastCompletedAt ?? 0) + RETRY_DELAY_MS
+  );
+}
 
 // Each source runs as its own job: a failing source retries a few times a
 // day without recrawling the others, and stops for the day after its last
@@ -33,11 +41,13 @@ export const IngestionSchedule = {
     return params.enabledSources.filter((source) => {
       const day = daysBySource.get(source);
       if (!day) return true;
-      if (day.published || day.attempts >= MAX_ATTEMPTS_PER_DAY) return false;
-      return (
-        day.lastStartedAt === null ||
-        params.now.getTime() - day.lastStartedAt >= RETRY_DELAY_MS
-      );
+      if (
+        day.published ||
+        day.validationRejected ||
+        day.attempts >= MAX_ATTEMPTS_PER_DAY
+      )
+        return false;
+      return params.now.getTime() >= retryAt(day);
     });
   },
 
@@ -51,9 +61,10 @@ export const IngestionSchedule = {
       const day = daysBySource.get(source);
       return day &&
         !day.published &&
+        !day.validationRejected &&
         day.attempts < MAX_ATTEMPTS_PER_DAY &&
-        day.lastStartedAt !== null
-        ? [day.lastStartedAt + RETRY_DELAY_MS]
+        (day.lastStartedAt !== null || day.lastCompletedAt !== null)
+        ? [retryAt(day)]
         : [];
     });
     return retryTimes.length === 0 ? null : Math.min(...retryTimes);
@@ -72,7 +83,9 @@ export const IngestionSchedule = {
       const day = daysBySource.get(source);
       return (
         day !== undefined &&
-        (day.published || day.attempts >= MAX_ATTEMPTS_PER_DAY)
+        (day.published ||
+          day.validationRejected ||
+          day.attempts >= MAX_ATTEMPTS_PER_DAY)
       );
     });
   },

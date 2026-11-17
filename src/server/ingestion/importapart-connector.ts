@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import {
@@ -40,7 +41,7 @@ export type ImportapartStreamResult = ConnectorChunkResult<
 const fail = (operation: string, cause: unknown) =>
   Effect.fail(new ImportapartProviderError({ operation, cause }));
 const parse = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new ImportapartProviderError({ operation, cause }),
   });

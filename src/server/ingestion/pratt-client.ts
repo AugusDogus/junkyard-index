@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -118,5 +119,12 @@ export function readPrattPage(
         }),
       );
     }),
+  ).pipe(
+    sharedProviderHostSlot(url),
+    Effect.mapError((cause) =>
+      cause instanceof Error
+        ? PrattResult.error("shared host " + url, cause.message)
+        : cause,
+    ),
   );
 }

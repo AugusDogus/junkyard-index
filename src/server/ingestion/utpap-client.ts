@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { DonorPhoto } from "./donor-photo";
 import type { DonorPhotoStore } from "./donor-photo-store";
@@ -95,7 +96,7 @@ export function fetchUtpapStart(
     const xmlPath = "/" + code + "_inventory.xml";
     const xml = yield* text(xmlPath, "xml", gate);
     const directory = yield* text(utpapMakePath(code), "html", gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => {
         const yard = parseUtpapYard(inventory, code);
         if (
@@ -130,7 +131,7 @@ export function fetchUtpapMake(
 ) {
   return text(utpapMakePath(code, make), "html", gate).pipe(
     Effect.flatMap((raw) =>
-      Effect.try({
+      ingestionValidation({
         try: () => parseUtpapMakePage(raw, code, make),
         catch: (cause) =>
           new UtpapProviderError({

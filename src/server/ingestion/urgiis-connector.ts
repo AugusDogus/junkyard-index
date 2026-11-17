@@ -3,6 +3,7 @@ import {
   urgiisModelCoverage,
 } from "./urgiis-model-coverage";
 import { URGIIS_EMPTY_MODEL_MINIMUM } from "./urgiis-schema";
+import { ingestionValidation } from "./ingestion-validation";
 import { urgiisArrivalsCoverage } from "./urgiis-arrivals";
 import {
   resumeUrgiisCensus,
@@ -131,7 +132,10 @@ function parseEntry(
     : { ...receipt, kind: "arrivals", records: page.records };
 }
 const boundary = <T>(operation: string, run: () => T) =>
-  Effect.try({ try: run, catch: (cause) => urgiisError(operation, cause) });
+  ingestionValidation({
+    try: run,
+    catch: (cause) => urgiisError(operation, cause),
+  });
 export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
   return Effect.gen(function* () {
     const tenants = options.tenants ?? URGIIS_TENANTS;
@@ -480,6 +484,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
           ...result,
           cursor,
           status: "failed" as const,
+          failureKind: "validation" as const,
           pagesProcessed: result.pagesProcessed + 1,
           errors: [parsed.left.message],
         };
@@ -542,6 +547,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             ...result,
             cursor,
             status: "failed" as const,
+            failureKind: "validation" as const,
             pagesProcessed: result.pagesProcessed + 1,
             errors: [
               urgiisError(

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import {
   Alln1ProviderError,
@@ -42,7 +43,7 @@ export type UpullStreamResult<S extends Alln1Source> = ConnectorChunkResult<
 >;
 export type Alln1StreamResult = UpullStreamResult<"alln1">;
 const validated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new Alln1ProviderError({ operation, cause }),
   });

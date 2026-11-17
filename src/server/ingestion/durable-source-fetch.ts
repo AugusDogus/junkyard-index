@@ -167,6 +167,7 @@ function toFetchedChunk<Source extends DurableIngestionSource, Cursor>(
     yards: [...yardsByCode.values()],
     observedVins: result.observedVins ?? [],
     checkpointState: result.checkpointState,
+    failureKind: result.failureKind,
   };
 }
 

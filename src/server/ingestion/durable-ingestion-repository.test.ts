@@ -406,9 +406,10 @@ describe("durable ingestion repository", () => {
 
       const repair = {
         runId: startedRun(
-          await repository.prepareWakeup(new Date("2026-08-22T09:00:00.000Z"), [
-            "pyp",
-          ]),
+          await repository.prepareWakeup(
+            new Date(Date.now() + IngestionSchedule.retryDelayMs),
+            ["pyp"],
+          ),
         ),
       };
       expect((await repository.getRun(repair.runId)).fullReindexRequired).toBe(
@@ -623,7 +624,11 @@ describe("durable ingestion repository", () => {
       const [first, second] = wakeup.runs;
       if (!first || !second) throw new Error("Expected two runs");
 
-      // pyp waits for row52, which outranks it and is still active.
+      // pyp waits for row52 once its fetch has completed.
+      await client.execute({
+        sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
+        args: [first.runId],
+      });
       expect(await repository.claimCommit(second.runId)).toBe("busy");
       const claimedAt = new Date("2026-08-22T09:30:00.000Z");
       expect(await repository.claimCommit(first.runId, claimedAt)).toBe(
@@ -801,9 +806,10 @@ describe("durable ingestion repository", () => {
       // Alert matching stays resumable: abandoning it would cancel intents
       // whose searches already advanced their checkpoints.
       const matching = startedRun(
-        await repository.prepareWakeup(new Date("2026-08-22T11:00:00.000Z"), [
-          "pyp",
-        ]),
+        await repository.prepareWakeup(
+          new Date(Date.now() + IngestionSchedule.retryDelayMs),
+          ["pyp"],
+        ),
       );
       await client.execute({
         sql: "update ingestion_run set stage = 'match_alerts' where id = ?",
@@ -1166,5 +1172,110 @@ test("provider progress and its resume path checkpoint atomically and use normal
     expect(store.pathnames()).toEqual([]);
   } finally {
     testDatabase.cleanup();
+  }
+});
+
+test("a fetching native source does not delay AutoRecycler publication; ready native runs still win the turn", async () => {
+  const { client, cleanup } = createTestClient();
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      client,
+      IngestionSnapshotStore.memory(),
+    );
+    const now = new Date("2026-11-17T08:00:00Z");
+    const native = startedRun(await repository.prepareWakeup(now, ["pontiac"]));
+    const mirror = startedRun(
+      await repository.prepareWakeup(now, ["pontiac", "autorecycler"]),
+    );
+    await client.execute({
+      sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
+      args: [mirror],
+    });
+    expect(await repository.claimCommit(mirror, now)).toBe("claimed");
+    await client.execute({
+      sql: "update ingestion_run set commit_started_at = null where id = ?",
+      args: [mirror],
+    });
+    await client.execute({
+      sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
+      args: [native],
+    });
+    expect(await repository.claimCommit(mirror, now)).toBe("busy");
+    expect(await repository.claimCommit(native, now)).toBe("claimed");
+  } finally {
+    cleanup();
+  }
+});
+
+test.each(["2026-11-17", "2026-11-16"])(
+  "a long failed run on %s waits after release, including across ingestion days",
+  async (key) => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const repository = createDurableIngestionRepository(
+        drizzle(client),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      const now = new Date("2026-11-17T08:00:00Z");
+      const runId = startedRun(await repository.prepareWakeup(now, ["pyp"]));
+      await client.execute({
+        sql: "update ingestion_run set status = 'success', stage = 'released', active_slot = null, schedule_key = ?, completed_at = ? where id = ?",
+        args: [key, now.getTime(), runId],
+      });
+      await client.execute({
+        sql: "update ingestion_source_run set status = 'error', acceptance_status = 'rejected', started_at = ?, completed_at = ? where run_id = ?",
+        args: [now.getTime() - 5 * 3600_000, now.getTime(), runId],
+      });
+      expect(await repository.prepareWakeup(now, ["pyp"])).toEqual({
+        status: "waiting",
+        retryAt: now.getTime() + IngestionSchedule.retryDelayMs,
+      });
+      expect(
+        (
+          await repository.prepareWakeup(
+            new Date(now.getTime() + IngestionSchedule.retryDelayMs),
+            ["pyp"],
+          )
+        ).status,
+      ).toBe("active");
+    } finally {
+      cleanup();
+    }
+  },
+);
+
+test("a deterministic rejection stops the day's recrawls while an explicit manual run is allowed", async () => {
+  const { client, cleanup } = createTestClient();
+  try {
+    await client.executeMultiple(TEST_SCHEMA);
+    const repository = createDurableIngestionRepository(
+      drizzle(client),
+      client,
+      IngestionSnapshotStore.memory(),
+    );
+    const now = new Date("2026-11-17T08:00:00Z");
+    const runId = startedRun(await repository.prepareWakeup(now, ["pyp"]));
+    await client.execute({
+      sql: "update ingestion_run set status = 'success', stage = 'released', active_slot = null where id = ?",
+      args: [runId],
+    });
+    await client.execute({
+      sql: "update ingestion_source_run set status = 'success', acceptance_status = 'rejected', validation_errors = ? where run_id = ?",
+      args: [JSON.stringify(["pyp rejection ratio exceeds 10%"]), runId],
+    });
+    expect(
+      await repository.prepareWakeup(new Date(now.getTime() + 3 * 3600_000), [
+        "pyp",
+      ]),
+    ).toEqual({ status: "complete" });
+    expect((await repository.startManualRun("pyp", now)).status).toBe(
+      "started",
+    );
+  } finally {
+    cleanup();
   }
 });

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import { fetchHeavyTruckPartsPage } from "./heavytruckparts-client";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -20,7 +21,7 @@ export class CstruckProviderError extends Error {
   }
 }
 export const cstruckValidated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new CstruckProviderError(operation, cause),
   });

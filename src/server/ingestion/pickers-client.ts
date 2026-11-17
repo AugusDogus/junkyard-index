@@ -1,3 +1,5 @@
+import { ingestionValidation } from "./ingestion-validation";
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -39,7 +41,7 @@ export class PickersProviderError extends Data.TaggedError(
   }
 }
 export const pickersValidated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new PickersProviderError({ operation, cause }),
   });
@@ -94,6 +96,7 @@ function read<A>(
       bytes: Buffer.byteLength(raw),
     }));
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError((cause) =>
       cause instanceof PickersProviderError
         ? cause

@@ -1,3 +1,4 @@
+import { validationRejection } from "./ingestion-validation";
 export interface PrattError {
   tag: "PrattError";
   operation: string;
@@ -20,9 +21,11 @@ export const PrattResult = {
     } catch (cause) {
       return {
         ok: false,
-        error: PrattResult.error(
-          operation,
-          cause instanceof Error ? cause.message : String(cause),
+        error: validationRejection(
+          PrattResult.error(
+            operation,
+            cause instanceof Error ? cause.message : String(cause),
+          ),
         ),
       };
     }

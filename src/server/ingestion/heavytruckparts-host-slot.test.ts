@@ -40,6 +40,7 @@ function fakeStore() {
       owner = token;
       return true;
     },
+    cancel: async () => true,
     release: async (token) => {
       if (owner !== token) return false;
       owner = null;
@@ -118,7 +119,7 @@ test("a busy host times out without executing a request", async () => {
           ),
         ),
       );
-      yield* TestClock.adjust("2 minutes");
+      yield* TestClock.adjust("5 minutes");
       expect((yield* Fiber.join(fiber))._tag).toBe("Left");
       expect(requested).toBe(false);
     }).pipe(Effect.provide(TestContext.TestContext)),

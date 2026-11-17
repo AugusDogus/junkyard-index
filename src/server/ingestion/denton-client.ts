@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect } from "effect";
 import { z } from "zod";
 import { DentonError, dentonOwnedUrl } from "./denton-html";
@@ -151,5 +152,15 @@ export function readDentonPage(
         }),
       );
     }),
+  ).pipe(
+    sharedProviderHostSlot(url),
+    Effect.mapError((cause) =>
+      cause instanceof Error
+        ? DentonError.create(
+            "shared host " + url,
+            cause instanceof Error ? cause.message : String(cause),
+          )
+        : cause,
+    ),
   );
 }

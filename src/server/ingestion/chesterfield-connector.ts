@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { Yard } from "~/lib/yard";
 import {
@@ -98,7 +99,7 @@ export function streamChesterfieldInventoryWithRequestGate<E, R>(
         "checkpoint",
         "Expected a validated cursor and a budget of 6-32 HTTP requests",
       );
-    const appOrigin = yield* Effect.try({
+    const appOrigin = yield* ingestionValidation({
       try: () => chesterfieldPhotoOrigin(options.appUrl),
       catch: (cause) => failure("photo origin", cause),
     });
@@ -126,7 +127,7 @@ export function streamChesterfieldInventoryWithRequestGate<E, R>(
       });
     if (cursor.phase !== "complete") {
       const session = yield* ChesterfieldSession.open(countedGate);
-      const yards = yield* Effect.try({
+      const yards = yield* ingestionValidation({
         try: () => parseChesterfieldYards(session.html),
         catch: (cause) => failure("yard metadata", cause),
       });
@@ -364,7 +365,7 @@ export function streamChesterfieldInventoryWithRequestGate<E, R>(
         }
         if (cursor.queryIndex + 1 === cursor.queries.length) {
           const completed = { ...cursor, seen };
-          yield* Effect.try({
+          yield* ingestionValidation({
             try: () => validateCompletion(completed),
             catch: (cause) => failure("catalog completion", cause),
           });

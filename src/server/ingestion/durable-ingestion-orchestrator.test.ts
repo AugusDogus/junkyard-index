@@ -261,7 +261,8 @@ describe("durable ingestion source orchestration", () => {
       initialCursor: { source: "pyp", storeCodes, storeIndex: 0, page: 1 },
       operations: {
         runChunk: async (_runId, cursor) => {
-          if (cursor.source !== "pyp") throw new Error("Expected PYP cursor");
+          if (cursor.source !== "pyp" || "snapshotCursor" in cursor)
+            throw new Error("Expected inline PYP cursor");
           pages.push(cursor.page);
           const complete = cursor.page !== 1;
           return {

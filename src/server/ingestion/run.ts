@@ -4,6 +4,7 @@ import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-ale
 import { runDurableAlgoliaProjectionBatch } from "./algolia-projector";
 import {
   cleanupDurableIngestionStateBatch,
+  resolveDurableWorkflowCursor,
   cleanupStaleDurableIngestionSnapshots,
   initializeDurableIngestion,
   markDurableIngestionFailed,
@@ -31,7 +32,11 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
     operations: {
       cleanupStale: cleanupStaleDurableIngestionSnapshots,
       initialize: initializeDurableIngestion,
-      runChunk: async (currentRunId, cursor) => {
+      runChunk: async (currentRunId, workflowCursor) => {
+        const cursor = await resolveDurableWorkflowCursor(
+          currentRunId,
+          workflowCursor,
+        );
         const result = await runDurableSourceChunk({
           runId: currentRunId,
           cursor,

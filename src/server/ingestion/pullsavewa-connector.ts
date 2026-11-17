@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import {
   fetchPullsavewaPage,
@@ -88,7 +89,7 @@ export function streamPullsavewaInventoryWithRequestGate<E, R>(
           cause: "Unknown verified yard index " + index,
         });
       const home = yield* fetchPullsavewaPage(yard, yard.websiteUrl, gate);
-      yield* Effect.try({
+      yield* ingestionValidation({
         try: () => validatePullsavewaHome(home, yard),
         catch: (cause) =>
           new PullsavewaProviderError({
@@ -101,7 +102,7 @@ export function streamPullsavewaInventoryWithRequestGate<E, R>(
         yard.inventoryUrl,
         gate,
       );
-      const first = yield* Effect.try({
+      const first = yield* ingestionValidation({
         try: () => parsePullsavewaPage(firstHtml, yard, "first"),
         catch: (cause) =>
           new PullsavewaProviderError({
@@ -117,7 +118,7 @@ export function streamPullsavewaInventoryWithRequestGate<E, R>(
       const lastHtml = first.terminalUrl
         ? yield* fetchPullsavewaPage(yard, first.terminalUrl, gate)
         : firstHtml;
-      const snapshot = yield* Effect.try({
+      const snapshot = yield* ingestionValidation({
         try: () => {
           const all = parsePullsavewaPage(allHtml, yard, "all");
           const last = parsePullsavewaPage(lastHtml, yard, "last");

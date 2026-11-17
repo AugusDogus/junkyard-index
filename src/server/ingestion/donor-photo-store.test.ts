@@ -20,7 +20,8 @@ function client(mode: "normal" | "discard" | "corrupt" = "normal") {
       expect(options.addRandomSuffix).toBe(false);
       if (
         options.contentType !== "image/jpeg" &&
-        options.contentType !== "image/png"
+        options.contentType !== "image/png" &&
+        options.contentType !== "text/plain"
       )
         throw new Error("Expected a verified image MIME");
       mimes.set(path, options.contentType);
@@ -71,7 +72,7 @@ function client(mode: "normal" | "discard" | "corrupt" = "normal") {
       };
     },
   };
-  return { sdk, calls };
+  return { sdk, calls, saved };
 }
 
 test("private Blob adapter verifies independent uncached readback before returning an image identity", async () => {
@@ -136,4 +137,20 @@ test("rejects a decodable replacement image under an existing content hash", asy
     corruptedSdk,
   );
   await expect(corrupted.load(hash)).rejects.toThrow("content hash");
+});
+
+test("photo URL references survive a fresh adapter and never use a missing or corrupt image", async () => {
+  const mock = client();
+  const url = "https://yard.example/donor.jpg";
+  const first = DonorPhotoStore.vercelBlob("local-test-token", mock.sdk);
+  expect(await first.findByUrl(url)).toBeNull();
+  const hash = await first.save(jpeg);
+  await first.rememberUrl(url, hash);
+  const next = DonorPhotoStore.vercelBlob("local-test-token", mock.sdk);
+  expect(await next.findByUrl(url)).toBe(hash);
+  expect(await next.findByUrl(url + "?v=2")).toBeNull();
+  mock.saved.delete(`donor-photos/${hash}`);
+  expect(await next.findByUrl(url)).toBeNull();
+  mock.saved.set(`donor-photos/${hash}`, Buffer.from("broken"));
+  await expect(next.findByUrl(url)).rejects.toThrow();
 });

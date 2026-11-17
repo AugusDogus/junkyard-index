@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -72,6 +73,7 @@ export function fetchIdipullPage(
       }),
     );
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new IdipullProviderError({ operation: path, cause }),
     ),

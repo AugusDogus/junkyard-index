@@ -505,7 +505,13 @@ export function streamAutorecyclerInventory<E, R>(
             delete legacy[legacyId];
           const code = arioLocationCode(yard);
           const eligibleYards = new Set(freshness.eligibleYards);
-          if (result.selection === "stale") eligibleYards.delete(code);
+          const preservedYards = new Set(freshness.preservedYards ?? []);
+          if (result.selection === "quarantined") preservedYards.add(code);
+          if (
+            result.selection === "stale" ||
+            result.selection === "quarantined"
+          )
+            eligibleYards.delete(code);
           else eligibleYards.add(code);
           return {
             ...result,
@@ -518,6 +524,7 @@ export function streamAutorecyclerInventory<E, R>(
                 ...freshness,
                 legacy,
                 eligibleYards: [...eligibleYards],
+                preservedYards: [...preservedYards],
               },
             },
             pagesProcessed: 0,

@@ -1,3 +1,5 @@
+import { ingestionValidation } from "./ingestion-validation";
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import {
   fetchProviderResponse,
@@ -60,6 +62,7 @@ function read(url: string, gate: ProviderRequestGate) {
       catch: (cause) => cause,
     });
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new Alln1ProviderError({ operation: url, cause }),
     ),
@@ -71,7 +74,7 @@ export const fetchAlln1Owner = (
 ) =>
   read(tenant.origin + "/", gate).pipe(
     Effect.flatMap((raw) =>
-      Effect.try({
+      ingestionValidation({
         try: () => parseAlln1Owner(raw, tenant),
         catch: (cause) =>
           new Alln1ProviderError({ operation: "physical ownership", cause }),
@@ -91,7 +94,7 @@ export function fetchAlln1Page(
         cause: "URL is not a verified unfiltered native inventory continuation",
       });
     const raw = yield* read(url, gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => parseAlln1Page(raw, page, tenant),
       catch: (cause) =>
         new Alln1ProviderError({

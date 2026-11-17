@@ -1,4 +1,4 @@
-import { parseDurableSourceCursor } from "./durable-source";
+import { parseDurableSourceCursor } from "./durable-cursor";
 import { urgiisPublication } from "./urgiis-publication";
 import { and, eq } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -26,6 +26,7 @@ export interface RunSnapshotInventory {
   observedVins: Set<string>;
   acceptedSources: Set<IngestionSource>;
   preservedUrgiisYards: Set<string>;
+  preservedAutorecyclerYards: Set<string>;
 }
 
 export async function loadSourceSnapshot(
@@ -79,12 +80,19 @@ export async function loadRunSnapshotInventory(params: {
     vins: [],
     observedVins: new Set(),
     acceptedSources: new Set(accepted.map((row) => row.source)),
+    preservedAutorecyclerYards: new Set(),
   };
   for (const row of accepted) {
     if (row.source === "urgiis" && row.nextCursor)
       inventory.preservedUrgiisYards = urgiisPublication(
         parseDurableSourceCursor("urgiis", row.nextCursor),
       ).preservedYards;
+    if (row.source === "autorecycler" && row.nextCursor) {
+      const cursor = parseDurableSourceCursor("autorecycler", row.nextCursor);
+      if (cursor.phase === "complete")
+        for (const code of cursor.freshness?.preservedYards ?? [])
+          inventory.preservedAutorecyclerYards.add(code);
+    }
     const snapshot = await loadSourceSnapshot(params.store, row.snapshotChunks);
     for (const [vin, vehicle] of snapshot.vehicles)
       if (!inventory.vehicles.has(vin)) inventory.vehicles.set(vin, vehicle);

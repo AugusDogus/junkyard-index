@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import { DdautoProviderError, fetchDdautoCatalog } from "./ddauto-client";
 import { DdautoCursor, DdautoCursorSchema } from "./ddauto-cursor";
@@ -57,7 +58,7 @@ export function streamDdautoInventoryWithRequestGate<E, R>(
     };
     if (parsed.data.phase === "complete") return empty;
     const catalog = yield* fetchDdautoCatalog(gate);
-    const snapshot = yield* Effect.try({
+    const snapshot = yield* ingestionValidation({
       try: () => {
         const vehicles: DdautoCanonicalVehicle[] = [];
         const observedVins: string[] = [];

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { DonorPhotoStore } from "./donor-photo-store";
@@ -55,7 +56,7 @@ export function streamUtpapInventoryWithRequestGate<E, R>(
         "checkpoint",
         "Use a validated Utah cursor and 1-32 page units",
       );
-    yield* Effect.try({
+    yield* ingestionValidation({
       try: () => utpapPhotoOrigin(options.appOrigin),
       catch: (cause) =>
         new UtpapProviderError({
@@ -114,7 +115,7 @@ export function streamUtpapInventoryWithRequestGate<E, R>(
           if (cursor.index + 1 === cursor.makes.length) {
             const records = cursor.records;
             const yardCode = cursor.yardCode;
-            const donors = yield* Effect.try({
+            const donors = yield* ingestionValidation({
               try: () => joinUtpapCatalog(records, photos),
               catch: (cause) =>
                 new UtpapProviderError({

@@ -1,3 +1,4 @@
+import { validationRejection } from "./ingestion-validation";
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import {
@@ -115,9 +116,11 @@ export function streamRtpInventoryWithRequestGate<E, R>(
             rejected / (page.total - excluded) >
               SourceValidationPolicy.maximumRejectionRatio)
         )
-          return yield* new RtpStreamError({
-            message: `RTP yard ${yardCode} rejected ${rejected} of ${page.total - excluded} available records or has no complete vehicles; exceeds per-yard quality requirements, no terminal checkpoint returned`,
-          });
+          return yield* validationRejection(
+            new RtpStreamError({
+              message: `RTP yard ${yardCode} rejected ${rejected} of ${page.total - excluded} available records or has no complete vehicles; exceeds per-yard quality requirements, no terminal checkpoint returned`,
+            }),
+          );
         if (options.onYards) yield* options.onYards([context.yard]);
         if (batch.length) yield* options.onBatch(batch);
         count += batch.length;

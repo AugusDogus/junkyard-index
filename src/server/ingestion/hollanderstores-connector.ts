@@ -224,6 +224,7 @@ export function streamHollanderstoresInventory<E, R>(
         return {
           ...empty,
           status: "failed" as const,
+          failureKind: "validation" as const,
           cursor,
           pagesProcessed: pagesProcessed + 1,
           errors: [next.error],

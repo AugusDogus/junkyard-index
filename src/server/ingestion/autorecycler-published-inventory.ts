@@ -23,6 +23,7 @@ export async function validateAutorecyclerPublishedInventory(
   database: LibSQLDatabase,
   current: Iterable<CanonicalVehicle>,
   eligibleYards: readonly string[],
+  preservedYards: readonly string[] = [],
 ): Promise<{ previousEligibleCount: number; errors: string[] }> {
   const eligible = new Set(eligibleYards);
   const counts = new Map<string, number>();
@@ -44,7 +45,9 @@ export async function validateAutorecyclerPublishedInventory(
   let previousEligibleCount = 0;
   let previousCustomerCount = 0;
   let newlyStaleCount = 0;
+  const preserved = new Set(preservedYards);
   for (const yard of previous) {
+    if (preserved.has(yard.code)) continue;
     if (eligible.has(yard.code) || customerYards.has(yard.code)) {
       previousCustomerCount += yard.count;
       if (!eligible.has(yard.code)) newlyStaleCount += yard.count;

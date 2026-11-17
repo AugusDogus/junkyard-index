@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import { VINPLUS_TENANTS } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_REQUESTS } from "./vinplus-cursor";
@@ -23,7 +24,7 @@ export type VinplusStreamResult = ConnectorChunkResult<
   VinplusCursor
 >;
 const validated = <T>(operation: string, run: () => T) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) =>
       VinplusError.create(

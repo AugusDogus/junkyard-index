@@ -1,3 +1,5 @@
+import { isValidationRejection } from "./ingestion-validation";
+import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { env } from "~/env";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { db, dbClient } from "~/lib/db";
@@ -115,7 +117,26 @@ export async function runDurableSourceChunk<
   });
   if (checkpoint) return checkpoint;
 
-  const fetched = await fetchDurableSourceChunk(params.cursor);
+  const fetched = await fetchDurableSourceChunk(params.cursor).catch(
+    async (error: unknown) => {
+      if (!isValidationRejection(error)) throw error;
+      return repository.markSourceFailed({
+        runId: params.runId,
+        source: params.cursor.source,
+        message:
+          error instanceof Error
+            ? error.message
+            : typeof error === "object" &&
+                error !== null &&
+                "message" in error &&
+                typeof error.message === "string"
+              ? error.message
+              : "Provider validation rejected the frozen crawl; inspect the saved source evidence before retrying.",
+        validationRejected: true,
+      });
+    },
+  );
+  if (!("vehicles" in fetched)) return fetched;
   return repository.checkpointChunk({
     runId: params.runId,
     requestedCursor: params.cursor,
@@ -217,3 +238,16 @@ export function abandonDurableIngestion(
 ): Promise<string | null> {
   return repository.abandon(runId, force);
 }
+
+export const compactDurableWorkflowCursor = <
+  Source extends DurableIngestionSource,
+>(
+  runId: string,
+  cursor: DurableCursorFor<Source>,
+) => repository.workflowCursor(runId, cursor);
+export const resolveDurableWorkflowCursor = <
+  Source extends DurableIngestionSource,
+>(
+  runId: string,
+  cursor: DurableWorkflowCursor<Source>,
+) => repository.resolveWorkflowCursor(runId, cursor);

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Clock, Effect } from "effect";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import type { Yard } from "~/lib/yard";
@@ -42,7 +43,7 @@ export function streamShopifyYard<S extends IngestionSource, E, R>(
   options: ShopifyYardOptions<E, R>,
 ) {
   const checked = <A>(operation: string, run: () => A) =>
-    Effect.try({
+    ingestionValidation({
       try: run,
       catch: (cause) =>
         new ShopifyYardProviderError(config.source, operation, cause),

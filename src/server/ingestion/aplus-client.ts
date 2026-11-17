@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -111,6 +112,7 @@ export function fetchAplusPage(url: string, gate: ProviderRequestGate) {
       );
     }),
   ).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new AplusProviderError({ operation: url, cause }),
     ),

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect, RateLimiter } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { ConnectorChunkResult } from "./connector-chunk";
@@ -229,7 +230,7 @@ export function streamPontiacInventoryWithRequestGate<E, R>(
           const result =
             detail === null
               ? { status: "unavailable" as const }
-              : yield* Effect.try({
+              : yield* ingestionValidation({
                   try: () => transformPontiacRecord(donor, detail),
                   catch: (cause) =>
                     new PontiacProviderError({

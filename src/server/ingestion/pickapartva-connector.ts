@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import {
@@ -41,7 +42,10 @@ export type PickapartvaStreamResult = ConnectorChunkResult<
 const failure = (operation: string, cause: unknown) =>
   new PickapartvaProviderError({ operation, cause });
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({ try: run, catch: (cause) => failure(operation, cause) });
+  ingestionValidation({
+    try: run,
+    catch: (cause) => failure(operation, cause),
+  });
 
 export function streamPickapartvaInventoryWithRequestGate<E, R>(
   options: PickapartvaOptions<E, R>,

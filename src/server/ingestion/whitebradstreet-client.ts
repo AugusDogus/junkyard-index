@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -90,7 +91,7 @@ export function fetchWhitebradstreetPage(
       "?f-condition=nw" +
       (page === 1 ? "" : "&page_number=" + page);
     const raw = yield* read(url, gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => parseWhitebradstreetPage(raw, page),
       catch: (cause) =>
         new WhitebradstreetProviderError({
@@ -107,7 +108,7 @@ export function fetchWhitebradstreetControl(
 ) {
   return read(record.detailsUrl, gate).pipe(
     Effect.flatMap((raw) =>
-      Effect.try({
+      ingestionValidation({
         try: () => parseWhitebradstreetControl(raw, record),
         catch: (cause) =>
           new WhitebradstreetProviderError({

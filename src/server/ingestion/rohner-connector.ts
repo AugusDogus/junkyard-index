@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { fetchRohnerPage, RohnerProviderError } from "./rohner-client";
@@ -42,7 +43,7 @@ export interface RohnerStreamResult {
   accounting: ConnectorChunkAccounting;
 }
 const validated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new RohnerProviderError({ operation, cause }),
   });

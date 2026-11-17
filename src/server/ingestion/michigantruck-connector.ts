@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import {
   fetchMichigantruckPage,
@@ -50,7 +51,10 @@ export type MichigantruckStreamResult = ConnectorChunkResult<
 const failure = (operation: string, cause: unknown) =>
   new MichigantruckProviderError({ operation, cause });
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({ try: run, catch: (cause) => failure(operation, cause) });
+  ingestionValidation({
+    try: run,
+    catch: (cause) => failure(operation, cause),
+  });
 
 export function streamMichigantruckInventoryWithRequestGate<E, R>(
   options: MichigantruckOptions<E, R>,

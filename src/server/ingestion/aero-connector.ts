@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import { AeroProviderError, fetchAeroPage } from "./aero-client";
 import { AeroCursor, AeroCursorSchema } from "./aero-cursor";
@@ -77,7 +78,7 @@ export function streamAeroInventoryWithRequestGate<E, R>(
     const home = yield* fetchAeroPage("/", gate);
     const directions = yield* fetchAeroPage("/directions/", gate);
     const html = yield* fetchAeroPage("/vehicle-inventory/", gate);
-    const snapshot = yield* Effect.try({
+    const snapshot = yield* ingestionValidation({
       try: () => {
         const yard = parseAeroYard(home, directions);
         const controls = parseAeroRecent(home);

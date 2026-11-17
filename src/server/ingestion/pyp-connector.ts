@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { pypYard, type OnYards } from "./yard-metadata";
 import { Effect, Scope } from "effect";
 import type { Location } from "~/lib/types";
@@ -87,14 +88,10 @@ export function streamPypInventory<E, R>(options: {
   onYards?: OnYards;
   cursor: PypStoreCursor;
   maxPages?: number;
-}): Effect.Effect<
-  PypStreamResult,
-  PypSessionError | E,
-  Scope.Scope | R
-> {
+}): Effect.Effect<PypStreamResult, PypSessionError | E, Scope.Scope | R> {
   return Effect.gen(function* () {
     const session = yield* acquireDirectPypSession();
-    const storeCodes = yield* Effect.try({
+    const storeCodes = yield* ingestionValidation({
       try: () => {
         assertMinLocations(session.locations);
         const codes = orderedStoreCodes(session.locations);

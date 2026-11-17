@@ -1,3 +1,4 @@
+import { validationRejection } from "./ingestion-validation";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { CALTON_ORIGIN, caltonOwnedUrl } from "./calton-html";
@@ -50,9 +51,11 @@ export function caltonBoundary<T>(
   } catch (cause) {
     return {
       ok: false,
-      error: CaltonError.create(
-        operation,
-        cause instanceof Error ? cause.message : String(cause),
+      error: validationRejection(
+        CaltonError.create(
+          operation,
+          cause instanceof Error ? cause.message : String(cause),
+        ),
       ),
     };
   }

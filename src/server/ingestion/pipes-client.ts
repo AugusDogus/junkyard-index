@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import {
   fetchProviderResponse,
@@ -120,7 +121,7 @@ export function fetchPipesControl(
               ),
           }),
         );
-      }),
+      }).pipe(sharedProviderHostSlot(url)),
     );
   }).pipe(
     Effect.mapError(

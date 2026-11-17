@@ -384,3 +384,45 @@ describe("scanAlertMatchPages pagination", () => {
     });
   });
 });
+
+test("alert scans omit same-day missing inventory from counts and previews while continuing pagination", async () => {
+  const requested: number[] = [];
+  const result = await scanAlertMatchPages(
+    async (page) => {
+      requested.push(page);
+      return {
+        hits:
+          page === 0
+            ? [
+                {
+                  objectID: "MISSING-FLAG",
+                  source: "autorecycler",
+                  isMissing: true,
+                },
+                {
+                  objectID: "MISSING-COUNT",
+                  source: "autorecycler",
+                  missingRunCount: 1,
+                },
+              ]
+            : [
+                {
+                  objectID: "PRESENT",
+                  source: "autorecycler",
+                  missingRunCount: 0,
+                },
+              ],
+        reportedCount: 3,
+        reportedPageCount: 2,
+        countIsExhaustive: true,
+      };
+    },
+    { hitsPerPage: 2, paginationLimit: 100 },
+  );
+  expect(requested).toEqual([0, 1]);
+  expect(result).toMatchObject({
+    matchedCount: 1,
+    completion: { status: "complete" },
+  });
+  expect(result.vehicles.map((row) => row.vin)).toEqual(["PRESENT"]);
+});

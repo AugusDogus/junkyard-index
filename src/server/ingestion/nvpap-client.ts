@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { z } from "zod";
 import { Yard } from "~/lib/yard";
@@ -83,7 +84,7 @@ export function fetchNvpapYards(gate: ProviderRequestGate) {
   const operation = "official yard contact metadata";
   return Effect.gen(function* () {
     const html = yield* request("/contact.html", operation, gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => {
         if (html.length > 500_000 || !/<\/html>\s*$/i.test(html))
           throw new Error("Official contact page is oversized or truncated");
@@ -161,7 +162,7 @@ export function fetchNvpapPage(
         store: code,
       }).toString(),
     );
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => parseNvpapPage(raw, code, year),
       catch: (cause) => new NvpapProviderError({ operation, cause }),
     });

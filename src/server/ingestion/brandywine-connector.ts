@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Clock, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -51,7 +52,7 @@ export interface BrandywineStreamResult {
   accounting: ConnectorChunkAccounting;
 }
 const validated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new BrandywineProviderError({ operation, cause }),
   });
