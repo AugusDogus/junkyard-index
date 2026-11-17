@@ -14,7 +14,7 @@ import type { CanonicalVehicle } from "./types";
 
 const qualified = URGIIS_TENANTS.find((t) => t.code === "eagle");
 if (!qualified) throw new Error("Missing Eagle qualification");
-const tenant = { ...qualified, minimumInventory: 1 };
+const tenant = { ...qualified, minimumInventory: 1, requestTimeoutMs: 90_000 };
 const tenants = [tenant];
 const store = IngestionSnapshotStore.memory();
 const start = Date.UTC(2026, 10, 16);
@@ -58,8 +58,12 @@ interface Day {
   now?: number;
   arrivals?: UrgiisRecord[];
   badge?: string;
+  badgeCount?: number;
   replace?: { path: string; records: UrgiisRecord[] };
-  fail?: string;
+  fail?: string | readonly string[];
+  reads?: string[];
+  maxPages?: number;
+  clock?: (chunk: number) => number;
   drift?: string;
   malformed?: string;
   remove?: string;
@@ -67,7 +71,8 @@ interface Day {
 async function run(day: Day = {}) {
   const now = day.now ?? start + 3600_000;
   let cursor = UrgiisCursor.initial(tenants);
-  const reads: string[] = [];
+  const reads = day.reads ?? [];
+  const checkpoints: { pages: number; deferred: number }[] = [];
   const vehicles: CanonicalVehicle[] = [];
   const warnings: string[] = [];
   let peakCursorBytes = 0;
@@ -79,13 +84,17 @@ async function run(day: Day = {}) {
         tenants,
         startCursor: cursor,
         previousCursor: day.previous,
-        now,
+        now: day.clock?.(chunks) ?? now,
         loadCensus: async (path) => (await store.load(path)).checkpointState,
-        maxPages: 1,
+        maxPages: day.maxPages ?? 1,
         readPage: (url) => {
           reads.push(url);
           const path = new URL(url).pathname;
-          if (path === day.fail)
+          if (
+            typeof day.fail === "string"
+              ? path === day.fail
+              : day.fail?.includes(path)
+          )
             return Effect.fail(
               urgiisError("request/body " + url, "offline repeated HTTP500"),
             );
@@ -100,7 +109,14 @@ async function run(day: Day = {}) {
               .filter((m) => m.make.path === path)
               .map((m) => ({
                 ...m.model,
-                count: m.model.count + (m.model.path === day.badge ? 1 : 0),
+                count:
+                  m.model.path === day.badge
+                    ? (day.badgeCount ?? m.model.count + 1)
+                    : m.model.count +
+                      (Array.isArray(day.fail) &&
+                      day.fail.includes(m.model.path)
+                        ? 1
+                        : 0),
               }));
             if (day.drift === path && reads.filter((u) => u === url).length > 1)
               controls.reverse();
@@ -127,6 +143,15 @@ async function run(day: Day = {}) {
     );
     if (result.status === "failed") throw new Error(result.errors.join("; "));
     warnings.push(...result.warnings);
+    checkpoints.push({
+      pages: result.pagesProcessed,
+      deferred:
+        result.cursor.phase === "complete"
+          ? 0
+          : result.cursor.entries.filter(
+              (e) => e.kind === "model" && e.freshness.kind === "deferred",
+            ).length,
+    });
     let next = result.cursor;
     if (result.checkpointState) {
       const statePath = await store.put({
@@ -148,7 +173,7 @@ async function run(day: Day = {}) {
     cursor = UrgiisCursor.fromWire(wire, tenants);
   }
   expect(cursor.phase).toBe("complete");
-  return { cursor, reads, vehicles, warnings, peakCursorBytes };
+  return { cursor, reads, vehicles, warnings, peakCursorBytes, checkpoints };
 }
 const readModels = (result: Awaited<ReturnType<typeof run>>) =>
   result.reads.filter((url) =>
@@ -261,13 +286,14 @@ test("an unknown arrival adds to an unchanged-count model without losing known d
   expect(result.vehicles.map((v) => v.vin)).toContain(known.vins[0] ?? "");
   expect(result.vehicles.map((v) => v.vin)).toContain(arrival.vins[0] ?? "");
 });
-test("rolling slices reread one seventh daily starting immediately after bootstrap", async () => {
+test("rolling slices refresh every model within six days, reserving a day to publish", async () => {
   let previous = baseline.cursor;
   const swept: string[] = [];
   for (let day = 1; day <= 7; day++) {
     const result = await run({ previous, now: start + day * DAY });
-    expect(readModels(result)).toHaveLength(1);
+    if (day < 6) expect(readModels(result)).toHaveLength(1);
     swept.push(...readModels(result));
+    if (day === 6) expect(new Set(swept).size).toBe(7);
     previous = result.cursor;
   }
   expect(new Set(swept).size).toBe(7);
@@ -403,6 +429,8 @@ test("native arrival labels refresh a same-count model when its donor link uses 
   if (!old || !replacement) throw new Error("Missing captured pair");
   const previous = await run({
     now: start,
+    badge: model.model.path,
+    badgeCount: 2,
     replace: { path: model.model.path, records: [old] },
   });
   const arrival = {
@@ -413,6 +441,8 @@ test("native arrival labels refresh a same-count model when its donor link uses 
   };
   const result = await run({
     previous: previous.cursor,
+    badge: model.model.path,
+    badgeCount: 2,
     arrivals: [arrival, knownArrival()],
     replace: { path: model.model.path, records: [] },
   });
@@ -499,4 +529,56 @@ test("same-day replacement missing from arrivals stays stale only until that mod
   expect(swept.vehicles.map((v) => v.vin)).toContain(replacement.vins[0] ?? "");
   expect(swept.vehicles.map((v) => v.vin)).not.toContain(old.vins[0] ?? "");
   expect(days).toBeLessThanOrEqual(7);
+});
+
+test("shifted model slices refresh six-day evidence before the seven-day acceptance ceiling", async () => {
+  const removed = models[0];
+  if (!removed) throw new Error("Missing first model");
+  const now = start + 7 * DAY - 1000;
+  const result = await run({
+    previous: baseline.cursor,
+    now,
+    remove: removed.model.path,
+  });
+  expect(readModels(result)).toHaveLength(6);
+});
+
+test("late chunk retries share the run clock and reserve a full day for acceptance", async () => {
+  const now = start + 7 * DAY - 3600_000;
+  const result = await run({
+    previous: baseline.cursor,
+    now,
+    clock: (chunk) => now + (chunk === 0 ? 0 : 2 * 3600_000),
+  });
+  expect(readModels(result)).toHaveLength(7);
+  expect(result.cursor.asOf).toBe(now);
+  const reads: string[] = [];
+  await expect(
+    run({ previous: baseline.cursor, now, fail: target().model.path, reads }),
+  ).rejects.toThrow("offline repeated HTTP500");
+});
+
+test("model deferrals checkpoint individually and a second distinct failure stops the tenant", async () => {
+  const first = await run({
+    previous: baseline.cursor,
+    badge: target().model.path,
+    fail: target().model.path,
+    maxPages: 3,
+  });
+  const deferred = first.checkpoints.find((c) => c.deferred > 0);
+  expect(deferred?.pages).toBe(1);
+  const failures = models.slice(0, 3).map((m) => m.model.path);
+  const reads: string[] = [];
+  await expect(
+    run({
+      previous: baseline.cursor,
+      now: start + DAY,
+      fail: failures,
+      reads,
+      maxPages: 3,
+    }),
+  ).rejects.toThrow("distinct model pages");
+  expect(
+    reads.filter((url) => failures.includes(new URL(url).pathname)),
+  ).toHaveLength(2);
 });

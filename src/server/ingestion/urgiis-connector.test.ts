@@ -515,7 +515,7 @@ test("URG IIS refuses an empty model at the known native cap boundary", async ()
         cursor = result.cursor;
       }
     })(),
-  ).rejects.toThrow("empty large model");
+  ).rejects.toThrow("explicit empty result");
   expect(reads).toBe(5);
   expect(emitted).toBe(false);
 });
@@ -582,3 +582,203 @@ test("URG IIS cannot qualify an arrivals window without admitted own-yard model 
     "0 from model pages",
   );
 });
+
+test("URG IIS never publishes a badged explicit-empty model below the native cap", async () => {
+  let cursor = UrgiisCursor.initial([tenant]);
+  let reads = 0;
+  let published = false;
+  await expect(
+    (async () => {
+      while (cursor.phase !== "complete") {
+        const result = await Effect.runPromise(
+          streamUrgiisInventory({
+            tenants: [tenant],
+            startCursor: cursor,
+            maxPages: 1,
+            readPage: () => {
+              const index = reads++;
+              return Effect.succeed(
+                index === 3
+                  ? menu.replace(">1<", ">91<")
+                  : index === 4
+                    ? document(
+                        "No Results Found. Try Browsing Our Parts Or Search Again",
+                      )
+                    : (responses[index] ?? ""),
+              );
+            },
+            onBatch: () =>
+              Effect.sync(() => {
+                published = true;
+              }),
+          }),
+        );
+        if (result.status === "failed")
+          throw new Error(result.errors.join("; "));
+        cursor = result.cursor;
+      }
+    })(),
+  ).rejects.toThrow(
+    "advertises 91 donors but returns an explicit empty result",
+  );
+  expect(reads).toBe(5);
+  expect(published).toBe(false);
+});
+
+test("arrivals-only donors link to the page that displays them; modeled donors keep their native detail", () => {
+  const modeled = iisCards(page, tenant).records;
+  const arrivals = iisCards(
+    document(card("19UDE2F70GA016398", "2016", "ARRIVAL")),
+    tenant,
+    "arrivals",
+  ).records;
+  const snapshot = urgiisSnapshot(
+    [{ make, model, records: modeled, hash: "" }],
+    tenant,
+    new Map(),
+    arrivals,
+  );
+  // Conflicting stocks for the same VIN quarantine both claims, even with a fallback URL.
+  expect(snapshot.vehicles).toHaveLength(0);
+  const only = urgiisSnapshot([], tenant, new Map(), modeled);
+  expect(only.vehicles[0]?.detailsUrl).toBe(
+    tenant.origin + tenant.arrivalsPath,
+  );
+  const both = urgiisSnapshot(
+    [{ make, model, records: modeled, hash: "" }],
+    tenant,
+    new Map(),
+    modeled,
+  );
+  expect(both.vehicles[0]?.detailsUrl).toBe(
+    tenant.origin + "/parts/ACURA/ILX/JC8438/2016",
+  );
+});
+
+test("URG IIS checkpoints Retry-After without advancing or requesting during the durable wait", async () => {
+  let reads = 0;
+  const result = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      now: 1000,
+      readPage: () => {
+        reads++;
+        return Effect.fail({
+          ...urgiisError("request", "HTTP429"),
+          kind: "blocked" as const,
+          status: 429 as const,
+          retryAfterMs: 3600_000,
+        });
+      },
+      onBatch: () => Effect.die("Blocked tenant must not publish"),
+    }),
+  );
+  expect(result.status).toBe("paused");
+  expect(result.warnings.join(" ")).toContain("HTTP429");
+  expect(result.cursor.retryAt).toBe(3_601_000);
+  expect(reads).toBe(1);
+  const resumed = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      now: 2000,
+      startCursor: UrgiisCursor.fromWire(
+        UrgiisCursor.serialize(result.cursor, [tenant]),
+        [tenant],
+      ),
+      readPage: () => Effect.die("Must honor the saved provider cooldown"),
+      onBatch: () => Effect.die("Must not publish during a provider cooldown"),
+    }),
+  );
+  expect(resumed.status).toBe("paused");
+  expect(resumed.pagesProcessed).toBe(0);
+  expect(resumed.cursor.retryAt).toBe(3_601_000);
+});
+
+test("URG IIS rejects a legacy checkpoint containing a badged empty model", async () => {
+  let cursor = UrgiisCursor.initial([tenant]);
+  let reads = 0;
+  for (let i = 0; i < 4; i++) {
+    cursor = (
+      await Effect.runPromise(
+        streamUrgiisInventory({
+          tenants: [tenant],
+          startCursor: cursor,
+          maxPages: 1,
+          now: 1000,
+          readPage: () => Effect.succeed(responses[reads++] ?? ""),
+          onBatch: () => Effect.die("Cannot publish an incomplete graph"),
+        }),
+      )
+    ).cursor;
+  }
+  if (cursor.phase !== "opening") throw new Error("Expected a model frontier");
+  expect(() =>
+    UrgiisCursor.checkpoint(
+      {
+        ...cursor,
+        entries: [
+          ...cursor.entries.map((e) =>
+            e.kind === "menu"
+              ? { ...e, controls: [{ ...model, count: 91 }] }
+              : e,
+          ),
+          {
+            kind: "model",
+            url: tenant.origin + model.path,
+            records: [],
+            bytes: 1,
+            freshness: { kind: "read", readAt: 1000 },
+          },
+        ],
+        requests: cursor.requests + 1,
+        phase: "closing",
+      },
+      [tenant],
+    ),
+  ).toThrow("incomplete badged empty model");
+});
+
+test("URG IIS reserves the last chunk before its one-day run deadline", async () => {
+  const initial = UrgiisCursor.initial([tenant]);
+  const cursor = UrgiisCursor.checkpoint(
+    { ...initial, startedAt: 1000, asOf: 1000 },
+    [tenant],
+  );
+  const result = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      startCursor: cursor,
+      now: 1000 + 24 * 3600_000 - 8 * 60_000,
+      readPage: () =>
+        Effect.die("A run past its deadline must not make requests"),
+      onBatch: () => Effect.die("A run past its deadline must not publish"),
+    }),
+  );
+  expect(result.status).toBe("failed");
+  expect(result.pagesProcessed).toBe(0);
+  expect(result.errors.join(" ")).toContain("one-day deadline");
+});
+
+for (const status of [403, 429] as const) {
+  test(`URG IIS ends a tenant on HTTP${status} without a Retry-After`, async () => {
+    let reads = 0;
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        readPage: () => {
+          reads++;
+          return Effect.fail({
+            ...urgiisError("request", `HTTP${status}`),
+            kind: "blocked" as const,
+            status,
+            retryAfterMs: 0,
+          });
+        },
+        onBatch: () => Effect.die("A blocked tenant cannot publish"),
+      }),
+    );
+    expect(result.status).toBe("failed");
+    expect(reads).toBe(1);
+    expect(result.pagesProcessed).toBe(1);
+  });
+}

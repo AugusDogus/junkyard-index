@@ -126,3 +126,32 @@ test("URG IIS sends the qualified tenant's User-Agent", async () => {
     fetch.mockRestore();
   }
 });
+
+for (const status of [403, 429] as const) {
+  test(`URG IIS stops immediately on HTTP${status} and retains Retry-After`, async () => {
+    const fetch = spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("blocked", {
+        status,
+        headers: { "content-type": "text/html", "Retry-After": "3600" },
+      }),
+    );
+    try {
+      const result = await Effect.runPromise(
+        readUrgiisPage(tenant.origin + tenant.makesPath, tenant).pipe(
+          Effect.either,
+        ),
+      );
+      expect(result._tag).toBe("Left");
+      if (result._tag !== "Left") throw new Error("Expected blocked response");
+      expect(result.left.kind).toBe("blocked");
+      if (result.left.kind !== "blocked")
+        throw new Error("Expected structured host block");
+      expect(result.left.status).toBe(status);
+      expect(result.left.retryAfterMs).toBe(3_600_000);
+      expect(result.left.message).toContain("Retry-After: 3600");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+}

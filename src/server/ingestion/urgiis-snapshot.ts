@@ -173,6 +173,10 @@ export function urgiisSnapshot(
     else vehicles.set(a.vin, vehicle);
   });
   for (const [vin, vehicle] of vehicles) {
+    // Arrivals can precede the parts catalog. Link these donors to the native
+    // page that actually displays them, after identity/quarantine checks finish.
+    if (!modeledVins.has(vin) && tenant.arrivalsPath)
+      vehicle.detailsUrl = tenant.origin + tenant.arrivalsPath;
     const values = metadata.get(vin);
     if (!values) throw new Error("IIS accepted VIN lost metadata");
     for (const k of ["stockNumber", "imageUrl", "availableDate"] as const)

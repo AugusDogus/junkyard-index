@@ -1,18 +1,23 @@
 import { Effect, Schedule } from "effect";
+import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
-export interface UrgiisError {
+export type UrgiisError = {
   tag: "UrgiisError";
   operation: string;
   message: string;
-}
+} & (
+  | { kind: "failure" }
+  | { kind: "blocked"; status: 403 | 429; retryAfterMs: number }
+);
 export const urgiisError = (
   operation: string,
   cause: unknown,
 ): UrgiisError => ({
   tag: "UrgiisError",
+  kind: "failure",
   operation,
   message: `URG IIS ${operation}: ${cause instanceof Error ? cause.message : String(cause)}. Prior inventory is preserved; inspect the saved response or resume the last validated checkpoint.`,
 });
@@ -61,39 +66,73 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
             ...(tenant.cookie ? { Cookie: tenant.cookie } : {}),
           },
         });
-        if (
-          response.status !== 200 ||
-          response.redirected ||
-          (response.url && response.url !== requestUrl) ||
-          response.headers.has("content-range") ||
-          response.headers
-            .get("content-type")
-            ?.split(";")[0]
-            ?.trim()
-            .toLowerCase() !== "text/html"
-        ) {
-          await response.body?.cancel();
-          throw new Error(
-            `Expected complete HTTP200 text/html at ${url}; received HTTP${response.status}`,
-          );
-        }
-        return readIPullUPullResponseText(
-          response,
-          "URG IIS " + url,
-          combined,
-          URGIIS_MAX_BODY_BYTES,
-        );
+        return { response, signal: combined };
       },
       catch: (cause) => urgiisError("request/body " + url, cause),
-    });
+    }).pipe(
+      Effect.flatMap(({ response, signal }) =>
+        Effect.gen(function* () {
+          const invalid =
+            response.status !== 200 ||
+            response.redirected ||
+            (response.url && response.url !== requestUrl) ||
+            response.headers.has("content-range") ||
+            response.headers
+              .get("content-type")
+              ?.split(";")[0]
+              ?.trim()
+              .toLowerCase() !== "text/html";
+          if (invalid) {
+            yield* Effect.tryPromise({
+              try: async () => {
+                await response.body?.cancel();
+              },
+              catch: (cause) => urgiisError("cancel response " + url, cause),
+            });
+            if (response.status === 403 || response.status === 429) {
+              const retryAfterMs = parseRetryAfterMs(
+                response.headers.get("Retry-After"),
+                Date.now(),
+              );
+              const error: UrgiisError = {
+                tag: "UrgiisError",
+                kind: "blocked",
+                operation: "request/body " + url,
+                status: response.status,
+                retryAfterMs,
+                message: `URG IIS ${tenant.code} returned HTTP${response.status} at ${url}; stopping this tenant without further requests. Retry-After: ${response.headers.get("Retry-After") ?? "not provided"}. A supplied Retry-After pauses this frontier; without one the source stops. Prior inventory is preserved.`,
+              };
+              return yield* Effect.fail(error);
+            }
+            return yield* Effect.fail(
+              urgiisError(
+                "request/body " + url,
+                `Expected complete HTTP200 text/html; received HTTP${response.status}`,
+              ),
+            );
+          }
+          return yield* Effect.tryPromise({
+            try: (bodySignal) =>
+              readIPullUPullResponseText(
+                response,
+                "URG IIS " + url,
+                AbortSignal.any([signal, bodySignal]),
+                URGIIS_MAX_BODY_BYTES,
+              ),
+            catch: (cause) => urgiisError("request/body " + url, cause),
+          });
+        }),
+      ),
+    );
     return serial.withPermits(1)(
       request.pipe(Effect.ensuring(Effect.sleep(tenant.pacingMs))),
     );
   }).pipe(
-    Effect.retry(
-      Schedule.exponential("4 seconds").pipe(
+    Effect.retry({
+      schedule: Schedule.exponential("4 seconds").pipe(
         Schedule.intersect(Schedule.recurs(2)),
       ),
-    ),
+      while: (error) => error.kind !== "blocked",
+    }),
   );
 }

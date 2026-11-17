@@ -8,9 +8,28 @@ import { streamUrgiisInventory } from "./urgiis-connector";
 import { urgiisError } from "./urgiis-client";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
 
+// These original captures contain proven enumeration gaps. Keep their raw
+// evidence and require the connector to stop at the exact badged empty page.
+const incomplete = new Map([
+  ["eagle", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
+  ["chuckran", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 3 }],
+  ["united", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 29 }],
+  ["ace-iowa", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 5 }],
+  ["lentini", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
+  ["ace-st-paul", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 54 }],
+  ["chucks", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 19 }],
+  ["central-nh", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 11 }],
+  ["higgins", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 6 }],
+  ["premier", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 9 }],
+  ["junior-sinn", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 18 }],
+  ["revolution", { path: "/parts/CHEVROLET/EQUINOX/", count: 91 }],
+  ["lambert", { path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/", count: 13 }],
+  ["norbs", { path: "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/", count: 3 }],
+]);
+
 for (const tenant of URGIIS_TENANTS) {
   test(
-    `URG IIS replays the complete saved ${tenant.yard.name} census`,
+    `URG IIS validates the saved ${tenant.yard.name} census without partial publication`,
     async () => {
       const archive = await UrgiisReplayArchive.open(tenant.code);
       try {
@@ -27,7 +46,7 @@ for (const tenant of URGIIS_TENANTS) {
           duplicateVehicles: 0,
         };
         while (cursor.phase !== "complete") {
-          const result = await Effect.runPromise(
+          const outcome = await Effect.runPromise(
             streamUrgiisInventory({
               tenants: [tenant],
               startCursor: cursor,
@@ -69,14 +88,34 @@ for (const tenant of URGIIS_TENANTS) {
                     expect(donor.lng).toBe(yard.lng);
                     expect(donor.stateAbbr).toBe(yard.state);
                     byYard[yard.code] = (byYard[yard.code] ?? 0) + 1;
-                    expect(donor.detailsUrl).toStartWith(
-                      tenant.origin + "/" + tenant.pathStyle + "/",
-                    );
+                    if (
+                      donor.detailsUrl !==
+                      tenant.origin + tenant.arrivalsPath
+                    )
+                      expect(donor.detailsUrl).toStartWith(
+                        tenant.origin + "/" + tenant.pathStyle + "/",
+                      );
                   }
                   batches++;
                 }),
-            }),
+            }).pipe(Effect.either),
           );
+          if (outcome._tag === "Left") {
+            const expected = incomplete.get(tenant.code);
+            if (!expected) throw new Error(outcome.left.message);
+            expect(outcome.left.operation).toBe(
+              "parse " + tenant.origin + expected.path,
+            );
+            expect(outcome.left.message).toContain(
+              `advertises ${expected.count} donors but returns an explicit empty result`,
+            );
+            expect(batches).toBe(0);
+            expect(count).toBe(0);
+            return;
+          }
+          const result = outcome.right;
+          if (result.status === "failed")
+            throw new Error(result.errors.join("; "));
           count += result.count;
           for (const key of [
             "recordsProcessed",
@@ -90,6 +129,7 @@ for (const tenant of URGIIS_TENANTS) {
             [tenant],
           );
         }
+        expect(incomplete.has(tenant.code)).toBe(false);
         expect(batches).toBe(1);
         expect(count).toBe(archive.expected.accepted);
         expect(accounting).toEqual({

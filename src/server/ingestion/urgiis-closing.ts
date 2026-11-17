@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { URGIIS_EMPTY_MODEL_MINIMUM } from "./urgiis-schema";
 import { urgiisEntryFingerprint, type UrgiisEntry } from "./urgiis-traversal";
 
 export const UrgiisBadgeDriftSchema = z
@@ -63,6 +64,16 @@ export function urgiisClosingEvidence(
       )
         return drift(
           "Growing model may cross the native 500-card boundary at " +
+            control.path,
+        );
+      if (
+        observed.records.length === 0 &&
+        control.count >= URGIIS_EMPTY_MODEL_MINIMUM
+      )
+        return drift(
+          "Growing model advertises " +
+            control.count +
+            " donors after an explicit empty result at " +
             control.path,
         );
     }

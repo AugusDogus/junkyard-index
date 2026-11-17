@@ -5,6 +5,7 @@ import { streamUrgiisInventory } from "./urgiis-connector";
 import { UrgiisCursor } from "./urgiis-cursor";
 import { urgiisError } from "./urgiis-client";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
+import { validateUrgiisSnapshot } from "./urgiis-snapshot";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
 const standard = {
@@ -22,6 +23,7 @@ const standard = {
 const cases: readonly {
   tenant: UrgiisTenant;
   optimisticStocks: readonly string[];
+  emptyPath: string;
   rejection: string;
   optimisticRejection: string;
 }[] = [
@@ -56,6 +58,7 @@ const cases: readonly {
       },
     },
     optimisticStocks: ["AFT", "NOF", "CPO", "DLRS"],
+    emptyPath: "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
     rejection: "252/1346 rejected",
     optimisticRejection: "155/1249 rejected",
   },
@@ -90,6 +93,7 @@ const cases: readonly {
       },
     },
     optimisticStocks: ["MISC", "MIS", "NEW"],
+    emptyPath: "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
     rejection: "460/4167 rejected",
     optimisticRejection: "419/4126 rejected",
   },
@@ -101,6 +105,17 @@ for (const candidate of cases) {
       const tenant = { ...candidate.tenant, placeholderStocks };
       const archive = await UrgiisReplayArchive.open(
         tenant.code + "-rejected-census",
+      );
+      // Admission ratios still fail even independently of the earlier empty-page
+      // guard. Assess the complete saved observations without publishing them.
+      const snapshot = await UrgiisReplayArchive.assess(
+        tenant.code + "-rejected-census",
+        tenant,
+      );
+      expect(() => validateUrgiisSnapshot(snapshot, tenant)).toThrow(
+        placeholderStocks.length
+          ? candidate.optimisticRejection
+          : candidate.rejection,
       );
       let cursor = UrgiisCursor.initial([tenant]);
       let reads = 0;
@@ -134,12 +149,10 @@ for (const candidate of cases) {
             }).pipe(Effect.either),
           );
           if (outcome._tag === "Left") {
-            expect(outcome.left.operation).toBe("snapshot " + tenant.code);
-            expect(outcome.left.message).toContain(
-              placeholderStocks.length
-                ? candidate.optimisticRejection
-                : candidate.rejection,
+            expect(outcome.left.operation).toBe(
+              "parse " + tenant.origin + candidate.emptyPath,
             );
+            expect(outcome.left.message).toContain("enumeration is incomplete");
             rejected = true;
             break;
           }
@@ -148,8 +161,7 @@ for (const candidate of cases) {
         }
         expect(rejected).toBe(true);
         expect(emissions).toBe(0);
-        expect(reads).toBe(archive.responseCount);
-        expect(await archive.next()).toBeUndefined();
+        expect(reads).toBeLessThan(archive.responseCount);
         expect(URGIIS_TENANTS.some((t) => t.code === tenant.code)).toBe(false);
       } finally {
         archive.close();

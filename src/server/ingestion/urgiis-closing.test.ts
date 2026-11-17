@@ -98,3 +98,21 @@ test("URG IIS rejects disappearing models even when their badge is zero", () => 
     }).kind,
   ).toBe("drift");
 });
+
+test("URG IIS blocks an empty model whose closing badge reaches the small-model threshold", () => {
+  expect(
+    urgiisClosingEvidence(menu([2]), menu([3]), models([0]), {
+      makes: 0,
+      models: 0,
+    }),
+  ).toMatchObject({
+    kind: "drift",
+    message: expect.stringContaining("explicit empty result"),
+  });
+  expect(
+    urgiisClosingEvidence(menu([1]), menu([2]), models([0]), {
+      makes: 0,
+      models: 0,
+    }).kind,
+  ).toBe("valid");
+});

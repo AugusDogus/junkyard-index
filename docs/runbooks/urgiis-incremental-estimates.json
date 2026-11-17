@@ -1,38 +1,180 @@
 {
   "latencySeconds": 6,
-  "rows": [
+  "blocked": [
     {
       "tenant": "eagle",
-      "makes": 37,
-      "models": 284,
-      "fullRequests": 363,
-      "unchangedNoSweep": 79,
-      "weeklyRequests": [119, 119, 120, 120, 120, 120, 119],
-      "dailyAverage": 119.6,
-      "beforeMinutes": 49.6,
-      "afterMinutes": 16.3,
-      "modelStocks": 1619,
-      "arrivalStocks": 6,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 6,
-      "comparableDatePairs": 5,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 6,
-      "arrivalsOnly": 0,
-      "censusBytes": 592174
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 6 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
     },
+    {
+      "tenant": "chuckran",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 3 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "united",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 29 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "ace-iowa",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 5 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "lentini",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 6 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "ace-st-paul",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 54 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "chucks",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 19 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 7 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "central-nh",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 11 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 5 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "higgins",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 6 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "premier",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 9 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "junior-sinn",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 18 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 6 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "revolution",
+      "models": [
+        {
+          "path": "/parts/CHEVROLET/EQUINOX/",
+          "reason": "IIS model /parts/CHEVROLET/EQUINOX/ advertises 91 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 23 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "lambert",
+      "models": [
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 13 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 9 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    },
+    {
+      "tenant": "norbs",
+      "models": [
+        {
+          "path": "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
+          "reason": "IIS model /parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/ advertises 3 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
+          "reason": "IIS model /parts/CHRYSLER/NEW_YORKER_(FWD)/ advertises 5 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 75 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/GMC/SAFARI_(GMC)/",
+          "reason": "IIS model /parts/GMC/SAFARI_(GMC)/ advertises 4 donors but returns an explicit empty result; enumeration is incomplete"
+        },
+        {
+          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 18 donors but returns an explicit empty result; enumeration is incomplete"
+        }
+      ]
+    }
+  ],
+  "rows": [
     {
       "tenant": "linders",
       "makes": 41,
       "models": 426,
       "fullRequests": 513,
       "unchangedNoSweep": 87,
-      "weeklyRequests": [148, 147, 148, 148, 148, 148, 148],
-      "dailyAverage": 147.9,
+      "weeklyRequests": [148, 147, 148, 148, 148, 209, 209],
+      "dailyAverage": 165.3,
       "beforeMinutes": 70.1,
-      "afterMinutes": 20.2,
+      "afterMinutes": 22.6,
       "modelStocks": 3340,
       "arrivalStocks": 60,
       "purchaseDatedArrivals": 60,
@@ -46,103 +188,15 @@
       "censusBytes": 1211555
     },
     {
-      "tenant": "chuckran",
-      "makes": 43,
-      "models": 407,
-      "fullRequests": 498,
-      "unchangedNoSweep": 91,
-      "weeklyRequests": [149, 149, 150, 149, 149, 149, 149],
-      "dailyAverage": 149.1,
-      "beforeMinutes": 78.8,
-      "afterMinutes": 23.6,
-      "modelStocks": 3844,
-      "arrivalStocks": 19,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 0,
-      "comparableDatePairs": 0,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 19,
-      "arrivalsOnly": 0,
-      "censusBytes": 1398328
-    },
-    {
-      "tenant": "united",
-      "makes": 46,
-      "models": 526,
-      "fullRequests": 623,
-      "unchangedNoSweep": 97,
-      "weeklyRequests": [172, 172, 173, 172, 172, 172, 172],
-      "dailyAverage": 172.1,
-      "beforeMinutes": 85.1,
-      "afterMinutes": 23.5,
-      "modelStocks": 12409,
-      "arrivalStocks": 6,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 6,
-      "comparableDatePairs": 5,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 6,
-      "arrivalsOnly": 0,
-      "censusBytes": 4304968
-    },
-    {
-      "tenant": "ace-iowa",
-      "makes": 42,
-      "models": 376,
-      "fullRequests": 465,
-      "unchangedNoSweep": 89,
-      "weeklyRequests": [142, 142, 143, 143, 143, 143, 143],
-      "dailyAverage": 142.7,
-      "beforeMinutes": 63.5,
-      "afterMinutes": 19.5,
-      "modelStocks": 1586,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 60,
-      "arrivalsOnly": 0,
-      "censusBytes": 668294
-    },
-    {
-      "tenant": "lentini",
-      "makes": 39,
-      "models": 336,
-      "fullRequests": 3969,
-      "unchangedNoSweep": 83,
-      "weeklyRequests": [679, 686, 696, 568, 545, 628, 731],
-      "dailyAverage": 647.6,
-      "beforeMinutes": 542.4,
-      "afterMinutes": 88.5,
-      "modelStocks": 3548,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 60,
-      "arrivalsOnly": 0,
-      "censusBytes": 1742791
-    },
-    {
       "tenant": "dings",
       "makes": 36,
       "models": 246,
       "fullRequests": 323,
       "unchangedNoSweep": 77,
-      "weeklyRequests": [112, 112, 113, 112, 112, 112, 112],
-      "dailyAverage": 112.1,
+      "weeklyRequests": [112, 112, 113, 112, 112, 147, 147],
+      "dailyAverage": 122.1,
       "beforeMinutes": 44.1,
-      "afterMinutes": 15.3,
+      "afterMinutes": 16.7,
       "modelStocks": 1090,
       "arrivalStocks": 60,
       "purchaseDatedArrivals": 60,
@@ -161,10 +215,10 @@
       "models": 322,
       "fullRequests": 396,
       "unchangedNoSweep": 74,
-      "weeklyRequests": [120, 120, 120, 120, 120, 120, 120],
-      "dailyAverage": 120,
+      "weeklyRequests": [120, 120, 120, 120, 120, 166, 166],
+      "dailyAverage": 133.1,
       "beforeMinutes": 62.7,
-      "afterMinutes": 19,
+      "afterMinutes": 21.1,
       "modelStocks": 3385,
       "arrivalStocks": 0,
       "purchaseDatedArrivals": 0,
@@ -178,169 +232,15 @@
       "censusBytes": 1198234
     },
     {
-      "tenant": "ace-st-paul",
-      "makes": 38,
-      "models": 342,
-      "fullRequests": 423,
-      "unchangedNoSweep": 81,
-      "weeklyRequests": [130, 129, 130, 130, 130, 130, 130],
-      "dailyAverage": 129.9,
-      "beforeMinutes": 67,
-      "afterMinutes": 20.6,
-      "modelStocks": 3160,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 60,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 59,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 58,
-      "arrivalsOnly": 2,
-      "censusBytes": 1129414
-    },
-    {
-      "tenant": "chucks",
-      "makes": 41,
-      "models": 415,
-      "fullRequests": 502,
-      "unchangedNoSweep": 87,
-      "weeklyRequests": [146, 146, 147, 147, 146, 146, 146],
-      "dailyAverage": 146.3,
-      "beforeMinutes": 79.5,
-      "afterMinutes": 23.2,
-      "modelStocks": 2841,
-      "arrivalStocks": 43,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 43,
-      "comparableDatePairs": 42,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 43,
-      "arrivalsOnly": 0,
-      "censusBytes": 1117468
-    },
-    {
-      "tenant": "central-nh",
-      "makes": 43,
-      "models": 380,
-      "fullRequests": 471,
-      "unchangedNoSweep": 91,
-      "weeklyRequests": [145, 145, 146, 146, 145, 145, 145],
-      "dailyAverage": 145.3,
-      "beforeMinutes": 64.4,
-      "afterMinutes": 19.9,
-      "modelStocks": 2578,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 59,
-      "arrivalsOnly": 1,
-      "censusBytes": 946962
-    },
-    {
-      "tenant": "higgins",
-      "makes": 36,
-      "models": 240,
-      "fullRequests": 317,
-      "unchangedNoSweep": 77,
-      "weeklyRequests": [111, 111, 112, 112, 111, 111, 111],
-      "dailyAverage": 111.3,
-      "beforeMinutes": 50.2,
-      "afterMinutes": 17.6,
-      "modelStocks": 1481,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 52,
-      "arrivalsOnly": 8,
-      "censusBytes": 552842
-    },
-    {
-      "tenant": "premier",
-      "makes": 35,
-      "models": 264,
-      "fullRequests": 339,
-      "unchangedNoSweep": 75,
-      "weeklyRequests": [112, 112, 113, 113, 113, 113, 113],
-      "dailyAverage": 112.7,
-      "beforeMinutes": 53.7,
-      "afterMinutes": 17.8,
-      "modelStocks": 2621,
-      "arrivalStocks": 60,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 60,
-      "comparableDatePairs": 59,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 48,
-      "arrivalsOnly": 12,
-      "censusBytes": 972994
-    },
-    {
-      "tenant": "junior-sinn",
-      "makes": 40,
-      "models": 355,
-      "fullRequests": 440,
-      "unchangedNoSweep": 85,
-      "weeklyRequests": [135, 135, 136, 136, 136, 136, 136],
-      "dailyAverage": 135.7,
-      "beforeMinutes": 69.7,
-      "afterMinutes": 21.5,
-      "modelStocks": 3360,
-      "arrivalStocks": 26,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 26,
-      "comparableDatePairs": 25,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 26,
-      "arrivalsOnly": 0,
-      "censusBytes": 1279349
-    },
-    {
-      "tenant": "revolution",
-      "makes": 43,
-      "models": 389,
-      "fullRequests": 479,
-      "unchangedNoSweep": 90,
-      "weeklyRequests": [145, 145, 146, 146, 146, 146, 145],
-      "dailyAverage": 145.6,
-      "beforeMinutes": 75.8,
-      "afterMinutes": 23,
-      "modelStocks": 5203,
-      "arrivalStocks": 0,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 0,
-      "comparableDatePairs": 0,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 0,
-      "arrivalsOnly": 0,
-      "censusBytes": 1860340
-    },
-    {
       "tenant": "az",
       "makes": 27,
       "models": 183,
       "fullRequests": 242,
       "unchangedNoSweep": 59,
-      "weeklyRequests": [85, 85, 86, 85, 85, 85, 85],
-      "dailyAverage": 85.1,
+      "weeklyRequests": [85, 85, 86, 85, 85, 111, 111],
+      "dailyAverage": 92.6,
       "beforeMinutes": 38.3,
-      "afterMinutes": 13.5,
+      "afterMinutes": 14.7,
       "modelStocks": 1752,
       "arrivalStocks": 60,
       "purchaseDatedArrivals": 0,
@@ -354,59 +254,15 @@
       "censusBytes": 630857
     },
     {
-      "tenant": "lambert",
-      "makes": 47,
-      "models": 512,
-      "fullRequests": 611,
-      "unchangedNoSweep": 99,
-      "weeklyRequests": [172, 172, 173, 172, 172, 172, 172],
-      "dailyAverage": 172.1,
-      "beforeMinutes": 96.7,
-      "afterMinutes": 27.3,
-      "modelStocks": 9184,
-      "arrivalStocks": 12,
-      "purchaseDatedArrivals": 0,
-      "datedArrivals": 12,
-      "comparableDatePairs": 11,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 0,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 12,
-      "arrivalsOnly": 0,
-      "censusBytes": 3215328
-    },
-    {
-      "tenant": "norbs",
-      "makes": 51,
-      "models": 667,
-      "fullRequests": 774,
-      "unchangedNoSweep": 107,
-      "weeklyRequests": [202, 202, 203, 203, 202, 202, 202],
-      "dailyAverage": 202.3,
-      "beforeMinutes": 122.5,
-      "afterMinutes": 32,
-      "modelStocks": 9349,
-      "arrivalStocks": 46,
-      "purchaseDatedArrivals": 46,
-      "datedArrivals": 46,
-      "comparableDatePairs": 45,
-      "outOfOrderDatePairs": 0,
-      "comparablePurchasePairs": 45,
-      "outOfOrderPurchasePairs": 0,
-      "arrivalModelOverlap": 46,
-      "arrivalsOnly": 0,
-      "censusBytes": 3178244
-    },
-    {
       "tenant": "mars",
       "makes": 7,
       "models": 41,
       "fullRequests": 60,
       "unchangedNoSweep": 19,
-      "weeklyRequests": [25, 24, 25, 25, 25, 25, 25],
-      "dailyAverage": 24.9,
+      "weeklyRequests": [25, 24, 25, 25, 25, 31, 31],
+      "dailyAverage": 26.6,
       "beforeMinutes": 9.5,
-      "afterMinutes": 3.9,
+      "afterMinutes": 4.2,
       "modelStocks": 378,
       "arrivalStocks": 28,
       "purchaseDatedArrivals": 28,
@@ -421,10 +277,10 @@
     }
   ],
   "totals": {
-    "beforeRequests": 11808,
-    "afterRequests": 3022.3,
-    "beforeMinutes": 1723.6,
-    "afterMinutes": 446.2,
-    "censusBytes": 26604212
+    "beforeRequests": 1534,
+    "afterRequests": 539.7,
+    "beforeMinutes": 224.7,
+    "afterMinutes": 79.3,
+    "censusBytes": 3644716
   }
 }
