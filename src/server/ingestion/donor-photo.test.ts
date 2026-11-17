@@ -31,6 +31,7 @@ test("preserves original JPEG bytes and serves them independently of their sourc
 test("invalid hashes never reach the store and absent photos return 404", async () => {
   let reads = 0;
   const store: DonorPhotoStore = {
+    ...DonorPhotoStore.memory(),
     save: async () => {
       throw new Error("not used");
     },
@@ -48,6 +49,7 @@ test("invalid hashes never reach the store and absent photos return 404", async 
 
 test("unavailable storage never redirects to the provider or returns an image-shaped success", async () => {
   const response = await donorPhotoResponse("a".repeat(64), {
+    ...DonorPhotoStore.memory(),
     save: async () => {
       throw new Error("not used");
     },

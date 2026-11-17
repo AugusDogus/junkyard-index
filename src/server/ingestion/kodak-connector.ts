@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { fetchKodakPage, KodakProviderError } from "./kodak-client";
@@ -31,7 +32,7 @@ export interface KodakStreamResult {
   accounting: ConnectorChunkAccounting;
 }
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new KodakProviderError({ operation, cause }),
   });

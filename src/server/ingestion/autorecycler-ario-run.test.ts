@@ -121,6 +121,8 @@ async function replay(failAt?: number) {
         throw new Error(message);
       },
       runChunk: async (_runId, cursor) => {
+        if ("snapshotCursor" in cursor)
+          throw new Error("Unexpected compact cursor in direct replay");
         chunks++;
         if (cursor.phase === "ario-read") {
           const chunk = await Effect.runPromise(
@@ -216,6 +218,8 @@ test("persistent 429 pauses fail the source after 24 checkpoints and preserve pu
         waits++;
       },
       runChunk: async (_runId, cursor) => {
+        if ("snapshotCursor" in cursor)
+          throw new Error("Unexpected compact cursor in direct replay");
         if (cursor.phase !== "ario-read") throw new Error("Unexpected cursor");
         const chunk = await Effect.runPromise(
           readArioRun(

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { fetchMccauleyPage, MccauleyProviderError } from "./mccauley-client";
@@ -31,7 +32,7 @@ export type MccauleyStreamResult = ConnectorChunkResult<
   MccauleyCursor
 >;
 const parse = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new MccauleyProviderError({ operation, cause }),
   });

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import {
@@ -26,7 +27,7 @@ interface BigdOptions<E, R> {
 }
 export type BigdStreamResult = ConnectorChunkResult<"bigd", BigdCursor>;
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new BigdProviderError({ operation, cause }),
   });

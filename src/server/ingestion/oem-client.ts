@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -109,5 +110,12 @@ export function readOemPage(
         }),
       );
     }),
+  ).pipe(
+    sharedProviderHostSlot(url),
+    Effect.mapError((cause) =>
+      cause instanceof Error
+        ? new OemProviderError({ operation: "shared host " + url, cause })
+        : cause,
+    ),
   );
 }

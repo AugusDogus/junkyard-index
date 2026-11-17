@@ -113,6 +113,7 @@ test("fails expired references without synthesizing or fetching replacement URLs
       preserveChesterfieldPhoto(
         reference(),
         {
+          ...DonorPhotoStore.memory(),
           async save() {
             writes++;
             return "a".repeat(64);
@@ -144,4 +145,27 @@ test("bounds redirect loops", async () => {
     ),
   ).rejects.toThrow("four");
   expect(requests).toBe(4);
+});
+
+test("reuses an unchanged published photo across fresh runs and fetches a changed URL", async () => {
+  let requests = 0;
+  respond(async () => {
+    requests++;
+    return new Response(new Uint8Array(jpeg), {
+      headers: { "content-type": "image/jpeg" },
+    });
+  });
+  const store = DonorPhotoStore.memory();
+  const first = await Effect.runPromise(
+    preserveChesterfieldPhoto(reference(), store, gate),
+  );
+  const second = await Effect.runPromise(
+    preserveChesterfieldPhoto(reference(), store, gate),
+  );
+  expect(second).toBe(first);
+  expect(requests).toBe(1);
+  await Effect.runPromise(
+    preserveChesterfieldPhoto(reference("2026-11-18T07:00:00Z"), store, gate),
+  );
+  expect(requests).toBe(2);
 });

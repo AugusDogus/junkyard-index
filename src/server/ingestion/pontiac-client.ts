@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { z } from "zod";
 import {
@@ -110,7 +111,7 @@ function json<T>(
 ) {
   return Effect.gen(function* () {
     const text = yield* request(path, gate, "json");
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => schema.parse(JSON.parse(text ?? "")),
       catch: (cause) => new PontiacProviderError({ operation: path, cause }),
     });
@@ -134,7 +135,7 @@ function distinct<T>(
 export function fetchPontiacYard(gate: ProviderRequestGate) {
   return request("/used-car-parts-pontiac", gate, "html").pipe(
     Effect.flatMap((html) =>
-      Effect.try({
+      ingestionValidation({
         try: () => parsePontiacContact(html ?? ""),
         catch: (cause) =>
           new PontiacProviderError({
@@ -201,7 +202,7 @@ export function fetchPontiacDetail(id: number, gate: ProviderRequestGate) {
     Effect.flatMap((text) =>
       text === null
         ? Effect.succeed(null)
-        : Effect.try({
+        : ingestionValidation({
             try: () => PontiacDetailSchema.parse(JSON.parse(text)),
             catch: (cause) =>
               new PontiacProviderError({ operation: path, cause }),

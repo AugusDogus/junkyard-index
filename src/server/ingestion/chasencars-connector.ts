@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import {
   readChasencarsPage,
@@ -41,7 +42,7 @@ export interface ChasencarsStreamResult {
   accounting: ConnectorChunkAccounting;
 }
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new ChasencarsProviderError(operation, cause),
   });

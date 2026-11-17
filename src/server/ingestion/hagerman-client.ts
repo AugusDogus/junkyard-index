@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -21,7 +22,7 @@ export class HagermanProviderError extends Data.TaggedError(
   }
 }
 export const hagermanValidated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new HagermanProviderError({ operation, cause }),
   });

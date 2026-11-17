@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect, Schedule } from "effect";
 import { z } from "zod";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -26,7 +27,7 @@ export const hollanderstoresRequestGate: ProviderRequestGate = (request) =>
     request.pipe(Effect.ensuring(Effect.sleep("3 seconds"))),
   );
 export function hollanderstoresAttempt<A>(operation: string, run: () => A) {
-  return Effect.try({
+  return ingestionValidation({
     try: run,
     catch: (cause) => new HollanderstoresProviderError({ operation, cause }),
   });

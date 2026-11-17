@@ -1,3 +1,4 @@
+import { canMatchSettledIngestionAlerts } from "./settled-ingestion-alerts";
 import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 import { env } from "~/env";
 import { getAlertMatchStats } from "~/server/alerts/algolia-alert-search";
@@ -288,8 +289,12 @@ export async function runDurableAlertMatchingBatch(
     );
   }
   const publicationSequence = disposition.publicationSequence;
-  const searches =
-    run.alertMatchCursor === null
+  const matchSettled =
+    run.alertMatchCursor !== null ||
+    (await canMatchSettledIngestionAlerts(db, runId));
+  const searches = !matchSettled
+    ? []
+    : run.alertMatchCursor === null
       ? await db
           .select()
           .from(savedSearch)
@@ -337,7 +342,7 @@ export async function runDurableAlertMatchingBatch(
             stage: "released",
             activeSlot: null,
             alertMatchCursor: searches.at(-1)?.id ?? run.alertMatchCursor,
-            alertMatchingCompletedAt: now,
+            alertMatchingCompletedAt: matchSettled ? now : null,
             releasedAt: now,
             completedAt: now,
             lastProgressAt: now,

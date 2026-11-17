@@ -1,3 +1,5 @@
+import { ingestionValidation } from "./ingestion-validation";
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { createHash } from "node:crypto";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -40,7 +42,7 @@ export class UwrenchProviderError extends Data.TaggedError(
   }
 }
 export const validateUwrench = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new UwrenchProviderError({ operation, cause }),
   });
@@ -99,6 +101,7 @@ function read(
       catch: (cause) => cause,
     });
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new UwrenchProviderError({ operation: url, cause }),
     ),

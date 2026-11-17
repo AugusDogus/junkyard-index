@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { fetchSix03Page, Six03ProviderError } from "./six03-client";
@@ -45,7 +46,7 @@ export interface Six03StreamResult {
   warnings: string[];
 }
 const parse = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new Six03ProviderError({ operation, cause }),
   });

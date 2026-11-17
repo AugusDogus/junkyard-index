@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { millerstownPdfUrl } from "./millerstown-parser";
 import {
@@ -128,7 +129,7 @@ export function fetchMillerstownHtml(
     gate,
   ).pipe(
     Effect.flatMap((bytes) =>
-      Effect.try({
+      ingestionValidation({
         try: () => new TextDecoder("utf-8", { fatal: true }).decode(bytes),
         catch: (cause) =>
           new MillerstownProviderError({

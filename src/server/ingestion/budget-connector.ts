@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { Effect } from "effect";
 import { BudgetCursor } from "./budget-cursor";
@@ -14,7 +15,7 @@ import {
   type BudgetCanonicalVehicle,
 } from "./budget-transform";
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new BudgetProviderError(operation, cause),
   });

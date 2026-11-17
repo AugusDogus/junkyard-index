@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import {
   parseDdautoPublishedApp,
@@ -83,7 +84,7 @@ function read(
   );
 }
 function parse<A>(operation: string, run: () => A) {
-  return Effect.try({
+  return ingestionValidation({
     try: run,
     catch: (cause) => new DdautoProviderError({ operation, cause }),
   });

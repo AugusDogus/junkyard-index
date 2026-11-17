@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -62,6 +63,7 @@ function page(url: string, gate: ProviderRequestGate) {
       catch: (cause) => cause,
     });
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new MidwayProviderError({ operation: url, cause }),
     ),

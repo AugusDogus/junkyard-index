@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -123,5 +124,12 @@ export function readJimsimportPage(
         }),
       );
     }),
+  ).pipe(
+    sharedProviderHostSlot(url),
+    Effect.mapError((cause) =>
+      cause instanceof Error
+        ? new JimsimportProviderError("shared host " + url, cause)
+        : cause,
+    ),
   );
 }

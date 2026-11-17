@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { ConnectorChunkResult } from "./connector-chunk";
@@ -155,7 +156,7 @@ export function streamFenixInventoryWithRequestGate<E, R>(
           cursor = { ...cursor, checks, controlIndex: cursor.controlIndex + 1 };
         else {
           const completed = cursor;
-          yield* Effect.try({
+          yield* ingestionValidation({
             try: () =>
               validateFenixYardEvidence(
                 completed.entries,

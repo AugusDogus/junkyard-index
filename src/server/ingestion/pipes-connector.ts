@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import {
   fetchPipesControl,
@@ -33,7 +34,7 @@ interface PipesOptions<E, R> {
 }
 export type PipesStreamResult = ConnectorChunkResult<"pipes", PipesCursor>;
 const validated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new PipesProviderError({ operation, cause }),
   });

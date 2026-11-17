@@ -71,6 +71,7 @@ export interface FetchedDurableSourceChunk<
   yards: Yard[];
   observedVins?: string[];
   checkpointState?: unknown;
+  failureKind?: "validation";
 }
 
 export type DurableReconciliationBatchResult =

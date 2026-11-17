@@ -133,6 +133,7 @@ export async function validateDurableSourceRuns(params: {
           params.database,
           snapshot.vehicles.values(),
           cursor.freshness.eligibleYards,
+          cursor.freshness.preservedYards,
         );
         yardErrorsBySource.set(row.source, validation.errors);
         autorecyclerBaselines.set(row.source, validation.previousEligibleCount);
@@ -208,6 +209,7 @@ export async function validateDurableSourceRuns(params: {
     duplicateVehicles: number;
     status: "accepted" | "rejected";
     errors: string[];
+    deterministic: boolean;
   }> = [];
   for (const row of sourceRows) {
     if (!isIngestionSource(row.source)) continue;
@@ -256,6 +258,7 @@ export async function validateDurableSourceRuns(params: {
       duplicateVehicles,
       status: validation.status,
       errors: validation.errors,
+      deterministic: row.status === "success" || row.validationErrors !== null,
     });
   }
 
@@ -302,7 +305,9 @@ export async function validateDurableSourceRuns(params: {
       validation.uniqueVehicles,
       validation.duplicateVehicles,
       validation.status,
-      validation.errors.length > 0 ? JSON.stringify(validation.errors) : null,
+      validation.deterministic && validation.errors.length > 0
+        ? JSON.stringify(validation.errors)
+        : null,
       params.runId,
       validation.source,
       params.runId,

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import { OemProviderError, readOemPage } from "./oem-client";
 import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
@@ -38,7 +39,7 @@ export interface OemOptions<E, R> {
   onBatch: (vehicles: OemCanonicalVehicle[]) => Effect.Effect<void, E, R>;
 }
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new OemProviderError({ operation, cause }),
   });

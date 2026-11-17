@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { createHash } from "node:crypto";
 import { Data, Effect } from "effect";
 import { hasHttpPaginationLink } from "./provider-http-pagination";
@@ -324,7 +325,7 @@ export function fetchUpullitwaPage(
   nextUrl?: string,
 ) {
   const operation = `yard ${yardId} page ${page}`;
-  return Effect.try({
+  return ingestionValidation({
     try: () => {
       if (yardId !== "ANY" && !UpullitwaYardIdSchema.safeParse(yardId).success)
         throw new Error("Invalid yard ID");
@@ -362,7 +363,7 @@ export function fetchUpullitwaPage(
         },
       }).pipe(
         Effect.flatMap((html) =>
-          Effect.try({
+          ingestionValidation({
             try: () => parseUpullitwaPage(html, yardId, page),
             catch: (cause) => cause,
           }),

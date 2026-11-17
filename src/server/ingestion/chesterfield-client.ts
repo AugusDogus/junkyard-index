@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -116,7 +117,7 @@ export const ChesterfieldSession = {
       const initialHtml = yield* request(
         "/search-our-inventory-by-location?SelectedMake.Id=298",
       );
-      const initial = yield* Effect.try({
+      const initial = yield* ingestionValidation({
         try: () => parseChesterfieldForm(initialHtml),
         catch: (cause) =>
           new ChesterfieldProviderError({ operation: "bootstrap form", cause }),
@@ -157,7 +158,7 @@ export const ChesterfieldSession = {
             const html = yield* request(
               "/search-our-inventory-by-location?SelectedMake.Id=" + makeId,
             );
-            return yield* Effect.try({
+            return yield* ingestionValidation({
               try: () => {
                 const form = parse(html);
                 if (form.selectedMake !== makeId)
@@ -198,7 +199,7 @@ export const ChesterfieldSession = {
                 query.makeId,
               body,
             );
-            return yield* Effect.try({
+            return yield* ingestionValidation({
               try: () => {
                 parse(html, query);
                 return parseChesterfieldInventory(html);
@@ -214,7 +215,7 @@ export const ChesterfieldSession = {
         newest() {
           return request("/newest-cars").pipe(
             Effect.flatMap((html) =>
-              Effect.try({
+              ingestionValidation({
                 try: () => parseChesterfieldInventory(html, 3),
                 catch: (cause) =>
                   new ChesterfieldProviderError({

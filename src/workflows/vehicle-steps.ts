@@ -1,3 +1,4 @@
+import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-cursor";
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
@@ -8,6 +9,8 @@ import { runDurableAlertMatchingBatch } from "~/server/alerts/durable-search-ale
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
 import {
   cleanupDurableIngestionStateBatch,
+  compactDurableWorkflowCursor,
+  resolveDurableWorkflowCursor,
   cleanupStaleDurableIngestionSnapshots,
   attachDurableIngestionWorkflow,
   claimDurableIngestionCommit,
@@ -23,7 +26,6 @@ import {
 } from "~/server/ingestion/durable-ingestion";
 import {
   durableSourceChunkProgressError,
-  type DurableCursorFor,
   type DurableIngestionSource,
 } from "~/server/ingestion/durable-source";
 import {
@@ -65,7 +67,16 @@ export async function initializeDurableIngestionStep(runId: string) {
 
   console.info("[Workflow] Initializing vehicle ingestion", { runId });
   try {
-    return await initializeDurableIngestion(runId);
+    const result = await initializeDurableIngestion(runId);
+    if (result.status !== "started") return result;
+    return {
+      ...result,
+      initialCursors: await Promise.all(
+        result.initialCursors.map((cursor) =>
+          compactDurableWorkflowCursor(runId, cursor),
+        ),
+      ),
+    };
   } catch (error) {
     throwRetryableStepError("Vehicle ingestion initialization", error);
   }
@@ -176,32 +187,47 @@ validateDurableIngestionSourcesStep.maxRetries = 2;
 
 export async function runDurableSourceChunkStep<
   Source extends DurableIngestionSource,
->(runId: string, cursor: DurableCursorFor<Source>) {
+>(runId: string, cursor: DurableWorkflowCursor<Source>) {
   "use step";
 
-  console.info("[Workflow] Starting source chunk", { runId, cursor });
-  const result = await runDurableSourceChunk({ runId, cursor }).catch(
-    (error: unknown) => {
-      try {
-        Sentry.logger.warn("Vehicle ingestion source attempt failed", {
-          runId,
-          source: cursor.source,
-          attempt: getStepMetadata().attempt,
-          error: formatError(error).slice(0, 500),
-        });
-      } catch (reportError) {
-        console.error("Failed to report vehicle source retry", reportError);
-      }
-      return throwRetryableStepError(
-        `Vehicle source chunk ${cursor.source}/${JSON.stringify(cursor)}`,
-        error,
-      );
-    },
+  console.info("[Workflow] Starting source chunk", {
+    runId,
+    source: cursor.source,
+  });
+  const requestedCursor = await resolveDurableWorkflowCursor(runId, cursor);
+  const result = await runDurableSourceChunk({
+    runId,
+    cursor: requestedCursor,
+  }).catch((error: unknown) => {
+    try {
+      Sentry.logger.warn("Vehicle ingestion source attempt failed", {
+        runId,
+        source: cursor.source,
+        attempt: getStepMetadata().attempt,
+        error: formatError(error).slice(0, 500),
+      });
+    } catch (reportError) {
+      console.error("Failed to report vehicle source retry", reportError);
+    }
+    return throwRetryableStepError(
+      `Vehicle source chunk ${cursor.source}/${JSON.stringify(cursor)}`,
+      error,
+    );
+  });
+  console.info("[Workflow] Completed source chunk", {
+    source: result.cursor.source,
+    status: result.status,
+    count: result.count,
+  });
+  const progressError = durableSourceChunkProgressError(
+    requestedCursor,
+    result,
   );
-  console.info("[Workflow] Completed source chunk", result);
-  const progressError = durableSourceChunkProgressError(cursor, result);
   if (progressError) throw new FatalError(progressError);
-  return result;
+  return {
+    ...result,
+    cursor: await compactDurableWorkflowCursor(runId, result.cursor),
+  };
 }
 runDurableSourceChunkStep.maxRetries = 2;
 
@@ -211,7 +237,11 @@ export async function markDurableSourceFailedStep<
   "use step";
 
   try {
-    return await markDurableSourceFailed({ runId, source, message });
+    const result = await markDurableSourceFailed({ runId, source, message });
+    return {
+      ...result,
+      cursor: await compactDurableWorkflowCursor(runId, result.cursor),
+    };
   } catch (error) {
     throwRetryableStepError(`Mark vehicle source ${source} failed`, error);
   }

@@ -1,3 +1,5 @@
+import { loadIngestionSourceDays } from "./ingestion-source-days";
+import { createDurableWorkflowCursorStore } from "./durable-workflow-cursor-store";
 import { urgiisPublishedStatePath } from "./urgiis-history";
 import { IngestionDay } from "./ingestion-day";
 import type { Client, InStatement } from "@libsql/client";
@@ -139,6 +141,10 @@ export function createDurableIngestionRepository(
   batchClient: LibSqlBatchClient,
   snapshotStore: IngestionSnapshotStore,
 ) {
+  const workflowCursors = createDurableWorkflowCursorStore(
+    database,
+    snapshotStore,
+  );
   /** Deletes released runs' staged chunks and returns how many it deleted. */
   async function deleteRunSnapshots(
     rows: readonly { id: string; snapshotChunks: string }[],
@@ -213,6 +219,9 @@ export function createDurableIngestionRepository(
   }
 
   return {
+    workflowCursor: workflowCursors.compact,
+    resolveWorkflowCursor: workflowCursors.resolve,
+
     async prepareWakeup(
       now = new Date(),
       sources: readonly DurableIngestionSource[] = DURABLE_INGESTION_SOURCES,
@@ -241,27 +250,41 @@ export function createDurableIngestionRepository(
         return { status: "active", runs };
       }
 
-      const days = await database
+      const sourceDays = await loadIngestionSourceDays(database, scheduleKey);
+      // A failed run can cross the day boundary. Its cooldown follows release,
+      // even when today's attempt count is still zero.
+      const recentFailures = await database
         .select({
           source: ingestionSourceRun.source,
-          published: sql<number>`max(
-            ${ingestionSourceRun.acceptanceStatus} = 'accepted'
-            and ${ingestionRun.searchPublishedAt} is not null
-          )`,
-          attempts: sql<number>`count(*)`,
-          lastStartedAt: sql<
-            number | null
-          >`max(${ingestionSourceRun.startedAt})`,
+          completedAt: sql<number>`max(${ingestionRun.completedAt})`,
         })
         .from(ingestionSourceRun)
         .innerJoin(ingestionRun, eq(ingestionRun.id, ingestionSourceRun.runId))
-        .where(eq(ingestionRun.scheduleKey, scheduleKey))
+        .where(
+          and(
+            sql`${ingestionRun.completedAt} > ${now.getTime() - IngestionSchedule.retryDelayMs}`,
+            sql`(${ingestionSourceRun.acceptanceStatus} != 'accepted' or ${ingestionRun.searchPublishedAt} is null)`,
+          ),
+        )
         .groupBy(ingestionSourceRun.source);
       const activeSources = new Set(activeRuns.map((run) => run.source));
-      const sourceDays = days.map((day) => ({
-        ...day,
-        published: day.published === 1,
-      }));
+      for (const failure of recentFailures) {
+        const day = sourceDays.find((day) => day.source === failure.source);
+        if (day)
+          day.lastCompletedAt = Math.max(
+            day.lastCompletedAt ?? 0,
+            failure.completedAt,
+          );
+        else
+          sourceDays.push({
+            source: failure.source,
+            published: false,
+            validationRejected: false,
+            attempts: 0,
+            lastStartedAt: null,
+            lastCompletedAt: failure.completedAt,
+          });
+      }
       const due = IngestionSchedule.dueSources({
         days: sourceDays,
         enabledSources: sources,
@@ -319,10 +342,11 @@ export function createDurableIngestionRepository(
      * time, even across workflow failures, so reconciliation, Algolia
      * publication, and alert matching never interleave between runs.
      *
-     * Active runs claim in source-priority order: a VIN two sources list
-     * settles on its higher-priority owner before alerts first see it, so a
-     * search filtered to that owner is not skipped. The claim time, which
-     * stamps the run's newly seen vehicles, follows every earlier alert check.
+     * Ready runs claim in source-priority order; fetching runs do not hold up
+     * publication. Reconciliation preserves native ownership regardless of
+     * arrival order. Alerts wait for the settled daily pass, so a marketplace
+     * copy cannot produce an alert before a native source takes it over.
+     * The claim time follows every earlier alert check.
      * A full rebuild left by a finished (abandoned) run is taken on here, since
      * runs created before it was abandoned did not inherit it.
      */
@@ -362,6 +386,7 @@ export function createDurableIngestionRepository(
                   not exists (
                     select 1 from ingestion_run other
                     where other.id <> ? and other.active_slot = 1
+                      and other.stage <> 'sources'
                       and (${reconciliationSourcePrioritySql("other")}) < ?
                   )
                   -- Algolia compares whole seconds, so stamp a full second
@@ -668,6 +693,7 @@ export function createDurableIngestionRepository(
               duplicate_vehicles = ?,
               rejected_vehicles = ?,
               errors = ?,
+              validation_errors = ?,
               snapshot_chunks = case
                 when ? is null then snapshot_chunks
                 else json_insert(snapshot_chunks, '$[#]', ?)
@@ -692,6 +718,9 @@ export function createDurableIngestionRepository(
           duplicateVehicles,
           rejectedVehicles,
           errors.length > 0 ? JSON.stringify(errors) : null,
+          params.fetched.failureKind === "validation"
+            ? JSON.stringify(errors)
+            : null,
           snapshotPathname,
           snapshotPathname,
           terminal ? Date.now() : null,
@@ -762,6 +791,7 @@ export function createDurableIngestionRepository(
       runId: string;
       source: Source;
       message: string;
+      validationRejected?: boolean;
     }): Promise<DurableSourceChunkResult<Source>> {
       const id = sourceRunId(params.runId, params.source);
       const [current] = await database
@@ -785,6 +815,9 @@ export function createDurableIngestionRepository(
         .set({
           status,
           errors: JSON.stringify(errors),
+          validationErrors: params.validationRejected
+            ? JSON.stringify(errors)
+            : null,
           completedAt: new Date(),
         })
         .where(

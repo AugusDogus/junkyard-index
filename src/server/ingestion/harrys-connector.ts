@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { Effect } from "effect";
 import { HarrysCursor } from "./harrys-cursor";
@@ -16,7 +17,7 @@ import {
   type HarrysCanonicalVehicle,
 } from "./harrys-transform";
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new HarrysProviderError(operation, cause),
   });

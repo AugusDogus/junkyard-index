@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import {
   fetchMidwayCatalog,
@@ -62,7 +63,7 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
     };
     if (cursor.phase !== "complete") {
       const home = yield* fetchMidwayHome(gate);
-      yield* Effect.try({
+      yield* ingestionValidation({
         try: () => parseMidwayYards(home),
         catch: (cause) =>
           new MidwayProviderError({ operation: "native yard identity", cause }),
@@ -79,7 +80,7 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
           : null;
       if (code === "OO95") {
         const closing = yield* fetchMidwayCatalog(code, gate);
-        yield* Effect.try({
+        yield* ingestionValidation({
           try: () => {
             if (
               JSON.stringify(
@@ -98,7 +99,7 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
             }),
         });
       }
-      const snapshot = yield* Effect.try({
+      const snapshot = yield* ingestionValidation({
         try: () => {
           const records = partitioned ?? parseMidwayCatalog(html, code);
           const vins = new Set(previousVins);

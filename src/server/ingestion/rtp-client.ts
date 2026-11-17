@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { z } from "zod";
 import { Yard } from "~/lib/yard";
@@ -127,7 +128,7 @@ export function fetchRtpContext(
   return Effect.gen(function* () {
     const expected = RTP_YARDS[yardCode];
     const html = yield* request(`${expected.home}inventory/`, operation, gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => {
         if (
           html.length > 3_000_000 ||
@@ -261,7 +262,7 @@ export function fetchRtpPage(
       gate,
       body.toString(),
     );
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => {
         if (raw.length > 2_000_000)
           throw new Error("Inventory page exceeds the 2 MB character bound");

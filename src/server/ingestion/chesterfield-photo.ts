@@ -72,6 +72,12 @@ export function preserveChesterfieldPhoto(
           "Chesterfield donor photo has no verified native blob identity",
         ),
       );
+    const cached = yield* Effect.tryPromise({
+      try: () => store.findByUrl(raw),
+      catch: (cause) =>
+        cause instanceof Error ? cause : new Error(String(cause)),
+    });
+    if (cached !== null) return cached;
     let current = new URL(raw);
     for (let hop = 0; hop < 4; hop++) {
       if (!allowedHop(current))
@@ -123,6 +129,11 @@ export function preserveChesterfieldPhoto(
               "Chesterfield preserved photo differs from the source bytes",
             ),
           );
+        yield* Effect.tryPromise({
+          try: () => store.rememberUrl(raw, hash),
+          catch: (cause) =>
+            cause instanceof Error ? cause : new Error(String(cause)),
+        });
         return hash;
       }
     }

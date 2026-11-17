@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { fetchMeeksPage, MeeksProviderError } from "./meeks-client";
@@ -55,7 +56,7 @@ export function streamMeeksInventoryWithRequestGate<E, R>(
     if (parsed.data.phase === "complete") return empty;
 
     const ownerHtml = yield* fetchMeeksPage("/", gate);
-    yield* Effect.try({
+    yield* ingestionValidation({
       try: () => parseMeeksOwner(ownerHtml),
       catch: (cause) =>
         new MeeksProviderError({
@@ -65,7 +66,7 @@ export function streamMeeksInventoryWithRequestGate<E, R>(
     });
     const primaryHtml = yield* fetchMeeksPage("/pic-and-pull/", gate);
     const controlHtml = yield* fetchMeeksPage("/pic-and-pull-inventory/", gate);
-    const opening = yield* Effect.try({
+    const opening = yield* ingestionValidation({
       try: () => {
         const primary = parseMeeksInventory(primaryHtml, "full");
         const consistency = parseMeeksInventory(controlHtml, "yard");
@@ -89,7 +90,7 @@ export function streamMeeksInventoryWithRequestGate<E, R>(
         }),
     });
     const closingPrimaryHtml = yield* fetchMeeksPage("/pic-and-pull/", gate);
-    yield* Effect.try({
+    yield* ingestionValidation({
       try: () => {
         if (
           parseMeeksInventory(closingPrimaryHtml, "full").hash !==
@@ -106,7 +107,7 @@ export function streamMeeksInventoryWithRequestGate<E, R>(
       "/pic-and-pull-inventory/",
       gate,
     );
-    yield* Effect.try({
+    yield* ingestionValidation({
       try: () => {
         if (
           parseMeeksInventory(closingControlHtml, "yard").hash !==

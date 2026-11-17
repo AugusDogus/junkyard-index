@@ -1,17 +1,16 @@
 import type {
+  DurableWorkflowCursor,
+  DurableWorkflowChunkResult,
+  DurableWorkflowStart,
+} from "./durable-workflow-cursor";
+import type {
   DurableIngestionResult,
   DurableReconciliationBatchResult,
-  DurableIngestionStart,
-  DurableSourceChunkResult,
 } from "./durable-ingestion-types";
 import type { DurableSourceValidationSummary } from "./durable-source-validation";
 // Type-only: this module runs in the workflow sandbox, which cannot load
 // provider cursor codecs. Steps own cursor construction and comparison.
-import type {
-  DurableCursorFor,
-  DurableIngestionSource,
-  DurableSourceCursor,
-} from "./durable-source";
+import type { DurableIngestionSource } from "./durable-source";
 
 export interface DurableSourceOperations<
   Source extends DurableIngestionSource,
@@ -19,28 +18,28 @@ export interface DurableSourceOperations<
   sleepUntil?: (time: number) => Promise<void>;
   runChunk: (
     runId: string,
-    cursor: DurableCursorFor<Source>,
-  ) => Promise<DurableSourceChunkResult<Source>>;
+    cursor: DurableWorkflowCursor<Source>,
+  ) => Promise<DurableWorkflowChunkResult<Source>>;
   markFailed: (
     runId: string,
     source: Source,
     message: string,
-  ) => Promise<DurableSourceChunkResult<Source>>;
+  ) => Promise<DurableWorkflowChunkResult<Source>>;
 }
 
 export interface DurableIngestionOperations {
   sleepUntil?: (time: number) => Promise<void>;
   runChunk: <Source extends DurableIngestionSource>(
     runId: string,
-    cursor: DurableCursorFor<Source>,
-  ) => Promise<DurableSourceChunkResult<Source>>;
+    cursor: DurableWorkflowCursor<Source>,
+  ) => Promise<DurableWorkflowChunkResult<Source>>;
   markFailed: <Source extends DurableIngestionSource>(
     runId: string,
     source: Source,
     message: string,
-  ) => Promise<DurableSourceChunkResult<Source>>;
+  ) => Promise<DurableWorkflowChunkResult<Source>>;
   cleanupStale: () => Promise<void>;
-  initialize: (runId: string) => Promise<DurableIngestionStart>;
+  initialize: (runId: string) => Promise<DurableWorkflowStart>;
   validateSources: (runId: string) => Promise<DurableSourceValidationSummary>;
   reconcile: (runId: string) => Promise<DurableReconciliationBatchResult>;
   markRunFailed: (runId: string, message: string) => Promise<void>;
@@ -94,9 +93,9 @@ export async function ingestDurableSource<
   Source extends DurableIngestionSource,
 >(params: {
   runId: string;
-  initialCursor: DurableCursorFor<Source>;
+  initialCursor: DurableWorkflowCursor<Source>;
   operations: DurableSourceOperations<NoInfer<Source>>;
-}): Promise<DurableSourceChunkResult<Source>> {
+}): Promise<DurableWorkflowChunkResult<Source>> {
   // Workflow step proxies serialize method receivers, including sibling callbacks.
   const { runChunk, markFailed, sleepUntil } = params.operations;
   let cursor = params.initialCursor;
@@ -177,7 +176,7 @@ export async function stageDurableIngestion(params: {
     await cleanupStale();
     const initialized = await initialize(params.runId);
     if (initialized.status === "deduplicated") return initialized;
-    const ingestSource = (initialCursor: DurableSourceCursor) =>
+    const ingestSource = (initialCursor: DurableWorkflowCursor) =>
       ingestDurableSource({
         runId: params.runId,
         initialCursor,

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -21,7 +22,7 @@ export class SpeedysProviderError extends Data.TaggedError(
   }
 }
 export const speedysValidated = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new SpeedysProviderError({ operation, cause }),
   });

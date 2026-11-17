@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { createHash } from "node:crypto";
 import { Effect, RateLimiter } from "effect";
 import {
@@ -39,7 +40,7 @@ interface MillerstownOptions<E, R> {
 const digest = (bytes: Uint8Array) =>
   createHash("sha256").update(bytes).digest("hex");
 function parse<A>(operation: string, read: () => A) {
-  return Effect.try({
+  return ingestionValidation({
     try: read,
     catch: (cause) => new MillerstownProviderError({ operation, cause }),
   });

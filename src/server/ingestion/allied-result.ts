@@ -1,3 +1,4 @@
+import { validationRejection } from "./ingestion-validation";
 export interface AlliedError {
   tag: "AlliedError";
   operation: string;
@@ -20,9 +21,11 @@ export const AlliedResult = {
     } catch (cause) {
       return {
         ok: false,
-        error: AlliedResult.error(
-          operation,
-          cause instanceof Error ? cause.message : String(cause),
+        error: validationRejection(
+          AlliedResult.error(
+            operation,
+            cause instanceof Error ? cause.message : String(cause),
+          ),
         ),
       };
     }

@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -121,5 +122,12 @@ export function readIndianriverPage(
         }),
       );
     }),
+  ).pipe(
+    sharedProviderHostSlot(url),
+    Effect.mapError((cause) =>
+      cause instanceof Error
+        ? new IndianriverProviderError("shared host " + url, cause)
+        : cause,
+    ),
   );
 }

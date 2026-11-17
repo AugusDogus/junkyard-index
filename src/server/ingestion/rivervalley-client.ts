@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -83,7 +84,7 @@ export function fetchRivervalleyPage(page: number, gate: ProviderRequestGate) {
       "?f-condition=nw" +
       (page === 1 ? "" : "&page_number=" + page);
     const raw = yield* read(url, gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => parseRivervalleyPage(raw, page),
       catch: (cause) =>
         new RivervalleyProviderError({
@@ -112,7 +113,7 @@ export function fetchRivervalleyControl(
         cause: "Expected the source-linked native donor URL",
       });
     const raw = yield* read(record.detailsUrl, gate);
-    return yield* Effect.try({
+    return yield* ingestionValidation({
       try: () => parseRivervalleyControl(raw, record),
       catch: (cause) =>
         new RivervalleyProviderError({

@@ -182,7 +182,15 @@ export async function scanAlertMatchPages(
     for (const hit of hits) {
       scannedCount += 1;
       const vehicle = algoliaHitToSearchVehicle(hit);
-      if (vehicle) {
+      // Retained grace-period inventory remains searchable but cannot enter
+      // new-vehicle digests. Filter after scanning so this works with deployed
+      // indexes whose numeric filter allowlist predates missingRunCount.
+      if (
+        vehicle &&
+        !vehicle.isMissing &&
+        (vehicle.missingRunCount ?? 0) === 0 &&
+        !vehicle.missingSinceAt
+      ) {
         matchedCount += 1;
         if (vehicles.length < MAX_SEARCH_ALERT_PREVIEW_VEHICLES) {
           vehicles.push(vehicle);

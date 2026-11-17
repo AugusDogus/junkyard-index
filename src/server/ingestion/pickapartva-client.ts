@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -57,6 +58,7 @@ export function fetchPickapartvaPage(url: string, gate: ProviderRequestGate) {
       catch: (cause) => cause,
     });
   }).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new PickapartvaProviderError({ operation: url, cause }),
     ),

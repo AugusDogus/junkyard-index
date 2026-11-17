@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { createHash } from "node:crypto";
 import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -71,7 +72,7 @@ function read(path: string, mime: string, gate: ProviderRequestGate) {
 export function fetchTritownContext(gate: ProviderRequestGate) {
   return read("/cars/", "text/html", gate).pipe(
     Effect.flatMap((raw) =>
-      Effect.try({
+      ingestionValidation({
         try: () => parseTritownContext(raw),
         catch: (cause) =>
           new TritownProviderError({
@@ -98,7 +99,7 @@ export function fetchTritownPage(
     });
   return read(path, "application/json", gate).pipe(
     Effect.flatMap((raw) =>
-      Effect.try({
+      ingestionValidation({
         try: () => ({
           ...parseTritownPage(raw, page),
           hash: createHash("sha256").update(raw).digest("hex"),

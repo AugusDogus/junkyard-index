@@ -24,6 +24,8 @@ describe("IngestionSchedule.dueSources", () => {
             published: true,
             attempts: 1,
             lastStartedAt: hoursAgo(5),
+            lastCompletedAt: null,
+            validationRejected: false,
           },
         ],
         enabledSources: ["row52", "pyp"],
@@ -38,6 +40,8 @@ describe("IngestionSchedule.dueSources", () => {
       published: false,
       attempts,
       lastStartedAt: hoursAgo(hours),
+      lastCompletedAt: null,
+      validationRejected: false,
     });
     const due = (day: ReturnType<typeof failed>) =>
       IngestionSchedule.dueSources({
@@ -58,6 +62,8 @@ describe("IngestionSchedule.passComplete", () => {
     published,
     attempts,
     lastStartedAt: hoursAgo(1),
+    lastCompletedAt: null,
+    validationRejected: false,
   });
 
   test("stays open while any enabled source can still run today", () => {
@@ -98,24 +104,32 @@ describe("IngestionSchedule.nextRetryAt", () => {
             published: true,
             attempts: 1,
             lastStartedAt: hoursAgo(1),
+            lastCompletedAt: null,
+            validationRejected: false,
           },
           {
             source: "pyp",
             published: false,
             attempts: 1,
             lastStartedAt: hoursAgo(1),
+            lastCompletedAt: null,
+            validationRejected: false,
           },
           {
             source: "pullnsave",
             published: false,
             attempts: 1,
             lastStartedAt: hoursAgo(1.5),
+            lastCompletedAt: null,
+            validationRejected: false,
           },
           {
             source: "ipullupull",
             published: false,
             attempts: IngestionSchedule.maxAttemptsPerDay,
             lastStartedAt: hoursAgo(1.9),
+            lastCompletedAt: null,
+            validationRejected: false,
           },
         ],
         enabledSources: ["row52", "pyp", "pullnsave", "ipullupull"],
@@ -125,4 +139,41 @@ describe("IngestionSchedule.nextRetryAt", () => {
       IngestionSchedule.nextRetryAt({ days: [], enabledSources: ["row52"] }),
     ).toBeNull();
   });
+});
+
+test("validation rejection ends automatic attempts for the day", () => {
+  const days = [
+    {
+      source: "pyp",
+      published: false,
+      attempts: 1,
+      lastStartedAt: hoursAgo(5),
+      lastCompletedAt: hoursAgo(4),
+      validationRejected: true,
+    },
+  ];
+  const params = { days, enabledSources: ["pyp"] as const };
+  expect(IngestionSchedule.dueSources({ ...params, now })).toEqual([]);
+  expect(IngestionSchedule.nextRetryAt(params)).toBeNull();
+  expect(IngestionSchedule.passComplete(params)).toBe(true);
+});
+
+test("a long transient failure waits two hours after completion", () => {
+  const params = {
+    days: [
+      {
+        source: "pyp",
+        published: false,
+        attempts: 1,
+        lastStartedAt: hoursAgo(5),
+        lastCompletedAt: hoursAgo(0.25),
+        validationRejected: false,
+      },
+    ],
+    enabledSources: ["pyp"] as const,
+  };
+  expect(IngestionSchedule.dueSources({ ...params, now })).toEqual([]);
+  expect(IngestionSchedule.nextRetryAt(params)).toBe(
+    hoursAgo(0.25) + IngestionSchedule.retryDelayMs,
+  );
 });

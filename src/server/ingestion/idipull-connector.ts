@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { fetchIdipullPage, IdipullProviderError } from "./idipull-client";
@@ -149,7 +150,7 @@ export function streamIdipullInventoryWithRequestGate<E, R>(
     const home = yield* fetchIdipullPage("/", gate);
     const html = yield* fetchIdipullPage("/inventory/", gate);
     const closingHtml = yield* fetchIdipullPage("/inventory/", gate);
-    const snapshot = yield* Effect.try({
+    const snapshot = yield* ingestionValidation({
       try: () => {
         const yard = parseIdipullYard(home);
         const opening = IdipullCatalog.parse(html);

@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect, Schedule } from "effect";
 import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -125,7 +126,15 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
       ),
     );
     return serial.withPermits(1)(
-      request.pipe(Effect.ensuring(Effect.sleep(tenant.pacingMs))),
+      request.pipe(
+        sharedProviderHostSlot(url),
+        Effect.mapError((cause) =>
+          cause instanceof Error
+            ? urgiisError("shared host " + url, cause)
+            : cause,
+        ),
+        Effect.ensuring(Effect.sleep(tenant.pacingMs)),
+      ),
     );
   }).pipe(
     Effect.retry({

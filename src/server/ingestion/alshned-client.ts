@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -117,7 +118,7 @@ export function fetchAlshnedPage(
   ).pipe(Effect.mapError((cause) => new AlshnedProviderError(url, cause)));
 }
 export function alshnedValidated<T>(operation: string, read: () => T) {
-  return Effect.try({
+  return ingestionValidation({
     try: read,
     catch: (cause) => new AlshnedProviderError(operation, cause),
   });

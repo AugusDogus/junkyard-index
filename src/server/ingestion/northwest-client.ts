@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -108,6 +109,7 @@ export function fetchNorthwestPage(url: string, gate: ProviderRequestGate) {
       );
     }),
   ).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new NorthwestProviderError({ operation: url, cause }),
     ),

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, RateLimiter } from "effect";
 import { fetchRightwayPage, RightwayProviderError } from "./rightway-client";
 import { RightwayCursor, RightwayCursorSchema } from "./rightway-cursor";
@@ -71,7 +72,7 @@ export function streamRightwayInventoryWithRequestGate<E, R>(
     const home = yield* fetchRightwayPage("/", gate);
     const html = yield* fetchRightwayPage("/vehicle-search/", gate);
     const script = yield* fetchRightwayPage(RIGHTWAY_SCRIPT_PATH, gate);
-    const snapshot = yield* Effect.try({
+    const snapshot = yield* ingestionValidation({
       try: () => {
         const yard = parseRightwayYard(home);
         const pricesUrl = parseRightwayPriceList(home);

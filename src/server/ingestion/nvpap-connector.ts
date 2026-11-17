@@ -1,3 +1,4 @@
+import { validationRejection } from "./ingestion-validation";
 import { Data, Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { fetchNvpapPage, fetchNvpapYards } from "./nvpap-client";
@@ -146,20 +147,22 @@ export function streamNvpapInventoryWithRequestGate<E, R>(
           emitted === 0 ||
           rejected / processed > SourceValidationPolicy.maximumRejectionRatio)
       )
-        return yield* new NvpapStreamError({
-          message:
-            "Nevada yard " +
-            yardCode +
-            " failed completion: " +
-            pending.length +
-            " broad controls missing, " +
-            emitted +
-            " complete and " +
-            rejected +
-            " rejected of " +
-            processed +
-            " records; retain the previous accepted snapshot and inspect source quality",
-        });
+        return yield* validationRejection(
+          new NvpapStreamError({
+            message:
+              "Nevada yard " +
+              yardCode +
+              " failed completion: " +
+              pending.length +
+              " broad controls missing, " +
+              emitted +
+              " complete and " +
+              rejected +
+              " rejected of " +
+              processed +
+              " records; retain the previous accepted snapshot and inspect source quality",
+          }),
+        );
       if (options.onYards) yield* options.onYards([yard]);
       if (batch.length > 0) yield* options.onBatch(batch);
       count += batch.length;

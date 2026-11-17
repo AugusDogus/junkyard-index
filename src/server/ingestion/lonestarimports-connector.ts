@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import {
   readLonestarimportsPage,
@@ -43,7 +44,7 @@ export interface LonestarimportsStreamResult {
   accounting: ConnectorChunkAccounting;
 }
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new LonestarimportsProviderError(operation, cause),
   });

@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
@@ -65,6 +66,13 @@ export function readVinplusControl(
         ),
       );
     }),
+  ).pipe(
+    sharedProviderHostSlot(control.url),
+    Effect.mapError((cause) =>
+      cause instanceof Error
+        ? VinplusError.create("shared host " + control.url, cause.message)
+        : cause,
+    ),
   );
 }
 

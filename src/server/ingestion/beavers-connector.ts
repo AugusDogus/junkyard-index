@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect } from "effect";
 import {
   BeaversCursor,
@@ -24,7 +25,7 @@ import {
 import type { ProviderRequestGate } from "./provider-http-client";
 
 const attempt = <A>(operation: string, run: () => A) =>
-  Effect.try({
+  ingestionValidation({
     try: run,
     catch: (cause) => new BeaversProviderError({ operation, cause }),
   });

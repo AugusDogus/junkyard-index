@@ -1,3 +1,4 @@
+import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Data, Effect } from "effect";
 import {
   fetchProviderResponse,
@@ -84,6 +85,7 @@ export function fetchAviationPage(url: string, gate: ProviderRequestGate) {
       );
     }),
   ).pipe(
+    sharedProviderHostSlot(url),
     Effect.mapError(
       (cause) => new AviationProviderError({ operation: url, cause }),
     ),

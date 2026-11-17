@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { Effect, Schema } from "effect";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import {
@@ -96,7 +97,7 @@ export function fetchTapBootstrap(
 ): Effect.Effect<TapInventoryBootstrap, Error> {
   return fetchTapBootstrapHtml(config.inventoryPageUrl).pipe(
     Effect.flatMap((html) =>
-      Effect.try({
+      ingestionValidation({
         try: () => {
           const match =
             /var\s+sif_ajax_object\s*=\s*\{"sif_ajax_url":"([^"]+)","sif_ajax_nonce":"([^"]+)","sif_plugin_url":"([^"]+)"\}/.exec(
@@ -157,7 +158,7 @@ export type TapInventorySearchResponse = Schema.Schema.Type<
 function decodeSearchResponse(
   text: string,
 ): Effect.Effect<TapInventorySearchResponse, Error> {
-  return Effect.try({
+  return ingestionValidation({
     try: () => JSON.parse(text) as unknown,
     catch: (cause) =>
       new Error(`TAP inventory search returned invalid JSON: ${String(cause)}`),

@@ -1,3 +1,4 @@
+import { ingestionValidation } from "./ingestion-validation";
 import { createHash } from "node:crypto";
 import { Effect, RateLimiter } from "effect";
 import type { ConnectorChunkResult } from "./connector-chunk";
@@ -193,7 +194,7 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
     const progress = fresh();
     let controlValidated = false;
     const consume = (page: TruckPartsCatalogPage) =>
-      Effect.try({
+      ingestionValidation({
         try: () => append(progress, page),
         catch: (cause) =>
           new WhitebradstreetProviderError({
