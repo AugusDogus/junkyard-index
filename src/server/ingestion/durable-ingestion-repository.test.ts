@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { IngestionSchedule } from "./ingestion-schedule";
+import { reconciliationSourcePriority } from "./reconciliation-policy";
+import { canMatchSettledIngestionAlerts } from "~/server/alerts/settled-ingestion-alerts";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
 import type {
   DurableIngestionWakeupResult,
@@ -1208,6 +1210,55 @@ test("a fetching native source does not delay AutoRecycler publication; ready na
     cleanup();
   }
 });
+
+test.each(["autorecycler", "harrys", "budget"] as const)(
+  "first-deploy %s can commit while URG and the other higher-priority sources are fetching",
+  async (source) => {
+    const { client, cleanup } = createTestClient();
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const repository = createDurableIngestionRepository(
+        database,
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+      const now = new Date("2026-11-17T08:00:00Z");
+      const wakeup = await repository.prepareWakeup(now);
+      if (wakeup.status !== "active")
+        throw new Error("Expected first-deploy runs");
+      const runs = await Promise.all(
+        wakeup.runs.map((run) => repository.getRun(run.runId)),
+      );
+      expect(runs).toHaveLength(DURABLE_INGESTION_SOURCES.length);
+      expect(runs.every((run) => run.stage === "sources")).toBe(true);
+      const ready = runs.find((run) => run.source === source);
+      const urg = runs.find((run) => run.source === "urgiis");
+      if (!ready || !urg) throw new Error("Expected marketplace and URG runs");
+      expect(reconciliationSourcePriority("urgiis")).toBeLessThan(
+        reconciliationSourcePriority(source),
+      );
+      await client.execute({
+        sql: "update ingestion_run set stage = 'reconcile_upsert' where id = ?",
+        args: [ready.id],
+      });
+      const readyAt = new Date(now.getTime() + 5 * 60_000);
+      expect(await repository.claimCommit(ready.id, readyAt)).toBe("claimed");
+      expect(await repository.getRun(urg.id)).toMatchObject({
+        stage: "sources",
+        status: "running",
+        activeSlot: 1,
+      });
+      // Search publication can proceed, but this early run cannot match a
+      // source-filtered digest while native ownership is still being fetched.
+      expect(
+        await canMatchSettledIngestionAlerts(database, ready.id, readyAt),
+      ).toBe(false);
+    } finally {
+      cleanup();
+    }
+  },
+);
 
 test.each(["2026-11-17", "2026-11-16"])(
   "a long failed run on %s waits after release, including across ingestion days",
