@@ -146,6 +146,8 @@ export const ArioYardsSchema = z.array(
     website_url: z.string().nullish(),
     phone: z.string().nullish(),
     data: z.object({
+      source: z.string().optional(),
+      crush_client_id: z.string().optional(),
       latitude: z.number().finite().min(-90).max(90).optional(),
       longitude: z.number().finite().min(-180).max(180).optional(),
       mapCenter: z

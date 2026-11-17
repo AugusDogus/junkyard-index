@@ -87,6 +87,7 @@ const expectedCounts: Record<
   "a-1-crashed-cars-south-sioux-city-ne": 1112,
   "wilberts-u-pull-it-bath-ny": 1116,
   "milliron-auto-parts-mansfield-oh": 666,
+  "colorado-auto-and-parts-englewood-co": 283,
 };
 
 test("replays complete Ario customer inventories with no network, including suppressed rank holes", async () => {

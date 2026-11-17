@@ -2076,8 +2076,11 @@
     "website_url": "https://coloradoautoandparts.com",
     "phone": "303-761-0112",
     "data": {
+      "source": "crush_xml_seed",
       "latitude": 39.636828,
-      "longitude": -105.0107397
+      "feed_host": "yard",
+      "longitude": -105.0107397,
+      "crush_client_id": "1004"
     }
   },
   {

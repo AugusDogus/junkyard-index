@@ -49,6 +49,14 @@ export function streamArioYard<E, R>(
           throw new Error(
             `Ario customer ${config.slug} is missing or changed ownership. Inspect the public directory; published inventory is preserved.`,
           );
+        if (
+          "nativeFeed" in config &&
+          (yard.data.source !== config.nativeFeed.source ||
+            yard.data.crush_client_id !== config.nativeFeed.clientId)
+        )
+          throw new Error(
+            `Ario customer ${config.slug} changed native feed authority. Expected ${config.nativeFeed.source} client ${config.nativeFeed.clientId}. Published inventory is preserved; inspect the yard directory before retrying.`,
+          );
         const location =
           "locationOverride" in config ? config.locationOverride : null;
         const lat =
@@ -105,9 +113,13 @@ export function streamArioYard<E, R>(
           options.asOf ?? Date.now(),
         );
         const observed = vehicles.length + rejected + duplicates;
+        const minimumInventory =
+          "minimumInventory" in config ? config.minimumInventory : 0;
         const quarantined =
           selection === "ario" &&
-          (rejected > observed * SourceValidationPolicy.maximumRejectionRatio ||
+          (vehicles.length < minimumInventory ||
+            rejected >
+              observed * SourceValidationPolicy.maximumRejectionRatio ||
             duplicates >
               observed * SourceValidationPolicy.maximumDuplicateRatio);
         const accepted = selection === "ario" && !quarantined;
@@ -116,7 +128,7 @@ export function streamArioYard<E, R>(
           selection: quarantined ? ("quarantined" as const) : selection,
           warnings: quarantined
             ? [
-                `Ario ${config.slug} exceeds the 10% rejection or 25% duplicate yard guard (${rejected} rejected, ${duplicates} duplicates of ${observed}). This yard is quarantined; its prior inventory is preserved. Other yards can publish. Inspect the saved catalog before the next daily run.`,
+                `Ario ${config.slug} failed its yard guards (${vehicles.length} accepted, minimum ${minimumInventory}; ${rejected} rejected, ${duplicates} duplicates of ${observed}, limits 10% rejection and 25% duplicates). This yard is quarantined; its prior inventory is preserved. Other yards can publish. Inspect the saved catalog before the next daily run.`,
               ]
             : [],
           vehicles: published,
