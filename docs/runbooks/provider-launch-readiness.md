@@ -218,12 +218,16 @@ The Lentini replay injects saved responses and a fixed run clock. It never enter
 the provider client, shared host lease or real-time pacing. Its former 600-second
 timeout came from repeatedly validating, deriving and encoding multi-MiB
 checkpoints. Validated evidence and complete seller-task graphs now reuse only
-identical immutable objects. New wire input still receives full validation.
+identical immutable objects. New wire input still receives full validation. Entry fingerprints and exact
+encoded byte sizes are cached only for immutable validated entries. The new
+entry-receipt checksum accepts legacy full-payload checksums on input. Mutation,
+legacy resume and escaped Unicode byte-limit regressions pass.
 The large replay keeps three-page chunks, wire resumes at phase transitions and
 every 96 requests, and every existing donor, yard, destination and accounting
 assertion. Small fixtures retain wire roundtrips at every individual checkpoint.
-A complete saved Lentini replay passed all 16,777 assertions in 150.43 seconds
-on Bun 1.4.4 under concurrent CPU load, versus the reproduced 600-second timeout.
+Complete saved Lentini replays passed all 16,777 assertions in 97.37 to 150.43
+seconds on Bun 1.4.4 under concurrent CPU load (137.16 seconds with the final
+validation cache), versus the reproduced 600-second timeout.
 This is CPU work, so a fake lease cannot remove the remaining runtime.
 
 Beaver's grouped negative replay also exceeded its 15-second deadline under
