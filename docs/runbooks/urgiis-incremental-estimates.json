@@ -1,64 +1,12 @@
 {
   "latencySeconds": 6,
-  "blocked": [
-    {
-      "tenant": "eagle",
-      "models": [
-        {
-          "path": "/parts/VOLKSWAGEN/ATLAS/",
-          "reason": "IIS model /parts/VOLKSWAGEN/ATLAS/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
-        }
-      ]
-    },
-    {
-      "tenant": "ace-st-paul",
-      "models": [
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 54 donors but returns an explicit empty result; enumeration is incomplete"
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
-        }
-      ]
-    },
-    {
-      "tenant": "norbs",
-      "models": [
-        {
-          "path": "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
-          "reason": "IIS model /parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/ advertises 3 donors but returns an explicit empty result; enumeration is incomplete"
-        },
-        {
-          "path": "/parts/CHEVROLET/CHEVROLET_PASS./",
-          "reason": "IIS model /parts/CHEVROLET/CHEVROLET_PASS./ advertises 2 donors but returns an explicit empty result; enumeration is incomplete"
-        },
-        {
-          "path": "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
-          "reason": "IIS model /parts/CHRYSLER/NEW_YORKER_(FWD)/ advertises 5 donors but returns an explicit empty result; enumeration is incomplete"
-        },
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "reason": "IIS model /parts/CHRYSLER/TOWN_-and_COUNTRY/ advertises 75 donors but returns an explicit empty result; enumeration is incomplete"
-        },
-        {
-          "path": "/parts/GMC/SAFARI_(GMC)/",
-          "reason": "IIS model /parts/GMC/SAFARI_(GMC)/ advertises 4 donors but returns an explicit empty result; enumeration is incomplete"
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "reason": "IIS model /parts/LINCOLN/LINCOLN_-and_TOWN_CAR/ advertises 18 donors but returns an explicit empty result; enumeration is incomplete"
-        }
-      ]
-    }
-  ],
+  "blocked": [],
   "outcomes": [
     {
       "tenant": "eagle",
-      "status": "blocked",
-      "accepted": 0,
-      "candidates": 1448,
+      "status": "published",
+      "accepted": 1450,
+      "candidates": 1450,
       "advertised": 1920,
       "unreachable": 8,
       "unreachableModels": [
@@ -81,10 +29,8 @@
       "warnings": [
         "8/1920 advertised donors are platform-unreachable (TOWN & COUNTRY: 6 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 1 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/], PLYMOUTH PASS/: 1 [/parts/PLYMOUTH/PLYMOUTH_PASS./]); maximum is 1%"
       ],
-      "reasons": [
-        "IIS model /parts/VOLKSWAGEN/ATLAS/ advertises 2 donors but returns an explicit empty result; enumeration is incomplete; no saved successful retry or prior accepted census"
-      ],
-      "retryRequests": 0
+      "reasons": [],
+      "retryRequests": 1
     },
     {
       "tenant": "linders",
@@ -235,32 +181,22 @@
     },
     {
       "tenant": "ace-st-paul",
-      "status": "blocked",
-      "accepted": 0,
-      "candidates": 3015,
+      "status": "published",
+      "accepted": 3070,
+      "candidates": 3070,
       "advertised": 3248,
-      "unreachable": 57,
+      "unreachable": 1,
       "unreachableModels": [
         {
           "path": "/parts/CHRYSLER/NEW_YORKER_(RWD)/",
           "label": "NEW YORKER (RWD)",
           "count": 1
-        },
-        {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 54
-        },
-        {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 2
         }
       ],
-      "warnings": [],
-      "reasons": [
-        "57/3248 advertised donors are platform-unreachable (NEW YORKER (RWD): 1 [/parts/CHRYSLER/NEW_YORKER_(RWD)/], TOWN & COUNTRY: 54 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], LINCOLN & TOWN CAR: 2 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/]); maximum is 1%"
+      "warnings": [
+        "1/3248 advertised donors are platform-unreachable (NEW YORKER (RWD): 1 [/parts/CHRYSLER/NEW_YORKER_(RWD)/]); maximum is 1%"
       ],
+      "reasons": [],
       "retryRequests": 0
     },
     {
@@ -485,11 +421,11 @@
     },
     {
       "tenant": "norbs",
-      "status": "blocked",
-      "accepted": 0,
-      "candidates": 8864,
+      "status": "published",
+      "accepted": 8950,
+      "candidates": 8950,
       "advertised": 10258,
-      "unreachable": 109,
+      "unreachable": 16,
       "unreachableModels": [
         {
           "path": "/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/",
@@ -507,11 +443,6 @@
           "count": 5
         },
         {
-          "path": "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
-          "label": "TOWN & COUNTRY",
-          "count": 75
-        },
-        {
           "path": "/parts/FORD/FORD_PASS./",
           "label": "FORD PASS/",
           "count": 1
@@ -522,20 +453,15 @@
           "count": 4
         },
         {
-          "path": "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
-          "label": "LINCOLN & TOWN CAR",
-          "count": 18
-        },
-        {
           "path": "/parts/SUBARU/SUBARU_PASS./",
           "label": "SUBARU PASS/",
           "count": 1
         }
       ],
-      "warnings": [],
-      "reasons": [
-        "109/10258 advertised donors are platform-unreachable (BLAZER/JIMMY (FULL SIZE): 3 [/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/], CHEVROLET PASS/: 2 [/parts/CHEVROLET/CHEVROLET_PASS./], NEW YORKER (FWD): 5 [/parts/CHRYSLER/NEW_YORKER_(FWD)/], TOWN & COUNTRY: 75 [/parts/CHRYSLER/TOWN_-and_COUNTRY/], FORD PASS/: 1 [/parts/FORD/FORD_PASS./], SAFARI (GMC): 4 [/parts/GMC/SAFARI_(GMC)/], LINCOLN & TOWN CAR: 18 [/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/], SUBARU PASS/: 1 [/parts/SUBARU/SUBARU_PASS./]); maximum is 1%"
+      "warnings": [
+        "16/10258 advertised donors are platform-unreachable (BLAZER/JIMMY (FULL SIZE): 3 [/parts/CHEVROLET/BLAZER.JIMMY_(FULL_SIZE)/], CHEVROLET PASS/: 2 [/parts/CHEVROLET/CHEVROLET_PASS./], NEW YORKER (FWD): 5 [/parts/CHRYSLER/NEW_YORKER_(FWD)/], FORD PASS/: 1 [/parts/FORD/FORD_PASS./], SAFARI (GMC): 4 [/parts/GMC/SAFARI_(GMC)/], SUBARU PASS/: 1 [/parts/SUBARU/SUBARU_PASS./]); maximum is 1%"
       ],
+      "reasons": [],
       "retryRequests": 0
     },
     {
@@ -552,6 +478,28 @@
     }
   ],
   "rows": [
+    {
+      "tenant": "eagle",
+      "makes": 37,
+      "models": 284,
+      "fullRequests": 364,
+      "unchangedNoSweep": 79,
+      "weeklyRequests": [119, 119, 120, 120, 120, 160, 159],
+      "dailyAverage": 131,
+      "beforeMinutes": 49.7,
+      "afterMinutes": 17.9,
+      "modelStocks": 1621,
+      "arrivalStocks": 6,
+      "purchaseDatedArrivals": 0,
+      "datedArrivals": 6,
+      "comparableDatePairs": 5,
+      "outOfOrderDatePairs": 0,
+      "comparablePurchasePairs": 0,
+      "outOfOrderPurchasePairs": 0,
+      "arrivalModelOverlap": 6,
+      "arrivalsOnly": 0,
+      "censusBytes": 592829
+    },
     {
       "tenant": "linders",
       "makes": 41,
@@ -705,6 +653,28 @@
       "arrivalModelOverlap": 0,
       "arrivalsOnly": 0,
       "censusBytes": 1198234
+    },
+    {
+      "tenant": "ace-st-paul",
+      "makes": 38,
+      "models": 342,
+      "fullRequests": 423,
+      "unchangedNoSweep": 81,
+      "weeklyRequests": [130, 129, 130, 130, 130, 179, 179],
+      "dailyAverage": 143.9,
+      "beforeMinutes": 67,
+      "afterMinutes": 22.8,
+      "modelStocks": 3216,
+      "arrivalStocks": 60,
+      "purchaseDatedArrivals": 60,
+      "datedArrivals": 60,
+      "comparableDatePairs": 59,
+      "outOfOrderDatePairs": 0,
+      "comparablePurchasePairs": 59,
+      "outOfOrderPurchasePairs": 0,
+      "arrivalModelOverlap": 59,
+      "arrivalsOnly": 1,
+      "censusBytes": 1149350
     },
     {
       "tenant": "chucks",
@@ -883,6 +853,28 @@
       "censusBytes": 3215328
     },
     {
+      "tenant": "norbs",
+      "makes": 51,
+      "models": 667,
+      "fullRequests": 774,
+      "unchangedNoSweep": 107,
+      "weeklyRequests": [202, 202, 203, 203, 202, 297, 297],
+      "dailyAverage": 229.4,
+      "beforeMinutes": 122.5,
+      "afterMinutes": 36.3,
+      "modelStocks": 9437,
+      "arrivalStocks": 46,
+      "purchaseDatedArrivals": 46,
+      "datedArrivals": 46,
+      "comparableDatePairs": 45,
+      "outOfOrderDatePairs": 0,
+      "comparablePurchasePairs": 45,
+      "outOfOrderPurchasePairs": 0,
+      "arrivalModelOverlap": 46,
+      "arrivalsOnly": 0,
+      "censusBytes": 3208288
+    },
+    {
       "tenant": "mars",
       "makes": 7,
       "models": 41,
@@ -906,14 +898,14 @@
     }
   ],
   "totals": {
-    "publishedTenants": 16,
-    "blockedTenants": 3,
-    "accepted": 57467,
-    "unreachableAdvertised": 364,
-    "beforeRequests": 10249,
-    "afterRequests": 2951.7,
-    "beforeMinutes": 1484.7,
-    "afterMinutes": 432.4,
-    "censusBytes": 21735730
+    "publishedTenants": 19,
+    "blockedTenants": 0,
+    "accepted": 70937,
+    "unreachableAdvertised": 215,
+    "beforeRequests": 11810,
+    "afterRequests": 3456,
+    "beforeMinutes": 1723.9,
+    "afterMinutes": 509.4,
+    "censusBytes": 26686197
   }
 }

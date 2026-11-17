@@ -3,8 +3,9 @@
 This change targets the six runtime problems in the November 15 launch analysis
 (runtime and providers sections of `launch-readiness-parts.json`). That analysis
 used older stack refs. The implementation starts at PR #174, where all registered
-sources run unless their flag pauses them. No flags, accounts, deployments,
-production data, or live provider endpoints were changed or queried.
+sources run unless their flag pauses them. No flags, accounts, deployments or production data were changed. The follow-up
+URG coverage repair used the serial public read-only probes documented in the
+[URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate).
 
 ## Publication and alerts
 
@@ -51,36 +52,47 @@ makes all three cases return `busy`. The settled-alert gate remains closed.
 
 Ready-only publication removes URG's fetch from other sources' publication and
 heartbeat critical paths. The publication lifecycle reports each released source's
-health even when its alert matching was deferred. URG's own first publication still
-has a monitoring-window risk; this change does not make that census fast.
+health even when its alert matching was deferred. URG's own cold census now has
+bounded progress heartbeats while it completes its much larger first graph.
 
-The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate) now
-estimates 16 eligible publishing tenants with 57,467 donors, 10,249 full-census
-requests and 2,951.7 mean incremental requests/day. At six seconds per response
-plus existing local gaps, that is 1,484.7 minutes (24.7 hours) for a full census
-and 432.4 minutes (7.2 hours) for a mean incremental day. Three blocked tenants
-remain outside these eligible subtotals and preserve prior inventory.
+The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate)
+estimates all 19 publishing tenants with 70,937 donors, 11,810 full-census
+requests and 3,456 mean incremental requests/day. At six seconds per response
+plus existing local gaps, that is 1,723.9 minutes (28.7 hours) for a full census
+and 509.4 minutes (8.5 hours) for a mean incremental day. Eagle, Ace St. Paul
+and Norb's now publish under the unchanged 1% rule. Their daily shares are 131,
+143.9 and 229.4 requests; the original 16 tenants still total 2,951.7. Neither
+route substitution nor monitoring adds per-tenant URG requests.
 
-Neither estimate includes this PR's shared queue. URG retains its local
-post-response gap outside the shared lease, so the additional 3.5-second shared
-gap adds 9.96 full-census hours or 2.87 incremental hours: approximately
-**34.7 hours** and **10.1 hours**, respectively. Even removing the duplicate
-local gap would leave 27.05 hours for 10,249 responses at six seconds plus the
-shared 3.5-second gap. Blocked tenant work, retries, storage/orchestration overhead
-and competing native IIS sources add more time. These are explicit sizing
-scenarios, not measured live runtimes or upper bounds.
+These estimates exclude the shared queue. URG retains its local post-response
+gap outside the shared lease, so the additional 3.5-second shared gap adds
+11.48 full-census hours or 3.36 incremental hours: approximately **40.2 hours**
+and **11.9 hours**, respectively. Even removing the duplicate local gap would
+leave 31.17 hours for 11,810 responses at six seconds plus the shared gap.
+Retries, storage/orchestration overhead and competing native IIS sources add
+more time. These are explicit sizing scenarios, not measured live runtimes or
+upper bounds. A cold census has a three-day deadline with the usual final-chunk
+reserve and no model carry or deferral. Incremental runs keep their one-day
+limit and unchanged carry/sweep rules.
 
-Repository freshness is 30 hours after the last accepted search publication
+Repository freshness remains 30 hours after the last accepted search publication
 ([`durable-health.ts`](../../src/server/ingestion/durable-health.ts)); starting or
-progressing a crawl does not refresh it. A source with no accepted publication is
-stale immediately. Its `/api/status/<source>` monitor returns 503 until publication,
-with a ten-minute freshness cache and the documented three-minute monitor polling.
-Configured heartbeats are pinged only after accepted publication; the Better Stack
-integration documents a 30-hour missing-ping window. Actual deployed monitor
-settings were not queried. A cold URG census, or a later full-census fallback, can
-therefore leave its own row red beyond that window. Bootstrap maintenance/monitor
-activation remains a rollout decision. No window was widened and no progress
-heartbeat was substituted for fresh inventory.
+progressing a crawl does not refresh inventory freshness. A source with no
+accepted publication remains stale immediately. Its `/api/status/<source>`
+monitor returns 503 until publication, with a ten-minute freshness cache and
+the documented three-minute monitor polling. Monitor activation remains a
+rollout decision; no deployed settings were queried or changed.
+
+For the configured heartbeat, each newly validated cold-census tenant pings only
+after its complete graph, closing and admission checks have passed and its
+checkpoint is durably saved. This does not clear delayed status reports or claim
+fresh publication. Pages, cooldowns, failed/blocked tenants and replayed
+checkpoints do not ping. A tenant already completed in an earlier failed run
+with the same scope cannot ping again before another accepted search publication,
+so repeatedly restarting a failing crawl cannot hide that failure. The existing
+30-hour missing-progress window remains intact. Final accepted publication still
+pings and resolves reports as before. A later full census within an incremental
+run retains its existing one-day failure bound.
 
 A census crossing the ingestion-day boundary also cannot start alert matching for
 its expired day. Earlier sources still publish and report health; their saved-search

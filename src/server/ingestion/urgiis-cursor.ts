@@ -20,6 +20,8 @@ const base = {
   version: z.literal(2),
   scope: z.string(),
   startedAt: z.number().int().nonnegative().nullable(),
+  // Absent on older checkpoints, which retain their one-day deadline.
+  runKind: z.enum(["cold", "incremental"]).optional(),
   retryAt: z.number().int().nonnegative().safe().optional(),
   asOf: z.number().int().nonnegative().nullable(),
   // The repository installs this pointer atomically with the snapshot checkpoint.
@@ -173,6 +175,13 @@ function checkpoint(
     )
       throw new Error("IIS pending empty model must be retried before closing");
     state.entries.forEach((entry, i) => {
+      if (
+        state.runKind === "cold" &&
+        entry.kind === "model" &&
+        (entry.freshness.kind === "carried" ||
+          entry.freshness.kind === "deferred")
+      )
+        throw new Error("IIS cold census cannot carry prior model evidence");
       const task = tasks[i];
       if (!task) throw new Error("IIS checkpoint has excess evidence");
       const prior = validatedTasks.get(entry);
@@ -296,6 +305,7 @@ export const UrgiisCursor = {
         version: cursor.version,
         scope: cursor.scope,
         startedAt: cursor.startedAt,
+        ...(cursor.runKind ? { runKind: cursor.runKind } : {}),
         asOf: cursor.asOf,
         statePath: cursor.statePath,
         requests: cursor.requests,

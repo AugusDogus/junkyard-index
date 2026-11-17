@@ -17,7 +17,7 @@ export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
 // Reserve one day for a run to finish before the seven-day evidence ceiling.
 const carryMs = 6 * URGIIS_DAY_MS;
 // Bump this whenever admission, traversal or interpretation of cached evidence changes.
-const contract = "incremental-census-v4";
+const contract = "incremental-census-v5";
 const tenantSchema = z
   .object({
     code: z.string(),
