@@ -1,0 +1,105 @@
+[
+  {
+    "label": "crossroads-opening",
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch",
+    "final": "https://crossroid.hollanderstores.com/VehicleDealerSearch",
+    "status": 200,
+    "bytes": 458629,
+    "time": 1794950960.6521697,
+    "error": null,
+    "sha256": "335f58d7402db06af3d5062a8554526352d02231d1cd665fc4288058fed6c456",
+    "file": "crossroid.html.gz"
+  },
+  {
+    "label": "crossroads-closing",
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch",
+    "final": "https://crossroid.hollanderstores.com/VehicleDealerSearch",
+    "status": 200,
+    "bytes": 458629,
+    "time": 1794951033.2980402,
+    "error": null,
+    "sha256": "1de83d2b382441b12e0bfafd5da858aacd13a155577d9a166f3b67cf05fb0e9f",
+    "file": "crossroid-closing.html.gz"
+  },
+  {
+    "label": "crossroads-vpic",
+    "url": "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+    "final": "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+    "status": 200,
+    "bytes": 121034,
+    "time": 1794951020.66853,
+    "error": null,
+    "sha256": "6ebe9390f8ad074dd255a8d16b7887910e0ed2c264d0db98440bf34ee26b9537",
+    "file": "crossroid-vpic.json.gz"
+  },
+  {
+    "label": "crossroads-about",
+    "url": "https://crossroid.hollanderstores.com/AboutUs",
+    "final": "https://crossroid.hollanderstores.com/AboutUs",
+    "status": 200,
+    "bytes": 23298,
+    "time": 1794950989.3342233,
+    "error": null,
+    "sha256": "ca011539f155e07eb29318e82745649a2dce3db56a62729424840c697ef90bd4",
+    "file": "crossroid-about.html.gz"
+  },
+  {
+    "label": "screen-yard-059",
+    "url": "http://www.CrossroadsTowParts.com",
+    "final": "https://crossroadstowparts.com/",
+    "status": 200,
+    "bytes": 156679,
+    "time": 1794950685.9347954,
+    "error": null,
+    "sha256": "c26cef052855100f148033284f70f78b6cd749695cb32fd1512510b13130fa99",
+    "file": "crossroid-website.html.gz"
+  },
+  {
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch",
+    "file": "crossroid-nov15-page-1.html.gz",
+    "status": 200,
+    "bytes": 41107,
+    "sha256": "4446f4de3a23464c9bd323db5826962406a3390509b950d23d3adbb0325faaf4",
+    "time": "2026-11-15T02:59:54.154810+00:00"
+  },
+  {
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch?page=2",
+    "file": "crossroid-nov15-page-2.html.gz",
+    "status": 200,
+    "bytes": 41157,
+    "sha256": "54d9e3e3f959ff37a67fbcf49a17ea75f29e5c880e459fe884e58019f8736926",
+    "time": "2026-11-15T03:04:25.207406+00:00"
+  },
+  {
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch?page=3",
+    "file": "crossroid-nov15-page-3.html.gz",
+    "status": 200,
+    "bytes": 41161,
+    "sha256": "898f74d6feddcfbbaba583b60904842192e8c31baa7bd67c87cb1262ac618b4f",
+    "time": "2026-11-15T03:04:28.443800+00:00"
+  },
+  {
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch?page=4",
+    "file": "crossroid-nov15-page-4.html.gz",
+    "status": 200,
+    "bytes": 41182,
+    "sha256": "e541ebd5ac867759fcd27cbcde421402caa481bb390a97878381f1c4025266e7",
+    "time": "2026-11-15T03:04:31.639145+00:00"
+  },
+  {
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch?page=5",
+    "file": "crossroid-nov15-page-5.html.gz",
+    "status": 200,
+    "bytes": 41209,
+    "sha256": "568c3d3e873c00a49122eceb016f88bb3e3026a8ece3f3af25741b63e3e6c313",
+    "time": "2026-11-15T03:04:34.652898+00:00"
+  },
+  {
+    "url": "https://crossroid.hollanderstores.com/VehicleDealerSearch?page=6",
+    "file": "crossroid-nov15-page-6.html.gz",
+    "status": 200,
+    "bytes": 35293,
+    "sha256": "97ee1d3cf3f73ea3ea7ff4844a7215d2223bd868f6c880150670eb97ac0fc54c",
+    "time": "2026-11-15T03:04:38.306556+00:00"
+  }
+]

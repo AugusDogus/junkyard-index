@@ -86,6 +86,8 @@ import { streamChasencarsInventoryFromProvider } from "./chasencars-connector";
 import { streamWeberbrothersInventory } from "./weberbrothers-connector";
 import { streamHawaiipartsInventory } from "./hawaiiparts-connector";
 import { streamModernmuscleInventory } from "./modernmuscle-connector";
+import { streamCarsandpartsInventory } from "./carsandparts-connector";
+import { streamSpartanInventory } from "./spartan-connector";
 import { streamOemgarageInventoryFromProvider } from "./oemgarage-connector";
 import { streamHagermanInventory } from "./hagerman-connector";
 import { streamKandrInventoryFromProvider } from "./kandr-connector";
@@ -336,6 +338,36 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
     toFetchedChunk(
       await runIngestionEffect(
         streamModernmuscleInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          previousUniqueInventory: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  carsandparts: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamCarsandpartsInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          previousUniqueInventory: null,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  spartan: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamSpartanInventory({
           startCursor: cursor,
           maxPages: context.maxPages,
           previousUniqueInventory: null,

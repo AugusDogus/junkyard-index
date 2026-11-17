@@ -36,6 +36,8 @@ import { ChasencarsCursor } from "./chasencars-cursor";
 import { WeberbrothersCursor } from "./weberbrothers-cursor";
 import { HawaiipartsCursor } from "./hawaiiparts-cursor";
 import { ModernmuscleCursor } from "./modernmuscle-cursor";
+import { CarsandpartsCursor } from "./carsandparts-cursor";
+import { SpartanCursor } from "./spartan-cursor";
 import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
@@ -369,6 +371,14 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   modernmuscle: {
     initialCursor: ModernmuscleCursor.initial(),
+    maxPagesPerChunk: 4,
+  },
+  carsandparts: {
+    initialCursor: CarsandpartsCursor.initial(),
+    maxPagesPerChunk: 4,
+  },
+  spartan: {
+    initialCursor: SpartanCursor.initial(),
     maxPagesPerChunk: 4,
   },
   oemgarage: {

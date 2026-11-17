@@ -1,0 +1,820 @@
+[
+  {
+    "file": "adams-donors-current.body.gz",
+    "bytes": 71262,
+    "sha256": "64284f9b27f92bb144483d23806622d915a1e78c663f7396c00f1809026298cd",
+    "receipt": {
+      "url": "https://adamsrecycling.net/auto-parts/",
+      "final": "https://adamsrecycling.net/auto-parts/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955502.206,
+      "completed": 1794955503.889,
+      "bytes": 71262,
+      "hops": [
+        {
+          "url": "https://adamsrecycling.net/auto-parts/",
+          "status": 200,
+          "time": 1794955503.836
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "adams-donors-current",
+      "sha256": "64284f9b27f92bb144483d23806622d915a1e78c663f7396c00f1809026298cd"
+    }
+  },
+  {
+    "file": "adams-api-js.body.gz",
+    "bytes": 9317,
+    "sha256": "418ee7ca422f2e30e4069d1c67ff5580a0d7fe4e256da34ef0acaf57d2153889",
+    "receipt": {
+      "url": "https://adamsrecycling.net/wp-content/plugins/adams-yardsmart-api/assets/js/ajax-vehicles.js",
+      "final": "https://adamsrecycling.net/wp-content/plugins/adams-yardsmart-api/assets/js/ajax-vehicles.js",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/javascript"
+      },
+      "method": "GET",
+      "time": 1794955791.756,
+      "completed": 1794955792.204,
+      "bytes": 9317,
+      "hops": [
+        {
+          "url": "https://adamsrecycling.net/wp-content/plugins/adams-yardsmart-api/assets/js/ajax-vehicles.js",
+          "status": 200,
+          "time": 1794955792.203
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "adams-api-js",
+      "sha256": "418ee7ca422f2e30e4069d1c67ff5580a0d7fe4e256da34ef0acaf57d2153889"
+    }
+  },
+  {
+    "file": "adams-api-chevrolet.body.gz",
+    "bytes": 104895,
+    "sha256": "43437d8e15a0c4cb91fdc87c335b1bd56b5fba8a81c437cb441d773c4fb0629f",
+    "receipt": {
+      "url": "https://adamsrecycling.net/wp-admin/admin-ajax.php",
+      "final": "https://adamsrecycling.net/wp-admin/admin-ajax.php",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "application/json; charset=UTF-8"
+      },
+      "method": "POST",
+      "time": 1794955864.905,
+      "completed": 1794955865.777,
+      "bytes": 104895,
+      "hops": [
+        {
+          "url": "https://adamsrecycling.net/wp-admin/admin-ajax.php",
+          "status": 200,
+          "time": 1794955865.776
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "adams-api-chevrolet",
+      "sha256": "43437d8e15a0c4cb91fdc87c335b1bd56b5fba8a81c437cb441d773c4fb0629f"
+    }
+  },
+  {
+    "file": "route-81.body.gz",
+    "bytes": 174237,
+    "sha256": "37bad6fbc6b287b17bd59aa5b67c800f2e7866a01604682ed3b7767768a6347f",
+    "receipt": {
+      "url": "https://candcpickapart.com/inventory/",
+      "final": "https://candcpickapart.com/inventory/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955114.226,
+      "completed": 1794955120.187,
+      "bytes": 174237,
+      "hops": [
+        {
+          "url": "https://candcpickapart.com/inventory/",
+          "status": 200,
+          "time": 1794955120.12
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "route-81",
+      "sha256": "37bad6fbc6b287b17bd59aa5b67c800f2e7866a01604682ed3b7767768a6347f"
+    }
+  },
+  {
+    "file": "candc-theme-js.body.gz",
+    "bytes": 3702,
+    "sha256": "68e986763caea4b381971f392aee0913734a5b94c6b4de8fad2e8676674a1bfb",
+    "receipt": {
+      "url": "https://candcpickapart.com/wp-content/themes/c7web/js/theme.js?ver=1.0.0",
+      "final": "https://candcpickapart.com/wp-content/themes/c7web/js/theme.js?ver=1.0.0",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/javascript"
+      },
+      "method": "GET",
+      "time": 1794955878.239,
+      "completed": 1794955878.825,
+      "bytes": 3702,
+      "hops": [
+        {
+          "url": "https://candcpickapart.com/wp-content/themes/c7web/js/theme.js?ver=1.0.0",
+          "status": 200,
+          "time": 1794955878.824
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "candc-theme-js",
+      "sha256": "68e986763caea4b381971f392aee0913734a5b94c6b4de8fad2e8676674a1bfb"
+    }
+  },
+  {
+    "file": "force5-current.body.gz",
+    "bytes": 6238,
+    "sha256": "c631e576f685063027a98044bd273ba728b9e1952badc7a1ec38dca0daf26d9d",
+    "receipt": {
+      "url": "http://force5auto.com/undertheknife.htm",
+      "final": "http://force5auto.com/undertheknife.htm",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html"
+      },
+      "method": "GET",
+      "time": 1794955498.204,
+      "completed": 1794955498.811,
+      "bytes": 6238,
+      "hops": [
+        {
+          "url": "http://force5auto.com/undertheknife.htm",
+          "status": 200,
+          "time": 1794955498.809
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "force5-current",
+      "sha256": "c631e576f685063027a98044bd273ba728b9e1952badc7a1ec38dca0daf26d9d"
+    }
+  },
+  {
+    "file": "elm-arrivals.body.gz",
+    "bytes": 371732,
+    "sha256": "0e102b7c67bfd84422166cb165f541ae78d3696eb1d37e9910cd18633dd581e2",
+    "receipt": {
+      "url": "https://elmauto.com/latest-arrivals/",
+      "final": "https://elmauto.com/latest-arrivals/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955894.773,
+      "completed": 1794955896.038,
+      "bytes": 371732,
+      "hops": [
+        {
+          "url": "https://elmauto.com/latest-arrivals/",
+          "status": 200,
+          "time": 1794955896.027
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "elm-arrivals",
+      "sha256": "0e102b7c67bfd84422166cb165f541ae78d3696eb1d37e9910cd18633dd581e2"
+    }
+  },
+  {
+    "file": "elm-parts-makes.body.gz",
+    "bytes": 142568,
+    "sha256": "ef150602e4fbd6b1f5ad00aef111f67ce565b85229d37834fd5e44c2583cbd3c",
+    "receipt": {
+      "url": "https://elmauto.com/parts/makes",
+      "final": "https://elmauto.com/parts/makes",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955935.003,
+      "completed": 1794955935.823,
+      "bytes": 142568,
+      "hops": [
+        {
+          "url": "https://elmauto.com/parts/makes",
+          "status": 200,
+          "time": 1794955935.818
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "elm-parts-makes",
+      "sha256": "ef150602e4fbd6b1f5ad00aef111f67ce565b85229d37834fd5e44c2583cbd3c"
+    }
+  },
+  {
+    "file": "elm-ford.body.gz",
+    "bytes": 137148,
+    "sha256": "2e64acae1d2dcb0ca5b056878f2f1a97cebaf44fad78703a4372b6f1070f15c4",
+    "receipt": {
+      "url": "https://elmauto.com/parts/FORD",
+      "final": "https://elmauto.com/parts/FORD",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955995.149,
+      "completed": 1794955996.01,
+      "bytes": 137148,
+      "hops": [
+        {
+          "url": "https://elmauto.com/parts/FORD",
+          "status": 200,
+          "time": 1794955996.006
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "elm-ford",
+      "sha256": "2e64acae1d2dcb0ca5b056878f2f1a97cebaf44fad78703a4372b6f1070f15c4"
+    }
+  },
+  {
+    "file": "elm-f150.body.gz",
+    "bytes": 836857,
+    "sha256": "796154087890b4ad08eb346757f979c3caa9d0f11da7334bf3a40ad4183de966",
+    "receipt": {
+      "url": "https://elmauto.com/parts/FORD/FORD_F150_PICKUP/",
+      "final": "https://elmauto.com/parts/FORD/FORD_F150_PICKUP/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794956024.238,
+      "completed": 1794956031.25,
+      "bytes": 836857,
+      "hops": [
+        {
+          "url": "https://elmauto.com/parts/FORD/FORD_F150_PICKUP/",
+          "status": 200,
+          "time": 1794956031.237
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "elm-f150",
+      "sha256": "796154087890b4ad08eb346757f979c3caa9d0f11da7334bf3a40ad4183de966"
+    }
+  },
+  {
+    "file": "acres-arrivals.body.gz",
+    "bytes": 521125,
+    "sha256": "e14575a38dbbd1355993ff85db6b2d4e7523d4117bd3f2fca040320a4543bceb",
+    "receipt": {
+      "url": "https://acresautoparts.com/latest-arrivals/",
+      "final": "https://acresautoparts.com/latest-arrivals/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955887.807,
+      "completed": 1794955891.289,
+      "bytes": 521125,
+      "hops": [
+        {
+          "url": "https://acresautoparts.com/latest-arrivals/",
+          "status": 200,
+          "time": 1794955891.262
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "acres-arrivals",
+      "sha256": "e14575a38dbbd1355993ff85db6b2d4e7523d4117bd3f2fca040320a4543bceb"
+    }
+  },
+  {
+    "file": "acres-parts-makes.body.gz",
+    "bytes": 152251,
+    "sha256": "4c231728ac956db969d446bfa70e55b9b41354f888ff51f28a459b2fa053139f",
+    "receipt": {
+      "url": "https://acresautoparts.com/parts/makes",
+      "final": "https://acresautoparts.com/parts/makes",
+      "status": 404,
+      "error": "HTTP 404",
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955921.91,
+      "completed": 1794955926.942,
+      "bytes": 152251,
+      "hops": [
+        {
+          "url": "https://acresautoparts.com/parts/makes",
+          "status": 404,
+          "time": 1794955926.935
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "acres-parts-makes",
+      "sha256": "4c231728ac956db969d446bfa70e55b9b41354f888ff51f28a459b2fa053139f"
+    }
+  },
+  {
+    "file": "shaw-canonical-recovery.body.gz",
+    "bytes": 304,
+    "sha256": "319f91dd4cddaef238084d9d4f4be37fe52089e55ecb82a4c7883abab3db23f6",
+    "receipt": {
+      "url": "https://shawautoparts.com/used-parts/makes/",
+      "final": "https://shawautoparts.com/used-parts/makes/",
+      "status": 403,
+      "error": "HTTP 403",
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955943.353,
+      "completed": 1794955943.764,
+      "bytes": 304,
+      "hops": [
+        {
+          "url": "https://shawautoparts.com/used-parts/makes/",
+          "status": 403,
+          "time": 1794955943.763
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "shaw-canonical-recovery",
+      "sha256": "319f91dd4cddaef238084d9d4f4be37fe52089e55ecb82a4c7883abab3db23f6"
+    }
+  },
+  {
+    "file": "royal-hollander.body.gz",
+    "bytes": 2674,
+    "sha256": "b83da36108e5ce6e0a28c2fdb5020c9eb6db37b60fe1983e62c9fd86980f9ba3",
+    "receipt": {
+      "url": "https://royalusedautopa.hollanderstores.com/",
+      "final": "https://royalusedautopa.hollanderstores.com/Message?aspxerrorpath=/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=utf-8"
+      },
+      "method": "GET",
+      "time": 1794955848.458,
+      "completed": 1794955852.584,
+      "bytes": 2674,
+      "hops": [
+        {
+          "url": "https://royalusedautopa.hollanderstores.com/",
+          "status": 302,
+          "time": 1794955850.412
+        },
+        {
+          "url": "https://royalusedautopa.hollanderstores.com/Message?aspxerrorpath=/",
+          "status": 200,
+          "time": 1794955852.583
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "royal-hollander",
+      "sha256": "b83da36108e5ce6e0a28c2fdb5020c9eb6db37b60fe1983e62c9fd86980f9ba3"
+    }
+  },
+  {
+    "file": "disdat-upull.body.gz",
+    "bytes": 198729,
+    "sha256": "664b03576b4915116a76e381d36515e7324c9deeb8dda0cbd566629723826cf9",
+    "receipt": {
+      "url": "https://disndatauto.com/vehicle-category/u-pull/",
+      "final": "https://disndatauto.com/vehicle-category/u-pull/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955904.923,
+      "completed": 1794955905.328,
+      "bytes": 198729,
+      "hops": [
+        {
+          "url": "https://disndatauto.com/vehicle-category/u-pull/",
+          "status": 200,
+          "time": 1794955905.239
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "disdat-upull",
+      "sha256": "664b03576b4915116a76e381d36515e7324c9deeb8dda0cbd566629723826cf9"
+    }
+  },
+  {
+    "file": "disdat-yard.body.gz",
+    "bytes": 193558,
+    "sha256": "2e9643488ffcc6091a09d8bd5430f4a3be16551b054cd8604117e64748f0f851",
+    "receipt": {
+      "url": "https://disndatauto.com/vehicle-category/yard/",
+      "final": "https://disndatauto.com/vehicle-category/yard/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955908.588,
+      "completed": 1794955911.647,
+      "bytes": 193558,
+      "hops": [
+        {
+          "url": "https://disndatauto.com/vehicle-category/yard/",
+          "status": 200,
+          "time": 1794955911.212
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "disdat-yard",
+      "sha256": "2e9643488ffcc6091a09d8bd5430f4a3be16551b054cd8604117e64748f0f851"
+    }
+  },
+  {
+    "file": "busbee-tpi-redirect.body.gz",
+    "bytes": 5849,
+    "sha256": "c0fb75453dcb7c9ea54a236b12e5f79d6d1cda3be68fdc4bf7aa0a376424c3bc",
+    "receipt": {
+      "url": "https://google.com/goto?url=CAESgAEBxCJF1yHPnC5Rwq9eGF3yG2rgoKGX40XPDTwrPLr4Ggbi3MuMkrIkfAgekQV0wO9qon2aCSYZxPi1b31fsFQocpaaT_3LyLipoVfFEKplgfEK44nPfblV4Wtn1igdEzSYEZAIfKx9tPFsp_7zRQY9Pu8U5CSznbWlIcEqUcm6vQ&gsessionid=gJDbJA7IxqE1YIF5g0j7vi5Ht3i18z78jy5Orrcso7uZpshMAScApg",
+      "final": "https://truckpartsinventory.com/company/busbee_auto_and_truck_parts",
+      "status": 403,
+      "error": "HTTP 403",
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955023.653,
+      "completed": 1794955028.024,
+      "bytes": 5849,
+      "hops": [
+        {
+          "url": "https://google.com/goto?url=CAESgAEBxCJF1yHPnC5Rwq9eGF3yG2rgoKGX40XPDTwrPLr4Ggbi3MuMkrIkfAgekQV0wO9qon2aCSYZxPi1b31fsFQocpaaT_3LyLipoVfFEKplgfEK44nPfblV4Wtn1igdEzSYEZAIfKx9tPFsp_7zRQY9Pu8U5CSznbWlIcEqUcm6vQ&gsessionid=gJDbJA7IxqE1YIF5g0j7vi5Ht3i18z78jy5Orrcso7uZpshMAScApg",
+          "status": 301,
+          "time": 1794955023.759
+        },
+        {
+          "url": "https://www.google.com/goto?url=CAESgAEBxCJF1yHPnC5Rwq9eGF3yG2rgoKGX40XPDTwrPLr4Ggbi3MuMkrIkfAgekQV0wO9qon2aCSYZxPi1b31fsFQocpaaT_3LyLipoVfFEKplgfEK44nPfblV4Wtn1igdEzSYEZAIfKx9tPFsp_7zRQY9Pu8U5CSznbWlIcEqUcm6vQ&gsessionid=gJDbJA7IxqE1YIF5g0j7vi5Ht3i18z78jy5Orrcso7uZpshMAScApg",
+          "status": 302,
+          "time": 1794955025.894
+        },
+        {
+          "url": "https://truckpartsinventory.com/company/busbee_auto_and_truck_parts",
+          "status": 403,
+          "time": 1794955028.023
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "busbee-tpi-redirect",
+      "sha256": "c0fb75453dcb7c9ea54a236b12e5f79d6d1cda3be68fdc4bf7aa0a376424c3bc"
+    }
+  },
+  {
+    "file": "busbee-tpi-www.body.gz",
+    "bytes": 5853,
+    "sha256": "d9dc65843a4c6f2ad13b5506e63da9f19278429b8aaaf44fac87bddc99c97125",
+    "receipt": {
+      "url": "https://www.truckpartsinventory.com/company/busbee_auto_and_truck_parts",
+      "final": "https://www.truckpartsinventory.com/company/busbee_auto_and_truck_parts",
+      "status": 403,
+      "error": "HTTP 403",
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955231.832,
+      "completed": 1794955231.994,
+      "bytes": 5853,
+      "hops": [
+        {
+          "url": "https://www.truckpartsinventory.com/company/busbee_auto_and_truck_parts",
+          "status": 403,
+          "time": 1794955231.993
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "busbee-tpi-www",
+      "sha256": "d9dc65843a4c6f2ad13b5506e63da9f19278429b8aaaf44fac87bddc99c97125"
+    }
+  },
+  {
+    "file": "route-79.body.gz",
+    "bytes": 1196605,
+    "sha256": "3797bd45838eb005ce5d2bfe0c2ed3ec71c1059fd39db63e32d3cf5f928b2b00",
+    "receipt": {
+      "url": "https://sunshineautosalvage.com/vehicle-inventory/",
+      "final": "https://sunshineautosalvage.com/vehicle-inventory/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955098.645,
+      "completed": 1794955101.766,
+      "bytes": 1196605,
+      "hops": [
+        {
+          "url": "https://sunshineautosalvage.com/vehicle-inventory/",
+          "status": 200,
+          "time": 1794955101.058
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "route-79",
+      "sha256": "3797bd45838eb005ce5d2bfe0c2ed3ec71c1059fd39db63e32d3cf5f928b2b00"
+    }
+  },
+  {
+    "file": "route-80.body.gz",
+    "bytes": 228999,
+    "sha256": "77a133192149bc724f4345b9484844416936bbf6e844bd31fc9bdee7ea21b624",
+    "receipt": {
+      "url": "https://sunshineautosalvage.com/new-arrivals-vehicles/",
+      "final": "https://sunshineautosalvage.com/new-arrivals-vehicles/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955109.215,
+      "completed": 1794955110.986,
+      "bytes": 228999,
+      "hops": [
+        {
+          "url": "https://sunshineautosalvage.com/new-arrivals-vehicles/",
+          "status": 200,
+          "time": 1794955110.859
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "route-80",
+      "sha256": "77a133192149bc724f4345b9484844416936bbf6e844bd31fc9bdee7ea21b624"
+    }
+  },
+  {
+    "file": "trusty-all.body.gz",
+    "bytes": 8620,
+    "sha256": "081ce3175ea020d0ec88558bec6affad6975fab5a8f6b9d4a1122323dd98d231",
+    "receipt": {
+      "label": "trusty-all",
+      "url": "https://inventory.trustypickapart.com/",
+      "final": "https://inventory.trustypickapart.com/",
+      "status": 200,
+      "bytes": 8620,
+      "time": 1794951079.3453383,
+      "error": null,
+      "sha256": "081ce3175ea020d0ec88558bec6affad6975fab5a8f6b9d4a1122323dd98d231"
+    }
+  },
+  {
+    "file": "trusty-chevrolet.body.gz",
+    "bytes": 42462,
+    "sha256": "0ffea1013df4900ed461e609fcca89389ab8149ee3e739d38b5f0637f80d49dc",
+    "receipt": {
+      "label": "trusty-chevrolet",
+      "url": "https://inventory.trustypickapart.com/",
+      "final": "https://inventory.trustypickapart.com/",
+      "status": 200,
+      "bytes": 42462,
+      "time": 1794951296.0212405,
+      "error": null,
+      "sha256": "0ffea1013df4900ed461e609fcca89389ab8149ee3e739d38b5f0637f80d49dc"
+    }
+  },
+  {
+    "file": "jalopy-corrected.body.gz",
+    "bytes": 38000,
+    "sha256": "5a47692fcbe6726e9247cf4f7790e7080c41ac0fe9f6c37ccacb3e14f0d9ee04",
+    "receipt": {
+      "label": "jalopy-corrected",
+      "url": "https://inventory.pickapartjalopyjungle.com/",
+      "final": "https://inventory.pickapartjalopyjungle.com/",
+      "status": 200,
+      "bytes": 38000,
+      "time": 1794951469.6630673,
+      "error": null,
+      "sha256": "5a47692fcbe6726e9247cf4f7790e7080c41ac0fe9f6c37ccacb3e14f0d9ee04"
+    }
+  },
+  {
+    "file": "autofarm-subaru-parts-cars.body.gz",
+    "bytes": 69917,
+    "sha256": "8f0829b223937cfa136215e557d87e2c1430d9594e422def09683c15afcb2841",
+    "receipt": {
+      "url": "https://autofarmusa.com/subaru-parts-cars/",
+      "final": "https://autofarmusa.com/subaru-parts-cars/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955177.769,
+      "completed": 1794955178.508,
+      "bytes": 69917,
+      "hops": [
+        {
+          "url": "https://autofarmusa.com/subaru-parts-cars/",
+          "status": 200,
+          "time": 1794955178.478
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "autofarm-subaru-parts-cars",
+      "sha256": "8f0829b223937cfa136215e557d87e2c1430d9594e422def09683c15afcb2841"
+    }
+  },
+  {
+    "file": "autofarm-mopar-parts-cars.body.gz",
+    "bytes": 69319,
+    "sha256": "c5c46371f19c28fff57246fa9f4c7403c3b82f0b832c29fe14715eed03c82602",
+    "receipt": {
+      "url": "https://autofarmusa.com/mopar-parts-cars/",
+      "final": "https://autofarmusa.com/mopar-parts-cars/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955189.976,
+      "completed": 1794955190.242,
+      "bytes": 69319,
+      "hops": [
+        {
+          "url": "https://autofarmusa.com/mopar-parts-cars/",
+          "status": 200,
+          "time": 1794955190.241
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "autofarm-mopar-parts-cars",
+      "sha256": "c5c46371f19c28fff57246fa9f4c7403c3b82f0b832c29fe14715eed03c82602"
+    }
+  },
+  {
+    "file": "tony-donors.body.gz",
+    "bytes": 120502,
+    "sha256": "842ea7424c18dbe83dfce55a2d6e39a33d189341ff511cb764926236963d7e6e",
+    "receipt": {
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=6673508&store=1",
+      "final": "https://www.heavytruckparts.net/index.php",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794955219.977,
+      "completed": 1794955222.784,
+      "bytes": 120502,
+      "hops": [
+        {
+          "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=6673508&store=1",
+          "status": 302,
+          "time": 1794955220.566
+        },
+        {
+          "url": "https://www.heavytruckparts.net/index.php",
+          "status": 200,
+          "time": 1794955222.722
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "tony-donors",
+      "sha256": "842ea7424c18dbe83dfce55a2d6e39a33d189341ff511cb764926236963d7e6e"
+    }
+  },
+  {
+    "file": "bluegold-api.json.gz",
+    "bytes": 9323,
+    "sha256": "d63365e9568ac70d673bf3cbbda949fe35ee167de05c717159aedc7cb6b16b77"
+  },
+  {
+    "file": "bluegold-detail.html.gz",
+    "bytes": 61623,
+    "sha256": "19bf912564787a15754f0f9eab2ade30bb1d1d5d8efef7cb3348f3d5ebeeae31"
+  },
+  {
+    "file": "bigjunkyard-browser.html.gz",
+    "bytes": 890723,
+    "sha256": "853de8aa96b47d1fba0eb57941ccffbdd4ddfe6b588875ac19e0baf83ba3168e"
+  },
+  {
+    "file": "bigjunkyard-detail-browser.html.gz",
+    "bytes": 281399,
+    "sha256": "6fde4ef6331b2d8677524c0bc220ed4c0503dbefeaf324dd1181b476b66541d0"
+  },
+  {
+    "file": "bigjunkyard-sitemap-browser.json.gz",
+    "bytes": 193456,
+    "sha256": "57cbc8ab0d0a9752d407de0ca02a583803bdc04ef1a9881069647e4289d07d37"
+  },
+  {
+    "file": "brandywine-inventory.body.gz",
+    "bytes": 208826,
+    "sha256": "1890621206afe794d4f55a50cd43066d91ae1620d4bd030be8e21d724376e314",
+    "receipt": {
+      "url": "https://brandywinejerseyinc.com/inventory/",
+      "final": "https://brandywinejerseyinc.com/inventory/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794956368.141,
+      "completed": 1794956370.267,
+      "bytes": 208826,
+      "hops": [
+        {
+          "url": "https://brandywinejerseyinc.com/inventory/",
+          "status": 200,
+          "time": 1794956370.202
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "brandywine-inventory",
+      "sha256": "1890621206afe794d4f55a50cd43066d91ae1620d4bd030be8e21d724376e314"
+    }
+  },
+  {
+    "file": "brandywine-hino.body.gz",
+    "bytes": 143179,
+    "sha256": "117d422a366a7edc225b7e1c77185a62f4c2778105e3296fa0b0488f322c7f34",
+    "receipt": {
+      "url": "https://brandywinejerseyinc.com/product/2011-hino-268-reefer-part-out/",
+      "final": "https://brandywinejerseyinc.com/product/2011-hino-268-reefer-part-out/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794956438.374,
+      "completed": 1794956440.463,
+      "bytes": 143179,
+      "hops": [
+        {
+          "url": "https://brandywinejerseyinc.com/product/2011-hino-268-reefer-part-out/",
+          "status": 200,
+          "time": 1794956440.398
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "brandywine-hino",
+      "sha256": "117d422a366a7edc225b7e1c77185a62f4c2778105e3296fa0b0488f322c7f34"
+    }
+  },
+  {
+    "file": "brandywine-international.body.gz",
+    "bytes": 137412,
+    "sha256": "04de13a6577a7de1dea4f8666bebf6492aeae53e44509115e02cf4e28c8369a4",
+    "receipt": {
+      "url": "https://brandywinejerseyinc.com/product/2011-international-part-out/",
+      "final": "https://brandywinejerseyinc.com/product/2011-international-part-out/",
+      "status": 200,
+      "error": null,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "method": "GET",
+      "time": 1794956459.566,
+      "completed": 1794956464.855,
+      "bytes": 137412,
+      "hops": [
+        {
+          "url": "https://brandywinejerseyinc.com/product/2011-international-part-out/",
+          "status": 200,
+          "time": 1794956464.789
+        }
+      ],
+      "transport": "Bun fetch",
+      "label": "brandywine-international",
+      "sha256": "04de13a6577a7de1dea4f8666bebf6492aeae53e44509115e02cf4e28c8369a4"
+    }
+  }
+]

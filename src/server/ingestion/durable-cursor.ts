@@ -40,6 +40,8 @@ import { ChasencarsCursor } from "./chasencars-cursor";
 import { WeberbrothersCursor } from "./weberbrothers-cursor";
 import { HawaiipartsCursor } from "./hawaiiparts-cursor";
 import { ModernmuscleCursor } from "./modernmuscle-cursor";
+import { CarsandpartsCursor } from "./carsandparts-cursor";
+import { SpartanCursor } from "./spartan-cursor";
 import { OemgarageCursor } from "./oemgarage-cursor";
 import { HagermanCursorSchema, type HagermanCursor } from "./hagerman-cursor";
 import { KandrCursor } from "./kandr-cursor";
@@ -363,6 +365,14 @@ const DURABLE_CURSOR_DEFINITIONS = {
   modernmuscle: {
     parse: ModernmuscleCursor.fromWire,
     serialize: ModernmuscleCursor.serialize,
+  },
+  carsandparts: {
+    parse: CarsandpartsCursor.fromWire,
+    serialize: CarsandpartsCursor.serialize,
+  },
+  spartan: {
+    parse: SpartanCursor.fromWire,
+    serialize: SpartanCursor.serialize,
   },
   oemgarage: {
     parse: (value: string) => {

@@ -8,8 +8,12 @@ import { soakBudgetInventory } from "./soak-budget";
 import { GRANDPAJOHNS_TENANT } from "../src/server/ingestion/alln1-yard-metadata";
 import { streamHawaiipartsInventory } from "../src/server/ingestion/hawaiiparts-connector";
 import { streamModernmuscleInventory } from "../src/server/ingestion/modernmuscle-connector";
+import { streamCarsandpartsInventory } from "../src/server/ingestion/carsandparts-connector";
+import { streamSpartanInventory } from "../src/server/ingestion/spartan-connector";
 import { HawaiipartsCursor } from "../src/server/ingestion/hawaiiparts-cursor";
 import { ModernmuscleCursor } from "../src/server/ingestion/modernmuscle-cursor";
+import { CarsandpartsCursor } from "../src/server/ingestion/carsandparts-cursor";
+import { SpartanCursor } from "../src/server/ingestion/spartan-cursor";
 import { soakShopifyYard } from "./soak-shopify-yard";
 import { streamHeavytruckpartsInventory } from "../src/server/ingestion/heavytruckparts-connector";
 import { soakHeavytruckpartsInventory } from "./soak-heavytruckparts";
@@ -739,6 +743,34 @@ async function main(): Promise<void> {
               (startCursor, maxPages) =>
                 runProgram(
                   streamModernmuscleInventory({
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "carsandparts":
+            return soakShopifyYard(
+              CarsandpartsCursor.initial(),
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamCarsandpartsInventory({
+                    previousUniqueInventory: null,
+                    startCursor,
+                    maxPages,
+                    onBatch,
+                  }),
+                ),
+              config.maxPages,
+            );
+          case "spartan":
+            return soakShopifyYard(
+              SpartanCursor.initial(),
+              (startCursor, maxPages) =>
+                runProgram(
+                  streamSpartanInventory({
                     previousUniqueInventory: null,
                     startCursor,
                     maxPages,

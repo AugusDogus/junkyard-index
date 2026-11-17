@@ -79,6 +79,8 @@ const censuses = [
   { source: "aero", count: 130 },
   { source: "hawaiiparts", count: 44 },
   { source: "modernmuscle", count: 347 },
+  { source: "carsandparts", count: 77 },
+  { source: "spartan", count: 969 },
   { source: "allied", count: 2507 },
   { source: "byot", count: 5330 },
   { source: "vinplus", count: 7621 },
@@ -138,6 +140,12 @@ test.each(hollanderstoresExpected.perYard)(
     expect<number>(yard.minimum).toBe(Math.max(1, Math.floor(accepted / 3)));
   },
 );
+
+test("Hollander source floor includes every configured yard floor", () => {
+  expect(SourceValidationPolicy.minimumUniqueInventory.hollanderstores).toBe(
+    HOLLANDERSTORES_YARDS.reduce((sum, yard) => sum + yard.minimum, 0),
+  );
+});
 
 // Established providers keep their existing floors.
 const established = [
