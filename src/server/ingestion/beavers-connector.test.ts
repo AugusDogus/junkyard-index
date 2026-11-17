@@ -122,21 +122,32 @@ test("donors and yard emit once after every opening, redirect, detail and closin
   expect(terminal.pagesProcessed).toBe(0);
   expect(requests).toHaveLength(546);
 });
-// Replaying several full saved censuses can exceed five seconds in CI.
-test("closing required-membership drift, excessive rejects and previous-run collapse never emit", async () => {
-  for (const scenario of [
-    {
-      options: { drift: true },
-      previous: null,
-      message: "closing required donor",
-    },
-    { options: { rejects: 27 }, previous: null, message: "10%" },
-    { options: {}, previous: 600, message: "50%" },
-  ]) {
+// Each complete replay has its own deadline, including under shared CI load.
+for (const scenario of [
+  {
+    name: "closing required-membership drift",
+    options: { drift: true },
+    previous: null,
+    message: "closing required donor",
+  },
+  {
+    name: "excessive rejects",
+    options: { rejects: 27 },
+    previous: null,
+    message: "10%",
+  },
+  {
+    name: "previous-run collapse",
+    options: {},
+    previous: 600,
+    message: "50%",
+  },
+]) {
+  test(`Beaver's ${scenario.name} never emits`, async () => {
     mockInventory(scenario.options);
     await expect(collect(scenario.previous)).rejects.toThrow(scenario.message);
-  }
-}, 15_000);
+  }, 15_000);
+}
 test("optional closing stock changes become null and preserve source admission", async () => {
   mockInventory({ optionalStockDrift: true });
   const { batches, result } = await collect();
