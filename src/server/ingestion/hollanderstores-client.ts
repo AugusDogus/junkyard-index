@@ -8,10 +8,10 @@ import {
   type HollanderstoresYard,
 } from "./hollanderstores-yard-metadata";
 import { hollanderstoresVin } from "./hollanderstores-vin";
-import { HOLLANDERSTORES_MAX_BODY_BYTES } from "./hollanderstores-limits";
+import { hollanderstoresBodyLimit } from "./hollanderstores-limits";
 import seed from "./hollanderstores-vpic-seed.json";
 
-// Verified NHTSA batch responses, November 15-16, 2026. The seed also
+// Verified NHTSA batch responses, November 15-17, 2026. The seed also
 // lets us report known native-make conflicts without decoding populated rows.
 export const hollanderstoresSeed: Readonly<Record<string, string>> = seed;
 export class HollanderstoresProviderError extends Data.TaggedError(
@@ -37,6 +37,7 @@ function request(
   body: URLSearchParams,
   mime: string,
   gate: ProviderRequestGate,
+  maxBodyBytes = 4 * 1024 * 1024,
 ) {
   const attempt = Effect.suspend(() => {
     const lifetime = new AbortController();
@@ -84,9 +85,7 @@ function request(
             response,
             "Hollander Stores " + url,
             signal,
-            mime === "text/html"
-              ? HOLLANDERSTORES_MAX_BODY_BYTES
-              : 4 * 1024 * 1024,
+            maxBodyBytes,
           );
         })();
         return pending;
@@ -134,6 +133,7 @@ export function fetchHollanderstoresPage(
     }),
     "text/html",
     gate,
+    hollanderstoresBodyLimit(yard.code),
   );
 }
 export const HOLLANDERSTORES_VPIC_URL =

@@ -94,8 +94,9 @@ export function hollanderstoresMissing(
     ...new Set(
       state.pages.flatMap((page) =>
         page.rows.flatMap((row) => {
+          if (row.make?.trim()) return [];
           const vin = hollanderstoresVin(row.vin);
-          return !row.make?.trim() && vin ? [vin] : [];
+          return vin ? [vin] : [];
         }),
       ),
     ),

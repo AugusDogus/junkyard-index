@@ -46,6 +46,6 @@ export const hollanderstoresExpected = z
   })
   .parse(
     JSON.parse(
-      readFileSync(`${import.meta.dir}/batch-2/qualification.json`, "utf8"),
+      readFileSync(`${import.meta.dir}/stricker/qualification.json`, "utf8"),
     ),
   );

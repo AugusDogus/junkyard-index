@@ -1,5 +1,5 @@
 import {
-  HOLLANDERSTORES_MAX_BODY_BYTES,
+  hollanderstoresBodyLimit,
   HOLLANDERSTORES_MAX_YARD_ROWS,
 } from "./hollanderstores-limits";
 import { z } from "zod";
@@ -58,7 +58,7 @@ export function parseHollanderstoresRoster(
   yard: HollanderstoresYard,
   pageNumber = 1,
 ) {
-  if (!yard || Buffer.byteLength(raw) > HOLLANDERSTORES_MAX_BODY_BYTES)
+  if (!yard || Buffer.byteLength(raw) > hollanderstoresBodyLimit(yard.code))
     throw new Error("Hollander Stores tenant or body bound changed");
   const html = stripInventoryRawText(raw);
   if (!/<\/html\s*>\s*$/i.test(html))

@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-17",
+  "timing": "Individual start/end timestamps were not retained for these six serial discovery requests. Each scripted request followed a five-second gap.",
+  "requests": [
+    {
+      "url": "https://holsttruck.com/trucks/?f-condition=nw",
+      "file": "holst.html.gz",
+      "status": 200,
+      "bytes": 311032,
+      "sha256": "2c871a2195aacfd4dffca735e17500401b6d714d8b22fab5270f5fb8a44dd984"
+    },
+    {
+      "url": "https://holsttruck.com/trucks/?f-condition=nw&per_page=2500",
+      "file": "holst-bulk.html.gz",
+      "status": 200,
+      "bytes": 312852,
+      "sha256": "bbdcaf4b90b9c57a6ae3bec6beb50e2471a4ea0cbc9712b2cac7f56545872cde"
+    },
+    {
+      "url": "https://holsttruck.com/wp-content/plugins/tpi-portal/shortcodes/inc/general.js?ver=7.1.4",
+      "file": "holst-general.gz",
+      "status": 200,
+      "bytes": 2401,
+      "sha256": "37f37e7b1b004a3bc2f86cf902e5abe505d4898197bc44b974f3f0d5335b2f21"
+    },
+    {
+      "url": "https://holsttruck.com/wp-content/plugins/tpi-portal/shortcodes/inc/filters.js?ver=7.1.4",
+      "file": "holst-filters.gz",
+      "status": 200,
+      "bytes": 8633,
+      "sha256": "cb011876a2148d75c6ccfc6ef4dbca0d1e7aafdd48f66cc84cfbfe0b868f2ec2"
+    },
+    {
+      "url": "https://holsttruck.com/wp-content/plugins/tpi-portal/shortcodes/inc/global.js?ver=7.1.4",
+      "file": "holst-global.gz",
+      "status": 200,
+      "bytes": 750,
+      "sha256": "84a1bf5bc241d151f00c4e54411ac54a06545633cab2c04452c14fb0533ad858"
+    },
+    {
+      "url": "https://holsttruck.com/wp-json/",
+      "file": "holst-rest.gz",
+      "status": 200,
+      "bytes": 235961,
+      "sha256": "0f5996c9505089e6f26cb3c3e24c8c1531262224150868382fdc03ee4992002c"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "yards": 52,
+  "rows": 69228,
+  "missingMakeVins": 19194,
+  "decodeOperations": 384,
+  "htmlRequests": 104,
+  "logicalOperations": 488,
+  "cursorBytes": 13132115,
+  "unresolvedMakeVins": 1,
+  "accepted": 68288,
+  "seededProviderRequests": 105,
+  "strickerRosterRequests": 2
+}
