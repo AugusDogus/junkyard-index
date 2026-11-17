@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   UrgiisControlSchema,
+  URGIIS_EMPTY_MODEL_MINIMUM,
   UrgiisRecordSchema,
   type UrgiisControl,
 } from "./urgiis-schema";
@@ -189,6 +190,15 @@ export function validateUrgiisEntry(
   if (entry.bytes === 0 && entry.kind !== "model" && entry.kind !== "detail")
     throw new Error(
       "IIS current ownership, directories and arrivals require a response receipt",
+    );
+  if (
+    entry.kind === "model" &&
+    task.kind === "model" &&
+    entry.records.length === 0 &&
+    task.model.count >= URGIIS_EMPTY_MODEL_MINIMUM
+  )
+    throw new Error(
+      "IIS checkpoint contains an incomplete badged empty model: " + task.url,
     );
   if (entry.kind === "owner") {
     if (entry.identity !== urgiisFingerprint(tenant.ownerClaims))

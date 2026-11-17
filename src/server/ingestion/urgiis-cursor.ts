@@ -16,6 +16,7 @@ const base = {
   version: z.literal(2),
   scope: z.string(),
   startedAt: z.number().int().nonnegative().nullable(),
+  retryAt: z.number().int().nonnegative().safe().optional(),
   asOf: z.number().int().nonnegative().nullable(),
   // The repository installs this pointer atomically with the snapshot checkpoint.
   statePath: z.string().min(1).nullable(),

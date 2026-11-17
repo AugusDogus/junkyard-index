@@ -5,6 +5,7 @@ import { z } from "zod";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { iisCards, iisDirectory, iisOwnedUrl } from "./urgiis-catalog";
 import { UrgiisControlSchema } from "./urgiis-schema";
+import { urgiisSnapshot } from "./urgiis-snapshot";
 import { assessIisRecord } from "./iis-record";
 
 const captures = z
@@ -182,7 +183,9 @@ test("Higgins' exact native arrivals title admits its donor cards", () => {
   expect(URGIIS_TENANTS.some((t) => t.code === "higgins")).toBe(true);
 });
 
-test("Higgins' eight arrivals-only donors retain valid identities and empty native parts results", () => {
+test("Higgins' eight arrivals-only donors link to arrivals instead of empty native parts results", () => {
+  const tenant = URGIIS_TENANTS.find((t) => t.code === "higgins");
+  if (!tenant) throw new Error("Missing Higgins tenant");
   const site = {
     origin: "https://higginsauto.com",
     urgid: "CA22",
@@ -225,6 +228,11 @@ test("Higgins' eight arrivals-only donors retain valid identities and empty nati
         },
       ).reasons,
     ).toEqual([]);
+    const snapshot = urgiisSnapshot([], tenant, new Map(), [record]);
+    expect(snapshot.vehicles).toHaveLength(1);
+    expect(snapshot.vehicles[0]?.detailsUrl).toBe(
+      tenant.origin + tenant.arrivalsPath,
+    );
     const page = iisCards(detail.html, site);
     expect(page.nativeEmpty).toBe(true);
     expect(page.records).toHaveLength(0);

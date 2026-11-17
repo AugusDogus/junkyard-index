@@ -1,7 +1,11 @@
 import { urgiisArrivalDate } from "../src/server/ingestion/urgiis-arrivals";
 import { URGIIS_TENANTS } from "../src/server/ingestion/urgiis-configuration";
 import { UrgiisReplayArchive } from "../src/server/ingestion/urgiis-replay-archive";
-import { iisCards, iisDirectory } from "../src/server/ingestion/urgiis-catalog";
+import {
+  iisCards,
+  iisDirectory,
+  iisValidateModelPage,
+} from "../src/server/ingestion/urgiis-catalog";
 import { urgiisDetailSeller } from "../src/server/ingestion/urgiis-detail";
 import {
   urgiisFingerprint,
@@ -18,10 +22,15 @@ import {
 // Offline request accounting. The latency scenario is explicit, not a live timing
 // claim: 6 seconds per HTML response plus each tenant's configured response gate.
 const rows = [];
+const blocked: {
+  tenant: string;
+  models: { path: string; reason: string }[];
+}[] = [];
 const start = Date.UTC(2026, 10, 16);
 for (const tenant of URGIIS_TENANTS) {
   const archive = await UrgiisReplayArchive.open(tenant.code);
   const entries: UrgiisEntry[] = [];
+  const incompleteModels: { path: string; reason: string }[] = [];
   let detailTasks: UrgiisTask[] | null = null;
   try {
     while (true) {
@@ -56,7 +65,18 @@ for (const tenant of URGIIS_TENANTS) {
           seller: urgiisDetailSeller(response.html, tenant, task),
         });
       else {
-        const records = iisCards(response.html, tenant, task.kind).records;
+        const page = iisCards(response.html, tenant, task.kind);
+        if (task.kind === "model") {
+          try {
+            iisValidateModelPage(page, task.model);
+          } catch (cause) {
+            incompleteModels.push({
+              path: task.model.path,
+              reason: cause instanceof Error ? cause.message : String(cause),
+            });
+          }
+        }
+        const records = page.records;
         entries.push(
           task.kind === "model"
             ? {
@@ -68,6 +88,10 @@ for (const tenant of URGIIS_TENANTS) {
             : { ...receipt, kind: "arrivals", records },
         );
       }
+    }
+    if (incompleteModels.length) {
+      blocked.push({ tenant: tenant.code, models: incompleteModels });
+      continue;
     }
     const census = UrgiisCensus.accept(
       UrgiisCensus.empty(),
@@ -187,6 +211,7 @@ console.log(
   JSON.stringify(
     {
       latencySeconds: 6,
+      blocked,
       rows,
       totals: {
         beforeRequests: rows.reduce((n, r) => n + r.fullRequests, 0),

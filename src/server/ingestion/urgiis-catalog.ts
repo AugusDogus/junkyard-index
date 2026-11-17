@@ -11,6 +11,7 @@ import {
 
 import {
   UrgiisControlSchema,
+  URGIIS_EMPTY_MODEL_MINIMUM,
   type UrgiisControl,
   type UrgiisRecord,
   type UrgiisSite,
@@ -303,7 +304,7 @@ export function iisValidateModelPage(
 ) {
   if (page.capped)
     throw new Error("IIS native 500-card boundary reached at " + model.path);
-  if (page.nativeEmpty && model.count >= 3)
+  if (page.nativeEmpty && model.count >= URGIIS_EMPTY_MODEL_MINIMUM)
     throw new Error(
       `IIS model ${model.path} advertises ${model.count} donors but returns an explicit empty result; enumeration is incomplete`,
     );

@@ -11,3 +11,5 @@ export interface UrgiisSite {
   urgid: string;
   pathStyle: "parts" | "used-parts";
 }
+
+export const URGIIS_EMPTY_MODEL_MINIMUM = 3;

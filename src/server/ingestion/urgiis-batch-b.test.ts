@@ -15,6 +15,7 @@ import { UrgiisCursor } from "./urgiis-cursor";
 import { urgiisError } from "./urgiis-client";
 import { UrgiisReplayArchive } from "./urgiis-replay-archive";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { validateUrgiisSnapshot } from "./urgiis-snapshot";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
 for (const census of [
@@ -181,6 +182,17 @@ for (const tenant of rejectedTenants) {
     const archive = await UrgiisReplayArchive.open(
       tenant.code + "-rejected-census",
     );
+    const assessed = await UrgiisReplayArchive.assess(
+      tenant.code + "-rejected-census",
+      tenant,
+    );
+    expect(assessed.accounting).toMatchObject({
+      recordsProcessed: archive.expected.recordsProcessed,
+      recordsRejected: archive.expected.recordsRejected,
+      recordsExcluded: archive.expected.recordsExcluded,
+      duplicateVehicles: archive.expected.duplicateVehicles,
+    });
+    expect(() => validateUrgiisSnapshot(assessed, tenant)).toThrow("rejected");
     let cursor = UrgiisCursor.initial([tenant]);
     let reads = 0;
     let published = false;
@@ -209,6 +221,15 @@ for (const tenant of rejectedTenants) {
           }).pipe(Effect.either),
         );
         if (result._tag === "Left") {
+          if (tenant.code === "airport") {
+            expect(result.left.operation).toBe(
+              "parse " + tenant.origin + "/parts/CHRYSLER/NEW_YORKER_(FWD)/",
+            );
+            expect(result.left.message).toContain("enumeration is incomplete");
+            expect(reads).toBeLessThan(archive.responseCount);
+            expect(published).toBe(false);
+            return;
+          }
           expect(result.left.operation).toBe("snapshot " + tenant.code);
           const eligible =
             archive.expected.recordsProcessed -

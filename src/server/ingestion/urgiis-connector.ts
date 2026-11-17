@@ -8,6 +8,7 @@ import {
   urgiisCarry,
   urgiisDefer,
   URGIIS_SWEEP_MS,
+  URGIIS_DAY_MS,
 } from "./urgiis-census";
 import { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisDetailSeller } from "./urgiis-detail";
@@ -23,7 +24,12 @@ import {
   type UrgiisEntry,
   type UrgiisTask,
 } from "./urgiis-traversal";
-import { iisCards, iisDirectory, iisDocument } from "./urgiis-catalog";
+import {
+  iisCards,
+  iisDirectory,
+  iisDocument,
+  iisValidateModelPage,
+} from "./urgiis-catalog";
 import { iisText } from "./iis-html";
 import {
   urgiisSnapshot,
@@ -97,14 +103,10 @@ function parseEntry(
     tenant,
     task.kind === "arrivals" ? "arrivals" : "model",
   );
-  if (
-    page.capped ||
-    (task.kind === "model" && page.nativeEmpty && task.model.count >= 500)
-  )
+  if (task.kind === "model") iisValidateModelPage(page, task.model);
+  else if (page.capped)
     throw new Error(
-      "Native 500-card boundary or empty large model reached at " +
-        task.url +
-        "; narrow by the published year controls before emission",
+      "IIS native 500-card arrivals boundary reached at " + task.url,
     );
   return task.kind === "model"
     ? {
@@ -149,12 +151,38 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
     };
     if (cursor.phase === "complete")
       return { ...result, status: "complete" as const };
-    const now = options.now ?? Date.now();
-    const resumed = yield* resumeUrgiisCensus(cursor, tenants, now, options);
+    const wallNow = options.now ?? Date.now();
+    const resumed = yield* resumeUrgiisCensus(
+      cursor,
+      tenants,
+      wallNow,
+      options,
+    );
     cursor = resumed.cursor;
     let census = resumed.census;
     result.warnings.push(...resumed.warnings);
-    const startedAt = cursor.startedAt ?? now;
+    // Date every observation conservatively at the persistent run start. Carry,
+    // retry and acceptance decisions use this same clock across chunk retries.
+    const now = cursor.startedAt ?? wallNow;
+    const startedAt = now;
+    if (cursor.retryAt !== undefined && wallNow < cursor.retryAt)
+      return {
+        ...result,
+        cursor,
+        warnings: [
+          ...result.warnings,
+          `URG IIS provider cooldown lasts until ${new Date(cursor.retryAt).toISOString()}; no requests made.`,
+        ],
+      };
+    if (wallNow - startedAt >= URGIIS_DAY_MS - 8 * 60_000)
+      return {
+        ...result,
+        cursor,
+        status: "failed" as const,
+        errors: [
+          "URG IIS census has less than one chunk left before its one-day deadline; restart with fresh evidence. Prior inventory is preserved.",
+        ],
+      };
     let unsealed = false;
     while (cursor.phase !== "complete") {
       const tenant = tenants[cursor.completed.length];
@@ -194,7 +222,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             });
         });
         const cursorEntries = cursor.entries;
-        const acceptedAt = options.now ?? Date.now();
+        const acceptedAt = now;
         const sellers = new Map(
           cursor.entries.flatMap((entry) =>
             entry.kind === "detail" ? [[entry.url, entry.seller] as const] : [],
@@ -315,11 +343,58 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         continue;
       }
       if (result.pagesProcessed >= budget) break;
+      // One 90-second model (with its retries) fits the chunk deadline. Do not
+      // begin it after other requests have already consumed this chunk's budget.
+      if (
+        task.kind === "model" &&
+        tenant.requestTimeoutMs > 60_000 &&
+        result.pagesProcessed > 0
+      )
+        break;
       const response = yield* options
         .readPage(task.url, tenant)
         .pipe(Effect.either);
       if (response._tag === "Left") {
-        const failedAt = options.now ?? Date.now();
+        const failedAt = now;
+        const alreadyDeferred = cursor.entries.some(
+          (e) => e.kind === "model" && e.freshness.kind === "deferred",
+        );
+        if (
+          response.left.kind === "blocked" &&
+          response.left.retryAfterMs > 0
+        ) {
+          const retryAt =
+            (options.now ?? Date.now()) + response.left.retryAfterMs;
+          if (Number.isSafeInteger(retryAt)) {
+            cursor = yield* boundary("provider cooldown checkpoint", () =>
+              UrgiisCursor.checkpoint(
+                { ...cursor, retryAt, requests: cursor.requests + 1 },
+                tenants,
+              ),
+            );
+            return {
+              ...result,
+              cursor,
+              pagesProcessed: result.pagesProcessed + 1,
+              warnings: [...result.warnings, response.left.message],
+            };
+          }
+        }
+        if (
+          response.left.kind === "blocked" ||
+          (task.kind === "model" && alreadyDeferred)
+        )
+          return {
+            ...result,
+            cursor,
+            status: "failed" as const,
+            pagesProcessed: result.pagesProcessed + 1,
+            errors: [
+              response.left.kind === "blocked"
+                ? response.left.message
+                : `${tenant.code}: requests failed on distinct model pages; stopping the tenant crawl. ${response.left.message}`,
+            ],
+          };
         const deferred =
           cursor.phase === "opening"
             ? urgiisDefer(task, cursor.entries, previousTenant, failedAt)
@@ -346,10 +421,11 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         result.warnings.push(
           `${tenant.code}: ${task.url} failed after retries; retaining model donors read at ${new Date(deferred.freshness.readAt).toISOString()}. Retry next run; publication stops at seven days.`,
         );
-        continue;
+        // Persist this failed-page frontier before any further network work.
+        break;
       }
       const raw = response.right;
-      const readAt = options.now ?? Date.now();
+      const readAt = now;
       const parsed = yield* boundary("parse " + task.url, () =>
         parseEntry(raw, task, tenant, readAt),
       ).pipe(Effect.either);

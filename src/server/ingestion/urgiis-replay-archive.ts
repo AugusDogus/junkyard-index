@@ -2,6 +2,10 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { brotliDecompressSync, createBrotliDecompress } from "node:zlib";
 import { z } from "zod";
+import { iisCards, iisDirectory } from "./urgiis-catalog";
+import { urgiisSnapshot, type UrgiisModelPage } from "./urgiis-snapshot";
+import type { UrgiisControl, UrgiisRecord } from "./urgiis-schema";
+import type { UrgiisTenant } from "./urgiis-tenant";
 
 const responseSchema = z.object({ url: z.string().url(), html: z.string() });
 const metadataSchema = z.object({
@@ -21,6 +25,47 @@ export type UrgiisReplayArchive = z.infer<typeof metadataSchema> & {
   close(): void;
 };
 export const UrgiisReplayArchive = {
+  /** Assess all saved observations independently of an earlier traversal failure. */
+  async assess(code: string, tenant: UrgiisTenant) {
+    const archive = await UrgiisReplayArchive.open(code);
+    const makes = new Map<string, UrgiisControl>();
+    const models = new Map<
+      string,
+      { make: UrgiisControl; model: UrgiisControl }
+    >();
+    const pages: UrgiisModelPage[] = [];
+    const arrivals: UrgiisRecord[] = [];
+    const seen = new Set<string>();
+    try {
+      let response;
+      while ((response = await archive.next())) {
+        if (seen.has(response.url)) continue;
+        seen.add(response.url);
+        const path = new URL(response.url).pathname;
+        if (path === tenant.makesPath)
+          for (const make of iisDirectory(response.html, tenant))
+            makes.set(make.path, make);
+        else if (path === tenant.arrivalsPath)
+          arrivals.push(...iisCards(response.html, tenant, "arrivals").records);
+        else {
+          const make = makes.get(path);
+          if (make)
+            for (const model of iisDirectory(response.html, tenant, make))
+              models.set(model.path, { make, model });
+          const model = models.get(path);
+          if (model)
+            pages.push({
+              ...model,
+              records: iisCards(response.html, tenant).records,
+              hash: "",
+            });
+        }
+      }
+      return urgiisSnapshot(pages, tenant, new Map(), arrivals);
+    } finally {
+      archive.close();
+    }
+  },
   async open(code: string): Promise<UrgiisReplayArchive> {
     const streamed = new URL(
       `./urgiis-test-fixtures/${code}.jsonl.br`,

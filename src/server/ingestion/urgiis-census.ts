@@ -13,8 +13,10 @@ import type { UrgiisRecord } from "./urgiis-schema";
 
 export const URGIIS_DAY_MS = 24 * 60 * 60 * 1000;
 export const URGIIS_SWEEP_MS = 7 * URGIIS_DAY_MS;
+// Reserve one day for a run to finish before the seven-day evidence ceiling.
+const carryMs = 6 * URGIIS_DAY_MS;
 // Bump this whenever admission, traversal or interpretation of cached evidence changes.
-const contract = "incremental-census-v2";
+const contract = "incremental-census-v3";
 const tenantSchema = z
   .object({
     code: z.string(),
@@ -89,7 +91,7 @@ function previousModel(
 export function urgiisSweepDue(index: number, now: number, readAt: number) {
   const day = Math.floor(now / URGIIS_DAY_MS);
   return (
-    now - readAt >= URGIIS_SWEEP_MS ||
+    now - readAt >= carryMs ||
     (index % 7 === day % 7 && Math.floor(readAt / URGIIS_DAY_MS) < day)
   );
 }
@@ -172,7 +174,7 @@ export function urgiisDefer(
     urgiisArrivalsCoverage(entries, previous).kind === "overflow" ||
     task.kind !== "model" ||
     task.model.count >= 500 ||
-    now - before.entry.freshness.readAt >= URGIIS_SWEEP_MS
+    now - before.entry.freshness.readAt >= carryMs
   )
     return undefined;
   return {
