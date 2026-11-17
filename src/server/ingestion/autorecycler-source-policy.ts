@@ -24,6 +24,19 @@ const DIRECT_PROVIDER_ORGANIZATIONS = new Set([
   "1729734763257x684941304085489500", // Pick Your Part - Greenville
   "1729734767394x763899678894703500", // LKQ - EAST NC
   "1729734767860x176607785988997630", // LKQ - CHARLESTON
+  // Former AutoRecycler customers now read directly: Paul's Auto Yard via
+  // hollanderstores, Ryan's Pick-A-Part via vinplus. Their legacy feeds froze
+  // when they left; never let a revived copy duplicate the direct yards.
+  "1761071937027x514174316460297860", // Paul's - South Bend
+  "1761071936874x713046217845783900", // Paul's - Fort Wayne
+  "1761071937073x771631222664628200", // Paul's - Westville
+  "1761071936989x914699093015752600", // Paul's - Merrillville
+  "1761069152080x996853889979226500", // Paul's - Lake Station
+  "1761071936914x994987077933516800", // Paul's - Elkhart North
+  "1761071936799x270770136291979650", // Paul's - DeMotte
+  "1761071936758x445900678572385340", // Paul's - Knox
+  "1761071936952x676404213301774700", // Paul's - Logansport
+  "1757515768480x772759259987457800", // Ryan's Pick-A-Part - Detroit
 ]);
 const reference = z
   .string()
