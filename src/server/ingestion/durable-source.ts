@@ -11,6 +11,7 @@ import { AlliedCursor } from "./allied-cursor";
 import { ALLIED_CONTRACT } from "./allied-configuration";
 import { PontiacCursor } from "./pontiac-cursor";
 import { AutorecyclerCursor } from "./autorecycler-cursor";
+import { VanderHaagsCursor } from "./vanderhaags-cursor";
 import { AeroCursor } from "./aero-cursor";
 import { ChesterfieldCursor } from "./chesterfield-cursor";
 import { UtpapCursor } from "./utpap-cursor";
@@ -224,6 +225,10 @@ export const DURABLE_SOURCE_DEFINITIONS: DurableSourceRegistry = {
   },
   pontiac: { initialCursor: PontiacCursor.initial, maxPagesPerChunk: 16 },
   aero: { initialCursor: AeroCursor.initial, maxPagesPerChunk: 1 },
+  vanderhaags: {
+    initialCursor: VanderHaagsCursor.initial,
+    maxPagesPerChunk: 12,
+  },
   chesterfield: {
     initialCursor: ChesterfieldCursor.initial,
     maxPagesPerChunk: 16,

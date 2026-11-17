@@ -15,6 +15,7 @@ import { UpullitwaCursorSchema } from "./upullitwa-cursor";
 import { RtpCursorSchema } from "./rtp-cursor";
 import { NvpapCursorSchema } from "./nvpap-cursor";
 import { PontiacCursorSchema } from "./pontiac-cursor";
+import { VanderHaagsCursorSchema } from "./vanderhaags-cursor";
 import { AeroCursorSchema } from "./aero-cursor";
 import { ChesterfieldCursorSchema } from "./chesterfield-cursor";
 import { UtpapCursorSchema } from "./utpap-cursor";
@@ -566,6 +567,7 @@ const DURABLE_CURSOR_DEFINITIONS = {
   nvpap: defineJsonCursor("nvpap", NvpapCursorSchema),
   pontiac: defineJsonCursor("pontiac", PontiacCursorSchema),
   aero: defineJsonCursor("aero", AeroCursorSchema),
+  vanderhaags: defineJsonCursor("vanderhaags", VanderHaagsCursorSchema),
   chesterfield: defineJsonCursor("chesterfield", ChesterfieldCursorSchema),
   utpap: defineJsonCursor("utpap", UtpapCursorSchema),
   tritown: defineJsonCursor("tritown", TritownCursorSchema),

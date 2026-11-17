@@ -77,6 +77,7 @@ describe("reconciliation policy", () => {
       "nvpap",
       "pontiac",
       "aero",
+      "vanderhaags",
       "chesterfield",
       "utpap",
       "tritown",

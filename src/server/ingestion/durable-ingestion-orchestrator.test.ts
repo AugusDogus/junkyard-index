@@ -39,6 +39,7 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     nvpap: 0,
     pontiac: 0,
     aero: 0,
+    vanderhaags: 0,
     chesterfield: 0,
     utpap: 0,
     tritown: 0,

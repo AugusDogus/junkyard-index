@@ -30,6 +30,10 @@ const providerWebsites = new Map<string, string>([
   ["nvpap", "https://nvpap.com/"],
   ["pontiac", "https://u-pullandsave.com/"],
   ["aero", "https://aeroautosalvage.com/"],
+  [
+    "vanderhaags",
+    "https://www.vanderhaags.com/locationtemplate.php?store=Sioux%20Falls",
+  ],
   ["chesterfield", "https://chesterfieldauto.com/"],
   ["utpap", "https://utpap.com/"],
   ["tritown", "https://tritownautosalvage.com/cars/"],

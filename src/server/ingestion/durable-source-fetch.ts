@@ -23,6 +23,7 @@ import { streamPartsGaloreInventory } from "./partsgalore-connector";
 import { streamRtpInventory } from "./rtp-connector";
 import { streamNvpapInventory } from "./nvpap-connector";
 import { streamPontiacInventory } from "./pontiac-connector";
+import { streamVanderHaagsInventory } from "./vanderhaags-connector";
 import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
 import { streamUtpapInventory } from "./utpap-connector";
@@ -1319,6 +1320,20 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
           onYards: context.onYards,
           photoStore: DonorPhotoStore.vercelBlob(env.BLOB_READ_WRITE_TOKEN),
           appUrl: env.NEXT_PUBLIC_APP_URL,
+        }),
+      ),
+      (next) => next,
+      context.vehiclesByVin,
+      context.yardsByCode,
+    ),
+  vanderhaags: async (cursor, context) =>
+    toFetchedChunk(
+      await runIngestionEffect(
+        streamVanderHaagsInventory({
+          startCursor: cursor,
+          maxPages: context.maxPages,
+          onBatch: context.onBatch,
+          onYards: context.onYards,
         }),
       ),
       (next) => next,
