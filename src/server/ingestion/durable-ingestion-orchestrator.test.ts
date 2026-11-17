@@ -100,6 +100,8 @@ const COMPLETED_INGESTION: DurableIngestionResult = {
     weberbrothers: 0,
     hawaiiparts: 0,
     modernmuscle: 0,
+    carsandparts: 0,
+    spartan: 0,
     oemgarage: 0,
     hagerman: 0,
     kandr: 0,

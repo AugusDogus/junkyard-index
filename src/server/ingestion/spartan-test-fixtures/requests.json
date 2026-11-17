@@ -1,0 +1,4034 @@
+[
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=1",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=1",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953425.077,
+    "completed": 1794953425.338,
+    "bytes": 30509,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=1",
+        "status": 200,
+        "time": 1794953425.303
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-1",
+    "sha256": "eeb1a01d11e86ead55ad0ae437f7cc4120fdceca07beb94ed065536563be81a6",
+    "file": "opening-auto-1.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=2",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=2",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953428.574,
+    "completed": 1794953428.83,
+    "bytes": 30617,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=2",
+        "status": 200,
+        "time": 1794953428.796
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-2",
+    "sha256": "fbf8cbad6498115407b678df3542856d6beab950c7c946c9cc9edce3ab0ba735",
+    "file": "opening-auto-2.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=3",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=3",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953432.07,
+    "completed": 1794953432.331,
+    "bytes": 30086,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=3",
+        "status": 200,
+        "time": 1794953432.293
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-3",
+    "sha256": "b97d6629fea7bb97df0f1a73f624e447bc8b6eaccb16928233dc4a1c8ba9353d",
+    "file": "opening-auto-3.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=4",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=4",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953435.575,
+    "completed": 1794953435.824,
+    "bytes": 28448,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=4",
+        "status": 200,
+        "time": 1794953435.788
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-4",
+    "sha256": "b174d566f92225f36634da4dc358c690baa987985ccc020c8d31fcfaa471fcac",
+    "file": "opening-auto-4.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=5",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=5",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953439.049,
+    "completed": 1794953439.311,
+    "bytes": 28330,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=5",
+        "status": 200,
+        "time": 1794953439.273
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-5",
+    "sha256": "57314e45916b182d7f30e4562541431f0e2edb2fdcadbe94cdcd74ad765af061",
+    "file": "opening-auto-5.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=6",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=6",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953442.531,
+    "completed": 1794953442.786,
+    "bytes": 29875,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=6",
+        "status": 200,
+        "time": 1794953442.739
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-6",
+    "sha256": "79b7c2d918c5c4b1110d6f5471c1065b526a8815cc426bd8bce313786f6dabe5",
+    "file": "opening-auto-6.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=7",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=7",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953446.007,
+    "completed": 1794953446.249,
+    "bytes": 29987,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=7",
+        "status": 200,
+        "time": 1794953446.212
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-7",
+    "sha256": "ed7f32b0d5ee4964e2ce38b68085144cd914ae032744e42b2d38920ed5447979",
+    "file": "opening-auto-7.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=8",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=8",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953449.467,
+    "completed": 1794953449.893,
+    "bytes": 30121,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=8",
+        "status": 200,
+        "time": 1794953449.858
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-8",
+    "sha256": "eaab6d47a913b688bec4fc4bb8c415c225afd3627c952ae3016fab2c2ce792e7",
+    "file": "opening-auto-8.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=9",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=9",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953453.109,
+    "completed": 1794953453.417,
+    "bytes": 30474,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=9",
+        "status": 200,
+        "time": 1794953453.382
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-9",
+    "sha256": "db257242b31bb6e90cee294a5944bec5b9bd532ae82f58f31bc735f7a4a0a196",
+    "file": "opening-auto-9.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=10",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=10",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953456.632,
+    "completed": 1794953456.892,
+    "bytes": 30300,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=10",
+        "status": 200,
+        "time": 1794953456.855
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-10",
+    "sha256": "c660a83d17355966330b32fcb816d58d203858acfaa793af0014879a427cd197",
+    "file": "opening-auto-10.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=11",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=11",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953460.11,
+    "completed": 1794953460.557,
+    "bytes": 30571,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=11",
+        "status": 200,
+        "time": 1794953460.522
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-11",
+    "sha256": "4e133565c7aad794cca93a091ce238433e9cea26612d406d0cf8461479c7bd92",
+    "file": "opening-auto-11.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=12",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=12",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953463.774,
+    "completed": 1794953464.127,
+    "bytes": 38452,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=12",
+        "status": 200,
+        "time": 1794953464.092
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-12",
+    "sha256": "16679a66d7498c0f7bd10332b5c4a5c17ab40370b04ddfe8d0741f48d0b5c1ae",
+    "file": "opening-auto-12.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=13",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=13",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953467.346,
+    "completed": 1794953467.598,
+    "bytes": 38492,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=13",
+        "status": 200,
+        "time": 1794953467.552
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-13",
+    "sha256": "a8d863e6dccd4de248c37ebde0b798841bb891687daa44091597401c675b1720",
+    "file": "opening-auto-13.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=14",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=14",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953470.822,
+    "completed": 1794953471.07,
+    "bytes": 37803,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=14",
+        "status": 200,
+        "time": 1794953471.026
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-14",
+    "sha256": "196f872857871bc155a5aacd14b924da8132dcb0bc62fbe79b73e962cd8e8fc5",
+    "file": "opening-auto-14.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=15",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=15",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953474.29,
+    "completed": 1794953474.536,
+    "bytes": 39579,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=15",
+        "status": 200,
+        "time": 1794953474.501
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-15",
+    "sha256": "9b2847a8bbac8a5ba5f2fb70282ca33be667521cc2a02aca6398e4f38513d9a7",
+    "file": "opening-auto-15.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=16",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=16",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953477.757,
+    "completed": 1794953478.005,
+    "bytes": 37984,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=16",
+        "status": 200,
+        "time": 1794953477.969
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-16",
+    "sha256": "2c2dc1845c4a813ab4018897b8957978829a0443373599467307a23f90dcca9b",
+    "file": "opening-auto-16.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=17",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=17",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953481.227,
+    "completed": 1794953481.526,
+    "bytes": 38701,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=17",
+        "status": 200,
+        "time": 1794953481.484
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-17",
+    "sha256": "4d555f5e8068aeefc006f55cf8a4815fed7e938ff3afaa66c70d13333185698a",
+    "file": "opening-auto-17.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=18",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=18",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953484.746,
+    "completed": 1794953485.003,
+    "bytes": 39178,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=18",
+        "status": 200,
+        "time": 1794953484.952
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-18",
+    "sha256": "4bd4b0a997647d9e1ff4116a9294da5887ec871c4c6c824e10b2cd0882467af2",
+    "file": "opening-auto-18.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=19",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=19",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953488.222,
+    "completed": 1794953488.46,
+    "bytes": 37128,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=19",
+        "status": 200,
+        "time": 1794953488.419
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-19",
+    "sha256": "a7595e381db3ebdb3e8c2ba6515eb1e676df8f1cc48e6700f5cb9821213a83b7",
+    "file": "opening-auto-19.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=20",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=20",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953491.678,
+    "completed": 1794953491.916,
+    "bytes": 36641,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=20",
+        "status": 200,
+        "time": 1794953491.875
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-20",
+    "sha256": "dcebfb1f21907fa90298142f65508ef54354f6132594098cd53edb8dac82c015",
+    "file": "opening-auto-20.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=21",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=21",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953495.14,
+    "completed": 1794953495.386,
+    "bytes": 39874,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=21",
+        "status": 200,
+        "time": 1794953495.353
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-21",
+    "sha256": "cf8b8a2032169b78d7b946d5e85421e8b90215969086b75aa408b697562c6070",
+    "file": "opening-auto-21.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=22",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=22",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953498.606,
+    "completed": 1794953498.84,
+    "bytes": 35805,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=22",
+        "status": 200,
+        "time": 1794953498.797
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-22",
+    "sha256": "87ec81352c8ad6065dce23477fa72f4325f0a939eb99e2791489db3928dda24a",
+    "file": "opening-auto-22.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=23",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=23",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953502.058,
+    "completed": 1794953502.296,
+    "bytes": 37981,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=23",
+        "status": 200,
+        "time": 1794953502.253
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-23",
+    "sha256": "1fb7aea10178c043dbc8519ad2e8e407f4ebd67ceffe92c85e8b8c6f8c85a1f2",
+    "file": "opening-auto-23.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=24",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=24",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953505.515,
+    "completed": 1794953505.897,
+    "bytes": 38906,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=24",
+        "status": 200,
+        "time": 1794953505.862
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-24",
+    "sha256": "c0072870ea6bbf5c7a8ef6146341ef4172878535ece77ae13b35fa5f8eef6e02",
+    "file": "opening-auto-24.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=25",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=25",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953509.114,
+    "completed": 1794953509.352,
+    "bytes": 36989,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=25",
+        "status": 200,
+        "time": 1794953509.317
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-25",
+    "sha256": "c7211e54f94bb2de1a5504b7a75247d8b132de9dd4c95d52a3bb3f2f72031ffa",
+    "file": "opening-auto-25.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=26",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=26",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953512.57,
+    "completed": 1794953512.792,
+    "bytes": 22854,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=26",
+        "status": 200,
+        "time": 1794953512.792
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-26",
+    "sha256": "9f03c8fe9298c53bce8e826880c9a1711ec064c45854b8b7346268db485f59d8",
+    "file": "opening-auto-26.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=27",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=27",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953516.008,
+    "completed": 1794953516.249,
+    "bytes": 25047,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=27",
+        "status": 200,
+        "time": 1794953516.248
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-27",
+    "sha256": "723760a45247cd27502434da520600a7f9dbd3bcf1ff236ddb586c5faf5cbd37",
+    "file": "opening-auto-27.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=28",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=28",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953519.467,
+    "completed": 1794953519.877,
+    "bytes": 26564,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=28",
+        "status": 200,
+        "time": 1794953519.842
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-28",
+    "sha256": "f5e65e7ffc6084ae877cdc396b95621654b8214d7148e8625b85b74359ecdff0",
+    "file": "opening-auto-28.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=29",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=29",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953523.094,
+    "completed": 1794953523.383,
+    "bytes": 25937,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=29",
+        "status": 200,
+        "time": 1794953523.38
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-29",
+    "sha256": "8042c25e3a8f6a723f30af450292b3479808ceca0e7a81a0e7cf440b9300d8dc",
+    "file": "opening-auto-29.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=30",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=30",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953526.601,
+    "completed": 1794953526.853,
+    "bytes": 25636,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=30",
+        "status": 200,
+        "time": 1794953526.82
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-30",
+    "sha256": "722e177e56b01a7a7886e42566565052b2a0bc17569d86ee41f1b9b6a581cf78",
+    "file": "opening-auto-30.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=31",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=31",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953530.07,
+    "completed": 1794953530.3,
+    "bytes": 24446,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=31",
+        "status": 200,
+        "time": 1794953530.299
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-31",
+    "sha256": "32c67b15c032818f7a2f3b4fcd9740ffb0f4336a83f236302bc3f33902e31c7e",
+    "file": "opening-auto-31.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=32",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=32",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953533.515,
+    "completed": 1794953533.747,
+    "bytes": 24697,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=32",
+        "status": 200,
+        "time": 1794953533.745
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-32",
+    "sha256": "77f2242c1f6c00a776fedefb9bb482988899cc516686d95a4fc45219f67bfd7e",
+    "file": "opening-auto-32.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=33",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=33",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953536.963,
+    "completed": 1794953537.272,
+    "bytes": 23923,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=33",
+        "status": 200,
+        "time": 1794953537.271
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-33",
+    "sha256": "7b74c3ff7b500a92f0122c493afd8c3f097a56086636a47f5e337fe91f060087",
+    "file": "opening-auto-33.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=34",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=34",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953540.489,
+    "completed": 1794953540.725,
+    "bytes": 26196,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=34",
+        "status": 200,
+        "time": 1794953540.686
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-34",
+    "sha256": "c1d8ed570f4991ee5c2deaa5e8f7a4f0c4d6d2b754ad0f954d94093b60a82030",
+    "file": "opening-auto-34.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=35",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=35",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953543.948,
+    "completed": 1794953544.159,
+    "bytes": 25665,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=35",
+        "status": 200,
+        "time": 1794953544.157
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-35",
+    "sha256": "0f89cca7a713113e55f9d3fa3f85f74c20aca588959e79cce75c085167d5bf7c",
+    "file": "opening-auto-35.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=36",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=36",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953547.384,
+    "completed": 1794953547.616,
+    "bytes": 26162,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=36",
+        "status": 200,
+        "time": 1794953547.576
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-36",
+    "sha256": "1216ef79bbfc3fa25c0e90958cf165c79b66df71ea97b73517b79e85bc855775",
+    "file": "opening-auto-36.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=37",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=37",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953550.848,
+    "completed": 1794953551.06,
+    "bytes": 25561,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=37",
+        "status": 200,
+        "time": 1794953551.058
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-37",
+    "sha256": "ad14cc53663a99f6dfe48a1039afb41891274d7db3f7cf6f455f87f44b467802",
+    "file": "opening-auto-37.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=38",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=38",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953554.284,
+    "completed": 1794953554.492,
+    "bytes": 24975,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=38",
+        "status": 200,
+        "time": 1794953554.481
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-38",
+    "sha256": "382772910d1e780137a4f52dccd05eec77748dabd6600b3e2287a75eda48e840",
+    "file": "opening-auto-38.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=39",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=39",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953557.723,
+    "completed": 1794953557.947,
+    "bytes": 25388,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=39",
+        "status": 200,
+        "time": 1794953557.946
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-39",
+    "sha256": "c22e42ebd0706ffb020119b0680125009adfff520bf8db10c83df3d4946f569a",
+    "file": "opening-auto-39.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=40",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=40",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953561.173,
+    "completed": 1794953561.365,
+    "bytes": 24770,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=40",
+        "status": 200,
+        "time": 1794953561.364
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-40",
+    "sha256": "16e65a6185932f72ace0e7e26205b2a3391cacf82f9dd97079264d78f0144456",
+    "file": "opening-auto-40.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=41",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=41",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953564.58,
+    "completed": 1794953564.79,
+    "bytes": 24717,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=41",
+        "status": 200,
+        "time": 1794953564.789
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-41",
+    "sha256": "3154f518c3140504ebc9fde44cbdecce562f142a0dec7355aa982730a5376671",
+    "file": "opening-auto-41.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=42",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=42",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953568.011,
+    "completed": 1794953568.243,
+    "bytes": 24151,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=42",
+        "status": 200,
+        "time": 1794953568.241
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-42",
+    "sha256": "63862dad2f7730bf4bc2b79e4bf46bc2a79192586781278ebfd0637fd4e9e5ac",
+    "file": "opening-auto-42.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=43",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=43",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953571.461,
+    "completed": 1794953571.717,
+    "bytes": 25288,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=43",
+        "status": 200,
+        "time": 1794953571.716
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-43",
+    "sha256": "ff9e88cfd6f0343c20a547551a2935b9fc8b0b16d21fe709e1b55db8277b173c",
+    "file": "opening-auto-43.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=44",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=44",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953574.934,
+    "completed": 1794953575.171,
+    "bytes": 25895,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=44",
+        "status": 200,
+        "time": 1794953575.129
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-44",
+    "sha256": "fba89c7ff1fbfca1de2cb64688434e75efd3ff6a0c4779fe7c8b66a13fd05b11",
+    "file": "opening-auto-44.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=45",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=45",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953578.394,
+    "completed": 1794953578.616,
+    "bytes": 26159,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=45",
+        "status": 200,
+        "time": 1794953578.615
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-45",
+    "sha256": "ed4482d8d41dfd36f226df8d58ced4feac6ccde03fe0239c162ab387e3ab0b3f",
+    "file": "opening-auto-45.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=46",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=46",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953581.834,
+    "completed": 1794953582.246,
+    "bytes": 26580,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=46",
+        "status": 200,
+        "time": 1794953582.245
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-46",
+    "sha256": "c5046f3cd5674b6c77350cc6cd2d3a1f1426825880b94108f102b08e4d9cb133",
+    "file": "opening-auto-46.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=47",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=47",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953585.469,
+    "completed": 1794953585.763,
+    "bytes": 25982,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=47",
+        "status": 200,
+        "time": 1794953585.762
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-47",
+    "sha256": "d8315eb181ada5d35fa0e4b18796a1abe813f613b1b4c8b2a0804eb0bb131222",
+    "file": "opening-auto-47.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=48",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=48",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953588.985,
+    "completed": 1794953589.199,
+    "bytes": 25049,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=48",
+        "status": 200,
+        "time": 1794953589.198
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-48",
+    "sha256": "172f272f6cc0c5ef1ec8b43cd0aace25e5456af567cff390c4b97df35c2d245c",
+    "file": "opening-auto-48.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=49",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=49",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953592.42,
+    "completed": 1794953592.63,
+    "bytes": 26786,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=49",
+        "status": 200,
+        "time": 1794953592.629
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-49",
+    "sha256": "e8369fd178d32be42b95dd7fe8250fc14458f46d50759dbbc272ce04168d3ced",
+    "file": "opening-auto-49.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=50",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=50",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953595.852,
+    "completed": 1794953596.054,
+    "bytes": 25634,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=50",
+        "status": 200,
+        "time": 1794953596.053
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-50",
+    "sha256": "595381b286e8044dba84048ae5e7668de606ec597e9e8711f5e0fdc8845e2363",
+    "file": "opening-auto-50.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=51",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=51",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953599.279,
+    "completed": 1794953599.532,
+    "bytes": 24920,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=51",
+        "status": 200,
+        "time": 1794953599.531
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-51",
+    "sha256": "eddcac844d159405137d7043ef9f8f71e3dc7f65230e224a413f4b71a8d69d29",
+    "file": "opening-auto-51.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=52",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=52",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953602.75,
+    "completed": 1794953602.96,
+    "bytes": 23013,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=52",
+        "status": 200,
+        "time": 1794953602.96
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-52",
+    "sha256": "2ded232c4a79467bbb24faf0ea0fdc2b753cdc21efd102ed26ddfc6881239e91",
+    "file": "opening-auto-52.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=53",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=53",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953606.181,
+    "completed": 1794953606.432,
+    "bytes": 22442,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=53",
+        "status": 200,
+        "time": 1794953606.431
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-53",
+    "sha256": "a36a316880bfd344e5e85db3d590bb65d4bede097bf66864a14b32759e59833d",
+    "file": "opening-auto-53.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=54",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=54",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953609.651,
+    "completed": 1794953609.871,
+    "bytes": 22421,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=54",
+        "status": 200,
+        "time": 1794953609.871
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-54",
+    "sha256": "479ba7f572cb36362e589a9ab70dfe7155c9c026c7b07adaa5f3a2a2b8dcc5d2",
+    "file": "opening-auto-54.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=55",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=55",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953613.087,
+    "completed": 1794953613.451,
+    "bytes": 21752,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=55",
+        "status": 200,
+        "time": 1794953613.451
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-55",
+    "sha256": "414ee4b271330cbf1ce815eb38a9f0f6c38ef0312f7a58e054e5dd0f0111da4f",
+    "file": "opening-auto-55.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=56",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=56",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953616.669,
+    "completed": 1794953616.886,
+    "bytes": 22339,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=56",
+        "status": 200,
+        "time": 1794953616.886
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-56",
+    "sha256": "7f48833aebe0ca285815beb4d751d34fc6fdb02884296636e1049ed455361e00",
+    "file": "opening-auto-56.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=57",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=57",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953620.105,
+    "completed": 1794953620.32,
+    "bytes": 22496,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=57",
+        "status": 200,
+        "time": 1794953620.319
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-57",
+    "sha256": "90a0d10811d468189275c7f6835689d5d5a78ef42c5c2b387050f55b379e45fa",
+    "file": "opening-auto-57.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=58",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=58",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953627.217,
+    "completed": 1794953627.41,
+    "bytes": 21813,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=58",
+        "status": 200,
+        "time": 1794953627.409
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-58",
+    "sha256": "6adc9cebf555f268106541777b4d2d14f3e79435515b052a394ef677a4970fc5",
+    "file": "opening-auto-58.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=59",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=59",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953634.172,
+    "completed": 1794953634.356,
+    "bytes": 22407,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=59",
+        "status": 200,
+        "time": 1794953634.356
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-59",
+    "sha256": "9dde6ed9608c80d44326aa5acfe3d880c77840d32068d0b837e36a4ba41353cb",
+    "file": "opening-auto-59.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=60",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=60",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953637.577,
+    "completed": 1794953637.918,
+    "bytes": 22033,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=60",
+        "status": 200,
+        "time": 1794953637.917
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-60",
+    "sha256": "bfe63be39768f683cd42515a34e3d9b6955c13fb1203ef8c5f80e7f7eca7ee6f",
+    "file": "opening-auto-60.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=61",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=61",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953641.135,
+    "completed": 1794953641.354,
+    "bytes": 22877,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=61",
+        "status": 200,
+        "time": 1794953641.353
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-61",
+    "sha256": "72a57d3fcdf6bf93ab228244e6472b8bbdf06f80f0b405548135c2aedcab27c1",
+    "file": "opening-auto-61.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=62",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=62",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953644.57,
+    "completed": 1794953644.787,
+    "bytes": 25593,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=62",
+        "status": 200,
+        "time": 1794953644.786
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-62",
+    "sha256": "d0cce63b86eef948b8fc66da12798839ea5c4d825bda6769ae983f03784426d4",
+    "file": "opening-auto-62.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=63",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=63",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953648.006,
+    "completed": 1794953648.21,
+    "bytes": 26632,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=63",
+        "status": 200,
+        "time": 1794953648.209
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-63",
+    "sha256": "4771cb6b617766a7183466bbcd821a8552c0b11727da19fff40e48b01eb15be2",
+    "file": "opening-auto-63.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=64",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=64",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953651.428,
+    "completed": 1794953651.693,
+    "bytes": 25217,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=64",
+        "status": 200,
+        "time": 1794953651.691
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-64",
+    "sha256": "d863197316b9923b509299cb00e9a05d8b37c97a2bf5b91111e2b5c8a3d4b396",
+    "file": "opening-auto-64.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=65",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=65",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953654.914,
+    "completed": 1794953655.397,
+    "bytes": 23610,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=65",
+        "status": 200,
+        "time": 1794953655.396
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-65",
+    "sha256": "0601b2e0d94fd6f22a286f21fc25227b1b99481b5dbdb05df702571dc5d731c1",
+    "file": "opening-auto-65.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=66",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=66",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953658.615,
+    "completed": 1794953658.817,
+    "bytes": 22947,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=66",
+        "status": 200,
+        "time": 1794953658.817
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-66",
+    "sha256": "19675b11907e83d3d46ea70b939f1ad26ddcec0a657050946ed49dcb84c39a45",
+    "file": "opening-auto-66.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=67",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=67",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953662.034,
+    "completed": 1794953662.215,
+    "bytes": 23935,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=67",
+        "status": 200,
+        "time": 1794953662.214
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-67",
+    "sha256": "1c586dc47f7ee7e5f16bff1dbd3ae0248800f65c45f31a7f1437e668e04140b4",
+    "file": "opening-auto-67.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=68",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=68",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953665.43,
+    "completed": 1794953665.654,
+    "bytes": 25786,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=68",
+        "status": 200,
+        "time": 1794953665.654
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-68",
+    "sha256": "50ae590d66bebc24159ac248b618e5da26b82fc1ba95cf6e07e3bc2ba2406faf",
+    "file": "opening-auto-68.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=69",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=69",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953668.873,
+    "completed": 1794953669.058,
+    "bytes": 22797,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=69",
+        "status": 200,
+        "time": 1794953669.057
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-69",
+    "sha256": "a4db5ef2d0149f16a0bfc5ca9f7aa818e8a8fe036e4778bb43849baf5bdbbdab",
+    "file": "opening-auto-69.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=70",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=70",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953672.276,
+    "completed": 1794953672.479,
+    "bytes": 21786,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=70",
+        "status": 200,
+        "time": 1794953672.479
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-70",
+    "sha256": "b9118118fb976679dd1ba6df19a4fda50a98c0b4708da37efb6a3109a420cc30",
+    "file": "opening-auto-70.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=71",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=71",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953675.699,
+    "completed": 1794953675.914,
+    "bytes": 22725,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=71",
+        "status": 200,
+        "time": 1794953675.913
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-71",
+    "sha256": "7d26a2af508182ed4be99a65c6b2e76494a0f23f06c63e3cd3f35ce6c26dd784",
+    "file": "opening-auto-71.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=72",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=72",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953679.143,
+    "completed": 1794953679.351,
+    "bytes": 25540,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=72",
+        "status": 200,
+        "time": 1794953679.349
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-72",
+    "sha256": "b66c2548eae8c5fceee33f46f519a513b1095d68e607a85540fd533911658a29",
+    "file": "opening-auto-72.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=73",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=73",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953682.569,
+    "completed": 1794953682.955,
+    "bytes": 24410,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=73",
+        "status": 200,
+        "time": 1794953682.954
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-73",
+    "sha256": "1f3a6264a34caad282bdfc4b94809529e2a414cc0b9e67c4258994871076a0bb",
+    "file": "opening-auto-73.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=74",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=74",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953686.173,
+    "completed": 1794953686.377,
+    "bytes": 22521,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=74",
+        "status": 200,
+        "time": 1794953686.375
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-74",
+    "sha256": "e6347f81e0e32102f1bce3b9e5963be9be74074a8acf551637e5c29622e1961a",
+    "file": "opening-auto-74.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=75",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=75",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953689.591,
+    "completed": 1794953689.784,
+    "bytes": 23279,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=75",
+        "status": 200,
+        "time": 1794953689.783
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-75",
+    "sha256": "8010b2f7a1930ef978d00ef6905e2bbd202b4fe374044156313c496d279fe428",
+    "file": "opening-auto-75.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=76",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=76",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953693.002,
+    "completed": 1794953693.186,
+    "bytes": 23274,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=76",
+        "status": 200,
+        "time": 1794953693.185
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-76",
+    "sha256": "42eb482bb9f23a2f5b6fd2b49394677dc2b23d8933ff2b4f4466645561d0617d",
+    "file": "opening-auto-76.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=77",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=77",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953696.404,
+    "completed": 1794953696.597,
+    "bytes": 23469,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=77",
+        "status": 200,
+        "time": 1794953696.596
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-77",
+    "sha256": "52d5696d0bd0e51d8c85475c811ead63d3d3b4912b2043a475a0c65d0d04ed37",
+    "file": "opening-auto-77.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=78",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=78",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953699.815,
+    "completed": 1794953700.049,
+    "bytes": 24784,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=78",
+        "status": 200,
+        "time": 1794953700.047
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-78",
+    "sha256": "0f4b36ef39ec8af00f38c10e3f916289479830f64e1a64299b904ba3356355a6",
+    "file": "opening-auto-78.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=79",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=79",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953703.267,
+    "completed": 1794953703.901,
+    "bytes": 22992,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=79",
+        "status": 200,
+        "time": 1794953703.892
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-auto-79",
+    "sha256": "40deb204ebe7ce8209d03e48a100c0a1829f7814ba48a93cb9810b22ef71af38",
+    "file": "opening-auto-79.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=1",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=truck&page=1",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953707.121,
+    "completed": 1794953707.446,
+    "bytes": 25219,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=1",
+        "status": 200,
+        "time": 1794953707.402
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-truck-1",
+    "sha256": "4f5e8e314d6af3e68861b83dbcc02ffab08a92e9a48d5e35919786d3974ca408",
+    "file": "opening-truck-1.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=2",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=truck&page=2",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953710.663,
+    "completed": 1794953710.972,
+    "bytes": 33771,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=2",
+        "status": 200,
+        "time": 1794953710.938
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-truck-2",
+    "sha256": "c93e55eec79d55f824f7d5bf7c556c1231f5024fd8659b7aee482eff73f60e77",
+    "file": "opening-truck-2.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=3",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=truck&page=3",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953717.615,
+    "completed": 1794953717.956,
+    "bytes": 51096,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=3",
+        "status": 200,
+        "time": 1794953717.918
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-truck-3",
+    "sha256": "2cc4b28bed0a4ef1112b54ba69bb449c3fd93e18fb2baf364e26200e27a49024",
+    "file": "opening-truck-3.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=1",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=1",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953733.368,
+    "completed": 1794953733.652,
+    "bytes": 30509,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=1",
+        "status": 200,
+        "time": 1794953733.613
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-1",
+    "sha256": "eeb1a01d11e86ead55ad0ae437f7cc4120fdceca07beb94ed065536563be81a6",
+    "file": "closing-auto-1.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=2",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=2",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953740.141,
+    "completed": 1794953740.387,
+    "bytes": 30617,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=2",
+        "status": 200,
+        "time": 1794953740.343
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-2",
+    "sha256": "fbf8cbad6498115407b678df3542856d6beab950c7c946c9cc9edce3ab0ba735",
+    "file": "closing-auto-2.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=3",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=3",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953749.235,
+    "completed": 1794953749.469,
+    "bytes": 30086,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=3",
+        "status": 200,
+        "time": 1794953749.433
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-3",
+    "sha256": "b97d6629fea7bb97df0f1a73f624e447bc8b6eaccb16928233dc4a1c8ba9353d",
+    "file": "closing-auto-3.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=4",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=4",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953758.238,
+    "completed": 1794953758.446,
+    "bytes": 28448,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=4",
+        "status": 200,
+        "time": 1794953758.445
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-4",
+    "sha256": "b174d566f92225f36634da4dc358c690baa987985ccc020c8d31fcfaa471fcac",
+    "file": "closing-auto-4.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=5",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=5",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953765.313,
+    "completed": 1794953765.607,
+    "bytes": 28330,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=5",
+        "status": 200,
+        "time": 1794953765.572
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-5",
+    "sha256": "57314e45916b182d7f30e4562541431f0e2edb2fdcadbe94cdcd74ad765af061",
+    "file": "closing-auto-5.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=6",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=6",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953776.635,
+    "completed": 1794953776.985,
+    "bytes": 29875,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=6",
+        "status": 200,
+        "time": 1794953776.948
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-6",
+    "sha256": "79b7c2d918c5c4b1110d6f5471c1065b526a8815cc426bd8bce313786f6dabe5",
+    "file": "closing-auto-6.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=7",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=7",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953783.535,
+    "completed": 1794953783.793,
+    "bytes": 29987,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=7",
+        "status": 200,
+        "time": 1794953783.746
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-7",
+    "sha256": "ed7f32b0d5ee4964e2ce38b68085144cd914ae032744e42b2d38920ed5447979",
+    "file": "closing-auto-7.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=8",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=8",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953790.364,
+    "completed": 1794953790.784,
+    "bytes": 30121,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=8",
+        "status": 200,
+        "time": 1794953790.748
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-8",
+    "sha256": "eaab6d47a913b688bec4fc4bb8c415c225afd3627c952ae3016fab2c2ce792e7",
+    "file": "closing-auto-8.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=9",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=9",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953797.532,
+    "completed": 1794953797.762,
+    "bytes": 30474,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=9",
+        "status": 200,
+        "time": 1794953797.718
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-9",
+    "sha256": "db257242b31bb6e90cee294a5944bec5b9bd532ae82f58f31bc735f7a4a0a196",
+    "file": "closing-auto-9.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=10",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=10",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953811.27,
+    "completed": 1794953811.522,
+    "bytes": 30300,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=10",
+        "status": 200,
+        "time": 1794953811.488
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-10",
+    "sha256": "c660a83d17355966330b32fcb816d58d203858acfaa793af0014879a427cd197",
+    "file": "closing-auto-10.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=11",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=11",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953820.793,
+    "completed": 1794953821.026,
+    "bytes": 30571,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=11",
+        "status": 200,
+        "time": 1794953820.987
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-11",
+    "sha256": "4e133565c7aad794cca93a091ce238433e9cea26612d406d0cf8461479c7bd92",
+    "file": "closing-auto-11.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=12",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=12",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953827.66,
+    "completed": 1794953827.924,
+    "bytes": 38452,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=12",
+        "status": 200,
+        "time": 1794953827.882
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-12",
+    "sha256": "16679a66d7498c0f7bd10332b5c4a5c17ab40370b04ddfe8d0741f48d0b5c1ae",
+    "file": "closing-auto-12.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=13",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=13",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953834.44,
+    "completed": 1794953834.692,
+    "bytes": 38492,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=13",
+        "status": 200,
+        "time": 1794953834.649
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-13",
+    "sha256": "a8d863e6dccd4de248c37ebde0b798841bb891687daa44091597401c675b1720",
+    "file": "closing-auto-13.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=14",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=14",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953846.175,
+    "completed": 1794953846.483,
+    "bytes": 37803,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=14",
+        "status": 200,
+        "time": 1794953846.468
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-14",
+    "sha256": "196f872857871bc155a5aacd14b924da8132dcb0bc62fbe79b73e962cd8e8fc5",
+    "file": "closing-auto-14.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=15",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=15",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953855.625,
+    "completed": 1794953856.2,
+    "bytes": 39579,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=15",
+        "status": 200,
+        "time": 1794953856.163
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-15",
+    "sha256": "9b2847a8bbac8a5ba5f2fb70282ca33be667521cc2a02aca6398e4f38513d9a7",
+    "file": "closing-auto-15.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=16",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=16",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953863.017,
+    "completed": 1794953863.57,
+    "bytes": 37984,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=16",
+        "status": 200,
+        "time": 1794953863.534
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-16",
+    "sha256": "2c2dc1845c4a813ab4018897b8957978829a0443373599467307a23f90dcca9b",
+    "file": "closing-auto-16.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=17",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=17",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953875.22,
+    "completed": 1794953875.461,
+    "bytes": 38701,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=17",
+        "status": 200,
+        "time": 1794953875.417
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-17",
+    "sha256": "4d555f5e8068aeefc006f55cf8a4815fed7e938ff3afaa66c70d13333185698a",
+    "file": "closing-auto-17.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=18",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=18",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953906.828,
+    "completed": 1794953907.15,
+    "bytes": 39178,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=18",
+        "status": 200,
+        "time": 1794953907.114
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-18",
+    "sha256": "4bd4b0a997647d9e1ff4116a9294da5887ec871c4c6c824e10b2cd0882467af2",
+    "file": "closing-auto-18.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=19",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=19",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953919.911,
+    "completed": 1794953920.221,
+    "bytes": 37128,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=19",
+        "status": 200,
+        "time": 1794953920.184
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-19",
+    "sha256": "a7595e381db3ebdb3e8c2ba6515eb1e676df8f1cc48e6700f5cb9821213a83b7",
+    "file": "closing-auto-19.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=20",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=20",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953930.1,
+    "completed": 1794953930.334,
+    "bytes": 36641,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=20",
+        "status": 200,
+        "time": 1794953930.289
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-20",
+    "sha256": "dcebfb1f21907fa90298142f65508ef54354f6132594098cd53edb8dac82c015",
+    "file": "closing-auto-20.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=21",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=21",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953936.827,
+    "completed": 1794953937.06,
+    "bytes": 39874,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=21",
+        "status": 200,
+        "time": 1794953937.019
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-21",
+    "sha256": "cf8b8a2032169b78d7b946d5e85421e8b90215969086b75aa408b697562c6070",
+    "file": "closing-auto-21.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=22",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=22",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953946.289,
+    "completed": 1794953946.519,
+    "bytes": 35805,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=22",
+        "status": 200,
+        "time": 1794953946.514
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-22",
+    "sha256": "87ec81352c8ad6065dce23477fa72f4325f0a939eb99e2791489db3928dda24a",
+    "file": "closing-auto-22.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=23",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=23",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953955.429,
+    "completed": 1794953955.72,
+    "bytes": 37981,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=23",
+        "status": 200,
+        "time": 1794953955.676
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-23",
+    "sha256": "1fb7aea10178c043dbc8519ad2e8e407f4ebd67ceffe92c85e8b8c6f8c85a1f2",
+    "file": "closing-auto-23.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=24",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=24",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953966.566,
+    "completed": 1794953966.813,
+    "bytes": 38906,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=24",
+        "status": 200,
+        "time": 1794953966.77
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-24",
+    "sha256": "c0072870ea6bbf5c7a8ef6146341ef4172878535ece77ae13b35fa5f8eef6e02",
+    "file": "closing-auto-24.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=25",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=25",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953973.525,
+    "completed": 1794953973.903,
+    "bytes": 36989,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=25",
+        "status": 200,
+        "time": 1794953973.867
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-25",
+    "sha256": "c7211e54f94bb2de1a5504b7a75247d8b132de9dd4c95d52a3bb3f2f72031ffa",
+    "file": "closing-auto-25.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=26",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=26",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953980.486,
+    "completed": 1794953980.704,
+    "bytes": 22854,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=26",
+        "status": 200,
+        "time": 1794953980.702
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-26",
+    "sha256": "9f03c8fe9298c53bce8e826880c9a1711ec064c45854b8b7346268db485f59d8",
+    "file": "closing-auto-26.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=27",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=27",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794953995.079,
+    "completed": 1794953995.291,
+    "bytes": 25047,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=27",
+        "status": 200,
+        "time": 1794953995.291
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-27",
+    "sha256": "723760a45247cd27502434da520600a7f9dbd3bcf1ff236ddb586c5faf5cbd37",
+    "file": "closing-auto-27.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=28",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=28",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954004.02,
+    "completed": 1794954004.383,
+    "bytes": 26564,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=28",
+        "status": 200,
+        "time": 1794954004.379
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-28",
+    "sha256": "f5e65e7ffc6084ae877cdc396b95621654b8214d7148e8625b85b74359ecdff0",
+    "file": "closing-auto-28.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=29",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=29",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954015.32,
+    "completed": 1794954015.631,
+    "bytes": 25937,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=29",
+        "status": 200,
+        "time": 1794954015.628
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-29",
+    "sha256": "8042c25e3a8f6a723f30af450292b3479808ceca0e7a81a0e7cf440b9300d8dc",
+    "file": "closing-auto-29.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=30",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=30",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954027.137,
+    "completed": 1794954027.426,
+    "bytes": 25636,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=30",
+        "status": 200,
+        "time": 1794954027.425
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-30",
+    "sha256": "722e177e56b01a7a7886e42566565052b2a0bc17569d86ee41f1b9b6a581cf78",
+    "file": "closing-auto-30.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=31",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=31",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954037.243,
+    "completed": 1794954037.451,
+    "bytes": 24446,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=31",
+        "status": 200,
+        "time": 1794954037.45
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-31",
+    "sha256": "32c67b15c032818f7a2f3b4fcd9740ffb0f4336a83f236302bc3f33902e31c7e",
+    "file": "closing-auto-31.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=32",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=32",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954065.938,
+    "completed": 1794954066.286,
+    "bytes": 24697,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=32",
+        "status": 200,
+        "time": 1794954066.285
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-32",
+    "sha256": "77f2242c1f6c00a776fedefb9bb482988899cc516686d95a4fc45219f67bfd7e",
+    "file": "closing-auto-32.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=33",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=33",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954072.872,
+    "completed": 1794954073.078,
+    "bytes": 23923,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=33",
+        "status": 200,
+        "time": 1794954073.077
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-33",
+    "sha256": "7b74c3ff7b500a92f0122c493afd8c3f097a56086636a47f5e337fe91f060087",
+    "file": "closing-auto-33.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=34",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=34",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954084.015,
+    "completed": 1794954084.266,
+    "bytes": 26196,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=34",
+        "status": 200,
+        "time": 1794954084.219
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-34",
+    "sha256": "c1d8ed570f4991ee5c2deaa5e8f7a4f0c4d6d2b754ad0f954d94093b60a82030",
+    "file": "closing-auto-34.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=35",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=35",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954095.186,
+    "completed": 1794954095.419,
+    "bytes": 25665,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=35",
+        "status": 200,
+        "time": 1794954095.379
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-35",
+    "sha256": "0f89cca7a713113e55f9d3fa3f85f74c20aca588959e79cce75c085167d5bf7c",
+    "file": "closing-auto-35.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=36",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=36",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954104.335,
+    "completed": 1794954104.573,
+    "bytes": 26162,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=36",
+        "status": 200,
+        "time": 1794954104.572
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-36",
+    "sha256": "1216ef79bbfc3fa25c0e90958cf165c79b66df71ea97b73517b79e85bc855775",
+    "file": "closing-auto-36.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=37",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=37",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954118.965,
+    "completed": 1794954119.148,
+    "bytes": 25561,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=37",
+        "status": 200,
+        "time": 1794954119.147
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-37",
+    "sha256": "ad14cc53663a99f6dfe48a1039afb41891274d7db3f7cf6f455f87f44b467802",
+    "file": "closing-auto-37.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=38",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=38",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954129.418,
+    "completed": 1794954129.67,
+    "bytes": 24975,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=38",
+        "status": 200,
+        "time": 1794954129.669
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-38",
+    "sha256": "382772910d1e780137a4f52dccd05eec77748dabd6600b3e2287a75eda48e840",
+    "file": "closing-auto-38.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=39",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=39",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954138.406,
+    "completed": 1794954138.596,
+    "bytes": 25388,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=39",
+        "status": 200,
+        "time": 1794954138.595
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-39",
+    "sha256": "c22e42ebd0706ffb020119b0680125009adfff520bf8db10c83df3d4946f569a",
+    "file": "closing-auto-39.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=40",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=40",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954149.503,
+    "completed": 1794954149.691,
+    "bytes": 24770,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=40",
+        "status": 200,
+        "time": 1794954149.69
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-40",
+    "sha256": "16e65a6185932f72ace0e7e26205b2a3391cacf82f9dd97079264d78f0144456",
+    "file": "closing-auto-40.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=41",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=41",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954158.418,
+    "completed": 1794954158.738,
+    "bytes": 24717,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=41",
+        "status": 200,
+        "time": 1794954158.737
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-41",
+    "sha256": "3154f518c3140504ebc9fde44cbdecce562f142a0dec7355aa982730a5376671",
+    "file": "closing-auto-41.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=42",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=42",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954170.127,
+    "completed": 1794954170.732,
+    "bytes": 24151,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=42",
+        "status": 200,
+        "time": 1794954170.73
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-42",
+    "sha256": "63862dad2f7730bf4bc2b79e4bf46bc2a79192586781278ebfd0637fd4e9e5ac",
+    "file": "closing-auto-42.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=43",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=43",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954177.489,
+    "completed": 1794954178.112,
+    "bytes": 25288,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=43",
+        "status": 200,
+        "time": 1794954178.108
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-43",
+    "sha256": "ff9e88cfd6f0343c20a547551a2935b9fc8b0b16d21fe709e1b55db8277b173c",
+    "file": "closing-auto-43.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=44",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=44",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954187.492,
+    "completed": 1794954188.287,
+    "bytes": 25895,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=44",
+        "status": 200,
+        "time": 1794954188.253
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-44",
+    "sha256": "fba89c7ff1fbfca1de2cb64688434e75efd3ff6a0c4779fe7c8b66a13fd05b11",
+    "file": "closing-auto-44.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=45",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=45",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954198.237,
+    "completed": 1794954199.23,
+    "bytes": 26159,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=45",
+        "status": 200,
+        "time": 1794954199.23
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-45",
+    "sha256": "ed4482d8d41dfd36f226df8d58ced4feac6ccde03fe0239c162ab387e3ab0b3f",
+    "file": "closing-auto-45.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=46",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=46",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954211.039,
+    "completed": 1794954211.805,
+    "bytes": 26580,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=46",
+        "status": 200,
+        "time": 1794954211.804
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-46",
+    "sha256": "c5046f3cd5674b6c77350cc6cd2d3a1f1426825880b94108f102b08e4d9cb133",
+    "file": "closing-auto-46.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=47",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=47",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954222.741,
+    "completed": 1794954223.34,
+    "bytes": 25982,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=47",
+        "status": 200,
+        "time": 1794954223.339
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-47",
+    "sha256": "d8315eb181ada5d35fa0e4b18796a1abe813f613b1b4c8b2a0804eb0bb131222",
+    "file": "closing-auto-47.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=48",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=48",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954236.302,
+    "completed": 1794954236.605,
+    "bytes": 25049,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=48",
+        "status": 200,
+        "time": 1794954236.604
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-48",
+    "sha256": "172f272f6cc0c5ef1ec8b43cd0aace25e5456af567cff390c4b97df35c2d245c",
+    "file": "closing-auto-48.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=49",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=49",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954243.408,
+    "completed": 1794954243.626,
+    "bytes": 26786,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=49",
+        "status": 200,
+        "time": 1794954243.625
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-49",
+    "sha256": "e8369fd178d32be42b95dd7fe8250fc14458f46d50759dbbc272ce04168d3ced",
+    "file": "closing-auto-49.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=50",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=50",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954246.847,
+    "completed": 1794954247.127,
+    "bytes": 25634,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=50",
+        "status": 200,
+        "time": 1794954247.093
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-50",
+    "sha256": "595381b286e8044dba84048ae5e7668de606ec597e9e8711f5e0fdc8845e2363",
+    "file": "closing-auto-50.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=51",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=51",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954253.632,
+    "completed": 1794954253.827,
+    "bytes": 24920,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=51",
+        "status": 200,
+        "time": 1794954253.826
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-51",
+    "sha256": "eddcac844d159405137d7043ef9f8f71e3dc7f65230e224a413f4b71a8d69d29",
+    "file": "closing-auto-51.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=52",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=52",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954262.808,
+    "completed": 1794954263.005,
+    "bytes": 23013,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=52",
+        "status": 200,
+        "time": 1794954263.004
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-52",
+    "sha256": "2ded232c4a79467bbb24faf0ea0fdc2b753cdc21efd102ed26ddfc6881239e91",
+    "file": "closing-auto-52.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=53",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=53",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954279.025,
+    "completed": 1794954279.542,
+    "bytes": 22442,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=53",
+        "status": 200,
+        "time": 1794954279.541
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-53",
+    "sha256": "a36a316880bfd344e5e85db3d590bb65d4bede097bf66864a14b32759e59833d",
+    "file": "closing-auto-53.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=54",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=54",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954293.369,
+    "completed": 1794954293.563,
+    "bytes": 22421,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=54",
+        "status": 200,
+        "time": 1794954293.562
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-54",
+    "sha256": "479ba7f572cb36362e589a9ab70dfe7155c9c026c7b07adaa5f3a2a2b8dcc5d2",
+    "file": "closing-auto-54.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=55",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=55",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954335.041,
+    "completed": 1794954335.237,
+    "bytes": 21752,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=55",
+        "status": 200,
+        "time": 1794954335.237
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-55",
+    "sha256": "414ee4b271330cbf1ce815eb38a9f0f6c38ef0312f7a58e054e5dd0f0111da4f",
+    "file": "closing-auto-55.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=56",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=56",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954341.826,
+    "completed": 1794954342.141,
+    "bytes": 22339,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=56",
+        "status": 200,
+        "time": 1794954342.14
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-56",
+    "sha256": "7f48833aebe0ca285815beb4d751d34fc6fdb02884296636e1049ed455361e00",
+    "file": "closing-auto-56.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=57",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=57",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954351.08,
+    "completed": 1794954351.345,
+    "bytes": 22496,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=57",
+        "status": 200,
+        "time": 1794954351.345
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-57",
+    "sha256": "90a0d10811d468189275c7f6835689d5d5a78ef42c5c2b387050f55b379e45fa",
+    "file": "closing-auto-57.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=58",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=58",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954367.551,
+    "completed": 1794954367.738,
+    "bytes": 21813,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=58",
+        "status": 200,
+        "time": 1794954367.738
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-58",
+    "sha256": "6adc9cebf555f268106541777b4d2d14f3e79435515b052a394ef677a4970fc5",
+    "file": "closing-auto-58.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=59",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=59",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954374.26,
+    "completed": 1794954374.441,
+    "bytes": 22407,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=59",
+        "status": 200,
+        "time": 1794954374.44
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-59",
+    "sha256": "9dde6ed9608c80d44326aa5acfe3d880c77840d32068d0b837e36a4ba41353cb",
+    "file": "closing-auto-59.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=60",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=60",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954382.338,
+    "completed": 1794954382.957,
+    "bytes": 22033,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=60",
+        "status": 200,
+        "time": 1794954382.956
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-60",
+    "sha256": "bfe63be39768f683cd42515a34e3d9b6955c13fb1203ef8c5f80e7f7eca7ee6f",
+    "file": "closing-auto-60.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=61",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=61",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954394.59,
+    "completed": 1794954394.787,
+    "bytes": 22877,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=61",
+        "status": 200,
+        "time": 1794954394.786
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-61",
+    "sha256": "72a57d3fcdf6bf93ab228244e6472b8bbdf06f80f0b405548135c2aedcab27c1",
+    "file": "closing-auto-61.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=62",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=62",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954401.45,
+    "completed": 1794954401.738,
+    "bytes": 25593,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=62",
+        "status": 200,
+        "time": 1794954401.737
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-62",
+    "sha256": "d0cce63b86eef948b8fc66da12798839ea5c4d825bda6769ae983f03784426d4",
+    "file": "closing-auto-62.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=63",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=63",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954414.576,
+    "completed": 1794954414.773,
+    "bytes": 26632,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=63",
+        "status": 200,
+        "time": 1794954414.772
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-63",
+    "sha256": "4771cb6b617766a7183466bbcd821a8552c0b11727da19fff40e48b01eb15be2",
+    "file": "closing-auto-63.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=64",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=64",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954423.648,
+    "completed": 1794954423.856,
+    "bytes": 25217,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=64",
+        "status": 200,
+        "time": 1794954423.855
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-64",
+    "sha256": "d863197316b9923b509299cb00e9a05d8b37c97a2bf5b91111e2b5c8a3d4b396",
+    "file": "closing-auto-64.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=65",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=65",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954430.459,
+    "completed": 1794954430.64,
+    "bytes": 23610,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=65",
+        "status": 200,
+        "time": 1794954430.639
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-65",
+    "sha256": "0601b2e0d94fd6f22a286f21fc25227b1b99481b5dbdb05df702571dc5d731c1",
+    "file": "closing-auto-65.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=66",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=66",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954437.332,
+    "completed": 1794954437.52,
+    "bytes": 22947,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=66",
+        "status": 200,
+        "time": 1794954437.52
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-66",
+    "sha256": "19675b11907e83d3d46ea70b939f1ad26ddcec0a657050946ed49dcb84c39a45",
+    "file": "closing-auto-66.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=67",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=67",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954446.219,
+    "completed": 1794954446.418,
+    "bytes": 23935,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=67",
+        "status": 200,
+        "time": 1794954446.417
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-67",
+    "sha256": "1c586dc47f7ee7e5f16bff1dbd3ae0248800f65c45f31a7f1437e668e04140b4",
+    "file": "closing-auto-67.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=68",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=68",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954453.13,
+    "completed": 1794954453.38,
+    "bytes": 25786,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=68",
+        "status": 200,
+        "time": 1794954453.337
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-68",
+    "sha256": "50ae590d66bebc24159ac248b618e5da26b82fc1ba95cf6e07e3bc2ba2406faf",
+    "file": "closing-auto-68.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=69",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=69",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954462.258,
+    "completed": 1794954462.514,
+    "bytes": 22797,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=69",
+        "status": 200,
+        "time": 1794954462.513
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-69",
+    "sha256": "a4db5ef2d0149f16a0bfc5ca9f7aa818e8a8fe036e4778bb43849baf5bdbbdab",
+    "file": "closing-auto-69.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=70",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=70",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954465.733,
+    "completed": 1794954465.954,
+    "bytes": 21786,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=70",
+        "status": 200,
+        "time": 1794954465.95
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-70",
+    "sha256": "b9118118fb976679dd1ba6df19a4fda50a98c0b4708da37efb6a3109a420cc30",
+    "file": "closing-auto-70.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=71",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=71",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954476.223,
+    "completed": 1794954476.42,
+    "bytes": 22725,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=71",
+        "status": 200,
+        "time": 1794954476.419
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-71",
+    "sha256": "7d26a2af508182ed4be99a65c6b2e76494a0f23f06c63e3cd3f35ce6c26dd784",
+    "file": "closing-auto-71.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=72",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=72",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954484.674,
+    "completed": 1794954484.891,
+    "bytes": 25540,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=72",
+        "status": 200,
+        "time": 1794954484.89
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-72",
+    "sha256": "b66c2548eae8c5fceee33f46f519a513b1095d68e607a85540fd533911658a29",
+    "file": "closing-auto-72.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=73",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=73",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954493.865,
+    "completed": 1794954494.046,
+    "bytes": 24410,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=73",
+        "status": 200,
+        "time": 1794954494.046
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-73",
+    "sha256": "1f3a6264a34caad282bdfc4b94809529e2a414cc0b9e67c4258994871076a0bb",
+    "file": "closing-auto-73.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=74",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=74",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954503.688,
+    "completed": 1794954503.874,
+    "bytes": 22521,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=74",
+        "status": 200,
+        "time": 1794954503.873
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-74",
+    "sha256": "e6347f81e0e32102f1bce3b9e5963be9be74074a8acf551637e5c29622e1961a",
+    "file": "closing-auto-74.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=75",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=75",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954515.275,
+    "completed": 1794954515.604,
+    "bytes": 23279,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=75",
+        "status": 200,
+        "time": 1794954515.603
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-75",
+    "sha256": "8010b2f7a1930ef978d00ef6905e2bbd202b4fe374044156313c496d279fe428",
+    "file": "closing-auto-75.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=76",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=76",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954524.515,
+    "completed": 1794954524.698,
+    "bytes": 23274,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=76",
+        "status": 200,
+        "time": 1794954524.697
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-76",
+    "sha256": "42eb482bb9f23a2f5b6fd2b49394677dc2b23d8933ff2b4f4466645561d0617d",
+    "file": "closing-auto-76.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=77",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=77",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954535.146,
+    "completed": 1794954535.54,
+    "bytes": 23469,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=77",
+        "status": 200,
+        "time": 1794954535.539
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-77",
+    "sha256": "52d5696d0bd0e51d8c85475c811ead63d3d3b4912b2043a475a0c65d0d04ed37",
+    "file": "closing-auto-77.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=78",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=78",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954545.353,
+    "completed": 1794954545.539,
+    "bytes": 24784,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=78",
+        "status": 200,
+        "time": 1794954545.538
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-78",
+    "sha256": "0f4b36ef39ec8af00f38c10e3f916289479830f64e1a64299b904ba3356355a6",
+    "file": "closing-auto-78.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=79",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=auto&page=79",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954552.123,
+    "completed": 1794954552.308,
+    "bytes": 22992,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=auto&page=79",
+        "status": 200,
+        "time": 1794954552.307
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-auto-79",
+    "sha256": "40deb204ebe7ce8209d03e48a100c0a1829f7814ba48a93cb9810b22ef71af38",
+    "file": "closing-auto-79.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=1",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=truck&page=1",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954561.299,
+    "completed": 1794954561.536,
+    "bytes": 25219,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=1",
+        "status": 200,
+        "time": 1794954561.496
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-truck-1",
+    "sha256": "4f5e8e314d6af3e68861b83dbcc02ffab08a92e9a48d5e35919786d3974ca408",
+    "file": "closing-truck-1.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=2",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=truck&page=2",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954568.204,
+    "completed": 1794954568.438,
+    "bytes": 33771,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=2",
+        "status": 200,
+        "time": 1794954568.402
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-truck-2",
+    "sha256": "c93e55eec79d55f824f7d5bf7c556c1231f5024fd8659b7aee482eff73f60e77",
+    "file": "closing-truck-2.gz"
+  },
+  {
+    "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=3",
+    "final": "https://api.spartanauto.parts/api/vehicles?type=truck&page=3",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "time": 1794954575.105,
+    "completed": 1794954575.346,
+    "bytes": 51096,
+    "hops": [
+      {
+        "url": "https://api.spartanauto.parts/api/vehicles?type=truck&page=3",
+        "status": 200,
+        "time": 1794954575.299
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-closing-truck-3",
+    "sha256": "2cc4b28bed0a4ef1112b54ba69bb449c3fd93e18fb2baf364e26200e27a49024",
+    "file": "closing-truck-3.gz"
+  },
+  {
+    "url": "https://www.spartanauto.parts/auto-catalog",
+    "final": "https://www.spartanauto.parts/auto-catalog",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "method": "GET",
+    "time": 1794953420.893,
+    "completed": 1794953421.763,
+    "bytes": 14351,
+    "hops": [
+      {
+        "url": "https://www.spartanauto.parts/auto-catalog",
+        "status": 200,
+        "time": 1794953421.762
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-opening-owner",
+    "sha256": "7f355dc83d21046531506336712139414a71d81cc954fc04938be07d511fb84a",
+    "file": "owner-opening.gz"
+  },
+  {
+    "url": "https://www.spartanauto.parts/auto-catalog",
+    "final": "https://www.spartanauto.parts/auto-catalog",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "method": "GET",
+    "time": 1794954618.871,
+    "completed": 1794954619.152,
+    "bytes": 14351,
+    "hops": [
+      {
+        "url": "https://www.spartanauto.parts/auto-catalog",
+        "status": 200,
+        "time": 1794954619.152
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-final-owner",
+    "sha256": "7f355dc83d21046531506336712139414a71d81cc954fc04938be07d511fb84a",
+    "file": "owner-closing.gz"
+  },
+  {
+    "url": "https://www.spartanauto.parts/auto-catalog/1007",
+    "final": "https://www.spartanauto.parts/auto-catalog/1007",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "method": "GET",
+    "time": 1794953623.537,
+    "completed": 1794953623.899,
+    "bytes": 96505,
+    "hops": [
+      {
+        "url": "https://www.spartanauto.parts/auto-catalog/1007",
+        "status": 200,
+        "time": 1794953623.898
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-auto-native",
+    "sha256": "5d1d2de017c92fa5fb7025882153dff1e29bd330308fcf0637563570bc857b9a",
+    "file": "native-auto.gz"
+  },
+  {
+    "url": "https://www.spartanauto.parts/truck-catalog/931",
+    "final": "https://www.spartanauto.parts/truck-catalog/931",
+    "status": 200,
+    "error": null,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "method": "GET",
+    "time": 1794953630.629,
+    "completed": 1794953630.932,
+    "bytes": 95823,
+    "hops": [
+      {
+        "url": "https://www.spartanauto.parts/truck-catalog/931",
+        "status": 200,
+        "time": 1794953630.893
+      }
+    ],
+    "transport": "Bun fetch",
+    "label": "spartan-truck-native",
+    "sha256": "425ae66c19dc8ad6701b7ce268fc7bea543b495e77eba79b063d71a21ef019ca",
+    "file": "native-truck.gz"
+  }
+]

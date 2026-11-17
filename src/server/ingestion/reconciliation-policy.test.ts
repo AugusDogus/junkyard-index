@@ -136,6 +136,8 @@ describe("reconciliation policy", () => {
       "weberbrothers",
       "hawaiiparts",
       "modernmuscle",
+      "carsandparts",
+      "spartan",
       "oemgarage",
       "hagerman",
       "kandr",

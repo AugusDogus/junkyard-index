@@ -1,0 +1,27 @@
+{
+  "queriedAt": "2026-11-17",
+  "markers": [
+    {
+      "title": "Recycar",
+      "address": "1807 NJ-38, Lumberton Township, NJ 08048",
+      "phone": "+1646-673-5889",
+      "url": null,
+      "latitude": 39.9767113,
+      "longitude": -74.75540869999999,
+      "place_id": "ChIJNWEO4hpHwYkRKiDiYCoEUDw",
+      "cid": "4345978220473098282",
+      "category": "Auto parts market"
+    },
+    {
+      "title": "Cars And Parts Hub",
+      "address": "1807 NJ-38, Lumberton Township, NJ 08048",
+      "phone": "+1640-202-3856",
+      "url": "https://www.ebay.com/str/oemgenuinepartout",
+      "latitude": 39.9775847,
+      "longitude": -74.7554689,
+      "place_id": "ChIJFZ6R0rFHwYkRh_5lQWQ5IvQ",
+      "cid": "17591686197219294855",
+      "category": "Auto parts store"
+    }
+  ]
+}

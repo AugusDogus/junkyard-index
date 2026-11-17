@@ -92,6 +92,8 @@ describe("bounded durable reconciliation", () => {
   test.each([
     "hawaiiparts",
     "modernmuscle",
+    "carsandparts",
+    "spartan",
     "oemgarage",
     "hagerman",
     "kandr",

@@ -1,0 +1,13 @@
+{
+  "url": "https://api.spartanauto.parts/storage/vehicles/tYYXomcS8ENlEXPY9EiaVgAkCHIVR01w2lj6vQm8.jpg",
+  "method": "HEAD",
+  "started": "2026-11-17T22:20:59.579Z",
+  "completed": "2026-11-17T22:20:59.708Z",
+  "status": 200,
+  "headers": {
+    "content-length": "2602466",
+    "content-type": "image/jpeg",
+    "etag": "\"6ad24ef2-27b5e2\"",
+    "last-modified": "Fri, 16 Oct 2026 16:21:06 GMT"
+  }
+}

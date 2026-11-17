@@ -1085,6 +1085,24 @@ export const HOLLANDERSTORES_YARDS = [
     websiteUrl: "https://allsmallauto.hollanderstores.com/",
     minimum: 391,
   },
+  {
+    source: "hollanderstores",
+    code: "crossroid",
+    tenant: "7206",
+    name: "Crossroads Salvage",
+    logo: "Crossroads Salvage",
+    operator: "Crossroads Towing & Salvage",
+    address: "3415 Hoffman Lane",
+    city: "Nampa",
+    state: "ID",
+    postalCode: "83651",
+    phone: "208-467-7278",
+    email: null,
+    lat: 43.620442,
+    lng: -116.619358,
+    websiteUrl: "https://crossroid.hollanderstores.com/",
+    minimum: 37,
+  },
 ] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {
   source: "hollanderstores";

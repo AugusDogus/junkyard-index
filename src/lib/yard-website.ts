@@ -54,6 +54,8 @@ const providerWebsites = new Map<string, string>([
   ["weberbrothers", "https://www.weberbrothersauto.com/"],
   ["hawaiiparts", "https://aloha.parts/"],
   ["modernmuscle", "https://modernmusclesalvage.com/"],
+  ["carsandparts", "https://www.carsandpartshub.com/"],
+  ["spartan", "https://www.spartanauto.parts/"],
   ["oemgarage", "https://oe-mgarage.com/"],
   ["hagerman", "https://hagermanparts.com/"],
   ["kandr", "https://kandrtruckparts.com/"],

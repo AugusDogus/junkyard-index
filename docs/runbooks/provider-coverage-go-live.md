@@ -12,6 +12,14 @@ already at or below that level stay unchanged. Multi-yard source floors sum thei
 yard floors. The 50% previous-run drift guard, rejection limits, duplicate limits,
 closing checks and all floors for sources already on `origin/main` stay unchanged.
 
+The November 17 five-state sweep adds `hollanderstores/crossroid` in Nampa ID
+(111 accepted, yard floor 37), `carsandparts` in Lumberton NJ (77 accepted,
+source/yard floor 25) and `spartan` in Inman SC (969 accepted, floor 323). The Hollander source floor increases by 37 to include
+Crossroads. See the [sweep runbook](provider-sweep-sc-nv-nh-nj-id.md),
+[Crossroads evidence](hollanderstores-ingestion.md#crossroads-salvage-november-17-2026),
+[CarsAndPartsHub contract](carsandparts-ingestion.md) and
+[Spartan contract](spartan-ingestion.md).
+
 Ario has no fixed per-yard census floor to loosen. Its existing 100-donor source
 floor and per-yard 50% previous-run drift checks stay unchanged. Native new Ario
 yards retain their VIN, complete-census, freshness and rejection checks.
@@ -124,7 +132,9 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `jimsimport`                      |                     3,649 |          3,000 |     1,216 |
 | `lonestarimports`                 |                     2,531 |          2,000 |       843 |
 | `alshned`                         |                        41 |             35 |        13 |
-| `hollanderstores`                 |                    75,410 |         18,638 |    25,119 |
+| `carsandparts`                    |                        77 |            new |        25 |
+| `spartan`                         |                       969 |            new |       323 |
+| `hollanderstores`                 |                    75,521 |         18,638 |    25,156 |
 | `cstruck`                         |                        59 |             50 |        19 |
 | `heavytruckparts`                 |                       838 |            700 |       277 |
 | `beavers`                         |                       278 |            240 |        92 |

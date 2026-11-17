@@ -1,0 +1,38 @@
+[
+  {
+    "url": "https://www.carsandpartshub.com/collections/donor-cars",
+    "file": "carsandparts-owner-opening.gz",
+    "started": "2026-11-17T21:45:56.234Z",
+    "completed": "2026-11-17T21:46:08.806Z",
+    "bytes": 1000890,
+    "sha256": "619a7203f923fbe2316a149a96bca63cdc4b7ee2c15da4a2b5026aa2fe4aab04",
+    "status": 200
+  },
+  {
+    "url": "https://www.carsandpartshub.com/collections/donor-cars/products.json?limit=250&page=1",
+    "file": "carsandparts-inventory-opening.gz",
+    "started": "2026-11-17T21:46:08.807Z",
+    "completed": "2026-11-17T21:46:21.512Z",
+    "bytes": 511635,
+    "sha256": "639e8d3b707646fcb8413b15306d4237ea0548368e8147ebe6a217d370cdd474",
+    "status": 200
+  },
+  {
+    "url": "https://www.carsandpartshub.com/collections/donor-cars/products.json?limit=250&page=1",
+    "file": "carsandparts-inventory-closing.gz",
+    "started": "2026-11-17T21:46:21.512Z",
+    "completed": "2026-11-17T21:46:33.730Z",
+    "bytes": 511635,
+    "sha256": "9ad5a5dd6e47d23023977370810cc09832831dab60203d954d7a2e79fbb3ace2",
+    "status": 200
+  },
+  {
+    "url": "https://www.carsandpartshub.com/collections/donor-cars",
+    "file": "carsandparts-owner-closing.gz",
+    "started": "2026-11-17T21:46:33.730Z",
+    "completed": "2026-11-17T21:46:46.061Z",
+    "bytes": 1000890,
+    "sha256": "edefbcf6497f4f39252cfba9247b175259ef5baa82ae0a3282540626f342aab7",
+    "status": 200
+  }
+]

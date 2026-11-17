@@ -54,6 +54,8 @@ const SOURCE_LABELS: Record<DataSource, string> = {
   weberbrothers: "Weber Brothers Auto",
   hawaiiparts: "Hawaii Parts",
   modernmuscle: "Modern Muscle Salvage",
+  carsandparts: "CarsAndPartsHub",
+  spartan: "Spartan Auto",
   oemgarage: "oeM Garage",
   hagerman: "Hagerman",
   kandr: "K&R Truck Parts",

@@ -16,6 +16,7 @@ export function hollanderstoresFixtureBytes(file: string): Buffer {
     `${import.meta.dir}/west-plains/${file}`,
     `${import.meta.dir}/east/${file}`,
     `${import.meta.dir}/mid-states/${file}`,
+    `${import.meta.dir}/sweep/${file}`,
   ].find((path) => existsSync(path));
   if (!path) throw new Error("Saved Hollander response missing: " + file);
   return gunzipSync(readFileSync(path));
@@ -48,16 +49,21 @@ const qualificationSchema = z.object({
   observedVins: z.array(z.string()),
   failedMakeVins: z.array(z.string()),
 });
-const qualifications = ["stricker", "west-plains", "east", "mid-states"].map(
-  (directory) =>
-    qualificationSchema.parse(
-      JSON.parse(
-        readFileSync(
-          `${import.meta.dir}/${directory}/qualification.json`,
-          "utf8",
-        ),
+const qualifications = [
+  "stricker",
+  "west-plains",
+  "east",
+  "mid-states",
+  "sweep",
+].map((directory) =>
+  qualificationSchema.parse(
+    JSON.parse(
+      readFileSync(
+        `${import.meta.dir}/${directory}/qualification.json`,
+        "utf8",
       ),
     ),
+  ),
 );
 const perYard = new Map(
   qualifications.flatMap((qualification) =>

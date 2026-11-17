@@ -1,0 +1,21 @@
+{
+  "records": 792,
+  "states": {
+    "ID": 105,
+    "NH": 94,
+    "NJ": 284,
+    "NV": 78,
+    "SC": 231
+  },
+  "outcomes": {
+    "unresolved": 331,
+    "screened": 354,
+    "prior evidence": 54,
+    "not qualified": 32,
+    "existing provider": 18,
+    "qualified": 3
+  },
+  "logicalRequests": 972,
+  "recordedHttpHops": 865,
+  "failedRequests": 232
+}
