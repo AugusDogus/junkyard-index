@@ -294,6 +294,18 @@ export const ARIO_CUSTOMER_YARDS = [
     city: "Pawnee City",
     state: "NE",
   },
+  {
+    slug: "colorado-auto-and-parts-englewood-co",
+    vinValidation: "check-digit",
+    id: "a3d5bad0-b580-4578-b0a4-3f33ddfd2b89",
+    organizationId: "1e82bb80-912f-4f65-8f65-f2751447ae0e",
+    legacyId: null,
+    city: "Englewood",
+    state: "CO",
+    nativeFeed: { source: "crush_xml_seed", clientId: "1004" },
+    // Complete November 17 census: 283 accepted, no rejects or duplicates.
+    minimumInventory: 94,
+  },
 ] as const;
 
 export type ArioCustomerYard = (typeof ARIO_CUSTOMER_YARDS)[number];

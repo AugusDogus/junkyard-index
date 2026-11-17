@@ -68,3 +68,10 @@ Sample across yards and the catalog rather than only the newest arrivals.
 
 The discovery pass visited eleven named leads and three additional yards. No
 messages, signups, production database writes, or paid services were used.
+
+## Multi-state follow-up
+
+The [November 17 multi-state runbook](runbooks/provider-coverage-multistate.md)
+ranks Aesop, Fenix, Vander Haag's, Carolina Pick-N-Pull, DEX and Spalding,
+with enumeration, identity and access blockers retained. Only Colorado Auto &
+Parts qualified, adding one Colorado credit through the existing Ario marketplace.

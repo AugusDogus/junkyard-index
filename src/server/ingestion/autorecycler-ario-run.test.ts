@@ -173,7 +173,7 @@ async function replay(failAt?: number) {
   expect(result.status).toBe("complete");
   expect(failures).toEqual([]);
   expect(closing).toBe(true);
-  expect(accepted).toBe(32_170);
+  expect(accepted).toBe(32_453);
   expect(bootstraps).toBe(1);
   expect(saved.directoryCalls()).toBe(1);
   return { ...saved, waits, chunks };
@@ -185,7 +185,7 @@ test("daily grouped census retains complete stable windows below the hourly budg
   expect(result.calls.length + 3).toBe(37); // HTML, bundle, directory.
   expect(result.calls.length + 3).toBeLessThan(ARIO_HOURLY_REQUEST_BUDGET);
   expect(result.waits).toEqual([]);
-  expect(result.chunks).toBe(68); // 34 capture, 33 publish, one legacy terminal stand-in.
+  expect(result.chunks).toBe(69); // 34 capture, 34 publish, one legacy terminal stand-in.
   expect(result.calls.at(-1)?.slugs).toHaveLength(ARIO_CUSTOMER_YARDS.length);
   expect(
     result.calls
@@ -303,7 +303,7 @@ test("a completed rank window resets the persisted consecutive rate-limit count"
   expect(resumed.consecutiveRateLimits).toBe(1);
 });
 
-test("saved native opening responses fit the combined 33-customer bounds with CFC intact", async () => {
+test("saved native opening responses fit the combined 34-customer bounds with CFC and Colorado intact", async () => {
   const directory: unknown = await Bun.file(
     new URL("./fixtures/ario/yards.json", import.meta.url),
   ).json();
@@ -329,15 +329,32 @@ test("saved native opening responses fit the combined 33-customer bounds with CF
       ).toString(),
     ),
   );
+  const colorado = z
+    .record(ArioPageSchema)
+    .parse(
+      JSON.parse(
+        gunzipSync(
+          await Bun.file(
+            new URL(
+              "./fixtures/ario/colorado-auto-and-parts-englewood-co.json.gz",
+              import.meta.url,
+            ),
+          ).bytes(),
+        ).toString(),
+      ),
+    )["0"];
+  if (!colorado) throw new Error("Missing Colorado opening capture");
   const raw = {
     ...opening,
     items: [
       ...opening.items,
       ...cfc.items.filter((item) => item.yard === "cfc-recycling"),
+      ...colorado.items,
     ],
     yards_meta: [
       ...opening.yards_meta,
       ...cfc.yards_meta.filter((meta) => meta.yard === "cfc-recycling"),
+      ...colorado.yards_meta,
     ],
   };
   const result = await Effect.runPromise(
@@ -354,13 +371,13 @@ test("saved native opening responses fit the combined 33-customer bounds with CF
     "saved-live-group",
     async () => result.checkpointState,
   );
-  expect(Object.keys(state.pages)).toHaveLength(33);
+  expect(Object.keys(state.pages)).toHaveLength(34);
   expect(
     Object.values(state.pages).reduce(
       (sum, windows) => sum + (windows["0"]?.items.length ?? 0),
       0,
     ),
-  ).toBe(3295);
+  ).toBe(3395);
   expect(state.pages["cfc-recycling"]?.["0"]?.total).toBe(422);
   expect(state.pages["cfc-recycling"]?.["0"]?.items).toHaveLength(100);
 });

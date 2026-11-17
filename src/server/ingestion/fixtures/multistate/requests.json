@@ -1,0 +1,1330 @@
+{
+  "note": "General research ledger begins after initial unlogged probes. Includes failed ordinary HTTP retries. Ario client requests are recorded separately. No request headers or keys retained.",
+  "general": [
+    {
+      "name": "br-app.js",
+      "url": "https://www.autowrecking.com/_next/static/chunks/pages/_app-2cb7bfa082d08c867698.js",
+      "finalUrl": "https://www.autowrecking.com/_next/static/chunks/pages/_app-2cb7bfa082d08c867698.js",
+      "status": 200,
+      "started": 1794948009.6223867,
+      "completed": 1794948010.7082462,
+      "bytes": 88622,
+      "sha256": "7639686bf2151f37f7c1e7ca808838538b7c9fb2256a5d25c24df1cf87a7e1b1"
+    },
+    {
+      "name": "br-manifest.js",
+      "url": "https://www.autowrecking.com/_next/static/80db612f070c2e9f53240be5958096fc1a2c93bf/_buildManifest.js",
+      "finalUrl": "https://www.autowrecking.com/_next/static/80db612f070c2e9f53240be5958096fc1a2c93bf/_buildManifest.js",
+      "status": 200,
+      "started": 1794948013.9085207,
+      "completed": 1794948014.6761723,
+      "bytes": 6673,
+      "sha256": "a7ea6d6ac72affc45aab3a01e9a6a82071cf944ff7b02b4cf035825d5e56089e"
+    },
+    {
+      "name": "br-parts.html",
+      "url": "https://www.autowrecking.com/parts?part=rebuilder",
+      "finalUrl": "https://www.autowrecking.com/parts?part=rebuilder",
+      "status": 200,
+      "started": 1794948017.8763576,
+      "completed": 1794948018.6884084,
+      "bytes": 75730,
+      "sha256": "71f34f88803db5b662a03e684fad426af0efc0f3b523cb10394d41909468c781"
+    },
+    {
+      "name": "br-locations.html",
+      "url": "https://www.autowrecking.com/locations",
+      "finalUrl": "https://www.autowrecking.com/locations",
+      "status": 200,
+      "started": 1794948021.8886027,
+      "completed": 1794948022.9230611,
+      "bytes": 64787,
+      "sha256": "12f1c45cd79be19f4a9368e98efa37c62e2bcf7515307b9cc44374df88251ecf"
+    },
+    {
+      "name": "lkq-main.js",
+      "url": "https://www.lkqonline.com/main-es2015.0e4016b6c04a3c1dc7d3.js",
+      "finalUrl": "https://www.lkqonline.com/main-es2015.0e4016b6c04a3c1dc7d3.js",
+      "status": 200,
+      "started": 1794948026.1232767,
+      "completed": 1794948027.106463,
+      "bytes": 1081379,
+      "sha256": "aa3f28a8d134550d42b6c3ea076d21ec00c431242720229ffcfca3ef97043041"
+    },
+    {
+      "name": "fenix-search.html",
+      "url": "https://fenixparts.com/search-inventory/",
+      "finalUrl": "https://fenixparts.com/search-inventory/",
+      "status": 200,
+      "started": 1794948087.1066787,
+      "completed": 1794948089.802162,
+      "bytes": 144825,
+      "sha256": "f6a4316d4310e1f8d96e9921fac9e245ee3e99da9e7efe5d2a095835235bcef6"
+    },
+    {
+      "name": "br-api-robots.txt",
+      "url": "https://inventory.wkr.li/robots.txt",
+      "finalUrl": "https://inventory.wkr.li/robots.txt",
+      "status": 200,
+      "started": 1794948093.0023134,
+      "completed": 1794948095.261849,
+      "bytes": 25,
+      "sha256": "efdb5938a9736727f5cce2b60355588e4fa541d19d022d222d8a09b8efd5dcce"
+    },
+    {
+      "name": "br-misc-robots.txt",
+      "url": "https://misc.wkr.li/robots.txt",
+      "finalUrl": "https://misc.wkr.li/robots.txt",
+      "status": 200,
+      "started": 1794948098.461994,
+      "completed": 1794948102.3581717,
+      "bytes": 25,
+      "sha256": "efdb5938a9736727f5cce2b60355588e4fa541d19d022d222d8a09b8efd5dcce"
+    },
+    {
+      "name": "br-parts.js",
+      "url": "https://www.autowrecking.com/_next/static/chunks/pages/parts-42225a6e83171fd946a4.js",
+      "finalUrl": "https://www.autowrecking.com/_next/static/chunks/pages/parts-42225a6e83171fd946a4.js",
+      "status": 200,
+      "started": 1794948105.5584383,
+      "completed": 1794948108.479291,
+      "bytes": 22347,
+      "sha256": "3a0ea50c7efb31261fa5049835248fa169aded79d5518b5d00b507cc547723e2"
+    },
+    {
+      "name": "br-locations.js",
+      "url": "https://www.autowrecking.com/_next/static/chunks/pages/locations-0a364600a1e381f6bdc1.js",
+      "finalUrl": "https://www.autowrecking.com/_next/static/chunks/pages/locations-0a364600a1e381f6bdc1.js",
+      "status": 200,
+      "started": 1794948111.6794698,
+      "completed": 1794948112.8471806,
+      "bytes": 267,
+      "sha256": "a2a7df18741c53f07929742f9ada134a0043b19056be7bd8def6b92419df97b8"
+    },
+    {
+      "name": "br-common.js",
+      "url": "https://www.autowrecking.com/_next/static/chunks/407251039aaa4d1d49a11ffebd902a5b2e66d35e.0a75a1473d4e32e00c27.js",
+      "finalUrl": "https://www.autowrecking.com/_next/static/chunks/407251039aaa4d1d49a11ffebd902a5b2e66d35e.0a75a1473d4e32e00c27.js",
+      "status": 200,
+      "started": 1794948116.0473342,
+      "completed": 1794948117.8544252,
+      "bytes": 89761,
+      "sha256": "9261150cb278f9c9a2cc1c2154e31e44a8618ec5f0895d0c9d7c4b68d1df36ef"
+    },
+    {
+      "name": "br-search.json",
+      "url": "https://inventory.wkr.li/api/v1/inventory/search?partTypeSlug=rebuilder&num=20&offset=0",
+      "finalUrl": "https://inventory.wkr.li/api/v1/inventory/search?partTypeSlug=rebuilder&num=20&offset=0",
+      "status": 401,
+      "started": 1794948121.054716,
+      "completed": 1794948123.0524104,
+      "bytes": 102,
+      "sha256": "1ede1eb94c888c2f1eb6407e0a90cef20349ef0f0765161fa75e71806b622d06"
+    },
+    {
+      "name": "vander-robots.txt",
+      "url": "https://www.vanderhaags.com/robots.txt",
+      "finalUrl": "https://www.vanderhaags.com/robots.txt",
+      "status": 200,
+      "started": 1794948126.2525737,
+      "completed": 1794948129.872726,
+      "bytes": 887,
+      "sha256": "9c9452fb5d7891a596ea3e5798e30c9449ee9f8bca0296b34c5b78224e0f30f7"
+    },
+    {
+      "name": "vander-home.html",
+      "url": "https://www.vanderhaags.com/",
+      "finalUrl": "https://www.vanderhaags.com/",
+      "status": 200,
+      "started": 1794948133.0728753,
+      "completed": 1794948135.9435627,
+      "bytes": 421249,
+      "sha256": "9f7263e8cdcd1d285fec02203c90ed7497faf1e44d97af780f880bc81c808120"
+    },
+    {
+      "name": "fenix-js.txt",
+      "url": "https://fenixparts.com/wp-content/plugins/iis-pro-v2/js/iisincludespro3.js?ver=4.78",
+      "finalUrl": "https://fenixparts.com/wp-content/plugins/iis-pro-v2/js/iisincludespro3.js?ver=4.78",
+      "status": 200,
+      "started": 1794948195.9441566,
+      "completed": 1794948196.4508355,
+      "bytes": 132954,
+      "sha256": "6559366d05bc6e3d8a487a5e06e62cabeb3dea060e2d27b81ffdee62ab6f8bfc"
+    },
+    {
+      "name": "birmingham-robots.txt",
+      "url": "https://www.bhamauto.com/robots.txt",
+      "started": 1794948199.651058,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "vander-locations.html",
+      "url": "https://www.vanderhaags.com/locations.php",
+      "finalUrl": "https://www.vanderhaags.com/map.php",
+      "status": 200,
+      "started": 1794948203.5107605,
+      "completed": 1794948209.7170846,
+      "bytes": 428483,
+      "sha256": "d9f4fbd477bfd700efba2b9a755ad623cf5ab9e1074be0d0417ce9b58cf8c255"
+    },
+    {
+      "name": "cunningham-robots.txt",
+      "url": "https://cunningham-brothers.com/robots.txt",
+      "finalUrl": "https://cunningham-brothers.com/robots.txt",
+      "status": 200,
+      "started": 1794948212.917196,
+      "completed": 1794948216.9484754,
+      "bytes": 404,
+      "sha256": "4c4ef9ef4c42998c041db3ffdcc3ca54a788d4952515028373285b5bb6f8ce49"
+    },
+    {
+      "name": "cunningham-home.html",
+      "url": "https://cunningham-brothers.com/",
+      "finalUrl": "https://cunningham-brothers.com/",
+      "status": 200,
+      "started": 1794948220.1485853,
+      "completed": 1794948221.6061158,
+      "bytes": 214981,
+      "sha256": "f4c5f7b18a59b5ce429cd6ab3d9aa3232cafc130c0b085c98a312b3b02bc674d"
+    },
+    {
+      "name": "search-bing.html",
+      "url": "https://www.bing.com/search?q=multi+state+auto+salvage+recycler+group+inventory+VIN",
+      "finalUrl": "https://www.bing.com/search?q=multi+state+auto+salvage+recycler+group+inventory+VIN",
+      "status": 200,
+      "started": 1794948224.806227,
+      "completed": 1794948229.312362,
+      "bytes": 122246,
+      "sha256": "b3b83d5212edfe61e513c2ca72c65c64a29a96eb2def888cb792f4a1fa904cdc"
+    },
+    {
+      "name": "tpi-robots.txt",
+      "url": "https://truckpartsinventory.com/robots.txt",
+      "finalUrl": "https://truckpartsinventory.com/robots.txt",
+      "status": 200,
+      "started": 1794948274.5140364,
+      "completed": 1794948278.9079292,
+      "bytes": 2676,
+      "sha256": "3073d1e371afb3271c7666148766fedc5145f7d8440f7114062db79b7bd58add"
+    },
+    {
+      "name": "mls-robots.txt",
+      "url": "https://www.mylittlesalesman.com/robots.txt",
+      "finalUrl": "https://www.mylittlesalesman.com/robots.txt",
+      "status": 200,
+      "started": 1794948282.1080773,
+      "completed": 1794948284.6857116,
+      "bytes": 4826,
+      "sha256": "032d27ab16d2c51c3d8bf068a3bf4df2b438d3c41598bdc110299088376073f2"
+    },
+    {
+      "name": "truckpaper-robots.txt",
+      "url": "https://www.truckpaper.com/robots.txt",
+      "finalUrl": "https://www.truckpaper.com/robots.txt",
+      "status": 200,
+      "started": 1794948287.8858235,
+      "completed": 1794948290.3586178,
+      "bytes": 1949,
+      "sha256": "67ecc8268539e445b21cc6aa77d70193735762be4708949fc29125294002acc9"
+    },
+    {
+      "name": "tpi-home.html",
+      "url": "https://truckpartsinventory.com/",
+      "finalUrl": "https://truckpartsinventory.com/",
+      "status": 403,
+      "started": 1794948324.7303414,
+      "completed": 1794948325.416808,
+      "bytes": 5616,
+      "sha256": "63875a016380bf566eb0f129732475236f2c721bd027ed5c4baef9032ec653ee"
+    },
+    {
+      "name": "mls-home.html",
+      "url": "https://www.mylittlesalesman.com/",
+      "finalUrl": "https://www.mylittlesalesman.com/",
+      "status": 403,
+      "started": 1794948328.6169393,
+      "completed": 1794948329.1752486,
+      "bytes": 5638,
+      "sha256": "92623d4f472e54284c6be4d1969fc25013e8fed9e0680b7f4fa0d92411f9a643"
+    },
+    {
+      "name": "truckpaper-salvage.html",
+      "url": "https://www.truckpaper.com/listings/for-sale/salvage-dismantled-trucks/16001",
+      "finalUrl": "https://www.truckpaper.com/listings/for-sale/salvage-dismantled-trucks/16001",
+      "status": 403,
+      "started": 1794948332.3753772,
+      "completed": 1794948332.9879603,
+      "bytes": 5822,
+      "sha256": "675bc113bcbb1531d5b4e7a7faedc2c47afa2dbadc4ef16fdfc9676e133166d5"
+    },
+    {
+      "name": "vander-parts.html",
+      "url": "https://www.vanderhaags.com/Search-Results.php?inventorytype=parts-unit",
+      "finalUrl": "https://www.vanderhaags.com/Search-Results.php?inventorytype=parts-unit",
+      "status": 202,
+      "started": 1794948336.1880789,
+      "completed": 1794948336.3721209,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "fenix-parts.html",
+      "url": "https://fenixparts.com/parts/",
+      "started": 1794948350.359488,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "fenix-locations.html",
+      "url": "https://fenixparts.com/locations/",
+      "finalUrl": "https://fenixparts.com/locations/",
+      "status": 200,
+      "started": 1794948396.3722563,
+      "completed": 1794948402.1164289,
+      "bytes": 170687,
+      "sha256": "e39d6459992a0e5c44d6e8dbb4f75d6bed46f3f504a50f218be71a91c4bbd270"
+    },
+    {
+      "name": "fenix-makes.html",
+      "url": "https://fenixparts.com/parts/makes/",
+      "finalUrl": "https://fenixparts.com/parts/makes/",
+      "status": 200,
+      "started": 1794948462.1165655,
+      "completed": 1794948465.5381303,
+      "bytes": 155923,
+      "sha256": "0ed830145808ec0640e83cd7e43aadcb9188aa8651ab2b8345480b028d430ad9"
+    },
+    {
+      "name": "spalding-robots.txt",
+      "url": "https://www.spaldingautoparts.com/robots.txt",
+      "started": 1794948468.7383368,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "spalding-home.html",
+      "url": "https://www.spaldingautoparts.com/",
+      "started": 1794948473.953772,
+      "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1085)>"
+    },
+    {
+      "name": "foss-robots.txt",
+      "url": "https://fossupullit.com/robots.txt",
+      "finalUrl": "https://fossupullit.com/robots.txt",
+      "status": 200,
+      "started": 1794948480.472726,
+      "completed": 1794948483.4573054,
+      "bytes": 67,
+      "sha256": "9311bab30d8b5d05f5fa5563a251b8c96b8470873bb77c62d3d17c146d7acab7"
+    },
+    {
+      "name": "foss-home.html",
+      "url": "https://fossupullit.com/",
+      "finalUrl": "https://fossupullit.com/",
+      "status": 200,
+      "started": 1794948516.8453877,
+      "completed": 1794948521.1666021,
+      "bytes": 189178,
+      "sha256": "c4fd4ebdda1f40594be06e481d3055e79205b7af9b9aca0de7c6ac44dea5cab7"
+    },
+    {
+      "name": "fenix-ford.html",
+      "url": "https://fenixparts.com/parts/FORD/",
+      "finalUrl": "https://fenixparts.com/parts/FORD/",
+      "status": 200,
+      "started": 1794948581.1671882,
+      "completed": 1794948583.579501,
+      "bytes": 151908,
+      "sha256": "8933c7f0db9c7337e728876db4bef72251c31ee117ea7b15118ef9919a2f756b"
+    },
+    {
+      "name": "spalding-bare-robots.txt",
+      "url": "https://spaldings.com/robots.txt",
+      "finalUrl": "https://spaldings.com/robots.txt",
+      "status": 200,
+      "started": 1794948586.779772,
+      "completed": 1794948586.9602263,
+      "bytes": 706,
+      "sha256": "20a87d0fb336495193515e979399af634fa63e75bc811c2bdb311ce1e2de0b51"
+    },
+    {
+      "name": "spalding-bare-home.html",
+      "url": "https://spaldings.com/",
+      "finalUrl": "https://spaldings.com/",
+      "status": 200,
+      "started": 1794948590.1603358,
+      "completed": 1794948590.5515456,
+      "bytes": 225080,
+      "sha256": "6658b7d95343fe3a40ed26240d72d8a410bf82ae7c4fa8c5e598557281428585"
+    },
+    {
+      "name": "fox-robots.txt",
+      "url": "https://www.foxautoparts.com/robots.txt",
+      "finalUrl": "https://www.foxautoparts.com/robots.txt",
+      "status": 404,
+      "started": 1794948593.751659,
+      "completed": 1794948595.1158879,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "fox-home.html",
+      "url": "https://www.foxautoparts.com/",
+      "finalUrl": "https://fenixparts.com/",
+      "status": 200,
+      "started": 1794948598.3160026,
+      "completed": 1794948604.925009,
+      "bytes": 319953,
+      "sha256": "bb502c7f42c26b63cf49aed5993abd75d0bf8078236339fe0adff59d90b52def"
+    },
+    {
+      "name": "foss-inventory.html",
+      "url": "https://fossupullit.com/inventory/",
+      "finalUrl": "https://fossupullit.com/inventory/",
+      "status": 200,
+      "started": 1794948640.8998363,
+      "completed": 1794948646.471578,
+      "bytes": 236009,
+      "sha256": "65d404f3d4228d79e528693d696d90f645e1521b9128cbc73e0a9197e3c1f507"
+    },
+    {
+      "name": "foss-search.js",
+      "url": "https://fossupullit.com/wp-content/plugins/gm_inventory_search/front-end/js/vehicle-search.js?ver=7.1.4",
+      "finalUrl": "https://fossupullit.com/wp-content/plugins/gm_inventory_search/front-end/js/vehicle-search.js?ver=7.1.4",
+      "status": 200,
+      "started": 1794948649.6733398,
+      "completed": 1794948651.063593,
+      "bytes": 23601,
+      "sha256": "f4912c348ffa4e0065a6df6be6fa7ebd2d46c099e4c57f2a6a42ae5f202c67d7"
+    },
+    {
+      "name": "fenix-f150.html",
+      "url": "https://fenixparts.com/parts/FORD/FORD_F150_PICKUP/",
+      "finalUrl": "https://fenixparts.com/parts/FORD/FORD_F150_PICKUP/",
+      "status": 200,
+      "started": 1794948711.0637429,
+      "completed": 1794948726.0181112,
+      "bytes": 848998,
+      "sha256": "1708c9deb82ad4cc67bf9520943487979e34f3240127f2e7d9379ab996ca2b6e"
+    },
+    {
+      "name": "lkq-api.json",
+      "url": "https://www.lkqonline.com/api/catalog/1/product?take=1&skip=0",
+      "started": 1794948729.2182534,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "aesop-robots.txt",
+      "url": "https://aesopauto.com/robots.txt",
+      "finalUrl": "https://aesopauto.com/robots.txt",
+      "status": 200,
+      "started": 1794948734.423947,
+      "completed": 1794948736.052727,
+      "bytes": 475,
+      "sha256": "2b933dae85fce6f7fc088ba1bd86d787065721a1cf9bde0fce03cbca912bffef"
+    },
+    {
+      "name": "aesop-home.html",
+      "url": "https://aesopauto.com/",
+      "finalUrl": "https://aesopauto.com/",
+      "status": 200,
+      "started": 1794948739.2530386,
+      "completed": 1794948741.4266715,
+      "bytes": 177350,
+      "sha256": "23ee40a8dcc3de2f6e40e038105c7c0e029ca89567068bc56f4cf5f70fcbffa8"
+    },
+    {
+      "name": "carolina-robots.txt",
+      "url": "https://carolinapicknpull.com/robots.txt",
+      "started": 1794948772.307922,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "express-robots.txt",
+      "url": "https://expresspullnsave.com/robots.txt",
+      "started": 1794948777.5227535,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "upullitap-robots.txt",
+      "url": "https://upullitap.com/robots.txt",
+      "finalUrl": "https://upullitap.com/robots.txt",
+      "status": 404,
+      "started": 1794948782.7271206,
+      "completed": 1794948784.992768,
+      "bytes": 1245,
+      "sha256": "dc1d54dab6ec8c00f70137927504e4f222c8395f10760b6beecfcfa94e08249f"
+    },
+    {
+      "name": "dex-robots.txt",
+      "url": "https://www.dexheavydutyparts.com/robots.txt",
+      "started": 1794948788.1928666,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "carolina-www-robots.txt",
+      "url": "https://www.carolinapicknpull.com/robots.txt",
+      "started": 1794948825.928657,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "express-www-robots.txt",
+      "url": "https://www.expresspullnsave.com/robots.txt",
+      "finalUrl": "https://www.expresspullnsave.com/robots.txt",
+      "status": 200,
+      "started": 1794948831.1419396,
+      "completed": 1794948833.784451,
+      "bytes": 168,
+      "sha256": "107dd319e5edde299da743a6af969ca80f633a82e317ee89f38dbee4d99f0d0e"
+    },
+    {
+      "name": "dex-bare-robots.txt",
+      "url": "https://dexheavydutyparts.com/robots.txt",
+      "started": 1794948836.984557,
+      "error": "<urlopen error [Errno -2] Name or service not known>"
+    },
+    {
+      "name": "upullitap-home.html",
+      "url": "https://upullitap.com/",
+      "finalUrl": "https://upullitap.com/",
+      "status": 200,
+      "started": 1794948842.1905024,
+      "completed": 1794948843.1906135,
+      "bytes": 20156,
+      "sha256": "a7b8d0bd806a4c72d911969b898c9661c44b10d979556c48603de2508255a235"
+    },
+    {
+      "name": "aesop-products.html",
+      "url": "https://aesopauto.com/products/",
+      "finalUrl": "https://aesopauto.com/products/",
+      "status": 200,
+      "started": 1794948846.3907704,
+      "completed": 1794948849.502131,
+      "bytes": 166429,
+      "sha256": "4c1700d2e53d592be885ab25895e5bcb3f9d2a732c3af1a36c4a010a39ab6867"
+    },
+    {
+      "name": "spalding-makes.html",
+      "url": "https://spaldings.com/parts/makes/",
+      "finalUrl": "https://spaldings.com/parts/makes/",
+      "status": 200,
+      "started": 1794948909.502248,
+      "completed": 1794948914.9358752,
+      "bytes": 155893,
+      "sha256": "3cd91d6d7b01d5bf63647240f972de3a191702c7367e5ad214f24bc365b3bb4e"
+    },
+    {
+      "name": "express-home.html",
+      "url": "https://www.expresspullnsave.com/",
+      "finalUrl": "https://www.expresspullnsave.com/",
+      "status": 200,
+      "started": 1794948964.1566992,
+      "completed": 1794948966.3397212,
+      "bytes": 263711,
+      "sha256": "469cf6295634f266e9dc9787931ac8df988c2f1ec842d284011ee1ced767dd5e"
+    },
+    {
+      "name": "upullitap-inventory.html",
+      "url": "https://upullitap.com/Home/Inventory",
+      "finalUrl": "https://upullitap.com/Home/Inventory",
+      "status": 200,
+      "started": 1794948969.5407863,
+      "completed": 1794948970.502482,
+      "bytes": 18694,
+      "sha256": "e84521b36471ed3351724a447a83f96d2cf2e64e5e7e6be18b6cfca3a68ed245"
+    },
+    {
+      "name": "aesop-search.html",
+      "url": "https://aesopauto.com/search-inventory/",
+      "finalUrl": "https://aesopauto.com/search-inventory/",
+      "status": 200,
+      "started": 1794948973.702677,
+      "completed": 1794948975.2868752,
+      "bytes": 158929,
+      "sha256": "baf04399501b8ac4a0b7dade028c49059a725b55c2290282e490103f819794a4"
+    },
+    {
+      "name": "spalding-ford.html",
+      "url": "https://spaldings.com/parts/FORD/",
+      "finalUrl": "https://spaldings.com/parts/FORD/",
+      "status": 200,
+      "started": 1794949035.2874382,
+      "completed": 1794949046.225489,
+      "bytes": 157302,
+      "sha256": "12f7e4cda94cb6795970d8e36b9fdde4e984d9e88476c4b313c42cf7b5b021a4"
+    },
+    {
+      "name": "tpi-firefox.html",
+      "url": "https://truckpartsinventory.com/",
+      "finalUrl": "https://truckpartsinventory.com/",
+      "status": 403,
+      "started": 1794949120.9920573,
+      "completed": 1794949123.8832836,
+      "bytes": 5594,
+      "sha256": "9f78cc5c29ecddce09175ba5cfec4076533323799938d32d89c8409ac25dd63d"
+    },
+    {
+      "name": "mls-firefox.html",
+      "url": "https://www.mylittlesalesman.com/",
+      "finalUrl": "https://www.mylittlesalesman.com/",
+      "status": 403,
+      "started": 1794949127.0833998,
+      "completed": 1794949128.5895233,
+      "bytes": 5723,
+      "sha256": "6ada4152cf3a3966ccd93ea25a33ea1a3f31c3382b469e783c658bb7a7bb2207"
+    },
+    {
+      "name": "truckpaper-firefox.html",
+      "url": "https://www.truckpaper.com/listings/for-sale/salvage-dismantled-trucks/16001",
+      "finalUrl": "https://www.truckpaper.com/listings/for-sale/salvage-dismantled-trucks/16001",
+      "status": 403,
+      "started": 1794949131.7896237,
+      "completed": 1794949135.506643,
+      "bytes": 5800,
+      "sha256": "47b3a74d90f79b6b71b9ae185caf1431d61d0a7f1c40e934d9388729cabc59f9"
+    },
+    {
+      "name": "vander-native.html",
+      "url": "https://www.vanderhaags.com/Search-Results.php?manufacturer=freightliner&inventorytype=parts-unit",
+      "finalUrl": "https://www.vanderhaags.com/Search-Results.php?manufacturer=freightliner&inventorytype=parts-unit",
+      "status": 202,
+      "started": 1794949138.7068336,
+      "completed": 1794949141.116593,
+      "bytes": 2004,
+      "sha256": "25196fd4940a8ac4616301fce64771a2381d6928b5df226e3d4af814c85aa128"
+    },
+    {
+      "name": "dex-robots-retry.txt",
+      "url": "https://dexheavydutyparts.com/robots.txt",
+      "finalUrl": "https://dexheavydutyparts.com/robots.txt",
+      "status": 200,
+      "started": 1794949189.9144988,
+      "completed": 1794949191.734846,
+      "bytes": 816,
+      "sha256": "7ef9ca5668105e619daedff0fe33502daf81f63434afa6788d77effa5048c476"
+    },
+    {
+      "name": "aesop-makes.html",
+      "url": "https://aesopauto.com/parts/makes/",
+      "finalUrl": "https://aesopauto.com/parts/makes/",
+      "status": 200,
+      "started": 1794949194.934965,
+      "completed": 1794949196.0227456,
+      "bytes": 171483,
+      "sha256": "81967fc062a37e39afc8a7291b1a24f861f31e75897230018954388077c4fd84"
+    },
+    {
+      "name": "spalding-f150.html",
+      "url": "https://spaldings.com/parts/FORD/FORD_F150_PICKUP/",
+      "finalUrl": "https://spaldings.com/parts/FORD/FORD_F150_PICKUP/",
+      "status": 200,
+      "started": 1794949256.0233252,
+      "completed": 1794949268.8805683,
+      "bytes": 185900,
+      "sha256": "e5968194d8dc047e784e3a34af4af2fda6a67688ae373bc8787d3ce3cb9fff5c"
+    },
+    {
+      "name": "yourpart-robots.txt",
+      "url": "https://yourpart.com/robots.txt",
+      "finalUrl": "https://yourpart.com/robots.txt",
+      "status": 500,
+      "started": 1794949272.0807545,
+      "completed": 1794949274.2490387,
+      "bytes": 2482,
+      "sha256": "4b9443d1fac58409ab0efe11dba4dbcd7b18b65f8de36412511c5edeaad0332a"
+    },
+    {
+      "name": "carolina-http-robots.txt",
+      "url": "http://carolinapicknpull.com/robots.txt",
+      "finalUrl": "http://carolinapicknpull.com/robots.txt",
+      "status": 200,
+      "started": 1794949277.4491513,
+      "completed": 1794949278.252873,
+      "bytes": 195,
+      "sha256": "e388ae37d87655b48aee40d99c1365d0f96f99857d3049bceedad6e46aa3a485"
+    },
+    {
+      "name": "dex-home.html",
+      "url": "https://dexheavydutyparts.com/",
+      "finalUrl": "https://dexheavydutyparts.com/",
+      "status": 200,
+      "started": 1794949281.45396,
+      "completed": 1794949282.9414387,
+      "bytes": 175755,
+      "sha256": "3ea9d9f40fc2bdc14486f799ca5c2ce936b9b1d8025d5c878e8ada439f216244"
+    },
+    {
+      "name": "tpi-www.html",
+      "url": "https://www.truckpartsinventory.com/",
+      "finalUrl": "https://www.truckpartsinventory.com/",
+      "status": 403,
+      "started": 1794949286.1415544,
+      "completed": 1794949286.3714857,
+      "bytes": 5598,
+      "sha256": "d1c72077cb2f826787c32283b9ab7a7bf5f23bdd28df13ab8d8ee0f8c3407cde"
+    },
+    {
+      "name": "aesop-ford.html",
+      "url": "https://aesopauto.com/parts/FORD/",
+      "finalUrl": "https://aesopauto.com/parts/FORD/",
+      "status": 200,
+      "started": 1794949289.5715945,
+      "completed": 1794949291.6798174,
+      "bytes": 171454,
+      "sha256": "14d2ee26b4487506efc2d7a6969f330197fd353af55d744d289bfac2afdd0650"
+    },
+    {
+      "name": "htp-robots.txt",
+      "url": "https://www.heavytruckparts.net/robots.txt",
+      "finalUrl": "https://www.heavytruckparts.net/robots.txt",
+      "status": 200,
+      "started": 1794949316.3690364,
+      "completed": 1794949316.6755912,
+      "bytes": 192,
+      "sha256": "64d7cc469eddfa101ddd9535987a91e583b8e84021b5f1a51b2525c54bd8c111"
+    },
+    {
+      "name": "carolina-home.html",
+      "url": "http://carolinapicknpull.com/",
+      "finalUrl": "https://carolinapicknpull.com/",
+      "status": 200,
+      "started": 1794949319.8757207,
+      "completed": 1794949320.190201,
+      "bytes": 154882,
+      "sha256": "445cdb1221dab2d5b25132bd9a34d27e0b3ee27ec4bcebf3286670b0ab11d789"
+    },
+    {
+      "name": "dex-about.html",
+      "url": "https://dexheavydutyparts.com/about-dex-heavy-duty-parts/",
+      "finalUrl": "https://dexheavydutyparts.com/about-dex-heavy-duty-parts/",
+      "status": 200,
+      "started": 1794949323.3903084,
+      "completed": 1794949323.7334242,
+      "bytes": 149799,
+      "sha256": "724c05b909b55efcf9e858ce92720dcc9ca6f9a9010b2c27a5e7b5122ddde9a2"
+    },
+    {
+      "name": "aesop-f150.html",
+      "url": "https://aesopauto.com/parts/FORD/FORD_F150_PICKUP/",
+      "finalUrl": "https://aesopauto.com/parts/FORD/FORD_F150_PICKUP/",
+      "status": 200,
+      "started": 1794949326.9335468,
+      "completed": 1794949327.381376,
+      "bytes": 205057,
+      "sha256": "cc775636106b60ae1dca9e7a618a7f1d9535e70723f1654cd65619b8935a4c4b"
+    },
+    {
+      "name": "htp-frontier-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=1652479&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=1652479&store=1",
+      "status": 200,
+      "started": 1794949376.6832838,
+      "completed": 1794949377.0353484,
+      "bytes": 83848,
+      "sha256": "0e4d8bc507038b311aefa5089cf73521ecef49926b16bd0fe116d7984f3910fc"
+    },
+    {
+      "name": "htp-holst-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=428606&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=428606&store=1",
+      "status": 200,
+      "started": 1794949381.2354743,
+      "completed": 1794949382.6221344,
+      "bytes": 84169,
+      "sha256": "c9a231be54df111542fb990769afa5eac7dbd7a8b40f3668e317c59bbd88765e"
+    },
+    {
+      "name": "htp-rhino-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=256396&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=256396&store=1",
+      "status": 200,
+      "started": 1794949386.8222668,
+      "completed": 1794949387.2475967,
+      "bytes": 63060,
+      "sha256": "bb11e1770c9d1d541f94299ad451b46105838faae643465e4b7ce0038269155c"
+    },
+    {
+      "name": "htp-ern-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=3825857&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=3825857&store=1",
+      "status": 200,
+      "started": 1794949391.4476967,
+      "completed": 1794949392.007521,
+      "bytes": 62396,
+      "sha256": "f0efa9ba6ec1c77fc522344f9c6033a9763993826436c2f2840cdf51dbad4d35"
+    },
+    {
+      "name": "htp-salvagecity-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=838856&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=838856&store=1",
+      "status": 200,
+      "started": 1794949396.2076256,
+      "completed": 1794949396.746843,
+      "bytes": 70940,
+      "sha256": "45f72240959ea7a82b659c643ee570b5af35d329a57ba9de610ff4881a0e5cc7"
+    },
+    {
+      "name": "htp-ace-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=822219&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=822219&store=1",
+      "status": 200,
+      "started": 1794949400.947044,
+      "completed": 1794949401.6354854,
+      "bytes": 62509,
+      "sha256": "ab62aa20a7351718b6c98398b7052c544e8a05cf216814a6500ef88ef7febf33"
+    },
+    {
+      "name": "htp-boots-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=7064829&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=7064829&store=1",
+      "status": 200,
+      "started": 1794949405.835618,
+      "completed": 1794949406.1312008,
+      "bytes": 75784,
+      "sha256": "64afda1416cce25b6d44c3b8bd32490b3d2f14947788177b2c989ce3bfbac5a9"
+    },
+    {
+      "name": "htp-qualitybus-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=7797371&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=7797371&store=1",
+      "status": 200,
+      "started": 1794949410.3317683,
+      "completed": 1794949411.2323236,
+      "bytes": 84031,
+      "sha256": "349c238d391ab0fd5579b2db0dac7487d955b241746cfbb33b0f742e7b824068"
+    },
+    {
+      "name": "carolina-inventory.html",
+      "url": "https://carolinapicknpull.com/inventory/",
+      "finalUrl": "https://carolinapicknpull.com/inventory/",
+      "status": 200,
+      "started": 1794949421.433981,
+      "completed": 1794949422.3209062,
+      "bytes": 175254,
+      "sha256": "a9b3b2ab8326b17ee6f0885616e1723f8a92f8d7ed7f7ff13f0e7089cf2c7146"
+    },
+    {
+      "name": "carolina-functions.js",
+      "url": "https://carolinapicknpull.com/wp-content/themes/Carolina-PnP/js/functions.js",
+      "finalUrl": "https://carolinapicknpull.com/wp-content/themes/Carolina-PnP/js/functions.js",
+      "status": 200,
+      "started": 1794949432.521062,
+      "completed": 1794949433.035199,
+      "bytes": 7768,
+      "sha256": "e7296e4e64be3b0c9e0f479677f7fdbae7c8c3f427b28b063ebae2ef119ecc0b"
+    },
+    {
+      "name": "dex-search.html",
+      "url": "https://dexheavydutyparts.com/search-results/?q=",
+      "finalUrl": "https://dexheavydutyparts.com/search-results/?q=",
+      "status": 200,
+      "started": 1794949436.2353652,
+      "completed": 1794949437.5976758,
+      "bytes": 338239,
+      "sha256": "386f7c1c5a71ec2a6666854ef725264d23ccafc8def68287073072bc6f796b67"
+    },
+    {
+      "name": "htp-qualitybus-catalog.html",
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7797371&store=1&SortBy=year",
+      "finalUrl": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=7797371&store=1&SortBy=year",
+      "status": 200,
+      "started": 1794949444.7479804,
+      "completed": 1794949445.0524423,
+      "bytes": 86024,
+      "sha256": "630874083161a24a68dd92f72931fbe49b86c7c60eea6d1e2fd05e043e65f290"
+    },
+    {
+      "name": "htp-stateline-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=4514552&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=4514552&store=1",
+      "status": 200,
+      "started": 1794949449.2527702,
+      "completed": 1794949449.5689301,
+      "bytes": 76106,
+      "sha256": "ae43e7b7129135439f7de48b6002eac961c6f5c1d839bf86bad280c296e3a431"
+    },
+    {
+      "name": "htp-jackson-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=960076&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=960076&store=1",
+      "status": 200,
+      "started": 1794949453.769084,
+      "completed": 1794949454.0415647,
+      "bytes": 62820,
+      "sha256": "52af5293ee38c172dd7c1e7783d8e2d5035dcfb1fe9ec63babd0e93a8b6162f9"
+    },
+    {
+      "name": "htp-crj-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=8283201&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=8283201&store=1",
+      "status": 200,
+      "started": 1794949458.241761,
+      "completed": 1794949458.536263,
+      "bytes": 78049,
+      "sha256": "7a0898bbf77cde7f5faf3ccc999924d8abb3f8d7503e019f901134e5edec1699"
+    },
+    {
+      "name": "htp-usdallas-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=6377943&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=6377943&store=1",
+      "status": 200,
+      "started": 1794949462.7364824,
+      "completed": 1794949463.005538,
+      "bytes": 72996,
+      "sha256": "07371e438b5801d74c7ff0fd0f7390b1ed69a49f9c63aa64f9de69fa05108a5b"
+    },
+    {
+      "name": "htp-timjordan-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=5146584&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=5146584&store=1",
+      "status": 200,
+      "started": 1794949467.205649,
+      "completed": 1794949467.480525,
+      "bytes": 82637,
+      "sha256": "2ec5529371470510a237ab26ad4afb18e9a039bfd56dff00c71772f4014a09f3"
+    },
+    {
+      "name": "htp-david-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=5780808&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=5780808&store=1",
+      "status": 200,
+      "started": 1794949471.6806695,
+      "completed": 1794949472.1006563,
+      "bytes": 63392,
+      "sha256": "98c75cda17bd1c6c5110187c8c0535147b62fc90537c93b86e699e78c3885a1a"
+    },
+    {
+      "name": "htp-valleyin-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=9729957&store=7",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=9729957&store=7",
+      "status": 200,
+      "started": 1794949476.3007674,
+      "completed": 1794949476.6592667,
+      "bytes": 86486,
+      "sha256": "cee92cb0daf625c892aeaa09d212aac8b00833ed311690a5974db9ef9ac1c9dc"
+    },
+    {
+      "name": "htp-valleymi-store.html",
+      "url": "https://www.heavytruckparts.net/search.php?fltpc=9729957&store=1",
+      "finalUrl": "https://www.heavytruckparts.net/search.php?fltpc=9729957&store=1",
+      "status": 200,
+      "started": 1794949480.859396,
+      "completed": 1794949481.6375158,
+      "bytes": 89822,
+      "sha256": "7cd816c0282c32f9140e8c5bf9f53741f252cd3b914bcbb1592148fc6d72cbac"
+    },
+    {
+      "name": "carolina-all-cape.html",
+      "url": "https://carolinapicknpull.com/inventory/?location=3&vyear=&make=&model=&inventory-search=Search",
+      "finalUrl": "https://carolinapicknpull.com/inventory/?location=3&vyear=&make=&model=&inventory-search=Search",
+      "status": 200,
+      "started": 1794949491.8387866,
+      "completed": 1794949492.5222273,
+      "bytes": 175865,
+      "sha256": "8926696500315c422dddb2d9385bc0b4df1cd84c17c899d496166cb7261f7cf0"
+    },
+    {
+      "name": "carolina-all-conway.html",
+      "url": "https://carolinapicknpull.com/inventory/?location=9&vyear=&make=&model=&inventory-search=Search",
+      "finalUrl": "https://carolinapicknpull.com/inventory/?location=9&vyear=&make=&model=&inventory-search=Search",
+      "status": 200,
+      "started": 1794949502.7223387,
+      "completed": 1794949503.5728705,
+      "bytes": 176152,
+      "sha256": "0f655adf2350bba1fc19047af46788012ef8e70c568dbd16ed56067bc0d0b78d"
+    },
+    {
+      "name": "htp-stateline-catalog.html",
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4514552&store=1&SortBy=year",
+      "finalUrl": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=4514552&store=1&SortBy=year",
+      "status": 200,
+      "started": 1794949638.157096,
+      "completed": 1794949639.1285975,
+      "bytes": 108857,
+      "sha256": "bfbf80bda547daf1d4e9d834363276af65ec144707cf463b5388953731c06245"
+    },
+    {
+      "name": "htp-timjordan-catalog.html",
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5146584&store=1&SortBy=year",
+      "finalUrl": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=5146584&store=1&SortBy=year",
+      "status": 200,
+      "started": 1794949643.3287575,
+      "completed": 1794949643.989762,
+      "bytes": 166508,
+      "sha256": "6b4eedc66010913a089afab3d19656c03d94ad92e394f788d4e039ec1e74ca88"
+    },
+    {
+      "name": "htp-valleymi-catalog.html",
+      "url": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=9729957&store=1&SortBy=year",
+      "finalUrl": "https://www.heavytruckparts.net/search/Any/Any/Complete-Vehicle?fltpc=9729957&store=1&SortBy=year",
+      "status": 200,
+      "started": 1794949648.1898856,
+      "completed": 1794949649.6242502,
+      "bytes": 189916,
+      "sha256": "14620bfbdc46985ba0080338ecc033666addf2510231037052255acdcc39ab21"
+    },
+    {
+      "name": "carolina-models.json",
+      "url": "https://carolinapicknpull.com/wp-content/themes/Carolina-PnP/inventorySelectUpdater.php?inventory-search=Search&location=9&make=ford&model=&vyear=&user-select=make",
+      "finalUrl": "https://carolinapicknpull.com/wp-content/themes/Carolina-PnP/inventorySelectUpdater.php?inventory-search=Search&location=9&make=ford&model=&vyear=&user-select=make",
+      "status": 200,
+      "started": 1794949677.772908,
+      "completed": 1794949678.4991047,
+      "bytes": 159,
+      "sha256": "f2a5ca755dbb997bcdd32abd3d447a9d1e32636e6f18063a2492864170c2a0dc"
+    },
+    {
+      "name": "ario-robots.txt",
+      "url": "https://ario.autorecycler.io/robots.txt",
+      "finalUrl": "https://ario.autorecycler.io/robots.txt",
+      "status": 200,
+      "started": 1794949681.6997623,
+      "completed": 1794949682.0093749,
+      "bytes": 323,
+      "sha256": "684944db38316302a60e83ed697b593e7cd9ab0bc775ed6a490e5b4a3a05dbbc"
+    },
+    {
+      "name": "ario-home.html",
+      "url": "https://ario.autorecycler.io/",
+      "finalUrl": "https://ario.autorecycler.io/",
+      "status": 200,
+      "started": 1794949685.2095368,
+      "completed": 1794949685.3657432,
+      "bytes": 8083,
+      "sha256": "e623fe9b1e892db6c3820d29dd47eb6c5bcfc36eac50b9bbc8b36afe9b9e2507"
+    },
+    {
+      "name": "carolina-mustang.html",
+      "url": "https://carolinapicknpull.com/inventory/?location=9&make=ford&model=mustang&vyear=&inventory-search=Search",
+      "finalUrl": "https://carolinapicknpull.com/inventory/?location=9&make=ford&model=mustang&vyear=&inventory-search=Search",
+      "status": 200,
+      "started": 1794949722.5114367,
+      "completed": 1794949723.6019845,
+      "bytes": 177924,
+      "sha256": "485dc840952845870a7ea859a726b9916ce1aec9a4883c1ed15c71149289ca66"
+    },
+    {
+      "name": "lkqheavy-robots.txt",
+      "url": "https://lkqheavytruck.com/robots.txt",
+      "finalUrl": "https://lkqheavytruck.com/robots.txt",
+      "status": 200,
+      "started": 1794949737.6924827,
+      "completed": 1794949738.0142226,
+      "bytes": 71,
+      "sha256": "7dd73779593e39cf669cb815016ee2f2591ed92367def4a9d68b98cca8b0ff1d"
+    },
+    {
+      "name": "recyclers-robots.txt",
+      "url": "https://www.recyclers.net/robots.txt",
+      "finalUrl": "https://www.recyclers.net/robots.txt",
+      "status": 200,
+      "started": 1794949741.2143495,
+      "completed": 1794949741.6559296,
+      "bytes": 92,
+      "sha256": "832fbe7b484ab9b8c61b222c6584c0f0f09e842fdc6a52265d5ce548e6dda18b"
+    },
+    {
+      "name": "ario-api-robots.txt",
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/robots.txt",
+      "finalUrl": "https://zqfzqcyteuemzbnwtmcr.supabase.co/robots.txt",
+      "status": 404,
+      "started": 1794949744.8568718,
+      "completed": 1794949744.9783578,
+      "bytes": 37,
+      "sha256": "2b87bc4816733d2cf987c3b26629e4a98acacdb7090c3c75ff08c9bb6889d9e7"
+    },
+    {
+      "name": "lkqheavy-home.html",
+      "url": "https://lkqheavytruck.com/",
+      "finalUrl": "https://lkqheavytruck.com/",
+      "status": 200,
+      "started": 1794949780.8007452,
+      "completed": 1794949781.9282675,
+      "bytes": 158225,
+      "sha256": "af8a6f31d96e7e018da3de9235d23447d95549b9c804d108cd7b436e5a1637e1"
+    },
+    {
+      "name": "recyclers-home.html",
+      "url": "https://www.recyclers.net/",
+      "finalUrl": "https://www.recyclers.net/",
+      "status": 200,
+      "started": 1794949785.1283963,
+      "completed": 1794949785.401582,
+      "bytes": 43180,
+      "sha256": "1164931a2ca0e264ca6b2362e226df9b1e2de52ae6456e4ef30aebd0653b982d"
+    },
+    {
+      "name": "ario-bundle.js",
+      "url": "https://ario.autorecycler.io/assets/index-oW1zBAeU.js",
+      "finalUrl": "https://ario.autorecycler.io/assets/index-oW1zBAeU.js",
+      "status": 200,
+      "started": 1794949788.6016958,
+      "completed": 1794949789.4303417,
+      "bytes": 1566591,
+      "sha256": "2c7ede7a36f6b4569f05a26c8ec0417b9030f3eb8ab94403988f9edcf75fab0e"
+    },
+    {
+      "name": "lkqheavy-bundle.js",
+      "url": "https://lkqheavytruck.com/assets/entry-client-BudFpsbs.js",
+      "finalUrl": "https://lkqheavytruck.com/assets/entry-client-BudFpsbs.js",
+      "status": 200,
+      "started": 1794949811.1987069,
+      "completed": 1794949811.7904754,
+      "bytes": 1441465,
+      "sha256": "3c7abaa864c1df0e7dea7bb43611715a0c4cd53b3afb2ee2a868edda317c64f4"
+    },
+    {
+      "name": "recyclers-search.html",
+      "url": "https://www.recyclers.net/search.php",
+      "finalUrl": "https://www.recyclers.net/search.php",
+      "status": 200,
+      "started": 1794949814.9907236,
+      "completed": 1794949815.2619398,
+      "bytes": 60685,
+      "sha256": "792c1b338130b4e0571a0f3d300249c8936fd4c9c5580dff8e2ccbe883ebca28"
+    },
+    {
+      "name": "recyclers-vendors.html",
+      "url": "https://www.recyclers.net/vendors.php",
+      "finalUrl": "https://www.recyclers.net/vendors.php",
+      "status": 200,
+      "started": 1794949818.4620576,
+      "completed": 1794949818.9106565,
+      "bytes": 54372,
+      "sha256": "a196a2c2378145fb9dc002822a757d8e3f075bbc38ec0842602078fbb34f69af"
+    },
+    {
+      "name": "recyclers-vehicles.html",
+      "url": "https://www.recyclers.net/nojs_vehicles.php",
+      "finalUrl": "https://www.recyclers.net/nojs_vehicles.php",
+      "status": 200,
+      "started": 1794949852.1781917,
+      "completed": 1794949853.1286712,
+      "bytes": 33925,
+      "sha256": "d9223c4d53246d711bf6ec3062577411584cb8215546a3d470f2eefb64950990"
+    },
+    {
+      "name": "cap-robots.txt",
+      "url": "https://coloradoautoandparts.com/robots.txt",
+      "started": 1794949856.328764,
+      "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1085)>"
+    },
+    {
+      "name": "cap-robots-retry.txt",
+      "url": "https://www.coloradoautoandparts.com/robots.txt",
+      "started": 1794949891.9995866,
+      "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1085)>"
+    },
+    {
+      "name": "recyclers-partscars.html",
+      "url": "https://www.recyclers.net/search.php?PartID=900&qsearch=TRUE",
+      "finalUrl": "https://www.recyclers.net/search.php?PartID=900&qsearch=TRUE",
+      "status": 200,
+      "started": 1794949948.2315621,
+      "completed": 1794949949.7010517,
+      "bytes": 103795,
+      "sha256": "ebc746b5d5f7aa1ef829cf13f1ffa6e2d34da4b778a98593fd92bb39c46e61cf"
+    },
+    {
+      "name": "aesop-f150-cookie.html",
+      "url": "https://aesopauto.com/parts/FORD/FORD_F150_PICKUP/",
+      "finalUrl": "https://aesopauto.com/parts/FORD/FORD_F150_PICKUP/",
+      "status": 200,
+      "started": 1794950021.3852146,
+      "completed": 1794950022.076664,
+      "bytes": 205057,
+      "sha256": "299eea147aacafd808bd9a345048210e9bb88b42706af4829309ee660b3c2329"
+    },
+    {
+      "name": "br-locations.html",
+      "url": "https://www.autowrecking.com/locations",
+      "finalUrl": "https://www.autowrecking.com/locations",
+      "status": 200,
+      "started": 1794950285.6396177,
+      "completed": 1794950286.118929,
+      "bytes": 64787,
+      "sha256": "12f1c45cd79be19f4a9368e98efa37c62e2bcf7515307b9cc44374df88251ecf"
+    },
+    {
+      "name": "bessler-robots.txt",
+      "url": "https://upullandsave.com/robots.txt",
+      "finalUrl": "https://upullandsave.com/robots.txt",
+      "status": 200,
+      "started": 1794950298.2282856,
+      "completed": 1794950298.9061978,
+      "bytes": 140,
+      "sha256": "f546fc2564ce4696072b73f696dcce83e4457b8fc160f100d941fb908c0532fa"
+    },
+    {
+      "name": "besslerfull-robots.txt",
+      "url": "https://besslerautoparts.com/robots.txt",
+      "finalUrl": "https://besslerautoparts.com/robots.txt",
+      "status": 200,
+      "started": 1794950302.1063318,
+      "completed": 1794950302.819826,
+      "bytes": 144,
+      "sha256": "12387b1155ac158fd55e2934e23539c799390b43023710dfeaf941a6a4e946ad"
+    },
+    {
+      "name": "bessler-home.html",
+      "url": "https://upullandsave.com/",
+      "finalUrl": "https://upullandsave.com/",
+      "status": 200,
+      "started": 1794950322.0562847,
+      "completed": 1794950322.3449738,
+      "bytes": 280664,
+      "sha256": "0de40f73d4b3a3b8164ad28b02998b888071ba100f3a0e7e6caaecfc9454bfa6"
+    },
+    {
+      "name": "besslerfull-home.html",
+      "url": "https://besslerautoparts.com/",
+      "finalUrl": "https://besslerautoparts.com/",
+      "status": 200,
+      "started": 1794950325.545103,
+      "completed": 1794950326.3686914,
+      "bytes": 175976,
+      "sha256": "a734037955891346cd3dda9da0a958fb0a55113fcbb23366ca17fc4176986301"
+    }
+  ],
+  "ario": [
+    {
+      "url": "https://ario.autorecycler.io",
+      "body": null,
+      "status": 200,
+      "start": 1794949799848,
+      "end": 1794949800055,
+      "bytes": 8063
+    },
+    {
+      "url": "https://ario.autorecycler.io/assets/index-oW1zBAeU.js",
+      "body": null,
+      "status": 200,
+      "start": 1794949802259,
+      "end": 1794949802414,
+      "bytes": 1565075
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/rest/v1/yards?select=id,slug,display_name,organization_id,address,city,state,website_url,phone,data&customer_facing_visible=eq.true",
+      "body": null,
+      "status": 200,
+      "start": 1794949804620,
+      "end": 1794949804955,
+      "bytes": 2448275
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+      "body": {
+        "yard_list": [
+          "south-carolina-blue-and-gold",
+          "youngs-u-pull-it",
+          "jalopy-wizards",
+          "joliet-u-pull-it",
+          "jalopy-jungle-caldwell",
+          "jalopy-jungle-nampa",
+          "jalopy-jungle-twin-falls",
+          "jalopy-jungle-garden-city",
+          "jalopy-jungle-boise",
+          "tri-state-u-wrench-and-save-jackson-mo",
+          "grandpa-johns-pick-and-pull-green-bay-wi",
+          "u-pull-it-ia-des-moines-ia",
+          "u-pull-auto-parts-pocatello-id",
+          "colorado-auto-and-parts-englewood-co"
+        ],
+        "per_yard_limit": 100,
+        "item_rank_offset": 0,
+        "start_year": null,
+        "end_year": null,
+        "input_make": null,
+        "input_model": null
+      },
+      "status": 200,
+      "start": 1794949807162,
+      "end": 1794949807640,
+      "bytes": 651482
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+      "body": {
+        "yard_list": ["colorado-auto-and-parts-englewood-co"],
+        "per_yard_limit": 100,
+        "item_rank_offset": 0,
+        "start_year": null,
+        "end_year": null,
+        "input_make": null,
+        "input_model": null
+      },
+      "status": 200,
+      "start": 1794949937435,
+      "end": 1794949937844,
+      "bytes": 60666
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+      "body": {
+        "yard_list": ["colorado-auto-and-parts-englewood-co"],
+        "per_yard_limit": 100,
+        "item_rank_offset": 100,
+        "start_year": null,
+        "end_year": null,
+        "input_make": null,
+        "input_model": null
+      },
+      "status": 200,
+      "start": 1794949940050,
+      "end": 1794949940468,
+      "bytes": 60564
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+      "body": {
+        "yard_list": ["colorado-auto-and-parts-englewood-co"],
+        "per_yard_limit": 100,
+        "item_rank_offset": 200,
+        "start_year": null,
+        "end_year": null,
+        "input_make": null,
+        "input_model": null
+      },
+      "status": 200,
+      "start": 1794949942671,
+      "end": 1794949943010,
+      "bytes": 50304
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+      "body": {
+        "yard_list": ["colorado-auto-and-parts-englewood-co"],
+        "per_yard_limit": 100,
+        "item_rank_offset": 0,
+        "start_year": null,
+        "end_year": null,
+        "input_make": null,
+        "input_model": null
+      },
+      "status": 200,
+      "start": 1794949945215,
+      "end": 1794949945440,
+      "bytes": 60666
+    },
+    {
+      "url": "https://zqfzqcyteuemzbnwtmcr.supabase.co/functions/v1/search-inventory",
+      "body": {
+        "yard_list": [
+          "besslers-u-pull-and-save-louisville-ky",
+          "besslers-u-pull-and-save-wilder-ky",
+          "besslers-u-pull-and-save-hebron-ky",
+          "u-pick-it-prescott-valley-az",
+          "u-pick-it-flagstaff-az"
+        ],
+        "per_yard_limit": 100,
+        "item_rank_offset": 0,
+        "start_year": null,
+        "end_year": null,
+        "input_make": null,
+        "input_model": null
+      },
+      "status": 200,
+      "start": 1794950265220,
+      "end": 1794950266926,
+      "bytes": 306011
+    }
+  ]
+}

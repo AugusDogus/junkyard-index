@@ -40,3 +40,12 @@ yards, 2,095 items and complete per-yard metadata. CFC fits inside the existing
 `cfc-qualification-requests.json.gz` records fourteen serial live requests,
 including owner discovery and the grouped probe. These fixtures contain no
 keys. Tests use saved responses only.
+
+November 17 multi-state qualification adds
+`colorado-auto-and-parts-englewood-co.json.gz`: three original 100-rank windows
+and an independent closing response. All 283 donors pass check-digit validation;
+newest arrival is October 7. The refreshed directory entry includes native Crush
+client 1004 authority. The yard has a 94-donor floor. Requests and rejected
+multi-state leads are retained in `../multistate/requests.json` and
+`../multistate/research.json.gz`; see
+`docs/runbooks/provider-coverage-multistate.md` for ranking and net state credits.
