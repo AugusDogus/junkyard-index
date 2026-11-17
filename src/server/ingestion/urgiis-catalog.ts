@@ -296,7 +296,7 @@ export function iisCards(
   };
 }
 
-// Tiny badges can include stale part-bin entries. Three advertised donors with
+// Tiny badges can include stale part-bin entries. Two advertised donors with
 // no cards is incomplete evidence, even far below the native 500-card boundary.
 export function iisValidateModelPage(
   page: ReturnType<typeof iisCards>,
