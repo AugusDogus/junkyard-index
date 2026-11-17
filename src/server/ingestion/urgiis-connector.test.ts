@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { UrgiisEntrySchema, urgiisFingerprint } from "./urgiis-traversal";
-import { UrgiisCursor } from "./urgiis-cursor";
+import { UrgiisCursor, URGIIS_MAX_CURSOR_BYTES } from "./urgiis-cursor";
 import { streamUrgiisInventory } from "./urgiis-connector";
 import { urgiisError } from "./urgiis-client";
 import {
@@ -821,4 +821,74 @@ test("URG checkpoint reuse accepts only identical immutable validated evidence",
 
 test("URG fingerprint preserves existing Unicode checkpoint checksums", () => {
   expect(urgiisFingerprint({ name: "A😀Z", value: 12 })).toBe("c32354ba");
+});
+
+test("URG entry receipts preserve legacy cursors and bind changed donor evidence", async () => {
+  let cursor = UrgiisCursor.initial([tenant]);
+  let reads = 0;
+  while (reads < 5) {
+    const result = await Effect.runPromise(
+      streamUrgiisInventory({
+        tenants: [tenant],
+        startCursor: cursor,
+        maxPages: 1,
+        readPage: () => Effect.succeed(responses[reads++] ?? ""),
+        onBatch: () => Effect.die("Unclosed census emitted"),
+      }),
+    );
+    cursor = result.cursor;
+  }
+  if (cursor.phase === "complete") throw new Error("Expected working cursor");
+  const { checksum, ...state } = cursor;
+  expect(checksum).toStartWith("e1-");
+  const legacy = {
+    ...state,
+    checksum: urgiisFingerprint({ ...state, statePath: undefined }),
+  };
+  expect(UrgiisCursor.fromWire(JSON.stringify(legacy), [tenant])).toEqual(
+    cursor,
+  );
+  const changed = {
+    ...cursor,
+    entries: cursor.entries.map((entry) =>
+      entry.kind === "model"
+        ? {
+            ...entry,
+            records: entry.records.map((record) => ({
+              ...record,
+              vins: ["1HGCM82633A004352"],
+            })),
+          }
+        : entry,
+    ),
+  };
+  expect(() => UrgiisCursor.parse(changed, [tenant])).toThrow(
+    "checksum changed",
+  );
+  const withTitle = (repetitions: number) => ({
+    ...cursor,
+    entries: cursor.entries.map((entry) =>
+      entry.kind === "model"
+        ? {
+            ...entry,
+            records: entry.records.map((record) => ({
+              ...record,
+              titles: ["\n😀".repeat(repetitions)],
+            })),
+          }
+        : entry,
+    ),
+  });
+  const below = UrgiisCursor.checkpoint(
+    withTitle(Math.floor((URGIIS_MAX_CURSOR_BYTES - 100_000) / 6)),
+    [tenant],
+  );
+  expect(
+    Buffer.byteLength(UrgiisCursor.serialize(below, [tenant])),
+  ).toBeLessThan(URGIIS_MAX_CURSOR_BYTES);
+  expect(() =>
+    UrgiisCursor.checkpoint(withTitle(Math.ceil(URGIIS_MAX_CURSOR_BYTES / 6)), [
+      tenant,
+    ]),
+  ).toThrow("exceeds 16 MiB");
 });

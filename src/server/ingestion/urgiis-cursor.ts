@@ -9,6 +9,8 @@ import {
   urgiisTasks,
   urgiisFingerprint,
   validateUrgiisEntry,
+  type UrgiisEntry,
+  type UrgiisTask,
 } from "./urgiis-traversal";
 
 export const URGIIS_MAX_CURSOR_BYTES = 16 * 1024 * 1024;
@@ -57,6 +59,48 @@ const schema = z.discriminatedUnion("phase", [
 type State = z.infer<typeof schema>;
 export type UrgiisCursor = State & { checksum: string };
 const validatedCursors = new WeakMap<object, UrgiisCursor>();
+const validatedTasks = new WeakMap<
+  UrgiisEntry,
+  { task: UrgiisTask; scope: string }
+>();
+const entryReceipts = new WeakMap<
+  UrgiisEntry,
+  { hash: string; bytes: number }
+>();
+function entryReceipt(entry: UrgiisEntry) {
+  const cached = entryReceipts.get(entry);
+  if (cached) return cached;
+  // Only schema-validated, deeply frozen entries reach this boundary. A new
+  // wire object is always validated and hashed before its receipt can be reused.
+  const receipt = {
+    hash: urgiisFingerprint(entry),
+    bytes: new TextEncoder().encode(JSON.stringify(entry)).byteLength,
+  };
+  entryReceipts.set(entry, receipt);
+  return receipt;
+}
+function checksum(state: State) {
+  return (
+    "e1-" +
+    urgiisFingerprint({
+      ...state,
+      ...(state.phase === "complete"
+        ? {}
+        : { entries: state.entries.map((entry) => entryReceipt(entry).hash) }),
+      statePath: undefined,
+    })
+  );
+}
+function wireBytes(cursor: UrgiisCursor) {
+  if (cursor.phase === "complete")
+    return new TextEncoder().encode(JSON.stringify(cursor)).byteLength;
+  return (
+    new TextEncoder().encode(JSON.stringify({ ...cursor, entries: [] }))
+      .byteLength +
+    cursor.entries.reduce((n, entry) => n + entryReceipt(entry).bytes, 0) +
+    Math.max(0, cursor.entries.length - 1)
+  );
+}
 function checkpoint(
   input: unknown,
   tenants: readonly UrgiisTenant[] = URGIIS_TENANTS,
@@ -131,7 +175,12 @@ function checkpoint(
     state.entries.forEach((entry, i) => {
       const task = tasks[i];
       if (!task) throw new Error("IIS checkpoint has excess evidence");
-      validateUrgiisEntry(entry, task, tenant);
+      const prior = validatedTasks.get(entry);
+      if (prior?.task !== task || prior.scope !== state.scope) {
+        validateUrgiisEntry(entry, task, tenant);
+        if (Object.isFrozen(task))
+          validatedTasks.set(entry, { task, scope: state.scope });
+      }
     });
     if (state.closingModels) {
       const expected = state.entries
@@ -180,12 +229,9 @@ function checkpoint(
   }
   const cursor = {
     ...state,
-    checksum: urgiisFingerprint({ ...state, statePath: undefined }),
+    checksum: checksum(state),
   };
-  if (
-    new TextEncoder().encode(JSON.stringify(cursor)).byteLength >
-    URGIIS_MAX_CURSOR_BYTES
-  )
+  if (wireBytes(cursor) > URGIIS_MAX_CURSOR_BYTES)
     throw new Error("IIS checkpoint exceeds 16 MiB; preserve prior inventory");
   freezeUrgiisEvidence(cursor);
   validatedCursors.set(cursor, cursor);
@@ -203,7 +249,11 @@ function parse(
   const signed = z.object({ checksum: z.string() }).passthrough().parse(input);
   const { checksum, ...state } = signed;
   const cursor = checkpoint(state, tenants);
-  if (cursor.checksum !== checksum)
+  if (
+    cursor.checksum !== checksum &&
+    (checksum.startsWith("e1-") ||
+      urgiisFingerprint({ ...state, statePath: undefined }) !== checksum)
+  )
     throw new Error("IIS checkpoint checksum changed");
   return cursor;
 }
