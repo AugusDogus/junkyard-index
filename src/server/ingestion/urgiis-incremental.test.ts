@@ -59,6 +59,7 @@ interface Day {
   emptyReads?: { path: string; times: number };
   specialCount?: number;
   closingSpecialCount?: number;
+  closingOrdinary?: string;
   tenantList?: typeof tenants;
   emptyTenant?: string;
   now?: number;
@@ -139,17 +140,20 @@ async function run(day: Day = {}) {
               .map((m) => ({
                 ...m.model,
                 count:
-                  m.model.label === "Town & Country" &&
-                  day.closingSpecialCount !== undefined &&
+                  m.model.path === day.closingOrdinary &&
                   reads.filter((u) => u === url).length > 1
-                    ? day.closingSpecialCount
-                    : m.model.path === day.badge
-                      ? (day.badgeCount ?? m.model.count + 1)
-                      : m.model.count +
-                        (Array.isArray(day.fail) &&
-                        day.fail.includes(m.model.path)
-                          ? 1
-                          : 0),
+                    ? 2
+                    : m.model.label === "Town & Country" &&
+                        day.closingSpecialCount !== undefined &&
+                        reads.filter((u) => u === url).length > 1
+                      ? day.closingSpecialCount
+                      : m.model.path === day.badge
+                        ? (day.badgeCount ?? m.model.count + 1)
+                        : m.model.count +
+                          (Array.isArray(day.fail) &&
+                          day.fail.includes(m.model.path)
+                            ? 1
+                            : 0),
               }));
             if (day.drift === path && reads.filter((u) => u === url).length > 1)
               controls.reverse();
@@ -761,4 +765,98 @@ test("arrivals-only donors in an unreachable special model retain their arrivals
   expect(
     result.vehicles.find((v) => v.vin === record.vins[0])?.detailsUrl,
   ).toBe(tenant.origin + tenant.arrivalsPath);
+});
+
+test("an ordinary empty reaching two donors at closing retries before publication", async () => {
+  const path = target().model.path;
+  const result = await run({
+    badge: path,
+    badgeCount: 1,
+    closingOrdinary: path,
+    emptyReads: { path, times: 1 },
+  });
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  expect(result.reads.filter((u) => u === tenant.origin + path)).toHaveLength(
+    2,
+  );
+  expect(result.cursor.completed[0]).toHaveProperty("accepted");
+  expect(result.checkpoints.every((checkpoint) => checkpoint.pages <= 1)).toBe(
+    true,
+  );
+});
+
+test("a cold ordinary closing empty blocks only its tenant after retry", async () => {
+  const path = target().model.path;
+  const result = await run({
+    tenantList: [tenant, { ...tenant, code: "healthy" }],
+    emptyTenant: tenant.code,
+    badge: path,
+    badgeCount: 1,
+    closingOrdinary: path,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.cursor.completed[0]).toHaveProperty("blocked");
+  expect(result.cursor.completed[1]).toHaveProperty("accepted");
+  expect(result.vehicles).toEqual(baseline.vehicles);
+});
+
+test("an ordinary closing empty retries then carries eligible accepted donors", async () => {
+  const path = target().model.path;
+  const result = await run({
+    previous: baseline.cursor,
+    arrivals: [knownArrival()],
+    badge: path,
+    badgeCount: 1,
+    closingOrdinary: path,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.vehicles).toEqual(baseline.vehicles);
+  expect(result.reads.filter((u) => u === tenant.origin + path)).toHaveLength(
+    2,
+  );
+  expect(result.checkpoints.some((c) => c.deferred === 1)).toBe(true);
+});
+
+test("a carried tiny empty is reread when its closing badge reaches two", async () => {
+  const model = target();
+  const path = model.model.path;
+  const previous = await run({
+    badge: path,
+    badgeCount: 1,
+    replace: { path, records: [] },
+  });
+  const day = [1, 2].find(
+    (d) => (Math.floor(start / DAY) + d) % 7 !== models.indexOf(model) % 7,
+  );
+  if (day === undefined) throw new Error("Missing non-sweep day");
+  const result = await run({
+    previous: previous.cursor,
+    now: start + day * DAY,
+    arrivals: [knownArrival()],
+    badge: path,
+    badgeCount: 1,
+    closingOrdinary: path,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.vehicles).toEqual(previous.vehicles);
+  expect(result.reads.filter((u) => u === tenant.origin + path)).toHaveLength(
+    1,
+  );
+  expect(result.checkpoints.some((c) => c.deferred === 1)).toBe(true);
+  expect(result.cursor.completed[0]).toHaveProperty("accepted");
+});
+
+test("an ordinary closing empty cannot extend the six-day carry bound", async () => {
+  const path = target().model.path;
+  const result = await run({
+    previous: baseline.cursor,
+    now: start + 6 * DAY,
+    arrivals: [knownArrival()],
+    badge: path,
+    badgeCount: 1,
+    closingOrdinary: path,
+    emptyReads: { path, times: 2 },
+  });
+  expect(result.vehicles).toEqual([]);
+  expect(result.cursor.completed[0]).toHaveProperty("blocked");
 });

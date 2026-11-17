@@ -208,6 +208,8 @@ function checkpoint(
       throw new Error("IIS closing frontier is inconsistent");
     const currentRequests =
       state.entries.filter((e) => e.bytes > 0).length + state.closed;
+    // Closing may schedule a retry for a carried empty with no current body.
+    // Pending entries must be reread before closing or acceptance.
     if (
       state.entries.some(
         (e) =>
@@ -215,9 +217,11 @@ function checkpoint(
           (state.startedAt === null ||
             state.asOf === null ||
             e.freshness.readAt > state.asOf ||
-            (e.freshness.kind === "read" || e.freshness.kind === "retry"
-              ? e.freshness.readAt < state.startedAt || e.bytes === 0
-              : e.bytes !== 0)),
+            (e.freshness.kind === "retry"
+              ? e.bytes > 0 && e.freshness.readAt < state.startedAt
+              : e.freshness.kind === "read"
+                ? e.freshness.readAt < state.startedAt || e.bytes === 0
+                : e.bytes !== 0)),
       )
     )
       throw new Error("IIS model freshness is inconsistent with its run");

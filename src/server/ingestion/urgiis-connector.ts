@@ -457,8 +457,22 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       }
       const raw = response.right;
       const readAt = now;
+      // Closing can schedule this retry even when the opening badge was one.
       const parsed = yield* boundary("parse " + task.url, () =>
-        parseEntry(raw, task, tenant, readAt),
+        parseEntry(
+          raw,
+          retrying && task.kind === "model"
+            ? {
+                ...task,
+                model: {
+                  ...task.model,
+                  count: Math.max(task.model.count, URGIIS_EMPTY_MODEL_MINIMUM),
+                },
+              }
+            : task,
+          tenant,
+          readAt,
+        ),
       ).pipe(Effect.either);
       if (parsed._tag === "Left") {
         if (cursor.phase !== "closing") return yield* Effect.fail(parsed.left);
@@ -536,6 +550,43 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
               ).message,
             ],
           };
+        if (closing.kind === "retry") {
+          const paths = new Set(
+            closing.models.map((model) => tenant.origin + model.path),
+          );
+          const entries = state.entries
+            .filter((entry) => entry.kind !== "detail")
+            .map(
+              (entry): UrgiisEntry =>
+                entry.kind === "model" && paths.has(entry.url)
+                  ? {
+                      ...entry,
+                      freshness: { ...entry.freshness, kind: "retry" },
+                    }
+                  : entry,
+            );
+          // Recheck every closing control after the retry. Seller tasks must be
+          // derived again because recovered donors may change their order.
+          cursor = yield* boundary("closing empty retry checkpoint", () =>
+            UrgiisCursor.checkpoint(
+              {
+                ...base,
+                entries,
+                phase: "opening",
+                closed: 0,
+                badgeDrift: { makes: 0, models: 0 },
+                closingModels: undefined,
+              },
+              tenants,
+            ),
+          );
+          result.warnings.push(
+            `${tenant.code}: ordinary empty model badges reached two during closing; retrying ${closing.models.map((model) => model.path).join(", ")} before repeating closing checks.`,
+          );
+          result.pagesProcessed++;
+          unsealed = false;
+          continue;
+        }
         cursor = yield* boundary("closing checkpoint", () =>
           UrgiisCursor.checkpoint(
             {
