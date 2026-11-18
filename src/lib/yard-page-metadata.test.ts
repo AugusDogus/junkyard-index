@@ -1,0 +1,61 @@
+import { expect, test } from "bun:test";
+import { Region } from "./region";
+import { yardPageMetadata, yardMakeMetadata } from "./yard-page-metadata";
+
+const region = Region.fromAbbr("PA");
+if (!region) throw new Error("Expected Pennsylvania");
+const yard = {
+  name: "Weber Brothers Auto",
+  operator: null,
+  city: "Annville",
+  state: "PA",
+  path: {
+    region,
+    slug: "weber-brothers-auto-annville",
+    href: "/junkyards/pennsylvania/weber-brothers-auto-annville",
+  },
+};
+
+test("yard pagination descriptions include the displayed page and range", () => {
+  const first = yardPageMetadata(yard, 271, "2026-11-01T12:00:00Z", 1);
+  const second = yardPageMetadata(yard, 271, "2026-11-01T12:00:00Z", 2);
+  const last = yardPageMetadata(yard, 271, null, 3);
+  expect(first.description).not.toEqual(second.description);
+  expect(second.description).toContain("Page 2, vehicles 101 to 200 of 271");
+  expect(last.description).toContain("Page 3, vehicles 201 to 271 of 271");
+  expect(second.openGraph?.description).toBe(second.description ?? undefined);
+  expect(second.twitter?.description).toBe(second.description ?? undefined);
+  expect(second.alternates?.canonical).toBe(`${yard.path.href}/page/2`);
+  expect(first.description).toContain("Updated Nov 1, 2026");
+  expect(last.description).not.toContain("Updated");
+});
+
+test("yard make and model metadata share the five-vehicle indexing threshold", () => {
+  const make = { name: "Honda", slug: "honda" };
+  const model = { ...make, model: { name: "Civic", slug: "civic" } };
+  for (const filter of [make, model]) {
+    expect(yardMakeMetadata(yard, filter, 4, null).robots).toEqual({
+      index: false,
+      follow: true,
+    });
+    expect(yardMakeMetadata(yard, filter, 5, null).robots).toBeUndefined();
+  }
+  const metadata = yardMakeMetadata(yard, model, 71, null);
+  expect(metadata.title).toContain("Honda Civic");
+  expect(metadata.description).toContain("71 Honda Civic vehicles");
+  expect(metadata.alternates?.canonical).toBe(
+    `${yard.path.href}/make/honda/model/civic`,
+  );
+  expect(
+    yardMakeMetadata(
+      yard,
+      {
+        name: "Toyota",
+        slug: "toyota",
+        model: { name: "Ttoyota", slug: "ttoyota" },
+      },
+      71,
+      null,
+    ).robots,
+  ).toEqual({ index: false, follow: true });
+});

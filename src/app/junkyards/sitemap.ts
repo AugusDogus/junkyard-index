@@ -1,50 +1,22 @@
 import type { MetadataRoute } from "next";
 import { env } from "~/env";
-import { YardPath } from "~/lib/yard-path";
-import {
-  getRoutedYards,
-  getYardPublishedAt,
-  type RoutedYard,
-} from "~/server/yard-inventory";
+import { YardSitemap } from "~/lib/yard-sitemap";
+import { getYardMakePages } from "~/server/vehicle-models";
+import { getRoutedYards, getYardPublishedAt } from "~/server/yard-inventory";
 
-// Rebuilt after each daily ingestion pass; this is the fallback lifetime.
 export const revalidate = 86400;
 
-function latest(dates: readonly (string | undefined)[]): string | undefined {
-  return dates.reduce<string | undefined>(
-    (max, date) => (date && (!max || date > max) ? date : max),
-    undefined,
-  );
-}
-
-/**
- * /junkyards/sitemap.xml: each region and each yard's first inventory page.
- * A yard's lastmod is its own last accepted publication. A region's is the
- * latest publish of any source: a removed yard also changes the region page,
- * and its source's last date leaves with it. The directory itself, outside
- * this sitemap's /junkyards/ scope, is in the root sitemap.
- */
+/** First pages only, with each yard's own last accepted publication. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [yards, publishedAt] = await Promise.all([
+  const [yards, publishedAt, makePages] = await Promise.all([
     getRoutedYards(),
     getYardPublishedAt(),
+    getYardMakePages(),
   ]);
-  const yardPublishedAt = (yard: RoutedYard) =>
-    publishedAt[`${yard.source}:${yard.code}`];
-  const url = (href: string) =>
-    new URL(href, env.NEXT_PUBLIC_APP_URL).toString();
-  const entry = (href: string, lastModified: string | undefined) => ({
-    url: url(href),
-    ...(lastModified && { lastModified }),
-  });
-
-  const newest = latest(Object.values(publishedAt));
-  const regions = new Set(
-    yards.map((yard) => YardPath.regionHref(yard.path.region)),
+  return YardSitemap.entries(
+    env.NEXT_PUBLIC_APP_URL,
+    yards,
+    publishedAt,
+    makePages,
   );
-
-  return [
-    ...[...regions].map((href) => entry(href, newest)),
-    ...yards.map((yard) => entry(yard.path.href, yardPublishedAt(yard))),
-  ];
 }

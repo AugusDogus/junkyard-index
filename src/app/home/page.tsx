@@ -1,8 +1,5 @@
-import {
-  HOME_METADATA,
-  HomeLandingPage,
-} from "~/components/home/HomeLandingPage";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata = HOME_METADATA;
-
-export default HomeLandingPage;
+export default function HomePage() {
+  permanentRedirect("/");
+}

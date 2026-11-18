@@ -72,7 +72,9 @@ export const MakeInventory = {
     }
     return [...groups.entries()]
       .flatMap(([key, spellings]) => {
-        const name = VehicleName.preferredSpelling(spellings);
+        const name = VehicleName.makeName(
+          VehicleName.preferredSpelling(spellings),
+        );
         const slug = VehicleName.slug(name);
         if (!slug) return [];
         return [
@@ -156,7 +158,11 @@ export const MakeInventory = {
       .sort(byCount);
   },
 
-  indexable(entry: { count: number }): boolean {
-    return entry.count >= INDEXABLE_MINIMUM;
+  indexable(
+    entry: { count: number; key?: string },
+    minimum = INDEXABLE_MINIMUM,
+  ): boolean {
+    // "Toyota Ttoyota" is an ambiguous provider label, not a known model.
+    return entry.key !== "TTOYOTA" && entry.count >= minimum;
   },
 } as const;

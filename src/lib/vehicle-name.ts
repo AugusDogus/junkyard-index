@@ -5,6 +5,7 @@ const MAKE_ALIASES: Readonly<Record<string, string>> = {
   VW: "VOLKSWAGEN",
   MERCEDES: "MERCEDESBENZ",
   CHEVY: "CHEVROLET",
+  FERRARY: "FERRARI",
 };
 
 // Values providers put in the make field that aren't makes.
@@ -60,6 +61,19 @@ export const VehicleName = {
     const base = key(make);
     if (NOT_MAKES.has(base)) return null;
     return MAKE_ALIASES[base] ?? base;
+  },
+
+  /** Canonical names for unambiguous make aliases, even without a long spelling. */
+  makeName(make: string): string {
+    const canonical: Readonly<Record<string, string>> = {
+      VOLKSWAGEN: "Volkswagen",
+      MERCEDESBENZ: "Mercedes-Benz",
+      CHEVROLET: "Chevrolet",
+      FERRARI: "Ferrari",
+    };
+    return (
+      canonical[VehicleName.makeKey(make) ?? ""] ?? VehicleName.display(make)
+    );
   },
 
   modelName,
