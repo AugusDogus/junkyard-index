@@ -17,6 +17,7 @@ export function hollanderstoresFixtureBytes(file: string): Buffer {
     `${import.meta.dir}/east/${file}`,
     `${import.meta.dir}/mid-states/${file}`,
     `${import.meta.dir}/sweep/${file}`,
+    `${import.meta.dir}/paradise/${file}`,
   ].find((path) => existsSync(path));
   if (!path) throw new Error("Saved Hollander response missing: " + file);
   return gunzipSync(readFileSync(path));
@@ -55,6 +56,7 @@ const qualifications = [
   "east",
   "mid-states",
   "sweep",
+  "paradise",
 ].map((directory) =>
   qualificationSchema.parse(
     JSON.parse(
