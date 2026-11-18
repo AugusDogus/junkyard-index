@@ -1,3 +1,4 @@
+import { SearchFilterUrl } from "~/lib/search-filter-url";
 import type { YardType } from "~/lib/yard-service";
 interface SearchFilters {
   expression?: string;
@@ -26,22 +27,22 @@ export function buildSearchUrl(
   }
 
   if (filters.makes && filters.makes.length > 0) {
-    params.set("makes", filters.makes.join(","));
+    SearchFilterUrl.write(params, "makes", filters.makes);
   }
   if (filters.colors && filters.colors.length > 0) {
-    params.set("colors", filters.colors.join(","));
+    SearchFilterUrl.write(params, "colors", filters.colors);
   }
   if (filters.states && filters.states.length > 0) {
-    params.set("states", filters.states.join(","));
+    SearchFilterUrl.write(params, "states", filters.states);
   }
   if (filters.salvageYards && filters.salvageYards.length > 0) {
-    params.set("yards", filters.salvageYards.join(","));
+    SearchFilterUrl.write(params, "yards", filters.salvageYards);
   }
   if (filters.sources && filters.sources.length > 0) {
-    params.set("sources", filters.sources.join(","));
+    SearchFilterUrl.write(params, "sources", filters.sources);
   }
   if (filters.yardTypes?.length)
-    params.set("yardTypes", filters.yardTypes.join(","));
+    SearchFilterUrl.write(params, "yardTypes", filters.yardTypes);
   if (filters.minYear) {
     params.set("minYear", filters.minYear.toString());
   }

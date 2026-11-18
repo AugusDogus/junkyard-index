@@ -2,10 +2,12 @@ import { YardService, type YardType } from "~/lib/yard-service";
 import {
   ALGOLIA_DISTANCE_SORT_ALIAS,
   ALGOLIA_INDEX_NAME,
+  ALGOLIA_NEWEST_INDEX_NAME,
   ALGOLIA_REPLICA_INDEX_NAMES,
 } from "~/lib/constants";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource } from "~/lib/types";
+import { SearchFilterUrl } from "~/lib/search-filter-url";
 import { VinPattern } from "~/lib/vin-pattern";
 
 export const SEARCH_SORT_OPTIONS: readonly {
@@ -13,7 +15,11 @@ export const SEARCH_SORT_OPTIONS: readonly {
   key: string;
   label: string;
 }[] = [
-  { indexName: ALGOLIA_INDEX_NAME, key: "newest", label: "Newest First" },
+  {
+    indexName: ALGOLIA_NEWEST_INDEX_NAME,
+    key: "newest",
+    label: "Newest First",
+  },
   {
     indexName: ALGOLIA_REPLICA_INDEX_NAMES[0],
     key: "oldest",
@@ -29,16 +35,13 @@ export const SEARCH_SORT_OPTIONS: readonly {
     key: "year-asc",
     label: "Year (Low to High)",
   },
+  { indexName: ALGOLIA_INDEX_NAME, key: "relevance", label: "Relevance" },
   {
     indexName: ALGOLIA_DISTANCE_SORT_ALIAS,
     key: "distance",
     label: "Distance (Nearest)",
   },
 ];
-
-export const SEARCH_SORT_ITEMS = SEARCH_SORT_OPTIONS.map(
-  ({ indexName, label }) => ({ value: indexName, label }),
-);
 
 export const MINIMUM_SEARCHABLE_VEHICLE_YEAR = 1900;
 
@@ -61,7 +64,7 @@ export function getSearchSortKey(indexName: string): string {
 }
 
 export function getSearchSortIndex(key: string): string {
-  return KEY_TO_INDEX[key] ?? ALGOLIA_INDEX_NAME;
+  return KEY_TO_INDEX[key] ?? ALGOLIA_NEWEST_INDEX_NAME;
 }
 export function sanitizeSearchSources(values: unknown): DataSource[] {
   if (!Array.isArray(values)) return [];
@@ -144,17 +147,24 @@ interface AdvancedUiFilters {
 
 function parseAdvancedUrlFilters(
   params: URLSearchParams,
+  knownYardNames: readonly string[],
 ): AdvancedRouteFilters {
   const filters: AdvancedRouteFilters = {};
   for (const key of ["makes", "colors", "states", "yards"] as const) {
-    const value = params.get(key);
-    if (value) {
-      Object.assign(filters, { [key]: value.split(",").filter(Boolean) });
-    }
+    const values = SearchFilterUrl.read(
+      params,
+      key,
+      key === "yards" ? knownYardNames : [],
+    );
+    if (values.length) Object.assign(filters, { [key]: values });
   }
-  const sources = sanitizeSearchSources(params.get("sources")?.split(","));
+  const sources = sanitizeSearchSources(
+    SearchFilterUrl.read(params, "sources"),
+  );
   if (sources.length > 0) filters.sources = sources;
-  const yardTypes = sanitizeYardTypes(params.get("yardTypes")?.split(","));
+  const yardTypes = sanitizeYardTypes(
+    SearchFilterUrl.read(params, "yardTypes"),
+  );
   if (yardTypes.length) filters.yardTypes = yardTypes;
   for (const key of ["minYear", "maxYear"] as const) {
     const value = params.get(key);
@@ -173,15 +183,22 @@ function writeAdvancedUrlFilters(
   for (const key of ADVANCED_URL_KEYS) {
     const value = state[key];
     if (Array.isArray(value) && value.length > 0) {
-      params.set(key, value.join(","));
+      SearchFilterUrl.write(
+        params,
+        key,
+        value.filter((item): item is string => typeof item === "string"),
+      );
       continue;
     }
     if (typeof value === "number") {
       params.set(key, String(value));
       continue;
     }
-    const fallbackValue = fallback?.get(key);
-    if (fallbackValue) params.set(key, fallbackValue);
+    for (const paramKey of [key, `${key}[]`]) {
+      for (const fallbackValue of fallback?.getAll(paramKey) ?? []) {
+        params.append(paramKey, fallbackValue);
+      }
+    }
   }
 }
 
@@ -274,8 +291,18 @@ export function createSearchRouting(
   indexName: string,
   vinPatternIndexReady: boolean,
   allowAdvancedFilters: boolean,
+  {
+    knownYardNames = [],
+    newestSortReady = true,
+  }: {
+    knownYardNames?: readonly string[];
+    newestSortReady?: boolean;
+  } = {},
 ) {
   const advancedFilterPolicy = createAdvancedFilterPolicy(allowAdvancedFilters);
+  const defaultSortIndex = newestSortReady
+    ? ALGOLIA_NEWEST_INDEX_NAME
+    : ALGOLIA_INDEX_NAME;
   return {
     router: {
       cleanUrlOnDispose: false,
@@ -326,7 +353,7 @@ export function createSearchRouting(
             : null;
         if (query && !vinPattern) state.query = query;
 
-        Object.assign(state, parseAdvancedUrlFilters(params));
+        Object.assign(state, parseAdvancedUrlFilters(params, knownYardNames));
 
         const sort = params.get("sort");
         if (sort) state.sort = sort;
@@ -340,7 +367,7 @@ export function createSearchRouting(
         const state: Record<string, unknown> = {};
 
         if (indexState.query) state.query = indexState.query;
-        if (indexState.sortBy && indexState.sortBy !== indexName) {
+        if (indexState.sortBy && indexState.sortBy !== defaultSortIndex) {
           const sortBy = String(indexState.sortBy);
           state.sort = INDEX_TO_KEY[sortBy] ?? sortBy;
         }
@@ -354,11 +381,15 @@ export function createSearchRouting(
         const uiState: Record<string, unknown> = {};
 
         if (state.query) uiState.query = state.query;
-        if (state.sort) {
-          const sort = String(state.sort);
-          const mapped = KEY_TO_INDEX[sort] ?? sort;
-          if (KNOWN_SORT_INDICES.has(mapped)) uiState.sortBy = mapped;
-        }
+        const sort = String(
+          state.sort ?? (newestSortReady ? "newest" : "relevance"),
+        );
+        const mapped = KEY_TO_INDEX[sort] ?? sort;
+        uiState.sortBy =
+          !KNOWN_SORT_INDICES.has(mapped) ||
+          (!newestSortReady && mapped === ALGOLIA_NEWEST_INDEX_NAME)
+            ? defaultSortIndex
+            : mapped;
 
         Object.assign(uiState, advancedFilterPolicy.toUiState(state));
 

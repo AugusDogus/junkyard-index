@@ -53,7 +53,7 @@ bun run algolia:settings:apply
 ```
 
 This is a settings-only command. It does not reindex vehicles. It waits for each
-settings task, detaches `vehicles_distance` by listing only the three virtual
+settings task, detaches `vehicles_distance` by listing only the four virtual
 replicas, configures their sorts, then deletes the retired distance index and
 waits for deletion. Removing a replica from the
 [`replicas` list only detaches it](https://www.algolia.com/doc/api-reference/api-parameters/replicas);
@@ -64,8 +64,9 @@ so the apply can be retried. Failures propagate and stop subsequent operations.
 Deleting the old index happens only through the settings apply, including existing
 callers of `configureAlgoliaIndex` that explicitly opt into configuration. Ordinary
 deployment, browser searches, and ingestion with configuration disabled do not
-delete it. The schema migration exits early when already ready, so it must not be
-relied on to apply this change. This change was tested without Algolia write calls.
+delete it. The schema migration exits early when already ready. Schema 8 now reapplies
+these settings while adding the newest virtual replica; see the search-index
+migration runbook for that rollout. This change was tested without Algolia write calls.
 
 Apply settings before the next full rebuild. The rebuild copies only settings,
 synonyms, and rules to one temporary primary, then moves it over `vehicles`.
@@ -81,7 +82,7 @@ old settings can recreate the billed copy.
 
 At approximately 271,000 vehicles, steady billed records fall from 542,000 to
 271,000 after deletion. At 380,000 to 480,000 vehicles, they fall from roughly
-760,000 to 960,000 to 380,000 to 480,000. The three virtual replicas add no billed
+760,000 to 960,000 to 380,000 to 480,000. The four virtual replicas add no billed
 records. Actual totals depend on inventory and any unrelated or abandoned indices.
 
 A full rebuild still temporarily stores a second primary. With no other indices,

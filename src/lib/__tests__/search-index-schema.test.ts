@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   ADVANCED_SEARCH_SCHEMA_VERSION,
+  CURRENT_SEARCH_SCHEMA_VERSION,
   getSearchSchemaVersion,
   isAdvancedSearchReady,
   isVinPatternSearchReady,
@@ -9,6 +10,9 @@ import {
 } from "../search-index-schema";
 
 describe("search index schema", () => {
+  it("advances the in-place migration to chronological sorting schema 8", () => {
+    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(8);
+  });
   it("treats missing or invalid metadata as version zero", () => {
     expect(getSearchSchemaVersion(undefined)).toBe(0);
     expect(getSearchSchemaVersion({ searchSchemaVersion: "2" })).toBe(0);

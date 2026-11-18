@@ -26,6 +26,7 @@ queryClient.setQueryData(
   getQueryKey(api.status.searchCapabilities, undefined, "query"),
   {
     vinPatternSearchReady: true,
+    newestSortReady: params.get("fixtureNewestReady") !== "0",
     booleanOrSearchReady: params.get("fixtureBooleanReady") !== "0",
   },
 );
@@ -105,7 +106,10 @@ function Fixture() {
                   Switch plan
                 </button>
                 <Suspense>
-                  <SearchPageContent isLoggedIn={isLoggedIn} />
+                  <SearchPageContent
+                    isLoggedIn={isLoggedIn}
+                    knownYardNames={["RTP Pick-A-Part - Hebron, KY"]}
+                  />
                 </Suspense>
               </api.Provider>
             </QueryClientProvider>

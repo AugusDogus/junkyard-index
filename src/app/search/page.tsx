@@ -8,6 +8,8 @@ import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
+import { db } from "~/lib/db";
+import { getHomepageYards } from "~/server/homepage-yards";
 import { auth } from "~/lib/auth";
 import { api, HydrateClient } from "~/trpc/server";
 
@@ -30,6 +32,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     redirect("/search?subscription=success");
   }
 
+  // Only legacy comma lists need a dictionary. Modern URLs preserve each value.
+  const knownYardNames = [params.yards]
+    .flat()
+    .some((value) => value?.includes(","))
+    ? (await getHomepageYards(db))
+        .map((yard) => yard.name)
+        .filter((name) => name.includes(","))
+    : [];
   const reqHeaders = await headers();
 
   const [session, geo] = await Promise.all([
@@ -65,7 +75,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <ErrorBoundary>
           <Suspense>
             <HydrateClient>
-              <SearchPageContent isLoggedIn={isLoggedIn} userLocation={geo} />
+              <SearchPageContent
+                isLoggedIn={isLoggedIn}
+                userLocation={geo}
+                knownYardNames={knownYardNames}
+              />
             </HydrateClient>
           </Suspense>
         </ErrorBoundary>

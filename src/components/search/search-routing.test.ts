@@ -32,7 +32,7 @@ describe("search routing", () => {
     }
     expect(getSearchSortIndex("distance")).toBe("vehicles_distance");
     expect(getSearchSortKey("vehicles_distance")).toBe("distance");
-    expect(getSearchSortKey("vehicles")).toBe("newest");
+    expect(getSearchSortKey("vehicles")).toBe("relevance");
     expect(
       SEARCH_SORT_OPTIONS.find((option) => option.key === "distance")?.label,
     ).toBe("Distance (Nearest)");
@@ -136,7 +136,7 @@ describe("search routing", () => {
     });
 
     expect(routing.stateMapping.routeToState(routeState)).toEqual({
-      [ALGOLIA_INDEX_NAME]: { query: "civic" },
+      [ALGOLIA_INDEX_NAME]: { query: "civic", sortBy: "vehicles_newest" },
     });
   });
 
@@ -186,4 +186,112 @@ test("retains expression syntax while editing and sorting results, clears it wit
       routeState: { [ALGOLIA_INDEX_NAME]: {} },
     }),
   ).toBe("https://example.com/search");
+});
+
+const COMMA_YARDS = [
+  "RTP Pick-A-Part - Hebron, KY",
+  "RTP Pick-A-Part - Lexington, KY",
+];
+
+test("round-trips comma-containing facets and multiple yards without a dictionary", () => {
+  const routing = createSearchRouting("vehicles", true, true);
+  for (const yards of [
+    COMMA_YARDS.slice(0, 1),
+    COMMA_YARDS,
+    ["Future Yard, Inc."],
+  ]) {
+    const state = {
+      vehicles: {
+        refinementList: {
+          make: ["Example, Motors", "Honda"],
+          color: ["Blue, metallic"],
+          state: ["Kentucky", "Ohio"],
+          locationName: yards,
+          source: ["row52", "pyp"],
+          yardTypes: ["self_service", "full_service"],
+        },
+      },
+    };
+    const url = new URL(
+      routing.router.createURL({
+        routeState: routing.stateMapping.stateToRoute(state),
+        location: { href: "https://example.com/search", search: "" },
+      }),
+    );
+    const restored = routing.stateMapping.routeToState(
+      routing.router.parseURL({
+        location: { href: url.href, search: url.search },
+      }),
+    );
+    expect(restored.vehicles?.refinementList).toEqual(
+      state.vehicles.refinementList,
+    );
+  }
+});
+
+test("recovers legacy comma lists using longest known yard names", () => {
+  const routing = createSearchRouting("vehicles", true, true, {
+    knownYardNames: [...COMMA_YARDS, "RTP Pick-A-Part - Hebron"],
+  });
+  for (const yards of [
+    COMMA_YARDS.slice(0, 1),
+    COMMA_YARDS,
+    ["Other Yard", ...COMMA_YARDS],
+  ]) {
+    const params = new URLSearchParams({ yards: yards.join(",") });
+    const location = {
+      href: `https://example.com/search?${params}`,
+      search: `?${params}`,
+    };
+    expect(routing.router.parseURL({ location }).vehicles?.yards).toEqual(
+      yards,
+    );
+  }
+});
+
+test("preserves every repeated locked filter when editing a guest query", () => {
+  const routing = createSearchRouting("vehicles", true, false);
+  const params = new URLSearchParams();
+  for (const yard of COMMA_YARDS) params.append("yards[]", yard);
+  for (const type of ["self_service", "full_service"])
+    params.append("yardTypes[]", type);
+  const url = new URL(
+    routing.router.createURL({
+      routeState: { vehicles: { query: "Honda" } },
+      location: {
+        href: `https://example.com/search?${params}`,
+        search: `?${params}`,
+      },
+    }),
+  );
+  expect(url.searchParams.getAll("yards[]")).toEqual(COMMA_YARDS);
+  expect(url.searchParams.getAll("yardTypes[]")).toEqual([
+    "self_service",
+    "full_service",
+  ]);
+});
+
+test("default and explicit newest routes select the chronological replica", () => {
+  const routing = createSearchRouting("vehicles", true, true);
+  for (const sort of [undefined, "newest", "vehicles_newest"]) {
+    expect(
+      routing.stateMapping.routeToState({ vehicles: sort ? { sort } : {} }),
+    ).toEqual({ vehicles: { sortBy: "vehicles_newest" } });
+  }
+  expect(getSearchSortKey("vehicles")).toBe("relevance");
+  expect(getSearchSortIndex("relevance")).toBe("vehicles");
+  expect(
+    routing.stateMapping.stateToRoute({ vehicles: { sortBy: "vehicles" } }),
+  ).toEqual({ vehicles: { sort: "relevance" } });
+});
+
+test("uses honest relevance sorting until the chronological replica is ready", () => {
+  const routing = createSearchRouting("vehicles", true, true, {
+    newestSortReady: false,
+  });
+  for (const sort of [undefined, "newest", "vehicles_newest", "relevance"]) {
+    expect(
+      routing.stateMapping.routeToState({ vehicles: sort ? { sort } : {} }),
+    ).toEqual({ vehicles: { sortBy: "vehicles" } });
+  }
 });
