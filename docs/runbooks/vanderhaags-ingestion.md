@@ -71,8 +71,8 @@ The durable adapter seeds this cache only from a successful, accepted,
 search-published run. Failed, rejected and unpublished runs cannot seed carry.
 Missing history starts a cold census. Corrupt, incompatible or pre-incremental
 history starts cold with a warning. Corrupt active checkpoints fail instead of
-restarting over already emitted batches. The cache has a contract version, qualification scope,
-checksum and an 8 MiB cursor ceiling; it needs no additional Blob lifecycle.
+restarting over already emitted batches. The cache has a contract version,
+qualification scope, checksum and an 8 MiB cursor ceiling; it needs no additional Blob lifecycle.
 
 Every run enumerates the entire catalog. New paths and changed title, stock or
 yard identities fetch details immediately. Unchanged identities carry their
@@ -80,13 +80,22 @@ validated details. Removed catalog paths disappear from both the emitted
 snapshot and the next cache, so normal removal reconciliation still applies.
 Rejected listings retain only usable VIN presence evidence.
 
-A six-way UTC-day ordinal sweep re-reads roughly one sixth of known details per
-daily run. Evidence at or above six days must be fetched independently of its
-slice, including after missed runs or catalog reorderings. Carries never reset
-the successful read time. One fixed run-start clock dates all reads and carry
-decisions. Active runs expire before one day, reserving the remaining day below
-the seven-day evidence ceiling. Request failures do not refresh or defer stale
-detail evidence.
+A 30-way UTC-day ordinal sweep re-reads about one thirtieth of known details
+per daily run. At 2,116 donors this is 70-71 details per day. Evidence at or
+above 30 days is due independently of its slice, with the oldest evidence
+prioritized. At most 100 known detail paths are reserved for re-verification
+per UTC day. The checksummed cursor retains that reservation across checkpoint
+resumes and accepted same-day reruns; removed paths do not refund its budget.
+New or changed catalog identities always fetch, outside the sweep cap.
+
+The cap takes precedence over age: missed runs and catalog reordering can
+create a backlog, which clears over subsequent daily budgets instead of
+forcing a full detail census. Thirty days is the normal sweep cycle, not a hard
+evidence-age ceiling during catch-up. Carries never reset successful read
+times. One fixed run-start clock dates all decisions. Active runs stop at the
+UTC day boundary or before their one-day deadline. Failed requests do not
+refresh evidence. The v2 cursor contract adds the daily budget ledger; v1
+checkpoints take the documented incompatible-history cold fallback.
 
 ## Transport and request budget
 
@@ -103,26 +112,54 @@ pages as a closing fence.
 
 At the qualified 2,116-donor census, the default budgets are:
 
-| Run                                  | Detail reads | Opening catalog reads | Closing reads | Total inventory documents |
-| ------------------------------------ | -----------: | --------------------: | ------------: | ------------------------: |
-| Cold or six-day backlog              |        2,116 | 885 (177 checkpoints) |             5 |                     3,006 |
-| Typical daily, unchanged identities  |      352-353 |  150 (30 checkpoints) |             5 |                   507-508 |
-| Unchanged repeat on the same UTC day |            0 |    5 (one checkpoint) |             5 |                        10 |
+| Run                                                     | Detail reads | Opening catalog reads | Closing reads | Total inventory documents |
+| ------------------------------------------------------- | -----------: | --------------------: | ------------: | ------------------------: |
+| Cold start or incompatible history                      |        2,116 | 885 (177 checkpoints) |             5 |                     3,006 |
+| Typical daily, unchanged identities                     |        70-71 |    30 (6 checkpoints) |             5 |                   105-106 |
+| Observed 12-addition/eight-removal rollover (projected) |           83 |    35 (7 checkpoints) |             5 |                       123 |
+| Overdue sweep at the cap, no new or changed identities  |          100 |    45 (9 checkpoints) |             5 |                       150 |
+| Unchanged repeat on the same UTC day                    |            0 |    5 (one checkpoint) |             5 |                        10 |
 
-New or changed listings, shifted slices and age-bound catch-up can add reads.
+New or changed listings and bounded catch-up can add reads. The 100-read cap
+applies to re-verification, not cold-start reads or new/changed identities.
 For `d` detail requests at this census, the total is
 `d + 5 * max(1, ceil(d / 12)) + 5`. Browser assets, session setup and challenge
 traffic are additional. For comparison, the original Sioux Falls-only cold run
-needed 412 documents; its daily sweep now needs about 72-73.
+needed 412 documents; its monthly sweep now needs about 15-16 per day.
 
-The observed UTC rollover's 12 additions and eight removals project to 363
-detail reads with a warm cache, plus 155 opening and five closing catalog
-reads: 523 inventory documents. This uses the captured identity changes and
-the production carry decision, rather than a second live census.
+The observed UTC rollover's 12 additions and eight removals project to 83
+detail reads with a warm cache (12 new and 71 re-verifications), plus 35
+opening and five closing catalog reads: 123 inventory documents. This uses
+the captured identity changes and the production carry decision, rather than
+a second live census.
 
 Qualification captures and offline replay are separate from a second full live
 production-checkpoint run. Saved-response tests exercise all checkpoint and
 closing-census logic, including cursor serialization between checkpoints.
+
+## Browser-session minutes
+
+A live production-transport warm checkpoint on November 18, 2026 read five
+catalog documents and 12 details in **76.105 seconds** including setup and
+teardown. Setup, including the first rendered catalog and normal WAF cookie,
+took 13.283 seconds; teardown took 0.173 seconds. The four remaining catalog
+reads averaged 6.413 seconds, and the 12 detail reads averaged 3.051 seconds.
+Other checkpoint processing took 0.382 seconds.
+Fetch timings include the configured 1.6-second serial gap. Browser assets and
+challenge traffic are included in session wall time.
+
+With one browser session per checkpoint, these timings project to **8.0-8.1
+session minutes/day** for unchanged inventory (six sessions), or **9.4 minutes**
+for the observed turnover (seven sessions). A capped overdue sweep with no
+mandatory new/changed reads projects to 11.5 minutes (nine sessions).
+
+The estimate is
+`[sessions * (13.283 + 0.173 + 0.382) + (catalogReads - sessions) * 6.413 + detailReads * 3.05125] / 60`.
+Each session's first catalog is included in setup, so it is not counted twice.
+The [receipt](vanderhaags-qualification.json) preserves the measurement and
+projections. These are measured-pace estimates, not invoice totals. Provider
+billing-rounding, failed attempts, retries, catalog drift and longer WAF waits
+can add cost. Failed or unpublished attempts do not supply carry history.
 
 ## Reconciliation safeguards
 
@@ -153,12 +190,13 @@ truncate `4900EX` to `4900E`; catalog title and specifications must agree on
 ## Verification and operation
 
 Fixtures preserve minimized native catalog/detail markup. Tests cover cold
-reads, new/changed/removed listings, carry, rolling verification, the independent
-age bound, cache corruption, unavailable quantity evidence, duplicate VINs
-across fresh and carried records, complete enumeration, floors, cumulative
+reads, new/changed/removed listings, carry, rolling verification, 30-day overdue
+priority, the persisted 100-path daily cap, cache corruption, unavailable
+quantity evidence, duplicate VINs across fresh and carried records, complete
+enumeration, floors, cumulative
 rejects, closing fences and published-history selection.
 
-Lint, typecheck and formatting of changed text files pass. The 337 focused
+Lint, typecheck and formatting of changed text files pass. The 341 focused
 tests across 12 files pass, including the full captured census, both daily
 sweep sizes, durable cursor round trips and the ingestion orchestrators.
 

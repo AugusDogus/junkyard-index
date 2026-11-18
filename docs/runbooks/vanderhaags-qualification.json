@@ -237,37 +237,52 @@
       "totalInventoryDocuments": 3006
     },
     "typicalDaily": {
-      "assumptions": "Unchanged catalog identities, daily runs, no age-bound catch-up",
+      "assumptions": "Unchanged identities, daily runs, no overdue catch-up",
       "detailDocuments": {
-        "minimum": 352,
-        "maximum": 353
+        "minimum": 70,
+        "maximum": 71
       },
-      "checkpoints": 30,
-      "openingCatalogDocuments": 150,
+      "checkpoints": 6,
+      "openingCatalogDocuments": 30,
       "closingCatalogDocuments": 5,
       "totalInventoryDocuments": {
-        "minimum": 507,
-        "maximum": 508
+        "minimum": 105,
+        "maximum": 106
       }
     },
     "sameUtcDayRepeat": {
       "detailDocuments": 0,
       "totalInventoryDocuments": 10
     },
-    "sweepSlices": 6,
-    "maximumCarryDays": 6,
-    "maximumEvidenceAgeDays": 7,
+    "sweepSlices": 30,
     "maximumRunAgeDays": 1,
     "browserAssetsAndChallengeTrafficIncluded": false,
     "observedUtcRollover": {
       "measurement": "Projected from captured identity changes and production carry decisions, not a second live census",
       "additions": 12,
       "removals": 8,
-      "detailDocuments": 363,
-      "checkpoints": 31,
-      "openingCatalogDocuments": 155,
+      "detailDocuments": 83,
+      "checkpoints": 7,
+      "openingCatalogDocuments": 35,
       "closingCatalogDocuments": 5,
-      "totalInventoryDocuments": 523
+      "totalInventoryDocuments": 123,
+      "reverificationDocuments": 71
+    },
+    "reverification": {
+      "cycleDays": 30,
+      "maximumReservedPathsPerUtcDay": 100,
+      "overduePriority": "Oldest successful read first; age does not bypass the cap",
+      "sameDayBudget": "Persisted across checkpoints and accepted same-day reruns",
+      "newAndChangedIdentitiesCountAgainstCap": false,
+      "runsStopAtUtcDayBoundary": true,
+      "coldContract": "detail-census-v2; v1 history cold-falls back"
+    },
+    "cappedCatchUpWithoutTurnover": {
+      "detailDocuments": 100,
+      "checkpoints": 9,
+      "openingCatalogDocuments": 45,
+      "closingCatalogDocuments": 5,
+      "totalInventoryDocuments": 150
     }
   },
   "originalSiouxFallsProductionCheckpoint": {
@@ -17238,5 +17253,134 @@
       "vin": "1XPSDP9X8ED219812",
       "status": "available"
     }
-  ]
+  ],
+  "browserSessionTiming": {
+    "measuredAt": "2026-11-18T01:42:39.921Z",
+    "measurement": "One live production-transport warm checkpoint; wall time includes setup, first catalog navigation and teardown",
+    "requests": 17,
+    "detailRequests": 12,
+    "status": "paused",
+    "accepted": 362,
+    "setupMs": 13283,
+    "teardownMs": 173,
+    "catalogFetchMeanMs": 6413,
+    "detailFetchMeanMs": 3051.25,
+    "checkpointWallMs": 76105,
+    "requestsTiming": [
+      {
+        "kind": "catalog",
+        "first": true,
+        "elapsedMs": 1
+      },
+      {
+        "kind": "catalog",
+        "first": false,
+        "elapsedMs": 7403
+      },
+      {
+        "kind": "catalog",
+        "first": false,
+        "elapsedMs": 7224
+      },
+      {
+        "kind": "catalog",
+        "first": false,
+        "elapsedMs": 7022
+      },
+      {
+        "kind": "catalog",
+        "first": false,
+        "elapsedMs": 4003
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3468
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3250
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3011
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3084
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3097
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 2796
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3047
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 2744
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 2880
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 2865
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3084
+      },
+      {
+        "kind": "detail",
+        "first": false,
+        "elapsedMs": 3289
+      }
+    ],
+    "estimates": [
+      {
+        "details": 70,
+        "sessions": 6,
+        "inventoryDocuments": 105,
+        "sessionMinutes": 8.043208333333334
+      },
+      {
+        "details": 71,
+        "sessions": 6,
+        "inventoryDocuments": 106,
+        "sessionMinutes": 8.0940625
+      },
+      {
+        "details": 83,
+        "sessions": 7,
+        "inventoryDocuments": 123,
+        "sessionMinutes": 9.362479166666667
+      },
+      {
+        "details": 100,
+        "sessions": 9,
+        "inventoryDocuments": 150,
+        "sessionMinutes": 11.543333333333333
+      }
+    ],
+    "assetsAndChallengeTraffic": "Included in measured session wall time, excluded from inventory-document counts",
+    "roundingAndRetries": "No provider billing-rounding, retries or prolonged WAF delays included",
+    "otherCheckpointMs": 382
+  }
 }

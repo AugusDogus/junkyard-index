@@ -27,6 +27,7 @@ import type { Yard } from "~/lib/yard";
 
 import {
   carryVanderHaagsDetail,
+  planVanderHaagsReverification,
   vanderHaagsDetailEvidence,
   VANDERHAAGS_CENSUS_CONTRACT,
   VANDERHAAGS_DAY_MS,
@@ -176,16 +177,26 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
             contract: VANDERHAAGS_CENSUS_CONTRACT,
             scope,
             startedAt,
+            reverification:
+              compatible?.reverification.day ===
+              Math.floor(startedAt / VANDERHAAGS_DAY_MS)
+                ? compatible.reverification
+                : {
+                    day: Math.floor(startedAt / VANDERHAAGS_DAY_MS),
+                    paths: [],
+                  },
             entries: compatible?.entries ?? [],
           });
     const checkAge = () => {
       if (
         census.scope !== scope ||
         startedAt > now() ||
+        Math.floor(now() / VANDERHAAGS_DAY_MS) !==
+          Math.floor(startedAt / VANDERHAAGS_DAY_MS) ||
         now() - startedAt >= VANDERHAAGS_DAY_MS - 4 * 60 * 1000
       )
         throw new Error(
-          "Vander Haags census contract changed or its one-day deadline expired; restart enumeration. Previous inventory is preserved.",
+          "Vander Haags census contract changed, UTC day changed or its one-day deadline expired; restart enumeration. Previous inventory is preserved.",
         );
     };
     yield* validate(checkAge);
@@ -205,6 +216,13 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
           "Vander Haags catalog changed since checkpoint; restart enumeration",
         ),
       );
+    const reverification = planVanderHaagsReverification(
+      snapshot.donors,
+      entries,
+      census.reverification,
+      startedAt,
+    );
+    const scheduled = new Set(reverification.paths);
     if (cursor.phase === "details") {
       yield* validate(() => {
         const prefix = snapshot.donors.slice(0, offset).map((donor) => {
@@ -212,7 +230,9 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
           if (
             !evidence ||
             evidence.identity !== vanderHaagsCatalogHash([donor]) ||
-            startedAt - evidence.readAt >= 6 * VANDERHAAGS_DAY_MS
+            (scheduled.has(donor.path) &&
+              Math.floor(evidence.readAt / VANDERHAAGS_DAY_MS) <
+                reverification.day)
           )
             throw new Error(
               "Vander Haags checkpoint lost processed detail evidence; restart enumeration",
@@ -249,10 +269,15 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
       yield* validate(checkAge);
       let evidence = carryVanderHaagsDetail(
         donor,
-        index,
         entries.get(donor.path),
         startedAt,
       );
+      if (
+        evidence &&
+        scheduled.has(donor.path) &&
+        Math.floor(evidence.readAt / VANDERHAAGS_DAY_MS) < reverification.day
+      )
+        evidence = undefined;
       if (!evidence) {
         if (detailRequests >= budget) break;
         const html = yield* source.fetchPage(donor.path);
@@ -343,6 +368,7 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
     const nextCensus = yield* validate(() =>
       VanderHaagsCensus.checkpoint({
         ...census,
+        reverification,
         entries: [...entries.values()],
       }),
     );

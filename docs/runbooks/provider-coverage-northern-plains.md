@@ -110,8 +110,9 @@ requests across 24 checkpoints**. Its fresh production-transport checkpoint
 emitted 12 validated trucks in 17 document requests, and its complete
 saved-response replay yielded 276 accepted, 11 rejected and zero duplicates.
 With all seven yards, the default cold budget is **3,006 documents** and the
-typical unchanged daily budget is **507-508 documents**. Daily runs carry known
-detail identities and re-read a rolling slice, with an independent age bound.
+typical unchanged daily budget is **105-106 documents**. Daily runs carry known
+detail identities and re-read a 30-day rolling slice capped at 100
+re-verifications per UTC day.
 Browser assets and WAF challenge traffic are additional. No arrival dates
 were invented from video publication.
 
@@ -119,8 +120,8 @@ Fixture tests cover all five captured catalog pages, donor identity and
 description conflicts, pre-1981 serials, check digits, truncation, pagination,
 resuming, duplicate VINs, floors, cumulative rejects and closing fences. The
 count-only soak respects its requested cap. Incremental tests additionally
-cover new, changed and removed listings, carried identities, rolling
-verification, expired evidence and published-history selection. The ingestion
+cover new, changed and removed listings, carried identities, monthly rolling
+verification, bounded overdue catch-up and published-history selection. The ingestion
 runbook records the current full-census replay and verification results.
 
 No merge, deployment, production flag change or production database write was
