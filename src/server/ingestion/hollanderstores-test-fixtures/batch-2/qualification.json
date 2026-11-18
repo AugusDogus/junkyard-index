@@ -356,9 +356,30 @@
       "rejected": 10,
       "duplicates": 0,
       "total": 211
+    },
+    {
+      "code": "mwas",
+      "accepted": 221,
+      "rejected": 3,
+      "duplicates": 0,
+      "total": 224
+    },
+    {
+      "code": "florasauto",
+      "accepted": 588,
+      "rejected": 2,
+      "duplicates": 0,
+      "total": 590
+    },
+    {
+      "code": "hsaw",
+      "accepted": 33,
+      "rejected": 0,
+      "duplicates": 0,
+      "total": 33
     }
   ],
-  "count": 55958,
+  "count": 56800,
   "observedVins": [
     "1A4GP44R07R133457",
     "1A8HX5SN28E146565",
@@ -850,6 +871,7 @@
     "5LM5J7XC0LGL04395",
     "5LM5J7XC3LGL06786",
     "5LM5J7XC5LGL23766",
+    "5LM5J7XC5SGL31025",
     "5N1ALAFS0SC341759",
     "5N1ED28724C640442",
     "5N1ED28T2YC581198",
@@ -977,7 +999,9 @@
     "SALAG2D48CA646371",
     "SALAG2V60EA726833",
     "SALAG2V64EA729461",
+    "SALAK2D41DA678319",
     "SALAK2D46AA524118",
+    "SALAK2D47AA523883",
     "SALAK2D47BA569490",
     "SALAK2D48AA526758",
     "SALFP24N48H041115",
@@ -992,7 +1016,9 @@
     "SALJY1246WA750369",
     "SALJY1249WA772382",
     "SALJY124XTA191470",
+    "SALRG2RV2K2401126",
     "SALRG2RV6JA078493",
+    "SALRG2RV8L2428056",
     "SALRHBBV5HA030775",
     "SALRL4EU7R2494546",
     "SALTW16413A797782",

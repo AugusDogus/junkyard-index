@@ -13,6 +13,7 @@ export function hollanderstoresFixtureBytes(file: string): Buffer {
     `${import.meta.dir}/expansion/${file}`,
     `${import.meta.dir}/pauls/${file}`,
     `${import.meta.dir}/batch-2/${file}`,
+    `${import.meta.dir}/midwest-west/${file}`,
   ].find((path) => existsSync(path));
   if (!path) throw new Error("Saved Hollander response missing: " + file);
   return gunzipSync(readFileSync(path));

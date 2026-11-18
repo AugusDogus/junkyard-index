@@ -16,8 +16,10 @@ Ario has no fixed per-yard census floor to loosen. Its existing 100-donor source
 floor and per-yard 50% previous-run drift checks stay unchanged. Native new Ario
 yards retain their VIN, complete-census, freshness and rejection checks.
 
-The following changes use only committed qualification evidence, with no live
-provider requests. These values supersede historical qualification receipts. Pickers includes Texarkana, Longview and Reno (540 + 843 + 545 = 1,928); Midway includes Muncie, Liberty and Tulsa (763 + 1,064 = 1,827). Their source floors are 642 and 609, respectively.
+The original rollout values use committed qualification evidence. Midwest Auto
+Parts, Flora's and Horseshoe add 842 accepted donors and 280 to the floor from the live
+census, documented in [the Midwest and West sweep](provider-coverage-midwest-west.md).
+These values supersede historical qualification receipts. Pickers includes Texarkana, Longview and Reno (540 + 843 + 545 = 1,928); Midway includes Muncie, Liberty and Tulsa (763 + 1,064 = 1,827). Their source floors are 642 and 609, respectively.
 
 | Source or yard                    | Qualified accepted census | Previous floor | New floor |
 | --------------------------------- | ------------------------: | -------------: | --------: |
@@ -65,6 +67,9 @@ provider requests. These values supersede historical qualification receipts. Pic
 | `hollanderstores/rainbowauto`     |                       304 |            109 |       101 |
 | `hollanderstores/pascoauto`       |                     6,146 |          2,059 |     2,048 |
 | `hollanderstores/awcaw`           |                       201 |             70 |        67 |
+| `hollanderstores/mwas`            |                       221 |            new |        73 |
+| `hollanderstores/florasauto`      |                       588 |            new |       196 |
+| `hollanderstores/hsaw`            |                        33 |            new |        11 |
 | `heavytruckparts/rydemore`        |                         8 |              5 |         2 |
 | `heavytruckparts/westside`        |                       565 |            450 |       188 |
 | `heavytruckparts/allcounty`       |                        40 |             30 |        13 |
@@ -119,7 +124,7 @@ provider requests. These values supersede historical qualification receipts. Pic
 | `jimsimport`                      |                     3,649 |          3,000 |     1,216 |
 | `lonestarimports`                 |                     2,531 |          2,000 |       843 |
 | `alshned`                         |                        41 |             35 |        13 |
-| `hollanderstores`                 |                    55,958 |         30,000 |    18,638 |
+| `hollanderstores`                 |                    56,800 |         30,000 |    18,918 |
 | `cstruck`                         |                        59 |             50 |        19 |
 | `heavytruckparts`                 |                       838 |            700 |       277 |
 | `beavers`                         |                       278 |            240 |        92 |
