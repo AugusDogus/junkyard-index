@@ -63,7 +63,11 @@ test("the east expansion registers two distinct businesses at physical yards", (
 test("complete opening and closing rosters accept 899 donors and preserve rejected identities", () => {
   const snapshot = hollanderstoresSnapshot(pages(), hollanderstoresSeed);
   expect(snapshot.errors).toEqual([]);
-  expect(snapshot.perYard.slice(-2)).toEqual([
+  expect(
+    snapshot.perYard.filter((census) =>
+      additions.some((yard) => yard.code === census.code),
+    ),
+  ).toEqual([
     {
       code: "florasauto",
       accepted: 581,
