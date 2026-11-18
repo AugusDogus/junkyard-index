@@ -2,7 +2,6 @@ import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
 import { YardService } from "~/lib/yard-service";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
-import type { Metadata } from "next";
 import Link from "next/link";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
 import { VehicleRow } from "~/components/inventory/VehicleRow";
@@ -13,12 +12,17 @@ import { Button } from "~/components/ui/button";
 import { env } from "~/env";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory } from "~/lib/make-inventory";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
-import { VehicleName } from "~/lib/vehicle-name";
 import { cn } from "~/lib/utils";
 import type { MakeCount, YardInventoryPage } from "~/lib/yard-inventory";
 import { YardName } from "~/lib/yard-name";
+import {
+  filterName,
+  filterHref,
+  type YardMakeFilter,
+  type YardModelFilter,
+} from "~/lib/yard-page-metadata";
+export { yardPageMetadata, yardMakeMetadata } from "~/lib/yard-page-metadata";
 import { YardPath } from "~/lib/yard-path";
 import { yardPhoneHref } from "~/lib/yard-phone";
 import type { RoutedYard } from "~/server/yard-inventory";
@@ -36,84 +40,6 @@ export function yardCrumbs(yard: RoutedYard): Crumb[] {
 }
 
 export type NearbyYard = { yard: RoutedYard; miles: number };
-
-/** A make the page is narrowed to, by its national name and slug. */
-export type YardMakeFilter = { name: string; slug: string };
-export type YardModelFilter = YardMakeFilter & {
-  model: { name: string; slug: string };
-};
-
-function filterName(filter: YardMakeFilter | YardModelFilter): string {
-  return "model" in filter
-    ? VehicleName.title(filter.name, filter.model.name)
-    : filter.name;
-}
-function filterHref(
-  yard: RoutedYard,
-  filter: YardMakeFilter | YardModelFilter,
-): string {
-  return "model" in filter
-    ? YardPath.modelHref(yard.path, filter.slug, filter.model.slug)
-    : YardPath.makeHref(yard.path, filter.slug);
-}
-
-/** Title, description, and canonical URL for page `page` of a yard. */
-export function yardPageMetadata(
-  yard: RoutedYard,
-  total: number,
-  publishedAt: string | null,
-  page: number,
-): Metadata {
-  const headline = YardName.headline(yard.name, yard.operator);
-  const place = `${yard.city}, ${yard.state}`;
-  const title =
-    page === 1
-      ? `${headline} Inventory | ${place}`
-      : `${headline} Inventory, Page ${page} | ${place}`;
-  const description = `${InventoryFormat.plural(total, "vehicle", "vehicles")} at ${headline} in ${place}, with the year, make, model, and VIN of each.${
-    publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
-  }`;
-  const url = YardPath.pageHref(yard.path, page);
-  return {
-    title,
-    description,
-    alternates: { canonical: url },
-    openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
-    twitter: { card: "summary", title, description },
-  };
-}
-
-// Fewer vehicles than this and a yard's page for one make stays out of
-// search: too thin to be worth a result of its own.
-export const YARD_MAKE_INDEXABLE_MINIMUM = 5;
-
-/** Title, description, and canonical URL for one make at a yard. */
-export function yardMakeMetadata(
-  yard: RoutedYard,
-  make: YardMakeFilter | YardModelFilter,
-  total: number,
-  publishedAt: string | null,
-): Metadata {
-  const headline = YardName.headline(yard.name, yard.operator);
-  const place = `${yard.city}, ${yard.state}`;
-  const name = filterName(make);
-  const title = `${name} at ${headline} | ${place}`;
-  const description = `${InventoryFormat.plural(total, `${name} vehicle`, `${name} vehicles`)} at ${headline} in ${place}, with where each one sits in the yard.${
-    publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
-  }`;
-  const url = filterHref(yard, make);
-  return {
-    title,
-    description,
-    alternates: { canonical: url },
-    robots:
-      total < YARD_MAKE_INDEXABLE_MINIMUM
-        ? { index: false, follow: true }
-        : undefined,
-    openGraph: { ...SITE_OPEN_GRAPH, type: "website", url, title, description },
-    twitter: { card: "summary", title, description },
-  };
-}
 
 export function YardInventoryView({
   yard,

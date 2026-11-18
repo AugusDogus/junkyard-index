@@ -71,3 +71,44 @@ describe("MakeInventory.models", () => {
     expect(MakeInventory.indexable({ count: 20 })).toBe(true);
   });
 });
+
+test("unambiguous aliases use canonical make names and retain raw query spellings", () => {
+  const makes = MakeInventory.makes([
+    { make: "Ferrary", count: 2 },
+    { make: "Ferrari", count: 1 },
+    { make: "Chevy", count: 1 },
+  ]);
+  expect(makes[0]).toMatchObject({
+    key: "FERRARI",
+    name: "Ferrari",
+    slug: "ferrari",
+    rawMakes: ["Ferrari", "Ferrary"],
+    count: 3,
+  });
+  expect(makes[1]).toMatchObject({
+    key: "CHEVROLET",
+    name: "Chevrolet",
+    slug: "chevrolet",
+    rawMakes: ["Chevy"],
+  });
+});
+
+test("ambiguous provider models stay noindex regardless of inventory count", () => {
+  const [make] = MakeInventory.makes([{ make: "Toyota", count: 23 }]);
+  if (!make) throw new Error("Missing Toyota");
+  const [model] = MakeInventory.models(make, [
+    {
+      source: "pyp",
+      code: "1",
+      make: "Toyota",
+      model: "Toyota Ttoyota",
+      count: 23,
+      minYear: 2000,
+      maxYear: 2004,
+    },
+  ]);
+  if (!model) throw new Error("Missing ambiguous label");
+  expect(model.name).toBe("Ttoyota");
+  expect(MakeInventory.indexable(model)).toBe(false);
+  expect([model].filter((entry) => MakeInventory.indexable(entry))).toEqual([]);
+});

@@ -137,8 +137,8 @@ test("rewrites only changed rows and drops makes that left inventory", async () 
     await add("D", PYP, [2006, "Honda", "Civic"]);
     await InventorySnapshot.project(db, later);
 
-    expect(await updatedAt("v1:make-models:HONDA")).toBe(later.getTime());
-    expect(await updatedAt("v1:make-models:TOYOTA")).toBe(first.getTime());
+    expect(await updatedAt("v2:make-models:HONDA")).toBe(later.getTime());
+    expect(await updatedAt("v2:make-models:TOYOTA")).toBe(first.getTime());
     expect(await InventorySnapshot.makeModels(db, "VOLKSWAGEN")).toEqual([]);
     expect(await InventorySnapshot.makeCounts(db)).toEqual(
       expect.arrayContaining([{ make: "Honda", count: 2 }]),
@@ -154,8 +154,8 @@ test("leaves other versions' snapshots to the deployments that read them", async
     await add("A", PYP, [2004, "Honda", "Civic"]);
     await client.executeMultiple(`
       insert into inventory_snapshot values ('v0:yards', '[]', 0);
-      insert into inventory_snapshot values ('v2:make-models:FORD', '[]', 0);
       insert into inventory_snapshot values ('v1:make-models:FORD', '[]', 0);
+      insert into inventory_snapshot values ('v2:make-models:FORD', '[]', 0);
     `);
     await InventorySnapshot.project(db, first);
     const keys = await client.execute(
@@ -164,9 +164,9 @@ test("leaves other versions' snapshots to the deployments that read them", async
     // Only this version's departed make is dropped.
     expect(keys.rows.map((row) => row.key)).toEqual([
       "v0:yards",
-      "v1:make-counts",
-      "v1:make-models:HONDA",
-      "v2:make-models:FORD",
+      "v1:make-models:FORD",
+      "v2:make-counts",
+      "v2:make-models:HONDA",
     ]);
   } finally {
     client.close();
@@ -218,7 +218,7 @@ test("explains a missing snapshot and how to store it", async () => {
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(InventorySnapshotError);
-    expect(error).toMatchObject({ key: "v1:make-counts", reason: "missing" });
+    expect(error).toMatchObject({ key: "v2:make-counts", reason: "missing" });
     expect(String(error)).toContain("bun run inventory:project");
   } finally {
     client.close();
@@ -229,12 +229,26 @@ test("rejects a stored snapshot of another shape", async () => {
   const { client, db } = await database();
   try {
     await client.execute(
-      `insert into inventory_snapshot values ('v1:make-counts', '[{"make":1}]', 0)`,
+      `insert into inventory_snapshot values ('v2:make-counts', '[{"make":1}]', 0)`,
     );
     await expect(InventorySnapshot.makeCounts(db)).rejects.toMatchObject({
-      key: "v1:make-counts",
+      key: "v2:make-counts",
       reason: "invalid",
     });
+  } finally {
+    client.close();
+  }
+});
+
+test("canonical make aliases project into one queryable model snapshot", async () => {
+  const { client, db, add } = await database();
+  try {
+    await add("A", PYP, [2019, "Ferrary", "Portofino"]);
+    await add("B", PYP, [2020, "Ferrari", "Portofino"]);
+    await InventorySnapshot.ensure(db, first);
+    const rows = await InventorySnapshot.makeModels(db, "FERRARI");
+    expect(rows.map((row) => row.make).sort()).toEqual(["Ferrari", "Ferrary"]);
+    expect(rows.reduce((count, row) => count + row.count, 0)).toBe(2);
   } finally {
     client.close();
   }

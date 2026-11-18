@@ -204,7 +204,7 @@ export const YardInventory = {
     return [...groups.entries()]
       .map(([key, spellings]) => ({
         key,
-        make: VehicleName.preferredSpelling(spellings),
+        make: VehicleName.makeName(VehicleName.preferredSpelling(spellings)),
         count: [...spellings.values()].reduce((sum, n) => sum + n, 0),
       }))
       .sort((a, b) => b.count - a.count || a.make.localeCompare(b.make));

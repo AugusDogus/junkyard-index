@@ -9,6 +9,7 @@ import {
   type MakeEntry,
   type ModelEntry,
 } from "~/lib/make-inventory";
+import { YardMakeInventory } from "~/lib/yard-make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
@@ -24,7 +25,7 @@ const LIVE_BY_MAKE = sql`+${vehicle.missingSinceAt} is null`;
 /** Live vehicles per raw make, from the stored inventory snapshot. */
 const getMakeCounts = cacheInventory(
   () => InventorySnapshot.makeCounts(db),
-  ["make-counts-snapshot-v1"],
+  ["make-counts-snapshot-v2"],
 );
 
 /** Every make with live vehicles, most first. */
@@ -56,7 +57,7 @@ export const findMake = cache(
 /** One make's live vehicles per yard and raw model, from the snapshot. */
 const getMakeRollup = cacheInventory(
   (makeKey: string) => InventorySnapshot.makeModels(db, makeKey),
-  ["make-rollup-snapshot-v1"],
+  ["make-rollup-snapshot-v2"],
 );
 
 /** A model's vehicle with the yard it sits in. */
@@ -187,3 +188,14 @@ export type MakePageData = NonNullable<
   Awaited<ReturnType<typeof getMakePageData>>
 >;
 export type { MakeEntry, ModelEntry };
+
+/** Canonical yard-make pages meeting the same threshold as their metadata. */
+export async function getYardMakePages(): Promise<YardMakeInventory[]> {
+  const makes = await getMakes();
+  const pages = await Promise.all(
+    makes.map(async (make) =>
+      YardMakeInventory.indexable(make, await getMakeRollup(make.key)),
+    ),
+  );
+  return pages.flat();
+}

@@ -15,7 +15,7 @@ const FOOTER_GROUPS: readonly {
     id: "footer-browse",
     label: "Browse",
     links: [
-      { kind: "static", href: "/home", label: "Home" },
+      { kind: "static", href: "/", label: "Home" },
       { kind: "static", href: "/search", label: "Search" },
       { kind: "static", href: "/junkyards", label: "Junkyards" },
       { kind: "static", href: "/cars", label: "Cars by make" },
