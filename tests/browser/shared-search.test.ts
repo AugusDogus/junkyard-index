@@ -109,7 +109,7 @@ for (const scenario of [
         });
       });
       await page.goto(
-        `http://shared-search.test/search?q=${encodeURIComponent(scenario.query)}&syntax=expression&states=Alabama${scenario.extra}`,
+        `http://shared-search.test/search?q=${encodeURIComponent(scenario.query)}&syntax=expression&states%5B%5D=Alabama${scenario.extra}`,
       );
       await page.getByRole("alert").waitFor();
       expect(await page.getByRole("searchbox").inputValue()).toBe(
@@ -126,7 +126,9 @@ for (const scenario of [
       await page.getByRole("searchbox").fill("toyota venza");
       await page.getByRole("button", { name: "Search", exact: true }).click();
       await page.getByRole("heading", { name: "2010 Toyota Venza" }).waitFor();
-      expect(new URL(page.url()).searchParams.get("states")).toBe("Alabama");
+      expect(new URL(page.url()).searchParams.getAll("states[]")).toEqual([
+        "Alabama",
+      ]);
       expect(
         await page
           .getByText(`${scenario.count} vehicles`, { exact: true })
