@@ -310,9 +310,14 @@ export function isIngestionSource(value: unknown): value is IngestionSource {
  *
  * upullitne: U Pull-It Nebraska moved to YardConnect Pro, which lists no VINs.
  * Its old TAP endpoint still answers, frozen at early August 2026.
+ *
+ * brandywine: Brandywine U-Pull-It's site stopped updating in September 2020.
+ * Its newest "Inventory Date" and its incoming-vehicles "Date Entered" are both
+ * from then, so its listings no longer show what is in the yard.
  */
 export const RETIRED_INGESTION_SOURCES: readonly IngestionSource[] = [
   "upullitne",
+  "brandywine",
 ];
 
 export function isRetiredIngestionSource(source: IngestionSource): boolean {

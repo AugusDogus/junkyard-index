@@ -1,3 +1,4 @@
+import { RETIRED_INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { UrgiisCursor } from "./urgiis-cursor";
 import { RECONCILIATION_TEST_SCHEMA } from "./durable-reconciliation-test-fixtures";
@@ -1598,10 +1599,14 @@ test("missing reconciliation reads accepted and retired sources, including resum
       { vin: "B", missing_run_count: 1 },
       { vin: "C", missing_run_count: null },
     ]);
+    // One placeholder for the accepted source plus one per retired source.
+    const scopedSources = ["pyp", ...RETIRED_INGESTION_SOURCES]
+      .map(() => "?")
+      .join(", ");
     expect(
       reads.some(
         (query) =>
-          query.includes('"vehicle"."source" in (?, ?)') &&
+          query.includes(`"vehicle"."source" in (${scopedSources})`) &&
           query.includes('"vehicle"."vin" > ?'),
       ),
     ).toBe(true);
