@@ -258,7 +258,9 @@ test("donor identity survives absent optional stock, color and photos", () => {
   });
   const page = SpartanPage.parse(raw, "auto", 1);
   expect(page.rows.map((row) => row.vin)).toEqual(
-    pages("opening")[0]?.rows.map((row) => row.vin),
+    SpartanPage.parse(body("opening-auto-1"), "auto", 1).rows.map(
+      (row) => row.vin,
+    ),
   );
   expect(
     page.rows.every(
