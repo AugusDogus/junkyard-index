@@ -1,0 +1,1035 @@
+# Yard service classification
+
+Reviewed 2026-11-18 against `origin/main` at `8d5c446e`. This is a census of source/location identities, not a deduplicated count of businesses. It covers all 94 registered sources, including the retired Nebraska and Brandywine feeds. Only configured or admitted yards are included; marketplace mirrors, rejected suppliers and unrelated branches are excluded.
+
+`self_service` means customers remove parts from the ingested donors. `full_service` means staff removes or dismantles donor parts for customers, including parts held in shelved inventory. `both` requires customer pulling and staff-supplied parts at the same yard and inventory. Paid parts-pulling from the same lot counts as both. Neighboring full-service yards and unrelated inventories do not. `unknown` is deliberate when the reviewed evidence cannot establish this distinction.
+
+High confidence means an explicit service statement, customer-pulling instructions, staff dismantling/storage evidence, or the heavy-truck salvage rule. Medium confidence means operational evidence or a committed qualification supports the classification without an explicit service label. Low confidence is reserved for unknown. Provider software, donor photographs and the business name alone are not service evidence.
+
+Committed configurations, runbooks and native fixtures were reviewed first. Live owner pages and public directories were read serially with a normal browser User-Agent, at least three seconds apart (including redirects). HTTP 403 stopped requests to Big D and Paradise hosts; no bypass was attempted. TLS/DNS failures were not bypassed. Local captures and request receipts are retained under `.scratchpad/yard-service/`, outside the deliverable. Evidence below includes the relevant statement or description and a committed reference or owner URL.
+
+The runtime module uses defaults for uniform chains and single-yard sources, exact location overrides for mixed providers, and an unknown fallback for unreviewed mixed-provider locations. A new chain location inherits the reviewed chain rule. A new independent tenant requires its own review. No DB, search index or UI behavior is changed.
+
+## Counts
+
+| Type           | Source/location entries |
+| -------------- | ----------------------: |
+| `self_service` |                     271 |
+| `full_service` |                      79 |
+| `both`         |                      16 |
+| `unknown`      |                      56 |
+| Total          |                     422 |
+
+## Inventory authority
+
+The static census comes from `src/server/ingestion/*-yard-metadata.ts`, `*-configuration.ts`, `*-yards.ts`, `tap-sites.ts`, `pullnsave-config.ts`, and `gopullit-transform.ts`. Ario keys use `arioLocationCode`, preserving legacy identities. The two active legacy Bubble organizations come from [the committed directory](../../src/server/ingestion/fixtures/ario/legacy-active-orgs.json).
+
+Runtime directory snapshots used for chains without a complete static list:
+
+| Source                     | Entries | Directory                                                                                                                                                                                                         |
+| -------------------------- | ------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PYP                        |      60 | https://www.pyp.com/inventory/                                                                                                                                                                                    |
+| Pull-A-Part / U-Pull-&-Pay |      35 | https://externalinterchangeservice.pullapart.com/interchange/GetLocations                                                                                                                                         |
+| Row52                      |      51 | [Publishable directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>); nonparticipating IDs 74 and 91 excluded, matching the connector |
+| Wrench-A-Part              |       7 | https://api.wrenchapart.com/locations                                                                                                                                                                             |
+| iPull-uPull                |       4 | https://ipullupull.com/locations/                                                                                                                                                                                 |
+
+The tests compare this census with exported configured yards, including every Hollander, URG, VinPlus and Ario tenant. Directory-only chains have source defaults, except Row52, whose reviewed participating Pick-n-Pull locations are explicit overrides.
+
+## Yard census
+
+### aero
+
+| Source | Yard (canonical location code)                | Type   | Evidence                                                                                                                                                    | Confidence |
+| ------ | --------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `aero` | `shreveport` Aero Auto Parts (Shreveport, LA) | `both` | We pull anything & everything!!; self-service U-Pull-It inventory on the same site ([yard](https://aeroautosalvage.com/get-engine-or-transmission-pulled/)) | high       |
+
+### allied
+
+| Source   | Yard (canonical location code)           | Type           | Evidence                                               | Confidence |
+| -------- | ---------------------------------------- | -------------- | ------------------------------------------------------ | ---------- |
+| `allied` | `weare` Allied Auto Wrecking (Weare, NH) | `full_service` | one full-service yard ([runbook](allied-ingestion.md)) | high       |
+
+### alln1
+
+| Source  | Yard (canonical location code)                             | Type           | Evidence                                                          | Confidence |
+| ------- | ---------------------------------------------------------- | -------------- | ----------------------------------------------------------------- | ---------- |
+| `alln1` | `MO42` All-N-1 U Pull & Metals Recycling (Kansas City, MO) | `self_service` | self-service junkyard description ([runbook](alln1-ingestion.md)) | high       |
+
+### alsauto
+
+| Source    | Yard (canonical location code)              | Type           | Evidence                                                                      | Confidence |
+| --------- | ------------------------------------------- | -------------- | ----------------------------------------------------------------------------- | ---------- |
+| `alsauto` | `franklin` Al's Auto Salvage (Franklin, WI) | `full_service` | dismantled for parts, not complete vehicles ([runbook](alsauto-ingestion.md)) | high       |
+
+### alshned
+
+| Source    | Yard (canonical location code)                       | Type           | Evidence                                                                                     | Confidence |
+| --------- | ---------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- | ---------- |
+| `alshned` | `bristol` Alshned Auto Parts - Bristol (Bristol, PA) | `full_service` | Our parts are meticulously stored in a dedicated facility ([yard](https://alshnedauto.com/)) | medium     |
+
+### aplus
+
+| Source  | Yard (canonical location code)                      | Type           | Evidence                                                                                                | Confidence |
+| ------- | --------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------- | ---------- |
+| `aplus` | `nicholasville` A Plus Auto LLC (Nicholasville, KY) | `full_service` | we dismantle all parts immediately and store them in a dry warehouse ([yard](https://aplusauto.parts/)) | high       |
+
+### army
+
+| Source | Yard (canonical location code)         | Type           | Evidence                                                            | Confidence |
+| ------ | -------------------------------------- | -------------- | ------------------------------------------------------------------- | ---------- |
+| `army` | `lima` Army's Auto Wrecking (Lima, OH) | `self_service` | current self-service donor inventory ([runbook](army-ingestion.md)) | high       |
+
+### autorecycler
+
+| Source         | Yard (canonical location code)                                                                                   | Type           | Evidence                                                                                                                                                                                                                                                                             | Confidence |
+| -------------- | ---------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `autorecycler` | `1348695171700984260__LOOKUP__1638984482131x412759042204631040` samson-auto-salvage (Los Angeles, CA)            | `self_service` | self-service auto wrecking yard ([yard](http://www.upickpartsla.com/)).                                                                                                                                                                                                              | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1668532737669x351011199612092400` santa-maria-recycling-center (Santa Maria, CA)   | `unknown`      | Configured donor inventory ([Ario qualification](autorecycler-location-refresh.md)); see the unresolved service evidence below. santa-maria-recycling-center: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.         | low        |
+| `autorecycler` | `1348695171700984260__LOOKUP__1672882562847x152496749538181120` A-1 METALS & AUTO SALVAGE INC (PASO ROBLES, CA)  | `unknown`      | Configured donor inventory ([Ario qualification](autorecycler-location-refresh.md)); see the unresolved service evidence below. A-1 METALS & AUTO SALVAGE INC: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.        | low        |
+| `autorecycler` | `1348695171700984260__LOOKUP__1675881492565x169963290114654200` prestige-pull-your-part-houston-tx (Houston, TX) | `self_service` | Bring Your Tools and Pick Your Part ([yard](https://prestigepullyourpart.com/)).                                                                                                                                                                                                     | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1707334416803x326449347354427400` auto-parts-u-pull-nc (Lincolnton, NC)            | `self_service` | You furnish the tools and pull your own parts. We furnish a huge inventory of vehicles. ([Auto Parts U Pull](https://autopartsupull.com/)); Shelby and Lincolnton listed.                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1714697915708x632629276791537700` l-and-l-u-pull (Kings Mountain, NC)              | `self_service` | Call or Visit Our Self-Service U-Pull-It Parts Yard ([L&L](https://landlautopartsinc.com/)); ingested Kings Mountain U-Pull yard is separate from the Grover full-service inventory.                                                                                                 | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1716932435477x905965313898837800` ez-pull-n-pay-atlanta (Atlanta, GA)              | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1716935782717x242757159615917020` ez-pull-n-pay-stockbridge (Stockbridge, GA)      | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1716935856751x885196538023069600` ez-pull-n-pay-montgomery (Montgomery, AL)        | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1716935969945x252386320604966800` ez-pull-n-pay-warner-robins (Warner Robins, GA)  | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1723480416579x725386772121473500` a-a-auto-recycling (Bradenton, FL)               | `both`         | 1,500 vehicles and 10,000 loose parts; same Bradenton yard’s homepage offers pulling your own parts with free admission ([yard](https://aaautorecycling.com/we-sell-parts)).                                                                                                         | medium     |
+| `autorecycler` | `1348695171700984260__LOOKUP__1726602417880x199387504054651780` ez-pull-n-pay-columbus (Columbus, GA)            | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1727808874603x499378618447920300` JDM AUTOMOTIVE & RECYCLING (MAYSVILLE, NC)       | `unknown`      | Configured donor inventory ([Ario qualification](autorecycler-location-refresh.md)); see the unresolved service evidence below. JDM AUTOMOTIVE & RECYCLING: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.           | low        |
+| `autorecycler` | `1348695171700984260__LOOKUP__1729734770456x874069861131576600` foss-jacksonville (Jacksonville, NC)             | `self_service` | our self-service auto recycling lots ([yard](https://www.fossupullit.com/how-it-works/)).                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1729734770949x413620195323321400` foss-winston-salem (Winston-Salem, NC)           | `self_service` | our self-service auto recycling lots ([yard](https://www.fossupullit.com/how-it-works/)).                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1729734771363x364108105935208260` foss-wilson (Wilson, NC)                         | `self_service` | our self-service auto recycling lots ([yard](https://www.fossupullit.com/how-it-works/)).                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1729734771767x924341006048041200` foss-havelock (Havelock, NC)                     | `self_service` | our self-service auto recycling lots ([yard](https://www.fossupullit.com/how-it-works/)).                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1729734772623x937910381321392900` foss-la-grange (La Grange, NC)                   | `self_service` | our self-service auto recycling lots ([yard](https://www.fossupullit.com/how-it-works/)).                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1729734773060x748896575440458000` foss-recycling (Chesapeake, VA)                  | `self_service` | our self-service auto recycling lots ([yard](https://www.fossupullit.com/how-it-works/)).                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1734113947567x255782702476457400` auto-parts-u-pull-shelby-nc (Shelby, NC)         | `self_service` | You furnish the tools and pull your own parts. We furnish a huge inventory of vehicles. ([Auto Parts U Pull](https://autopartsupull.com/)); Shelby and Lincolnton listed.                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1745433028520x989978576556271200` ez-pull-n-pay-decatur (Decatur, AL)              | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `1348695171700984260__LOOKUP__1780608885295x623625493214308200` ez-pull-n-pay-birmingham (Birmingham, AL)        | `self_service` | PREMIER SELF-SERVICE AUTO SALVAGE YARD ([yard](https://ezpullnpay.com/)).                                                                                                                                                                                                            | high       |
+| `autorecycler` | `ario:04ed1ce5-f1a6-4f90-b9ef-9568c78e5af2` a-1-crashed-cars-south-sioux-city-ne (South Sioux City, NE)          | `unknown`      | Configured donor inventory ([Ario qualification](autorecycler-location-refresh.md)); see the unresolved service evidence below. a-1-crashed-cars-south-sioux-city-ne: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal. | low        |
+| `autorecycler` | `ario:1d432bd0-a24f-4b80-922a-a26aa5bd82cd` parts-you-pull-amite-la (Amite, LA)                                  | `self_service` | self-service ([yard](https://partsyoupull.co/)).                                                                                                                                                                                                                                     | high       |
+| `autorecycler` | `ario:211f79c5-1032-4159-aae2-f21abf6d8d49` wilberts-u-pull-it-williamson-ny (Williamson, NY)                    | `self_service` | U-Wrench & U-Save; three U-Pull-It locations, separately listed from Premium Auto Parts ([yard](https://www.wilberts.com/u-pull-it/)).                                                                                                                                               | high       |
+| `autorecycler` | `ario:370e9a2c-5ec6-461f-944c-7bcf059ecfa9` cash-n-carry-pull-your-part-savannah-ga (Savannah, GA)               | `self_service` | pull your part; self-service yard with on-site vehicle inventory ([yard](https://cashncarryparts.com/)).                                                                                                                                                                             | high       |
+| `autorecycler` | `ario:406af702-6e28-43b7-88ca-a82d3e6287ee` baughmans-u-pull-it-york-pa (York, PA)                               | `unknown`      | Configured donor inventory ([Ario qualification](autorecycler-location-refresh.md)); see the unresolved service evidence below. baughmans-u-pull-it-york-pa: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.          | low        |
+| `autorecycler` | `ario:5c1156bd-0690-4e5b-89bc-381015aae45a` milliron-auto-parts-mansfield-oh (Mansfield, OH)                     | `self_service` | Mansfield’s premier self-service auto salvage yard. Bring your tools, pull your parts ([yard](https://www.millironyoupullit.com/)).                                                                                                                                                  | high       |
+| `autorecycler` | `ario:6ee4e7ab-e8dc-4a55-a4c7-cc9d0caa9542` wilberts-u-pull-it-bath-ny (Bath, NY)                                | `self_service` | U-Wrench & U-Save; three U-Pull-It locations, separately listed from Premium Auto Parts ([yard](https://www.wilberts.com/u-pull-it/)).                                                                                                                                               | high       |
+| `autorecycler` | `ario:81b46a86-d0de-4acd-ba52-9182b4393e78` wilberts-u-pull-it-elma-ny (Elma, NY)                                | `self_service` | U-Wrench & U-Save; three U-Pull-It locations, separately listed from Premium Auto Parts ([yard](https://www.wilberts.com/u-pull-it/)).                                                                                                                                               | high       |
+| `autorecycler` | `ario:9e650335-4efb-4664-ba19-b4f22a0f1775` cfc-recycling (Dallas, TX)                                           | `both`         | Pull It Yourself; We Pull It for You; Our guys can pull the part for a small fee ([yard](https://cfcrecycling.com/used-auto-parts/)).                                                                                                                                                | high       |
+| `autorecycler` | `ario:a3d2b44f-54d5-4d05-93f2-75547f462d91` roberts-parts-u-pick-moffett-ok (Moffett, OK)                        | `self_service` | self-service parts industry; pack up your tools and come on down ([yard](https://www.robertspartsupick.com/)).                                                                                                                                                                       | high       |
+| `autorecycler` | `ario:a3d5bad0-b580-4578-b0a4-3f33ddfd2b89` colorado-auto-and-parts-englewood-co (Englewood, CO)                 | `unknown`      | Configured donor inventory ([Ario qualification](autorecycler-location-refresh.md)); see the unresolved service evidence below. colorado-auto-and-parts-englewood-co: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal. | low        |
+| `autorecycler` | `ario:a74441d5-8fb9-4bde-a762-ccd5b0f62785` youngstown-u-pull-it-youngstown-oh (Youngstown, OH)                  | `self_service` | self service; bring your tools ([yard](https://youngstownupullit.com/)).                                                                                                                                                                                                             | high       |
+| `autorecycler` | `ario:bae5ae1b-6417-48f2-8e04-342b3e23293a` smith-auto-inc-self-serve-pawnee-city-ne (Pawnee City, NE)           | `self_service` | Search U-Pull Vehicles; the ingested Ario Self Serve bucket is separate from the full-service URG catalog ([yard](https://smithautone.com/)).                                                                                                                                        | high       |
+| `autorecycler` | `ario:d08c2971-b885-41d7-a323-b92ddc6aa25d` barry-s-u-pull-it-theodore-al (Theodore, AL)                         | `self_service` | self-service ([yard](https://barrysupullit.net/)).                                                                                                                                                                                                                                   | high       |
+
+### aviation
+
+| Source     | Yard (canonical location code)              | Type           | Evidence                                                                                            | Confidence |
+| ---------- | ------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------- | ---------- |
+| `aviation` | `tucson` Aviation Auto Salvage (Tucson, AZ) | `full_service` | Aviation Auto Offers Fast Nationwide Shipping with FEDEX or UPS ([yard](https://aviationauto.com/)) | medium     |
+
+### awap
+
+| Source | Yard (canonical location code)                             | Type           | Evidence                                                    | Confidence |
+| ------ | ---------------------------------------------------------- | -------------- | ----------------------------------------------------------- | ---------- |
+| `awap` | `birmingham` Alabama Wholesale Auto Parts (Birmingham, AL) | `full_service` | full-service inventory scope ([runbook](awap-ingestion.md)) | high       |
+
+### beavers
+
+| Source    | Yard (canonical location code)                     | Type           | Evidence                                                                                | Confidence |
+| --------- | -------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `beavers` | `kannapolis` Beaver's Car Salvage (Kannapolis, NC) | `full_service` | Can’t pick-up? No problem… we ship nationwide. ([yard](https://beaverscarsalvage.com/)) | medium     |
+
+### bigd
+
+| Source | Yard (canonical location code)                    | Type           | Evidence                                                                                                                                       | Confidence |
+| ------ | ------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `bigd` | `idaho-falls` Big D Pick & Pull (Idaho Falls, ID) | `self_service` | Bring your own tools and save on the contact page in [committed native capture](../../src/server/ingestion/bigd-test-fixtures/native.json.gz). | high       |
+
+### bigtruckpage
+
+| Source         | Yard (canonical location code)                        | Type           | Evidence                                                                                         | Confidence |
+| -------------- | ----------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| `bigtruckpage` | `misiuk-motors-llc` Misiuk Motors LLC (Strafford, MO) | `full_service` | Only the seller’s dismantling-trucks catalog is ingested. ([runbook](bigtruckpage-ingestion.md)) | high       |
+
+### brandywine
+
+| Source       | Yard (canonical location code)                     | Type           | Evidence                                                                                                                                                                             | Confidence |
+| ------------ | -------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `brandywine` | `brandywine` Brandywine U-Pull-It (Brandywine, MD) | `self_service` | Brandywine U-Pull-It; only its dedicated native table binds the supported yard. Shared premises do not establish shared full-service inventory. ([runbook](brandywine-ingestion.md)) | high       |
+
+### budget
+
+| Source   | Yard (canonical location code)                       | Type           | Evidence                                                 | Confidence |
+| -------- | ---------------------------------------------------- | -------------- | -------------------------------------------------------- | ---------- |
+| `budget` | `winter-garden` Budget U Pull It (Winter Garden, FL) | `self_service` | Budget U Pull It ([runbook](harrys-budget-ingestion.md)) | medium     |
+
+### byot
+
+| Source | Yard (canonical location code)                     | Type           | Evidence                                                         | Confidence |
+| ------ | -------------------------------------------------- | -------------- | ---------------------------------------------------------------- | ---------- |
+| `byot` | `1123` BYOT Auto Parts Waco (Elm Mott, TX)         | `self_service` | BYOT has five self-service yards. ([runbook](byot-ingestion.md)) | high       |
+| `byot` | `1183` BYOT Auto Parts Bryan (Bryan, TX)           | `self_service` | BYOT has five self-service yards. ([runbook](byot-ingestion.md)) | high       |
+| `byot` | `1218` BYOT Auto Parts Beaumont (Beaumont, TX)     | `self_service` | BYOT has five self-service yards. ([runbook](byot-ingestion.md)) | high       |
+| `byot` | `1259` BYOT Auto Parts Port Allen (Port Allen, LA) | `self_service` | BYOT has five self-service yards. ([runbook](byot-ingestion.md)) | high       |
+| `byot` | `1289` BYOT Auto Parts Jackson (Jackson, MS)       | `self_service` | BYOT has five self-service yards. ([runbook](byot-ingestion.md)) | high       |
+
+### calton
+
+| Source   | Yard (canonical location code)                        | Type           | Evidence                                                                                                             | Confidence |
+| -------- | ----------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `calton` | `elkridge` Calton Auto Parts Recyclers (Elkridge, MD) | `full_service` | Some vehicles may not show parts available if we haven't parted them out yet. ([yard](https://caltonautoparts.com/)) | high       |
+
+### cars4parts
+
+| Source       | Yard (canonical location code)          | Type      | Evidence                                                                                                                                                                                         | Confidence |
+| ------------ | --------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `cars4parts` | `armington` Carz R Us 1 (Armington, IL) | `unknown` | [native donor](../../src/server/ingestion/cars4parts-test-fixtures/mazda3.html). Carz R Us 1 has two yards; Heyworth’s “You Pull / We Pull” donor does not prove the service model at Armington. | low        |
+| `cars4parts` | `heyworth` Carz R Us 1 (Heyworth, IL)   | `both`    | You Pull / We Pull on this yard’s [native Mazda donor](../../src/server/ingestion/cars4parts-test-fixtures/mazda3.html).                                                                         | high       |
+
+### carsandparts
+
+| Source         | Yard (canonical location code)              | Type           | Evidence                                                                                    | Confidence |
+| -------------- | ------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------- | ---------- |
+| `carsandparts` | `lumberton` CarsAndPartsHub (Lumberton, NJ) | `full_service` | every vehicle is dismantled by hand in Lumberton, NJ ([runbook](carsandparts-ingestion.md)) | high       |
+
+### central
+
+| Source    | Yard (canonical location code)                     | Type           | Evidence                                                                       | Confidence |
+| --------- | -------------------------------------------------- | -------------- | ------------------------------------------------------------------------------ | ---------- |
+| `central` | `franklin` Central Auto Liquidators (Franklin, NJ) | `full_service` | full service automotive salvage facility ([yard](https://centralautoliq.com/)) | high       |
+
+### chasencars
+
+| Source       | Yard (canonical location code)   | Type           | Evidence                                               | Confidence |
+| ------------ | -------------------------------- | -------------- | ------------------------------------------------------ | ---------- |
+| `chasencars` | `tulsa` Chase N Cars (Tulsa, OK) | `self_service` | self-service yard ([runbook](chasencars-ingestion.md)) | high       |
+
+### chaz
+
+| Source | Yard (canonical location code)                              | Type           | Evidence                                                                                                             | Confidence |
+| ------ | ----------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `chaz` | `taneytown` Chaz's Used Auto Parts & Towing (Taneytown, MD) | `full_service` | After processing and dismantling, we sort our products by make and model. ([yard](https://www.chazsauto.com/about/)) | high       |
+
+### chesterfield
+
+| Source         | Yard (canonical location code)                                  | Type   | Evidence                                                                                                                                                     | Confidence |
+| -------------- | --------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `chesterfield` | `Fort Lee` Chesterfield Auto Parts Fort Lee (Prince George, VA) | `both` | Allow you to pick your own used auto parts; We can pull used parts for your that are ready for pick up ([yard](https://chesterfieldauto.com/visitors-guide)) | high       |
+| `chesterfield` | `Richmond` Chesterfield Auto Parts Richmond (Richmond, VA)      | `both` | Allow you to pick your own used auto parts; We can pull used parts for your that are ready for pick up ([yard](https://chesterfieldauto.com/visitors-guide)) | high       |
+| `chesterfield` | `Southside` Chesterfield Auto Parts Southside (Midlothian, VA)  | `both` | Allow you to pick your own used auto parts; We can pull used parts for your that are ready for pick up ([yard](https://chesterfieldauto.com/visitors-guide)) | high       |
+
+### citymotors
+
+| Source       | Yard (canonical location code)                      | Type           | Evidence                                                                | Confidence |
+| ------------ | --------------------------------------------------- | -------------- | ----------------------------------------------------------------------- | ---------- |
+| `citymotors` | `river-grove` City Motors Chicago (River Grove, IL) | `full_service` | own-warehouse dismantling, removal ([runbook](citymotors-ingestion.md)) | high       |
+
+### clearsalvage
+
+| Source         | Yard (canonical location code)          | Type   | Evidence                                                                                                           | Confidence |
+| -------------- | --------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `clearsalvage` | `dubois` Clear Salvage LLC (DuBois, PA) | `both` | Pull your own parts or we can pull them for you for an additional fee ([yard](https://clearsalvage.com/services/)) | high       |
+
+### coutu
+
+| Source  | Yard (canonical location code)                | Type           | Evidence                                      | Confidence |
+| ------- | --------------------------------------------- | -------------- | --------------------------------------------- | ---------- |
+| `coutu` | `willimantic` Truck Country (Willimantic, CT) | `full_service` | Truck Country ([runbook](coutu-ingestion.md)) | medium     |
+
+### cstruck
+
+| Source    | Yard (canonical location code)                    | Type           | Evidence                                                    | Confidence |
+| --------- | ------------------------------------------------- | -------------- | ----------------------------------------------------------- | ---------- |
+| `cstruck` | `pukwana` C&S Truck Sales & Salvage (Pukwana, SD) | `full_service` | C&S Truck Sales & Salvage ([runbook](cstruck-ingestion.md)) | medium     |
+
+### ddauto
+
+| Source   | Yard (canonical location code)        | Type           | Evidence                                                                                                                      | Confidence |
+| -------- | ------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `ddauto` | `logan` DD Auto & Salvage (Logan, UT) | `self_service` | self service parts yard - also known as a pick n pull yard ([yard](https://www.ddautoandsalvage.com/self-service-parts-yard)) | high       |
+
+### denton
+
+| Source   | Yard (canonical location code)            | Type           | Evidence                                                                                        | Confidence |
+| -------- | ----------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `denton` | `KS12` Denton Auto Parts (Carbondale, KS) | `full_service` | new 14,000 square foot warehouse & Dismantling building ([yard](https://dentonauto.com/about/)) | high       |
+
+### dutchers
+
+| Source     | Yard (canonical location code)                                           | Type           | Evidence                                                | Confidence |
+| ---------- | ------------------------------------------------------------------------ | -------------- | ------------------------------------------------------- | ---------- |
+| `dutchers` | `morrisville-heavy` Dutcher's Inc Heavy Truck Division (Morrisville, NY) | `full_service` | Heavy Truck Division ([runbook](dutchers-ingestion.md)) | medium     |
+
+### fenix
+
+| Source  | Yard (canonical location code)                                 | Type           | Evidence                                                                 | Confidence |
+| ------- | -------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------ | ---------- |
+| `fenix` | `binghamton` Fenix U-Pull Binghamton (Binghamton, NY)          | `self_service` | Pull Your Own Used Auto Parts and Save ([yard](https://fenixupull.com/)) | high       |
+| `fenix` | `east-syracuse` Fenix U-Pull East Syracuse (East Syracuse, NY) | `self_service` | Pull Your Own Used Auto Parts and Save ([yard](https://fenixupull.com/)) | high       |
+| `fenix` | `elmira` Fenix U-Pull Elmira (Elmira, NY)                      | `self_service` | Pull Your Own Used Auto Parts and Save ([yard](https://fenixupull.com/)) | high       |
+| `fenix` | `moultrie` Fenix U-Pull Moultrie (Moultrie, GA)                | `self_service` | Pull Your Own Used Auto Parts and Save ([yard](https://fenixupull.com/)) | high       |
+
+### gopullit
+
+| Source     | Yard (canonical location code)                                    | Type           | Evidence                                                 | Confidence |
+| ---------- | ----------------------------------------------------------------- | -------------- | -------------------------------------------------------- | ---------- |
+| `gopullit` | `GPI-ATL-EAST` GO Pull-It - Atlanta East (Norcross, Georgia)      | `self_service` | pull-your-own-parts yard ([yard](https://gopullit.com/)) | high       |
+| `gopullit` | `GPI-GAINESVILLE` GO Pull-It - Gainesville (Gainesville, Georgia) | `self_service` | pull-your-own-parts yard ([yard](https://gopullit.com/)) | high       |
+| `gopullit` | `GPI-JAX` GO Pull-It - Jacksonville (Jacksonville, Florida)       | `self_service` | pull-your-own-parts yard ([yard](https://gopullit.com/)) | high       |
+| `gopullit` | `GPI-TALLAHASSEE` GO Pull-It - Tallahassee (Tallahassee, Florida) | `self_service` | pull-your-own-parts yard ([yard](https://gopullit.com/)) | high       |
+
+### grandpajohns
+
+| Source         | Yard (canonical location code)                    | Type           | Evidence                                                                     | Confidence |
+| -------------- | ------------------------------------------------- | -------------- | ---------------------------------------------------------------------------- | ---------- |
+| `grandpajohns` | `WI25` Grandpa John's Pick & Pull (Green Bay, WI) | `self_service` | its self-pull statement on the official root ([runbook](alln1-ingestion.md)) | high       |
+
+### hagerman
+
+| Source     | Yard (canonical location code)                      | Type           | Evidence                                                             | Confidence |
+| ---------- | --------------------------------------------------- | -------------- | -------------------------------------------------------------------- | ---------- |
+| `hagerman` | `umatilla` Hagerman, Inc. - Umatilla (Umatilla, OR) | `full_service` | own Dismantled Vehicles inventory ([runbook](hagerman-ingestion.md)) | high       |
+
+### harrys
+
+| Source   | Yard (canonical location code)                                         | Type           | Evidence                                                  | Confidence |
+| -------- | ---------------------------------------------------------------------- | -------------- | --------------------------------------------------------- | ---------- |
+| `harrys` | `allentown` Harry's U-Pull It Allentown (Allentown, PA)                | `self_service` | Harry’s U-Pull It ([runbook](harrys-budget-ingestion.md)) | medium     |
+| `harrys` | `hazle-township` Harry's U-Pull It Hazle Township (Hazle Township, PA) | `self_service` | Harry’s U-Pull It ([runbook](harrys-budget-ingestion.md)) | medium     |
+| `harrys` | `pennsburg` Harry's U-Pull It Pennsburg (Pennsburg, PA)                | `self_service` | Harry’s U-Pull It ([runbook](harrys-budget-ingestion.md)) | medium     |
+
+### hawaiiparts
+
+| Source        | Yard (canonical location code)       | Type           | Evidence                                                                                                                      | Confidence |
+| ------------- | ------------------------------------ | -------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `hawaiiparts` | `kapolei` Hawaii Parts (Kapolei, HI) | `full_service` | we pull it and ship it ([saved native yard](../../src/server/ingestion/shopify-yard-test-fixtures/hawaiiparts-yard-html.gz)). | high       |
+
+### heavytruckparts
+
+| Source            | Yard (canonical location code)                                 | Type           | Evidence                                                                                                               | Confidence |
+| ----------------- | -------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `heavytruckparts` | `allcounty` All County Truck Parts (Chattanooga, TN)           | `full_service` | salvage or dismantling yard’s Complete Vehicle and Vehicle For Sale listings ([runbook](heavytruckparts-ingestion.md)) | high       |
+| `heavytruckparts` | `american` American Truck Salvage (Phoenix, AZ)                | `full_service` | salvage or dismantling yard’s Complete Vehicle and Vehicle For Sale listings ([runbook](heavytruckparts-ingestion.md)) | high       |
+| `heavytruckparts` | `catruck` CA Truck Parts (Opa-Locka, FL)                       | `full_service` | salvage or dismantling yard’s Complete Vehicle and Vehicle For Sale listings ([runbook](heavytruckparts-ingestion.md)) | high       |
+| `heavytruckparts` | `crest` crest truck parts (Cartersville, GA)                   | `full_service` | salvage or dismantling yard’s Complete Vehicle and Vehicle For Sale listings ([runbook](heavytruckparts-ingestion.md)) | high       |
+| `heavytruckparts` | `rydemore` Rydemore Heavy Duty Truck Parts Inc (Fitchburg, MA) | `full_service` | salvage or dismantling yard’s Complete Vehicle and Vehicle For Sale listings ([runbook](heavytruckparts-ingestion.md)) | high       |
+| `heavytruckparts` | `westside` West Side Truck Parts (Owensboro, KY)               | `full_service` | salvage or dismantling yard’s Complete Vehicle and Vehicle For Sale listings ([runbook](heavytruckparts-ingestion.md)) | high       |
+
+### hollanderstores
+
+| Source            | Yard (canonical location code)                                     | Type           | Evidence                                                                                                                                                                                                                                                                                                                                                 | Confidence |
+| ----------------- | ------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `hollanderstores` | `a1nm` A-1 Auto Recyclers (Kirtland, NM)                           | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/west-plains/a1nm-about.html.gz)). A-1 Auto Recyclers: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                    | low        |
+| `hollanderstores` | `aaautosalvage` AA Auto Salvage (De Funiak Springs, FL)            | `full_service` | Full Service Auto Parts & Recycling Facility ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/aaautosalvage-about.html.gz)).                                                                                                                                                                                             | high       |
+| `hollanderstores` | `aabcoautoparts` A-Abco Auto Parts (Fridley, MN)                   | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/aabcoautoparts-about.html.gz)). A-Abco Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.             | low        |
+| `hollanderstores` | `allsmallauto` Midvale All Small Auto (Midvale, UT)                | `full_service` | TESTED ON THE VEHICLE BEFORE REMOVAL, CLEANED OF ALL OIL AND GREASE THEN INSPECTED ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/mid-states/allsmallauto-about.html.gz)).                                                                                                                                                     | high       |
+| `hollanderstores` | `alsautosalvage` ALS Auto Salvage (St. Louis, MO)                  | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/alsautosalvage-about.html.gz)). ALS Auto Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                | low        |
+| `hollanderstores` | `aplusparts` A-Plus Parts Online (Lindenhurst, NY)                 | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/aplusparts-about.html.gz)). A-Plus Parts Online: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.               | low        |
+| `hollanderstores` | `awcaw` All West Coast Auto Wrecking (Grapeview, WA)               | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/awcaw-about.html.gz)). All West Coast Auto Wrecking: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.             | low        |
+| `hollanderstores` | `bandkautosalvag` B&K Auto Salvage (La Grande, OR)                 | `unknown`      | full service metal recycling facility ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/bandkautosalvag-about.html.gz)). B&K Auto Salvage: “full service” describes metal recycling, not auto-part removal; the reviewed tenant does not establish its parts service model.                                             | low        |
+| `hollanderstores` | `bandmauto` B&M Auto Parts (Waukesha, WI)                          | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/bandmauto-about.html.gz)). B&M Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                     | low        |
+| `hollanderstores` | `biloxiauto` Biloxi Auto Recycling (Biloxi, MS)                    | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/biloxiauto-about.html.gz)). Biloxi Auto Recycling: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.             | low        |
+| `hollanderstores` | `blvdautoparts` Monster Junkyard (Springfield, MA)                 | `unknown`      | [Tenant](https://blvdautoparts.hollanderstores.com/); configured identity in [yard metadata](../../src/server/ingestion/hollanderstores-yard-metadata.ts). No explicit service statement in reviewed material. Monster Junkyard: available tenant and official-site evidence does not establish customer pulling versus staff removal.                   | low        |
+| `hollanderstores` | `bobbysauto` Bobby's Auto Parts (Vance, AL)                        | `full_service` | 10,000-square-foot warehouse with inventoried used parts ([Bobby’s](http://www.BobbysAutoParts.com)).                                                                                                                                                                                                                                                    | medium     |
+| `hollanderstores` | `branson` Branson Salvage (Fort Smith, AR)                         | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/branson-about.html.gz)). Branson Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                      | low        |
+| `hollanderstores` | `brother` Brothers Pro Parts (Red Banks, MS)                       | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/brother-about.html.gz)). Brothers Pro Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                   | low        |
+| `hollanderstores` | `champion` Champion Auto Parts (Clio, MI)                          | `both`         | We are both a full service and pull-your-own yard. ([Champion](http://championautosalvage.com)); Clio address matches the tenant.                                                                                                                                                                                                                        | high       |
+| `hollanderstores` | `conrads` Conrads Auto Salvage (Mondovi, WI)                       | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/conrads-about.html.gz)). Conrads Auto Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                 | low        |
+| `hollanderstores` | `crossroid` Crossroads Salvage (Nampa, ID)                         | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/sweep/crossroid-about.html.gz)). Crossroads Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                     | low        |
+| `hollanderstores` | `davissalvageky` Davis Salvage (Corbin, KY)                        | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/davissalvageky-about.html.gz)). Davis Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                   | low        |
+| `hollanderstores` | `flap` FLAP Auto Parts (Annandale, MN)                             | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/flap-about.html.gz)). FLAP Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                         | low        |
+| `hollanderstores` | `florasauto` Floras Auto Parts (Leesburg, IN)                      | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/east/florasauto-about.html.gz)). Floras Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                      | low        |
+| `hollanderstores` | `foreignusedpart` Foreign Used Parts (Denver, CO)                  | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/foreignusedpart-about.html.gz)). Foreign Used Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.             | low        |
+| `hollanderstores` | `gogoautoparts` Go Go Auto Parts (Delton, MI)                      | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/gogoautoparts-about.html.gz)). Go Go Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                 | low        |
+| `hollanderstores` | `hartsparts` Hart's Parts & Recycling (Temple, GA)                 | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/hartsparts-about.html.gz)). Hart's Parts & Recycling: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.            | low        |
+| `hollanderstores` | `hsaw` Horseshoe Auto Wrecking (Bremerton, WA)                     | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/west-plains/hsaw-about.html.gz)). Horseshoe Auto Wrecking: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.               | low        |
+| `hollanderstores` | `jakesautoparts` Jake's Auto Parts (Boutte, LA)                    | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/jakesautoparts-about.html.gz)). Jake's Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.               | low        |
+| `hollanderstores` | `kirchhaynautopa` Kirchhayn Auto Parts (Fredonia, WI)              | `full_service` | We are no longer offering U Pull A Part junkyard parts. ([Kirchhayn](https://www.kirchhayn.com/used-car-parts)); stocked OEM parts supplied to customers.                                                                                                                                                                                                | high       |
+| `hollanderstores` | `kramers` Kramer's Auto Parts (Grand Island, NE)                   | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/west-plains/kramers-about.html.gz)). Kramer's Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                | low        |
+| `hollanderstores` | `lamarautosalvag` Lamar Auto Salvage (Sumrall, MS)                 | `full_service` | We provide our customers with quality used parts that are pulled from the same type vehicle that they own. ([Lamar](https://lamarautosalvage.com/)).                                                                                                                                                                                                     | medium     |
+| `hollanderstores` | `leblancsauto` LeBlanc's Auto (Bennington, VT)                     | `unknown`      | [Tenant](https://leblancsauto.hollanderstores.com/); configured identity in [yard metadata](../../src/server/ingestion/hollanderstores-yard-metadata.ts). No explicit service statement in reviewed material. LeBlanc's Auto: available tenant and official-site evidence does not establish customer pulling versus staff removal.                      | low        |
+| `hollanderstores` | `macksautoparts` Mack's Auto Parts (St. Louis, MO)                 | `full_service` | full service automotive recycling facility ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/macksautoparts-about.html.gz)).                                                                                                                                                                                              | high       |
+| `hollanderstores` | `milfordmotorsus` Milford Motors (West Milford, NJ)                | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/milfordmotorsus-about.html.gz)). Milford Motors: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.               | low        |
+| `hollanderstores` | `mkauto` M&K Used Auto Parts (Orange City, FL)                     | `full_service` | INSPECTED, CLEANED, WAREHOUSED, COMPUTERIZED ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/mkauto-about.html.gz)).                                                                                                                                                                                                    | high       |
+| `hollanderstores` | `mstrecycling` MST Recycling (Rancho Cordova, CA)                  | `full_service` | auto recycler and auto dismantler at 3624 Recycle Road ([MST](https://www.mstrecycling.com/)).                                                                                                                                                                                                                                                           | high       |
+| `hollanderstores` | `mwas` Midwest Auto Parts (Tulsa, OK)                              | `full_service` | thousands of pulled parts in our warehouse ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/west-plains/mwas-about.html.gz)).                                                                                                                                                                                                    | high       |
+| `hollanderstores` | `northverdeauto` North Verde Auto Salvage (Ontario, OR)            | `full_service` | Our parts are tested, inspected by certified mechanics; Over 1 million parts in stock! ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/northverdeauto-about.html.gz)).                                                                                                                                                | medium     |
+| `hollanderstores` | `nwaupiautoparts` NWA U-Pull-It (Rogers, AR)                       | `both`         | Don’t want to pull the part yourself? We can help! We have a parts puller available. ([NWA](https://upiautoparts.com/)); same Rogers inventory. Native About also identifies both areas.                                                                                                                                                                 | high       |
+| `hollanderstores` | `paradiseautopar` Paradise Auto Parts (Elkton, MD)                 | `unknown`      | [Official site](http://www.ParadiseAutoParts.com) returned HTTP 403 on 2026-11-18; requests to that host stopped. Tenant metadata identifies Elkton but does not describe service. Paradise Auto Parts: the official website blocked access (403), and the committed tenant evidence does not establish its service model.                               | low        |
+| `hollanderstores` | `pascoauto` Pasco Auto Wrecking (Pasco, WA)                        | `full_service` | automotive dismantling business for over 50 years ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/pascoauto-about.html.gz)).                                                                                                                                                                                            | high       |
+| `hollanderstores` | `pauldemin` Paul's Auto Yard - DeMotte (DeMotte, IN)               | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulelkin` Paul's Auto Yard - Elkhart North (Elkhart, IN)         | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paullogin` Paul's Auto Yard - Logansport (Logansport, IN)         | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulmerin` Paul's Auto Yard - Merrillville (Merrillville, IN)     | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulsfwin` Paul's Auto Yard - Fort Wayne (Fort Wayne, IN)         | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulsknox` Paul's Auto Yard - Knox (Knox, IN)                     | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulslkin` Paul's Auto Yard - Lake Station (Lake Station, IN)     | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulsouin` Paul's Auto Yard - South Bend (South Bend, IN)         | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `paulswvin` Paul's Auto Yard - Westville (Westville, IN)           | `self_service` | Save money by picking your own used auto parts from our massive inventory. ([Paul’s](https://www.paulsautosalvage.com/)).                                                                                                                                                                                                                                | high       |
+| `hollanderstores` | `petrillosauto` Petrillo's Used Auto Parts (New Haven, CT)         | `unknown`      | [Tenant](https://petrillosauto.hollanderstores.com/); configured identity in [yard metadata](../../src/server/ingestion/hollanderstores-yard-metadata.ts). No explicit service statement in reviewed material. Petrillo's Used Auto Parts: available tenant and official-site evidence does not establish customer pulling versus staff removal.         | low        |
+| `hollanderstores` | `piperautoparts` Piper Auto Parts (Bloomfield, IA)                 | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/piperautoparts-about.html.gz)). Piper Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.              | low        |
+| `hollanderstores` | `rainbowauto` Rainbow Auto Salvage (Holdenville, OK)               | `full_service` | used automotive parts, cleaned and racked for fast service ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/rainbowauto-about.html.gz)).                                                                                                                                                                                 | high       |
+| `hollanderstores` | `robertsons` Robertson's Salvage (Wareham, MA)                     | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/robertsons-about.html.gz)). Robertson's Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.               | low        |
+| `hollanderstores` | `rockitopauto` Rocki Top Auto (Glen Flora, WI)                     | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/rockitopauto-about.html.gz)). Rocki Top Auto: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                  | low        |
+| `hollanderstores` | `rogersauto` Rogers Auto Parts (Ellisville, MS)                    | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/rogersauto-about.html.gz)). Rogers Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                 | low        |
+| `hollanderstores` | `rowlanut` Rowland Auto Wrecking (West Valley City, UT)            | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/mid-states/rowlanut-about.html.gz)). Rowland Auto Wrecking: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.              | low        |
+| `hollanderstores` | `spilmanautopart` Spilman Auto Parts (Bloomfield, IA)              | `full_service` | full service salvage yard ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/spilmanautopart-about.html.gz)).                                                                                                                                                                                                            | high       |
+| `hollanderstores` | `standardauto` Standard Used Auto Parts & Wrecking (Worcester, MA) | `unknown`      | [Tenant](https://standardauto.hollanderstores.com/); configured identity in [yard metadata](../../src/server/ingestion/hollanderstores-yard-metadata.ts). No explicit service statement in reviewed material. Standard Used Auto Parts & Wrecking: available tenant and official-site evidence does not establish customer pulling versus staff removal. | low        |
+| `hollanderstores` | `strickerauto` Stricker Auto Parts (Batavia, OH)                   | `full_service` | over 185,000 square feet of warehouse space ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/strickerauto-about.html.gz)).                                                                                                                                                                                               | high       |
+| `hollanderstores` | `sunlineparts` Sun Line (Cedar Rapids, IA)                         | `full_service` | Iowa’s Best Full Service Salvage Yard ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/sunlineparts-about.html.gz)).                                                                                                                                                                                                   | high       |
+| `hollanderstores` | `terryvilleauto` Terryville Auto (Terryville, CT)                  | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/terryvilleauto-about.html.gz)). Terryville Auto: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.               | low        |
+| `hollanderstores` | `tvilleauto` T-ville Auto Salvage (Tompkinsville, KY)              | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/east/tvilleauto-about.html.gz)). T-ville Auto Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                   | low        |
+| `hollanderstores` | `veldmans` Veldman's Auto Parts (South Bend, IN)                   | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/batch-2/veldmans-about.html.gz)). Veldman's Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                  | low        |
+| `hollanderstores` | `waugh` Waugh Auto Parts (Anniston, AL)                            | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/near-misses/waugh-about.html.gz)). Waugh Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                     | low        |
+| `hollanderstores` | `windyhill` Windy Hill Auto Parts (New London, MN)                 | `unknown`      | Used-parts storefront; no explicit customer-pulling or staff-dismantling statement. ([native About](../../src/server/ingestion/hollanderstores-test-fixtures/expansion/windyhill-about.html.gz)). Windy Hill Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.              | low        |
+
+### idipull
+
+| Source    | Yard (canonical location code)                              | Type           | Evidence                                                                       | Confidence |
+| --------- | ----------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------ | ---------- |
+| `idipull` | `idaho-falls` iPull by Intermountain Auto (Idaho Falls, ID) | `self_service` | the self-service iPull by Intermountain Auto ([runbook](idipull-ingestion.md)) | high       |
+
+### importapart
+
+| Source        | Yard (canonical location code)          | Type           | Evidence                                                        | Confidence |
+| ------------- | --------------------------------------- | -------------- | --------------------------------------------------------------- | ---------- |
+| `importapart` | `hazelwood` Importapart (Hazelwood, MO) | `full_service` | full-service salvage yard ([runbook](importapart-ingestion.md)) | high       |
+
+### indianriver
+
+| Source        | Yard (canonical location code)                       | Type           | Evidence                                                                                                                          | Confidence |
+| ------------- | ---------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `indianriver` | `vero-beach` Indian River U-Pull-It (Vero Beach, FL) | `self_service` | Do You Pull The Parts, Or Do I Have To Pull Them Myself? A: You pull the parts. ([yard](https://indianriverautosalvage.com/faq/)) | high       |
+
+### ipullupull
+
+| Source       | Yard (canonical location code)                                       | Type   | Evidence                                                                                                    | Confidence |
+| ------------ | -------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------- | ---------- |
+| `ipullupull` | `IPULLUPULL-FRESNO-CA` iPull-uPull - Fresno (Fresno, CA)             | `both` | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/)) | high       |
+| `ipullupull` | `IPULLUPULL-POMONA-CA` iPull-uPull - Pomona (Pomona, CA)             | `both` | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/)) | high       |
+| `ipullupull` | `IPULLUPULL-SACRAMENTO-CA` iPull-uPull - Sacramento (Sacramento, CA) | `both` | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/)) | high       |
+| `ipullupull` | `IPULLUPULL-STOCKTON-CA` iPull-uPull - Stockton (Stockton, CA)       | `both` | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/)) | high       |
+
+### jimsimport
+
+| Source       | Yard (canonical location code)                           | Type           | Evidence                                                                | Confidence |
+| ------------ | -------------------------------------------------------- | -------------- | ----------------------------------------------------------------------- | ---------- |
+| `jimsimport` | `sebring-import` Jim's Import Auto Salvage (Sebring, FL) | `full_service` | Our state-of-the-art dismantling area ([yard](https://jimsimport.com/)) | high       |
+
+### joliet
+
+| Source   | Yard (canonical location code)         | Type           | Evidence                                                  | Confidence |
+| -------- | -------------------------------------- | -------------- | --------------------------------------------------------- | ---------- |
+| `joliet` | `joliet` Joliet U-Pull-It (Joliet, IL) | `self_service` | single self-service yard ([runbook](joliet-ingestion.md)) | high       |
+
+### kandr
+
+| Source  | Yard (canonical location code)          | Type           | Evidence                                                       | Confidence |
+| ------- | --------------------------------------- | -------------- | -------------------------------------------------------------- | ---------- |
+| `kandr` | `holland` K&R Truck Parts (Holland, MI) | `full_service` | 46 Dismantled Vehicles entries ([runbook](kandr-ingestion.md)) | high       |
+
+### kodak
+
+| Source  | Yard (canonical location code)                                                           | Type           | Evidence                                                                                    | Confidence |
+| ------- | ---------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------- | ---------- |
+| `kodak` | `strawberry-plains` Kodak Auto Inc / American Auto Sales & Parts (Strawberry Plains, TN) | `full_service` | American Auto Parts Division is a full service salvage yard ([yard](https://kodakauto.co/)) | high       |
+
+### littleton
+
+| Source      | Yard (canonical location code)                  | Type           | Evidence                                                                    | Confidence |
+| ----------- | ----------------------------------------------- | -------------- | --------------------------------------------------------------------------- | ---------- |
+| `littleton` | `littleton` Littleton U-Pull-It (Littleton, CO) | `self_service` | Littleton is a single self-service yard ([runbook](littleton-ingestion.md)) | high       |
+
+### lonestarimports
+
+| Source            | Yard (canonical location code)           | Type           | Evidence                                                               | Confidence |
+| ----------------- | ---------------------------------------- | -------------- | ---------------------------------------------------------------------- | ---------- |
+| `lonestarimports` | `houston` Lonestar Imports (Houston, TX) | `full_service` | own 22-acre dismantling yard ([runbook](lonestarimports-ingestion.md)) | high       |
+
+### mccauley
+
+| Source     | Yard (canonical location code)                          | Type      | Evidence                                                                                                                                                                                                                  | Confidence |
+| ---------- | ------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `mccauley` | `new-bethlehem` McCauley's Auto LLC (New Bethlehem, PA) | `unknown` | Pick a part list of parts vehicles ([yard](https://www.mccauleysauto.com/parts-vehicles)) McCauley’s lists parts vehicles but does not say who removes the parts; “Pick a part” alone does not establish customer access. | low        |
+
+### meeks
+
+| Source  | Yard (canonical location code)                     | Type           | Evidence                                                                                                                                  | Confidence |
+| ------- | -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `meeks` | `martinsville` Meeks Pic-N-Pull (Martinsville, VA) | `self_service` | $2 Dollar Daily Fee to enter the yard and Use your own tools ([native owner](../../src/server/ingestion/meeks-test-fixtures/owner.html)). | high       |
+
+### michigantruck
+
+| Source          | Yard (canonical location code)                 | Type           | Evidence                                                     | Confidence |
+| --------------- | ---------------------------------------------- | -------------- | ------------------------------------------------------------ | ---------- |
+| `michigantruck` | `westland` Michigan Truck Parts (Westland, MI) | `full_service` | Michigan Truck Parts ([runbook](michigantruck-ingestion.md)) | medium     |
+
+### midway
+
+| Source   | Yard (canonical location code)                  | Type           | Evidence                                                            | Confidence |
+| -------- | ----------------------------------------------- | -------------- | ------------------------------------------------------------------- | ---------- |
+| `midway` | `MO09` Midway U Pull - Liberty (Liberty, MO)    | `self_service` | native self-service donor catalogs ([runbook](midway-ingestion.md)) | high       |
+| `midway` | `MO38` Midway U Pull - Muncie (Kansas City, KS) | `self_service` | native self-service donor catalogs ([runbook](midway-ingestion.md)) | high       |
+| `midway` | `OO95` Midway U Pull - Tulsa (Tulsa, OK)        | `self_service` | native self-service donor catalogs ([runbook](midway-ingestion.md)) | high       |
+
+### millerstown
+
+| Source        | Yard (canonical location code)                   | Type           | Evidence                                                   | Confidence |
+| ------------- | ------------------------------------------------ | -------------- | ---------------------------------------------------------- | ---------- |
+| `millerstown` | `tarentum` Millerstown Pic-A-Part (Tarentum, PA) | `self_service` | self-service salvage ([runbook](millerstown-ingestion.md)) | high       |
+
+### modernmuscle
+
+| Source         | Yard (canonical location code)        | Type           | Evidence                                                                                     | Confidence |
+| -------------- | ------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- | ---------- |
+| `modernmuscle` | `ray` Modern Muscle Salvage (Ray, MI) | `full_service` | New arrivals are explicitly waiting to be dismantled. ([runbook](shopify-yard-ingestion.md)) | high       |
+
+### northwest
+
+| Source      | Yard (canonical location code)                   | Type      | Evidence                                                                                                                                                                                                                                            | Confidence |
+| ----------- | ------------------------------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `northwest` | `anchorage` Northwest Auto Parts (Anchorage, AK) | `unknown` | [qualification](northwest-ingestion-qualification.md); official site DNS lookup failed on 2026-11-18. Northwest’s qualification establishes its Anchorage donors, but no explicit service model was found and the official website did not resolve. | low        |
+
+### nvpap
+
+| Source  | Yard (canonical location code)                                 | Type           | Evidence                                                                         | Confidence |
+| ------- | -------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------- | ---------- |
+| `nvpap` | `1074` Nevada Pic-A-Part North Las Vegas (North Las Vegas, NV) | `self_service` | By pulling your own parts, you skip the labor costs ([yard](https://nvpap.com/)) | high       |
+| `nvpap` | `1075` Nevada Pic-A-Part Henderson (Henderson, NV)             | `self_service` | By pulling your own parts, you skip the labor costs ([yard](https://nvpap.com/)) | high       |
+
+### oem
+
+| Source | Yard (canonical location code)               | Type           | Evidence                                             | Confidence |
+| ------ | -------------------------------------------- | -------------- | ---------------------------------------------------- | ---------- |
+| `oem`  | `bluffton` OEM Auto Recyclers (Bluffton, OH) | `full_service` | full-service inventory ([runbook](oem-ingestion.md)) | high       |
+
+### oemgarage
+
+| Source      | Yard (canonical location code)         | Type           | Evidence                                                  | Confidence |
+| ----------- | -------------------------------------- | -------------- | --------------------------------------------------------- | ---------- |
+| `oemgarage` | `hollywood` oeM Garage (Hollywood, FL) | `full_service` | Licensed BMW Dismantler ([yard](https://oe-mgarage.com/)) | high       |
+
+### partsgalore
+
+| Source        | Yard (canonical location code)                    | Type           | Evidence                                                                            | Confidence |
+| ------------- | ------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------- | ---------- |
+| `partsgalore` | `PG-DETROIT` Parts Galore - Detroit (Detroit, MI) | `self_service` | MICHIGAN’S LARGEST SELF-SERVE AUTO SALVAGE YARD ([yard](https://parts-galore.com/)) | high       |
+
+### pickapartva
+
+| Source        | Yard (canonical location code)                                               | Type   | Evidence                                                                                                                                                     | Confidence |
+| ------------- | ---------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `pickapartva` | `TT87` Pick-A-Part Recycled Auto Parts - Fredericksburg (Fredericksburg, VA) | `both` | With locations in Stafford and Fredericksburg, Pick-A-Part offers both full-service and self-service part sales. ([yard](https://pickapartva.com/about-us/)) | high       |
+| `pickapartva` | `UU81` Pick-A-Part Recycled Auto Parts - Stafford (Stafford, VA)             | `both` | With locations in Stafford and Fredericksburg, Pick-A-Part offers both full-service and self-service part sales. ([yard](https://pickapartva.com/about-us/)) | high       |
+
+### pickers
+
+| Source    | Yard (canonical location code)                                             | Type           | Evidence                                                        | Confidence |
+| --------- | -------------------------------------------------------------------------- | -------------- | --------------------------------------------------------------- | ---------- |
+| `pickers` | `pickers-longview` Pickers Self-Service Auto Parts Longview (Longview, TX) | `self_service` | active self-service statement ([runbook](pickers-ingestion.md)) | high       |
+| `pickers` | `pickers-reno` Pickers Self-Service Auto Parts Reno (Reno, TX)             | `self_service` | active self-service statement ([runbook](pickers-ingestion.md)) | high       |
+| `pickers` | `pickers-texarkana` Pickers Self-Service Auto Parts (Texarkana, AR)        | `self_service` | active self-service statement ([runbook](pickers-ingestion.md)) | high       |
+
+### pipes
+
+| Source  | Yard (canonical location code)                | Type           | Evidence                                              | Confidence |
+| ------- | --------------------------------------------- | -------------- | ----------------------------------------------------- | ---------- |
+| `pipes` | `shreveport` Pipes U-Pull-It (Shreveport, LA) | `self_service` | one self-service yard ([runbook](pipes-ingestion.md)) | high       |
+
+### pontiac
+
+| Source    | Yard (canonical location code)              | Type           | Evidence                                                                                           | Confidence |
+| --------- | ------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- | ---------- |
+| `pontiac` | `105` U-Pull and Save Pontiac (Pontiac, MI) | `self_service` | Your local self-service auto parts yard in Pontiac, Michigan! ([yard](https://u-pullandsave.com/)) | high       |
+
+### pratt
+
+| Source  | Yard (canonical location code)           | Type           | Evidence                                                    | Confidence |
+| ------- | ---------------------------------------- | -------------- | ----------------------------------------------------------- | ---------- |
+| `pratt` | `hoxie` Pratt's Auto Salvage (Hoxie, AR) | `full_service` | one full-service donor yard ([runbook](pratt-ingestion.md)) | high       |
+
+### pullapart
+
+| Source      | Yard (canonical location code)                              | Type           | Evidence                                                                                                                               | Confidence |
+| ----------- | ----------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `pullapart` | `10` Pull-A-Part - Knoxville (Knoxville, TN)                | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `11` Pull-A-Part - Cleveland West (Cleveland, OH)           | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `12` Pull-A-Part - Lafayette (Lafayette, LA)                | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `13` Pull-A-Part - Montgomery (Montgomery, AL)              | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `14` Pull-A-Part - New Orleans West (New Orleans, LA)       | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `15` Pull-A-Part - Jackson (Jackson, MS)                    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `16` Pull-A-Part - Baton Rouge (Baton Rouge, LA)            | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `17` Pull-A-Part - Memphis (Memphis, TN)                    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `18` Pull-A-Part - Indianapolis (Indianapolis, IN)          | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `19` Pull-A-Part - Winston-Salem (Winston-Salem, NC)        | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `20` Pull-A-Part - Columbia (Columbia, SC)                  | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `21` Pull-A-Part - Atlanta East (Lithonia, GA)              | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `24` Pull-A-Part - Canton (Canton, OH)                      | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `25` Pull-A-Part - Akron (Akron, OH)                        | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `27` Pull-A-Part - Tucson (Tucson, AZ)                      | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `29` Pull-A-Part - El Paso (El Paso, TX)                    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `3` Pull-A-Part - Atlanta South (Conley, GA)                | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `30` Pull-A-Part - Corpus Christi (Corpus Christi, TX)      | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `33` Pull-A-Part - West Palm Beach (West Palm Beach, FL)    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `34` Pull-A-Part - Orlando (Orlando, FL)                    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `35` Pull-A-Part - Cincinnati (Cincinnati, OH)              | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `36` Pull-A-Part - Albuquerque (Albuquerque, NM)            | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `37` Pull-A-Part - Phoenix (Phoenix, AZ)                    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `38` U-Pull-&-Pay - Colorado Springs (Colorado Springs, CO) | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `39` U-Pull-&-Pay - Aurora (Aurora, CO)                     | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `4` Pull-A-Part - Atlanta North (Norcross, GA)              | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `40` U-Pull-&-Pay - Denver (Denver, CO)                     | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `41` Pull-A-Part - Houston (Houston, TX)                    | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `42` Pull-A-Part - Pittsburgh (Pittsburgh, PA)              | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `43` Pull-A-Part - Fort Myers (Fort Myers, FL)              | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `5` Pull-A-Part - Birmingham (Birmingham, AL)               | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `6` Pull-A-Part - Nashville (Nashville, TN)                 | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `7` Pull-A-Part - Charlotte (Charlotte, NC)                 | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `8` Pull-A-Part - Louisville (Louisville, KY)               | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+| `pullapart` | `9` Pull-A-Part - Augusta (Augusta, GA)                     | `self_service` | we inventory quality used cars, not the separate parts found in each ([yard](https://www.pullapart.com/used-auto-parts/how-it-works/)) | high       |
+
+### pullnsave
+
+| Source      | Yard (canonical location code)                                  | Type           | Evidence                                                                                                                                                                                                                        | Confidence |
+| ----------- | --------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `pullnsave` | `PNS-GILBERT` Pull N Save - Gilbert (Gilbert, Arizona)          | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-GLENDALE` Pull N Save - Glendale (Glendale, Arizona)       | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-PHX-NORTH` Pull N Save - Phoenix North (Phoenix, Arizona)  | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-PHX-SOUTH` Pull N Save - Phoenix South (Phoenix, Arizona)  | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-RIVERSIDE` Pull N Save - Riverside (Riverside, California) | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-SLC` Pull N Save - Salt Lake City (Salt Lake City, Utah)   | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-SPRINGVILLE` Pull N Save - Springville (Springville, Utah) | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+| `pullnsave` | `PNS-TUCSON` Pull N Save - Tucson (Tucson, Arizona)             | `self_service` | Configured branches are in the [committed self-service provider census](provider-coverage-self-service.csv) under Pull-N-Save; [inventory qualification](provider-expansion.md). Live owner requests closed without a response. | medium     |
+
+### pullsavewa
+
+| Source       | Yard (canonical location code)                                        | Type           | Evidence                                                                                                        | Confidence |
+| ------------ | --------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------- | ---------- |
+| `pullsavewa` | `mead` Pull & Save Auto Parts, Mead (Mead, WA)                        | `self_service` | Each current official home identifies a completely self-service parts yard ([runbook](pullsavewa-ingestion.md)) | high       |
+| `pullsavewa` | `spokane` Pull & Save Auto Parts, Spokane Valley (Spokane Valley, WA) | `self_service` | Each current official home identifies a completely self-service parts yard ([runbook](pullsavewa-ingestion.md)) | high       |
+
+### pyp
+
+| Source | Yard (canonical location code)                                                       | Type           | Evidence                                                                                           | Confidence |
+| ------ | ------------------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------- | ---------- |
+| `pyp`  | `1134` LKQ Pick Your Part - Pick Your Part - Orlando (Orlando, FL)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1142` LKQ Pick Your Part - Pick Your Part - Durham (Durham, NC)                     | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1163` LKQ Pick Your Part - Pick Your Part - Savannah (Savannah, GA)                 | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1168` LKQ Pick Your Part - Pick Your Part - Raleigh (Clayton, NC)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1180` LKQ Pick Your Part - Pick Your Part - Tampa (Tampa, FL)                       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1185` LKQ Pick Your Part - Pick Your Part - Bradenton (Bradenton, FL)               | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1189` LKQ Pick Your Part - Pick Your Part - Largo (Largo, FL)                       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1190` LKQ Pick Your Part - Pick Your Part - Clearwater (Clearwater, FL)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1196` LKQ Pick Your Part - Pick Your Part - West Palm Beach (West Palm Beach, FL)   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1205` LKQ Pick Your Part - Pick Your Part - Erdman (Baltimore, MD)                  | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1207` LKQ Pick Your Part - Pick Your Part - Hawkins Point (Baltimore, MD)           | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1208` LKQ Pick Your Part - Pick Your Part - Mount Airy (Mount Airy, MD)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1209` LKQ Pick Your Part - Pick Your Part - Edgewood (Edgewood, MD)                 | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1212` LKQ Pick Your Part - Pick Your Part - Greenville (Greenville, SC)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1213` LKQ Pick Your Part - Pick Your Part - Greer (Greer, SC)                       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1215` LKQ Pick Your Part - Pick Your Part - Memphis (Memphis, TN)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1217` LKQ Pick Your Part - Pick Your Part - Chattanooga (Chattanooga, TN)           | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1218` LKQ Pick Your Part - Pick Your Part - Nashville (Nashville, TN)               | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1220` LKQ Pick Your Part - Pick Your Part - Charleston (North Charleston, SC)       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1223` LKQ Pick Your Part - Pick Your Part - Huntsville (Huntsville, AL)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1224` LKQ Pick Your Part - Pick Your Part - Gainesville (Gainesville, FL)           | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1225` LKQ Pick Your Part - Pick Your Part - Daytona (Daytona Beach, FL)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1226` LKQ Pick Your Part - Pick Your Part - Greensboro (Greensboro, NC)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1227` LKQ Pick Your Part - Pick Your Part - East NC (Greenville, NC)                | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1228` LKQ Pick Your Part - Pick Your Part - Charlotte (Charlotte, NC)               | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1229` LKQ Pick Your Part - Pick Your Part - Fayetteville (Fayetteville, GA)         | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1230` LKQ Pick Your Part - Pick Your Part - Aurora (Aurora, CO)                     | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1231` LKQ Pick Your Part - Pick Your Part - Denver 52nd Ave (Denver, CO)            | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1234` LKQ Pick Your Part - Pick Your Part - Austin (Austin, TX)                     | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1235` LKQ Pick Your Part - Pick Your Part - Houston Northville (Houston, TX)        | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1236` LKQ Pick Your Part - Pick Your Part - Houston Wallisville (Houston, TX)       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1239` LKQ Pick Your Part - Pick Your Part - Houston SW (Houston, TX)                | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1245` LKQ Pick Your Part - Pick Your Part - Oklahoma City (Oklahoma City, OK)       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1246` LKQ Pick Your Part - Pick Your Part - Wichita (Wichita, KS)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1250` LKQ Pick Your Part - Pick Your Part - Rockford (Rockford, IL)                 | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1253` LKQ Pick Your Part - Pick Your Part - Cincinnati (Cincinnati, OH)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1254` LKQ Pick Your Part - Pick Your Part - Fort Wayne (Fort Wayne, IN)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1255` LKQ Pick Your Part - Pick Your Part - South Bend (South Bend, IN)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1256` LKQ Pick Your Part - Pick Your Part - Milwaukee (Milwaukee, WI)               | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1257` LKQ Pick Your Part - Pick Your Part - Dayton (Dayton, OH)                     | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1260` LKQ Pick Your Part - Pick Your Part - Bakersfield (Bakersfield, CA)           | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1262` LKQ Pick Your Part - Pick Your Part - Help Yourself (Wilmington, CA)          | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1263` LKQ Pick Your Part - Pick Your Part - Sun Valley (Sun Valley, CA)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1264` LKQ Pick Your Part - Pick Your Part - Chula Vista (Chula Vista, CA)           | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1265` LKQ Pick Your Part - Pick Your Part - Anaheim (Anaheim, CA)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1280` LKQ Pick Your Part - Pick Your Part - Ontario (Ontario, CA)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1281` LKQ Pick Your Part - Pick Your Part - Monrovia (Monrovia, CA)                 | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1282` LKQ Pick Your Part - Pick Your Part - Santa Fe Springs (Santa Fe Springs, CA) | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1284` LKQ Pick Your Part - Pick Your Part - Rialto (Bloomington, CA)                | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1285` LKQ Pick Your Part - Pick Your Part - Fontana (Fontana, CA)                   | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1287` LKQ Pick Your Part - Pick Your Part - Victorville (Victorville, CA)           | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1290` LKQ Pick Your Part - Pick Your Part - Riverside (Riverside, CA)               | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1291` LKQ Pick Your Part - Pick Your Part - San Bernardino (San Bernardino, CA)     | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1292` LKQ Pick Your Part - Pick Your Part - Hesperia (Hesperia, CA)                 | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1348` LKQ Pick Your Part - Pick Your Part - Grand Rapids (Wayland, MI)              | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1581` LKQ Pick Your Part - Pick Your Part - Chicago North (Chicago, IL)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1582` LKQ Pick Your Part - Pick Your Part - Blue Island (Dixmoor, IL)               | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1585` LKQ Pick Your Part - Pick Your Part - Chicago South (Chicago, IL)             | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1586` LKQ Pick Your Part - Pick Your Part - East St. Louis (Washington Park, IL)    | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+| `pyp`  | `1746` LKQ Pick Your Part - Pick Your Part - Tulsa (Tulsa, OK)                       | `self_service` | Visit a self-service Pick Your Part location to pull your own parts ([yard](https://www.pyp.com/)) | high       |
+
+### rightway
+
+| Source     | Yard (canonical location code)                            | Type           | Evidence                                                                         | Confidence |
+| ---------- | --------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------- | ---------- |
+| `rightway` | `decaturville` Rightway Auto Recycling (Decaturville, TN) | `self_service` | Rightway Auto Recycling is a you-pull-it yard ([runbook](rightway-ingestion.md)) | medium     |
+
+### rivervalley
+
+| Source        | Yard (canonical location code)                     | Type           | Evidence                                                       | Confidence |
+| ------------- | -------------------------------------------------- | -------------- | -------------------------------------------------------------- | ---------- |
+| `rivervalley` | `kankakee` River Valley Truck Parts (Kankakee, IL) | `full_service` | River Valley Truck Parts ([runbook](rivervalley-ingestion.md)) | medium     |
+
+### rmmdtp
+
+| Source   | Yard (canonical location code)                                 | Type           | Evidence                                                                | Confidence |
+| -------- | -------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------- | ---------- |
+| `rmmdtp` | `corinne` Rocky Mountain Medium Duty Truck Parts (Corinne, UT) | `full_service` | Rocky Mountain Medium Duty Truck Parts ([runbook](rmmdtp-ingestion.md)) | medium     |
+
+### rohner
+
+| Source   | Yard (canonical location code)                    | Type      | Evidence                                                                                                                                                                                                                | Confidence |
+| -------- | ------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `rohner` | `willmar` Rohner's Auto Parts, Inc. (Willmar, MN) | `unknown` | Vehicle Part Out ([yard](https://rohnersautoparts.com/)) Rohner’s sells parts and lists part-out vehicles, but the reviewed pages do not establish who removes parts or whether the yard admits self-service customers. | low        |
+
+### row52
+
+| Source  | Yard (canonical location code)                              | Type           | Evidence                                                                                                                                                                                                                            | Confidence |
+| ------- | ----------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `row52` | `100` PICK-n-PULL Springfield (Springfield, MO)             | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `102` PICK-n-PULL Calgary (52 Street) (Calgary, AB)         | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `10677` PICK-n-PULL Salinas (Salinas, CA)                   | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `10797` PICK-n-PULL Sacramento Mather (Sacramento, CA)      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `10798` PICK-n-PULL American Canyon (American Canyon, CA)   | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `10818` PICK-n-PULL Jefferson (Jefferson, GA)               | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `110` PICK-n-PULL Cumberland (Cumberland, RI)               | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `116` PICK-n-PULL Tumwater (Tumwater, WA)                   | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `380` PICK-n-PULL Johnston (Johnston, RI)                   | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `39` PICK-n-PULL Antelope (Antelope, CA)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `40` PICK-n-PULL Arlington (Arlington, WA)                  | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `43` PICK-n-PULL Chico (Chico, CA)                          | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `44` PICK-n-PULL Columbus (Columbus, OH)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `45` PICK-n-PULL Dallas South (Dallas, TX)                  | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `46` PICK-n-PULL Dallas South Central (Dallas, TX)          | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `48` PICK-n-PULL Fairfield (Fairfield, CA)                  | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `49` PICK-n-PULL Fort Worth (Fort Worth, TX)                | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `50` PICK-n-PULL Fresno (Fresno, CA)                        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `51` PICK-n-PULL Hammond (Hammond, IN)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `52` PICK-n-PULL Kansas City (Truman Rd.) (Kansas City, MO) | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `53` PICK-n-PULL Little Rock (Little Rock, AR)              | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `54` PICK-n-PULL Lynnwood (Lynnwood, WA)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `55` PICK-n-PULL Merced (Merced, CA)                        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `56` PICK-n-PULL Modesto (Modesto, CA)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `57` PICK-n-PULL Moss Landing (Moss Landing, CA)            | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `59` PICK-n-PULL Newark (Newark, CA)                        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `61` PICK-n-PULL Oakland (Oakland, CA)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `63` PICK-n-PULL Panama City (Panama City, FL)              | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `65` PICK-n-PULL Portland South (Portland, OR)              | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `66` PICK-n-PULL Rancho Cordova (Rancho Cordova, CA)        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `67` PICK-n-PULL Redding (Redding, CA)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `68` PICK-n-PULL Richmond (Richmond, CA)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `69` PICK-n-PULL Rocklin (Rocklin, CA)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `71` PICK-n-PULL Salt Lake City (Salt Lake City, UT)        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `73` PICK-n-PULL San Jose North (San Jose, CA)              | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `75` PICK-n-PULL Sherwood (Sherwood, OR)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `76` PICK-n-PULL Sparks (Sparks, NV)                        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `78` PICK-n-PULL St. Louis (St. Louis, MO)                  | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `79` PICK-n-PULL Stockton (Stockton, CA)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `81` PICK-n-PULL Summit (Summit, IL)                        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `82` PICK-n-PULL Tacoma (Lakewood, WA)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `83` PICK-n-PULL Tallahassee (Tallahassee, FL)              | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `84` PICK-n-PULL Vancouver (Vancouver, WA)                  | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `85` PICK-n-PULL Virginia Beach (Virginia Beach, VA)        | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `88` PICK-n-PULL Windsor (Windsor, CA)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `89` PICK-n-PULL Carson City (Carson City, NV)              | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `95` PICK-n-PULL Calgary (Barlow Trail) (Calgary, AB)       | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `96` PICK-n-PULL Edmonton (Edmonton, AB)                    | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `97` PICK-n-PULL Kelowna (Kelowna, BC)                      | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `98` PICK-n-PULL Kansas City (Winner Rd.) (Kansas City, MO) | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+| `row52` | `99` PICK-n-PULL Kansas City (12th St.) (Kansas City, KS)   | `self_service` | [Self-service chain directory](provider-coverage-self-service.csv); [native participating yard directory](<https://api.row52.com/odata/Locations/Row52.Search(postalCode='null',%20distance=0)?$filter=isPublishable%20eq%20true>). | medium     |
+
+### rtp
+
+| Source | Yard (canonical location code)                      | Type           | Evidence                                                                                                   | Confidence |
+| ------ | --------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
+| `rtp`  | `1189` RTP Pick-A-Part - Maiden (Maiden, NC)        | `self_service` | The current self-service homepage links RTP yards in KY/NC/TN ([runbook](provider-coverage-multistate.md)) | high       |
+| `rtp`  | `232` RTP Pick-A-Part - Hebron (Hebron, KY)         | `self_service` | The current self-service homepage links RTP yards in KY/NC/TN ([runbook](provider-coverage-multistate.md)) | high       |
+| `rtp`  | `265` RTP Pick-A-Part - Louisville (Louisville, KY) | `self_service` | The current self-service homepage links RTP yards in KY/NC/TN ([runbook](provider-coverage-multistate.md)) | high       |
+| `rtp`  | `298` Raceway Pik-A-Part - Savannah (Savannah, TN)  | `self_service` | The current self-service homepage links RTP yards in KY/NC/TN ([runbook](provider-coverage-multistate.md)) | high       |
+| `rtp`  | `595` RTP Pick-A-Part - Lexington (Lexington, KY)   | `self_service` | The current self-service homepage links RTP yards in KY/NC/TN ([runbook](provider-coverage-multistate.md)) | high       |
+
+### rustyhook
+
+| Source      | Yard (canonical location code)                                   | Type      | Evidence                                                                                                                                                                                          | Confidence |
+| ----------- | ---------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `rustyhook` | `pittsburgh` Rusty Hook Auto Salvage Pittsburgh (Pittsburgh, PA) | `unknown` | Pittsburgh Yard Loose Parts ([yard](http://salvage.rustyhooktowing.com/)) Rusty Hook lists donors and loose parts but does not identify customer pulling or staff removal at its Pittsburgh yard. | low        |
+
+### sandw
+
+| Source  | Yard (canonical location code)                     | Type           | Evidence                                                                            | Confidence |
+| ------- | -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------- | ---------- |
+| `sandw` | `lithonia-upull` S&W U-Pull, U-Save (Lithonia, GA) | `self_service` | S&W U-Pull, U-Save at 1826 Lithonia Industrial Blvd ([runbook](sandw-ingestion.md)) | high       |
+
+### scotts
+
+| Source   | Yard (canonical location code)                       | Type           | Evidence                                                                               | Confidence |
+| -------- | ---------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------- | ---------- |
+| `scotts` | `fort-collins` Scott's Used Parts (Fort Collins, CO) | `full_service` | full-service supplier of salvaged and used auto parts ([runbook](scotts-ingestion.md)) | high       |
+
+### six03
+
+| Source  | Yard (canonical location code)             | Type           | Evidence                                                                                                      | Confidence |
+| ------- | ------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------- | ---------- |
+| `six03` | `plaistow` 603 Auto Salvage (Plaistow, NH) | `full_service` | We also have many parts inventoried and shelved ready to go on request. ([yard](https://603autosalvage.com/)) | high       |
+
+### spartan
+
+| Source    | Yard (canonical location code)                       | Type           | Evidence                                                                                                 | Confidence |
+| --------- | ---------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- | ---------- |
+| `spartan` | `inman` Spartan Auto & Heavy Truck Parts (Inman, SC) | `full_service` | Heavy-truck salvage and staff-supplied auto parts; [native catalog qualification](spartan-ingestion.md). | medium     |
+
+### speedys
+
+| Source    | Yard (canonical location code)                  | Type           | Evidence                                              | Confidence |
+| --------- | ----------------------------------------------- | -------------- | ----------------------------------------------------- | ---------- |
+| `speedys` | `richmond` Speedy's Transmission (Richmond, VA) | `full_service` | PARTING OUT catalog ([runbook](speedys-ingestion.md)) | medium     |
+
+### tearapart
+
+| Source      | Yard (canonical location code)                                       | Type           | Evidence                                                                                | Confidence |
+| ----------- | -------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `tearapart` | `OGDEN` Tear-A-Part - Ogden (Ogden, Utah)                            | `self_service` | We are Utah’s premier self-service auto parts retailer ([yard](https://tearapart.com/)) | high       |
+| `tearapart` | `SALT LAKE CITY` Tear-A-Part - Salt Lake City (Salt Lake City, Utah) | `self_service` | We are Utah’s premier self-service auto parts retailer ([yard](https://tearapart.com/)) | high       |
+
+### tritown
+
+| Source    | Yard (canonical location code)                    | Type           | Evidence                                                                                  | Confidence |
+| --------- | ------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `tritown` | `mount-joy` Tri Town Auto Salvage (Mount Joy, PA) | `self_service` | Bring your own tools, and don’t be a tool. ([yard](https://tritownautosalvage.com/cars/)) | high       |
+
+### upullitdavie
+
+| Source         | Yard (canonical location code)              | Type           | Evidence                                                                    | Confidence |
+| -------------- | ------------------------------------------- | -------------- | --------------------------------------------------------------------------- | ---------- |
+| `upullitdavie` | `UPULLIT-DAVIE` U Pull It Davie (Davie, FL) | `self_service` | Davie’s Premier Self-Service Auto Parts ([yard](https://upullitdavie.com/)) | high       |
+
+### upullitne
+
+| Source      | Yard (canonical location code)                                   | Type           | Evidence                                                                             | Confidence |
+| ----------- | ---------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ | ---------- |
+| `upullitne` | `DES MOINES` U Pull-It Nebraska - Des Moines (Des Moines, Iowa)  | `self_service` | Bring your own tools, pull your own parts and save. ([yard](https://upullitne.com/)) | high       |
+| `upullitne` | `LINCOLN` U Pull-It Nebraska - Lincoln (Lincoln, Nebraska)       | `self_service` | Bring your own tools, pull your own parts and save. ([yard](https://upullitne.com/)) | high       |
+| `upullitne` | `OMAHA NORTH` U Pull-It Nebraska - Omaha North (Omaha, Nebraska) | `self_service` | Bring your own tools, pull your own parts and save. ([yard](https://upullitne.com/)) | high       |
+| `upullitne` | `OMAHA SOUTH` U Pull-It Nebraska - Omaha South (Omaha, Nebraska) | `self_service` | Bring your own tools, pull your own parts and save. ([yard](https://upullitne.com/)) | high       |
+
+### upullitwa
+
+| Source      | Yard (canonical location code)                          | Type           | Evidence                                                                                        | Confidence |
+| ----------- | ------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `upullitwa` | `JJ65` U-Pull-It Auto Parts - Pasco (Pasco, WA)         | `self_service` | bring your own tools, pull your own parts, and save BIG MONEY ([yard](https://go2upullit.com/)) | high       |
+| `upullitwa` | `UU43` U-Pull-It Auto Parts - Yakima (Yakima, WA)       | `self_service` | bring your own tools, pull your own parts, and save BIG MONEY ([yard](https://go2upullit.com/)) | high       |
+| `upullitwa` | `UU44` U-Pull-It Auto Parts - Kennewick (Kennewick, WA) | `self_service` | bring your own tools, pull your own parts, and save BIG MONEY ([yard](https://go2upullit.com/)) | high       |
+
+### upullrparts
+
+| Source        | Yard (canonical location code)                           | Type           | Evidence                                                                                                                                                                                                                                                                               | Confidence |
+| ------------- | -------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `upullrparts` | `UPRRP-1` U Pull R Parts - Rosemount (Rosemount, MN)     | `self_service` | All three branches are in the [committed self-service provider census](provider-coverage-self-service.csv); [qualification](upullrparts-ingestion.md) distinguishes the ingested inventory from separate full-service parts-photo URLs. Live owner requests closed without a response. | medium     |
+| `upullrparts` | `UPRRP-2` U Pull R Parts - East Bethel (East Bethel, MN) | `self_service` | All three branches are in the [committed self-service provider census](provider-coverage-self-service.csv); [qualification](upullrparts-ingestion.md) distinguishes the ingested inventory from separate full-service parts-photo URLs. Live owner requests closed without a response. | medium     |
+| `upullrparts` | `UPRRP-3` U Pull R Parts - Toledo (Toledo, OH)           | `self_service` | All three branches are in the [committed self-service provider census](provider-coverage-self-service.csv); [qualification](upullrparts-ingestion.md) distinguishes the ingested inventory from separate full-service parts-photo URLs. Live owner requests closed without a response. | medium     |
+
+### urgiis
+
+| Source   | Yard (canonical location code)                                             | Type           | Evidence                                                                                                                                                                                                                                                                            | Confidence |
+| -------- | -------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `urgiis` | `ace-iowa` Ace Auto Recyclers (Iowa City, IA)                              | `full_service` | All parts are tested thoroughly and professionally removed, inventoried, packaged, and shipped. ([yard](https://aceautorecyclers.com/about-us/)).                                                                                                                                   | high       |
+| `urgiis` | `ace-st-paul` Ace Auto Parts (St. Paul, MN)                                | `full_service` | our dismantling shop; professionally removed, inventoried, packaged, and shipped ([yard](https://www.ace-autoparts.com/about-us/)).                                                                                                                                                 | high       |
+| `urgiis` | `az` A-Z Auto Parts & Auto Sales (Oklahoma City, OK)                       | `full_service` | thousands of parts ready to ship; computerized parts inventory ([yard](https://a-zautoparts.com/about-us/)).                                                                                                                                                                        | medium     |
+| `urgiis` | `bishops` Bishop's Auto Parts (Middletown, CT)                             | `full_service` | over 53,000 parts in our warehouse ([yard](https://bishopsautoparts.com/)).                                                                                                                                                                                                         | high       |
+| `urgiis` | `central-nh` Central Auto Recyclers (Concord, NH)                          | `full_service` | Parts are removed, inspected, cleaned, and cataloged in our computer inventory system ([yard](https://centralautorecyclers.com/about-us/)).                                                                                                                                         | high       |
+| `urgiis` | `chuckran` Chuckran Auto Parts (Bridgewater, MA)                           | `unknown`      | [Native owner page](https://chuckransautoparts.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. Chuckran Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.    | low        |
+| `urgiis` | `chucks` Chuck's Auto Salvage (Grand Rapids, MN)                           | `full_service` | All parts are tested thoroughly and professionally removed, inventoried, packaged, and shipped. ([yard](https://chucksautosalvageinc.com/about-us/)).                                                                                                                               | high       |
+| `urgiis` | `dings` Ding's Auto Parts (Litchfield, CT)                                 | `unknown`      | [Native owner page](https://dingsautoparts.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. Ding's Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.          | low        |
+| `urgiis` | `eagle-martinsburg` Eagle Auto Parts (Martinsburg, WV)                     | `full_service` | inventory is computerized, racked and ready for immediate pickup ([yard](https://eagleautopart.com/)).                                                                                                                                                                              | high       |
+| `urgiis` | `higgins` Higgins Auto Parts (Bakersfield, CA)                             | `unknown`      | [Native owner page](https://higginsauto.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. Higgins Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.            | low        |
+| `urgiis` | `junior-sinn` Junior Sinn Auto Parts (Cape Girardeau, MO)                  | `full_service` | 12,000 square foot building; warehouse more parts ([yard](https://www.juniorsinnautoparts.com/about-us/)).                                                                                                                                                                          | high       |
+| `urgiis` | `lambert` Lambert Auto Salvage (Booneville, MS)                            | `unknown`      | [Native owner page](https://www.lambertsalvage.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. Lambert Auto Salvage: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.   | low        |
+| `urgiis` | `lentini-port-murray` Lentini Auto Salvage - Port Murray (Port Murray, NJ) | `full_service` | massive on-hand parts inventory; if the part you need isn’t on our shelves; both locations listed ([yard](https://www.las-parts.com/about/)).                                                                                                                                       | medium     |
+| `urgiis` | `lentini-ringoes` Lentini Auto Salvage - Ringoes (Ringoes, NJ)             | `full_service` | massive on-hand parts inventory; if the part you need isn’t on our shelves; both locations listed ([yard](https://www.las-parts.com/about/)).                                                                                                                                       | medium     |
+| `urgiis` | `linders` Linder's Inc (Worcester, MA)                                     | `full_service` | full-service Linder’s yard; dedicated self-service Sam’s is across the street ([yard](https://lindersparts.com/about-us/)).                                                                                                                                                         | high       |
+| `urgiis` | `mars` Mars Auto Parts & Engine Swaps (Akron, OH)                          | `full_service` | We build Turnkey Swap Ready Pallet kits; staff modifies donor wiring and mounts engines on pallets ([MARS](https://swaptheuniverse.com/turnkey-pallet-info/)).                                                                                                                      | medium     |
+| `urgiis` | `norbs` Norb's Auto Salvage (Denmark, WI)                                  | `unknown`      | [Native owner page](https://norbsauto.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. Norb's Auto Salvage: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.             | low        |
+| `urgiis` | `premier` Premier Auto & Truck Parts (Cedar Springs, MI)                   | `full_service` | parts will be dismantled, cleaned, and then tested for quality ([yard](https://premierauto-parts.com/)).                                                                                                                                                                            | high       |
+| `urgiis` | `revolution` Revolution Auto Parts (Monroe, NC)                            | `unknown`      | [Native owner page](https://revolutionautoparts.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. Revolution Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard. | low        |
+| `urgiis` | `stroud` R. Stroud's Auto Parts (Youngsville, NC)                          | `unknown`      | [Native owner page](https://www.rstroud.com/); [configured inventory](urgiis-ingestion.md). No explicit removal model found. R. Stroud's Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.        | low        |
+| `urgiis` | `united` United Auto Recyclers (Omaha, NE)                                 | `full_service` | careers in Dismantling; on-site used parts inventory ([yard](https://unitedautorecyclers.com/about-us/)).                                                                                                                                                                           | medium     |
+
+### utpap
+
+| Source  | Yard (canonical location code)           | Type           | Evidence                                                                                   | Confidence |
+| ------- | ---------------------------------------- | -------------- | ------------------------------------------------------------------------------------------ | ---------- |
+| `utpap` | `1064` Utah Pic-A-Part Ogden (Ogden, UT) | `self_service` | Bring Your Own Tools, Pull the Parts You Need, and Save Money ([yard](https://utpap.com/)) | high       |
+| `utpap` | `1065` Utah Pic-A-Part Orem (Orem, UT)   | `self_service` | Bring Your Own Tools, Pull the Parts You Need, and Save Money ([yard](https://utpap.com/)) | high       |
+
+### uwrench
+
+| Source    | Yard (canonical location code)                      | Type           | Evidence                                                                | Confidence |
+| --------- | --------------------------------------------------- | -------------- | ----------------------------------------------------------------------- | ---------- |
+| `uwrench` | `uwrench` Tri-State U-Wrench and Save (Jackson, MO) | `self_service` | native root proves self-service scope ([runbook](uwrench-ingestion.md)) | high       |
+
+### vanderhaags
+
+| Source        | Yard (canonical location code)                                     | Type           | Evidence                                                                                                  | Confidence |
+| ------------- | ------------------------------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------------- | ---------- |
+| `vanderhaags` | `council-bluffs` Vander Haag's Council Bluffs (Council Bluffs, IA) | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+| `vanderhaags` | `des-moines` Vander Haag's Des Moines (Des Moines, IA)             | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+| `vanderhaags` | `kansas-city` Vander Haag's Kansas City (Kansas City, MO)          | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+| `vanderhaags` | `london` Vander Haag's Columbus (London, OH)                       | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+| `vanderhaags` | `sioux-falls` Vander Haag's Sioux Falls (Sioux Falls, SD)          | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+| `vanderhaags` | `spencer` Vander Haag's Spencer (Spencer, IA)                      | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+| `vanderhaags` | `winamac` Vander Haag's Winamac (Winamac, IN)                      | `full_service` | Full-service heavy-truck donors meet the existing admission policy. ([runbook](vanderhaags-ingestion.md)) | high       |
+
+### vinplus
+
+| Source    | Yard (canonical location code)                                               | Type           | Evidence                                                                                                                                                                                                                                                                                                                                    | Confidence |
+| --------- | ---------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `vinplus` | `hinesville` YourPart (SA Recycling) (Hinesville, GA)                        | `self_service` | You Pull It; Bring your own tools, pull your own parts and save. ([yard](https://yourpart.com/)); [qualification](vinplus-ingestion.md).                                                                                                                                                                                                    | high       |
+| `vinplus` | `indianapolis` Indy U-Pull-It (Indianapolis, IN)                             | `self_service` | Bring Your own tools, pull your own parts ([committed operator page](../../src/server/ingestion/vinplus-test-fixtures/indy-qualification.json.gz), `operator` field).                                                                                                                                                                       | high       |
+| `vinplus` | `killeen` 195 Used Auto Parts (Killeen, TX)                                  | `self_service` | Customers must bring their own tools and pull their own parts ([yard](https://195usedautoparts.com/)); [qualification](vinplus-ingestion.md).                                                                                                                                                                                               | high       |
+| `vinplus` | `lubbock` Pick Ur Part (Lubbock, TX)                                         | `self_service` | Lubbock’s Premier Self-Serve Auto Salvage Yard ([yard](https://pickurpart.com/)); [qualification](vinplus-ingestion.md).                                                                                                                                                                                                                    | high       |
+| `vinplus` | `pocatello` U Pull Auto Parts Pocatello (Pocatello, ID)                      | `unknown`      | [VinPlus qualification](vinplus-ingestion.md) verifies the Pocatello address and hidden vehicle search, but not its service model. Own site returned an empty shell. U Pull Auto Parts Pocatello: its public app hides vehicle search and the reviewed own-site response has no service statement; the business name alone is insufficient. | low        |
+| `vinplus` | `ryans` Ryan's Pick-A-Part (Detroit, MI)                                     | `self_service` | self service ([yard](https://ryanspickapart.com/)); [qualification](vinplus-ingestion.md).                                                                                                                                                                                                                                                  | high       |
+| `vinplus` | `sterling-heights` US Auto Supply of Sterling Heights (Sterling Heights, MI) | `self_service` | U-Pull Sterling Heights; the full-service branch is at a separate Detroit address ([yard](https://usautosupplymi.com/upull/sterling-heights/)); [qualification](vinplus-ingestion.md).                                                                                                                                                      | high       |
+
+### weberbrothers
+
+| Source          | Yard (canonical location code)                | Type           | Evidence                                                                                                          | Confidence |
+| --------------- | --------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------- | ---------- |
+| `weberbrothers` | `annville` Weber Brothers Auto (Annville, PA) | `full_service` | modern dismantling facility, warehouse, and several offices ([yard](https://www.weberbrothersauto.com/about-us/)) | high       |
+
+### whitebradstreet
+
+| Source            | Yard (canonical location code)             | Type           | Evidence                                                     | Confidence |
+| ----------------- | ------------------------------------------ | -------------- | ------------------------------------------------------------ | ---------- |
+| `whitebradstreet` | `augusta` White & Bradstreet (Augusta, ME) | `full_service` | Condition: Salvage ([runbook](whitebradstreet-ingestion.md)) | high       |
+
+### wrenchapart
+
+| Source        | Yard (canonical location code)                    | Type           | Evidence                                                                                                 | Confidence |
+| ------------- | ------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- | ---------- |
+| `wrenchapart` | `10` Wrench-A-Part - Roosevelt (San Antonio, TX)  | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+| `wrenchapart` | `2` Wrench-A-Part - Austin (Del Valle, TX)        | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+| `wrenchapart` | `3` Wrench-A-Part - Lubbock (Lubbock, TX)         | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+| `wrenchapart` | `4` Wrench-A-Part - Belton (Belton, TX)           | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+| `wrenchapart` | `5` Wrench-A-Part - San Antonio (San Antonio, TX) | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+| `wrenchapart` | `8` Wrench-A-Part - Holland (Holland, TX)         | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+| `wrenchapart` | `9` Wrench-A-Part - Primo (Del Valle, TX)         | `self_service` | providing the necessary equipment; pull parts like a pro ([yard](https://wrenchapart.com/about-us.html)) | medium     |
+
+## Unknown yards
+
+Each entry stays unknown until owner evidence establishes the service model. A donor roster or a generic parts store is insufficient.
+
+| Source            | Yard                                                                                          | Reason                                                                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autorecycler`    | `1348695171700984260__LOOKUP__1668532737669x351011199612092400` santa-maria-recycling-center  | santa-maria-recycling-center: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.                           |
+| `autorecycler`    | `1348695171700984260__LOOKUP__1672882562847x152496749538181120` A-1 METALS & AUTO SALVAGE INC | A-1 METALS & AUTO SALVAGE INC: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.                          |
+| `autorecycler`    | `1348695171700984260__LOOKUP__1727808874603x499378618447920300` JDM AUTOMOTIVE & RECYCLING    | JDM AUTOMOTIVE & RECYCLING: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.                             |
+| `autorecycler`    | `ario:04ed1ce5-f1a6-4f90-b9ef-9568c78e5af2` a-1-crashed-cars-south-sioux-city-ne              | a-1-crashed-cars-south-sioux-city-ne: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.                   |
+| `autorecycler`    | `ario:406af702-6e28-43b7-88ca-a82d3e6287ee` baughmans-u-pull-it-york-pa                       | baughmans-u-pull-it-york-pa: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.                            |
+| `autorecycler`    | `ario:a3d5bad0-b580-4578-b0a4-3f33ddfd2b89` colorado-auto-and-parts-englewood-co              | colorado-auto-and-parts-englewood-co: the reviewed donor inventory identifies the yard but does not establish customer pulling versus staff removal.                   |
+| `cars4parts`      | `armington` Carz R Us 1                                                                       | Carz R Us 1 has two yards; Heyworth’s “You Pull / We Pull” donor does not prove the service model at Armington.                                                        |
+| `hollanderstores` | `a1nm` A-1 Auto Recyclers                                                                     | A-1 Auto Recyclers: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                 |
+| `hollanderstores` | `aabcoautoparts` A-Abco Auto Parts                                                            | A-Abco Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                  |
+| `hollanderstores` | `alsautosalvage` ALS Auto Salvage                                                             | ALS Auto Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                   |
+| `hollanderstores` | `aplusparts` A-Plus Parts Online                                                              | A-Plus Parts Online: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                |
+| `hollanderstores` | `awcaw` All West Coast Auto Wrecking                                                          | All West Coast Auto Wrecking: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                       |
+| `hollanderstores` | `bandkautosalvag` B&K Auto Salvage                                                            | B&K Auto Salvage: “full service” describes metal recycling, not auto-part removal; the reviewed tenant does not establish its parts service model.                     |
+| `hollanderstores` | `bandmauto` B&M Auto Parts                                                                    | B&M Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                     |
+| `hollanderstores` | `biloxiauto` Biloxi Auto Recycling                                                            | Biloxi Auto Recycling: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                              |
+| `hollanderstores` | `blvdautoparts` Monster Junkyard                                                              | Monster Junkyard: available tenant and official-site evidence does not establish customer pulling versus staff removal.                                                |
+| `hollanderstores` | `branson` Branson Salvage                                                                     | Branson Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                    |
+| `hollanderstores` | `brother` Brothers Pro Parts                                                                  | Brothers Pro Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                 |
+| `hollanderstores` | `conrads` Conrads Auto Salvage                                                                | Conrads Auto Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                               |
+| `hollanderstores` | `crossroid` Crossroads Salvage                                                                | Crossroads Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                 |
+| `hollanderstores` | `davissalvageky` Davis Salvage                                                                | Davis Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                      |
+| `hollanderstores` | `flap` FLAP Auto Parts                                                                        | FLAP Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                    |
+| `hollanderstores` | `florasauto` Floras Auto Parts                                                                | Floras Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                  |
+| `hollanderstores` | `foreignusedpart` Foreign Used Parts                                                          | Foreign Used Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                 |
+| `hollanderstores` | `gogoautoparts` Go Go Auto Parts                                                              | Go Go Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                   |
+| `hollanderstores` | `hartsparts` Hart's Parts & Recycling                                                         | Hart's Parts & Recycling: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                           |
+| `hollanderstores` | `hsaw` Horseshoe Auto Wrecking                                                                | Horseshoe Auto Wrecking: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                            |
+| `hollanderstores` | `jakesautoparts` Jake's Auto Parts                                                            | Jake's Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                  |
+| `hollanderstores` | `kramers` Kramer's Auto Parts                                                                 | Kramer's Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                |
+| `hollanderstores` | `leblancsauto` LeBlanc's Auto                                                                 | LeBlanc's Auto: available tenant and official-site evidence does not establish customer pulling versus staff removal.                                                  |
+| `hollanderstores` | `milfordmotorsus` Milford Motors                                                              | Milford Motors: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                     |
+| `hollanderstores` | `paradiseautopar` Paradise Auto Parts                                                         | Paradise Auto Parts: the official website blocked access (403), and the committed tenant evidence does not establish its service model.                                |
+| `hollanderstores` | `petrillosauto` Petrillo's Used Auto Parts                                                    | Petrillo's Used Auto Parts: available tenant and official-site evidence does not establish customer pulling versus staff removal.                                      |
+| `hollanderstores` | `piperautoparts` Piper Auto Parts                                                             | Piper Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                   |
+| `hollanderstores` | `robertsons` Robertson's Salvage                                                              | Robertson's Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                |
+| `hollanderstores` | `rockitopauto` Rocki Top Auto                                                                 | Rocki Top Auto: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                     |
+| `hollanderstores` | `rogersauto` Rogers Auto Parts                                                                | Rogers Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                  |
+| `hollanderstores` | `rowlanut` Rowland Auto Wrecking                                                              | Rowland Auto Wrecking: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                              |
+| `hollanderstores` | `standardauto` Standard Used Auto Parts & Wrecking                                            | Standard Used Auto Parts & Wrecking: available tenant and official-site evidence does not establish customer pulling versus staff removal.                             |
+| `hollanderstores` | `terryvilleauto` Terryville Auto                                                              | Terryville Auto: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                    |
+| `hollanderstores` | `tvilleauto` T-ville Auto Salvage                                                             | T-ville Auto Salvage: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                               |
+| `hollanderstores` | `veldmans` Veldman's Auto Parts                                                               | Veldman's Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                               |
+| `hollanderstores` | `waugh` Waugh Auto Parts                                                                      | Waugh Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                                   |
+| `hollanderstores` | `windyhill` Windy Hill Auto Parts                                                             | Windy Hill Auto Parts: the reviewed storefront does not establish who removes parts or whether self-service customers can enter the yard.                              |
+| `mccauley`        | `new-bethlehem` McCauley's Auto LLC                                                           | McCauley’s lists parts vehicles but does not say who removes the parts; “Pick a part” alone does not establish customer access.                                        |
+| `northwest`       | `anchorage` Northwest Auto Parts                                                              | Northwest’s qualification establishes its Anchorage donors, but no explicit service model was found and the official website did not resolve.                          |
+| `rohner`          | `willmar` Rohner's Auto Parts, Inc.                                                           | Rohner’s sells parts and lists part-out vehicles, but the reviewed pages do not establish who removes parts or whether the yard admits self-service customers.         |
+| `rustyhook`       | `pittsburgh` Rusty Hook Auto Salvage Pittsburgh                                               | Rusty Hook lists donors and loose parts but does not identify customer pulling or staff removal at its Pittsburgh yard.                                                |
+| `urgiis`          | `chuckran` Chuckran Auto Parts                                                                | Chuckran Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                           |
+| `urgiis`          | `dings` Ding's Auto Parts                                                                     | Ding's Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                             |
+| `urgiis`          | `higgins` Higgins Auto Parts                                                                  | Higgins Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                            |
+| `urgiis`          | `lambert` Lambert Auto Salvage                                                                | Lambert Auto Salvage: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                          |
+| `urgiis`          | `norbs` Norb's Auto Salvage                                                                   | Norb's Auto Salvage: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                           |
+| `urgiis`          | `revolution` Revolution Auto Parts                                                            | Revolution Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                         |
+| `urgiis`          | `stroud` R. Stroud's Auto Parts                                                               | R. Stroud's Auto Parts: the reviewed owner pages describe used-parts sales but do not establish customer pulling or staff removal at this yard.                        |
+| `vinplus`         | `pocatello` U Pull Auto Parts Pocatello                                                       | U Pull Auto Parts Pocatello: its public app hides vehicle search and the reviewed own-site response has no service statement; the business name alone is insufficient. |
+
+### Unreviewed location policy
+
+- `row52`: No reviewed service evidence for this row52 location code; review the physical yard before labeling it.
+- `autorecycler`: No reviewed service evidence for this autorecycler location code; review the physical yard before labeling it.
+- `hollanderstores`: No reviewed service evidence for this hollanderstores location code; review the physical yard before labeling it.
+- `vinplus`: No reviewed service evidence for this vinplus location code; review the physical yard before labeling it.
+- `urgiis`: No reviewed service evidence for this urgiis location code; review the physical yard before labeling it.
+
+## Both-service yards
+
+| Source            | Yard                                                                               | Shared-inventory evidence                                                                                                                                                                |
+| ----------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aero`            | `shreveport` Aero Auto Parts                                                       | We pull anything & everything!!; self-service U-Pull-It inventory on the same site ([yard](https://aeroautosalvage.com/get-engine-or-transmission-pulled/))                              |
+| `autorecycler`    | `1348695171700984260__LOOKUP__1723480416579x725386772121473500` a-a-auto-recycling | 1,500 vehicles and 10,000 loose parts; same Bradenton yard’s homepage offers pulling your own parts with free admission ([yard](https://aaautorecycling.com/we-sell-parts)).             |
+| `autorecycler`    | `ario:9e650335-4efb-4664-ba19-b4f22a0f1775` cfc-recycling                          | Pull It Yourself; We Pull It for You; Our guys can pull the part for a small fee ([yard](https://cfcrecycling.com/used-auto-parts/)).                                                    |
+| `cars4parts`      | `heyworth` Carz R Us 1                                                             | You Pull / We Pull on this yard’s [native Mazda donor](../../src/server/ingestion/cars4parts-test-fixtures/mazda3.html).                                                                 |
+| `chesterfield`    | `Fort Lee` Chesterfield Auto Parts Fort Lee                                        | Allow you to pick your own used auto parts; We can pull used parts for your that are ready for pick up ([yard](https://chesterfieldauto.com/visitors-guide))                             |
+| `chesterfield`    | `Richmond` Chesterfield Auto Parts Richmond                                        | Allow you to pick your own used auto parts; We can pull used parts for your that are ready for pick up ([yard](https://chesterfieldauto.com/visitors-guide))                             |
+| `chesterfield`    | `Southside` Chesterfield Auto Parts Southside                                      | Allow you to pick your own used auto parts; We can pull used parts for your that are ready for pick up ([yard](https://chesterfieldauto.com/visitors-guide))                             |
+| `clearsalvage`    | `dubois` Clear Salvage LLC                                                         | Pull your own parts or we can pull them for you for an additional fee ([yard](https://clearsalvage.com/services/))                                                                       |
+| `hollanderstores` | `champion` Champion Auto Parts                                                     | We are both a full service and pull-your-own yard. ([Champion](http://championautosalvage.com)); Clio address matches the tenant.                                                        |
+| `hollanderstores` | `nwaupiautoparts` NWA U-Pull-It                                                    | Don’t want to pull the part yourself? We can help! We have a parts puller available. ([NWA](https://upiautoparts.com/)); same Rogers inventory. Native About also identifies both areas. |
+| `ipullupull`      | `IPULLUPULL-FRESNO-CA` iPull-uPull - Fresno                                        | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/))                                                                              |
+| `ipullupull`      | `IPULLUPULL-POMONA-CA` iPull-uPull - Pomona                                        | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/))                                                                              |
+| `ipullupull`      | `IPULLUPULL-SACRAMENTO-CA` iPull-uPull - Sacramento                                | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/))                                                                              |
+| `ipullupull`      | `IPULLUPULL-STOCKTON-CA` iPull-uPull - Stockton                                    | Our professional crew offers full-service parts pulling at every location ([yard](https://ipullupull.com/))                                                                              |
+| `pickapartva`     | `TT87` Pick-A-Part Recycled Auto Parts - Fredericksburg                            | With locations in Stafford and Fredericksburg, Pick-A-Part offers both full-service and self-service part sales. ([yard](https://pickapartva.com/about-us/))                             |
+| `pickapartva`     | `UU81` Pick-A-Part Recycled Auto Parts - Stafford                                  | With locations in Stafford and Fredericksburg, Pick-A-Part offers both full-service and self-service part sales. ([yard](https://pickapartva.com/about-us/))                             |
+
+## Physical-yard distinctions
+
+- S&W’s ingested U-Pull yard is 1826 Lithonia Industrial Blvd, separate from its full-service Chapman Road yard.
+- Grandpa John’s WI25 is the self-pull inventory, separate from the neighboring full-service business.
+- Idaho Falls iPull is separate from the excluded Intermountain full-service URG catalog.
+- Smith Auto’s Ario Self Serve bucket is separate from its full-service catalog.
+- Sterling Heights is US Auto Supply’s U-Pull branch. Its Detroit full-service branch does not change this classification.
+- L&L’s Kings Mountain U-Pull inventory is separate from the Grover full-service inventory.
+- Linder’s URG donors belong to the full-service yard. Sam’s Pull-A-Part is across the street.
+- Brandywine shares premises with a full-service operation, but the ingested dedicated U-Pull table does not prove shared donor inventory.
+- Cars4Parts explicitly offers You Pull / We Pull on the Heyworth donor. That statement does not establish Armington’s service model.
