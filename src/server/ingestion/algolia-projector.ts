@@ -1,9 +1,9 @@
+import { projectSearchVehicles } from "./vehicle-search-projection";
 import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import { db as database, dbClient } from "~/lib/db";
 import { ingestionRun, vehicle, vehicleChange } from "~/schema";
 import {
-  mapDbVehicleToAlgolia,
   mapDbVehicleToCanonical,
   partitionVehicleChanges,
 } from "./algolia-projector-helpers";
@@ -57,7 +57,7 @@ async function readAlgoliaVehicleRecords(vins: string[]) {
     .select()
     .from(vehicle)
     .where(inArray(vehicle.vin, [...new Set(vins)]));
-  return rows.map(mapDbVehicleToAlgolia);
+  return projectSearchVehicles(database, rows);
 }
 
 async function prepareFullReindex(runId: string) {
@@ -116,7 +116,7 @@ async function loadFullReindexBatch(
           .where(gt(vehicle.vin, cursor))
           .orderBy(asc(vehicle.vin))
           .limit(DURABLE_PROJECTOR_BATCH_SIZE);
-  const records = rows.map(mapDbVehicleToAlgolia);
+  const records = await projectSearchVehicles(database, rows);
   if (records.length > 0) {
     await runIngestionEffect(
       syncToAlgoliaEffect(records, [], {

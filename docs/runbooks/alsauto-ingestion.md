@@ -57,8 +57,7 @@ An accepted snapshot must also contain an acquisition within about 60 days.
 The make directory disambiguates multiword makes. Two native Nissan titles use
 `NISS`; that explicit native abbreviation normalizes to Nissan. Models preserve
 the native trim wording. Acquisition dates are calendar dates. Native lot numbers
-are stock numbers. Auction acquisition images are not current yard photos and
-remain null. The destination opens manual inventory search by VIN or lot number,
+are stock numbers. The provider's published Copart acquisition images are preserved from the matching inventory card. They do not establish the vehicle's current condition. The destination opens manual inventory search by VIN or lot number,
 with instructions to confirm availability with Al's.
 
 The source uses the normal default-enabled ingestion flag and durable pipeline.

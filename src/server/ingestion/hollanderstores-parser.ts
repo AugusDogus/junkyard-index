@@ -3,6 +3,7 @@ import {
   HOLLANDERSTORES_MAX_YARD_ROWS,
 } from "./hollanderstores-limits";
 import { z } from "zod";
+import { hollanderVehiclePhoto } from "./vehicle-photo";
 import { matchCanonicalMakePrefix } from "./normalization";
 import { beaversClass, beaversElements, beaversText } from "./beavers-html";
 import {
@@ -24,6 +25,7 @@ export const HollanderstoresRowSchema = z
     vin: z.string().max(100),
     stock: z.string().max(100),
     url: z.string().url(),
+    imageUrl: z.string().nullable().optional(),
   })
   .strict();
 export type HollanderstoresRow = z.infer<typeof HollanderstoresRowSchema>;
@@ -183,6 +185,12 @@ export function parseHollanderstoresRoster(
     if (links.length !== 1)
       throw new Error("Hollander Stores card destination changed");
     return {
+      imageUrl:
+        [...region.matchAll(/<img\b[^>]*>/gi)]
+          .map(([tag]) =>
+            hollanderVehiclePhoto(inventoryHtmlAttribute(tag, "src")),
+          )
+          .find((url) => url !== null) ?? null,
       displayYear: match[1],
       make: fields ? text.slice(0, fields.end).trim() : null,
       model: fields ? text.slice(fields.end).trim() : blankMake ? text : "",

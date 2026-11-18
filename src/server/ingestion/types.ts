@@ -1,3 +1,4 @@
+import { YardName } from "~/lib/yard-name";
 import { ArrivalDate } from "~/lib/arrival-date";
 import { VinPattern } from "~/lib/vin-pattern";
 import { buildAdvancedSearchTokens } from "~/lib/advanced-search-query";
@@ -132,7 +133,12 @@ export function toAlgoliaRecord(
     arrivalDateKnown: arrivalDate.kind === "unknown" ? 0 : 1,
     availableDateTs,
     locationCode: vehicle.locationCode,
-    locationName: vehicle.locationName,
+    locationName: YardName.resolve({
+      source: vehicle.source,
+      name: vehicle.locationName,
+      city: vehicle.locationCity,
+      inventoryUrl: vehicle.detailsUrl,
+    }),
     locationCity: vehicle.locationCity,
     state: vehicle.state,
     stateAbbr: vehicle.stateAbbr,

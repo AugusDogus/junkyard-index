@@ -1,3 +1,4 @@
+import { tritownVehiclePhoto } from "./vehicle-photo";
 import { inventoryVin } from "./inventory-vin";
 import { normalizeCanonicalMake } from "./normalization";
 import type { TritownRecord } from "./tritown-parser";
@@ -66,7 +67,7 @@ export function transformTritownRecord(
       availableDate: null,
       stockNumber: null,
       color: null,
-      imageUrl: null,
+      imageUrl: tritownVehiclePhoto(record.imageUrl),
       row: position,
       section: null,
       space: null,

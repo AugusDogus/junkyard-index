@@ -1,3 +1,4 @@
+import { YardName } from "~/lib/yard-name";
 import { API_ENDPOINTS } from "~/lib/constants";
 import {
   normalizeCanonicalColor,
@@ -84,7 +85,8 @@ function formatPullapartEngine(
     const family =
       block && cylinders !== null
         ? `${block}${Math.trunc(cylinders)}`
-        : block ?? (cylinders !== null ? String(Math.trunc(cylinders)) : null);
+        : (block ??
+          (cylinders !== null ? String(Math.trunc(cylinders)) : null));
     const detailParts = [
       size !== null ? `${size}L` : null,
       family,
@@ -139,7 +141,7 @@ function normalizePullapartAvailableDate(value: string | null): string | null {
     const isoCandidate = `${dateOnlyMatch[1]}T00:00:00.000Z`;
     const parsed = new Date(isoCandidate);
     return Number.isNaN(parsed.getTime()) ||
-        parsed.toISOString().slice(0, 10) !== dateOnlyMatch[1]
+      parsed.toISOString().slice(0, 10) !== dateOnlyMatch[1]
       ? null
       : parsed.toISOString();
   }
@@ -181,7 +183,12 @@ export function transformPullapartVehicle(
     imageUrl: options?.imageUrl ?? null,
     availableDate: normalizePullapartAvailableDate(vehicle.dateYardOn),
     locationCode: String(location.locationID),
-    locationName,
+    locationName: YardName.resolve({
+      source: "pullapart",
+      name: locationName,
+      city: locationCity,
+      operator: location.siteTypeID === 5 ? "U-Pull-&-Pay" : "Pull-A-Part",
+    }),
     locationCity,
     state: region.state,
     stateAbbr: region.stateAbbr,

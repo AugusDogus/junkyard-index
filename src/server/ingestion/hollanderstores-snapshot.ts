@@ -1,3 +1,4 @@
+import { hollanderVehiclePhoto } from "./vehicle-photo";
 import { inventoryVin } from "./inventory-vin";
 import { normalizeCanonicalMake, normalizeRegion } from "./normalization";
 import { SourceValidationPolicy } from "./source-validation";
@@ -130,7 +131,7 @@ export function hollanderstoresSnapshot(
         model: row.model,
         stockNumber: required(row.stock) ? row.stock : null,
         color: null,
-        imageUrl: null,
+        imageUrl: hollanderVehiclePhoto(row.imageUrl),
         availableDate: null,
         locationCode: yard.code,
         locationName: yard.name,

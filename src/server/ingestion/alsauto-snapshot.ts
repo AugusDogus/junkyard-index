@@ -1,3 +1,4 @@
+import { alsautoVehiclePhoto } from "./vehicle-photo";
 import {
   ALSAUTO_CATALOG,
   ALSAUTO_MINIMUM_INVENTORY,
@@ -88,8 +89,8 @@ export function alsautoSnapshot(
       detailsUrl: ALSAUTO_CATALOG,
       partsUrl: null,
       pricesUrl: null,
-      // Native photos come from the acquisition auction, not current yard stock.
-      imageUrl: null,
+      // The provider publishes acquisition photos on its current inventory cards.
+      imageUrl: alsautoVehiclePhoto(record.imageUrl),
       color: null,
       row: null,
       section: null,

@@ -1,3 +1,4 @@
+import { vehiclePhoto } from "./vehicle-photo";
 import {
   GOPULLIT_ORIGIN,
   type GopullitInventoryRecord,
@@ -127,8 +128,16 @@ export function transformGopullitVehicle(
   const model = record.model.trim();
   if (!vin || !model || !Number.isInteger(year) || year <= 0) return null;
 
-  const [firstImage] = record.gallery ?? [];
-  const imageUrl = optionalValue(firstImage?.full ?? firstImage?.thumbnail);
+  const imageUrl =
+    (record.gallery ?? [])
+      .flatMap((image) => [image.full, image.thumbnail])
+      .map((value) => {
+        const host = typeof value === "string" ? URL.parse(value)?.host : null;
+        return host === "gopullit.com" || host === "www.gopullit.com"
+          ? vehiclePhoto(value, host, /\.(?:jpe?g|png|webp)$/i)
+          : null;
+      })
+      .find((value) => value !== null) ?? null;
   const stockNumber = record.title.trim();
   const detailsUrl = new URL(
     `/inventory/${stockNumber.toLowerCase()}/`,

@@ -30,7 +30,7 @@ Mercedes-Benz labels. Unknown required metadata rejects that donor.
 Color, stock, photo and source inventory date remain null when unproven. Native
 `Posted` metadata is not an arrival date. The embedded parts service's CMS IDs
 are not yard stock numbers. Explicit `Row` labels may populate the optional row
-field. No remote photos are fetched or published by this connector.
+field. Vehicle thumbnails are preserved from the native listing response. No separate photo or donor-detail requests are added.
 
 The catalog includes a WordPress `/vehicle/__trashed/` destination. That record
 is rejected conservatively, while its independently valid VIN supplies presence

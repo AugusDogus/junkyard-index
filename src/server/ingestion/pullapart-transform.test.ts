@@ -85,7 +85,7 @@ describe("transformPullapartVehicle", () => {
       "https://papimages.blob.core.windows.net/carinventory/3/2026/01/20260122131716_3_1191613_12.png",
     );
     expect(result?.availableDate).toBe("2026-01-22T00:00:00.000Z");
-    expect(result?.locationName).toBe("Atlanta South");
+    expect(result?.locationName).toBe("Pull-A-Part - Atlanta South");
     expect(result?.locationCity).toBe("Conley");
     expect(result?.state).toBe("Georgia");
     expect(result?.stateAbbr).toBe("GA");

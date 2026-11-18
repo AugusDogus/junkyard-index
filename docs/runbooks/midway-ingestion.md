@@ -80,8 +80,7 @@ Requests use bounded UTF-8 bodies (4 MiB), exact HTTP 200 HTML, no content-range
 no redirects, 25-second request/body limits and no automatic retries. One request
 gate covers every homepage and catalog GET. The default connector permits one
 request per 1.6 seconds and a two-minute chunk budget. It makes no donor-photo,
-inquiry, cart, login or production request. All image URLs remain null because
-native cells include logos and unverified remote references. No photo network
+inquiry, cart, login or production request. Verified native `main-vehicle-img` URLs are preserved from the inline table; logos and unverified hosts remain null. The shared `mo06` storage prefix does not determine yard attribution. No photo network
 request is required to admit a donor.
 
 Run semantic tests with `bun test src/server/ingestion/midway`. The count-only

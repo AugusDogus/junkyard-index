@@ -9,7 +9,7 @@ import {
 } from "~/lib/search-index-schema";
 import { VinPattern } from "~/lib/vin-pattern";
 import { vehicle } from "~/schema";
-import { mapDbVehicleToAlgolia } from "./algolia-projector-helpers";
+import { projectSearchVehicles } from "./vehicle-search-projection";
 import {
   buildVinFilterValidationRequests,
   SearchIndexMigrationValidationError,
@@ -136,7 +136,7 @@ export async function migrateSearchIndexBatch(
   const rows = await readVehicleBatch(state.cursor, normalizedBatchSize);
   if (rows.length === 0) return { done: true, state };
 
-  const records = rows.map(mapDbVehicleToAlgolia);
+  const records = await projectSearchVehicles(db, rows);
   await syncToAlgolia(records, []);
 
   const validationVins = [...state.validationVins];

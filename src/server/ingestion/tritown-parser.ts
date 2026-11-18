@@ -1,3 +1,4 @@
+import { tritownVehiclePhoto } from "./vehicle-photo";
 import { z } from "zod";
 import {
   inventoryHtmlAttribute,
@@ -16,6 +17,7 @@ export interface TritownRecord {
   vin: string;
   description: string;
   donorUrl: string;
+  imageUrl?: string | null;
 }
 
 function text(raw: string): string {
@@ -201,6 +203,13 @@ export function parseTritownPage(raw: string, requestedPage: number) {
       );
     const identities = [...description.matchAll(/\bvin\s*#?\s*([a-z0-9]+)/gi)];
     return {
+      imageUrl:
+        [...block.matchAll(/<img\b[^>]*>/gi)]
+          .filter(([tag]) => hasClass(tag, "wpcm-listings-item-image"))
+          .map(([tag]) =>
+            tritownVehiclePhoto(attr(tag, "data-src") ?? attr(tag, "src")),
+          )
+          .find((url) => url !== null) ?? null,
       title: text(headings[0]?.[1] ?? ""),
       description,
       vin: identities.length === 1 ? (identities[0]?.[1] ?? "") : "",

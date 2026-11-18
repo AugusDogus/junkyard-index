@@ -77,3 +77,21 @@ describe("GO Pull-It inventory transformation", () => {
     expect(resolveGopullitLocation(record)).toBeNull();
   });
 });
+
+test("uses a later published gallery image when the first photo is absent or a placeholder", () => {
+  const record = {
+    ...completeRecord,
+    gallery: [
+      { full: "https://gopullit.com/no-image.jpg" },
+      { full: "http://unowned.test/car.jpg" },
+      { full: "https://gopullit.com/actual-car.jpg" },
+    ],
+  };
+  if (!hasGopullitVehicleMetadata(record))
+    throw new Error("Incomplete GO Pull-It fixture");
+  const location = resolveGopullitLocation(record);
+  if (!location) throw new Error("Missing GO Pull-It yard");
+  expect(transformGopullitVehicle(record, location)?.imageUrl).toBe(
+    "https://gopullit.com/actual-car.jpg",
+  );
+});

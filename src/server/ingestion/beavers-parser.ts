@@ -1,3 +1,4 @@
+import { hollanderVehiclePhoto } from "./vehicle-photo";
 import { z } from "zod";
 import {
   beaversClass,
@@ -46,6 +47,7 @@ export const BeaversRecordSchema = z
     vin: text,
     stock: text,
     inactive: z.boolean(),
+    imageUrl: z.string().nullable().optional(),
   })
   .strict();
 export type BeaversRecord = z.infer<typeof BeaversRecordSchema>;
@@ -204,6 +206,12 @@ export function parseBeaversDetail(
     model: row.model,
     vin: vins[0],
     stock: stocks[0],
+    imageUrl:
+      [...primary.matchAll(/<img\b[^>]*>/gi)]
+        .map(([tag]) =>
+          hollanderVehiclePhoto(inventoryHtmlAttribute(tag, "src")),
+        )
+        .find((url) => url !== null) ?? null,
     inactive:
       /\b(?:whole (?:vehicle|donor|car) (?:is )?sold|(?:vehicle|donor|car) (?:has been |is |was )?(?:sold|scrapped|removed))\b/i.test(
         beaversText(primary),

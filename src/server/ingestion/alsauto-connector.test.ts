@@ -45,7 +45,7 @@ test("actual opening and closing census yields 693 accepted donors and ten retai
       (v) =>
         v.stateAbbr === "WI" &&
         v.locationCode === "franklin" &&
-        v.imageUrl === null,
+        v.imageUrl?.startsWith("https://cs.copart.com/"),
     ),
   ).toBe(true);
   expect(
