@@ -21,6 +21,8 @@ test("directory joins metadata by source and code without changing active invent
         ('pyp', '1', 'Raw name', 'Old city', 'CA', 34, -118, null),
         ('pyp', '1', 'Raw name', 'Old city', 'CA', 34, -118, null),
         ('pyp', '1', 'Raw name', 'Old city', 'CA', 34, -118, 1),
+        ('upullitne', '1', 'Retired Nebraska', 'Lincoln', 'NE', 40, -96, null),
+        ('brandywine', '1', 'Retired Yard', 'City', 'MD', 39, -76, null),
         ('row52', '1', 'Independent Yard', 'Tulsa', 'OK', 36, -95, null),
         ('pullapart', '3', 'Montgomery', 'Montgomery', 'AL', 32, -86, null);
       alter table vehicle add column details_url text;
@@ -55,6 +57,11 @@ test("directory joins metadata by source and code without changing active invent
     ]);
     const yards = await getHomepageYards(db);
     expect(yards).toHaveLength(3);
+    expect(
+      yards.some(
+        (yard) => yard.source === "upullitne" || yard.source === "brandywine",
+      ),
+    ).toBe(false);
     expect(yards.find((entry) => entry.source === "pyp")).toMatchObject({
       name: "Pick Your Part - Sun Valley",
       city: "Sun Valley",

@@ -11,6 +11,8 @@ import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { cacheInventory } from "~/lib/inventory-cache";
 import {
   isIngestionSource,
+  isRetiredIngestionSource,
+  RETIRED_INGESTION_SOURCES,
   type IngestionSource,
 } from "~/lib/ingestion-source";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
@@ -73,7 +75,11 @@ async function loadSourcePublishedAt(): Promise<
   const freshness = await getDurableSourceFreshness(new Date());
   const published: Partial<Record<IngestionSource, string>> = {};
   for (const { source, lastPublishedAt } of freshness) {
-    if (isIngestionSource(source) && lastPublishedAt !== null) {
+    if (
+      isIngestionSource(source) &&
+      !isRetiredIngestionSource(source) &&
+      lastPublishedAt !== null
+    ) {
       published[source] = new Date(lastPublishedAt).toISOString();
     }
   }
@@ -85,7 +91,8 @@ async function loadSourcePublishedAt(): Promise<
  * days. A missing source has not published in that window.
  */
 export const getSourcePublishedAt = cacheInventory(loadSourcePublishedAt, [
-  "source-published-at-v1",
+  "active-source-published-at-v2",
+  ...RETIRED_INGESTION_SOURCES,
 ]);
 
 /** Every yard with live inventory, with its page path. */

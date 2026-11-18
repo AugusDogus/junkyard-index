@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "~/lib/db";
 import { cacheInventory } from "~/lib/inventory-cache";
+import { RETIRED_INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { RecentArrivals } from "~/lib/recent-arrivals";
 import { getHomepageYards } from "~/server/homepage-yards";
 import { getRecentHomepageVehicles } from "~/server/homepage-recent-vehicles";
@@ -28,5 +29,5 @@ export type RecentVehicle = Awaited<
 
 export const getHomepageInventory = cacheInventory(
   getHomepageInventoryInternal,
-  ["homepage-inventory", "varied-arrivals-v2"],
+  ["homepage-inventory", "active-yards-v3", ...RETIRED_INGESTION_SOURCES],
 );

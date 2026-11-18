@@ -1,5 +1,6 @@
-import { and, asc, eq, getTableColumns } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, notInArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import { RETIRED_INGESTION_SOURCES } from "~/lib/ingestion-source";
 import { getYardDetails } from "~/lib/yard-details";
 import { YardPath } from "~/lib/yard-path";
 import { yardInventory, yard as yardTable } from "~/schema";
@@ -27,6 +28,7 @@ export async function getHomepageYards(database: LibSQLDatabase) {
         eq(yardTable.code, yardInventory.locationCode),
       ),
     )
+    .where(notInArray(yardInventory.source, [...RETIRED_INGESTION_SOURCES]))
     .orderBy(asc(yardInventory.stateAbbr), asc(yardInventory.locationName));
   const detailed = yards.map(({ metadata, inventoryUrl, ...yard }) => ({
     ...yard,
