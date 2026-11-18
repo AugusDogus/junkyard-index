@@ -110,6 +110,7 @@ The [five-state sweep](provider-coverage-sweep-md-ny-ct-ma-va.md) adds Paradise 
 | `urgiis/ace-st-paul`              |                     3,015 |          2,400 |     1,005 |
 | `urgiis/chucks`                   |                     2,601 |          2,000 |       867 |
 | `urgiis/central-nh`               |                     2,477 |          1,900 |       825 |
+| `urgiis/stroud`                   |                     3,280 |            n/a |     1,093 |
 | `chesterfield`                    |                     2,111 |          1,800 |       703 |
 | `utpap`                           |                     1,727 |          1,500 |       575 |
 | `tritown`                         |                       470 |            400 |       156 |
@@ -182,7 +183,7 @@ The [five-state sweep](provider-coverage-sweep-md-ny-ct-ma-va.md) adds Paradise 
 | `vinplus`                         |                     7,621 |          5,650 |     2,498 |
 | `northwest`                       |                     6,688 |          5,500 |     2,229 |
 | `calton`                          |                    12,549 |         11,000 |     4,183 |
-| `urgiis`                          |                    70,704 |         40,835 |    23,561 |
+| `urgiis`                          |                    74,217 |         40,835 |    24,654 |
 | `cars4parts/heyworth`             |                        69 |             55 |        23 |
 
 Harry's, Budget, Big D, Idaho Falls, Speedy's and the recent URG additions already have suitable floors. RTP retains its existing 1,000-donor floor for a 3,195-donor census. One-third floors remain sanity checks; complete enumeration is still required.

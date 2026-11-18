@@ -1,0 +1,25 @@
+{
+  "outcomes": [
+    {
+      "tenant": "stroud",
+      "status": "published",
+      "accepted": 3280,
+      "accounting": {
+        "recordsProcessed": 3627,
+        "recordsExcluded": 0,
+        "recordsRejected": 296,
+        "duplicateVehicles": 51
+      },
+      "latestDate": "2026-11-13",
+      "latestVin": "1GCZGHFG2J1199828",
+      "capturedOn": "2026-11-18T02:48:37.598129+00:00",
+      "state": "NC",
+      "requests": 529,
+      "completionOnlyRequests": 24,
+      "makes": 43,
+      "modelGroups": 438,
+      "advertised": 3588,
+      "platformUnreachable": 21
+    }
+  ]
+}

@@ -475,6 +475,36 @@
       "warnings": [],
       "reasons": [],
       "retryRequests": 0
+    },
+    {
+      "tenant": "stroud",
+      "status": "published",
+      "accepted": 3280,
+      "candidates": 3280,
+      "advertised": 3588,
+      "unreachable": 21,
+      "unreachableModels": [
+        {
+          "path": "/used-parts/CHRYSLER/TOWN_-and_COUNTRY/",
+          "label": "TOWN & COUNTRY",
+          "count": 16
+        },
+        {
+          "path": "/used-parts/ISUZU/ISUZU_PUP_(PICKUP)/",
+          "label": "ISUZU PUP (PICKUP)",
+          "count": 1
+        },
+        {
+          "path": "/used-parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+          "label": "LINCOLN & TOWN CAR",
+          "count": 4
+        }
+      ],
+      "warnings": [
+        "21/3588 advertised donors are platform-unreachable (TOWN & COUNTRY: 16 [/used-parts/CHRYSLER/TOWN_-and_COUNTRY/], ISUZU PUP (PICKUP): 1 [/used-parts/ISUZU/ISUZU_PUP_(PICKUP)/], LINCOLN & TOWN CAR: 4 [/used-parts/LINCOLN/LINCOLN_-and_TOWN_CAR/]); maximum is 1%"
+      ],
+      "reasons": [],
+      "retryRequests": 0
     }
   ],
   "rows": [
@@ -895,17 +925,39 @@
       "arrivalModelOverlap": 6,
       "arrivalsOnly": 22,
       "censusBytes": 147728
+    },
+    {
+      "tenant": "stroud",
+      "makes": 43,
+      "models": 438,
+      "fullRequests": 529,
+      "unchangedNoSweep": 91,
+      "weeklyRequests": [153, 153, 154, 154, 154, 216, 215],
+      "dailyAverage": 171.3,
+      "beforeMinutes": 123.4,
+      "afterMinutes": 40,
+      "modelStocks": 3421,
+      "arrivalStocks": 60,
+      "purchaseDatedArrivals": 0,
+      "datedArrivals": 60,
+      "comparableDatePairs": 59,
+      "outOfOrderDatePairs": 0,
+      "comparablePurchasePairs": 0,
+      "outOfOrderPurchasePairs": 0,
+      "arrivalModelOverlap": 57,
+      "arrivalsOnly": 3,
+      "censusBytes": 1278522
     }
   ],
   "totals": {
-    "publishedTenants": 19,
+    "publishedTenants": 20,
     "blockedTenants": 0,
-    "accepted": 70937,
-    "unreachableAdvertised": 215,
-    "beforeRequests": 11810,
-    "afterRequests": 3456,
-    "beforeMinutes": 1723.9,
-    "afterMinutes": 509.4,
-    "censusBytes": 26686197
+    "accepted": 74217,
+    "unreachableAdvertised": 236,
+    "beforeRequests": 12339,
+    "afterRequests": 3627.3,
+    "beforeMinutes": 1847.3,
+    "afterMinutes": 549.4,
+    "censusBytes": 27964719
   }
 }
