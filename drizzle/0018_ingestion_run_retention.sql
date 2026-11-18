@@ -1,0 +1,1 @@
+CREATE INDEX `ingestion_run_retention_idx` ON `ingestion_run` (`completed_at`) WHERE active_slot is null;

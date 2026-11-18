@@ -1,5 +1,6 @@
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
+import { pruneIngestionRuns } from "./ingestion-run-retention";
 import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import {
   cleanupStaleRebuildIndices,
@@ -265,8 +266,9 @@ export function cleanupStaleDurableIngestionSnapshots(): Promise<void> {
   return repository.cleanupStaleSnapshots();
 }
 
-export function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
-  return cleanupStaleRebuildIndices({
+export async function cleanupStaleDurableAlgoliaRebuilds(): Promise<void> {
+  await pruneIngestionRuns({ database: db });
+  await cleanupStaleRebuildIndices({
     database: db,
     algolia: algoliaAdminClient,
     indexName: ALGOLIA_INDEX_NAME,
