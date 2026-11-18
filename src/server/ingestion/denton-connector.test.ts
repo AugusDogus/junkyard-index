@@ -123,15 +123,17 @@ test("Denton resumes pending slash canonicalization with no hidden logical reque
 });
 
 test("Denton source floor, rejection, duplicate and prior drift guards apply to the cumulative terminal corpus", async () => {
+  // Keep multiple model pages and serialized resumes without replaying the
+  // 2,000-donor happy-path corpus for each independent terminal guard.
   for (const [options, prior, message] of [
     [{ accepted: 764 }, null, "qualified minimum is 765"],
-    [{ accepted: 2000, rejectsPerPage: 50 }, null, "10% limit"],
+    [{ accepted: 800, rejectsPerPage: 50 }, null, "10% limit"],
     [
-      { accepted: 2400, rowsPerPage: 300, duplicatesPerPage: 120 },
+      { accepted: 900, rowsPerPage: 300, duplicatesPerPage: 120 },
       null,
       "25% limit",
     ],
-    [{ accepted: 2000 }, 5000, "50% prior-drift floor"],
+    [{ accepted: 800 }, 2000, "50% prior-drift floor"],
   ] as const) {
     await expect(collect(dentonTestGraph(options), prior)).rejects.toThrow(
       message,
