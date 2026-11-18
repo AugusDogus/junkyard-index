@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "03d5c098-bc7d-48a2-a1f8-5cf416bed518",
-  "prevId": "47c879fd-ee2f-4e7e-aef9-6cd4e02112a4",
+  "id": "47c879fd-ee2f-4e7e-aef9-6cd4e02112a4",
+  "prevId": "4d5a00ee-72a3-4cbe-ae29-dee5af9caf43",
   "tables": {
     "account": {
       "name": "account",
@@ -553,14 +553,6 @@
           ],
           "isUnique": false
         },
-        "ingestion_run_retention_idx": {
-          "name": "ingestion_run_retention_idx",
-          "columns": [
-            "completed_at"
-          ],
-          "isUnique": false,
-          "where": "active_slot is null"
-        },
         "ingestion_run_schedule_key_idx": {
           "name": "ingestion_run_schedule_key_idx",
           "columns": [
@@ -581,6 +573,14 @@
             "stage"
           ],
           "isUnique": false
+        },
+        "ingestion_run_retention_idx": {
+          "name": "ingestion_run_retention_idx",
+          "columns": [
+            "completed_at"
+          ],
+          "isUnique": false,
+          "where": "active_slot is null"
         }
       },
       "foreignKeys": {},
@@ -1796,6 +1796,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "observed_arrival_at": {
+          "name": "observed_arrival_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -2635,6 +2642,45 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "yard_arrival_baseline": {
+      "name": "yard_arrival_baseline",
+      "columns": {
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "location_code": {
+          "name": "location_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "established_at": {
+          "name": "established_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "yard_arrival_baseline_source_location_code_pk": {
+          "columns": [
+            "source",
+            "location_code"
+          ],
+          "name": "yard_arrival_baseline_source_location_code_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     }

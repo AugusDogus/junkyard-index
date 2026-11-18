@@ -31,10 +31,16 @@ export async function pruneIngestionRuns(params: {
             partition by source order by search_published_at desc
           ) as published_rank
           from ingestion_run where search_published_at is not null
+        ), inventory_published as (
+          select id, rank() over (
+            partition by source order by inventory_published_at desc
+          ) as published_rank
+          from ingestion_run where inventory_published_at is not null
         )
         delete from ingestion_run where id in (
           select r.id from ingestion_run r
           where r.active_slot is null and r.completed_at < ${cutoff.getTime()}
+            and r.last_progress_at < ${cutoff.getTime()}
             and (r.released_at is null or r.released_at < ${cutoff.getTime()})
             and r.status in ('success', 'error', 'abandoned')
             and (r.status != 'success' or r.stage = 'released')
@@ -45,6 +51,7 @@ export async function pruneIngestionRuns(params: {
               where accepted_rank = 1 or (published_rank = 1 and search_published_at is not null)
             )
             and r.id not in (select id from published where published_rank = 1)
+            and r.id not in (select id from inventory_published where published_rank = 1)
             and (r.publication_sequence is null or r.publication_sequence < (
               select max(publication_sequence) from ingestion_run
             ))

@@ -5,8 +5,7 @@ The fixed limit is 100 runs per atomic delete, at most ten batches per pass.
 Failures log the operation, cutoff, batch and error, then retry next pass.
 Publication and homepage refresh do not depend on pruning succeeding.
 
-The retention index covers `completed_at` for inactive runs. Both completion and
-release must precede the cutoff. Running, unknown, active, incompletely terminal
+The retention index covers `completed_at` for inactive runs. Completion, release and last progress must precede the cutoff. Running, unknown, active, incompletely terminal
 and unconfirmed-move states are excluded. An outstanding full-reindex requirement
 is preserved until the existing publication recovery clears it.
 
@@ -21,7 +20,10 @@ scripts, workflow steps and tests. The six foreign-key children all cascade:
   search-published count. Retain that run and the latest accepted attempt even
   if either is older than 90 days. URG and AutoRecycler also compare live yard
   inventory, which run deletion does not change.
-- `urgiis-history` loads the latest accepted published census cursor. Snapshot
+- `urgiis-history`, `byot-history` and `vanderhaags-history` load the latest
+  successful accepted search-published source cursor. These provider-stack
+  consumers retain their baselines through the same accepted-publication guard.
+  `urgiis-history` loads the census cursor. Snapshot
   cleanup preserves its registered Blob. Retain runs with registered snapshot
   chunks, including compact Workflow cursors and provider state. Active runs
   retain all their cursors; completed cursors whose chunks were already collected
@@ -36,7 +38,7 @@ scripts, workflow steps and tests. The six foreign-key children all cascade:
   `alert-config-repository` uses the same watermark for new subscriptions.
   Preserve the maximum sequence even if no search publication followed it.
 - `homepage-stats`, public status and provider heartbeat reporting use the latest
-  publication or an active run. Preserve each source's latest published run.
+  publication or an active run. Preserve each source's latest inventory-published and search-published run.
 - `algolia-projector`, `durable-algolia-publish`, `algolia-rebuild-index`,
   `yard-checkpoint`, durable run steps and administrative run routes operate on
   active claims. Retain them, unprocessed `vehicle_change_v2` rows and pending,
