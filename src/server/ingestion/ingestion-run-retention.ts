@@ -21,9 +21,10 @@ export async function pruneIngestionRuns(params: {
     try {
       const result = await params.database.run(sql`
         with accepted as (
-          select s.run_id, s.status as source_status, r.search_published_at,
+          select s.run_id, s.status as source_status, r.search_published_at, r.inventory_published_at,
             rank() over (partition by s.source order by s.started_at desc) as accepted_rank,
             rank() over (partition by s.source order by r.search_published_at desc) as published_rank,
+            rank() over (partition by s.source order by r.inventory_published_at desc) as inventory_rank,
             rank() over (partition by s.source, s.status order by r.search_published_at desc) as cursor_rank
           from ingestion_source_run s join ingestion_run r on r.id = s.run_id
           where s.acceptance_status = 'accepted'
@@ -50,6 +51,7 @@ export async function pruneIngestionRuns(params: {
             and r.id not in (
               select run_id from accepted
               where accepted_rank = 1 or (published_rank = 1 and search_published_at is not null)
+                or (inventory_rank = 1 and inventory_published_at is not null)
                 or (cursor_rank = 1 and source_status = 'success' and search_published_at is not null)
             )
             and r.id not in (select id from published where published_rank = 1)

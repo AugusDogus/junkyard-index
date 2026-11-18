@@ -21,7 +21,8 @@ including all registered sources. The six foreign-key children all cascade:
 - `durable-source-validation` compares each source to its latest accepted,
   search-published count. Retain that run and the latest accepted attempt even
   if either is older than 90 days. URG and AutoRecycler also compare live yard
-  inventory, which run deletion does not change.
+  inventory, which run deletion does not change. Per-source inventory publication
+  baselines are retained from child rows too, including legacy all-source runs.
 - `urgiis-history`, `byot-history` and `vanderhaags-history` load the latest
   successful accepted search-published source cursor. These provider-stack
   consumers retain a separate successful-source baseline even when a newer
