@@ -431,6 +431,9 @@ export const ingestionRun = sqliteTable(
       table.commitStartedAt,
       table.source,
     ),
+    index("ingestion_run_retention_idx")
+      .on(table.completedAt)
+      .where(sql`active_slot is null`),
     index("ingestion_run_schedule_key_idx").on(table.scheduleKey),
     index("ingestion_run_search_published_at_idx").on(table.searchPublishedAt),
     index("ingestion_run_stage_idx").on(table.stage),
