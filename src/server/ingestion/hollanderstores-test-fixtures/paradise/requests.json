@@ -1,0 +1,82 @@
+[
+  {
+    "url": "https://paradiseautopar.hollanderstores.com/VehicleDealerSearch",
+    "file": "paradiseautopar.html.gz",
+    "bytes": 1909189,
+    "sha256": "cee48afcd527c61e4f216e22750afd77036e13bb13c114fc63b77804da297b14",
+    "status": 200,
+    "completedAt": "2026-11-17T23:44:05.319257+00:00"
+  },
+  {
+    "url": "https://paradiseautopar.hollanderstores.com/VehicleDealerSearch",
+    "file": "paradiseautopar-closing.html.gz",
+    "bytes": 1909189,
+    "sha256": "cee48afcd527c61e4f216e22750afd77036e13bb13c114fc63b77804da297b14",
+    "status": 200,
+    "completedAt": "2026-11-18T00:11:59.988918+00:00"
+  },
+  {
+    "url": "https://paradiseautopar.hollanderstores.com/VehiclePartSearch/439/72826125",
+    "file": "paradise-donor.html.gz",
+    "bytes": 29125,
+    "sha256": "945b4df050e99de79b60cef5a4e3679185ffca5693484444ccee2f96bc3382b6",
+    "status": 200,
+    "completedAt": "2026-11-17T23:58:50.120205+00:00"
+  },
+  {
+    "url": "https://paradiseautopar.hollanderstores.com/VehiclePartDetail/439/2800902/3/435",
+    "file": "paradise-part.html.gz",
+    "bytes": 80077,
+    "sha256": "1f5a8682c782e5334949192456ea99ca5a7a621fc622fbbc0abf1018812852b4",
+    "status": 200,
+    "completedAt": "2026-11-18T00:10:31.628775+00:00"
+  },
+  {
+    "url": "https://paradiseautopar.hollanderstores.com/VehiclePartSearch/439/72811594",
+    "file": "paradise-second-donor.html.gz",
+    "bytes": 125467,
+    "sha256": "115df3c8f71075a92f58cabf5251f389b912e9304a23fef60587902633f5d5ee",
+    "status": 200,
+    "completedAt": "2026-11-18T00:13:05.768922+00:00"
+  },
+  {
+    "url": "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+    "file": "paradise-vpic-0.json.gz",
+    "bytes": 182849,
+    "sha256": "fd988da8c2d95b8d89c80659fcd6ce886f30350839ba9866878fa6ae70ba6c57",
+    "status": 200,
+    "completedAt": "2026-11-18T00:12:25.011096+00:00"
+  },
+  {
+    "url": "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+    "file": "paradise-vpic-1.json.gz",
+    "bytes": 179487,
+    "sha256": "6ef8b15c4a1e563247e2f893ee9614448e16ae90f4437cb605fe0ef63afe6526",
+    "status": 200,
+    "completedAt": "2026-11-18T00:12:32.396312+00:00"
+  },
+  {
+    "url": "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+    "file": "paradise-vpic-2.json.gz",
+    "bytes": 181011,
+    "sha256": "f6dc6b258bb889aec5ca2ac0d721810c52b7171648c2cdfa2ce11c98e84748a2",
+    "status": 200,
+    "completedAt": "2026-11-18T00:12:40.461450+00:00"
+  },
+  {
+    "url": "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
+    "file": "paradise-vpic-3.json.gz",
+    "bytes": 117188,
+    "sha256": "f42dba3f734ea98eb5ca7401884ab1f2372fe3bf0675403fd18b9568492d6a63",
+    "status": 200,
+    "completedAt": "2026-11-18T00:12:46.684993+00:00"
+  },
+  {
+    "url": "https://google.com/maps/search/Paradise+Auto+Parts+Maryland/@37.09024,-95.712891,4z?hl=en&gl=US&uule=w+CAIQIFISCQs2MuSEtepUEUK33kOSuTsc",
+    "file": "paradise-map.json.gz",
+    "bytes": 5858,
+    "sha256": "f85460d0af7ac62c122150f3b1c7f4f12eee683c1b081937fca4ef7adcd76dc2",
+    "status": 200,
+    "completedAt": "2026-11-17T23:52:02Z"
+  }
+]

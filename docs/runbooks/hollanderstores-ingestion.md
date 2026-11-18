@@ -2,17 +2,17 @@
 
 See the current [source flags and census floors](provider-coverage-go-live.md).
 
-The `hollanderstores` source runs unless its pause flag serves false. It covers 61 physical yard locations belonging to 53 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK, WA, OH, NM, NE, UT and ID. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
+The `hollanderstores` source runs unless its pause flag serves false. It covers 62 physical yard locations belonging to 54 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK, WA, OH, NM, NE, UT, ID and MD. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
 
 The November 17 [west/plains expansion](provider-coverage-west-plains.md) adds
 A-1 Auto Recyclers (NM), Kramer's Auto Parts (NE), Horseshoe Auto Wrecking (WA)
 and Midwest Auto Parts (OK): 1,252 accepted donors, eight daily roster requests
-and independent one-third floors. Current combined replay accepts 75,521; the
-source floor is 25,156. Earlier batch counts below are historical.
+and independent one-third floors. Current combined replay accepts 76,009; the
+source floor is 25,318. Earlier batch counts below are historical.
 
 The [November 17 east expansion](provider-coverage-east.md) adds Floras Auto Parts (IN) and T-ville Auto Salvage (KY), with 899 accepted donors and four daily roster requests.
 
-The [November 17 mid-state qualification](provider-coverage-mid-states.md) adds Rowland Auto Wrecking and Midvale All Small Auto in Utah: 4,971 accepted donors, 59 rejects, two complete opening/closing pairs, and a combined source floor of 25,156. Historical batch totals below retain their original scope.
+The [November 17 mid-state qualification](provider-coverage-mid-states.md) adds Rowland Auto Wrecking and Midvale All Small Auto in Utah: 4,971 accepted donors, 59 rejects, two complete opening/closing pairs, and a combined source floor of 25,318. Historical batch totals below retain their original scope.
 
 ## Crossroads Salvage, November 17, 2026
 
@@ -35,6 +35,12 @@ but one currently undecodable VIN, so that fixture census needed 105 HTTP
 requests with the seed available. Runtime cache state and new vehicles can
 change the decode count. Saved exact responses, SHA-256 receipts, prior roster
 and aggregate qualification are under `hollanderstores-test-fixtures/sweep/`.
+
+## November 17 Maryland addition
+
+Paradise Auto Parts (`paradiseautopar / 439`) contributes 488 accepted donors from two independently acquired matching complete card censuses. All 488 VINs pass check-digit validation, with no rejects or duplicates. Four public vPIC batches supply the 182 missing native makes and extend the verified seed. The yard floor is 162; the summed source floor is now 25,318. The [five-state sweep runbook](provider-coverage-sweep-md-ny-ct-ma-va.md) records current address evidence, dated freshness, discovery limits and near-misses. Exact responses and hashes are retained in `hollanderstores-test-fixtures/paradise/`.
+
+At the original 52-yard qualification scope, fixture replay contained 57,260 published rows and 56,446 accepted donors. A normal seeded run needs 104 inventory requests and one vPIC POST for the existing unresolved VIN, 105 HTTP requests before retries. Paradise adds two inventory requests per run. There are 15,640 unique missing-make VINs, or 313 logical decode batches; cached batches do not make HTTP requests. If every batch required transport, the run would make 417 requests. Existing response, census, cursor, duration, rejection and drift limits are unchanged. The historical budget measurements below describe their original captures.
 
 ## Initial five-yard qualification on November 15, 2026
 

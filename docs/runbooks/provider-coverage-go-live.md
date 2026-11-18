@@ -26,6 +26,8 @@ yards retain their VIN, complete-census, freshness and rejection checks.
 
 The following floors use committed qualification evidence. The Stricker follow-up includes new read-only provider qualification, documented in [the Hollander runbook](hollanderstores-ingestion.md#stricker-response-bound-repair-november-17). These values supersede historical qualification receipts. Pickers includes Texarkana, Longview and Reno (540 + 843 + 545 = 1,928); Midway includes Muncie, Liberty and Tulsa (763 + 1,064 = 1,827). Their source floors are 642 and 609, respectively.
 
+The [five-state sweep](provider-coverage-sweep-md-ny-ct-ma-va.md) adds Paradise Auto Parts with a 162-yard floor. The combined Hollander source floor is 25,318.
+
 | Source or yard                    | Qualified accepted census | Previous floor | New floor |
 | --------------------------------- | ------------------------: | -------------: | --------: |
 | `hollanderstores/leblancsauto`    |                       541 |            450 |       180 |
@@ -63,6 +65,7 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `hollanderstores/pauldemin`       |                       732 |            601 |       244 |
 | `hollanderstores/paulsknox`       |                       457 |            372 |       152 |
 | `hollanderstores/paullogin`       |                       516 |            420 |       172 |
+| `hollanderstores/paradiseautopar` |                       488 |            new |       162 |
 | `hollanderstores/macksautoparts`  |                     1,155 |            386 |       385 |
 | `hollanderstores/alsautosalvage`  |                       703 |            238 |       234 |
 | `hollanderstores/mstrecycling`    |                       224 |             77 |        74 |
@@ -134,7 +137,7 @@ The following floors use committed qualification evidence. The Stricker follow-u
 | `alshned`                         |                        41 |             35 |        13 |
 | `carsandparts`                    |                        77 |            new |        25 |
 | `spartan`                         |                       969 |            new |       323 |
-| `hollanderstores`                 |                    75,521 |         18,638 |    25,156 |
+| `hollanderstores`                 |                    76,009 |         18,638 |    25,318 |
 | `cstruck`                         |                        59 |             50 |        19 |
 | `heavytruckparts`                 |                       838 |            700 |       277 |
 | `beavers`                         |                       278 |            240 |        92 |

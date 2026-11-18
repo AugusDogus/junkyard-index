@@ -4,6 +4,7 @@ import type { Yard } from "~/lib/yard";
 // Evidence and coordinate receipts: hollanderstores-test-fixtures/{expansion,pauls,batch-2,east}/locations.json.
 // West/plains additions: Census exact-address points; Kramer uses its
 // exact-address Google business marker. Evidence: test-fixtures/west-plains.
+// Evidence: hollanderstores-test-fixtures/{expansion,pauls,batch-2,sweep}/.
 export const HOLLANDERSTORES_YARDS = [
   {
     source: "hollanderstores",
@@ -1102,6 +1103,24 @@ export const HOLLANDERSTORES_YARDS = [
     lng: -116.619358,
     websiteUrl: "https://crossroid.hollanderstores.com/",
     minimum: 37,
+  },
+  {
+    source: "hollanderstores",
+    code: "paradiseautopar",
+    tenant: "439",
+    name: "Paradise Auto Parts",
+    logo: "Paradise Auto Parts",
+    operator: "Paradise Auto Parts",
+    address: "929 W Pulaski Hwy",
+    city: "Elkton",
+    state: "MD",
+    postalCode: "21921",
+    phone: "410-398-6727",
+    email: "paradiseautoparts@gmail.com",
+    lat: 39.6092844,
+    lng: -75.8840305,
+    websiteUrl: "https://paradiseautopar.hollanderstores.com/",
+    minimum: 162,
   },
 ] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {
