@@ -2,17 +2,17 @@
 
 See the current [source flags and census floors](provider-coverage-go-live.md).
 
-The `hollanderstores` source runs unless its pause flag serves false. It covers 62 physical yard locations belonging to 54 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK, WA, OH, NM, NE, UT, ID and MD. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
+The `hollanderstores` source runs unless its pause flag serves false. It covers 63 physical yard locations belonging to 55 businesses in VT, IA, MA, NJ, CT, MN, MS, NY, OR, WI, AR, IN, MO, FL, LA, MI, AL, CA, CO, GA, KY, OK, WA, OH, NM, NE, UT, ID and MD. The November 15 expansion adds 30 locations from 22 businesses and leaves AAA Auto Parts and OK Auto Parts out of the configured tenant registry. It does not alter the existing `beavers` source, tenant 503, or its make policy.
 
 The November 17 [west/plains expansion](provider-coverage-west-plains.md) adds
 A-1 Auto Recyclers (NM), Kramer's Auto Parts (NE), Horseshoe Auto Wrecking (WA)
 and Midwest Auto Parts (OK): 1,252 accepted donors, eight daily roster requests
-and independent one-third floors. Current combined replay accepts 76,009; the
-source floor is 25,318. Earlier batch counts below are historical.
+and independent one-third floors. Current combined replay accepts 76,132; the
+source floor is 25,359. Earlier batch counts below are historical.
 
 The [November 17 east expansion](provider-coverage-east.md) adds Floras Auto Parts (IN) and T-ville Auto Salvage (KY), with 899 accepted donors and four daily roster requests.
 
-The [November 17 mid-state qualification](provider-coverage-mid-states.md) adds Rowland Auto Wrecking and Midvale All Small Auto in Utah: 4,971 accepted donors, 59 rejects, two complete opening/closing pairs, and a combined source floor of 25,318. Historical batch totals below retain their original scope.
+The [November 17 mid-state qualification](provider-coverage-mid-states.md) adds Rowland Auto Wrecking and Midvale All Small Auto in Utah: 4,971 accepted donors, 59 rejects, two complete opening/closing pairs, and a combined source floor of 25,359. Historical batch totals below retain their original scope.
 
 ## Crossroads Salvage, November 17, 2026
 
@@ -38,9 +38,11 @@ and aggregate qualification are under `hollanderstores-test-fixtures/sweep/`.
 
 ## November 17 Maryland addition
 
-Paradise Auto Parts (`paradiseautopar / 439`) contributes 488 accepted donors from two independently acquired matching complete card censuses. All 488 VINs pass check-digit validation, with no rejects or duplicates. Four public vPIC batches supply the 182 missing native makes and extend the verified seed. The yard floor is 162; the summed source floor is now 25,318. The [five-state sweep runbook](provider-coverage-sweep-md-ny-ct-ma-va.md) records current address evidence, dated freshness, discovery limits and near-misses. Exact responses and hashes are retained in `hollanderstores-test-fixtures/paradise/`.
+Paradise Auto Parts (`paradiseautopar / 439`) contributes 488 accepted donors from two independently acquired matching complete card censuses. All 488 VINs pass check-digit validation, with no rejects or duplicates. Four public vPIC batches supply the 182 missing native makes and extend the verified seed. The yard floor is 162; the summed source floor is now 25,359. The [five-state sweep runbook](provider-coverage-sweep-md-ny-ct-ma-va.md) records current address evidence, dated freshness, discovery limits and near-misses. Exact responses and hashes are retained in `hollanderstores-test-fixtures/paradise/`.
 
 At the original 52-yard qualification scope, fixture replay contained 57,260 published rows and 56,446 accepted donors. A normal seeded run needs 104 inventory requests and one vPIC POST for the existing unresolved VIN, 105 HTTP requests before retries. Paradise adds two inventory requests per run. There are 15,640 unique missing-make VINs, or 313 logical decode batches; cached batches do not make HTTP requests. If every batch required transport, the run would make 417 requests. Existing response, census, cursor, duration, rejection and drift limits are unchanged. The historical budget measurements below describe their original captures.
+
+The [near-miss follow-up](provider-coverage-near-misses.md) adds Waugh Auto Parts (AL): 123 accepted donors, a 41-vehicle yard floor and two daily roster requests. Its independent evidence remains in `hollanderstores-test-fixtures/near-misses/`.
 
 ## Initial five-yard qualification on November 15, 2026
 
@@ -268,7 +270,7 @@ If a published make contradicts an available decoded make, retain the published 
 
 POST `/VehicleDealerSearch` with `hdnChangeDisplay=card`, the site's own Card View form, once per configured yard for the opening pass and once per yard for the closing pass. Each configured tenant currently uses the complete card view. Reuse Beaver's HTML parsing helpers and the shared complete-response reader. Reconcile the published count against every card and enforce exact tenant destinations. Missing or duplicate destinations and truncation stop acceptance. Closing checks allow at most the larger of three vehicles or 1% of the opening yard roster (rounded down) in total additions plus removals. The bound counts changed identities, even when the net published count is unchanged. Surviving records must retain their parsed fields, destinations and relative order. Accepted runs publish the complete opening set that was enumerated and decoded; closing-only additions enter on the next run. Per-yard floors, rejection limits and source validation still apply. Excessive turnover or changed surviving records returns a terminal failed source result, preserving previous inventory and the last validated checkpoint without re-POSTing through workflow retries. Restart with a fresh opening census after inspecting the captures.
 
-The durable state machine gathers all 61 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 61 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
+The durable state machine gathers all 63 locations, resolves missing makes in ordered batches, closes every yard, validates per-yard and whole-source quality, then emits one complete vehicle batch and 63 locations. Paused chunks emit no inventory or accounting. Terminal resumes make no requests and emit nothing. Cursors bind the source contract, yard metadata, prior accepted count, ordered decode frontier and completed closing position, with a corruption checksum and 32 MiB serialized bound. A census expires after two hours.
 
 The module-wide semaphore allows one Hollander/vPIC request at a time and holds through cancellation, response cleanup and a three-second gap, including failures. Use current browser headers, manual redirects, a combined five-minute HTML transport/body deadline, a two-minute vPIC deadline, and a 40 MiB HTML response cap (vPIC remains 4 MiB). Temporary `/Message` redirects and transport failures retry twice, with 20 seconds between attempts. A durable chunk permits one logical operation by default and has a twenty-minute deadline. A decode batch satisfied by cache still advances one logical operation. Maximum census size is 25,000 rows per yard, 100,000 rows overall and 5,000 logical operations, each allowing at most three physical attempts. Parser and quality failures do not retry within a chunk.
 

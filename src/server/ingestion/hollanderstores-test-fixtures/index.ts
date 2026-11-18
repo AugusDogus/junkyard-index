@@ -18,6 +18,7 @@ export function hollanderstoresFixtureBytes(file: string): Buffer {
     `${import.meta.dir}/mid-states/${file}`,
     `${import.meta.dir}/sweep/${file}`,
     `${import.meta.dir}/paradise/${file}`,
+    `${import.meta.dir}/near-misses/${file}`,
   ].find((path) => existsSync(path));
   if (!path) throw new Error("Saved Hollander response missing: " + file);
   return gunzipSync(readFileSync(path));
@@ -51,6 +52,7 @@ const qualificationSchema = z.object({
   failedMakeVins: z.array(z.string()),
 });
 const qualifications = [
+  "batch-2",
   "stricker",
   "west-plains",
   "east",
