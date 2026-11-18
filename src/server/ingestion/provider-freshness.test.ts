@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { INGESTION_SOURCES } from "~/lib/ingestion-source";
+import {
+  INGESTION_SOURCES,
+  RETIRED_INGESTION_SOURCES,
+} from "~/lib/ingestion-source";
 import { providerFreshness } from "./provider-freshness";
 
 const now = new Date("2026-11-02T12:00:00.000Z");
@@ -34,4 +37,17 @@ describe("providerFreshness", () => {
     // No run in the window at all, e.g. a disabled source.
     expect(freshness.row52).toBe(false);
   });
+});
+
+test("retired sources are stale even with an accepted publication moments ago", () => {
+  const recent = RETIRED_INGESTION_SOURCES.map((source) => ({
+    source,
+    lastAttemptAt: now.getTime(),
+    lastPublishedAt: now.getTime(),
+  }));
+  const providers = providerFreshness(recent, now);
+  for (const source of RETIRED_INGESTION_SOURCES)
+    expect(providers.find((entry) => entry.source === source)?.fresh).toBe(
+      false,
+    );
 });

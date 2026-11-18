@@ -1,6 +1,7 @@
 import {
   INGESTION_SOURCE_DISPLAY_NAMES,
   INGESTION_SOURCES,
+  isRetiredIngestionSource,
   type IngestionSource,
 } from "~/lib/ingestion-source";
 import {
@@ -29,7 +30,9 @@ export function providerFreshness(
     return {
       source,
       name: INGESTION_SOURCE_DISPLAY_NAMES[source],
-      fresh: isFreshPublication(lastPublishedAt, now),
+      fresh:
+        !isRetiredIngestionSource(source) &&
+        isFreshPublication(lastPublishedAt, now),
       lastPublishedAt:
         lastPublishedAt === null ? null : new Date(lastPublishedAt),
     };

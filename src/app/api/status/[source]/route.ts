@@ -1,5 +1,9 @@
 import { unstable_cache } from "next/cache";
-import { isIngestionSource } from "~/lib/ingestion-source";
+import {
+  isIngestionSource,
+  isRetiredIngestionSource,
+  INGESTION_SOURCE_DISPLAY_NAMES,
+} from "~/lib/ingestion-source";
 import { getDurableSourceFreshness } from "~/server/ingestion/durable-ingestion";
 import { providerFreshness } from "~/server/ingestion/provider-freshness";
 
@@ -22,6 +26,18 @@ export async function GET(
     return Response.json(
       { error: `Unknown ingestion source "${source}".` },
       { status: 404 },
+    );
+  }
+  if (isRetiredIngestionSource(source)) {
+    return Response.json(
+      {
+        source,
+        name: INGESTION_SOURCE_DISPLAY_NAMES[source],
+        fresh: false,
+        retired: true,
+        lastPublishedAt: null,
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
   const now = new Date();
