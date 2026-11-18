@@ -7,7 +7,10 @@ import { z } from "zod";
 import { streamIdipullInventoryWithRequestGate } from "./idipull-connector";
 import { parseIdipullInventory } from "./idipull-parser";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
-import { validateSourceSnapshot } from "./source-validation";
+import {
+  newestVehicleArrival,
+  validateSourceSnapshot,
+} from "./source-validation";
 import { IDIPULL_YARD } from "./idipull-yard-metadata";
 import type { IdipullCanonicalVehicle } from "./idipull-transform";
 
@@ -137,6 +140,8 @@ test("Idaho Falls replays the complete fresh 568-stock census and independent cl
     rejectedVehicles: 33,
     errors: [],
     previousAcceptedCount: null,
+    newestVehicleDate: newestVehicleArrival(vehicles, new Date("2026-11-14")),
+    validatedAt: new Date("2026-11-14"),
   } as const;
   expect(validateSourceSnapshot({ ...validation, errors: [] }).status).toBe(
     "accepted",

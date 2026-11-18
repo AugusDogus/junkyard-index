@@ -439,6 +439,8 @@ test.each([
           rejectedVehicles: 4,
           errors: [],
           previousAcceptedCount: prior.length,
+          newestVehicleDate: null,
+          validatedAt: new Date("2026-11-17"),
         }),
       ).toEqual({ status: "accepted", errors: [] });
       await database.insert(vehicle).values(

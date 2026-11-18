@@ -1,5 +1,8 @@
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
-import { validateSourceSnapshot } from "./source-validation";
+import {
+  newestVehicleArrival,
+  validateSourceSnapshot,
+} from "./source-validation";
 import { inventoryVin } from "./inventory-vin";
 import { z } from "zod";
 import { expect, test } from "bun:test";
@@ -92,6 +95,10 @@ const expectedCounts: Record<
 
 test("replays complete Ario customer inventories with no network, including suppressed rank holes", async () => {
   const client = await savedClient();
+  const allVehicles: CanonicalVehicle[] = [];
+  let processed = 0;
+  let rejected = 0;
+  let duplicates = 0;
   for (const [index, yard] of ARIO_CUSTOMER_YARDS.entries()) {
     const vehicles: CanonicalVehicle[] = [];
     const result = await Effect.runPromise(
@@ -119,22 +126,20 @@ test("replays complete Ario customer inventories with no network, including supp
       );
     } else expect(vehicles.length).toBeGreaterThan(100);
     if (requiresArioCheckDigit(yard)) {
-      expect(
-        validateSourceSnapshot({
-          source: "autorecycler",
-          terminal: true,
-          uniqueVehicles: vehicles.length,
-          vehiclesProcessed: result.accounting.recordsProcessed,
-          rejectedVehicles: result.accounting.recordsRejected,
-          duplicateVehicles: result.accounting.duplicateVehicles,
-          previousAcceptedCount: null,
-          errors: [],
-        }).errors,
-      ).toEqual([]);
       for (const vehicle of vehicles)
         expect(
           inventoryVinWithCheckDigit(vehicle.vin, String(vehicle.year)),
         ).toBe(vehicle.vin);
+    }
+    allVehicles.push(...vehicles);
+    processed +=
+      result.accounting.recordsProcessed - result.accounting.recordsExcluded;
+    rejected += result.accounting.recordsRejected;
+    duplicates += result.accounting.duplicateVehicles;
+    if (yard.slug === "colorado-auto-and-parts-englewood-co") {
+      expect(newestVehicleArrival(vehicles, new Date("2026-11-15"))).toEqual(
+        new Date("2026-10-07"),
+      );
     }
     for (const vehicle of vehicles) {
       expect(vehicle.locationCode).toBe(arioLocationCode(yard));
@@ -144,6 +149,23 @@ test("replays complete Ario customer inventories with no network, including supp
       expect(vehicle.vin).not.toBe("");
     }
   }
+  expect(
+    validateSourceSnapshot({
+      source: "autorecycler",
+      terminal: true,
+      uniqueVehicles: allVehicles.length,
+      vehiclesProcessed: processed,
+      rejectedVehicles: rejected,
+      duplicateVehicles: duplicates,
+      previousAcceptedCount: null,
+      newestVehicleDate: newestVehicleArrival(
+        allVehicles,
+        new Date("2026-11-15"),
+      ),
+      validatedAt: new Date("2026-11-15"),
+      errors: [],
+    }).errors,
+  ).toEqual([]);
 }, 15_000);
 
 test("rejects missing customers, changed ownership and changed catalogs before emitting a yard", async () => {

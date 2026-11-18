@@ -12,7 +12,10 @@ import {
   parseDurableSourceCursor,
   serializeDurableSourceCursor,
 } from "./durable-cursor";
-import { validateSourceSnapshot } from "./source-validation";
+import {
+  newestVehicleArrival,
+  validateSourceSnapshot,
+} from "./source-validation";
 import type { CanonicalVehicle } from "./types";
 
 const originalFetch = globalThis.fetch;
@@ -131,6 +134,11 @@ test.each([1, 2, 3, 32])(
         rejectedVehicles: rejected,
         duplicateVehicles: 0,
         previousAcceptedCount: null,
+        newestVehicleDate: newestVehicleArrival(
+          vehicles,
+          new Date("2026-11-12"),
+        ),
+        validatedAt: new Date("2026-11-12"),
         errors: [],
       }).errors,
     ).toEqual([]);

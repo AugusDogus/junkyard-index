@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { brandywineReference } from "./brandywine-test-fixtures";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import {
   newestVehicleArrival,
@@ -224,6 +225,26 @@ describe("source snapshot validation", () => {
     });
   });
 
+  test("rejects the complete Brandywine oracle without relaxing its 30-day limit", () => {
+    const { canonical } = brandywineReference();
+    const validatedAt = new Date("2026-11-13T11:21:49Z");
+    const newestVehicleDate = newestVehicleArrival(canonical, validatedAt);
+    expect(canonical).toHaveLength(1_807);
+    expect(newestVehicleDate).toEqual(new Date("2020-09-11T00:00:00Z"));
+    const result = validateSourceSnapshot({
+      ...healthyRow52(),
+      source: "brandywine",
+      uniqueVehicles: canonical.length,
+      vehiclesProcessed: canonical.length,
+      validatedAt,
+      newestVehicleDate,
+    });
+    expect(result.status).toBe("rejected");
+    expect(result.errors).toEqual([
+      expect.stringContaining("nothing newer than 30 days"),
+    ]);
+  });
+
   test("allows inventory up to exactly 30 days old", () => {
     const validatedAt = new Date("2026-11-15T07:44:11Z");
     const daysOld = (days: number, extraMs = 0) =>
@@ -238,12 +259,37 @@ describe("source snapshot validation", () => {
     expect(daysOld(30, 1)).toBe("rejected");
   });
 
-  test("keeps every current source on the 30-day default", () => {
-    for (const source of INGESTION_SOURCES)
+  test("keeps the default at 30 days and bounds qualified slow-turnover sources at 60", () => {
+    const slowSources = new Set([
+      "alln1",
+      "aplus",
+      "aviation",
+      "chaz",
+      "oemgarage",
+      "pratt",
+    ]);
+    for (const source of INGESTION_SOURCES) {
+      const days = slowSources.has(source) ? 60 : 30;
       expect(SourceValidationPolicy.inventoryAgeLimit(source)).toEqual({
         kind: "days",
-        days: 30,
+        days,
       });
+      const validatedAt = new Date("2026-11-18T07:00:00Z");
+      const input = {
+        ...healthyRow52(),
+        source,
+        minimumUniqueInventory: 1,
+        validatedAt,
+        newestVehicleDate: new Date(validatedAt.getTime() - days * 86_400_000),
+      };
+      expect(validateSourceSnapshot(input).status).toBe("accepted");
+      expect(
+        validateSourceSnapshot({
+          ...input,
+          newestVehicleDate: new Date(input.newestVehicleDate.getTime() - 1),
+        }).status,
+      ).toBe("rejected");
+    }
   });
 
   test("applies a per-source age limit override", () => {
