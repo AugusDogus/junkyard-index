@@ -203,6 +203,38 @@ describe("ingestion run retention", () => {
     ]);
   });
 
+  test("keeps per-source inventory publications from legacy multi-source runs", async () => {
+    const { client, database } = await setup();
+    for (const [id, source, publication, start] of [
+      ["obsolete", "pyp", 0, 0],
+      ["pyp-publication", "pyp", 1, 1],
+      ["row52-publication", "row52", 2, 2],
+      ["pyp-accepted", "pyp", null, 3],
+    ] as const) {
+      await addRun(database, id, {
+        source: "all",
+        inventoryPublishedAt:
+          publication === null ? null : new Date(publication),
+      });
+      await database
+        .insert(ingestionSourceRun)
+        .values({
+          id,
+          runId: id,
+          source,
+          status: "success",
+          acceptanceStatus: "accepted",
+          startedAt: new Date(start),
+        });
+    }
+    await pruneIngestionRuns({ database, now });
+    expect(await ids(client)).toEqual([
+      "pyp-accepted",
+      "pyp-publication",
+      "row52-publication",
+    ]);
+  });
+
   test("keeps the successful published cursor when a newer accepted child failed", async () => {
     const { client, database } = await setup();
     for (const [id, publication, start, status] of [
