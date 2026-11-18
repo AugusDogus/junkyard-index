@@ -13,6 +13,7 @@ import {
 import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { isRetiredIngestionSource } from "~/lib/ingestion-source";
 import { vehicle } from "~/schema";
 import { CARS4PARTS_CONTRACT } from "./cars4parts-configuration";
 import { Cars4PartsCursor } from "./cars4parts-cursor";
@@ -305,10 +306,17 @@ const sources = [
   },
 ] as const;
 
-test.each([...sources])(
+test.each(sources.filter(({ source }) => !isRetiredIngestionSource(source)))(
   "$source runs unless its flag serves false",
   ({ source }) => {
     expect(IngestionSourceFlags.resolve({})).toContain(source);
+  },
+);
+
+test.each(sources.filter(({ source }) => isRetiredIngestionSource(source)))(
+  "retired $source never runs",
+  ({ source }) => {
+    expect(IngestionSourceFlags.resolve({})).not.toContain(source);
   },
 );
 
