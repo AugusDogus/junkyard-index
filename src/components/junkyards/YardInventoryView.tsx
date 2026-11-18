@@ -15,6 +15,7 @@ import { InventoryFormat } from "~/lib/inventory-format";
 import { MakeInventory } from "~/lib/make-inventory";
 import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
 import { StructuredData, type Crumb } from "~/lib/structured-data";
+import { VehicleName } from "~/lib/vehicle-name";
 import { cn } from "~/lib/utils";
 import type { MakeCount, YardInventoryPage } from "~/lib/yard-inventory";
 import { YardName } from "~/lib/yard-name";
@@ -38,6 +39,23 @@ export type NearbyYard = { yard: RoutedYard; miles: number };
 
 /** A make the page is narrowed to, by its national name and slug. */
 export type YardMakeFilter = { name: string; slug: string };
+export type YardModelFilter = YardMakeFilter & {
+  model: { name: string; slug: string };
+};
+
+function filterName(filter: YardMakeFilter | YardModelFilter): string {
+  return "model" in filter
+    ? VehicleName.title(filter.name, filter.model.name)
+    : filter.name;
+}
+function filterHref(
+  yard: RoutedYard,
+  filter: YardMakeFilter | YardModelFilter,
+): string {
+  return "model" in filter
+    ? YardPath.modelHref(yard.path, filter.slug, filter.model.slug)
+    : YardPath.makeHref(yard.path, filter.slug);
+}
 
 /** Title, description, and canonical URL for page `page` of a yard. */
 export function yardPageMetadata(
@@ -67,22 +85,23 @@ export function yardPageMetadata(
 
 // Fewer vehicles than this and a yard's page for one make stays out of
 // search: too thin to be worth a result of its own.
-const YARD_MAKE_INDEXABLE_MINIMUM = 5;
+export const YARD_MAKE_INDEXABLE_MINIMUM = 5;
 
 /** Title, description, and canonical URL for one make at a yard. */
 export function yardMakeMetadata(
   yard: RoutedYard,
-  make: YardMakeFilter,
+  make: YardMakeFilter | YardModelFilter,
   total: number,
   publishedAt: string | null,
 ): Metadata {
   const headline = YardName.headline(yard.name, yard.operator);
   const place = `${yard.city}, ${yard.state}`;
-  const title = `${make.name} at ${headline} | ${place}`;
-  const description = `${InventoryFormat.plural(total, `${make.name} vehicle`, `${make.name} vehicles`)} at ${headline} in ${place}, with where each one sits in the yard.${
+  const name = filterName(make);
+  const title = `${name} at ${headline} | ${place}`;
+  const description = `${InventoryFormat.plural(total, `${name} vehicle`, `${name} vehicles`)} at ${headline} in ${place}, with where each one sits in the yard.${
     publishedAt ? ` Updated ${InventoryFormat.date(publishedAt)}.` : ""
   }`;
-  const url = YardPath.makeHref(yard.path, make.slug);
+  const url = filterHref(yard, make);
   return {
     title,
     description,
@@ -129,13 +148,13 @@ export function YardInventoryView({
   /** The chain the yard belongs to, when it has other yards we track. */
   chain: { name: string; href: string; yards: number } | null;
   /** The make this page is narrowed to, if any. */
-  filter: YardMakeFilter | null;
+  filter: YardMakeFilter | YardModelFilter | null;
 }) {
   const headline = YardName.headline(yard.name, yard.operator);
   const crumbs: Crumb[] = filter
     ? [
         ...yardCrumbs(yard),
-        { name: filter.name, href: YardPath.makeHref(yard.path, filter.slug) },
+        { name: filterName(filter), href: filterHref(yard, filter) },
       ]
     : yardCrumbs(yard);
   const shownFrom = inventory.firstIndex + 1;
@@ -155,7 +174,9 @@ export function YardInventoryView({
             country: yard.path.region.country,
           }),
           StructuredData.vehicles(
-            filter ? `${filter.name} at ${headline}` : `${headline} inventory`,
+            filter
+              ? `${filterName(filter)} at ${headline}`
+              : `${headline} inventory`,
             total,
             inventory.firstIndex,
             inventory.vehicles,
@@ -169,7 +190,7 @@ export function YardInventoryView({
           {/* Pretty, not balanced: balancing breaks names like PICK-n-PULL
           at their hyphens. */}
           <h1 className="text-display-s leading-[1.02] font-extrabold text-pretty">
-            {filter ? `${filter.name} at ${headline}` : headline}
+            {filter ? `${filterName(filter)} at ${headline}` : headline}
           </h1>
           {isIngestionSource(yard.source) && (
             <div className="mt-3">
@@ -183,8 +204,8 @@ export function YardInventoryView({
             <span className="text-ink font-extrabold tabular-nums">
               {InventoryFormat.plural(
                 total,
-                filter ? `${filter.name} vehicle` : "vehicle",
-                filter ? `${filter.name} vehicles` : "vehicles",
+                filter ? `${filterName(filter)} vehicle` : "vehicle",
+                filter ? `${filterName(filter)} vehicles` : "vehicles",
               )}
             </span>{" "}
             in the yard in {yard.city}, {yard.state}
@@ -290,7 +311,7 @@ export function YardInventoryView({
           <AlertsCallout
             subject={
               filter
-                ? `a ${filter.name} you're after shows up here or at any other yard we track`
+                ? `a ${filterName(filter)} you're after shows up here or at any other yard we track`
                 : `a matching vehicle shows up at ${headline} or any other yard we track`
             }
             sourcePage="yard"

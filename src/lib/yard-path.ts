@@ -66,6 +66,10 @@ export const YardPath = {
   makeHref(path: YardPath, makeSlug: string): string {
     return `${path.href}/make/${makeSlug}`;
   },
+  /** One model at a yard, preserving both make and model scope. */
+  modelHref(path: YardPath, makeSlug: string, modelSlug: string): string {
+    return `${path.href}/make/${makeSlug}/model/${modelSlug}`;
+  },
   /** The URL of page `page` (1-based) of a yard's inventory. */
   pageHref(path: YardPath, page: number): string {
     return page <= 1 ? path.href : `${path.href}/page/${page}`;
