@@ -2,8 +2,17 @@ import { createClient, type Client } from "@libsql/client";
 import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import { readdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import {
+  cp,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { z } from "zod";
 
 const LEGACY_SCHEMA = `
   create table user (
@@ -290,5 +299,104 @@ test("source-scoped VIN pagination uses the source/VIN index", async () => {
     ).toBe(true);
   } finally {
     client.close();
+  }
+});
+
+test("upgrades production through 0016 with ordered arrival and ingestion indexes", async () => {
+  const client = createClient({ url: ":memory:" });
+  const folder = await mkdtemp(join(tmpdir(), "junkyard-migrations-"));
+  try {
+    const journal = z
+      .object({
+        version: z.string(),
+        dialect: z.string(),
+        entries: z.array(
+          z.object({
+            idx: z.number(),
+            version: z.string(),
+            when: z.number(),
+            tag: z.string(),
+            breakpoints: z.boolean(),
+          }),
+        ),
+      })
+      .parse(
+        JSON.parse(
+          await readFile(join(MIGRATIONS_FOLDER, "meta/_journal.json"), "utf8"),
+        ),
+      );
+    // Assert the actual metadata as well as exercising libSQL's timestamp gate.
+    expect(
+      journal.entries.slice(17).map((entry) => [entry.tag, entry.when]),
+    ).toEqual([
+      ["0017_observed_vehicle_arrival", 1794787200000],
+      ["0018_ingestion_cost_indexes", 1794871322488],
+    ]);
+    for (let i = 1; i < journal.entries.length; i++) {
+      const current = journal.entries[i];
+      const previous = journal.entries[i - 1];
+      if (!current || !previous)
+        throw new Error("Expected consecutive migration entries");
+      expect(current.idx).toBe(previous.idx + 1);
+      expect(current.when).toBeGreaterThan(previous.when);
+    }
+    const snapshot = z.object({ id: z.string(), prevId: z.string() });
+    const prior = snapshot.parse(
+      JSON.parse(
+        await readFile(
+          join(MIGRATIONS_FOLDER, "meta/0016_snapshot.json"),
+          "utf8",
+        ),
+      ),
+    );
+    const arrival = snapshot.parse(
+      JSON.parse(
+        await readFile(
+          join(MIGRATIONS_FOLDER, "meta/0017_snapshot.json"),
+          "utf8",
+        ),
+      ),
+    );
+    const cost = snapshot.parse(
+      JSON.parse(
+        await readFile(
+          join(MIGRATIONS_FOLDER, "meta/0018_snapshot.json"),
+          "utf8",
+        ),
+      ),
+    );
+    expect(arrival.prevId).toBe(prior.id);
+    expect(cost.prevId).toBe(arrival.id);
+    await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
+    await writeFile(
+      join(folder, "meta/_journal.json"),
+      JSON.stringify({ ...journal, entries: journal.entries.slice(0, 17) }),
+    );
+    await client.executeMultiple(LEGACY_SCHEMA);
+    await migrate(drizzle(client), { migrationsFolder: folder });
+    expect(
+      (
+        await client.execute(
+          "select max(created_at) as last from __drizzle_migrations",
+        )
+      ).rows[0]?.last,
+    ).toBe(1794107008473);
+    await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+    await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER });
+    expect(
+      (await client.execute("select count(*) as n from __drizzle_migrations"))
+        .rows[0]?.n,
+    ).toBe(journal.entries.length);
+    expect(
+      (
+        await client.execute(
+          "select name from sqlite_master where type = 'index' and name = 'ingestion_run_retention_idx'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    expect((await client.execute("pragma foreign_key_check")).rows).toEqual([]);
+  } finally {
+    client.close();
+    await rm(folder, { recursive: true, force: true });
   }
 });

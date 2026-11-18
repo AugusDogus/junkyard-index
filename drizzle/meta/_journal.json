@@ -124,15 +124,15 @@
     {
       "idx": 17,
       "version": "6",
-      "when": 1794871322488,
-      "tag": "0017_ingestion_cost_indexes",
+      "when": 1794787200000,
+      "tag": "0017_observed_vehicle_arrival",
       "breakpoints": true
     },
     {
       "idx": 18,
       "version": "6",
-      "when": 1794981393666,
-      "tag": "0018_ingestion_run_retention",
+      "when": 1794871322488,
+      "tag": "0018_ingestion_cost_indexes",
       "breakpoints": true
     }
   ]

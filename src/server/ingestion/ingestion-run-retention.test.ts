@@ -143,6 +143,29 @@ describe("ingestion run retention", () => {
     });
   });
 
+  test("keeps each source's latest inventory publication and recent recovery progress", async () => {
+    const { client, database } = await setup();
+    await addRun(database, "older-publication", {
+      inventoryPublishedAt: new Date(1),
+      publicationSequence: 1,
+    });
+    await addRun(database, "latest-inventory", {
+      inventoryPublishedAt: new Date(2),
+      publicationSequence: 2,
+    });
+    await addRun(database, "other-watermark", {
+      source: "row52",
+      publicationSequence: 3,
+    });
+    await addRun(database, "recent-progress", { lastProgressAt: now });
+    await pruneIngestionRuns({ database, now });
+    expect(await ids(client)).toEqual([
+      "latest-inventory",
+      "other-watermark",
+      "recent-progress",
+    ]);
+  });
+
   test("keeps active, nonterminal, recovery, snapshot and delivery references", async () => {
     const { client, database } = await setup();
     await addRun(database, "active", { activeSlot: 1 });
@@ -193,16 +216,14 @@ describe("ingestion run retention", () => {
         source: "urgiis",
         searchPublishedAt: id === "baseline" ? new Date(2) : null,
       });
-      await database
-        .insert(ingestionSourceRun)
-        .values({
-          id,
-          runId: id,
-          source: "urgiis",
-          status: "success",
-          acceptanceStatus: id === "baseline" ? "accepted" : "rejected",
-          startedAt: new Date(start),
-        });
+      await database.insert(ingestionSourceRun).values({
+        id,
+        runId: id,
+        source: "urgiis",
+        status: "success",
+        acceptanceStatus: id === "baseline" ? "accepted" : "rejected",
+        startedAt: new Date(start),
+      });
     }
     await pruneIngestionRuns({ database, now });
     expect(await ids(client)).toEqual(["baseline", "retry"]);
