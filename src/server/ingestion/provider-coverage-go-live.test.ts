@@ -33,7 +33,7 @@ const censuses = [
   { source: "jimsimport", count: 3649 },
   { source: "lonestarimports", count: 2531 },
   { source: "alshned", count: 41 },
-  { source: "hollanderstores", count: 55958 },
+  { source: "hollanderstores", count: hollanderstoresExpected.count },
   { source: "cstruck", count: 59 },
   { source: "heavytruckparts", count: 838 },
   { source: "beavers", count: 278 },
