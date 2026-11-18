@@ -164,3 +164,21 @@ describe("transformPullapartVehicle", () => {
     expect(result?.availableDate).toBeNull();
   });
 });
+
+test.each([
+  { siteTypeID: 3, operator: "Pull-A-Part", host: "www.pullapart.com" },
+  { siteTypeID: 5, operator: "U-Pull-&-Pay", host: "www.upullandpay.com" },
+])(
+  "uses $operator for the native site type in new inventory",
+  ({ siteTypeID, operator, host }) => {
+    const result = transformPullapartVehicle(
+      vehicle,
+      { ...location, siteTypeID },
+      geo,
+    );
+    expect(result?.locationName).toBe(`${operator} - Atlanta South`);
+    expect(result?.detailsUrl && new URL(result.detailsUrl).hostname).toBe(
+      host,
+    );
+  },
+);
