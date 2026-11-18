@@ -92,6 +92,7 @@ interface SaveSearchDialogProps {
   onAutoOpenHandled?: () => void;
   compact?: boolean;
   iconOnly?: boolean;
+  responsive?: boolean;
 }
 
 export function storePendingSaveSearch(
@@ -128,6 +129,7 @@ export function SaveSearchDialog({
   onAutoOpenHandled,
   compact,
   iconOnly,
+  responsive,
 }: SaveSearchDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(() => {
@@ -346,7 +348,7 @@ export function SaveSearchDialog({
       variant="outline"
       size={compact || iconOnly ? "sm" : "default"}
       className={compact || iconOnly ? "h-8 text-xs" : ""}
-      aria-label={iconOnly ? "Save search" : undefined}
+      aria-label={iconOnly || responsive ? "Save search" : undefined}
       disabled={disabled || isNavigatingToAuth}
       onClick={(e) => {
         if (!isLoggedIn) {
@@ -356,7 +358,11 @@ export function SaveSearchDialog({
       }}
     >
       <Bookmark className={compact || iconOnly ? "h-3.5 w-3.5" : "h-4 w-4"} />
-      {!iconOnly && (isNavigatingToAuth ? "Redirecting..." : "Save Search")}
+      {!iconOnly && (
+        <span className={responsive ? "sr-only md:not-sr-only" : undefined}>
+          {isNavigatingToAuth ? "Redirecting..." : "Save Search"}
+        </span>
+      )}
     </Button>
   );
 

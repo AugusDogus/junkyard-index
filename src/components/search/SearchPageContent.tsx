@@ -1242,69 +1242,48 @@ function AlgoliaSearchInner({
     />
   );
 
-  const workspaceActions = isMobile ? (
-    <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 [&_button]:h-11 [&_button]:min-w-11">
-      {mobileFiltersDrawer}
-      <Select value={sortBy} onValueChange={handleSortChange}>
-        <SelectTrigger className="ml-auto" aria-label="Sort vehicles">
-          <SortIcon className="text-muted-foreground" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+  const workspaceActions = (
+    <div className="flex w-full items-center gap-2 [&_[data-slot=select-trigger]]:h-11 md:[&_[data-slot=select-trigger]]:h-9 [&_button]:h-11 [&_button]:min-w-11 md:[&_button]:h-9">
+      <div className="order-1 md:hidden">{mobileFiltersDrawer}</div>
       {isLoggedIn && (
-        <SavedSearchesDropdown iconOnly locked={savedSearchesLocked} />
+        <div className="order-3 md:order-1">
+          <SavedSearchesDropdown responsive locked={savedSearchesLocked} />
+        </div>
       )}
-      <SaveSearchDialog
-        query={expressionMode ? "" : query}
-        filters={currentSaveSearchFilters}
-        planAccess={planAccess}
-        disabled={!hasActiveSearch}
-        isLoggedIn={isLoggedIn}
-        autoOpen={autoOpenSaveDialog}
-        onAutoOpenHandled={handleAutoOpenHandled}
-        iconOnly
-      />
-    </div>
-  ) : (
-    <div className="flex shrink-0 items-center gap-2 [&_button]:h-9">
-      {isLoggedIn && <SavedSearchesDropdown locked={savedSearchesLocked} />}
-      <SaveSearchDialog
-        query={expressionMode ? "" : query}
-        filters={currentSaveSearchFilters}
-        planAccess={planAccess}
-        disabled={!hasActiveSearch}
-        isLoggedIn={isLoggedIn}
-        autoOpen={autoOpenSaveDialog}
-        onAutoOpenHandled={handleAutoOpenHandled}
-      />
-      <Select value={sortBy} onValueChange={handleSortChange}>
-        <SelectTrigger className="min-w-44" aria-label="Sort vehicles">
-          <SortIcon className="text-muted-foreground" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+      <div className="order-4 md:order-2">
+        <SaveSearchDialog
+          query={expressionMode ? "" : query}
+          filters={currentSaveSearchFilters}
+          planAccess={planAccess}
+          disabled={!hasActiveSearch}
+          isLoggedIn={isLoggedIn}
+          autoOpen={autoOpenSaveDialog}
+          onAutoOpenHandled={handleAutoOpenHandled}
+          responsive
+        />
+      </div>
+      <div className="order-2 ml-auto md:order-3 md:ml-0">
+        <Select value={sortBy} onValueChange={handleSortChange}>
+          <SelectTrigger className="md:min-w-44" aria-label="Sort vehicles">
+            <SortIcon className="text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
       <Toggle
         variant="outline"
         pressed={showFilters}
         onPressedChange={setShowFilters}
-        className="shrink-0 px-3"
+        className="order-5 hidden shrink-0 px-3 md:flex"
       >
         <Filter data-icon="inline-start" />
         Filters
@@ -1421,28 +1400,30 @@ function AlgoliaSearchInner({
             Advanced search
           </Button>
 
-          {!isMobile && showFilters && (
-            <DesktopFiltersBar
-              activeFilterCount={activeFilterCount}
-              clearAllFilters={clearAllFilters}
-              makes={selectedMakes}
-              colors={selectedColors}
-              states={selectedStates}
-              salvageYards={selectedLocations}
-              sources={selectedSources}
-              yardTypes={selectedYardTypes}
-              yearRange={yearRange}
-              filterOptions={filterOptions}
-              onMakesChange={handleMakesChange}
-              onColorsChange={handleColorsChange}
-              onStatesChange={handleStatesChange}
-              onSalvageYardsChange={handleLocationsChange}
-              onSourcesChange={handleSourcesChange}
-              onYardTypesChange={handleYardTypesChange}
-              onYearRangeChange={handleYearRangeChange}
-              yearRangeLimits={{ min: yearMin, max: yearMax }}
-              canUseAdvancedFilters={canUseAdvancedFilters}
-            />
+          {showFilters && (
+            <div className="hidden md:block">
+              <DesktopFiltersBar
+                activeFilterCount={activeFilterCount}
+                clearAllFilters={clearAllFilters}
+                makes={selectedMakes}
+                colors={selectedColors}
+                states={selectedStates}
+                salvageYards={selectedLocations}
+                sources={selectedSources}
+                yardTypes={selectedYardTypes}
+                yearRange={yearRange}
+                filterOptions={filterOptions}
+                onMakesChange={handleMakesChange}
+                onColorsChange={handleColorsChange}
+                onStatesChange={handleStatesChange}
+                onSalvageYardsChange={handleLocationsChange}
+                onSourcesChange={handleSourcesChange}
+                onYardTypesChange={handleYardTypesChange}
+                onYearRangeChange={handleYearRangeChange}
+                yearRangeLimits={{ min: yearMin, max: yearMax }}
+                canUseAdvancedFilters={canUseAdvancedFilters}
+              />
+            </div>
           )}
         </div>
       </div>

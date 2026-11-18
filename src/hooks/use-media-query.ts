@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+export function useMediaQuery(query: string): boolean | null {
+  const [matches, setMatches] = useState<boolean | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia(query);
@@ -24,12 +24,12 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-export function useIsMobile(): boolean {
+export function useIsMobile(): boolean | null {
   return useMediaQuery("(max-width: 767px)");
 }
 
 // Returns true for screens in the md breakpoint range (768px - 1023px).
 // Used to keep the virtualized results grid aligned with its CSS layout.
-export function useIsMediumScreen(): boolean {
+export function useIsMediumScreen(): boolean | null {
   return useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
 }

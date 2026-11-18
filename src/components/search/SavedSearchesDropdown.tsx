@@ -21,12 +21,14 @@ import { api } from "~/trpc/react";
 interface SavedSearchesDropdownProps {
   compact?: boolean;
   iconOnly?: boolean;
+  responsive?: boolean;
   locked?: boolean;
 }
 
 export function SavedSearchesDropdown({
   compact,
   iconOnly,
+  responsive,
   locked = false,
 }: SavedSearchesDropdownProps = {}) {
   const router = useRouter();
@@ -50,7 +52,11 @@ export function SavedSearchesDropdown({
         disabled
       >
         <Bookmark data-icon="inline-start" />
-        {!iconOnly && "Saved"}
+        {!iconOnly && (
+          <span className={responsive ? "sr-only md:not-sr-only" : undefined}>
+            Saved
+          </span>
+        )}
       </Button>
     );
   }
@@ -66,11 +72,19 @@ export function SavedSearchesDropdown({
           variant="outline"
           size={compact || iconOnly ? "sm" : "default"}
           aria-label={
-            iconOnly ? `Open ${savedSearches.length} saved searches` : undefined
+            iconOnly || responsive
+              ? `Open ${savedSearches.length} saved searches`
+              : undefined
           }
         >
           <Bookmark data-icon="inline-start" />
-          {iconOnly ? savedSearches.length : `Saved (${savedSearches.length})`}
+          {iconOnly ? (
+            savedSearches.length
+          ) : (
+            <span
+              className={responsive ? "sr-only md:not-sr-only" : undefined}
+            >{`Saved (${savedSearches.length})`}</span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
