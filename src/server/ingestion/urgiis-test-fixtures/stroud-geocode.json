@@ -1,0 +1,34 @@
+{
+  "result": {
+    "input": {
+      "address": { "address": "6118 NC 96 Hwy W Youngsville NC 27596" },
+      "benchmark": {
+        "isDefault": true,
+        "benchmarkDescription": "Public Address Ranges - Current Benchmark",
+        "id": "4",
+        "benchmarkName": "Public_AR_Current"
+      }
+    },
+    "addressMatches": [
+      {
+        "tigerLine": { "side": "R", "tigerLineId": "658695644" },
+        "coordinates": { "x": -78.510263216119, "y": 36.05425262224 },
+        "addressComponents": {
+          "zip": "27596",
+          "streetName": "96",
+          "preType": "STATE HWY",
+          "city": "YOUNGSVILLE",
+          "preDirection": "",
+          "suffixDirection": "",
+          "fromAddress": "6026",
+          "state": "NC",
+          "suffixType": "",
+          "toAddress": "6210",
+          "suffixQualifier": "",
+          "preQualifier": ""
+        },
+        "matchedAddress": "6118 STATE HWY 96, YOUNGSVILLE, NC, 27596"
+      }
+    ]
+  }
+}

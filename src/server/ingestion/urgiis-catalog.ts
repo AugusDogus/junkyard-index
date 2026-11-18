@@ -34,8 +34,12 @@ export function iisOwnedUrl(raw: string, site: UrgiisSite) {
 export function iisBrowsePath(raw: string, depth: number, site: UrgiisSite) {
   const url = iisOwnedUrl(raw, site);
   const parts = url?.pathname.split("/").filter(Boolean);
+  // The used-parts plugin publishes slashless make links, while WordPress
+  // serves those directories at the trailing-slash URL. Keep redirect rejection.
   return url && parts?.length === depth + 1 && parts[0] === site.pathStyle
-    ? url.pathname
+    ? site.pathStyle === "used-parts" && depth === 1
+      ? url.pathname.replace(/\/?$/, "/")
+      : url.pathname
     : null;
 }
 export function iisDocument(raw: string, site: UrgiisSite) {

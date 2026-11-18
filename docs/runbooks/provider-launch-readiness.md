@@ -56,19 +56,19 @@ health even when its alert matching was deferred. URG's own cold census now has
 bounded progress heartbeats while it completes its much larger first graph.
 
 The [URG runbook](urgiis-ingestion.md#offline-request-and-runtime-estimate)
-estimates all 19 publishing tenants with 70,937 donors, 11,810 full-census
-requests and 3,456 mean incremental requests/day. At six seconds per response
-plus existing local gaps, that is 1,723.9 minutes (28.7 hours) for a full census
-and 509.4 minutes (8.5 hours) for a mean incremental day. Eagle, Ace St. Paul
+estimates all 20 publishing tenants with 74,217 donors, 12,339 full-census
+requests and 3,627.3 mean incremental requests/day. At six seconds per response
+plus existing local gaps, that is 1,847.3 minutes (30.8 hours) for a full census
+and 549.4 minutes (9.2 hours) for a mean incremental day. Eagle, Ace St. Paul
 and Norb's now publish under the unchanged 1% rule. Their daily shares are 131,
 143.9 and 229.4 requests; the original 16 tenants still total 2,951.7. Neither
 route substitution nor monitoring adds per-tenant URG requests.
 
 These estimates exclude the shared queue. URG retains its local post-response
 gap outside the shared lease, so the additional 3.5-second shared gap adds
-11.48 full-census hours or 3.36 incremental hours: approximately **40.2 hours**
-and **11.9 hours**, respectively. Even removing the duplicate local gap would
-leave 31.17 hours for 11,810 responses at six seconds plus the shared gap.
+12.00 full-census hours or 3.53 incremental hours: approximately **42.8 hours**
+and **12.7 hours**, respectively. Even removing the duplicate local gap would
+leave 32.56 hours for 12,339 responses at six seconds plus the shared gap.
 Retries, storage/orchestration overhead and competing native IIS sources add
 more time. These are explicit sizing scenarios, not measured live runtimes or
 upper bounds. A cold census has a three-day deadline with the usual final-chunk

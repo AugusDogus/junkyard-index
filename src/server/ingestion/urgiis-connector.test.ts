@@ -70,6 +70,15 @@ const responses = [
   menu,
 ];
 
+test("URG used-parts make directories use their canonical trailing slash", () => {
+  const site = { ...tenant, pathStyle: "used-parts" as const };
+  const raw = makes.replaceAll("/parts/", "/used-parts/");
+  expect(iisDirectory(raw, site)).toEqual([
+    { ...make, path: "/used-parts/ACURA/" },
+  ]);
+  expect(iisDirectory(makes, tenant)).toEqual([make]);
+});
+
 test("URG IIS accepts known arrivals titles and rejects unknown variants", () => {
   for (const title of [
     "Recent Arrivals",
