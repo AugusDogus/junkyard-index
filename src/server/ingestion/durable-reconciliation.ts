@@ -5,7 +5,12 @@ import {
   mapIngestionSources,
   RETIRED_INGESTION_SOURCES,
 } from "~/lib/ingestion-source";
-import { ingestionRun, ingestionSourceRun, vehicle, yardArrivalBaseline } from "~/schema";
+import {
+  ingestionRun,
+  ingestionSourceRun,
+  vehicle,
+  yardArrivalBaseline,
+} from "~/schema";
 import { parseIngestionErrors } from "./durable-ingestion-repository";
 import type {
   DurableIngestionResult,
@@ -27,7 +32,10 @@ import {
   type RunSnapshotInventory,
 } from "./run-snapshot-inventory";
 import type { CanonicalVehicle } from "./types";
-import { yardInventoryRefreshStatements } from "./yard-inventory";
+import {
+  yardInventoryRefreshStatements,
+  yardPublicationStatement,
+} from "./yard-inventory";
 
 const RECONCILIATION_BATCH_SIZE = 500;
 const MISSING_DELETE_AFTER_RUNS = 3;
@@ -615,6 +623,17 @@ async function runMissingBatch(
   // The last batch commits the reconciled sources' yard summary with them.
   if (finishing)
     statements.push(...yardInventoryRefreshStatements([...reconciled], now));
+  if (finishing) {
+    const publication = yardPublicationStatement(
+      params.acceptedSources,
+      new Map([
+        ["autorecycler", inventory.preservedAutorecyclerYards],
+        ["urgiis", inventory.preservedUrgiisYards],
+      ]),
+      params.runTimestamp.getTime(),
+    );
+    if (publication) statements.push(publication);
+  }
   // Only the publication batch establishes a baseline. Earlier upsert batches
   // (including resumed ones) must not make their own backfill look new.
   if (finishing && params.acceptedSources.length > 0) {

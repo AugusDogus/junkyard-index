@@ -1,10 +1,9 @@
 import type { MetadataRoute } from "next";
 import { env } from "~/env";
-import { isIngestionSource } from "~/lib/ingestion-source";
 import { YardPath } from "~/lib/yard-path";
 import {
   getRoutedYards,
-  getSourcePublishedAt,
+  getYardPublishedAt,
   type RoutedYard,
 } from "~/server/yard-inventory";
 
@@ -20,7 +19,7 @@ function latest(dates: readonly (string | undefined)[]): string | undefined {
 
 /**
  * /junkyards/sitemap.xml: each region and each yard's first inventory page.
- * A yard's lastmod is when its source last published. A region's is the
+ * A yard's lastmod is its own last accepted publication. A region's is the
  * latest publish of any source: a removed yard also changes the region page,
  * and its source's last date leaves with it. The directory itself, outside
  * this sitemap's /junkyards/ scope, is in the root sitemap.
@@ -28,10 +27,10 @@ function latest(dates: readonly (string | undefined)[]): string | undefined {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [yards, publishedAt] = await Promise.all([
     getRoutedYards(),
-    getSourcePublishedAt(),
+    getYardPublishedAt(),
   ]);
   const yardPublishedAt = (yard: RoutedYard) =>
-    isIngestionSource(yard.source) ? publishedAt[yard.source] : undefined;
+    publishedAt[`${yard.source}:${yard.code}`];
   const url = (href: string) =>
     new URL(href, env.NEXT_PUBLIC_APP_URL).toString();
   const entry = (href: string, lastModified: string | undefined) => ({

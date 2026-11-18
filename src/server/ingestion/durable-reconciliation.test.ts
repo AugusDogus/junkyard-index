@@ -1214,7 +1214,7 @@ describe("bounded durable reconciliation", () => {
           'Tulsa', 'Oklahoma', 'OK', 36.1, -95.9, ?, ?, 0)`,
         args: [startedAt.getTime(), startedAt.getTime()],
       });
-      await client.execute(`insert into yard_inventory values
+      await client.execute(`insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, inventory_url, updated_at) values
         ('pyp', 'yard-1', 'Yard 1', 'Tulsa', 'OK', 36.1, -95.9, 1, null, 0)`);
       await database.insert(ingestionRun).values({
         id: "run-row52",
@@ -1286,7 +1286,7 @@ describe("bounded durable reconciliation", () => {
           'Lincoln', 'Lincoln', 'Nebraska', 'NE', 40.8, -96.7, ?, ?, 0)`,
         args: [seededAt.getTime(), seededAt.getTime()],
       });
-      await client.execute(`insert into yard_inventory values
+      await client.execute(`insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, inventory_url, updated_at) values
         ('upullitne', 'LINCOLN', 'Lincoln', 'Lincoln', 'NE', 40.8, -96.7, 1, null, 0)`);
       const snapshotStore = IngestionSnapshotStore.memory();
 
@@ -1374,7 +1374,7 @@ describe("bounded durable reconciliation", () => {
           'Lincoln', 'Lincoln', 'Nebraska', 'NE', 40.8, -96.7, ?, ?, 0)`,
           args: [startedAt.getTime(), startedAt.getTime()],
         });
-        await client.execute(`insert into yard_inventory values
+        await client.execute(`insert into yard_inventory (source, location_code, location_name, location_city, state_abbr, lat, lng, vehicle_count, inventory_url, updated_at) values
         ('upullitne', 'LINCOLN', 'Lincoln', 'Lincoln', 'NE', 40.8, -96.7, 1, null, 0)`);
         await database.insert(ingestionRun).values({
           id: "run-gopullit",

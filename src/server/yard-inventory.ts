@@ -17,7 +17,7 @@ import {
 } from "~/lib/ingestion-source";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
 import { getDurableSourceFreshness } from "~/server/ingestion/durable-ingestion";
-import { vehicle } from "~/schema";
+import { vehicle, yardInventory } from "~/schema";
 
 async function loadYardVehicles(
   source: string,
@@ -94,6 +94,24 @@ export const getSourcePublishedAt = cacheInventory(loadSourcePublishedAt, [
   "active-source-published-at-v2",
   ...RETIRED_INGESTION_SOURCES,
 ]);
+
+/** Last accepted publication per yard. Older untracked inventory stays unknown. */
+export const getYardPublishedAt = cacheInventory(async (): Promise<
+  Readonly<Record<string, string>>
+> => {
+  const rows = await db
+    .select({
+      source: yardInventory.source,
+      code: yardInventory.locationCode,
+      at: yardInventory.lastPublishedAt,
+    })
+    .from(yardInventory);
+  return Object.fromEntries(
+    rows.flatMap(({ source, code, at }) =>
+      at ? [[`${source}:${code}`, at.toISOString()]] : [],
+    ),
+  );
+}, ["yard-published-at-v1"]);
 
 /** Every yard with live inventory, with its page path. */
 export const getYardDirectory = cache(async () => {
@@ -202,7 +220,7 @@ export const getYardPageData = cache(
     if (!yard) return null;
     const [vehicles, publishedAt, routed, chains] = await Promise.all([
       getYardVehicles(yard.source, yard.code),
-      getSourcePublishedAt(),
+      getYardPublishedAt(),
       getRoutedYards(),
       getChains(),
     ]);
@@ -221,9 +239,7 @@ export const getYardPageData = cache(
       yard,
       vehicles,
       makes: YardInventory.makeCounts(vehicles),
-      publishedAt: isIngestionSource(yard.source)
-        ? (publishedAt[yard.source] ?? null)
-        : null,
+      publishedAt: publishedAt[`${yard.source}:${yard.code}`] ?? null,
       nearby,
       chain: chain
         ? { name: chain.name, href: chain.href, yards: chain.yards.length }
