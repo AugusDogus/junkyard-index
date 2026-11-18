@@ -64,10 +64,10 @@ function ExpressionText({
         <p>
           Fields: <code>make:Volvo</code>, <code>year:&lt;2000</code>,{" "}
           <code>color:Red</code>, <code>state:Texas</code>,{" "}
-          <code>yard:"U Pull-It Omaha"</code>, <code>source:pyp</code>.
-          Parentheses group alternatives. A space means AND. OR matches whole
-          indexed words or values. Keep year comparisons in separate AND
-          conditions.
+          <code>yard:"U Pull-It Omaha"</code>, <code>source:pyp</code>,{" "}
+          <code>yardType:self_service</code>. Parentheses group alternatives. A
+          space means AND. OR matches whole indexed words or values. Keep year
+          comparisons in separate AND conditions.
         </p>
       </details>
       {!parsed.success && (

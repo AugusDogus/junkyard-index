@@ -9,6 +9,7 @@ const baseProps = {
   states: [],
   salvageYards: [],
   sources: [],
+  yardTypes: [],
   yearRange: [1900, 2027] as [number, number],
   sortBy: "newest",
   filterOptions: {

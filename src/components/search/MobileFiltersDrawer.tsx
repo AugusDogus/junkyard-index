@@ -1,5 +1,6 @@
 "use client";
 
+import type { YardType } from "~/lib/yard-service";
 import { Filter, LockKeyhole } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
@@ -26,6 +27,7 @@ interface MobileFiltersDrawerProps {
   states: string[];
   salvageYards: string[];
   sources: DataSource[];
+  yardTypes: YardType[];
   yearRange: [number, number];
   filterOptions: SearchFilterOptions;
   onMakesChange: (makes: string[]) => void;
@@ -33,6 +35,7 @@ interface MobileFiltersDrawerProps {
   onStatesChange: (states: string[]) => void;
   onSalvageYardsChange: (salvageYards: string[]) => void;
   onSourcesChange: (sources: DataSource[]) => void;
+  onYardTypesChange: (types: YardType[]) => void;
   onYearRangeChange: (range: [number, number]) => void;
   yearRangeLimits?: {
     min: number;
@@ -51,6 +54,7 @@ export function MobileFiltersDrawer({
   states,
   salvageYards,
   sources,
+  yardTypes,
   yearRange,
   filterOptions,
   onMakesChange,
@@ -58,6 +62,7 @@ export function MobileFiltersDrawer({
   onStatesChange,
   onSalvageYardsChange,
   onSourcesChange,
+  onYardTypesChange,
   onYearRangeChange,
   yearRangeLimits,
   canUseAdvancedFilters,
@@ -129,6 +134,7 @@ export function MobileFiltersDrawer({
             states={states}
             salvageYards={salvageYards}
             sources={sources}
+            yardTypes={yardTypes}
             yearRange={yearRange}
             filterOptions={filterOptions}
             onMakesChange={onMakesChange}
@@ -136,6 +142,7 @@ export function MobileFiltersDrawer({
             onStatesChange={onStatesChange}
             onSalvageYardsChange={onSalvageYardsChange}
             onSourcesChange={onSourcesChange}
+            onYardTypesChange={onYardTypesChange}
             onYearRangeChange={onYearRangeChange}
             yearRangeLimits={yearRangeLimits}
             canUseAdvancedFilters={canUseAdvancedFilters}

@@ -12,7 +12,7 @@
   </p>
 </div>
 
-Junkyard Index combines inventory from major self-service salvage yard networks into one fast, searchable index. Search for free, narrow results by vehicle and location, save searches, and receive alerts when new matches arrive.
+Junkyard Index combines inventory from self-service and full-service salvage yards into one fast, searchable index. Search for free, narrow results by vehicle and location, save searches, and receive alerts when new matches arrive.
 
 ## Features
 

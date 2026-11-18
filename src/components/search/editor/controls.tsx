@@ -1,5 +1,7 @@
 "use client";
 
+import { YardService } from "~/lib/yard-service";
+import { YardTypeFilter } from "~/components/search/FilterFields";
 import { useId, useState, useContext } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -55,6 +57,7 @@ const FILTERS = [
   "states",
   "salvageYards",
   "sources",
+  "yardTypes",
 ] as const;
 type FilterKey = (typeof FILTERS)[number];
 const LABELS: Record<FilterKey, string> = {
@@ -64,6 +67,7 @@ const LABELS: Record<FilterKey, string> = {
   states: "State",
   salvageYards: "Salvage yard",
   sources: "Inventory sources",
+  yardTypes: "Yard type",
 };
 const SOURCES = [
   ["hawaiiparts", "Hawaii Parts"],
@@ -157,6 +161,11 @@ const SOURCES = [
   ["autorecycler", "AutoRecycler.io"],
 ] as const;
 function filterSummary(key: FilterKey, value: SearchCriteria) {
+  if (key === "yardTypes")
+    return (
+      value.yardTypes.map((kind) => YardService.label({ kind })).join(", ") ||
+      "All yards"
+    );
   return key === "yearRange"
     ? `${value.yearRange[0]}–${value.yearRange[1]}`
     : key === "sources"
@@ -174,6 +183,7 @@ export function FilterEditor({
   onChange: (value: SearchCriteria) => void;
 }) {
   const container = useContext(EditorPortal);
+  const yardTypeId = useId();
   const suggestions = useFilterSuggestions();
   const choices = {
     makes: suggestions.make,
@@ -281,6 +291,14 @@ export function FilterEditor({
                     />
                   </label>
                 </div>
+              ) : key === "yardTypes" ? (
+                <YardTypeFilter
+                  idPrefix={yardTypeId}
+                  yardTypes={value.yardTypes}
+                  onYardTypesChange={(yardTypes) =>
+                    onChange({ ...value, yardTypes })
+                  }
+                />
               ) : key === "sources" ? (
                 <div className="se-choice-list">
                   {SOURCES.map(([source, label]) => (

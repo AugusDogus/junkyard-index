@@ -1,3 +1,4 @@
+import { YARD_TYPE_OPTIONS } from "~/lib/yard-service";
 import { compileSearchExpression } from "~/lib/compile-search-expression";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
@@ -44,6 +45,9 @@ export const filtersSchema = z
     states: z.array(z.string()).optional(),
     salvageYards: z.array(z.string()).optional(),
     sources: z.array(z.enum(INGESTION_SOURCES)).optional(),
+    yardTypes: z
+      .array(z.enum([YARD_TYPE_OPTIONS[0].value, YARD_TYPE_OPTIONS[1].value]))
+      .optional(),
     minYear: z
       .number()
       .int()
@@ -112,6 +116,7 @@ export function savedSearchMatchCriteriaKey(
     states: canonicalFacetValues(filters.states),
     salvageYards: canonicalFacetValues(filters.salvageYards),
     sources: canonicalFacetValues(filters.sources),
+    yardTypes: canonicalFacetValues(filters.yardTypes),
     minYear: yearsAreInverted ? maximumYear : minimumYear,
     maxYear: yearsAreInverted ? minimumYear : maximumYear,
   });

@@ -1,3 +1,4 @@
+import { YardService } from "~/lib/yard-service";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 export const FIELDS = [
   "text",
@@ -7,6 +8,7 @@ export const FIELDS = [
   "state",
   "yard",
   "source",
+  "yardType",
 ] as const;
 export type Field = (typeof FIELDS)[number];
 export type Comparison = "is" | "not" | "<" | "<=" | ">" | ">=";
@@ -96,7 +98,7 @@ export function parseExpression(input: string): Parsed {
       const name = fieldMatch[1] ?? "";
       if (!isField(name) || name === "text")
         return fail(
-          `Unknown field “${name}”. Use make, year, color, state, yard, or source.`,
+          `Unknown field “${name}”. Use make, year, color, state, yard, source, or yardType.`,
         );
       field = name;
       value = value.slice(fieldMatch[0].length);
@@ -140,6 +142,12 @@ export function parseExpression(input: string): Parsed {
       return fail(
         "Choose a supported source: pyp, pullapart, upullitne, upullitdavie, gopullit, row52, or autorecycler.",
       );
+    if (field === "yardType" && excluded)
+      return fail(
+        "Choose yardType:self_service or yardType:full_service instead of excluding a yard type.",
+      );
+    if (field === "yardType" && !YardService.parseType(value))
+      return fail("Choose yardType:self_service or yardType:full_service.");
     return {
       success: true,
       value: { kind: "condition", field, comparison, value },

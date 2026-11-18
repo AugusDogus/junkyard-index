@@ -1,5 +1,6 @@
 "use client";
 
+import { YARD_TYPE_OPTIONS, YardService } from "~/lib/yard-service";
 import { useEffect, useState } from "react";
 import { useFilterSuggestions } from "./FilterSuggestions";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
@@ -25,6 +26,7 @@ const LABELS: Record<Field, string> = {
   state: "State",
   yard: "Salvage yard",
   source: "Inventory source",
+  yardType: "Yard type",
 };
 const COMPARISONS: Record<Comparison, string> = {
   is: "is",
@@ -99,7 +101,9 @@ function ConditionForm({
             {Object.entries(COMPARISONS)
               .filter(
                 ([key]) =>
-                  condition.field === "year" || key === "is" || key === "not",
+                  condition.field === "year" ||
+                  key === "is" ||
+                  (key === "not" && condition.field !== "yardType"),
               )
               .map(([key, label]) => (
                 <SelectItem key={key} value={key}>
@@ -109,7 +113,22 @@ function ConditionForm({
           </EditorSelect>
         </label>
       </div>
-      {suggestions ? (
+      {condition.field === "yardType" ? (
+        <label className="se-field">
+          Yard type
+          <EditorSelect
+            aria-label="Yard type"
+            value={condition.value}
+            onValueChange={(value) => setCondition({ ...condition, value })}
+          >
+            {YARD_TYPE_OPTIONS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </EditorSelect>
+        </label>
+      ) : suggestions ? (
         <div className="se-field">
           <span>{LABELS[condition.field]}</span>
           <SuggestedValue
@@ -149,6 +168,8 @@ function ConditionForm({
           className="se-small-button"
           disabled={
             !condition.value.trim() ||
+            (condition.field === "yardType" &&
+              !YardService.parseType(condition.value)) ||
             (condition.field === "year" && !/^\d{4}$/.test(condition.value)) ||
             (condition.field === "source" &&
               !INGESTION_SOURCES.some((source) => source === condition.value))

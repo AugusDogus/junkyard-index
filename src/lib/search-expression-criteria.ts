@@ -1,3 +1,4 @@
+import { YardService } from "~/lib/yard-service";
 import type { SearchCriteria } from "~/lib/search-criteria";
 import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
@@ -42,6 +43,7 @@ export function expressionFromCriteria(criteria: SearchCriteria): string {
     ["state", criteria.states],
     ["yard", criteria.salvageYards],
     ["source", criteria.sources],
+    ["yardType", criteria.yardTypes],
   ] as const;
   for (const [field, values] of facets) {
     if (values.length)
@@ -68,6 +70,7 @@ export function criteriaFromExpression(
     states: [],
     salvageYards: [],
     sources: [],
+    yardTypes: [],
     yearRange: [
       SEARCHABLE_VEHICLE_YEAR_RANGE.min,
       SEARCHABLE_VEHICLE_YEAR_RANGE.max,
@@ -127,6 +130,11 @@ export function criteriaFromExpression(
         if (field === "color") result.colors.push(item.value);
         if (field === "state") result.states.push(item.value);
         if (field === "yard") result.salvageYards.push(item.value);
+        if (field === "yardType") {
+          const type = YardService.parseType(item.value);
+          if (type) result.yardTypes.push(type);
+          else return false;
+        }
         if (field === "source") {
           const source = INGESTION_SOURCES.find(
             (value) => value === item.value,

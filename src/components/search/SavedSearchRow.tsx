@@ -1,5 +1,7 @@
 "use client";
 
+import { YardService } from "~/lib/yard-service";
+
 import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 import "./saved-search-row.css";
@@ -26,6 +28,10 @@ function criteriaPreview(search: SavedSearch): string {
   ]) {
     if (values?.length) details.push(values.join(", "));
   }
+  if (filters.yardTypes?.length)
+    details.push(
+      filters.yardTypes.map((kind) => YardService.label({ kind })).join(", "),
+    );
   if (filters.sources?.length)
     details.push(
       filters.sources

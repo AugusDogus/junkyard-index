@@ -75,6 +75,7 @@ function AdvancedSearchForm({
         states: props.states,
         salvageYards: props.salvageYards,
         sources: props.sources,
+        yardTypes: props.yardTypes,
         minYear: props.yearRange[0],
         maxYear: props.yearRange[1],
         sortBy: props.sortBy,

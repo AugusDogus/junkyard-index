@@ -26,6 +26,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   ],
   attributesForFaceting: [
     "source",
+    "yardTypes",
     "searchable(make)",
     "searchable(model)",
     "searchable(color)",

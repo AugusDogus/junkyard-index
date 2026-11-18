@@ -1,5 +1,7 @@
 "use client";
 
+import type { YardType } from "~/lib/yard-service";
+
 import { Bookmark, ChevronDown, ExternalLink, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -74,6 +76,7 @@ export interface SaveSearchFilters {
   states?: string[];
   salvageYards?: string[];
   sources?: string[];
+  yardTypes?: YardType[];
   minYear?: number;
   maxYear?: number;
   sortBy?: string;

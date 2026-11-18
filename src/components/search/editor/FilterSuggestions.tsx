@@ -1,4 +1,6 @@
 "use client";
+
+import { YARD_TYPE_OPTIONS } from "~/lib/yard-service";
 import { createContext, useContext } from "react";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
 import type { InventoryFilterOptions } from "~/lib/inventory-filter-options";
@@ -13,5 +15,6 @@ export function useFilterSuggestions() {
     state: options?.states ?? [],
     yard: options?.salvageYards ?? [],
     source: INGESTION_SOURCES,
+    yardType: YARD_TYPE_OPTIONS.map((option) => option.value),
   };
 }

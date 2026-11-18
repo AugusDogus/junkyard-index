@@ -1,3 +1,4 @@
+import { YardService } from "~/lib/yard-service";
 import { inArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { getYardDetails } from "~/lib/yard-details";
@@ -32,6 +33,11 @@ export async function projectSearchVehicles(
       },
       byYard.get(JSON.stringify([row.source, row.locationCode])) ?? null,
     );
-    return { ...mapDbVehicleToAlgolia(row), locationName: details.name };
+    return {
+      ...mapDbVehicleToAlgolia(row),
+      locationName: details.name,
+      yardServiceType: details.service.kind,
+      yardTypes: YardService.types(details.service),
+    };
   });
 }

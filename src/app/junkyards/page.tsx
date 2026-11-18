@@ -23,7 +23,7 @@ export const revalidate = 86400;
 
 const TITLE = "Junkyards with Live Inventory by State";
 const DESCRIPTION =
-  "Every salvage yard we track, by state, with a live vehicle count and a full inventory page for each yard. Listings are checked daily.";
+  "Self-service and full-service salvage yards, by state, with a live vehicle count and a full inventory page for each yard. Listings are checked daily.";
 
 /** State, yards, vehicles: shared by the head row and every state row. */
 const REGION_TRACKS = "grid-cols-[minmax(0,1fr)_3.5rem_6rem] gap-x-3";
@@ -73,7 +73,7 @@ export default async function JunkyardsPage() {
           <span className="text-ink font-extrabold tabular-nums">
             {InventoryFormat.count(yards.length)}
           </span>{" "}
-          self-service yards in{" "}
+          salvage yards in{" "}
           <span className="text-ink font-extrabold tabular-nums">
             {InventoryFormat.count(groups.length)}
           </span>{" "}
