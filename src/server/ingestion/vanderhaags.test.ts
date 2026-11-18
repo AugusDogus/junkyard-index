@@ -1,3 +1,4 @@
+import { VANDERHAAGS_YARDS } from "./vanderhaags-yards";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { expect, test } from "bun:test";
@@ -60,8 +61,8 @@ test("all five captured native catalog pages reconcile to 2,112 national and 287
 });
 
 test("native card, specifications, stock, yard and VIN produce a donor destination", () => {
-  const fields = parseVanderHaagsDetail(detail, nativeDonor);
-  const result = transformVanderHaagsDonor(nativeDonor, fields);
+  const fields = parseVanderHaagsDetail(detail, nativeDonor).fields;
+  const result = transformVanderHaagsDonor(nativeDonor, fields, "available");
   expect(result).toMatchObject({
     status: "available",
     vehicle: {
@@ -80,7 +81,7 @@ test("native card, specifications, stock, yard and VIN produce a donor destinati
 
 test("native omitted Price row closing tag remains valid HTML", () => {
   const omitted = detail.replace(/(<td>\$0\.00[^]*?<\/td>)\s*<\/tr>/, "$1");
-  expect(parseVanderHaagsDetail(omitted, nativeDonor).get("VIN:")).toBe(
+  expect(parseVanderHaagsDetail(omitted, nativeDonor).fields.get("VIN:")).toBe(
     "2NKHHM7X6HM164968",
   );
 });
@@ -109,25 +110,31 @@ test("longest published make preserves Western Star and pre-1981 serials", () =>
       id,
       title,
       stock,
-    });
+    }).fields;
     expect(
-      transformVanderHaagsDonor({ ...nativeDonor, id, title, stock }, fields),
+      transformVanderHaagsDonor(
+        { ...nativeDonor, id, title, stock },
+        fields,
+        "available",
+      ),
     ).toMatchObject({ status: "available", vehicle: { make, model } });
   }
 });
 
 test("invalid check digits and conflicting descriptions retain presence without publishing", () => {
-  const fields = parseVanderHaagsDetail(detail, nativeDonor);
+  const fields = parseVanderHaagsDetail(detail, nativeDonor).fields;
   expect(
     transformVanderHaagsDonor(
       nativeDonor,
       new Map(fields).set("VIN:", "2NKHHM7X0HM164968"),
+      "available",
     ),
   ).toEqual({ status: "rejected", vin: "2NKHHM7X0HM164968" });
   expect(
     transformVanderHaagsDonor(
       nativeDonor,
       new Map(fields).set("Vehicle Info:", "2017 Kenworth T800"),
+      "available",
     ),
   ).toEqual({ status: "rejected", vin: "2NKHHM7X6HM164968" });
 });
@@ -203,6 +210,7 @@ test("checkpoints enumerate serially, resume without duplicate emissions, and fe
         {
           startCursor: cursor,
           maxPages: 24,
+          yards: [VANDERHAAGS_YARDS[0]],
           onBatch: (v) =>
             Effect.sync(() => {
               vehicles.push(...v);
@@ -232,7 +240,11 @@ test("duplicate VINs across checkpoints block reconciliation", async () => {
           : detailPage(path.split("=")[1] ?? "", true),
       ),
   };
-  const options = { maxPages: 1, onBatch: () => Effect.void };
+  const options = {
+    maxPages: 1,
+    yards: [VANDERHAAGS_YARDS[0]],
+    onBatch: () => Effect.void,
+  };
   const first = await Effect.runPromise(
     streamVanderHaagsInventoryFromSource(options, source),
   );
@@ -253,6 +265,7 @@ test("the Sioux Falls census floor blocks a reduced catalog before emission", as
     Effect.runPromise(
       streamVanderHaagsInventoryFromSource(
         {
+          yards: [VANDERHAAGS_YARDS[0]],
           onBatch: () =>
             Effect.sync(() => {
               emitted = true;
@@ -281,7 +294,12 @@ test("cumulative rejection accounting survives checkpoints and blocks an unhealt
   for (let chunk = 0; chunk < 3; chunk++) {
     const result: VanderHaagsStreamResult = await Effect.runPromise(
       streamVanderHaagsInventoryFromSource(
-        { startCursor: cursor, maxPages: 24, onBatch: () => Effect.void },
+        {
+          startCursor: cursor,
+          maxPages: 24,
+          yards: [VANDERHAAGS_YARDS[0]],
+          onBatch: () => Effect.void,
+        },
         source,
       ),
     );
@@ -290,7 +308,12 @@ test("cumulative rejection accounting survives checkpoints and blocks an unhealt
   await expect(
     Effect.runPromise(
       streamVanderHaagsInventoryFromSource(
-        { startCursor: cursor, maxPages: 24, onBatch: () => Effect.void },
+        {
+          startCursor: cursor,
+          maxPages: 24,
+          yards: [VANDERHAAGS_YARDS[0]],
+          onBatch: () => Effect.void,
+        },
         source,
       ),
     ),
@@ -319,6 +342,7 @@ test("changed catalog and failed closing fence never emit the affected checkpoin
         {
           startCursor: cursor,
           maxPages: 24,
+          yards: [VANDERHAAGS_YARDS[0]],
           onBatch: () =>
             Effect.sync(() => {
               emitted += 24;
@@ -335,6 +359,7 @@ test("changed catalog and failed closing fence never emit the affected checkpoin
         {
           startCursor: cursor,
           maxPages: 24,
+          yards: [VANDERHAAGS_YARDS[0]],
           onBatch: () =>
             Effect.sync(() => {
               emitted += 24;
@@ -345,4 +370,258 @@ test("changed catalog and failed closing fence never emit the affected checkpoin
     ),
   ).rejects.toThrow("changed before completion");
   expect(emitted).toBe(72);
+});
+
+const dayMs = 24 * 60 * 60 * 1000;
+const censusNow = 20 * dayMs;
+async function incrementalRun(options: {
+  previousCursor?: unknown;
+  size?: number;
+  now?: () => number;
+  catalog?: string;
+  detail?: (id: string) => string;
+}) {
+  const requests: string[] = [];
+  const vehicles: CanonicalVehicle[] = [];
+  const observedVins: string[] = [];
+  let cursor: VanderHaagsCursor = { source: "vanderhaags", phase: "start" };
+  while (cursor.phase !== "complete") {
+    const result: VanderHaagsStreamResult = await Effect.runPromise(
+      streamVanderHaagsInventoryFromSource(
+        {
+          startCursor: cursor,
+          previousCursor: options.previousCursor,
+          now: options.now ?? (() => censusNow),
+          maxPages: 24,
+          yards: [VANDERHAAGS_YARDS[0]],
+          onBatch: (v) =>
+            Effect.sync(() => {
+              vehicles.push(...v);
+            }),
+        },
+        {
+          fetchPage: (path) => {
+            requests.push(path);
+            return Effect.succeed(
+              path === VANDERHAAGS_CATALOG_PATH
+                ? (options.catalog ?? catalogPage(options.size ?? 96))
+                : (options.detail ?? detailPage)(path.split("=")[1] ?? ""),
+            );
+          },
+        },
+      ),
+    );
+    cursor = result.cursor;
+    observedVins.push(...(result.observedVins ?? []));
+  }
+  return {
+    cursor,
+    observedVins,
+    vehicles,
+    requests,
+    details: requests.filter((p) => p.startsWith("/detailview")),
+  };
+}
+
+test("cold census reads every detail; known unchanged listings carry without HTTP details", async () => {
+  const cold = await incrementalRun({});
+  expect(cold.details).toHaveLength(96);
+  const daily = await incrementalRun({ previousCursor: cold.cursor });
+  expect(daily.details).toEqual([]);
+  expect(daily.vehicles).toEqual(cold.vehicles);
+  expect(daily.requests).toHaveLength(2); // Opening and closing catalog fences.
+  expect(daily.cursor).toEqual(cold.cursor);
+});
+
+test("a new catalog listing fetches its detail while existing identities carry", async () => {
+  const previous = await incrementalRun({ size: 95 });
+  const next = await incrementalRun({ previousCursor: previous.cursor });
+  expect(next.details).toEqual(["/detailview.php?part=" + ids[95]]);
+  expect(next.vehicles).toHaveLength(96);
+});
+
+test("a removed listing drops from inventory and from persisted detail evidence", async () => {
+  const previous = await incrementalRun({});
+  const next = await incrementalRun({
+    size: 95,
+    previousCursor: previous.cursor,
+  });
+  expect(next.details).toEqual([]);
+  expect(next.vehicles).toHaveLength(95);
+  expect(next.vehicles.map((v) => v.vin)).not.toContain(vins[95]);
+  expect(
+    next.cursor.phase === "complete" && next.cursor.census?.entries,
+  ).toHaveLength(95);
+});
+
+test("each next day re-verifies its rolling slice without refreshing carried read times", async () => {
+  const previous = await incrementalRun({});
+  const next = await incrementalRun({
+    previousCursor: previous.cursor,
+    now: () => censusNow + dayMs,
+  });
+  const due = ids.filter((_, index) => index % 6 === 3);
+  expect(next.details).toEqual(due.map((id) => "/detailview.php?part=" + id));
+  expect(next.vehicles).toEqual(previous.vehicles);
+  if (next.cursor.phase !== "complete" || !next.cursor.census)
+    throw new Error("Missing terminal census");
+  expect(
+    next.cursor.census.entries.filter((e) => e.readAt === censusNow + dayMs),
+  ).toHaveLength(due.length);
+  expect(
+    next.cursor.census.entries.filter((e) => e.readAt === censusNow),
+  ).toHaveLength(96 - due.length);
+});
+
+test("six-day evidence forces reads independently of sweep position; corrupt and legacy history cold-fallback", async () => {
+  const previous = await incrementalRun({});
+  for (const history of [
+    "corrupt",
+    { source: "vanderhaags", phase: "complete" },
+    previous.cursor,
+  ]) {
+    const next = await incrementalRun({
+      previousCursor: history,
+      now: () => censusNow + 6 * dayMs,
+    });
+    expect(next.details).toHaveLength(96);
+  }
+});
+
+test("changed catalog identity fetches details and does not reuse a conflicting cached description", async () => {
+  const previous = await incrementalRun({});
+  const changed = catalogPage().replace(
+    'itemprop="name">2017 Kenworth T370',
+    'itemprop="name">2018 Kenworth T370',
+  );
+  const next = await incrementalRun({
+    previousCursor: previous.cursor,
+    catalog: changed,
+  });
+  expect(next.details).toEqual(["/detailview.php?part=" + ids[0]]);
+  expect(next.vehicles).toHaveLength(95);
+});
+
+test("an expired active run fails before requesting inventory", async () => {
+  const first = await Effect.runPromise(
+    streamVanderHaagsInventoryFromSource(
+      {
+        maxPages: 1,
+        now: () => censusNow,
+        yards: [VANDERHAAGS_YARDS[0]],
+        onBatch: () => Effect.void,
+      },
+      {
+        fetchPage: (path) =>
+          Effect.succeed(
+            path === VANDERHAAGS_CATALOG_PATH
+              ? catalogPage()
+              : detailPage(path.split("=")[1] ?? ""),
+          ),
+      },
+    ),
+  );
+  let requests = 0;
+  await expect(
+    Effect.runPromise(
+      streamVanderHaagsInventoryFromSource(
+        {
+          startCursor: first.cursor,
+          now: () => censusNow + dayMs,
+          yards: [VANDERHAAGS_YARDS[0]],
+          onBatch: () => Effect.void,
+        },
+        {
+          fetchPage: () => {
+            requests++;
+            return Effect.succeed("");
+          },
+        },
+      ),
+    ),
+  ).rejects.toThrow("deadline expired");
+  expect(requests).toBe(0);
+});
+
+test("empty quantity evidence is quarantined; another yard or multiple quantities still abort", () => {
+  const empty = detail.replace(
+    /(<table id="storequantity">)[^]*?<\/table>/,
+    "$1<tr><th>Location</th><th>Quantity</th></tr></table>",
+  );
+  const parsed = parseVanderHaagsDetail(empty, nativeDonor);
+  expect(parsed.availability).toBe("unavailable");
+  expect(
+    transformVanderHaagsDonor(nativeDonor, parsed.fields, parsed.availability),
+  ).toEqual({ status: "rejected", vin: "2NKHHM7X6HM164968" });
+  expect(
+    parseVanderHaagsDetail(
+      detail.replace("<td>1</td>", "<td>0</td>"),
+      nativeDonor,
+    ).availability,
+  ).toBe("unavailable");
+  for (const rows of [
+    "<tr><td>Spencer, IA</td><td>1</td></tr>",
+    "<tr><td>Sioux Falls, SD</td><td>2</td></tr>",
+    "<tr><td>Sioux Falls, SD</td><td>1</td></tr><tr><td>Spencer, IA</td><td>1</td></tr>",
+  ])
+    expect(() =>
+      parseVanderHaagsDetail(
+        detail.replace(
+          /(<table id="storequantity">)[^]*?<\/table>/,
+          "$1<tr><th>Location</th><th>Quantity</th></tr>" + rows + "</table>",
+        ),
+        nativeDonor,
+      ),
+    ).toThrow("quantity or yard attribution changed");
+});
+
+test("carried unavailable listings retain presence evidence without becoming publishable", async () => {
+  const previous = await incrementalRun({
+    detail: (id) =>
+      id === ids[0]
+        ? detailPage(id).replace(
+            /(<table id="storequantity">)[^]*?<\/table>/,
+            "$1<tr><th>Location</th><th>Quantity</th></tr></table>",
+          )
+        : detailPage(id),
+  });
+  const next = await incrementalRun({ previousCursor: previous.cursor });
+  expect(next.details).toEqual([]);
+  expect(next.vehicles).toHaveLength(95);
+  expect(next.observedVins).toEqual(["2NKHHM7X6HM164968"]);
+});
+
+test("a newly fetched VIN cannot duplicate an identity carried from the previous published census", async () => {
+  const previous = await incrementalRun({ size: 95 });
+  await expect(
+    Effect.runPromise(
+      streamVanderHaagsInventoryFromSource(
+        {
+          previousCursor: previous.cursor,
+          now: () => censusNow,
+          yards: [VANDERHAAGS_YARDS[0]],
+          onBatch: () => Effect.void,
+        },
+        {
+          fetchPage: (path) =>
+            Effect.succeed(
+              path === VANDERHAAGS_CATALOG_PATH
+                ? catalogPage()
+                : detailPage(path.split("=")[1] ?? "", true),
+            ),
+        },
+      ),
+    ),
+  ).rejects.toThrow("repeated VIN");
+});
+
+test("corrupted cached evidence cold-falls back instead of silently carrying altered identities", async () => {
+  const previous = await incrementalRun({});
+  const corrupt = structuredClone(previous.cursor);
+  if (corrupt.phase !== "complete" || !corrupt.census?.entries[0])
+    throw new Error("Missing census evidence");
+  corrupt.census.entries[0].readAt--;
+  expect(VanderHaagsCursorSchema.safeParse(corrupt).success).toBe(false);
+  const next = await incrementalRun({ previousCursor: corrupt });
+  expect(next.details).toHaveLength(96);
 });

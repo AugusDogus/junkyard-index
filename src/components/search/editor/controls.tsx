@@ -150,7 +150,7 @@ const SOURCES = [
   ["brandywine", "Brandywine U-Pull-It"],
   ["rmmdtp", "Rocky Mountain Medium Duty Truck Parts"],
   ["aero", "Aero Auto Parts"],
-  ["vanderhaags", "Vander Haag’s Sioux Falls"],
+  ["vanderhaags", "Vander Haag’s"],
   ["row52", "Row52 / Pick-n-Pull"],
   ["autorecycler", "AutoRecycler.io"],
 ] as const;

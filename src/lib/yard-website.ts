@@ -1,3 +1,4 @@
+import { VANDERHAAGS_YARDS } from "~/server/ingestion/vanderhaags-yards";
 import { normalizeRegion } from "~/server/ingestion/normalization";
 import { HOLLANDERSTORES_YARDS } from "~/server/ingestion/hollanderstores-yard-metadata";
 import { Yard } from "./yard";
@@ -30,10 +31,7 @@ const providerWebsites = new Map<string, string>([
   ["nvpap", "https://nvpap.com/"],
   ["pontiac", "https://u-pullandsave.com/"],
   ["aero", "https://aeroautosalvage.com/"],
-  [
-    "vanderhaags",
-    "https://www.vanderhaags.com/locationtemplate.php?store=Sioux%20Falls",
-  ],
+  ["vanderhaags", "https://www.vanderhaags.com/map.php"],
   ["chesterfield", "https://chesterfieldauto.com/"],
   ["utpap", "https://utpap.com/"],
   ["tritown", "https://tritownautosalvage.com/cars/"],
@@ -208,6 +206,11 @@ export function resolveYardWebsite(yard: WebsiteYard): YardWebsite | null {
         kind: "yard",
         href: `https://vinplus.texnrewards.com/parts/${slug}`,
       };
+  }
+  if (yard.source === "vanderhaags") {
+    const href = VANDERHAAGS_YARDS.find((y) => y.yard.code === yard.code)?.yard
+      .websiteUrl;
+    if (href) return { kind: "yard", href };
   }
   if (yard.source === "urgiis") {
     const href = Yard.website(urgiisYardWebsites.get(yard.code) ?? null);

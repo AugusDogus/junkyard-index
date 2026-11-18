@@ -114,7 +114,7 @@ export const INGESTION_SOURCE_DISPLAY_NAMES = {
   nvpap: "Nevada Pic-A-Part",
   pontiac: "U-Pull and Save Pontiac",
   aero: "Aero Auto Parts",
-  vanderhaags: "Vander Haag’s Sioux Falls",
+  vanderhaags: "Vander Haag’s",
   chesterfield: "Chesterfield Auto Parts",
   utpap: "Utah Pic-A-Part",
   tritown: "Tri Town Auto Salvage",

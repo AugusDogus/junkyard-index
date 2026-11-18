@@ -1,3 +1,4 @@
+import { VANDERHAAGS_YARDS } from "./vanderhaags-yards";
 import { createHash } from "node:crypto";
 import { iisAttribute, iisClass, iisElements, iisText } from "./iis-html";
 
@@ -168,14 +169,16 @@ export function parseVanderHaagsDetail(html: string, donor: VanderHaagsDonor) {
     inventoryIds[0]?.[1] !== donor.id
   )
     throw new Error("Vander Haags detail does not match the requested donor");
+  const yard = VANDERHAAGS_YARDS.find((y) => y.catalogLabel === donor.yard);
   const locations = iisElements(html, "a", (t) =>
     (iisAttribute(t, "href") ?? "").startsWith("/locationtemplate.php?store="),
   );
   if (
+    !yard ||
     !locations.some(
       (a) =>
         iisAttribute(a.tag, "href") ===
-          "/locationtemplate.php?store=Sioux Falls" &&
+          "/locationtemplate.php?store=" + yard.store &&
         iisText(a.body) === donor.yard,
     )
   )
@@ -185,9 +188,19 @@ export function parseVanderHaagsDetail(html: string, donor: VanderHaagsDonor) {
     "table",
     (t) => iisAttribute(t, "id") === "storequantity",
   );
+  if (quantities.length !== 1)
+    throw new Error("Missing or repeated Vander Haags quantity table");
+  const quantity = iisText(quantities[0]?.body ?? "");
+  const availability =
+    quantity === "Location Quantity " + donor.yard + " 1"
+      ? "available"
+      : "unavailable";
+  // A native empty quantity table (or explicit zero) is an individual unusable
+  // listing. Never emit it, even though the catalog and location link agree.
   if (
-    quantities.length !== 1 ||
-    iisText(quantities[0]?.body ?? "") !== "Location Quantity Sioux Falls, SD 1"
+    availability === "unavailable" &&
+    quantity !== "Location Quantity" &&
+    quantity !== "Location Quantity " + donor.yard + " 0"
   )
     throw new Error("Vander Haags donor quantity or yard attribution changed");
   const tables = iisElements(
@@ -209,5 +222,5 @@ export function parseVanderHaagsDetail(html: string, donor: VanderHaagsDonor) {
   }
   if (fields.get("Item #:") !== donor.stock)
     throw new Error("Vander Haags detail stock disagrees with catalog");
-  return fields;
+  return { fields, availability } as const;
 }
