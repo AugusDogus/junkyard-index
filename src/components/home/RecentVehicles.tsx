@@ -74,6 +74,8 @@ export function RecentVehicles({ vehicles }: { vehicles: RecentVehicle[] }) {
 
   return (
     <section
+      id="recent-vehicles"
+      tabIndex={-1}
       ref={ref}
       aria-labelledby="recent-vehicles-title"
       aria-roledescription="carousel"
