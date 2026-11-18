@@ -124,3 +124,36 @@ test("labels known provider entry points honestly and never invents an independe
     href: "https://app.autorecycler.io/inventory/kikers-u-pull-it",
   });
 });
+
+test("Vander Haags resolves physical yards, including London's native Columbus route", () => {
+  expect(
+    resolveYardWebsite({
+      source: "vanderhaags",
+      code: "london",
+      name: "Vander Haag's Columbus",
+      state: "OH",
+    }),
+  ).toEqual({
+    kind: "yard",
+    href: "https://www.vanderhaags.com/locationtemplate.php?store=Columbus",
+  });
+  expect(
+    resolveYardWebsite({
+      source: "vanderhaags",
+      code: "spencer",
+      name: "Vander Haag's Spencer",
+      state: "IA",
+    }),
+  ).toEqual({
+    kind: "yard",
+    href: "https://www.vanderhaags.com/locationtemplate.php?store=Spencer",
+  });
+  expect(
+    resolveYardWebsite({
+      source: "vanderhaags",
+      code: "unknown",
+      name: "Unknown",
+      state: "TX",
+    }),
+  ).toEqual({ kind: "provider", href: "https://www.vanderhaags.com/map.php" });
+});

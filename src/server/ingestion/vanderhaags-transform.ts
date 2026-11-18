@@ -1,9 +1,11 @@
-import type { Yard } from "~/lib/yard";
+import { VANDERHAAGS_YARDS } from "./vanderhaags-yards";
+export { VANDERHAAGS_YARD } from "./vanderhaags-yards";
 import { inventoryVin } from "./inventory-vin";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import {
   normalizeCanonicalColor,
   normalizeCanonicalMake,
+  normalizeRegion,
 } from "./normalization";
 import type { CanonicalVehicle } from "./types";
 import {
@@ -11,30 +13,20 @@ import {
   type VanderHaagsDonor,
 } from "./vanderhaags-catalog";
 
-// Official Sioux Falls location page and linked map, verified 2026-11-17.
-export const VANDERHAAGS_YARD = {
-  source: "vanderhaags",
-  code: "sioux-falls",
-  name: "Vander Haag's Sioux Falls",
-  operator: "Vander Haag's",
-  address: "1423 E 54th St N",
-  city: "Sioux Falls",
-  state: "SD",
-  postalCode: "57104",
-  phone: "888-940-5030",
-  email: null,
-  lat: 43.594099,
-  lng: -96.70945,
-  websiteUrl: VANDERHAAGS_ORIGIN + "/locationtemplate.php?store=Sioux%20Falls",
-} as const satisfies Yard;
-
-// Published manufacturer labels, longest first. Never guess a make from a VIN.
+// Published manufacturer labels. Never guess a make from a VIN.
 const makes = [
   "Western Star Trucks",
   "International",
   "Freightliner",
   "Peterbilt",
   "Chevrolet",
+  "Mitsubishi",
+  "Workhorse",
+  "Blue Bird",
+  "Capacity",
+  "Autocar",
+  "E-ONE",
+  "UD",
   "Kenworth",
   "Sterling",
   "Ottawa",
@@ -50,7 +42,11 @@ const makes = [
 export function transformVanderHaagsDonor(
   donor: VanderHaagsDonor,
   fields: ReadonlyMap<string, string>,
+  availability: "available" | "unavailable",
 ) {
+  const yard = VANDERHAAGS_YARDS.find(
+    (y) => y.catalogLabel === donor.yard,
+  )?.yard;
   const yearText = donor.title.slice(0, 4);
   const year = Number(yearText);
   const rawVin = fields.get("VIN:") ?? "";
@@ -62,6 +58,8 @@ export function transformVanderHaagsDonor(
     makeLabel === "Western Star Trucks" ? "Western Star" : (makeLabel ?? ""),
   );
   if (
+    availability !== "available" ||
+    !yard ||
     !vin ||
     fields.get("Vehicle Info:")?.toUpperCase() !==
       donor.title.split(" Parts Unit:")[0]?.toUpperCase() ||
@@ -82,13 +80,13 @@ export function transformVanderHaagsDonor(
     stockNumber: donor.stock,
     imageUrl: donor.image,
     availableDate: null,
-    locationCode: VANDERHAAGS_YARD.code,
-    locationName: VANDERHAAGS_YARD.name,
-    locationCity: VANDERHAAGS_YARD.city,
-    state: "South Dakota",
-    stateAbbr: "SD",
-    lat: VANDERHAAGS_YARD.lat,
-    lng: VANDERHAAGS_YARD.lng,
+    locationCode: yard.code,
+    locationName: yard.name,
+    locationCity: yard.city,
+    state: normalizeRegion(yard.state).state,
+    stateAbbr: yard.state,
+    lat: yard.lat,
+    lng: yard.lng,
     section: null,
     row: null,
     space: null,

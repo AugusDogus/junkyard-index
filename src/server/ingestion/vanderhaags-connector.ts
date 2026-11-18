@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { Config } from "./context";
 import type { ConnectorChunkResult } from "./connector-chunk";
@@ -20,17 +21,28 @@ import {
   acquireVanderHaagsSession,
   type VanderHaagsPageSource,
 } from "./vanderhaags-browser-session";
+import { transformVanderHaagsDonor } from "./vanderhaags-transform";
+import { VANDERHAAGS_YARDS, type VanderHaagsYard } from "./vanderhaags-yards";
+import type { Yard } from "~/lib/yard";
+
 import {
-  transformVanderHaagsDonor,
-  VANDERHAAGS_YARD,
-} from "./vanderhaags-transform";
+  carryVanderHaagsDetail,
+  vanderHaagsDetailEvidence,
+  VANDERHAAGS_CENSUS_CONTRACT,
+  VANDERHAAGS_DAY_MS,
+  VanderHaagsCensus,
+} from "./vanderhaags-census";
 
 interface Options<E, R> {
+  /** Only the previous accepted, search-published terminal checkpoint. */
+  previousCursor?: unknown;
+  yards?: readonly VanderHaagsYard[];
+  now?: () => number;
   startCursor?: VanderHaagsCursor;
   /** Detail requests per checkpoint, not concurrent requests. */
   maxPages?: number;
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
-  onYards?: (yards: (typeof VANDERHAAGS_YARD)[]) => Effect.Effect<void, E, R>;
+  onYards?: (yards: Yard[]) => Effect.Effect<void, E, R>;
 }
 export type VanderHaagsStreamResult = ConnectorChunkResult<
   "vanderhaags",
@@ -62,7 +74,10 @@ function validate<T>(body: () => T) {
   });
 }
 
-function catalog<E>(source: VanderHaagsPageSource<E>) {
+function catalog<E>(
+  source: VanderHaagsPageSource<E>,
+  yards: readonly VanderHaagsYard[],
+) {
   return Effect.gen(function* () {
     const first = yield* source.fetchPage(VANDERHAAGS_CATALOG_PATH);
     const parsed = yield* validate(() => parseVanderHaagsPage(first, 1));
@@ -93,16 +108,21 @@ function catalog<E>(source: VanderHaagsPageSource<E>) {
           "Vander Haags catalog does not reconcile to unique donor IDs",
         ),
       );
-    const selected = donors.filter((d) => d.yard === "Sioux Falls, SD");
-    if (
-      selected.length < 95 ||
-      new Set(selected.map((d) => d.stock)).size !== selected.length
-    )
-      return yield* Effect.fail(
-        new Error(
-          "Vander Haags Sioux Falls census fell below 95 donors or repeated stock identities",
-        ),
-      );
+    const selected = donors.filter((d) =>
+      yards.some((y) => y.catalogLabel === d.yard),
+    );
+    for (const yard of yards) {
+      const local = selected.filter((d) => d.yard === yard.catalogLabel);
+      if (
+        local.length < yard.minimumInventory ||
+        new Set(local.map((d) => d.stock)).size !== local.length
+      )
+        return yield* Effect.fail(
+          new Error(
+            `Vander Haags ${yard.yard.city} census fell below ${yard.minimumInventory} donors or repeated stock identities`,
+          ),
+        );
+    }
     return { donors: selected, hash: vanderHaagsCatalogHash(donors) };
   });
 }
@@ -128,8 +148,53 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
         ),
       );
     const cursor = decoded.data;
-    if (cursor.phase === "complete") return empty;
-    const snapshot = yield* catalog(source);
+    if (cursor.phase === "complete") return { ...empty, cursor };
+    const yards = options.yards ?? VANDERHAAGS_YARDS;
+    const now = options.now ?? Date.now;
+    const startedAt =
+      cursor.phase === "details" ? cursor.census.startedAt : now();
+    const scope = createHash("sha256")
+      .update(JSON.stringify(yards))
+      .digest("hex");
+    const previous = VanderHaagsCursorSchema.safeParse(options.previousCursor);
+    const compatible =
+      previous.success &&
+      previous.data.phase === "complete" &&
+      previous.data.census?.scope === scope &&
+      previous.data.census.startedAt <= startedAt
+        ? previous.data.census
+        : undefined;
+    const warnings: string[] = [];
+    if (cursor.phase === "start" && options.previousCursor && !compatible)
+      warnings.push(
+        "Previous Vander Haags census is incompatible; reading every detail.",
+      );
+    const census: VanderHaagsCensus =
+      cursor.phase === "details"
+        ? cursor.census
+        : VanderHaagsCensus.checkpoint({
+            contract: VANDERHAAGS_CENSUS_CONTRACT,
+            scope,
+            startedAt,
+            entries: compatible?.entries ?? [],
+          });
+    const checkAge = () => {
+      if (
+        census.scope !== scope ||
+        startedAt > now() ||
+        now() - startedAt >= VANDERHAAGS_DAY_MS - 4 * 60 * 1000
+      )
+        throw new Error(
+          "Vander Haags census contract changed or its one-day deadline expired; restart enumeration. Previous inventory is preserved.",
+        );
+    };
+    yield* validate(checkAge);
+    const snapshot = yield* catalog(source, yards);
+    const entries = new Map(census.entries.map((entry) => [entry.path, entry]));
+    // Removed catalog identities never enter the new terminal census.
+    const paths = new Set(snapshot.donors.map((d) => d.path));
+    for (const path of entries.keys())
+      if (!paths.has(path)) entries.delete(path);
     const offset = cursor.phase === "details" ? cursor.offset : 0;
     if (
       cursor.phase === "details" &&
@@ -140,15 +205,75 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
           "Vander Haags catalog changed since checkpoint; restart enumeration",
         ),
       );
+    if (cursor.phase === "details") {
+      yield* validate(() => {
+        const prefix = snapshot.donors.slice(0, offset).map((donor) => {
+          const evidence = entries.get(donor.path);
+          if (
+            !evidence ||
+            evidence.identity !== vanderHaagsCatalogHash([donor]) ||
+            startedAt - evidence.readAt >= 6 * VANDERHAAGS_DAY_MS
+          )
+            throw new Error(
+              "Vander Haags checkpoint lost processed detail evidence; restart enumeration",
+            );
+          return transformVanderHaagsDonor(
+            donor,
+            new Map(evidence.fields),
+            evidence.availability,
+          );
+        });
+        const vins = prefix.flatMap((result) => {
+          const vin =
+            result.status === "available" ? result.vehicle.vin : result.vin;
+          return vin ? [vin] : [];
+        });
+        if (
+          prefix.filter((r) => r.status === "rejected").length !==
+            cursor.rejected ||
+          JSON.stringify(vins) !== JSON.stringify(cursor.seenVins)
+        )
+          throw new Error(
+            "Vander Haags checkpoint accounting disagrees with detail evidence",
+          );
+      });
+    }
     const seen = new Set(cursor.phase === "details" ? cursor.seenVins : []);
     const vehicles: CanonicalVehicle[] = [];
     const observedVins: string[] = [];
     let rejected = 0;
-    const end = Math.min(offset + budget, snapshot.donors.length);
-    for (const donor of snapshot.donors.slice(offset, end)) {
-      const html = yield* source.fetchPage(donor.path);
-      const fields = yield* validate(() => parseVanderHaagsDetail(html, donor));
-      const result = transformVanderHaagsDonor(donor, fields);
+    let end = offset;
+    let detailRequests = 0;
+    for (const [index, donor] of snapshot.donors.entries()) {
+      if (index < offset) continue;
+      yield* validate(checkAge);
+      let evidence = carryVanderHaagsDetail(
+        donor,
+        index,
+        entries.get(donor.path),
+        startedAt,
+      );
+      if (!evidence) {
+        if (detailRequests >= budget) break;
+        const html = yield* source.fetchPage(donor.path);
+        const detail = yield* validate(() =>
+          parseVanderHaagsDetail(html, donor),
+        );
+        evidence = vanderHaagsDetailEvidence(
+          donor,
+          detail.fields,
+          startedAt,
+          detail.availability,
+        );
+        entries.set(donor.path, evidence);
+        detailRequests++;
+      }
+      const result = transformVanderHaagsDonor(
+        donor,
+        new Map(evidence.fields),
+        evidence.availability,
+      );
+      end++;
       const vin =
         result.status === "available" ? result.vehicle.vin : result.vin;
       if (vin && seen.has(vin))
@@ -173,8 +298,40 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
         return yield* Effect.fail(
           new Error("Vander Haags exceeded the 10% rejected donor limit"),
         );
+      yield* validate(() => {
+        const accepted = snapshot.donors.flatMap((donor) => {
+          const evidence = entries.get(donor.path);
+          if (!evidence)
+            throw new Error("Vander Haags census lost a donor detail");
+          const result = transformVanderHaagsDonor(
+            donor,
+            new Map(evidence.fields),
+            evidence.availability,
+          );
+          return result.status === "available" ? [result.vehicle] : [];
+        });
+        for (const yard of yards) {
+          const count = accepted.filter(
+            (v) => v.locationCode === yard.yard.code,
+          ).length;
+          if (count < yard.minimumInventory)
+            throw new Error(
+              `Vander Haags ${yard.yard.city} accepted ${count} donors, below its floor ${yard.minimumInventory}; prior inventory is preserved`,
+            );
+          const local = snapshot.donors.filter(
+            (d) => d.yard === yard.catalogLabel,
+          ).length;
+          if (
+            (local - count) / local >
+            SourceValidationPolicy.maximumRejectionRatio
+          )
+            throw new Error(
+              `Vander Haags ${yard.yard.city} exceeded the 10% rejected donor limit`,
+            );
+        }
+      });
       // A fresh complete enumeration fences removal reconciliation.
-      const closing = yield* catalog(source);
+      const closing = yield* catalog(source, yards);
       if (closing.hash !== snapshot.hash)
         return yield* Effect.fail(
           new Error(
@@ -182,13 +339,20 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
           ),
         );
     }
-    if (options.onYards) yield* options.onYards([VANDERHAAGS_YARD]);
+    yield* validate(checkAge);
+    const nextCensus = yield* validate(() =>
+      VanderHaagsCensus.checkpoint({
+        ...census,
+        entries: [...entries.values()],
+      }),
+    );
+    if (options.onYards) yield* options.onYards(yards.map((y) => y.yard));
     if (vehicles.length) yield* options.onBatch(vehicles);
     return {
       ...empty,
       status: complete ? "complete" : "paused",
       cursor: complete
-        ? empty.cursor
+        ? { source: "vanderhaags", phase: "complete", census: nextCensus }
         : {
             source: "vanderhaags",
             phase: "details",
@@ -196,17 +360,21 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
             offset: end,
             rejected: totalRejected,
             seenVins: [...seen],
+            census: nextCensus,
           },
       count: vehicles.length,
-      pagesProcessed: end - offset,
+      pagesProcessed: detailRequests,
       observedVins,
-      warnings: rejected
-        ? [
-            "Vander Haags rejected " +
-              rejected +
-              " donors with incomplete identity or description; valid VINs supply presence evidence only.",
-          ]
-        : [],
+      warnings: [
+        ...warnings,
+        ...(rejected
+          ? [
+              "Vander Haags rejected " +
+                rejected +
+                " donors without usable identity, description or available quantity; valid VINs supply presence evidence only.",
+            ]
+          : []),
+      ],
       accounting: {
         recordsProcessed: end - offset,
         recordsExcluded: 0,
@@ -218,7 +386,11 @@ export function streamVanderHaagsInventoryFromSource<E, R, FetchError>(
 }
 
 export function streamVanderHaagsInventory<E, R>(options: Options<E, R>) {
-  if (options.startCursor?.phase === "complete") return Effect.succeed(empty);
+  if (options.startCursor?.phase === "complete")
+    return validate(() => ({
+      ...empty,
+      cursor: VanderHaagsCursorSchema.parse(options.startCursor),
+    }));
   return Effect.scoped(
     Effect.gen(function* () {
       const config = yield* Config;

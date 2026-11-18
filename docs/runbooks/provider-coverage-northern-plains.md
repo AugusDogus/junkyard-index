@@ -17,6 +17,13 @@ that those states have no qualifying public inventory.
 | SD    |                              76 |           1 |               1 |                 2 |
 | AK    |                              48 |           0 |               1 |                 1 |
 
+Follow-up chain-wide qualification extends the same provider to Spencer,
+Des Moines and Council Bluffs (IA), Winamac (IN), Kansas City (MO), and London,
+marketed as Columbus (OH). These add four state credits outside the original
+five-state sweep. The original 318-row ledger and its unresolved cases remain
+the record of that sweep. See the [complete physical-yard qualification](vanderhaags-ingestion.md)
+for the additional census, floors, freshness evidence and exclusions.
+
 ## Evidence and interpretation
 
 The [318-row CSV](provider-coverage-northern-plains.csv) records every retained
@@ -94,22 +101,27 @@ substitute for the required complete current inventory.
 See the [Vander Haags ingestion runbook](vanderhaags-ingestion.md) and
 [qualification receipt](vanderhaags-qualification.json). The source validates
 modern check digits, preserves pre-1981 serials, binds stock and native IDs to
-the Sioux Falls yard, checkpoints complete catalog identities and fences
-completion with another full census. Its sole yard/source floor is 95.
+each physical yard, checkpoints complete catalog identities and fences
+completion with another full census. Sioux Falls retains its floor of 95;
+the seven physical-yard floors sum to a source floor of 703.
 
-At the qualified census, a default run uses **412 inventory document requests
-across 24 checkpoints**, plus browser assets and WAF challenge traffic. A fresh
-production-transport checkpoint emitted 12 validated trucks in 17 document
-requests. A complete saved-response replay yielded 276 accepted, 11 rejected
-and zero duplicates. No arrival dates were invented from video publication.
+The original Sioux Falls-only cold census used **412 inventory document
+requests across 24 checkpoints**. Its fresh production-transport checkpoint
+emitted 12 validated trucks in 17 document requests, and its complete
+saved-response replay yielded 276 accepted, 11 rejected and zero duplicates.
+With all seven yards, the default cold budget is **3,006 documents** and the
+typical unchanged daily budget is **507-508 documents**. Daily runs carry known
+detail identities and re-read a rolling slice, with an independent age bound.
+Browser assets and WAF challenge traffic are additional. No arrival dates
+were invented from video publication.
 
 Fixture tests cover all five captured catalog pages, donor identity and
 description conflicts, pre-1981 serials, check digits, truncation, pagination,
 resuming, duplicate VINs, floors, cumulative rejects and closing fences. The
-count-only soak respects its requested cap. Lint, typecheck and relevant
-offline checks passed: 437 tests across 10 files. Two existing large-cursor
-tests exceeded the default five-second timeout; the complete relevant suite
-passed with a 20-second test limit.
+count-only soak respects its requested cap. Incremental tests additionally
+cover new, changed and removed listings, carried identities, rolling
+verification, expired evidence and published-history selection. The ingestion
+runbook records the current full-census replay and verification results.
 
 No merge, deployment, production flag change or production database write was
 performed.

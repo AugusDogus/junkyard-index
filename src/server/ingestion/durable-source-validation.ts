@@ -1,3 +1,4 @@
+import { VANDERHAAGS_MINIMUM_BY_YARD } from "./vanderhaags-yards";
 import { HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { validateAutorecyclerPublishedInventory } from "./autorecycler-published-inventory";
 import { urgiisPublication } from "./urgiis-publication";
@@ -35,6 +36,8 @@ function hasTerminalCursor(source: IngestionSource, cursor: string | null) {
     if (parsed.source === "autorecycler")
       return parsed.phase === "complete" && parsed.freshness !== undefined;
     if (parsed.source === "rohner") return parsed.phase === "complete";
+    if (parsed.source === "vanderhaags")
+      return parsed.phase === "complete" && parsed.census !== undefined;
     if (parsed.source === "pratt") return parsed.phase === "complete";
     if (parsed.source === "cars4parts") return parsed.phase === "complete";
     if (parsed.source === "meeks") return parsed.phase === "complete";
@@ -140,6 +143,20 @@ export async function validateDurableSourceRuns(params: {
         autorecyclerBaselines.set(row.source, validation.previousEligibleCount);
       }
     }
+    if (
+      row.source === "vanderhaags" &&
+      row.status === "success" &&
+      hasTerminalCursor(row.source, row.nextCursor)
+    )
+      yardErrorsBySource.set(
+        row.source,
+        await validatePublishedYardInventory(
+          params.database,
+          snapshot.vehicles.values(),
+          "vanderhaags",
+          VANDERHAAGS_MINIMUM_BY_YARD,
+        ),
+      );
     if (
       row.source === "cars4parts" &&
       row.status === "success" &&

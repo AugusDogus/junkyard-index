@@ -1,3 +1,4 @@
+import { VanderHaagsCensus } from "../src/server/ingestion/vanderhaags-census";
 import { expect, test } from "bun:test";
 import { soakVanderHaagsInventory } from "./soak-vanderhaags";
 import type { VanderHaagsStreamResult } from "../src/server/ingestion/vanderhaags-connector";
@@ -17,6 +18,12 @@ test("a capped soak stops at the requested detail budget and retains resumable a
         offset,
         rejected: offset,
         seenVins: [],
+        census: VanderHaagsCensus.checkpoint({
+          contract: "detail-census-v1",
+          scope: "a".repeat(64),
+          startedAt: 0,
+          entries: [],
+        }),
       },
       count: 0,
       pagesProcessed: maxPages,

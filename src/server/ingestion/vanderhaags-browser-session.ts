@@ -20,6 +20,7 @@ export function acquireVanderHaagsSession(apiKey: string) {
       Effect.tryPromise(() =>
         client.sessions.create({
           useStealth: true,
+          solveCaptchas: false,
           acceptCookies: true,
           region: "us-west",
         }),
@@ -38,18 +39,39 @@ export function acquireVanderHaagsSession(apiKey: string) {
       (yield* Effect.tryPromise(() => browser.newContext({ userAgent })));
     const page =
       context.pages()[0] ?? (yield* Effect.tryPromise(() => context.newPage()));
+    let blocked = false;
+    page.on("response", (response) => {
+      if (
+        URL.parse(response.url())?.origin === VANDERHAAGS_ORIGIN &&
+        [403, 429].includes(response.status())
+      )
+        blocked = true;
+    });
     let initialHtml: string | null = yield* Effect.tryPromise(async () => {
       // Normal browser navigation establishes AWS WAF's JavaScript cookie.
-      await page.goto(VANDERHAAGS_ORIGIN + VANDERHAAGS_CATALOG_PATH, {
-        waitUntil: "domcontentloaded",
-        timeout: 60_000,
-      });
+      const response = await page.goto(
+        VANDERHAAGS_ORIGIN + VANDERHAAGS_CATALOG_PATH,
+        {
+          waitUntil: "domcontentloaded",
+          timeout: 60_000,
+        },
+      );
+      if (blocked || [403, 429].includes(response?.status() ?? 0))
+        throw new Error(
+          "Vander Haags blocked the browser session; stop requesting this host",
+        );
       await page.waitForSelector("#results .item-card", { timeout: 45_000 });
       return page.content();
     });
     return {
       fetchPage: (path: string) =>
         Effect.gen(function* () {
+          if (blocked)
+            return yield* Effect.fail(
+              new Error(
+                "Vander Haags blocked the browser session; stop requesting this host",
+              ),
+            );
           const url = URL.parse(path, VANDERHAAGS_ORIGIN);
           if (
             !url ||
@@ -68,6 +90,12 @@ export function acquireVanderHaagsSession(apiKey: string) {
             return html;
           }
           yield* Effect.sleep("1600 millis");
+          if (blocked)
+            return yield* Effect.fail(
+              new Error(
+                "Vander Haags blocked the browser session; stop requesting this host",
+              ),
+            );
           const response = yield* Effect.tryPromise(() =>
             page.evaluate(async (path) => {
               const r = await fetch(path, {

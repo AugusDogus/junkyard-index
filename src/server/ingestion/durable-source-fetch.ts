@@ -24,6 +24,7 @@ import { streamRtpInventory } from "./rtp-connector";
 import { streamNvpapInventory } from "./nvpap-connector";
 import { streamPontiacInventory } from "./pontiac-connector";
 import { streamVanderHaagsInventory } from "./vanderhaags-connector";
+import { loadVanderHaagsPublishedCursor } from "./vanderhaags-history";
 import { streamAeroInventory } from "./aero-connector";
 import { streamChesterfieldInventory } from "./chesterfield-connector";
 import { streamUtpapInventory } from "./utpap-connector";
@@ -1331,6 +1332,10 @@ const DURABLE_SOURCE_FETCHERS: DurableSourceFetcherRegistry = {
       await runIngestionEffect(
         streamVanderHaagsInventory({
           startCursor: cursor,
+          previousCursor:
+            cursor.phase === "start"
+              ? await loadVanderHaagsPublishedCursor(db)
+              : null,
           maxPages: context.maxPages,
           onBatch: context.onBatch,
           onYards: context.onYards,
