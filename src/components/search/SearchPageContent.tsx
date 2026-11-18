@@ -2,13 +2,7 @@
 
 import { sanitizeYardTypes } from "./search-routing";
 import type { YardType } from "~/lib/yard-service";
-import {
-  ArrowUpDown,
-  Calendar,
-  Filter,
-  LocateFixed,
-  MapPin,
-} from "lucide-react";
+import { Filter, LocateFixed, MapPin } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Analytics } from "~/lib/analytics";
@@ -59,14 +53,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+import { SearchSortControl } from "./SearchSortControl";
 import { Toggle } from "~/components/ui/toggle";
 import {
   getSearchableVinPattern,
@@ -74,7 +61,6 @@ import {
   getSearchSortKey,
   sanitizeSearchSources,
   SEARCH_SORT_ITEMS,
-  SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
@@ -133,21 +119,6 @@ function hasValidCoordinates(
     Math.abs(value.lat) <= 90 &&
     Math.abs(value.lng) <= 180,
   );
-}
-
-function getSortIcon(sortOption: string) {
-  switch (sortOption) {
-    case "newest":
-    case "oldest":
-      return Calendar;
-    case "year-desc":
-    case "year-asc":
-      return ArrowUpDown;
-    case "distance":
-      return MapPin;
-    default:
-      return ArrowUpDown;
-  }
 }
 
 function loadLocalLocationPreference(): StoredLocationPreference | null {
@@ -505,7 +476,6 @@ function AlgoliaSearchInner({
     () => getSearchSortKey(currentSortIndex),
     [currentSortIndex],
   );
-  const SortIcon = getSortIcon(sortBy);
 
   const locationPreferenceReady =
     hasLoadedLocalLocationPreference && !isAccountLocationPreferenceLoading;
@@ -1263,21 +1233,7 @@ function AlgoliaSearchInner({
         />
       </div>
       <div className="order-2 ml-auto md:order-3 md:ml-0">
-        <Select value={sortBy} onValueChange={handleSortChange}>
-          <SelectTrigger className="md:min-w-44" aria-label="Sort vehicles">
-            <SortIcon className="text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
-                <SelectItem key={key} value={key}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <SearchSortControl value={sortBy} onChange={handleSortChange} />
       </div>
       <Toggle
         variant="outline"
