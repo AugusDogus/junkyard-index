@@ -1,14 +1,20 @@
-import { useRef, type PointerEvent } from "react";
+import { useRef, type PointerEvent, type Ref } from "react";
 import type { HomepageYard } from "~/lib/homepage-inventory";
 
 export function YardMapPin({
   yard,
   selected,
   onSelect,
+  tabIndex,
+  buttonRef,
+  onFocus,
 }: {
   yard: HomepageYard;
   selected: boolean;
   onSelect: () => void;
+  tabIndex: 0 | -1;
+  buttonRef?: Ref<HTMLButtonElement>;
+  onFocus?: () => void;
 }) {
   const gesture = useRef<{
     pointerId: number;
@@ -28,6 +34,9 @@ export function YardMapPin({
   return (
     <button
       type="button"
+      ref={buttonRef}
+      tabIndex={tabIndex}
+      onFocus={onFocus}
       className="yard-map-pin"
       aria-label={`${yard.name}, ${yard.city}, ${yard.state}`}
       aria-pressed={selected}

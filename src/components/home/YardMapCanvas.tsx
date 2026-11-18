@@ -1,5 +1,7 @@
 "use client";
 
+import { nextYardPin } from "~/lib/yard-map-focus";
+import { YardPath } from "~/lib/yard-path";
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
 import { YardMapTile } from "./YardMapTile";
@@ -33,6 +35,14 @@ export default function YardMapCanvas({
   onSelect: (yard: HomepageYard | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const pins = yards.filter(hasMapCoordinates);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const pinRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
+  const activeKey = pins.some((yard) => YardPath.key(yard) === focusedKey)
+    ? focusedKey
+    : pins[0]
+      ? YardPath.key(pins[0])
+      : null;
   const mapRef = useRef<Map>(null);
   const [size, setSize] = useState(
     compact ? { width: 360, height: 240 } : { width: 900, height: 400 },
@@ -112,12 +122,27 @@ export default function YardMapCanvas({
       className="yard-map focus-visible:outline-focus relative h-full overflow-hidden outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid"
       style={{ containerType: "size" }}
       role="region"
-      tabIndex={0}
+      tabIndex={pins.length === 0 ? 0 : -1}
       aria-label="Map of indexed junkyard locations"
-      aria-description="Use arrow keys to pan, plus and minus to zoom, and Home to show all yards."
+      aria-description="Use arrow keys to move between yard pins, Enter to select, Shift and arrow keys to pan, plus and minus to zoom, and Home to show all yards."
       onErrorCapture={() => setTileError(true)}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
+        const pinIndex = pins.findIndex(
+          (yard) => pinRefs.current.get(YardPath.key(yard)) === event.target,
+        );
+        if (event.target !== event.currentTarget && pinIndex < 0) return;
+        const next = !event.shiftKey
+          ? nextYardPin(pinIndex, pins.length, event.key)
+          : null;
+        const yard = next === null ? undefined : pins[next];
+        if (yard) {
+          event.preventDefault();
+          const key = YardPath.key(yard);
+          setFocusedKey(key);
+          requestView({ ...current, center: [yard.lat, yard.lng] });
+          pinRefs.current.get(key)?.focus({ preventScroll: true });
+          return;
+        }
         const offsets: Record<string, [number, number]> = {
           ArrowLeft: [-80, 0],
           ArrowRight: [80, 0],
@@ -177,7 +202,7 @@ export default function YardMapCanvas({
           }}
           attribution={false}
         >
-          {yards.filter(hasMapCoordinates).map((yard) => (
+          {pins.map((yard) => (
             <Overlay
               key={`${yard.source}:${yard.code}`}
               anchor={[yard.lat, yard.lng]}
@@ -186,6 +211,13 @@ export default function YardMapCanvas({
             >
               <YardMapPin
                 yard={yard}
+                tabIndex={YardPath.key(yard) === activeKey ? 0 : -1}
+                buttonRef={(button) => {
+                  const key = YardPath.key(yard);
+                  if (button) pinRefs.current.set(key, button);
+                  else pinRefs.current.delete(key);
+                }}
+                onFocus={() => setFocusedKey(YardPath.key(yard))}
                 selected={selected === yard}
                 onSelect={() => onSelect(yard)}
               />

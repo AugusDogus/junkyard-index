@@ -52,6 +52,12 @@ function YardMapContent({
       aria-labelledby="yard-map-title"
       className="border-ink border-2"
     >
+      <a
+        href="#recent-vehicles"
+        className="focus:outline-focus sr-only focus:not-sr-only focus:block focus:p-4 focus:outline-2"
+      >
+        Skip map
+      </a>
       <div className="bg-board text-board-ink flex min-h-16 items-center justify-between gap-4 px-4 py-2 sm:px-5">
         <h2
           id="yard-map-title"
