@@ -11,7 +11,8 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { DiscordIcon } from "~/components/ui/icons";
-import { AlertCircle, Eye, EyeOff } from "lucide-react";
+import { PasswordVisibilityButton } from "./PasswordVisibilityButton";
+import { AlertCircle } from "lucide-react";
 
 export function SignInForm() {
   const router = useRouter();
@@ -97,7 +98,6 @@ export function SignInForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           disabled={isLoading}
-          tabIndex={1}
         />
       </div>
 
@@ -107,7 +107,6 @@ export function SignInForm() {
           <Link
             href="/auth/forgot-password"
             className="text-muted-foreground text-sm hover:underline"
-            tabIndex={5}
           >
             Forgot password?
           </Link>
@@ -121,21 +120,12 @@ export function SignInForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={isLoading}
-            className="pr-10"
-            tabIndex={2}
+            className="pr-12"
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
-            tabIndex={-1}
-          >
-            {showPassword ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
-          </button>
+          <PasswordVisibilityButton
+            visible={showPassword}
+            onToggle={() => setShowPassword(!showPassword)}
+          />
         </div>
       </div>
 
@@ -150,7 +140,6 @@ export function SignInForm() {
         type="submit"
         className="w-full"
         disabled={isLoading || isDiscordLoading}
-        tabIndex={3}
       >
         {isLoading ? "Signing in..." : "Sign in"}
       </Button>
@@ -172,7 +161,6 @@ export function SignInForm() {
         className="w-full"
         onClick={handleDiscordSignIn}
         disabled={isLoading || isDiscordLoading}
-        tabIndex={4}
       >
         <DiscordIcon className="mr-2 h-4 w-4" />
         {isDiscordLoading ? "Connecting..." : "Discord"}
@@ -191,7 +179,6 @@ export function SignInForm() {
               : "/auth/sign-up"
           }
           className="text-signal hover:underline"
-          tabIndex={6}
         >
           Sign up
         </Link>
