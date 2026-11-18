@@ -291,6 +291,8 @@ export const yardInventory = sqliteTable(
     lng: real("lng").notNull(),
     vehicleCount: integer("vehicle_count").notNull(),
     inventoryUrl: text("inventory_url"),
+    // Unknown for inventory published before yard-level tracking began.
+    lastPublishedAt: integer("last_published_at", { mode: "timestamp_ms" }),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],

@@ -333,6 +333,7 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
       ["0018_ingestion_cost_indexes", 1794871322488],
       ["0019_vehicle_departure", 1794992048862],
       ["0020_inventory_snapshot", 1794992409438],
+      ["0021_yard_publication", 1795046400000],
     ]);
     for (let i = 1; i < journal.entries.length; i++) {
       const current = journal.entries[i];
@@ -387,6 +388,15 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
       ),
     );
     expect(inventory.prevId).toBe(departure.id);
+    const publication = snapshot.parse(
+      JSON.parse(
+        await readFile(
+          join(MIGRATIONS_FOLDER, "meta/0021_snapshot.json"),
+          "utf8",
+        ),
+      ),
+    );
+    expect(publication.prevId).toBe(inventory.id);
     await cp(MIGRATIONS_FOLDER, folder, { recursive: true });
     await writeFile(
       join(folder, "meta/_journal.json"),
@@ -415,6 +425,11 @@ test("upgrades production through 0016 with ordered arrival, ingestion, departur
       ).rows,
     ).toHaveLength(1);
     expect((await client.execute("pragma foreign_key_check")).rows).toEqual([]);
+    const publicationColumn = (
+      await client.execute("pragma table_info(yard_inventory)")
+    ).rows.find((row) => row.name === "last_published_at");
+    expect(publicationColumn?.type).toBe("INTEGER");
+    expect(publicationColumn?.notnull).toBe(0);
   } finally {
     client.close();
     await rm(folder, { recursive: true, force: true });
