@@ -24,6 +24,7 @@ const attributes = {
   state: "state",
   yard: "locationName",
   source: "source",
+  yardType: "yardTypes",
 } as const;
 
 /** Algolia accepts ANDs of OR clauses. Bound distribution before multiplying groups. */

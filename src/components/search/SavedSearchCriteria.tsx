@@ -1,3 +1,4 @@
+import { YardService } from "~/lib/yard-service";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
 import type { SavedSearchFilters } from "~/lib/saved-search-filters";
@@ -58,6 +59,14 @@ function getSavedSearchCriteria(
     criteria.push({
       label: "Yards",
       value: filters.salvageYards.join(", "),
+    });
+  }
+  if (filters.yardTypes?.length) {
+    criteria.push({
+      label: "Yard type",
+      value: filters.yardTypes
+        .map((kind) => YardService.label({ kind }))
+        .join(", "),
     });
   }
   if (filters.sources?.length) {

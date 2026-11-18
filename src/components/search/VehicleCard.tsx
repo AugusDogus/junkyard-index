@@ -1,5 +1,7 @@
 "use client";
 
+import { YardService } from "~/lib/yard-service";
+import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
 import { ArrowUpRight, Copy, MapPin } from "lucide-react";
 import Link from "next/link";
 import { Analytics } from "~/lib/analytics";
@@ -21,6 +23,7 @@ import { VehicleDestination } from "~/lib/vehicle-destination";
 
 function VehicleCardComponent({ vehicle }: VehicleCardProps) {
   const destination = VehicleDestination.resolve(vehicle);
+  const service = YardService.resolve(vehicle.source, vehicle.locationCode);
   const [copyError, setCopyError] = useState<string | null>(null);
   const vin = vehicle.vin.trim();
   const primaryImage = vehicle.imageUrl;
@@ -97,6 +100,11 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
           )}
         </div>
 
+        {service.kind !== "unknown" && (
+          <div className="mb-3">
+            <YardServiceLine service={service} hint />
+          </div>
+        )}
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
           <dt className="text-muted-foreground">Yard</dt>
           <dd className="truncate text-right">

@@ -387,7 +387,40 @@ const yardOverrides: Partial<
   ]),
 };
 
+export const YARD_TYPE_OPTIONS = [
+  { value: "self_service", label: "Self-service" },
+  { value: "full_service", label: "Full-service" },
+] as const;
+export type YardType = (typeof YARD_TYPE_OPTIONS)[number]["value"];
+
 export const YardService = {
+  parseType(value: unknown): YardType | null {
+    return value === "self_service" || value === "full_service" ? value : null;
+  },
+  types(service: YardService): YardType[] {
+    switch (service.kind) {
+      case "self_service":
+        return ["self_service"];
+      case "full_service":
+        return ["full_service"];
+      case "both":
+        return ["self_service", "full_service"];
+      case "unknown":
+        return [];
+    }
+  },
+  label(service: YardService): string | null {
+    switch (service.kind) {
+      case "self_service":
+        return "Self-service";
+      case "full_service":
+        return "Full-service";
+      case "both":
+        return "Self & full service";
+      case "unknown":
+        return null;
+    }
+  },
   /** Resolve only registered sources and exact, case-sensitive canonical location codes. */
   resolve(source: IngestionSource, locationCode: string): YardService {
     return yardOverrides[source]?.get(locationCode) ?? sourceDefaults[source];

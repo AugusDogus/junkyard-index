@@ -18,6 +18,7 @@ function Fixture() {
         states={[]}
         salvageYards={[]}
         sources={[]}
+        yardTypes={[]}
         yearRange={[1900, 2027]}
         sortBy="newest"
         filterOptions={{

@@ -21,8 +21,8 @@ try {
 
   const { db } = await import("../src/lib/db");
   const { vehicle } = await import("../schema");
-  const { mapDbVehicleToAlgolia } =
-    await import("../src/server/ingestion/algolia-projector-helpers");
+  const { projectSearchVehicles } =
+    await import("../src/server/ingestion/vehicle-search-projection");
   const { syncToAlgolia } =
     await import("../src/server/ingestion/sync-algolia");
 
@@ -31,7 +31,7 @@ try {
   console.log(`Found ${allDbVehicles.length} vehicles in Turso`);
 
   console.log("Building Algolia records...");
-  const algoliaRecords = allDbVehicles.map(mapDbVehicleToAlgolia);
+  const algoliaRecords = await projectSearchVehicles(db, allDbVehicles);
 
   console.log(`Syncing ${algoliaRecords.length} records to Algolia...`);
   await syncToAlgolia(algoliaRecords, []);

@@ -1,3 +1,6 @@
+import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
+import { YardService } from "~/lib/yard-service";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -168,6 +171,14 @@ export function YardInventoryView({
           <h1 className="text-display-s leading-[1.02] font-extrabold text-pretty">
             {filter ? `${filter.name} at ${headline}` : headline}
           </h1>
+          {isIngestionSource(yard.source) && (
+            <div className="mt-3">
+              <YardServiceLine
+                service={YardService.resolve(yard.source, yard.code)}
+                hint
+              />
+            </div>
+          )}
           <p className="text-lead text-ink-2 mt-5 max-w-[48ch] leading-[1.45]">
             <span className="text-ink font-extrabold tabular-nums">
               {InventoryFormat.plural(

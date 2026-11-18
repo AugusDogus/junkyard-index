@@ -112,3 +112,35 @@ test("existing rows are reprojected with the yard page's authoritative operator 
     client.close();
   }
 });
+
+test("schema 7 projects each yard service type and the matching filter options", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    const records = await projectSearchVehicles(drizzle(client), [
+      { ...legacy, source: "pyp" },
+      { ...legacy, source: "importapart" },
+      { ...legacy, source: "ipullupull" },
+      { ...legacy, source: "row52", locationCode: "unreviewed" },
+    ]);
+    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(7);
+    expect(
+      records.map(({ yardServiceType, yardTypes }) => ({
+        yardServiceType,
+        yardTypes,
+      })),
+    ).toEqual([
+      { yardServiceType: "self_service", yardTypes: ["self_service"] },
+      { yardServiceType: "full_service", yardTypes: ["full_service"] },
+      { yardServiceType: "both", yardTypes: ["self_service", "full_service"] },
+      { yardServiceType: "unknown", yardTypes: [] },
+    ]);
+  } finally {
+    client.close();
+  }
+});

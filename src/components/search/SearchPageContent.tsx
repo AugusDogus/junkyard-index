@@ -1,5 +1,7 @@
 "use client";
 
+import { sanitizeYardTypes } from "./search-routing";
+import type { YardType } from "~/lib/yard-service";
 import {
   ArrowUpDown,
   Calendar,
@@ -479,6 +481,11 @@ function AlgoliaSearchInner({
     { skipSuspense: true },
   );
 
+  const { refine: refineYardType } = useRefinementList(
+    { attribute: "yardTypes", operator: "or" },
+    { skipSuspense: true },
+  );
+
   // Year range
   const { start: yearStart, refine: refineYear } = useRange(
     {
@@ -678,6 +685,10 @@ function AlgoliaSearchInner({
     () => refinementList.locationName ?? [],
     [refinementList],
   );
+  const selectedYardTypes = useMemo(
+    () => sanitizeYardTypes(refinementList.yardTypes),
+    [refinementList],
+  );
   const selectedSources = useMemo(
     () => sanitizeSearchSources(refinementList.source ?? []),
     [refinementList],
@@ -727,6 +738,7 @@ function AlgoliaSearchInner({
     (selectedStates.length > 0 ? 1 : 0) +
     (selectedLocations.length > 0 ? 1 : 0) +
     (selectedSources.length > 0 ? 1 : 0) +
+    (selectedYardTypes.length > 0 ? 1 : 0) +
     (isYearFiltered ? 1 : 0);
 
   const currentSaveSearchFilters = useMemo(
@@ -738,6 +750,7 @@ function AlgoliaSearchInner({
       states: selectedStates,
       salvageYards: selectedLocations,
       sources: selectedSources,
+      yardTypes: selectedYardTypes,
       minYear: yearRange[0],
       maxYear: yearRange[1],
       sortBy,
@@ -750,6 +763,7 @@ function AlgoliaSearchInner({
       selectedStates,
       selectedLocations,
       selectedSources,
+      selectedYardTypes,
       yearRange,
       sortBy,
       vinPattern,
@@ -1043,6 +1057,9 @@ function AlgoliaSearchInner({
     [selectedLocations, refineLocation, applyRefinementDiff],
   );
 
+  const handleYardTypesChange = (types: YardType[]) =>
+    applyRefinementDiff(selectedYardTypes, types, refineYardType);
+
   const handleSourcesChange = useCallback(
     (newSources: DataSource[]) =>
       applyRefinementDiff(selectedSources, newSources, refineSource),
@@ -1177,6 +1194,7 @@ function AlgoliaSearchInner({
       states={selectedStates}
       salvageYards={selectedLocations}
       sources={selectedSources}
+      yardTypes={selectedYardTypes}
       yearRange={yearRange}
       sortBy={sortBy}
       filterOptions={inventoryFilterOptions.data}
@@ -1208,6 +1226,7 @@ function AlgoliaSearchInner({
       states={selectedStates}
       salvageYards={selectedLocations}
       sources={selectedSources}
+      yardTypes={selectedYardTypes}
       yearRange={yearRange}
       filterOptions={filterOptions}
       onMakesChange={handleMakesChange}
@@ -1215,6 +1234,7 @@ function AlgoliaSearchInner({
       onStatesChange={handleStatesChange}
       onSalvageYardsChange={handleLocationsChange}
       onSourcesChange={handleSourcesChange}
+      onYardTypesChange={handleYardTypesChange}
       onYearRangeChange={handleYearRangeChange}
       yearRangeLimits={{ min: yearMin, max: yearMax }}
       canUseAdvancedFilters={canUseAdvancedFilters}
@@ -1410,6 +1430,7 @@ function AlgoliaSearchInner({
               states={selectedStates}
               salvageYards={selectedLocations}
               sources={selectedSources}
+              yardTypes={selectedYardTypes}
               yearRange={yearRange}
               filterOptions={filterOptions}
               onMakesChange={handleMakesChange}
@@ -1417,6 +1438,7 @@ function AlgoliaSearchInner({
               onStatesChange={handleStatesChange}
               onSalvageYardsChange={handleLocationsChange}
               onSourcesChange={handleSourcesChange}
+              onYardTypesChange={handleYardTypesChange}
               onYearRangeChange={handleYearRangeChange}
               yearRangeLimits={{ min: yearMin, max: yearMax }}
               canUseAdvancedFilters={canUseAdvancedFilters}

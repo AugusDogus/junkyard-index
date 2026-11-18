@@ -1,3 +1,4 @@
+import { YardService, type YardType } from "~/lib/yard-service";
 import {
   ALGOLIA_DISTANCE_SORT_ALIAS,
   ALGOLIA_INDEX_NAME,
@@ -95,6 +96,18 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+export function sanitizeYardTypes(values: unknown): YardType[] {
+  if (!Array.isArray(values)) return [];
+  return [
+    ...new Set(
+      values.flatMap((value: unknown) => {
+        const type = YardService.parseType(value);
+        return type ? [type] : [];
+      }),
+    ),
+  ];
+}
+
 const ADVANCED_REFINEMENTS = [
   { routeKey: "makes", refinementKey: "make" },
   { routeKey: "colors", refinementKey: "color" },
@@ -108,6 +121,7 @@ const ADVANCED_URL_KEYS = [
   "states",
   "yards",
   "sources",
+  "yardTypes",
   "minYear",
   "maxYear",
 ] as const;
@@ -118,6 +132,7 @@ interface AdvancedRouteFilters {
   states?: string[];
   yards?: string[];
   sources?: DataSource[];
+  yardTypes?: YardType[];
   minYear?: number;
   maxYear?: number;
 }
@@ -139,6 +154,8 @@ function parseAdvancedUrlFilters(
   }
   const sources = sanitizeSearchSources(params.get("sources")?.split(","));
   if (sources.length > 0) filters.sources = sources;
+  const yardTypes = sanitizeYardTypes(params.get("yardTypes")?.split(","));
+  if (yardTypes.length) filters.yardTypes = yardTypes;
   for (const key of ["minYear", "maxYear"] as const) {
     const value = params.get(key);
     if (!value) continue;
@@ -185,6 +202,8 @@ function advancedRouteFromUiState(
     }
     const sources = sanitizeSearchSources(refinementList.source);
     if (sources.length > 0) route.sources = sources;
+    const yardTypes = sanitizeYardTypes(refinementList.yardTypes);
+    if (yardTypes.length) route.yardTypes = yardTypes;
   }
 
   const range = indexState.range;
@@ -220,6 +239,8 @@ function advancedUiStateFromRoute(
   }
   const sources = sanitizeSearchSources(state.sources);
   if (sources.length > 0) refinementList.source = sources;
+  const yardTypes = sanitizeYardTypes(state.yardTypes);
+  if (yardTypes.length) refinementList.yardTypes = yardTypes;
   if (Object.keys(refinementList).length > 0) {
     uiState.refinementList = refinementList;
   }

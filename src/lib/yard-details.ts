@@ -1,3 +1,5 @@
+import { isIngestionSource } from "./ingestion-source";
+import { YardService } from "./yard-service";
 import { YardName } from "./yard-name";
 import { Yard } from "./yard";
 import { resolveYardWebsite } from "./yard-website";
@@ -38,6 +40,12 @@ export function getYardDetails(
     query: [name, address, city, state, postalCode].filter(Boolean).join(", "),
   });
   return {
+    service: isIngestionSource(yard.source)
+      ? YardService.resolve(yard.source, yard.code)
+      : ({
+          kind: "unknown",
+          reason: "Unrecognized inventory source.",
+        } satisfies YardService),
     name,
     city,
     state,

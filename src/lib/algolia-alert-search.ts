@@ -1,3 +1,4 @@
+import type { YardType } from "~/lib/yard-service";
 import type { SearchResponse } from "algoliasearch/lite";
 import {
   algoliaHitToSearchVehicle,
@@ -16,6 +17,7 @@ export interface AlertFilters {
   states?: string[];
   salvageYards?: string[];
   sources?: string[];
+  yardTypes?: YardType[];
   minYear?: number;
   maxYear?: number;
 }
@@ -130,6 +132,11 @@ export function compileAlertFilters(
     (filters.sources ?? []).filter(isIngestionSource),
   );
   if (sourcesClause) clauses.push(sourcesClause);
+  const yardTypesClause = buildStringOrFilter(
+    "yardTypes",
+    filters.yardTypes ?? [],
+  );
+  if (yardTypesClause) clauses.push(yardTypesClause);
 
   let minYear = Number.isFinite(filters.minYear) ? filters.minYear : undefined;
   let maxYear = Number.isFinite(filters.maxYear) ? filters.maxYear : undefined;

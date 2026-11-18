@@ -1,3 +1,4 @@
+import type { YardType } from "~/lib/yard-service";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
 import type { IngestionSource } from "~/lib/ingestion-source";
@@ -18,6 +19,7 @@ export type SearchCriteria = {
   states: string[];
   salvageYards: string[];
   sources: IngestionSource[];
+  yardTypes: YardType[];
   yearRange: [number, number];
   sortBy: string;
 };
@@ -48,6 +50,7 @@ function fromSavedSearch(
     states: filters.states ?? [],
     salvageYards: filters.salvageYards ?? [],
     sources: filters.sources ?? [],
+    yardTypes: filters.yardTypes ?? [],
     yearRange: [Math.min(min, max), Math.max(min, max)],
     sortBy: sort?.key ?? "newest",
   };
@@ -78,6 +81,7 @@ function toSavedSearch(
     states: value.states.length ? value.states : undefined,
     salvageYards: value.salvageYards.length ? value.salvageYards : undefined,
     sources: value.sources.length ? value.sources : undefined,
+    yardTypes: value.yardTypes.length ? value.yardTypes : undefined,
     minYear: value.yearRange[0],
     maxYear: value.yearRange[1],
     sortBy: value.sortBy,

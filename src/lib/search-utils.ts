@@ -1,3 +1,4 @@
+import type { YardType } from "~/lib/yard-service";
 interface SearchFilters {
   expression?: string;
   vinPattern?: string;
@@ -6,6 +7,7 @@ interface SearchFilters {
   states?: string[];
   salvageYards?: string[];
   sources?: string[];
+  yardTypes?: YardType[];
   minYear?: number;
   maxYear?: number;
   sortBy?: string;
@@ -38,6 +40,8 @@ export function buildSearchUrl(
   if (filters.sources && filters.sources.length > 0) {
     params.set("sources", filters.sources.join(","));
   }
+  if (filters.yardTypes?.length)
+    params.set("yardTypes", filters.yardTypes.join(","));
   if (filters.minYear) {
     params.set("minYear", filters.minYear.toString());
   }

@@ -1,3 +1,5 @@
+import { YardService } from "~/lib/yard-service";
+import { isIngestionSource } from "~/lib/ingestion-source";
 import Link from "next/link";
 import { InventoryFormat } from "~/lib/inventory-format";
 import { cn } from "~/lib/utils";
@@ -79,6 +81,18 @@ export function YardList({
                 )}
               >
                 {YardName.headline(yard.name, yard.operator)}
+                {isIngestionSource(yard.source) && (
+                  <span
+                    className={cn(
+                      "mt-1 block text-xs font-normal",
+                      colours.meta,
+                    )}
+                  >
+                    {YardService.label(
+                      YardService.resolve(yard.source, yard.code),
+                    )}
+                  </span>
+                )}
               </span>
               <span
                 className={cn(

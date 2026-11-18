@@ -1,3 +1,4 @@
+import { YARD_TYPE_OPTIONS, type YardType } from "~/lib/yard-service";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -253,5 +254,46 @@ export function AdvancedFiltersUpsell({
         <Link href="/pricing">Compare plans</Link>
       </Button>
     </div>
+  );
+}
+
+export function YardTypeFilter({
+  idPrefix,
+  yardTypes,
+  onYardTypesChange,
+}: {
+  idPrefix: string;
+  yardTypes: YardType[];
+  onYardTypesChange: (types: YardType[]) => void;
+}) {
+  return (
+    <FieldSet className="gap-3">
+      <FieldLegend className="sr-only">Yard type</FieldLegend>
+      <FieldGroup className="gap-1">
+        {YARD_TYPE_OPTIONS.map(({ value, label }) => (
+          <Field
+            key={value}
+            orientation="horizontal"
+            className="min-h-9 gap-3 px-2 py-2"
+          >
+            <Checkbox
+              id={`${idPrefix}-${value}`}
+              checked={yardTypes.includes(value)}
+              onCheckedChange={(checked) =>
+                onYardTypesChange(
+                  checked === true
+                    ? [...yardTypes, value]
+                    : yardTypes.filter((type) => type !== value),
+                )
+              }
+            />
+            <FieldLabel htmlFor={`${idPrefix}-${value}`}>{label}</FieldLabel>
+          </Field>
+        ))}
+      </FieldGroup>
+      <p className="text-muted-foreground text-xs">
+        Leave both unchecked to show all yards.
+      </p>
+    </FieldSet>
   );
 }
