@@ -248,6 +248,97 @@ describe("YardService", () => {
     }
   });
 
+  test("priced and graded donor parts establish full service", () => {
+    for (const code of [
+      "a1nm",
+      "bandkautosalvag",
+      "florasauto",
+      "foreignusedpart",
+      "paradiseautopar",
+      "rockitopauto",
+      "tvilleauto",
+    ]) {
+      expect(YardService.resolve("hollanderstores", code)).toEqual({
+        kind: "full_service",
+      });
+    }
+    expect(YardService.resolve("mccauley", "new-bethlehem")).toEqual({
+      kind: "full_service",
+    });
+    expect(YardService.resolve("cars4parts", "armington")).toEqual({
+      kind: "full_service",
+    });
+  });
+
+  test("self-pull yards selling graded donor parts offer both services", () => {
+    for (const code of [
+      "pauldemin",
+      "paulelkin",
+      "paullogin",
+      "paulmerin",
+      "paulsfwin",
+      "paulsknox",
+      "paulslkin",
+      "paulsouin",
+      "paulswvin",
+    ]) {
+      expect(YardService.resolve("hollanderstores", code)).toEqual({
+        kind: "both",
+      });
+    }
+  });
+
+  test("reviewed URG parts shipping and dismantling policies establish full service", () => {
+    for (const code of [
+      "chuckran",
+      "dings",
+      "higgins",
+      "lambert",
+      "norbs",
+      "revolution",
+      "stroud",
+    ]) {
+      expect(YardService.resolve("urgiis", code)).toEqual({
+        kind: "full_service",
+      });
+    }
+    for (const source of ["northwest", "rohner", "rustyhook"] as const) {
+      const yard = census.find((yard) => yard.source === source);
+      expect(yard).toBeDefined();
+      if (yard)
+        expect(YardService.resolve(source, yard.code)).toEqual({
+          kind: "full_service",
+        });
+    }
+  });
+
+  test("explicit U Pull storefront names establish self service", () => {
+    expect(YardService.resolve("vinplus", "pocatello")).toEqual({
+      kind: "self_service",
+    });
+    expect(
+      YardService.resolve(
+        "autorecycler",
+        "ario:406af702-6e28-43b7-88ca-a82d3e6287ee",
+      ),
+    ).toEqual({ kind: "self_service" });
+  });
+
+  test("Ario donor listings require independent service evidence", () => {
+    expect(
+      YardService.resolve(
+        "autorecycler",
+        "1348695171700984260__LOOKUP__1727808874603x499378618447920300",
+      ),
+    ).toEqual({ kind: "both" });
+    for (const code of [
+      "1348695171700984260__LOOKUP__1668532737669x351011199612092400",
+      "1348695171700984260__LOOKUP__1672882562847x152496749538181120",
+    ]) {
+      expect(YardService.resolve("autorecycler", code).kind).toBe("unknown");
+    }
+  });
+
   test("service follows the ingested physical yard rather than neighboring businesses", () => {
     expect(YardService.resolve("sandw", "lithonia-upull")).toEqual({
       kind: "self_service",
@@ -265,7 +356,7 @@ describe("YardService", () => {
       kind: "both",
     });
     expect(YardService.resolve("hollanderstores", "paulsouin")).toEqual({
-      kind: "self_service",
+      kind: "both",
     });
     expect(YardService.resolve("hollanderstores", "nwaupiautoparts")).toEqual({
       kind: "both",

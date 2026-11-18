@@ -54,16 +54,8 @@ const sourceDefaults: Record<IngestionSource, YardService> = {
   uwrench: selfService, // Evidence: yard-service-classification.md#uwrench
   millerstown: selfService, // Evidence: yard-service-classification.md#millerstown
   pickapartva: both, // Evidence: yard-service-classification.md#pickapartva
-  mccauley: {
-    kind: "unknown",
-    reason:
-      "McCauley’s lists parts vehicles but does not say who removes the parts; “Pick a part” alone does not establish customer access.",
-  }, // Evidence: yard-service-classification.md#mccauley
-  rustyhook: {
-    kind: "unknown",
-    reason:
-      "Rusty Hook lists donors and loose parts but does not identify customer pulling or staff removal at its Pittsburgh yard.",
-  }, // Evidence: yard-service-classification.md#rustyhook
+  mccauley: fullService, // Evidence: yard-service-classification.md#mccauley
+  rustyhook: fullService, // Evidence: yard-service-classification.md#rustyhook
   aviation: fullService, // Evidence: yard-service-classification.md#aviation
   chaz: fullService, // Evidence: yard-service-classification.md#chaz
   citymotors: fullService, // Evidence: yard-service-classification.md#citymotors
@@ -71,25 +63,13 @@ const sourceDefaults: Record<IngestionSource, YardService> = {
   clearsalvage: both, // Evidence: yard-service-classification.md#clearsalvage
   aplus: fullService, // Evidence: yard-service-classification.md#aplus
   central: fullService, // Evidence: yard-service-classification.md#central
-  northwest: {
-    kind: "unknown",
-    reason:
-      "Northwest’s qualification establishes its Anchorage donors, but no explicit service model was found and the official website did not resolve.",
-  }, // Evidence: yard-service-classification.md#northwest
+  northwest: fullService, // Evidence: yard-service-classification.md#northwest
   coutu: fullService, // Evidence: yard-service-classification.md#coutu
   kodak: fullService, // Evidence: yard-service-classification.md#kodak
   six03: fullService, // Evidence: yard-service-classification.md#six03
-  rohner: {
-    kind: "unknown",
-    reason:
-      "Rohner’s sells parts and lists part-out vehicles, but the reviewed pages do not establish who removes parts or whether the yard admits self-service customers.",
-  }, // Evidence: yard-service-classification.md#rohner
+  rohner: fullService, // Evidence: yard-service-classification.md#rohner
   pratt: fullService, // Evidence: yard-service-classification.md#pratt
-  cars4parts: {
-    kind: "unknown",
-    reason:
-      "Carz R Us 1 has two yards; Heyworth’s “You Pull / We Pull” donor does not prove the service model at Armington.",
-  }, // Evidence: yard-service-classification.md#cars4parts
+  cars4parts: fullService, // Evidence: yard-service-classification.md#cars4parts
   meeks: selfService, // Evidence: yard-service-classification.md#meeks
   brandywine: selfService, // Evidence: yard-service-classification.md#brandywine
   rmmdtp: fullService, // Evidence: yard-service-classification.md#rmmdtp
@@ -240,6 +220,10 @@ const yardOverrides: Partial<
     ["ario:a74441d5-8fb9-4bde-a762-ccd5b0f62785", selfService], // youngstown-u-pull-it-youngstown-oh
     ["ario:bae5ae1b-6417-48f2-8e04-342b3e23293a", selfService], // smith-auto-inc-self-serve-pawnee-city-ne
     ["ario:d08c2971-b885-41d7-a323-b92ddc6aa25d", selfService], // barry-s-u-pull-it-theodore-al
+    ["ario:406af702-6e28-43b7-88ca-a82d3e6287ee", selfService], // baughmans-u-pull-it-york-pa
+    ["ario:04ed1ce5-f1a6-4f90-b9ef-9568c78e5af2", selfService], // a-1-crashed-cars-south-sioux-city-ne
+    ["ario:a3d5bad0-b580-4578-b0a4-3f33ddfd2b89", selfService], // colorado-auto-and-parts-englewood-co
+    ["1348695171700984260__LOOKUP__1727808874603x499378618447920300", both], // JDM AUTOMOTIVE & RECYCLING
   ]),
   // Evidence: docs/runbooks/yard-service-classification.md#cars4parts, by exact location code.
   cars4parts: new Map<string, YardService>([
@@ -247,32 +231,69 @@ const yardOverrides: Partial<
   ]),
   // Evidence: docs/runbooks/yard-service-classification.md#hollanderstores, by exact location code.
   hollanderstores: new Map<string, YardService>([
+    ["a1nm", fullService], // A-1 Auto Recyclers
     ["aaautosalvage", fullService], // AA Auto Salvage
+    ["aabcoautoparts", fullService], // A-Abco Auto Parts
     ["allsmallauto", fullService], // Midvale All Small Auto
+    ["alsautosalvage", fullService], // ALS Auto Salvage
+    ["aplusparts", fullService], // A-Plus Parts Online
+    ["awcaw", fullService], // All West Coast Auto Wrecking
+    ["bandkautosalvag", fullService], // B&K Auto Salvage
+    ["bandmauto", fullService], // B&M Auto Parts
+    ["biloxiauto", fullService], // Biloxi Auto Recycling
+    ["blvdautoparts", fullService], // Monster Junkyard
     ["bobbysauto", fullService], // Bobby's Auto Parts
+    ["branson", fullService], // Branson Salvage
+    ["brother", fullService], // Brothers Pro Parts
     ["champion", both], // Champion Auto Parts
+    ["conrads", fullService], // Conrads Auto Salvage
+    ["crossroid", fullService], // Crossroads Salvage
+    ["davissalvageky", fullService], // Davis Salvage
+    ["flap", fullService], // FLAP Auto Parts
+    ["florasauto", fullService], // Floras Auto Parts
+    ["foreignusedpart", fullService], // Foreign Used Parts
+    ["gogoautoparts", fullService], // Go Go Auto Parts
+    ["hartsparts", fullService], // Hart's Parts & Recycling
+    ["hsaw", fullService], // Horseshoe Auto Wrecking
+    ["jakesautoparts", fullService], // Jake's Auto Parts
     ["kirchhaynautopa", fullService], // Kirchhayn Auto Parts
+    ["kramers", fullService], // Kramer's Auto Parts
     ["lamarautosalvag", fullService], // Lamar Auto Salvage
+    ["leblancsauto", fullService], // LeBlanc's Auto
     ["macksautoparts", fullService], // Mack's Auto Parts
+    ["milfordmotorsus", fullService], // Milford Motors
     ["mkauto", fullService], // M&K Used Auto Parts
     ["mstrecycling", fullService], // MST Recycling
     ["mwas", fullService], // Midwest Auto Parts
     ["northverdeauto", fullService], // North Verde Auto Salvage
     ["nwaupiautoparts", both], // NWA U-Pull-It
+    ["paradiseautopar", fullService], // Paradise Auto Parts
     ["pascoauto", fullService], // Pasco Auto Wrecking
-    ["pauldemin", selfService], // Paul's Auto Yard - DeMotte
-    ["paulelkin", selfService], // Paul's Auto Yard - Elkhart North
-    ["paullogin", selfService], // Paul's Auto Yard - Logansport
-    ["paulmerin", selfService], // Paul's Auto Yard - Merrillville
-    ["paulsfwin", selfService], // Paul's Auto Yard - Fort Wayne
-    ["paulsknox", selfService], // Paul's Auto Yard - Knox
-    ["paulslkin", selfService], // Paul's Auto Yard - Lake Station
-    ["paulsouin", selfService], // Paul's Auto Yard - South Bend
-    ["paulswvin", selfService], // Paul's Auto Yard - Westville
+    ["pauldemin", both], // Paul's Auto Yard - DeMotte
+    ["paulelkin", both], // Paul's Auto Yard - Elkhart North
+    ["paullogin", both], // Paul's Auto Yard - Logansport
+    ["paulmerin", both], // Paul's Auto Yard - Merrillville
+    ["paulsfwin", both], // Paul's Auto Yard - Fort Wayne
+    ["paulsknox", both], // Paul's Auto Yard - Knox
+    ["paulslkin", both], // Paul's Auto Yard - Lake Station
+    ["paulsouin", both], // Paul's Auto Yard - South Bend
+    ["paulswvin", both], // Paul's Auto Yard - Westville
+    ["petrillosauto", fullService], // Petrillo's Used Auto Parts
+    ["piperautoparts", fullService], // Piper Auto Parts
     ["rainbowauto", fullService], // Rainbow Auto Salvage
+    ["robertsons", fullService], // Robertson's Salvage
+    ["rockitopauto", fullService], // Rocki Top Auto
+    ["rogersauto", fullService], // Rogers Auto Parts
+    ["rowlanut", fullService], // Rowland Auto Wrecking
     ["spilmanautopart", fullService], // Spilman Auto Parts
+    ["standardauto", fullService], // Standard Used Auto Parts & Wrecking
     ["strickerauto", fullService], // Stricker Auto Parts
     ["sunlineparts", fullService], // Sun Line
+    ["terryvilleauto", fullService], // Terryville Auto
+    ["tvilleauto", fullService], // T-ville Auto Salvage
+    ["veldmans", fullService], // Veldman's Auto Parts
+    ["waugh", fullService], // Waugh Auto Parts
+    ["windyhill", fullService], // Windy Hill Auto Parts
   ]),
   // Evidence: docs/runbooks/yard-service-classification.md#row52, by exact location code.
   row52: new Map<string, YardService>(
@@ -337,14 +358,21 @@ const yardOverrides: Partial<
     ["az", fullService], // A-Z Auto Parts & Auto Sales
     ["bishops", fullService], // Bishop's Auto Parts
     ["central-nh", fullService], // Central Auto Recyclers
+    ["chuckran", fullService], // Chuckran Auto Parts
     ["chucks", fullService], // Chuck's Auto Salvage
+    ["dings", fullService], // Ding's Auto Parts
     ["eagle-martinsburg", fullService], // Eagle Auto Parts
+    ["higgins", fullService], // Higgins Auto Parts
     ["junior-sinn", fullService], // Junior Sinn Auto Parts
+    ["lambert", fullService], // Lambert Auto Salvage
     ["lentini-port-murray", fullService], // Lentini Auto Salvage - Port Murray
     ["lentini-ringoes", fullService], // Lentini Auto Salvage - Ringoes
     ["linders", fullService], // Linder's Inc
     ["mars", fullService], // Mars Auto Parts & Engine Swaps
+    ["norbs", fullService], // Norb's Auto Salvage
     ["premier", fullService], // Premier Auto & Truck Parts
+    ["revolution", fullService], // Revolution Auto Parts
+    ["stroud", fullService], // R. Stroud's Auto Parts
     ["united", fullService], // United Auto Recyclers
   ]),
   // Evidence: docs/runbooks/yard-service-classification.md#vinplus, by exact location code.
@@ -353,6 +381,7 @@ const yardOverrides: Partial<
     ["indianapolis", selfService], // Indy U-Pull-It
     ["killeen", selfService], // 195 Used Auto Parts
     ["lubbock", selfService], // Pick Ur Part
+    ["pocatello", selfService], // U Pull Auto Parts Pocatello
     ["ryans", selfService], // Ryan's Pick-A-Part
     ["sterling-heights", selfService], // US Auto Supply of Sterling Heights
   ]),
