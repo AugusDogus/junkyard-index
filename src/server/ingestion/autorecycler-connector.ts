@@ -1,3 +1,5 @@
+import { SourceValidationPolicy } from "./source-validation";
+import { validationRejection } from "./ingestion-validation";
 import {
   readArioRun,
   loadArioState,
@@ -344,23 +346,53 @@ export function streamAutorecyclerInventoryWithPageFetcher<E, R>(
         : next;
     }
     const done = cursor.phase === "complete";
-    if (done && legacyDateEvidence) {
+    const undatedWarnings: string[] = [];
+    if (cursor.phase === "complete" && legacyDateEvidence) {
       const undated = Object.entries(legacyDateEvidence)
         .filter(([, hasDate]) => !hasDate)
         .map(([org]) => org);
-      if (undated.length > 0)
-        return yield* new AutorecyclerProviderError({
-          from: 0,
-          cause: new Error(
-            `AutoRecycler legacy yards ${undated.join(", ")} have listings but no parseable addition dates. Expected added_date_date as epoch milliseconds. Published inventory is preserved; inspect the provider date contract before starting a new run.`,
-          ),
-        });
+      if (undated.length > 0 && cursor.freshness) {
+        const freshness = cursor.freshness;
+        const maximum = Math.floor(
+          Object.keys(legacyDateEvidence).length *
+            SourceValidationPolicy.maximumRejectionRatio,
+        );
+        // These rows were excluded throughout the crawl. Never quarantine a
+        // yard that already contributed inventory to the staged snapshot.
+        if (
+          undated.length > maximum ||
+          undated.some((org) => freshness.eligibleYards.includes(org))
+        )
+          return yield* Effect.fail(
+            validationRejection(
+              new AutorecyclerProviderError({
+                from: 0,
+                cause: new Error(
+                  `AutoRecycler legacy yards ${undated.join(", ")} have listings but no parseable addition dates. Expected added_date_date as epoch milliseconds. Undated yards exceed the 10% yard limit (${maximum}) or include an emitting yard. Published inventory is preserved; inspect the provider date contract before starting a new run.`,
+                ),
+              }),
+            ),
+          );
+        cursor = {
+          ...cursor,
+          freshness: {
+            ...freshness,
+            preservedYards: [
+              ...new Set([...(freshness.preservedYards ?? []), ...undated]),
+            ],
+          },
+        };
+        undatedWarnings.push(
+          `AutoRecycler legacy yards ${undated.join(", ")} have listings but no parseable addition dates. These ${undated.length} excluded yards are quarantined within the 10% yard limit (${maximum}); their prior inventory is preserved. Dated yards can publish. Inspect added_date_date before the next daily run.`,
+        );
+      }
     }
 
     const warnings = [...excludedYards].map(
       ([orgLookup, count]) =>
         `AutoRecycler yard ${orgLookup}: skipped ${count} rows because its owned address and city could not be resolved. Observed VINs are preserved; cached geography is unchanged and known yards continue. Verify this organization's own metadata; resolution will be retried next chunk/run.`,
     );
+    warnings.push(...undatedWarnings);
     if (mirroredRecords > 0)
       yield* Effect.logInfo(
         `[AutoRecycler] Excluded ${mirroredRecords} direct-provider mirror rows; the direct provider owns their inventory and VIN presence`,
@@ -490,6 +522,7 @@ export function streamAutorecyclerInventory<E, R>(
         {
           ...options,
           yardIndex: cursor.yardIndex,
+          quarantine: state.changedYards?.[config.slug],
           asOf: freshness.asOf,
           legacyNewest:
             legacyId === null ? null : (freshness.legacy[legacyId] ?? null),

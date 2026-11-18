@@ -1021,3 +1021,76 @@ test("cold checkpoints reject carried model evidence even inside the extended de
     ),
   ).toThrow("cold census cannot carry prior model evidence");
 });
+
+test.each([0, 4, 5, "photo"] as const)(
+  "supplier mismatch at request %s blocks only that tenant and resumes healthy tenants",
+  async (mismatchAt) => {
+    const other = {
+      ...tenant,
+      code: "healthy",
+      yard: { ...tenant.yard, code: "healthy" },
+    };
+    const tenants = [tenant, other];
+    let cursor = UrgiisCursor.initial(tenants);
+    let reads = 0;
+    let healthyReads = 0;
+    let state: unknown;
+    const vehicles: string[] = [];
+    const warnings: string[] = [];
+    let chunks = 0;
+    while (cursor.phase !== "complete") {
+      if (++chunks > 20)
+        throw new Error("Tenant isolation did not reach terminal evidence");
+      const result = await Effect.runPromise(
+        streamUrgiisInventory({
+          tenants,
+          startCursor: cursor,
+          maxPages: 1,
+          censusState: state,
+          readPage: (_url, current) => {
+            const index =
+              current.code === tenant.code ? reads++ : healthyReads++;
+            const raw = responses[index] ?? "";
+            return Effect.succeed(
+              current.code === tenant.code &&
+                mismatchAt === "photo" &&
+                index === 4
+                ? raw.replace("cloudfront.net/aa01/", "cloudfront.net/zz99/")
+                : current.code === tenant.code && index === mismatchAt
+                  ? raw.replace("var urgid = 'AA01'", "var urgid = 'ZZ99'")
+                  : raw,
+            );
+          },
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch.map((v) => v.locationCode));
+            }),
+        }),
+      );
+      if (result.checkpointState) state = result.checkpointState;
+      warnings.push(...result.warnings);
+      cursor = UrgiisCursor.fromWire(
+        UrgiisCursor.serialize(result.cursor, tenants),
+        tenants,
+      );
+    }
+    expect(cursor.completed).toEqual([
+      {
+        code: tenant.code,
+        blocked: expect.stringContaining(
+          mismatchAt === "photo"
+            ? "unexpected supplier photo zz99"
+            : "supplier identity changed",
+        ),
+      },
+      { code: other.code, accepted: 1 },
+    ]);
+    expect(vehicles).toEqual([other.code]);
+    expect(warnings.join(" ")).toContain(
+      mismatchAt === "photo"
+        ? "yard attribution must be requalified"
+        : "expected AA01",
+    );
+    expect(reads).toBe(mismatchAt === "photo" ? 8 : mismatchAt + 1);
+  },
+);

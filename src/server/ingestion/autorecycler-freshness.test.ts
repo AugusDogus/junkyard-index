@@ -275,3 +275,66 @@ test.each([
     client.close();
   }
 });
+
+test("an undated excluded legacy yard is preserved without blocking dated yards", async () => {
+  const client = createClient({ url: ":memory:" });
+  const undated = "1348695171700984260__LOOKUP__1700000000000x3";
+  const legacyDateEvidence = Object.fromEntries(
+    Array.from({ length: 19 }, (_, i) => [
+      `1348695171700984260__LOOKUP__1700000000000x${i + 10}`,
+      true,
+    ]),
+  );
+  try {
+    const result = await Effect.runPromise(
+      streamAutorecyclerInventoryWithPageFetcher(
+        {
+          startCursor: {
+            source: "autorecycler",
+            phase: "page",
+            beforeId: null,
+            freshness: {
+              asOf,
+              legacy: {},
+              eligibleYards: [],
+              legacyDateEvidence,
+            },
+          },
+          onBatch: () =>
+            Effect.die("Excluded undated inventory cannot publish"),
+        },
+        async (before) => ({
+          responses: [
+            {
+              hits: {
+                hits: before
+                  ? []
+                  : [
+                      {
+                        _id: "1700000000000x1",
+                        _source: {
+                          vin_text: "KNADE123666155428",
+                          name_text: "2006 Kia Rio",
+                          inventory_id_text: "1700000000000x2",
+                          organization_custom_organization: undated,
+                        },
+                      },
+                    ],
+              },
+            },
+          ],
+        }),
+        (orgs) =>
+          Effect.succeed(new Map(orgs.map((org) => [org, "stale"] as const))),
+      ).pipe(Effect.provideService(Database, drizzle(client))),
+    );
+    expect(result.status).toBe("complete");
+    if (result.cursor.phase !== "complete")
+      throw new Error("Expected terminal cursor");
+    expect(result.cursor.freshness?.preservedYards).toContain(undated);
+    expect(result.warnings?.join(" ")).toContain("no parseable addition dates");
+    expect(result.observedVins).toEqual([]);
+  } finally {
+    client.close();
+  }
+});

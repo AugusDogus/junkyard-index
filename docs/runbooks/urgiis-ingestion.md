@@ -40,6 +40,46 @@ The November 15, 2026 Eagle census followed 37 makes and 284 model pages, then i
 
 Batch B qualification, including its admitted yards, exclusions, request ledger and combined daily budget, is recorded in [urgiis-batch-b.md](urgiis-batch-b.md). Its historical counts predate the full restacked configuration; the incremental estimate below includes every configured tenant.
 
+## November 18 supplier mismatch isolation
+
+The first production cold census accepted Eagle's 1,447 donors, then failed while
+parsing Linder's Cadillac DTS page. The message came from the document-level
+`var urgid` check, not per-card photo attribution. The failed run retained an
+opening checkpoint with Eagle complete and 129 Linder's entries. It never
+published URG. New runs seed history only from an accepted, search-published
+terminal cursor, so the next scheduled attempt starts a cold census rather than
+resuming this rejected run's checkpoint. In-run durable checkpoints still resume
+normally and do not move the persistent start clock.
+
+One public GET to `https://lindersparts.com/parts/CADILLAC/DTS/` on November 18,
+under `/tmp/jyi-urg-gate.lock` with the shared pacing timestamp, returned complete
+HTTP 200 HTML, two MA09 declarations, two MA09 photographs, and own-origin parts
+links. Stocks were T32080 (2008) and T31345 (2006). Capture bytes: 158,241.
+The response did not reproduce the earlier mismatch. Neither shared inventory,
+a moved donor nor a site defect can be established from this one response.
+Raw HTML and headers remain under `.scratchpad/source-failures/` in the worktree.
+
+A typed supplier-identity error now blocks the entire affected tenant, whether
+the disagreement occurs in a page declaration during opening/closing or in a
+single-yard supplier photo during snapshot admission. The tenant emits no donors,
+yard metadata or VIN observations; its previous inventory and missing/delete
+counters remain untouched. Other tenants continue from a checkpointed completed
+prefix. No card is silently reassigned or dropped under an unproven ownership
+assumption. Qualified shared-pool photo filtering remains unchanged.
+
+The existing terminal publication scope already subtracts blocked tenants' floors
+and preceding non-missing counts. It also reapplies physical-yard floors and 50%
+yard drift after deduplication. Previously, the mismatch bypassed this scope by
+failing before terminal evidence. Integration regressions verify successful
+publication with a large blocked-yard baseline and confirm that publishing yards
+still fail their own floor, drift, rejection and duplicate guards.
+
+The #177 three-day cold deadline and validated-tenant progress heartbeats are
+unchanged. Offline tests complete distinct tenants over 40 hours using one fixed
+clock, stop before three days, and reject carried cold evidence. Heartbeat tests
+cover accepted tenants only, durable replays and previously completed tenants in
+failed runs. No additional live census was run during this repair.
+
 ## Incremental daily census
 
 Each accepted tenant census retains opening make/model badges, every native model card (including rejected and excluded observations), its stock/VIN identity claims, seller-attribution evidence, and the last successful full read of each model. This preserves the full admission, quarantine, rejection, duplicate and floor checks when old and new evidence are combined. Current arrivals are still assessed with the complete model graph. Only the latest accepted, successful, search-published terminal source cursor seeds another run. Failed, rejected, partial and unpublished runs cannot advance that state.
@@ -137,7 +177,7 @@ The request simulation includes all publishing tenants. Times are explicit scena
 | norbs       |           774 |                 107 |                                 229.4 |        122.5 |                36.3 |
 | mars        |            60 |                  19 |                                  26.6 |          9.5 |                 4.2 |
 | stroud      |           529 |                  91 |                                 171.3 |        123.4 |                  40 |
-| **Total**   |    **12,339** |                     |                             **3,627.3** |  **1,847.3** |           **549.4** |
+| **Total**   |    **12,339** |                     |                           **3,627.3** |  **1,847.3** |           **549.4** |
 
 ## Historical qualified-yard counts
 

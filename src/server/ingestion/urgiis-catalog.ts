@@ -1,3 +1,4 @@
+import { IisSupplierIdentityError } from "./iis-supplier-identity";
 import { createHash } from "node:crypto";
 import { stripInventoryRawText } from "./inventory-html";
 import {
@@ -84,7 +85,12 @@ export function iisDocument(raw: string, site: UrgiisSite) {
     (!ids.length && !knownSupplierBundle) ||
     ids.some((id) => id !== site.urgid)
   )
-    throw new Error("IIS supplier identity changed: expected " + site.urgid);
+    throw new IisSupplierIdentityError(
+      "IIS supplier identity changed: expected " +
+        site.urgid +
+        "; observed " +
+        (ids.length ? ids.join(", ") : "no supplier declaration"),
+    );
   return html;
 }
 const inventory = (raw: string, site: UrgiisSite) =>

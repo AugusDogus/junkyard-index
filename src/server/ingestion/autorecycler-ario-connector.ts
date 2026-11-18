@@ -1,3 +1,4 @@
+import type { ArioYardChange } from "./autorecycler-ario-run";
 import { SourceValidationPolicy } from "./source-validation";
 import { selectAutorecyclerFeed } from "./autorecycler-freshness";
 import { Effect } from "effect";
@@ -25,6 +26,7 @@ export function streamArioYard<E, R>(
     yardIndex: number;
     asOf?: number;
     legacyNewest?: number | null;
+    quarantine?: ArioYardChange;
     onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
     onYards?: OnYards;
   },
@@ -74,6 +76,23 @@ export function streamArioYard<E, R>(
           lng,
           location?.address ?? yard.address,
         );
+        if (options.quarantine) {
+          const change = options.quarantine;
+          return {
+            selection: "quarantined" as const,
+            warnings: [
+              `Ario ${config.slug} changed at rank offset ${change.offset}: opening ${change.openingTotal} total / ${change.openingItems} first-window items, observed ${change.observedTotal} total / ${change.observedItems} window items. This yard is quarantined; its prior inventory is preserved. Other yards can publish. Inspect the captures before the next daily run.`,
+            ],
+            vehicles: [],
+            geo,
+            pages: 0,
+            rejected: 0,
+            duplicates: 0,
+            excluded: change.openingTotal,
+            total: change.openingTotal,
+            website: `${ARIO_ORIGIN}/yard/${config.slug}`,
+          };
+        }
         const inventory = await readArioYard(client, config);
         const activeItems = inventory.items.filter(
           (item) => !item.ario_date_removed,
@@ -144,6 +163,7 @@ export function streamArioYard<E, R>(
       catch: (cause) =>
         new AutorecyclerProviderError({ from: options.yardIndex, cause }),
     });
+    for (const warning of result.warnings) yield* Effect.logWarning(warning);
     if (options.onYards && result.selection === "ario")
       yield* options.onYards([autorecyclerYard(result.geo, result.website)]);
     if (result.vehicles.length) yield* options.onBatch(result.vehicles);

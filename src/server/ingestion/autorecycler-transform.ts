@@ -81,11 +81,16 @@ export function transformAutorecyclerMsearchHit(
   if (!vin) return null;
 
   const inventoryId =
-    typeof src.inventory_id_text === "string" ? src.inventory_id_text.trim() : "";
+    typeof src.inventory_id_text === "string"
+      ? src.inventory_id_text.trim()
+      : "";
   if (!inventoryId) return null;
 
-  const parts = parseAutorecyclerNameText(src.name_text, src.vehicle_year_number);
-  if (!parts) return null;
+  const parts = parseAutorecyclerNameText(
+    src.name_text,
+    src.vehicle_year_number,
+  );
+  if (!parts || !parts.model) return null;
 
   const org =
     typeof src.organization_custom_organization === "string"

@@ -403,13 +403,21 @@ test("first-census page failures and parse/structural drift never use a carry", 
   await expect(run({ fail: target().model.path })).rejects.toThrow(
     "offline repeated HTTP500",
   );
-  await expect(
-    run({
-      previous: baseline.cursor,
-      badge: target().model.path,
-      malformed: target().model.path,
-    }),
-  ).rejects.toThrow("supplier");
+  const blocked = await run({
+    previous: baseline.cursor,
+    badge: target().model.path,
+    malformed: target().model.path,
+  });
+  expect(blocked.vehicles).toEqual([]);
+  expect(blocked.cursor.completed).toEqual([
+    {
+      code: tenant.code,
+      blocked: expect.stringContaining("supplier identity changed"),
+    },
+  ]);
+  expect(blocked.warnings).toEqual([
+    expect.stringContaining("supplier identity changed"),
+  ]);
   const make = models.find(
     (m) => models.filter((x) => x.make.path === m.make.path).length > 1,
   )?.make;

@@ -265,7 +265,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
             entry.kind === "detail" ? [[entry.url, entry.seller] as const] : [],
           ),
         );
-        const snapshot = yield* boundary("snapshot " + tenant.code, () => {
+        const assessed = yield* boundary("snapshot " + tenant.code, () => {
           const arrivals = cursorEntries.find((e) => e.kind === "arrivals");
           const snapshot = urgiisSnapshot(
             pages,
@@ -286,7 +286,21 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
               "IIS carried model evidence reached seven days; restore the failing page before publishing",
             );
           return snapshot;
-        });
+        }).pipe(Effect.either);
+        if (assessed._tag === "Left") {
+          if (assessed.left.kind !== "identity")
+            return yield* Effect.fail(assessed.left);
+          cursor = UrgiisCursor.nextTenant(
+            cursor,
+            { code: tenant.code, blocked: assessed.left.message },
+            tenants,
+            urgiisFingerprint(census),
+          );
+          result.checkpointState = census;
+          result.warnings.push(`${tenant.code}: ${assessed.left.message}`);
+          break;
+        }
+        const snapshot = assessed.right;
         census = yield* boundary("accept census", () =>
           UrgiisCensus.accept(census, tenant, cursorEntries, acceptedAt),
         );
@@ -483,6 +497,22 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         ),
       ).pipe(Effect.either);
       if (parsed._tag === "Left") {
+        if (parsed.left.kind === "identity") {
+          cursor = UrgiisCursor.nextTenant(
+            {
+              ...cursor,
+              requests: cursor.requests + 1,
+              bytes: cursor.bytes + Buffer.byteLength(raw),
+            },
+            { code: tenant.code, blocked: parsed.left.message },
+            tenants,
+            urgiisFingerprint(census),
+          );
+          result.checkpointState = census;
+          result.pagesProcessed++;
+          result.warnings.push(`${tenant.code}: ${parsed.left.message}`);
+          break;
+        }
         if (cursor.phase !== "closing") return yield* Effect.fail(parsed.left);
         return {
           ...result,
