@@ -107,6 +107,8 @@ test.each([...censuses])(
       rejectedVehicles: 0,
       errors: [],
       previousAcceptedCount: count,
+      newestVehicleDate: null,
+      validatedAt: new Date("2026-11-17"),
     };
     expect(validateSourceSnapshot(input)).toEqual({
       status: "accepted",

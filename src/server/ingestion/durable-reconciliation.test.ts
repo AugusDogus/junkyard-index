@@ -40,7 +40,7 @@ async function yardInventoryRows(client: ReturnType<typeof createClient>) {
 }
 
 function snapshot(
-  source: "row52" | "pyp" | "gopullit",
+  source: "row52" | "pyp" | "gopullit" | "autorecycler",
   color: string,
 ): CanonicalVehicle {
   return {
@@ -1208,75 +1208,78 @@ describe("bounded durable reconciliation", () => {
     }
   });
 
-  test("lets a lower-priority source take over a retired source's VIN", async () => {
-    const client = createClient({ url: ":memory:" });
-    try {
-      await client.executeMultiple(TEST_SCHEMA);
-      const database = drizzle(client);
-      const startedAt = new Date("2026-11-15T08:00:00.000Z");
-      // upullitne outranks gopullit, but a retired owner must not keep the
-      // VIN from a source that still lists it.
-      await client.execute({
-        sql: `insert into vehicle (
+  test.each(["gopullit", "autorecycler"] as const)(
+    "lets %s take over a retired source's VIN",
+    async (source) => {
+      const client = createClient({ url: ":memory:" });
+      try {
+        await client.executeMultiple(TEST_SCHEMA);
+        const database = drizzle(client);
+        const startedAt = new Date("2026-11-15T08:00:00.000Z");
+        // upullitne outranks gopullit, but a retired owner must not keep the
+        // VIN from a source that still lists it.
+        await client.execute({
+          sql: `insert into vehicle (
           vin, source, year, make, model, location_code, location_name,
           location_city, state, state_abbr, lat, lng, first_seen_at,
           last_seen_at, missing_run_count
         ) values ('VIN-1', 'upullitne', 2018, 'FORD', 'FOCUS', 'LINCOLN',
           'Lincoln', 'Lincoln', 'Nebraska', 'NE', 40.8, -96.7, ?, ?, 0)`,
-        args: [startedAt.getTime(), startedAt.getTime()],
-      });
-      await client.execute(`insert into yard_inventory values
+          args: [startedAt.getTime(), startedAt.getTime()],
+        });
+        await client.execute(`insert into yard_inventory values
         ('upullitne', 'LINCOLN', 'Lincoln', 'Lincoln', 'NE', 40.8, -96.7, 1, null, 0)`);
-      await database.insert(ingestionRun).values({
-        id: "run-gopullit",
-        source: "gopullit",
-        status: "running",
-        stage: "reconcile_upsert",
-        activeSlot: 1,
-        acceptedSources: JSON.stringify(["gopullit"]),
-        startedAt,
-        lastProgressAt: startedAt,
-      });
-      await database.insert(ingestionSourceRun).values({
-        id: "run-gopullit:gopullit",
-        runId: "run-gopullit",
-        source: "gopullit",
-        status: "success",
-        acceptanceStatus: "accepted",
-        uniqueVehicles: 1,
-        startedAt,
-      });
-      const snapshotStore = IngestionSnapshotStore.memory();
-      await stageSnapshots({
-        client,
-        store: snapshotStore,
-        runId: "run-gopullit",
-        vehicles: [snapshot("gopullit", "Black")],
-      });
+        await database.insert(ingestionRun).values({
+          id: "run-gopullit",
+          source,
+          status: "running",
+          stage: "reconcile_upsert",
+          activeSlot: 1,
+          acceptedSources: JSON.stringify([source]),
+          startedAt,
+          lastProgressAt: startedAt,
+        });
+        await database.insert(ingestionSourceRun).values({
+          id: `run-gopullit:${source}`,
+          runId: "run-gopullit",
+          source,
+          status: "success",
+          acceptanceStatus: "accepted",
+          uniqueVehicles: 1,
+          startedAt,
+        });
+        const snapshotStore = IngestionSnapshotStore.memory();
+        await stageSnapshots({
+          client,
+          store: snapshotStore,
+          runId: "run-gopullit",
+          vehicles: [snapshot(source, "Black")],
+        });
 
-      const result = await reconcileDurableIngestionRun({
-        runId: "run-gopullit",
-        database,
-        batchClient: client,
-        snapshotStore,
-      });
-      expect(result.status).toBe("complete");
-      const owner = await client.execute(
-        "select source, missing_run_count from vehicle where vin = 'VIN-1'",
-      );
-      expect(
-        owner.rows.map((row) => ({
-          source: row.source,
-          missing_run_count: row.missing_run_count,
-        })),
-      ).toEqual([{ source: "gopullit", missing_run_count: 0 }]);
-      expect(await yardInventoryRows(client)).toEqual([
-        { source: "gopullit", code: "yard-1", count: 1 },
-      ]);
-    } finally {
-      client.close();
-    }
-  });
+        const result = await reconcileDurableIngestionRun({
+          runId: "run-gopullit",
+          database,
+          batchClient: client,
+          snapshotStore,
+        });
+        expect(result.status).toBe("complete");
+        const owner = await client.execute(
+          "select source, missing_run_count from vehicle where vin = 'VIN-1'",
+        );
+        expect(
+          owner.rows.map((row) => ({
+            source: row.source,
+            missing_run_count: row.missing_run_count,
+          })),
+        ).toEqual([{ source, missing_run_count: 0 }]);
+        expect(await yardInventoryRows(client)).toEqual([
+          { source, code: "yard-1", count: 1 },
+        ]);
+      } finally {
+        client.close();
+      }
+    },
+  );
 
   test("chooses the canonical winner, resumes by phase, and advances missing state", async () => {
     const directory = mkdtempSync(join(tmpdir(), "reconciliation-test-"));

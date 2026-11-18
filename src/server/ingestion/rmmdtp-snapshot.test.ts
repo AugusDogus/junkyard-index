@@ -126,6 +126,8 @@ test("RMMDTP keeps the qualified minimum, 10% rejects, 25% duplicates and 50% pr
       rejectedVehicles: 1,
       errors: [],
       previousAcceptedCount: previous,
+      newestVehicleDate: null,
+      validatedAt: new Date("2026-11-12"),
     });
     expect(validateRmmdtpSnapshot(snapshot, RMMDTP_CONTRACT, previous).ok).toBe(
       shared.status === "accepted",

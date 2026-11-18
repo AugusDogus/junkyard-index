@@ -317,6 +317,8 @@ test("Aero shared validation requires at least 43 admitted donors", () => {
     rejectedVehicles: 6,
     errors: [],
     previousAcceptedCount: null,
+    newestVehicleDate: null,
+    validatedAt: new Date("2026-11-12"),
   } as const;
   expect(validateSourceSnapshot({ ...input, errors: [] }).status).toBe(
     "accepted",

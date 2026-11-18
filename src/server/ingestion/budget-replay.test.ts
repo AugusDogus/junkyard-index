@@ -11,7 +11,10 @@ import { parseBudgetPage } from "./budget-parser";
 import { budgetSnapshot, validateBudgetSnapshot } from "./budget-transform";
 import { BUDGET_MINIMUM } from "./budget-yard-metadata";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
-import { validateSourceSnapshot } from "./source-validation";
+import {
+  newestVehicleArrival,
+  validateSourceSnapshot,
+} from "./source-validation";
 import type { CanonicalVehicle } from "./types";
 const receipts = z
   .array(z.object({ url: z.string(), raw: z.string(), sha256: z.string() }))
@@ -103,6 +106,11 @@ test("Budget replays every independently acquired opening and closing make respo
       duplicateVehicles: 0,
       errors: [],
       previousAcceptedCount: null,
+      newestVehicleDate: newestVehicleArrival(
+        r.vehicles,
+        new Date("2026-11-16"),
+      ),
+      validatedAt: new Date("2026-11-16"),
     }).status,
   ).toBe("accepted");
 });

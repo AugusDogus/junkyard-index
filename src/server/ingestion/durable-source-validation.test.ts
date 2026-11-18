@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { drizzle } from "drizzle-orm/libsql";
 import type { IngestionSource } from "~/lib/ingestion-source";
 import { createDurableIngestionRepository } from "./durable-ingestion-repository";
-import { TEST_SCHEMA, makeVehicle } from "./durable-ingestion-test-fixtures";
+import { makeVehicle } from "./durable-ingestion-test-fixtures";
 import {
   DURABLE_SOURCE_DEFINITIONS,
   serializeDurableSourceCursor,
@@ -11,6 +11,8 @@ import {
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import type { CanonicalVehicle } from "./types";
+
+import { RECONCILIATION_TEST_SCHEMA } from "./durable-reconciliation-test-fixtures";
 
 const RUN_STARTED_AT = new Date("2026-11-15T07:44:11.000Z");
 
@@ -21,7 +23,7 @@ async function validateSnapshot(
 ) {
   const client = createClient({ url: ":memory:" });
   try {
-    await client.executeMultiple(TEST_SCHEMA);
+    await client.executeMultiple(RECONCILIATION_TEST_SCHEMA);
     const database = drizzle(client);
     const snapshotStore = IngestionSnapshotStore.memory();
     await createDurableIngestionRepository(
@@ -47,7 +49,17 @@ async function validateSnapshot(
       args: [
         vehicles.length,
         source === "autorecycler"
-          ? '{"phase":"complete"}'
+          ? serializeDurableSourceCursor({
+              source: "autorecycler",
+              phase: "complete",
+              freshness: {
+                asOf: RUN_STARTED_AT.getTime(),
+                legacy: {},
+                eligibleYards: [
+                  ...new Set(vehicles.map((v) => v.locationCode)),
+                ],
+              },
+            })
           : serializeDurableSourceCursor(
               DURABLE_SOURCE_DEFINITIONS[source].initialCursor,
             ),

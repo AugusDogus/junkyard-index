@@ -170,7 +170,16 @@ const DEFAULT_INVENTORY_AGE_LIMIT: InventoryAgeLimit = {
 // docs/runbooks/source-validation.md.
 const INVENTORY_AGE_LIMITS: Partial<
   Record<IngestionSource, InventoryAgeLimit>
-> = {};
+> = {
+  // Qualified newest arrivals were 20-24 days old. See the evidence table
+  // in docs/runbooks/source-validation.md; retain the 60-day qualification window.
+  alln1: { kind: "days", days: 60 },
+  aplus: { kind: "days", days: 60 },
+  aviation: { kind: "days", days: 60 },
+  chaz: { kind: "days", days: 60 },
+  oemgarage: { kind: "days", days: 60 },
+  pratt: { kind: "days", days: 60 },
+};
 
 function inventoryAgeLimit(
   source: IngestionSource,

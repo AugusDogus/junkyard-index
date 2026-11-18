@@ -143,6 +143,9 @@ export function cstruckSnapshot(
     rejectedVehicles: accounting.recordsRejected,
     errors: [],
     previousAcceptedCount,
+    // This provider does not publish donor arrival dates.
+    newestVehicleDate: null,
+    validatedAt: new Date(),
   });
   if (validation.status === "rejected")
     throw new Error(validation.errors.join("; "));

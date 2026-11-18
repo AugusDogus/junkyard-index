@@ -11,7 +11,10 @@ import { parseHarrysPage } from "./harrys-parser";
 import { harrysSnapshot, validateHarrysSnapshot } from "./harrys-transform";
 import { HARRYS_MINIMUM, HARRYS_MINIMUM_BY_YARD } from "./harrys-yard-metadata";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
-import { validateSourceSnapshot } from "./source-validation";
+import {
+  newestVehicleArrival,
+  validateSourceSnapshot,
+} from "./source-validation";
 import type { CanonicalVehicle } from "./types";
 
 const receipts = z
@@ -133,6 +136,11 @@ test("Harry's replays separately acquired complete opening and closing censuses 
       duplicateVehicles: 1,
       errors: [],
       previousAcceptedCount: null,
+      newestVehicleDate: newestVehicleArrival(
+        r.vehicles,
+        new Date("2026-11-16"),
+      ),
+      validatedAt: new Date("2026-11-16"),
     }).status,
   ).toBe("accepted");
 }, 15_000);
