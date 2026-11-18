@@ -1550,7 +1550,7 @@ describe("bounded durable reconciliation", () => {
   });
 });
 
-test("missing reconciliation reads only accepted sources, including resumed VIN pages", async () => {
+test("missing reconciliation reads accepted and retired sources, including resumed VIN pages", async () => {
   const client = createClient({ url: ":memory:" });
   try {
     await client.executeMultiple(TEST_SCHEMA);
@@ -1601,7 +1601,7 @@ test("missing reconciliation reads only accepted sources, including resumed VIN 
     expect(
       reads.some(
         (query) =>
-          query.includes('"vehicle"."source" in (?)') &&
+          query.includes('"vehicle"."source" in (?, ?)') &&
           query.includes('"vehicle"."vin" > ?'),
       ),
     ).toBe(true);
