@@ -157,7 +157,7 @@ test("catalog rejects incomplete, repeated, wrong-scope and wrong-page responses
 });
 
 // Change only identity fields in the native captured markup for a bounded census.
-const ids = Array.from({ length: 96 }, (_, i) => String(26038856 + i));
+const ids = Array.from({ length: 240 }, (_, i) => String(26038856 + i));
 const vins = ids.map((_, i) => {
   const base = "2NKHHM7X6HM" + String(164968 + i);
   for (const digit of "0123456789X") {
@@ -460,7 +460,7 @@ test("each next day re-verifies its rolling slice without refreshing carried rea
     previousCursor: previous.cursor,
     now: () => censusNow + dayMs,
   });
-  const due = ids.filter((_, index) => index % 6 === 3);
+  const due = ids.slice(0, 96).filter((_, index) => index % 30 === 21);
   expect(next.details).toEqual(due.map((id) => "/detailview.php?part=" + id));
   expect(next.vehicles).toEqual(previous.vehicles);
   if (next.cursor.phase !== "complete" || !next.cursor.census)
@@ -473,7 +473,7 @@ test("each next day re-verifies its rolling slice without refreshing carried rea
   ).toHaveLength(96 - due.length);
 });
 
-test("six-day evidence forces reads independently of sweep position; corrupt and legacy history cold-fallback", async () => {
+test("thirty-day evidence is due independently of its slice; corrupt and legacy history cold-fallback", async () => {
   const previous = await incrementalRun({});
   for (const history of [
     "corrupt",
@@ -482,10 +482,78 @@ test("six-day evidence forces reads independently of sweep position; corrupt and
   ]) {
     const next = await incrementalRun({
       previousCursor: history,
-      now: () => censusNow + 6 * dayMs,
+      now: () => censusNow + 30 * dayMs,
     });
     expect(next.details).toHaveLength(96);
   }
+});
+
+test("thirty daily slices re-verify every unchanged listing exactly once", async () => {
+  const cold = await incrementalRun({});
+  let cursor = cold.cursor;
+  const reads: string[] = [];
+  for (let day = 1; day <= 30; day++) {
+    const next = await incrementalRun({
+      previousCursor: cursor,
+      now: () => censusNow + day * dayMs,
+    });
+    expect(next.details.length).toBeLessThanOrEqual(4);
+    reads.push(...next.details);
+    cursor = next.cursor;
+  }
+  expect(reads).toHaveLength(96);
+  expect(new Set(reads).size).toBe(96);
+});
+
+test("overdue re-verification is capped at 100 across checkpoints and same-day runs, with oldest evidence first", async () => {
+  const cold = await incrementalRun({ size: 240 });
+  const overdueAt = censusNow + 30 * dayMs;
+  const first = await incrementalRun({
+    size: 240,
+    previousCursor: cold.cursor,
+    now: () => overdueAt,
+  });
+  expect(first.details).toHaveLength(100);
+  expect(first.vehicles).toEqual(cold.vehicles);
+  const repeat = await incrementalRun({
+    size: 240,
+    previousCursor: first.cursor,
+    now: () => overdueAt,
+  });
+  expect(repeat.details).toEqual([]);
+  const nextDay = await incrementalRun({
+    size: 240,
+    previousCursor: repeat.cursor,
+    now: () => overdueAt + dayMs,
+  });
+  expect(nextDay.details).toHaveLength(100);
+  expect(nextDay.details.every((path) => !first.details.includes(path))).toBe(
+    true,
+  );
+  expect(nextDay.vehicles).toEqual(cold.vehicles);
+});
+
+test("new and changed identities fetch even after the day's re-verification cap is exhausted", async () => {
+  const cold = await incrementalRun({ size: 239 });
+  const overdueAt = censusNow + 30 * dayMs;
+  const capped = await incrementalRun({
+    size: 239,
+    previousCursor: cold.cursor,
+    now: () => overdueAt,
+  });
+  expect(capped.details).toHaveLength(100);
+  const next = await incrementalRun({
+    previousCursor: capped.cursor,
+    now: () => overdueAt,
+    catalog: catalogPage(240).replace(
+      'itemprop="name">2017 Kenworth T370',
+      'itemprop="name">2018 Kenworth T370',
+    ),
+  });
+  expect(next.details).toEqual(
+    [ids[0], ids[239]].map((id) => "/detailview.php?part=" + id),
+  );
+  expect(next.vehicles).toHaveLength(239);
 });
 
 test("changed catalog identity fetches details and does not reuse a conflicting cached description", async () => {
@@ -502,46 +570,56 @@ test("changed catalog identity fetches details and does not reuse a conflicting 
   expect(next.vehicles).toHaveLength(95);
 });
 
-test("an expired active run fails before requesting inventory", async () => {
-  const first = await Effect.runPromise(
-    streamVanderHaagsInventoryFromSource(
-      {
-        maxPages: 1,
-        now: () => censusNow,
-        yards: [VANDERHAAGS_YARDS[0]],
-        onBatch: () => Effect.void,
-      },
-      {
-        fetchPage: (path) =>
-          Effect.succeed(
-            path === VANDERHAAGS_CATALOG_PATH
-              ? catalogPage()
-              : detailPage(path.split("=")[1] ?? ""),
-          ),
-      },
-    ),
-  );
-  let requests = 0;
-  await expect(
-    Effect.runPromise(
+test.each([
+  { at: censusNow, resumeAt: censusNow + dayMs, reason: "deadline expired" },
+  {
+    at: censusNow + dayMs - 60_000,
+    resumeAt: censusNow + dayMs + 60_000,
+    reason: "UTC day changed",
+  },
+])(
+  "an expired daily request window fails before requesting inventory: %#",
+  async ({ at, resumeAt, reason }) => {
+    const first = await Effect.runPromise(
       streamVanderHaagsInventoryFromSource(
         {
-          startCursor: first.cursor,
-          now: () => censusNow + dayMs,
+          maxPages: 1,
+          now: () => at,
           yards: [VANDERHAAGS_YARDS[0]],
           onBatch: () => Effect.void,
         },
         {
-          fetchPage: () => {
-            requests++;
-            return Effect.succeed("");
-          },
+          fetchPage: (path) =>
+            Effect.succeed(
+              path === VANDERHAAGS_CATALOG_PATH
+                ? catalogPage()
+                : detailPage(path.split("=")[1] ?? ""),
+            ),
         },
       ),
-    ),
-  ).rejects.toThrow("deadline expired");
-  expect(requests).toBe(0);
-});
+    );
+    let requests = 0;
+    await expect(
+      Effect.runPromise(
+        streamVanderHaagsInventoryFromSource(
+          {
+            startCursor: first.cursor,
+            now: () => resumeAt,
+            yards: [VANDERHAAGS_YARDS[0]],
+            onBatch: () => Effect.void,
+          },
+          {
+            fetchPage: () => {
+              requests++;
+              return Effect.succeed("");
+            },
+          },
+        ),
+      ),
+    ).rejects.toThrow(reason);
+    expect(requests).toBe(0);
+  },
+);
 
 test("empty quantity evidence is quarantined; another yard or multiple quantities still abort", () => {
   const empty = detail.replace(

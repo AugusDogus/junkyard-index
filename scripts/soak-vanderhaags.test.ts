@@ -19,9 +19,10 @@ test("a capped soak stops at the requested detail budget and retains resumable a
         rejected: offset,
         seenVins: [],
         census: VanderHaagsCensus.checkpoint({
-          contract: "detail-census-v1",
+          contract: "detail-census-v2",
           scope: "a".repeat(64),
           startedAt: 0,
+          reverification: { day: 0, paths: [] },
           entries: [],
         }),
       },

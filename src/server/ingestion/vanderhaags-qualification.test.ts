@@ -142,11 +142,11 @@ test("complete captured multi-yard census and following daily run preserve admis
       cold.vehicles.filter((v) => v.locationCode === yard.code),
     ).toHaveLength(yard.accepted);
   const daily = await replay(cold.cursor, now + 24 * 60 * 60 * 1000);
-  expect(daily.detailRequests).toBe(352);
-  expect(daily.requests).toBe(507);
+  expect(daily.detailRequests).toBe(70);
+  expect(daily.requests).toBe(105);
   expect(daily.vehicles).toEqual(cold.vehicles);
-  const widerSlice = await replay(cold.cursor, now + 3 * 24 * 60 * 60 * 1000);
-  expect(widerSlice.detailRequests).toBe(353);
-  expect(widerSlice.requests).toBe(508);
+  const widerSlice = await replay(cold.cursor, now + 15 * 24 * 60 * 60 * 1000);
+  expect(widerSlice.detailRequests).toBe(71);
+  expect(widerSlice.requests).toBe(106);
   expect(widerSlice.vehicles).toEqual(cold.vehicles);
 }, 180_000);
