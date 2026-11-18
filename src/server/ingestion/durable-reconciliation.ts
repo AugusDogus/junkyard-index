@@ -482,6 +482,7 @@ async function runMissingBatch(
     acceptedSources: string[];
   },
 ): Promise<DurableReconciliationBatchResult> {
+  const reconciled = reconciledSources(params.acceptedSources);
   const sourceRows = await params.database
     .select({
       vin: vehicle.vin,
@@ -493,7 +494,7 @@ async function runMissingBatch(
     .from(vehicle)
     .where(
       and(
-        inArray(vehicle.source, params.acceptedSources),
+        inArray(vehicle.source, [...reconciled]),
         params.cursor === null ? undefined : gt(vehicle.vin, params.cursor),
       ),
     )
@@ -553,7 +554,6 @@ async function runMissingBatch(
         (row.missingSinceAt !== null || (row.missingRunCount ?? 0) !== 0),
     )
     .map((row) => row.vin);
-  const reconciled = reconciledSources(params.acceptedSources);
   const transitions = planMissingVehicleTransitions({
     presentVins,
     existingRows: rows.filter(
