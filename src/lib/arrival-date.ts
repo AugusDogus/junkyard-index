@@ -27,6 +27,8 @@ function format(value: ArrivalDate): string {
   const arrival = parse(value);
   if (arrival.kind === "unknown") return "Date unknown";
   const date = new Date(arrival.date).toLocaleDateString("en-US", {
+    // Date-only provider values describe a calendar day, not an instant.
+    ...(/^\d{4}-\d{2}-\d{2}$/.test(arrival.date) ? { timeZone: "UTC" } : {}),
     month: "short",
     day: "numeric",
     year: "numeric",
