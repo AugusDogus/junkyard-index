@@ -160,7 +160,7 @@ describe("reconciliation policy", () => {
       "when 'row52' then 1",
     );
     expect(reconciliationSourcePrioritySql("candidate")).toContain(
-      "when 'autorecycler' then 91",
+      `when 'autorecycler' then ${RECONCILIATION_SOURCE_PRIORITY.length}`,
     );
   });
 
