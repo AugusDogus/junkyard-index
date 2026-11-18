@@ -9,6 +9,7 @@ test("every sort exposes a compact selected label and direction in its accessibl
     ["year-desc", "Year ↓", "Year (High to Low)"],
     ["year-asc", "Year ↑", "Year (Low to High)"],
     ["distance", "Nearest", "Distance (Nearest)"],
+    ["relevance", "Relevance", "Relevance"],
   ]) {
     if (!value || !compact || !full) throw new Error("Missing sort fixture");
     const html = renderToStaticMarkup(

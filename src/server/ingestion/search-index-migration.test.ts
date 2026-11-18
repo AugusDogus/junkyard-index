@@ -13,6 +13,7 @@ describe("search index migration validation", () => {
       "vehicles_oldest",
       "vehicles_year_desc",
       "vehicles_year_asc",
+      "vehicles_newest",
     ]);
     expect(requests.every((request) => request.filters.length > 0)).toBe(true);
     expect(

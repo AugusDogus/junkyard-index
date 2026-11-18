@@ -21,11 +21,13 @@ import { api } from "~/trpc/react";
 const INSTANT_SEARCH_FUTURE = { preserveSharedStateOnUnmount: true } as const;
 
 interface SearchAccessShellProps {
+  knownYardNames?: readonly string[];
   isLoggedIn: boolean;
   children(input: {
     planAccess: PlanAccessState;
     vinPatternIndexReady: boolean;
     booleanOrSearchReady: boolean;
+    newestSortReady: boolean;
   }): ReactNode;
 }
 
@@ -41,6 +43,7 @@ function ConsumeSearchHydration() {
 
 export function SearchAccessShell({
   isLoggedIn,
+  knownYardNames,
   children,
 }: SearchAccessShellProps) {
   const planAccess = useCheckoutPlanAccess(isLoggedIn);
@@ -57,6 +60,7 @@ export function SearchAccessShell({
     searchCapabilities?.vinPatternSearchReady ?? false;
   const booleanOrSearchReady =
     searchCapabilities?.booleanOrSearchReady ?? false;
+  const newestSortReady = searchCapabilities?.newestSortReady ?? false;
   const searchParams = useSearchParams();
   const expressionMode = searchParams.get("syntax") === "expression";
   const isSearchPending =
@@ -72,6 +76,7 @@ export function SearchAccessShell({
       ALGOLIA_INDEX_NAME,
       vinPatternIndexReady,
       canUseAdvancedFilters,
+      { knownYardNames, newestSortReady },
     );
     const sync = createSearchRouteSync((url) => {
       window.history.pushState({}, "", url);
@@ -86,7 +91,13 @@ export function SearchAccessShell({
       },
       onUrlChange: sync.onUrlChange,
     };
-  }, [vinPatternIndexReady, booleanOrSearchReady, canUseAdvancedFilters]);
+  }, [
+    vinPatternIndexReady,
+    booleanOrSearchReady,
+    canUseAdvancedFilters,
+    knownYardNames,
+    newestSortReady,
+  ]);
 
   useEffect(() => {
     routing.onUrlChange(window.location.href);
@@ -132,7 +143,7 @@ export function SearchAccessShell({
 
   return (
     <InstantSearchNext
-      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}`}
+      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}`}
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}
@@ -144,6 +155,7 @@ export function SearchAccessShell({
           planAccess,
           vinPatternIndexReady,
           booleanOrSearchReady,
+          newestSortReady,
         })}
       </ErrorBoundary>
     </InstantSearchNext>

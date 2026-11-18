@@ -16,18 +16,19 @@ const COMPACT_LABELS: Readonly<Record<string, string>> = {
   "year-desc": "Year ↓",
   "year-asc": "Year ↑",
   distance: "Nearest",
+  relevance: "Relevance",
 };
 
 export function SearchSortControl({
   value,
   onChange,
+  options = SEARCH_SORT_OPTIONS,
 }: {
   value: string;
   onChange: (value: string) => void;
+  options?: typeof SEARCH_SORT_OPTIONS;
 }) {
-  const option =
-    SEARCH_SORT_OPTIONS.find((option) => option.key === value) ??
-    SEARCH_SORT_OPTIONS[0];
+  const option = options.find((option) => option.key === value) ?? options[0];
   const label = option?.label ?? "Newest First";
   const compact = COMPACT_LABELS[value] ?? "Newest";
   const Icon =
@@ -48,7 +49,7 @@ export function SearchSortControl({
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          {SEARCH_SORT_OPTIONS.map(({ key, label }) => (
+          {options.map(({ key, label }) => (
             <SelectItem key={key} value={key}>
               {label}
             </SelectItem>

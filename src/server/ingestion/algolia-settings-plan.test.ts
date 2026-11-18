@@ -13,7 +13,7 @@ import {
 describe("Algolia settings plan", () => {
   test("creates replicas before forwarding the VIN filtering settings", () => {
     const plan = buildAlgoliaSettingsPlan();
-    const [oldestIndex, yearDescIndex, yearAscIndex] =
+    const [oldestIndex, yearDescIndex, yearAscIndex, newestIndex] =
       ALGOLIA_REPLICA_INDEX_NAMES;
 
     expect(plan[0]).toEqual({
@@ -24,6 +24,7 @@ describe("Algolia settings plan", () => {
           `virtual(${oldestIndex})`,
           `virtual(${yearDescIndex})`,
           `virtual(${yearAscIndex})`,
+          `virtual(${newestIndex})`,
         ],
       },
       forwardToReplicas: false,
@@ -103,6 +104,7 @@ describe("Algolia settings plan", () => {
       "vehicles_oldest",
       "vehicles_year_desc",
       "vehicles_year_asc",
+      "vehicles_newest",
     ]);
   });
 });
@@ -144,8 +146,10 @@ test("settings apply waits for detachment and configuration before deleting the 
     "wait:vehicles_year_desc:5",
     "settings:vehicles_year_asc",
     "wait:vehicles_year_asc:6",
+    "settings:vehicles_newest",
+    "wait:vehicles_newest:7",
     "delete:vehicles_distance",
-    "wait:vehicles_distance:7",
+    "wait:vehicles_distance:8",
   ]);
 });
 
@@ -155,4 +159,65 @@ test("failed settings tasks stop apply before deletion", async () => {
     "settings task failed",
   );
   expect(calls).toEqual(["settings:vehicles", "wait:vehicles:1"]);
+});
+
+test("date sorts ignore model relevance and order known arrivals before unknown dates", () => {
+  const plan = buildAlgoliaSettingsPlan();
+  const records = [
+    {
+      id: "old",
+      model: "HONDA CIVIC",
+      arrivalDateKnown: 1,
+      availableDateTs: Date.parse("2013-08-28") / 1000,
+    },
+    {
+      id: "new",
+      model: "CIVIC",
+      arrivalDateKnown: 1,
+      availableDateTs: Date.parse("2026-11-18") / 1000,
+    },
+    {
+      id: "seen",
+      model: "CIVIC",
+      arrivalDateKnown: 1,
+      availableDateTs: Date.parse("2026-11-17") / 1000,
+    },
+    {
+      id: "unknown",
+      model: "HONDA CIVIC",
+      arrivalDateKnown: 0,
+      availableDateTs: 0,
+    },
+  ];
+  for (const [indexName, expected] of [
+    ["vehicles_newest", ["new", "seen", "old", "unknown"]],
+    ["vehicles_oldest", ["old", "seen", "new", "unknown"]],
+  ] as const) {
+    const operation = plan.find(
+      (operation) =>
+        operation.kind === "settings" && operation.indexName === indexName,
+    );
+    expect(operation?.kind).toBe("settings");
+    if (operation?.kind !== "settings") continue;
+    expect(operation.indexSettings.relevancyStrictness).toBe(0);
+    expect(operation.indexSettings.customRanking).toEqual([
+      "desc(arrivalDateKnown)",
+      indexName === "vehicles_newest"
+        ? "desc(availableDateTs)"
+        : "asc(availableDateTs)",
+    ]);
+    const keys = operation.indexSettings.customRanking ?? [];
+    const ordered = [...records].sort((left, right) => {
+      for (const key of keys) {
+        const field = key.includes("arrivalDateKnown")
+          ? "arrivalDateKnown"
+          : "availableDateTs";
+        const difference = left[field] - right[field];
+        if (difference)
+          return key.startsWith("desc(") ? -difference : difference;
+      }
+      return 0;
+    });
+    expect(ordered.map((record) => record.id)).toEqual([...expected]);
+  }
 });

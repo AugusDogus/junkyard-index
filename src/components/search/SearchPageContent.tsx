@@ -60,11 +60,10 @@ import {
   getSearchSortIndex,
   getSearchSortKey,
   sanitizeSearchSources,
-  SEARCH_SORT_ITEMS,
+  SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
-import { ALGOLIA_INDEX_NAME } from "~/lib/algolia-search";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
 import type { PlanAccessState } from "~/lib/plan-access";
@@ -98,6 +97,7 @@ function clampRouteYear(
 }
 
 interface SearchPageContentProps {
+  knownYardNames?: readonly string[];
   isLoggedIn: boolean;
   userLocation?: { lat: number; lng: number };
 }
@@ -108,6 +108,7 @@ interface AlgoliaSearchInnerProps {
   userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
   booleanOrSearchReady: boolean;
+  newestSortReady: boolean;
 }
 function hasValidCoordinates(
   value: SearchPageContentProps["userLocation"],
@@ -284,6 +285,7 @@ function AlgoliaSearchInner({
   userLocation: _userLocation,
   vinPatternIndexReady,
   booleanOrSearchReady,
+  newestSortReady,
 }: AlgoliaSearchInnerProps) {
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
@@ -469,8 +471,20 @@ function AlgoliaSearchInner({
 
   // Date/year use virtual replicas. Distance uses a UI alias for the primary;
   // the search client maps it without conflating distance and newest state.
+  const sortOptions = useMemo(
+    () =>
+      SEARCH_SORT_OPTIONS.filter(
+        (option) => newestSortReady || option.key !== "newest",
+      ),
+    [newestSortReady],
+  );
+  const sortItems = useMemo(
+    () =>
+      sortOptions.map(({ indexName, label }) => ({ value: indexName, label })),
+    [sortOptions],
+  );
   const { currentRefinement: currentSortIndex, refine: refineSortBy } =
-    useSortBy({ items: SEARCH_SORT_ITEMS }, { skipSuspense: true });
+    useSortBy({ items: sortItems }, { skipSuspense: true });
 
   const sortBy = useMemo(
     () => getSearchSortKey(currentSortIndex),
@@ -1106,10 +1120,11 @@ function AlgoliaSearchInner({
     setManualZipCode("");
     setPendingDistanceSort(true);
     setShowDistancePreferenceDialog(true);
-    refineSortBy(ALGOLIA_INDEX_NAME);
+    refineSortBy(getSearchSortIndex(newestSortReady ? "newest" : "relevance"));
   }, [
     hasUsableLocationPreference,
     locationPreferenceReady,
+    newestSortReady,
     refineSortBy,
     sortBy,
   ]);
@@ -1233,7 +1248,11 @@ function AlgoliaSearchInner({
         />
       </div>
       <div className="order-2 ml-auto md:order-3 md:ml-0">
-        <SearchSortControl value={sortBy} onChange={handleSortChange} />
+        <SearchSortControl
+          value={sortBy}
+          onChange={handleSortChange}
+          options={sortOptions}
+        />
       </div>
       <Toggle
         variant="outline"
@@ -1411,16 +1430,23 @@ function AlgoliaSearchInner({
 export function SearchPageContent({
   isLoggedIn,
   userLocation,
+  knownYardNames,
 }: SearchPageContentProps) {
   return (
-    <SearchAccessShell isLoggedIn={isLoggedIn}>
-      {({ planAccess, vinPatternIndexReady, booleanOrSearchReady }) => (
+    <SearchAccessShell isLoggedIn={isLoggedIn} knownYardNames={knownYardNames}>
+      {({
+        planAccess,
+        vinPatternIndexReady,
+        booleanOrSearchReady,
+        newestSortReady,
+      }) => (
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
           planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}
           booleanOrSearchReady={booleanOrSearchReady}
+          newestSortReady={newestSortReady}
         />
       )}
     </SearchAccessShell>

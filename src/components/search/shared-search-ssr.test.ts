@@ -88,3 +88,48 @@ for (const scenario of [
     );
   }, 15_000);
 }
+
+for (const [extra, index] of [
+  ["", "vehicles_newest"],
+  ["&fixtureNewestReady=0", "vehicles"],
+] as const) {
+  test(`default search waits for chronological readiness before querying ${index}`, async () => {
+    const html = await renderSharedSearchFixture(`q=toyota+venza${extra}`);
+    const match = html.match(
+      /window\[Symbol\.for\("InstantSearchInitialResults"\)\] = ([^<]+)/,
+    );
+    const initial = z
+      .object({
+        vehicles: z.object({
+          state: z.object({ index: z.string() }),
+          results: z.array(z.object({ index: z.string() })),
+        }),
+      })
+      .parse(JSON.parse(match?.[1] ?? "null"));
+    expect(initial.vehicles.state.index).toBe(index);
+    expect(initial.vehicles.results[0]?.index).toBe(index);
+  }, 15_000);
+}
+
+for (const key of ["yards", "yards[]"]) {
+  test(`shared comma yard is intact before hydration: ${key}`, async () => {
+    const yard = "RTP Pick-A-Part - Hebron, KY";
+    const params = new URLSearchParams({ [key]: yard });
+    const html = await renderSharedSearchFixture(params.toString());
+    const match = html.match(
+      /window\[Symbol\.for\("InstantSearchInitialResults"\)\] = ([^<]+)/,
+    );
+    const initial = z
+      .object({
+        vehicles: z.object({
+          state: z.object({
+            disjunctiveFacetsRefinements: z.record(z.array(z.string())),
+          }),
+        }),
+      })
+      .parse(JSON.parse(match?.[1] ?? "null"));
+    expect(
+      initial.vehicles.state.disjunctiveFacetsRefinements.locationName,
+    ).toEqual([yard]);
+  }, 15_000);
+}

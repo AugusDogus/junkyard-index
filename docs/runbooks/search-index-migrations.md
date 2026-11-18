@@ -33,12 +33,12 @@ to Algolia or deliver alerts after losing the lock.
 1. Merge the PR to `main`.
 2. Vercel deploys the application and Workflow SDK entry points together.
 3. Vercel Cron starts `searchIndexMigrationWorkflow` at 06:00 UTC each day. The
-   migration exits immediately after schema version `4` is ready.
+   migration exits immediately after schema version `8` is ready.
 4. The migration configures Algolia, backfills one durable vehicle batch per
    Workflow step, validates exact VIN and Boolean token filters, then writes
-   search schema version `4` to the index settings. A retried batch safely
+   search schema version `8` to the index settings. A retried batch safely
    rewrites the same object IDs before advancing its VIN cursor.
-5. The production UI polls readiness. VIN patterns stay inactive until version
+5. The production UI reads readiness on load. VIN patterns stay inactive until version
    `3`; Boolean OR queries stay inactive until version `4`. Each capability
    enables automatically after its required version is confirmed.
 
@@ -93,7 +93,7 @@ curl --fail \
 ```
 
 Starting the route more than once is safe. A second active run deduplicates to
-the first, and a completed migration exits after reading schema version `4`.
+the first, and a completed migration exits after reading schema version `8`.
 
 Do not run `scripts/sync-algolia.ts` as the deployment path. It remains a manual
 recovery tool.
@@ -106,3 +106,38 @@ and version marker are backward compatible, so no destructive index rollback is
 needed. Do not delete or replace the production index during rollback. Do not
 reactivate the Trigger.dev schedule until the Vercel cron is inactive and any
 Vercel ingestion run has completed or failed.
+
+## Schema 8: chronological date sorts
+
+`vehicles_newest` is a virtual replica with `relevancyStrictness: 0`, matching
+`vehicles_oldest`. Both compare `desc(arrivalDateKnown)` first, then
+`desc(availableDateTs)` for newest or `asc(availableDateTs)` for oldest. Yard
+arrival dates and first-observed arrival dates share the timestamp projection;
+unknown arrivals stay last in both orders. Model spelling and proximity no
+longer outrank arrival dates in these explicit date sorts.
+
+The primary keeps its default ranking, including geo before custom ranking.
+It serves the honestly labelled Relevance sort and the existing distance alias.
+Moving custom ranking ahead of textual relevance on the primary would change
+relevance ordering and distance tie-breaking. The new virtual replica adds no billed record copy.
+Projection leaves redundant make-in-model text unchanged because the sort fix
+does not require guessing at vehicle identity.
+
+After deployment, the existing schema migration applies settings in place,
+backfills records, validates every selectable index, and advances the marker to 8. A separate `bun run algolia:settings:apply` is **not required** when that
+migration runs successfully. The command can apply settings sooner, but does
+not advance readiness or replace the migration. Newest stays unavailable until
+the marker reaches 8; during rollout the default is labelled Relevance. Reload
+a search after the migration completes to load the updated capability. The
+public search key must allow searches on `vehicles_newest`, as on the other
+virtual replicas.
+
+New filter URLs use repeated array parameters, such as
+`yards[]=RTP Pick-A-Part - Hebron, KY&yards[]=Another Yard`, encoded by
+`URLSearchParams`. All multi-value filters, including yard types, use the same
+format. Legacy comma-delimited values remain readable. For legacy yards, the
+search page supplies known published comma-containing names, and parsing takes
+the longest matching name before treating a comma as a separator. Unknown or
+renamed legacy names remain best effort because the old encoding is ambiguous.
+Saved filters and alerts retain JSON arrays, and links generated from them use
+the new URL encoding.

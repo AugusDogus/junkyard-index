@@ -7,6 +7,7 @@ import { projectSearchVehicles } from "./vehicle-search-projection";
 import {
   CURRENT_SEARCH_SCHEMA_VERSION,
   ARRIVAL_DATE_SEARCH_SCHEMA_VERSION,
+  YARD_SERVICE_SEARCH_SCHEMA_VERSION,
 } from "~/lib/search-index-schema";
 
 const legacy: typeof vehicle.$inferSelect = {
@@ -128,7 +129,9 @@ test("schema 7 projects each yard service type and the matching filter options",
       { ...legacy, source: "ipullupull" },
       { ...legacy, source: "row52", locationCode: "unreviewed" },
     ]);
-    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(7);
+    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBeGreaterThanOrEqual(
+      YARD_SERVICE_SEARCH_SCHEMA_VERSION,
+    );
     expect(
       records.map(({ yardServiceType, yardTypes }) => ({
         yardServiceType,

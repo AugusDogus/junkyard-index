@@ -49,7 +49,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
 } satisfies IndexSettings;
 
 export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] {
-  const [oldestIndex, yearDescIndex, yearAscIndex] =
+  const [oldestIndex, yearDescIndex, yearAscIndex, newestIndex] =
     ALGOLIA_REPLICA_INDEX_NAMES;
   const virtualReplicaDefaults = {
     hitsPerPage: 1000,
@@ -65,6 +65,7 @@ export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] 
           `virtual(${oldestIndex})`,
           `virtual(${yearDescIndex})`,
           `virtual(${yearAscIndex})`,
+          `virtual(${newestIndex})`,
         ],
       },
       forwardToReplicas: false,
@@ -118,6 +119,15 @@ export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] 
       indexSettings: {
         ...virtualReplicaDefaults,
         customRanking: ["asc(year)"],
+      },
+      forwardToReplicas: false,
+    },
+    {
+      kind: "settings",
+      indexName: newestIndex,
+      indexSettings: {
+        ...virtualReplicaDefaults,
+        customRanking: ["desc(arrivalDateKnown)", "desc(availableDateTs)"],
       },
       forwardToReplicas: false,
     },

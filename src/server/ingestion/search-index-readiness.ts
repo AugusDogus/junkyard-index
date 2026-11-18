@@ -2,6 +2,8 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { algoliaAdminClient, ALGOLIA_INDEX_NAME } from "~/lib/algolia";
 import {
+  CHRONOLOGICAL_SEARCH_SCHEMA_VERSION,
+  getSearchSchemaVersion,
   isAdvancedSearchReady,
   isVinPatternSearchReady,
 } from "~/lib/search-index-schema";
@@ -9,6 +11,7 @@ import {
 export interface SearchIndexCapabilities {
   vinPatternSearchReady: boolean;
   booleanOrSearchReady: boolean;
+  newestSortReady: boolean;
 }
 
 async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
@@ -19,15 +22,19 @@ async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
     return {
       vinPatternSearchReady: isVinPatternSearchReady(settings.userData),
       booleanOrSearchReady: isAdvancedSearchReady(settings.userData),
+      newestSortReady:
+        getSearchSchemaVersion(settings.userData) >=
+        CHRONOLOGICAL_SEARCH_SCHEMA_VERSION,
     };
   } catch (error) {
     console.error(
-      "Could not read the Algolia search schema version. VIN patterns and Boolean OR search remain disabled until readiness can be confirmed.",
+      "Could not read the Algolia search schema version. VIN patterns, Boolean OR search, and newest sorting remain disabled until readiness can be confirmed.",
       error,
     );
     return {
       vinPatternSearchReady: false,
       booleanOrSearchReady: false,
+      newestSortReady: false,
     };
   }
 }
