@@ -147,3 +147,11 @@ describe("YardPath.assign", () => {
     expect(YardPath.pageHref(path, 3)).toBe(`${path.href}/page/3`);
   });
 });
+
+test("yard model links preserve both taxonomy segments", () => {
+  const path = YardPath.assign([yard({})]).get("pyp:1");
+  if (!path) throw new Error("Expected the fixture yard to have a route");
+  expect(YardPath.modelHref(path, "honda", "civic")).toBe(
+    `${path.href}/make/honda/model/civic`,
+  );
+});

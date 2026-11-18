@@ -189,3 +189,19 @@ describe("YardInventory.location", () => {
     ).toBeNull();
   });
 });
+
+test("model-scoped yard inventory preserves make and model identities", () => {
+  const civic = YardInventory.vehicle(row({ model: "CIVIC" }));
+  const repeated = YardInventory.vehicle(row({ model: "HONDA CIVIC" }));
+  const accord = YardInventory.vehicle(row());
+  const otherMake = YardInventory.vehicle(
+    row({ make: "FORD", model: "CIVIC" }),
+  );
+  expect(
+    YardInventory.forModel(
+      [civic, repeated, accord, otherMake],
+      "HONDA",
+      "CIVIC",
+    ),
+  ).toEqual([civic, repeated]);
+});

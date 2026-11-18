@@ -125,7 +125,7 @@ export function ModelInventoryView({
   const routed = yards.map(({ yard }) => yard);
   // A yard's page narrowed to this make keeps the visitor's context.
   const yardHref = (yard: RoutedYard) =>
-    YardPath.makeHref(yard.path, make.slug);
+    YardPath.modelHref(yard.path, make.slug, model.slug);
   const searchHref = `/search?q=${encodeURIComponent(name)}`;
   const shown = siblings.slice(0, SIBLINGS);
 

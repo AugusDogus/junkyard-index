@@ -49,6 +49,18 @@ function pageCount(total: number): number {
 }
 
 export const YardInventory = {
+  /** Matches national taxonomy identities, including provider aliases. */
+  forModel(
+    vehicles: readonly YardVehicle[],
+    makeKey: string,
+    modelKey: string,
+  ): YardVehicle[] {
+    return vehicles.filter(
+      (vehicle) =>
+        VehicleName.makeKey(vehicle.make) === makeKey &&
+        VehicleName.modelKey(vehicle.make, vehicle.model) === modelKey,
+    );
+  },
   /** Normalizes a stored vehicle row for display. */
   vehicle(row: {
     vin: string;
