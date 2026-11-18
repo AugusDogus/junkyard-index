@@ -20,6 +20,7 @@ import { z } from "zod";
 
 const yard = HOLLANDERSTORES_YARDS.find((yard) => yard.code === "waugh");
 if (!yard) throw new Error("Waugh must be configured");
+const savedPages = pages();
 
 test("Waugh reconciles all 123 donors and admits them through the unchanged connector", () => {
   const opening = parseHollanderstoresRoster(body("waugh.html.gz"), yard);
@@ -33,7 +34,7 @@ test("Waugh reconciles all 123 donors and admits them through the unchanged conn
   expect(
     opening.rows.every((row) => hollanderstoresVin(row.vin) === row.vin),
   ).toBe(true);
-  const snapshot = hollanderstoresSnapshot(pages(), hollanderstoresSeed);
+  const snapshot = hollanderstoresSnapshot(savedPages, hollanderstoresSeed);
   expect(snapshot.errors).toEqual([]);
   expect(snapshot.perYard.find((row) => row.code === yard.code)).toEqual({
     code: "waugh",
