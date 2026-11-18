@@ -3,6 +3,11 @@ import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { sql, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { ingestionRun, ingestionSourceRun, vehicleSnapshot } from "~/schema";
+import { DURABLE_INGESTION_SOURCES } from "./durable-source";
+import { UrgiisCursor } from "./urgiis-cursor";
+import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { reportUrgiisCensusProgress } from "./urgiis-progress";
+import { loadVanderHaagsPublishedCursor } from "./vanderhaags-history";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { validateDurableSourceRuns } from "./durable-source-validation";
 import { makeVehicle, TEST_SCHEMA } from "./durable-ingestion-test-fixtures";
@@ -143,6 +148,38 @@ describe("ingestion run retention", () => {
     });
   });
 
+  test("preserves every registered source's active work and independent baselines", async () => {
+    const { client, database } = await setup();
+    const expected: string[] = [];
+    for (const source of DURABLE_INGESTION_SOURCES) {
+      for (const [kind, offset] of [
+        ["obsolete", -1],
+        ["published", 0],
+        ["accepted", 1],
+      ] as const) {
+        const id = `${source}:${kind}`;
+        await addRun(database, id, {
+          source,
+          searchPublishedAt: kind === "published" ? old : null,
+        });
+        await database.insert(ingestionSourceRun).values({
+          id,
+          runId: id,
+          source,
+          status: "success",
+          acceptanceStatus: "accepted",
+          startedAt: new Date(old.getTime() + offset),
+        });
+        if (kind !== "obsolete") expected.push(id);
+      }
+      const id = `${source}:active`;
+      await addRun(database, id, { source, status: "running", activeSlot: 1 });
+      expected.push(id);
+    }
+    await pruneIngestionRuns({ database, now });
+    expect(await ids(client)).toEqual(expected.sort());
+  });
+
   test("keeps each source's latest inventory publication and recent recovery progress", async () => {
     const { client, database } = await setup();
     await addRun(database, "older-publication", {
@@ -164,6 +201,35 @@ describe("ingestion run retention", () => {
       "other-watermark",
       "recent-progress",
     ]);
+  });
+
+  test("keeps the successful published cursor when a newer accepted child failed", async () => {
+    const { client, database } = await setup();
+    for (const [id, publication, start, status] of [
+      ["obsolete", 1, 1, "success"],
+      ["cursor-baseline", 2, 2, "success"],
+      ["failed-child", 3, 3, "error"],
+      ["unpublished", null, 4, "success"],
+    ] as const) {
+      await addRun(database, id, {
+        source: "vanderhaags",
+        searchPublishedAt: publication === null ? null : new Date(publication),
+      });
+      await database.insert(ingestionSourceRun).values({
+        id,
+        runId: id,
+        source: "vanderhaags",
+        status,
+        acceptanceStatus: "accepted",
+        startedAt: new Date(start),
+        nextCursor: JSON.stringify({ phase: "complete", marker: id }),
+      });
+    }
+    const before = await loadVanderHaagsPublishedCursor(database);
+    expect(before).toMatchObject({ marker: "cursor-baseline" });
+    await pruneIngestionRuns({ database, now });
+    expect(await loadVanderHaagsPublishedCursor(database)).toEqual(before);
+    expect(await ids(client)).not.toContain("obsolete");
   });
 
   test("keeps active, nonterminal, recovery, snapshot and delivery references", async () => {
@@ -230,6 +296,54 @@ describe("ingestion run retention", () => {
     await client.execute("update ingestion_run set search_published_at = null");
     await pruneIngestionRuns({ database, now });
     expect(await ids(client)).toEqual(["baseline", "retry"]);
+  });
+
+  test("pruning cannot turn repeated URG cold-census progress into a heartbeat", async () => {
+    const { database } = await setup();
+    const tenant = URGIIS_TENANTS[0];
+    if (!tenant) throw new Error("Missing qualified URG tenant");
+    const before = UrgiisCursor.checkpoint({
+      ...UrgiisCursor.initial(),
+      startedAt: old.getTime(),
+      asOf: old.getTime(),
+      runKind: "cold",
+    });
+    const after = UrgiisCursor.nextTenant(
+      before,
+      { code: tenant.code, accepted: tenant.minimumInventory },
+      URGIIS_TENANTS,
+      "state",
+    );
+    await addRun(database, "failed-cold", {
+      source: "urgiis",
+      status: "error",
+    });
+    await database.insert(ingestionSourceRun).values({
+      id: "failed-cold",
+      runId: "failed-cold",
+      source: "urgiis",
+      status: "error",
+      startedAt: old,
+      nextCursor: UrgiisCursor.serialize(after),
+    });
+    await pruneIngestionRuns({ database, now });
+    let pings = 0;
+    await reportUrgiisCensusProgress({
+      database,
+      runId: "current",
+      before,
+      result: {
+        cursor: after,
+        status: "paused",
+        count: tenant.minimumInventory,
+        errors: [],
+        pagesProcessed: 0,
+      },
+      ping: async () => {
+        pings++;
+      },
+    });
+    expect(pings).toBe(0);
   });
 
   test("cascades child rows without orphans", async () => {
@@ -328,10 +442,9 @@ describe("ingestion run retention", () => {
     const failing = spyOn(database, "run").mockRejectedValueOnce(error);
     const log = spyOn(console, "error").mockImplementation(() => {});
     try {
-      let refreshed = false;
-      await pruneIngestionRuns({ database, now });
-      refreshed = true;
-      expect(refreshed).toBe(true);
+      await expect(
+        pruneIngestionRuns({ database, now }),
+      ).resolves.toBeUndefined();
       expect(log).toHaveBeenCalledWith(
         "Ingestion run pruning failed; retrying next pass",
         {
