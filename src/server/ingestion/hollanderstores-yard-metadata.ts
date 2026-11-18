@@ -1122,6 +1122,24 @@ export const HOLLANDERSTORES_YARDS = [
     websiteUrl: "https://paradiseautopar.hollanderstores.com/",
     minimum: 162,
   },
+  {
+    source: "hollanderstores",
+    code: "waugh",
+    tenant: "4000",
+    name: "Waugh Auto Parts",
+    logo: "Waugh Auto Parts",
+    operator: "Waugh Auto Parts",
+    address: "2315 Morrisville Road",
+    city: "Anniston",
+    state: "AL",
+    postalCode: "36201",
+    phone: "(256) 238-8328",
+    email: null,
+    lat: 33.671565768428,
+    lng: -85.897382752306,
+    websiteUrl: "https://waugh.hollanderstores.com/",
+    minimum: 41,
+  },
 ] as const satisfies readonly HollanderstoresYard[];
 export type HollanderstoresYard = Yard & {
   source: "hollanderstores";

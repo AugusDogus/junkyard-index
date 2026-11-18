@@ -356,9 +356,16 @@
       "rejected": 10,
       "duplicates": 0,
       "total": 211
+    },
+    {
+      "code": "waugh",
+      "accepted": 123,
+      "rejected": 0,
+      "duplicates": 0,
+      "total": 123
     }
   ],
-  "count": 55958,
+  "count": 56081,
   "observedVins": [
     "1A4GP44R07R133457",
     "1A8HX5SN28E146565",
