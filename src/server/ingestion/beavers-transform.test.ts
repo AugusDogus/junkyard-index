@@ -26,7 +26,7 @@ test("real native donor keeps YMM, stock and destination with absent optional fi
     lat: BEAVERS_YARD.lat,
     lng: BEAVERS_YARD.lng,
     color: null,
-    imageUrl: null,
+    imageUrl: "https://d1vnbry5hm94g5.cloudfront.net/MB/6E/XU/UU/6.jpg",
     availableDate: null,
     section: null,
     row: null,

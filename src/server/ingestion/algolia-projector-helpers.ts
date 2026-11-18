@@ -1,3 +1,4 @@
+import { YardName } from "~/lib/yard-name";
 import { vehicle } from "~/schema";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { toAlgoliaRecord, type CanonicalVehicle } from "./types";
@@ -21,7 +22,12 @@ export function mapDbVehicleToCanonical(
     imageUrl: row.imageUrl,
     availableDate: row.availableDate,
     locationCode: row.locationCode,
-    locationName: row.locationName,
+    locationName: YardName.resolve({
+      source: row.source,
+      name: row.locationName,
+      city: row.locationCity ?? "Unknown",
+      inventoryUrl: row.detailsUrl,
+    }),
     locationCity: row.locationCity ?? "Unknown",
     state: row.state,
     stateAbbr: row.stateAbbr,

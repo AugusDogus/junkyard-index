@@ -1,3 +1,4 @@
+import { YardName } from "~/lib/yard-name";
 import type { Effect } from "effect";
 import type { Location, Row52Location } from "~/lib/types";
 import { Yard } from "~/lib/yard";
@@ -50,9 +51,12 @@ export function pullapartYard(location: PullapartLocation): Yard {
     ...unknownContact,
     source: "pullapart",
     code: String(location.locationID),
-    name: /pull[\s-]*a[\s-]*part|u[\s-]*pull/i.test(location.locationName)
-      ? location.locationName
-      : `${operator} - ${location.locationName}`,
+    name: YardName.resolve({
+      source: "pullapart",
+      name: location.locationName,
+      city: location.cityName,
+      operator,
+    }),
     operator,
     address: [location.address1, location.address2].filter(Boolean).join(", "),
     city: location.cityName,

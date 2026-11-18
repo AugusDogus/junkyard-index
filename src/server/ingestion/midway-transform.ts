@@ -1,3 +1,4 @@
+import { midwayVehiclePhoto } from "./vehicle-photo";
 import { inventoryVin } from "./inventory-vin";
 import { normalizeCanonicalMake } from "./normalization";
 import type { MidwayRecord } from "./midway-parser";
@@ -67,9 +68,7 @@ export function transformMidwayRecord(
       model,
       color: null,
       stockNumber: parseMidwayStockNumber(record.stock),
-      // Native cells include logos and unverified remote references. Optional
-      // photos remain null without introducing mandatory network or inference.
-      imageUrl: null,
+      imageUrl: midwayVehiclePhoto(record.imageUrl),
       availableDate: sourceDate(record.arrived),
       locationCode: code,
       locationName: yard.name,

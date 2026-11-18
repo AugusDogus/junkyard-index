@@ -1,3 +1,4 @@
+import { hollanderVehiclePhoto } from "./vehicle-photo";
 import { inventoryVin } from "./inventory-vin";
 import { normalizeCanonicalMake } from "./normalization";
 import type { BeaversRecord } from "./beavers-parser";
@@ -104,7 +105,7 @@ export function beaversSnapshot(
           ? record.stock.trim()
           : null,
       color: null,
-      imageUrl: null,
+      imageUrl: hollanderVehiclePhoto(record.imageUrl),
       availableDate: null,
       locationCode: BEAVERS_YARD.code,
       locationName: BEAVERS_YARD.name,

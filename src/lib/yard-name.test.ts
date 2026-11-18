@@ -19,3 +19,52 @@ test("headline keeps names that already carry their brand", () => {
     "Pull N Save - Tucson",
   );
 });
+
+test("resolves legacy city names using the known operator", () => {
+  expect(
+    YardName.resolve({
+      source: "pullapart",
+      name: "Birmingham",
+      city: "Birmingham",
+      operator: "Pull-A-Part",
+    }),
+  ).toBe("Pull-A-Part - Birmingham");
+  expect(
+    YardName.resolve({
+      source: "pullapart",
+      name: "Denver",
+      city: "Denver",
+      operator: "U-Pull-&-Pay",
+    }),
+  ).toBe("U-Pull-&-Pay - Denver");
+  expect(
+    YardName.resolve({
+      source: "pullapart",
+      name: "Denver",
+      city: "Denver",
+      inventoryUrl: "https://www.upullandpay.com/inventory/search/",
+    }),
+  ).toBe("U-Pull-&-Pay - Denver");
+  expect(
+    YardName.resolve({ source: "pullapart", name: "New Yard", city: "City" }),
+  ).toBe("Pull-A-Part / U-Pull-&-Pay - New Yard");
+  expect(
+    YardName.resolve({
+      source: "pullapart",
+      name: "Pull-A-Part - Birmingham",
+      city: "Birmingham",
+      operator: "Pull-A-Part",
+    }),
+  ).toBe("Pull-A-Part - Birmingham");
+  expect(
+    YardName.resolve({ source: "pyp", name: "Sun Valley", city: "Sun Valley" }),
+  ).toBe("LKQ Pick Your Part - Sun Valley");
+  expect(
+    YardName.resolve({
+      source: "row52",
+      name: "City",
+      city: "City",
+      operator: "Independent Auto",
+    }),
+  ).toBe("Independent Auto - City");
+});

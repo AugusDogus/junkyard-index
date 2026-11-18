@@ -1,3 +1,4 @@
+import { alsautoVehiclePhoto } from "./vehicle-photo";
 import { z } from "zod";
 import { stripInventoryRawText } from "./inventory-html";
 import {
@@ -16,6 +17,7 @@ export interface AlsautoRecord {
   vin: string;
   lot: string;
   acquired: string;
+  imageUrl?: string | null;
 }
 export interface AlsautoPage {
   page: number;
@@ -235,6 +237,12 @@ export function parseAlsautoPage(raw: string, page: number): AlsautoPage {
     if (!/^\d{8}$/.test(lot))
       throw new Error("Al's native lot identity changed");
     return {
+      imageUrl:
+        prattElements(body, "div", (tag) => prattClass(tag, "als-widget-image"))
+          .flatMap(({ body }) => [...body.matchAll(/<img\b[^>]*>/gi)])
+          .filter(([tag]) => prattAttribute(tag, "alt") === title)
+          .map(([tag]) => alsautoVehiclePhoto(prattAttribute(tag, "src")))
+          .find((url) => url !== null) ?? null,
       year: Number(yearMatch[1]),
       make,
       model: remainder.slice(make.length + 1),

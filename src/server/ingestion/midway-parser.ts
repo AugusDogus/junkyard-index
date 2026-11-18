@@ -1,3 +1,4 @@
+import { midwayVehiclePhoto } from "./vehicle-photo";
 import {
   inventoryHtmlAttribute,
   inventoryTableSections,
@@ -17,6 +18,7 @@ export interface MidwayRecord {
   arrived: string;
   vin: string;
   stock: string;
+  imageUrl?: string | null;
 }
 
 function text(raw: string): string {
@@ -300,6 +302,13 @@ export function parseMidwayCatalog(
       }
     };
     return {
+      imageUrl:
+        [...(cells[0]?.[2] ?? "").matchAll(/<img\b[^>]*>/gi)]
+          .filter(([tag]) => classContains(tag, "main-vehicle-img"))
+          .map(([tag]) =>
+            midwayVehiclePhoto(inventoryHtmlAttribute(tag, "src")),
+          )
+          .find((url) => url !== null) ?? null,
       year: value(1),
       make: value(2),
       model: value(3),

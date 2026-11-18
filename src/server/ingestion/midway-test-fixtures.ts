@@ -9,6 +9,7 @@ export const midwayTestRecord = {
   arrived: "2026-10-23",
   vin: "1C3CCCAB6GN125544",
   stock: "2604445",
+  imageUrl: null,
 } satisfies MidwayRecord;
 
 export const midwayTestHome = `<html><body>
