@@ -124,16 +124,14 @@ export function SearchResults({
     rowVirtualizer.measure();
   }, [columns, rowVirtualizer]);
 
-  const amountOfSkeletons = isMobile ? 1 : isMediumScreen ? 2 : 6;
+  const viewportReady = isMobile !== null && isMediumScreen !== null;
+  const amountOfSkeletons = 6;
 
   const renderGridRow = useCallback(
     (row: SearchVehicle[], keyPrefix: string, className?: string) => (
       <div
         key={keyPrefix}
-        className={className ?? "grid w-full gap-4 pb-4"}
-        style={{
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        }}
+        className={`grid w-full grid-cols-1 gap-4 pb-4 md:grid-cols-2 lg:grid-cols-3 ${className ?? ""}`}
       >
         {row.map((vehicle: SearchVehicle) => (
           <VehicleCard
@@ -151,16 +149,14 @@ export function SearchResults({
     [columns],
   );
 
-  if (isLoading) {
+  if (isLoading || !viewportReady) {
     return (
-      <div
-        className="grid w-full gap-4"
-        style={{
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        }}
-      >
+      <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: amountOfSkeletons }).map((_, index) => (
-          <Card key={index} className="gap-0 overflow-hidden py-0">
+          <Card
+            key={index}
+            className={`gap-0 overflow-hidden py-0 ${index > 0 ? "hidden md:flex" : ""}`}
+          >
             <CardHeader className="p-0">
               <Skeleton className="aspect-video rounded-t-md rounded-b-none" />
             </CardHeader>
