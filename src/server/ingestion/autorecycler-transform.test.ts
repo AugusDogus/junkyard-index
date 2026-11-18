@@ -6,9 +6,7 @@ import {
 
 describe("autorecycler transform", () => {
   test("parseAutorecyclerNameText parses leading year in name_text", () => {
-    expect(
-      parseAutorecyclerNameText("2000 Nissan Sentra", undefined),
-    ).toEqual({
+    expect(parseAutorecyclerNameText("2000 Nissan Sentra", undefined)).toEqual({
       year: 2000,
       make: "Nissan",
       model: "Sentra",
@@ -23,11 +21,11 @@ describe("autorecycler transform", () => {
     });
   });
 
-  test("parseAutorecyclerNameText uses canonical make as model when only a make is present", () => {
+  test("parseAutorecyclerNameText leaves the model empty when only a make is present", () => {
     expect(parseAutorecyclerNameText("BMW", 2001)).toEqual({
       year: 2001,
       make: "BMW",
-      model: "BMW",
+      model: "",
     });
   });
 
@@ -69,6 +67,33 @@ describe("autorecycler transform", () => {
     });
   });
 
+  test.each(["2000 Chevrolet", "BMW", "2012 Land Rover"])(
+    "rejects a missing model without inventing one (%s)",
+    (name) => {
+      const geo = {
+        orgLookup: "ORG1",
+        lat: 1,
+        lng: 1,
+        locationName: "Yard",
+        locationCity: "City",
+        state: "California",
+        stateAbbr: "CA",
+      };
+      expect(
+        transformAutorecyclerMsearchHit(
+          {
+            vin_text: "3N1CB51D7YL308709",
+            inventory_id_text: "1774437931255x929776907807752400",
+            name_text: name,
+            vehicle_year_number: 2000,
+            organization_custom_organization: "ORG1",
+          },
+          geo,
+        ),
+      ).toBeNull();
+    },
+  );
+
   test("transformAutorecyclerMsearchHit builds canonical vehicle", () => {
     const geo = {
       orgLookup: "ORG1",
@@ -96,7 +121,9 @@ describe("autorecycler transform", () => {
     expect(v!.vin).toBe("3N1CB51D7YL308709");
     expect(v!.source).toBe("autorecycler");
     expect(v!.imageUrl).toBe("https://cdn.example/img.jpg");
-    expect(v!.detailsUrl).toContain("/details/1774437931255x929776907807752400");
+    expect(v!.detailsUrl).toContain(
+      "/details/1774437931255x929776907807752400",
+    );
     expect(v!.lat).toBe(36.1);
     expect(v!.lng).toBe(-80.2);
     expect(v!.locationName).toBe("Foss Winston-Salem");

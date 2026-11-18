@@ -10,6 +10,65 @@ The saved 32-yard opening plus CFC yields 3,295 opening items across all 33 yard
 The full run uses 33 rank windows, one closing check and three discovery/directory
 requests, 37 total with eleven requests below the 48/hour cap.
 
+## November 18 failure isolation
+
+The November 18 production runs did not reconcile AutoRecycler. The 07:00 and
+12:41 UTC attempts reached the legacy terminal date guard and found six yards
+without any parseable addition dates. The 15:04 attempt stopped at Birmingham's
+grouped closing check. #176 quarantined admission failures only during saved-yard
+publication, after grouped capture had already required every yard to be stable.
+
+Grouped capture now records a changed yard's opening and observed totals and
+window counts in its private checkpoint. It stops requesting that yard, emits no
+inventory or presence evidence for it, and preserves its preceding inventory and
+missing/delete counters using the same quarantine manifest as admission failures.
+Other yards still require every rank window and an unchanged closing bookend.
+Changes in total during enumeration and first-window changes during closing both
+quarantine the entire yard. Ownership, ranks, response shape and pagination
+contradictions still fail closed. No additional requests or whole-run retries
+are introduced; the 100-rank windows and 48-request rolling-hour cap are unchanged.
+
+At most `floor(configured Ario yards * 10%)` changed yards may quarantine in one
+run, currently three of 34. This reuses the existing rejection tolerance at the
+yard boundary; a fourth changed yard fails before publication. The per-yard
+admission guards, 50% yard drift, 100-vehicle source floor, source rejection and
+duplicate limits, eligible-scope drift and stale-customer removal bound remain.
+
+For the legacy crawl, at most 10% of the fully observed yard date-evidence set
+may lack dates, and only yards excluded throughout that crawl may quarantine.
+These yards are explicitly preserved and warned about, rather than treated as
+proven stale. An undated yard eligible to emit inventory, or a larger undated
+fraction such as a renamed feed-wide date field, still fails. Dated stale yards
+remain in normal missing reconciliation. Deterministic grouped validation and
+legacy date-contract failures are now marked for the existing scheduler, which
+otherwise mistakes them for transient transport failures. This explains the
+three `published_degraded` attempts; the scheduler's two-hour cooldown and
+three-attempt transient policy do not need changing.
+
+Read-only production evidence shows the last accepted AutoRecycler run was
+November 17 at 07:41:01 UTC, with an old complete cursor lacking a freshness
+manifest. Every November 18 new-code attempt was rejected. Santa Maria still
+had 4,207 non-missing rows, newest addition August 19, 2026; Santa Paula had three,
+newest addition July 19, 2022. No accepted freshness-manifest run had retired
+them. The existing 60-day selector is correct. Once a run completes, these dated
+stale yards emit no vehicles, metadata or presence evidence and enter ordinary
+missing reconciliation. Visibility/deletion still follows the existing grace
+policy, rather than an immediate production patch.
+
+The published make-equals-model audit found 1,529 rows across legacy inventory.
+The two current legacy fixture yards have no structured model field. Removing
+the name parser's make-as-model fallback keeps A-1 at 183 accepted / zero rejected;
+JDM changes from 556 accepted / ten rejected to 540 / 26, including 16 newly
+rejected valid-VIN rows missing models. Three VIN-less JDM rows remain exclusions:
+26 / 566 eligible observations is 4.59%, below the unchanged 10% guard. Ario
+continues using its native `ario_model` / `model` fields. Rejected valid VINs keep
+existing presence protection; no model is decoded or fabricated. Regression
+replays verify the revised 723 accepted legacy donors and unchanged exclusions.
+
+The investigation made one paced, locked Linder's GET and read-only production
+queries. Captures and count receipts are local to `.scratchpad/source-failures/`.
+No ingestion run, production write, deployment or merge was performed.
+
 ## CFC qualification, November 16, 2026
 
 CFC Recycling's official inventory page embeds the native Ario customer yard
@@ -75,7 +134,8 @@ and omitting yards once their declared rank bound is exhausted. Read every rank
 window, including short or empty windows, because suppressed rows leave holes.
 The grouped response's top-level `total` describes its first yard, not the sum;
 validate each yard's own metadata. One grouped closing read must match every
-yard's opening count and items before any inventory is emitted. Publishing then
+publishing yard's opening count and items before any inventory is emitted;
+changed yards follow the bounded quarantine policy above. Publishing then
 replays the saved windows through the existing per-yard validator. Suppressed and
 removed rows are exclusions; malformed VINs or required fields are rejections.
 
@@ -104,8 +164,8 @@ its existing durable `sleep(Date)` before the next chunk. Honor a valid Retry-Af
 The local cap waits until its hour ends with a one-second margin. After waking,
 only the unfinished window is retried; bundle discovery, directory reads and
 completed windows are reused. The closing stability check remains mandatory even
-after a long pause. If inventory changed, fail validation and preserve the prior
-published inventory. Snapshot cleanup also removes these private progress blobs.
+after a long pause. If inventory changed, quarantine that yard within the bound
+above; beyond that bound, fail validation and preserve the prior published inventory. Snapshot cleanup also removes these private progress blobs.
 After 24 consecutive rate-limit pauses (roughly one day at the default hourly
 wait), the source fails instead of holding the run open indefinitely. The count
 survives checkpoints and resets after a completed rank window. Published inventory
@@ -124,8 +184,9 @@ automatically after a recent addition. No production data patch is required.
 Listings with no parseable addition dates anywhere in their yard are a provider
 contract failure, not evidence that the yard is stale. Ario checks active listings
 before emitting the yard. The unfiltered legacy crawl accumulates date evidence
-across checkpoints and rejects undated yards before source completion, including
-when date-filtered freshness discovery silently returns no rows after a field rename.
+across checkpoints. Undated excluded yards follow the bounded quarantine policy
+above. A feed-wide date rename or an undated emitting yard still blocks completion,
+including when date-filtered freshness discovery silently returns no rows.
 
 The 100-vehicle overall floor, 10% rejection cap, 25% duplicate cap and 50% drift
 ratio remain unchanged. Drift now compares AutoRecycler against the published

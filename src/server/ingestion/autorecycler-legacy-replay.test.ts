@@ -104,8 +104,8 @@ test("the two current legacy customers replay across saved checkpoints without n
       excluded += result.accounting?.recordsExcluded ?? 0;
     }
     expect(page).toBe(3);
-    expect(vehicles).toHaveLength(739);
-    expect(new Set(vehicles.map((vehicle) => vehicle.vin)).size).toBe(739);
+    expect(vehicles).toHaveLength(723);
+    expect(new Set(vehicles.map((vehicle) => vehicle.vin)).size).toBe(723);
     expect(
       vehicles.filter(
         (vehicle) => vehicle.locationName === "A-1 METALS & AUTO SALVAGE INC",
@@ -115,8 +115,14 @@ test("the two current legacy customers replay across saved checkpoints without n
       vehicles.filter(
         (vehicle) => vehicle.locationName === "JDM AUTOMOTIVE & RECYCLING",
       ),
-    ).toHaveLength(556);
-    expect(rejected).toBe(10);
+    ).toHaveLength(540);
+    expect(rejected).toBe(26);
+    const jdm = vehicles.filter(
+      (vehicle) => vehicle.locationName === "JDM AUTOMOTIVE & RECYCLING",
+    );
+    expect(jdm.every((vehicle) => vehicle.model !== vehicle.make)).toBe(true);
+    // All 26 rejects are in JDM's 566 eligible rows, safely below 10%.
+    expect(26 / 566).toBeLessThan(0.1);
     expect(excluded).toBe(3);
     expect(cursor.freshness?.eligibleYards).toEqual(eligibleYards);
   } finally {

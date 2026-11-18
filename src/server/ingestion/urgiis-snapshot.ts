@@ -1,3 +1,4 @@
+import { IisSupplierIdentityError } from "./iis-supplier-identity";
 import { UrgiisTenant } from "./urgiis-tenant";
 export type { UrgiisTenant } from "./urgiis-tenant";
 import type { CanonicalVehicle } from "./types";
@@ -64,7 +65,7 @@ export function urgiisSnapshot(
     if (tenant.attribution.kind === "photo")
       return code !== undefined && tenant.photoCodes.includes(code);
     if (code !== undefined && !tenant.photoCodes.includes(code))
-      throw new Error(
+      throw new IisSupplierIdentityError(
         `IIS ${tenant.code} contains unexpected supplier photo ${code}; yard attribution must be requalified before emission`,
       );
     return true;

@@ -316,20 +316,20 @@ export function parseAutorecyclerMakeModel(rest: string): {
     const model = trimmed.slice(canonicalPrefix.end).trim();
     return {
       make: canonicalPrefix.make,
-      model: model || canonicalPrefix.make,
+      model,
     };
   }
 
   const space = trimmed.indexOf(" ");
   if (space === -1) {
     const make = normalizeParsedMake(trimmed);
-    return { make, model: make };
+    return { make, model: "" };
   }
 
   const make = normalizeParsedMake(trimmed.slice(0, space));
   const model = trimmed.slice(space + 1).trim();
   return {
     make,
-    model: model || make,
+    model,
   };
 }

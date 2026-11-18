@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { SourceValidationPolicy } from "./source-validation";
+import { validationRejection } from "./ingestion-validation";
 import { Effect } from "effect";
 import {
   ArioRateLimit,
@@ -14,6 +16,19 @@ import type { ConnectorChunkResult } from "./connector-chunk";
 import { AutorecyclerProviderError } from "./errors";
 
 const MAX_CONSECUTIVE_RATE_LIMITS = 24;
+// Use the existing 10% rejection tolerance for yard-level live churn too.
+const MAX_CHANGED_YARDS = Math.floor(
+  ARIO_CUSTOMER_YARDS.length * SourceValidationPolicy.maximumRejectionRatio,
+);
+class ArioEnumerationError extends Error {}
+const ArioYardChangeSchema = z.object({
+  offset: z.number().int().nonnegative(),
+  openingTotal: z.number().int().nonnegative(),
+  observedTotal: z.number().int().nonnegative(),
+  openingItems: z.number().int().nonnegative(),
+  observedItems: z.number().int().nonnegative(),
+});
+export type ArioYardChange = z.infer<typeof ArioYardChangeSchema>;
 const StateSchema = z.object({
   consecutiveRateLimits: z
     .number()
@@ -30,6 +45,7 @@ const StateSchema = z.object({
   }),
   directory: ArioYardsSchema.optional(),
   pages: z.record(z.record(ArioPageSchema)),
+  changedYards: z.record(ArioYardChangeSchema).optional(),
 });
 export type ArioRunState = z.infer<typeof StateSchema>;
 type ReadCursor = Extract<AutorecyclerCursor, { phase: "ario-read" }>;
@@ -63,9 +79,10 @@ export function readArioRun(
         state.directory ??= ArioYardsSchema.parse(await client.yards());
         const slugs: string[] = ARIO_CUSTOMER_YARDS.filter(
           (yard) =>
-            cursor.closing ||
-            cursor.offset === 0 ||
-            (state.pages[yard.slug]?.["0"]?.total ?? 0) > cursor.offset,
+            !state.changedYards?.[yard.slug] &&
+            (cursor.closing ||
+              cursor.offset === 0 ||
+              (state.pages[yard.slug]?.["0"]?.total ?? 0) > cursor.offset),
         ).map((yard) => yard.slug);
         const raw = await client.pages(
           slugs,
@@ -85,12 +102,15 @@ export function readArioRun(
             slugs.length ||
           group.items.some((item) => !slugs.includes(item.yard))
         )
-          throw new Error(
+          throw new ArioEnumerationError(
             "Ario grouped search returned missing, duplicate or unexpected yards",
           );
         for (const slug of slugs) {
           const meta = group.yards_meta.find((entry) => entry.yard === slug);
-          if (!meta) throw new Error(`Ario grouped search omitted ${slug}`);
+          if (!meta)
+            throw new ArioEnumerationError(
+              `Ario grouped search omitted ${slug}`,
+            );
           const items = group.items.filter((item) => item.yard === slug);
           const page = ArioPageSchema.parse({
             items,
@@ -107,7 +127,7 @@ export function readArioRun(
               item.item_rank > (cursor.closing ? 0 : cursor.offset) + 100 ||
               item.total_yard_inventory !== page.total
             )
-              throw new Error(
+              throw new ArioEnumerationError(
                 `Ario ${slug} returned contradictory ownership or ranks`,
               );
             previousRank = item.item_rank;
@@ -115,13 +135,31 @@ export function readArioRun(
           if (
             meta.returned !== items.length ||
             page.total > 100_000 ||
-            (opening && opening.total !== page.total) ||
-            (cursor.closing &&
-              JSON.stringify(opening?.items) !== JSON.stringify(items))
+            (cursor.closing && !opening)
           )
-            throw new Error(
-              `Ario ${slug} changed during enumeration; restart the run before reconciliation`,
+            throw new ArioEnumerationError(
+              `Ario ${slug} returned invalid pagination evidence; published inventory is preserved`,
             );
+          if (
+            opening &&
+            (opening.total !== page.total ||
+              (cursor.closing &&
+                JSON.stringify(opening.items) !== JSON.stringify(items)))
+          ) {
+            const changed = (state.changedYards ??= {});
+            changed[slug] = {
+              offset: cursor.closing ? 0 : cursor.offset,
+              openingTotal: opening.total,
+              observedTotal: page.total,
+              openingItems: opening.items.length,
+              observedItems: items.length,
+            };
+            if (Object.keys(changed).length > MAX_CHANGED_YARDS)
+              throw new ArioEnumerationError(
+                `Ario changed yards ${Object.keys(changed).join(", ")} exceed the 10% yard limit (${MAX_CHANGED_YARDS} of ${ARIO_CUSTOMER_YARDS.length}). Published inventory is preserved; inspect the captures before the next daily run.`,
+              );
+            continue;
+          }
           const saved = (state.pages[slug] ??= {});
           saved[cursor.closing ? "closing" : String(cursor.offset)] = page;
         }
@@ -140,6 +178,7 @@ export function readArioRun(
               offset,
               closing: ARIO_CUSTOMER_YARDS.every(
                 (yard) =>
+                  state.changedYards?.[yard.slug] !== undefined ||
                   (state.pages[yard.slug]?.["0"]?.total ?? Infinity) <= offset,
               ),
               retryAt: undefined,
@@ -165,8 +204,16 @@ export function readArioRun(
         pagesProcessed,
       };
     },
-    catch: (cause) =>
-      new AutorecyclerProviderError({ from: cursor.offset, cause }),
+    catch: (cause) => {
+      const error = new AutorecyclerProviderError({
+        from: cursor.offset,
+        cause,
+      });
+      return cause instanceof ArioEnumerationError ||
+        cause instanceof z.ZodError
+        ? validationRejection(error)
+        : error;
+    },
   });
 }
 

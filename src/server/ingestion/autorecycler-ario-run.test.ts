@@ -21,7 +21,10 @@ import {
   AutorecyclerCursorSchema,
   type AutorecyclerCursor,
 } from "./autorecycler-cursor";
-import { streamAutorecyclerInventory } from "./autorecycler-connector";
+import {
+  streamAutorecyclerInventory,
+  type AutorecyclerStreamResult,
+} from "./autorecycler-connector";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
 import { ingestDurableSource } from "./durable-ingestion-orchestrator";
 
@@ -380,4 +383,133 @@ test("saved native opening responses fit the combined 34-customer bounds with CF
   ).toBe(3395);
   expect(state.pages["cfc-recycling"]?.["0"]?.total).toBe(422);
   expect(state.pages["cfc-recycling"]?.["0"]?.items).toHaveLength(100);
+});
+
+test.each(["closing-count", "closing-items", "mid-read"])(
+  "a yard changed at %s is quarantined through checkpoint replay while other yards publish",
+  async (change) => {
+    const saved = await capturedGroupClient();
+    const changed = ARIO_CUSTOMER_YARDS.find(
+      (yard) => yard.slug === "ez-pull-n-pay-birmingham",
+    );
+    if (!changed) throw new Error("Missing Birmingham fixture");
+    let cursor: AutorecyclerCursor = structuredClone(initial);
+    let checkpointState: unknown;
+    while (cursor.phase === "ario-read") {
+      const closing = cursor.closing;
+      const chunk = await Effect.runPromise(
+        readArioRun(
+          cursor,
+          async () => checkpointState,
+          () => ({
+            ...saved.client,
+            pages: async (slugs, offset) => {
+              const raw = await saved.client.pages(slugs, offset);
+              const group = ArioPageSchema.extend({
+                items: ArioPageSchema.shape.items.max(3400),
+                yards_meta: ArioPageSchema.shape.yards_meta.max(34),
+              }).parse(raw);
+              if (
+                (closing && change !== "mid-read") ||
+                (!closing && offset === 100 && change === "mid-read")
+              ) {
+                if (change === "closing-items") {
+                  const item = group.items.find(
+                    (item) => item.yard === changed.slug,
+                  );
+                  if (!item) throw new Error("Missing opening item");
+                  item.id += "-changed";
+                } else {
+                  for (const meta of group.yards_meta)
+                    if (meta.yard === changed.slug) meta.total_matching++;
+                  for (const item of group.items)
+                    if (item.yard === changed.slug) item.total_yard_inventory++;
+                }
+              }
+              return group;
+            },
+          }),
+        ),
+      );
+      checkpointState = JSON.parse(JSON.stringify(chunk.checkpointState));
+      cursor = AutorecyclerCursorSchema.parse({
+        ...chunk.cursor,
+        statePath: "offline-state",
+      });
+    }
+    const database = createClient({ url: ":memory:" });
+    let accepted = 0;
+    const warnings: string[] = [];
+    try {
+      while (cursor.phase === "ario") {
+        const chunk: AutorecyclerStreamResult = await Effect.runPromise(
+          streamAutorecyclerInventory({
+            startCursor: cursor,
+            loadArioState: async () => checkpointState,
+            onBatch: (vehicles) =>
+              Effect.sync(() => {
+                expect(
+                  vehicles.some(
+                    (v) =>
+                      v.locationCode ===
+                      `1348695171700984260__LOOKUP__${changed.legacyId}`,
+                  ),
+                ).toBe(false);
+                accepted += vehicles.length;
+              }),
+          }).pipe(Effect.provideService(Database, drizzle(database))),
+        );
+        warnings.push(...(chunk.warnings ?? []));
+        cursor = chunk.cursor;
+      }
+      expect(accepted).toBe(32_453 - 725);
+      if (cursor.phase !== "page") throw new Error("Expected legacy frontier");
+      expect(cursor.freshness?.preservedYards).toContain(
+        `1348695171700984260__LOOKUP__${changed.legacyId}`,
+      );
+      expect(warnings.join(" ")).toContain(changed.slug);
+      expect(warnings.join(" ")).toContain("opening");
+      expect(saved.calls.length + 3).toBeLessThan(ARIO_HOURLY_REQUEST_BUDGET);
+    } finally {
+      database.close();
+    }
+  },
+  60_000,
+);
+
+test("more than ten percent changed Ario yards fails deterministically before publication", async () => {
+  const saved = await capturedGroupClient();
+  const chunk = await Effect.runPromise(
+    readArioRun(initial, undefined, () => saved.client),
+  );
+  const state = await loadArioState(
+    "offline",
+    async () => chunk.checkpointState,
+  );
+  const changedSlugs: string[] = ARIO_CUSTOMER_YARDS.slice(0, 4).map(
+    (yard) => yard.slug,
+  );
+  const result = await Effect.runPromise(
+    readArioRun(
+      { ...initial, closing: true, offset: 3300, statePath: "offline" },
+      async () => state,
+      () => ({
+        ...saved.client,
+        pages: async (slugs, offset) => {
+          const group = ArioPageSchema.extend({
+            items: ArioPageSchema.shape.items.max(3400),
+            yards_meta: ArioPageSchema.shape.yards_meta.max(34),
+          }).parse(await saved.client.pages(slugs, offset));
+          for (const meta of group.yards_meta)
+            if (changedSlugs.includes(meta.yard)) meta.total_matching++;
+          for (const item of group.items)
+            if (changedSlugs.includes(item.yard)) item.total_yard_inventory++;
+          return group;
+        },
+      }),
+    ),
+  ).catch((error: unknown) => error);
+  const { isValidationRejection } = await import("./ingestion-validation");
+  expect(isValidationRejection(result)).toBe(true);
+  expect(String(result)).toContain("10%");
 });

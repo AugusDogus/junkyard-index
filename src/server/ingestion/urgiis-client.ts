@@ -1,3 +1,4 @@
+import { IisSupplierIdentityError } from "./iis-supplier-identity";
 import { sharedProviderHostSlot } from "./shared-provider-host";
 import { Effect, Schedule } from "effect";
 import { parseRetryAfterMs } from "./provider-http-client";
@@ -12,6 +13,7 @@ export type UrgiisError = {
   message: string;
 } & (
   | { kind: "failure" }
+  | { kind: "identity" }
   | { kind: "blocked"; status: 403 | 429; retryAfterMs: number }
 );
 export const urgiisError = (
@@ -19,7 +21,7 @@ export const urgiisError = (
   cause: unknown,
 ): UrgiisError => ({
   tag: "UrgiisError",
-  kind: "failure",
+  kind: cause instanceof IisSupplierIdentityError ? "identity" : "failure",
   operation,
   message: `URG IIS ${operation}: ${cause instanceof Error ? cause.message : String(cause)}. Prior inventory is preserved; inspect the saved response or resume the last validated checkpoint.`,
 });

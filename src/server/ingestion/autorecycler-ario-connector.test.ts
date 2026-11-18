@@ -6,7 +6,7 @@ import {
 import { inventoryVin } from "./inventory-vin";
 import { z } from "zod";
 import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Logger } from "effect";
 import { streamArioYard } from "./autorecycler-ario-connector";
 import {
   ArioPageSchema,
@@ -441,4 +441,45 @@ test("quarantines only the Ario yard above the rejection guard", async () => {
   );
   expect(next.selection).toBe("ario");
   expect(next.count).toBeGreaterThan(100);
+});
+
+test("a captured changed yard logs its counts and cannot make replay requests or emit", async () => {
+  const saved = await savedClient();
+  const logged: string[] = [];
+  const result = await Effect.runPromise(
+    streamArioYard(
+      {
+        yardIndex: 0,
+        quarantine: {
+          offset: 0,
+          openingTotal: 1137,
+          observedTotal: 1138,
+          openingItems: 100,
+          observedItems: 99,
+        },
+        onBatch: () => Effect.die("Quarantined inventory cannot emit"),
+        onYards: () => Effect.die("Quarantined metadata cannot emit"),
+      },
+      {
+        ...saved,
+        page: async () => {
+          throw new Error("Quarantined replay cannot request pages");
+        },
+      },
+    ).pipe(
+      Effect.provide(
+        Logger.replace(
+          Logger.defaultLogger,
+          Logger.make(({ message }) => {
+            logged.push(String(message));
+          }),
+        ),
+      ),
+    ),
+  );
+  expect(result.selection).toBe("quarantined");
+  expect(result.count).toBe(0);
+  expect(logged.join(" ")).toContain("a-a-auto-recycling");
+  expect(logged.join(" ")).toContain("opening 1137 total / 100");
+  expect(logged.join(" ")).toContain("observed 1138 total / 99");
 });
