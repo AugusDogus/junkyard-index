@@ -57,9 +57,6 @@ describe("Algolia settings plan", () => {
     const replicaOperations = plan
       .slice(3)
       .filter((operation) => operation.kind === "settings");
-    const primary = plan[2];
-    if (primary?.kind !== "settings") throw new Error("Expected primary settings");
-    expect(primary.indexSettings.customRanking).toEqual(["desc(arrivalDateKnown)", "desc(availableDateTs)"]);
 
     expect(replicaOperations.map((operation) => operation.indexName)).toEqual([
       ...ALGOLIA_REPLICA_INDEX_NAMES,
@@ -88,7 +85,7 @@ describe("Algolia settings plan", () => {
           "exact",
           "custom",
         ],
-        customRanking: ["desc(availableDateTs)"],
+        customRanking: ["desc(arrivalDateKnown)", "desc(availableDateTs)"],
       },
     });
     expect(plan.at(-1)).toEqual({

@@ -298,14 +298,22 @@ describe("reconciliation policy", () => {
       const owner = existingVehicle("VIN123", { source: "autorecycler" });
       expect(
         planChangedVehicleUpserts({
+          publishedYards: new Map(),
           inventory: new Map([[native.vin, native]]),
           existingRows: [owner],
           runTimestamp,
           acceptedSources: new Set([source]),
         }),
-      ).toEqual([{ vehicle: native, firstSeenAt: owner.firstSeenAt }]);
+      ).toEqual([
+        {
+          vehicle: native,
+          firstSeenAt: owner.firstSeenAt,
+          observedArrivalAt: null,
+        },
+      ]);
       expect(
         planChangedVehicleUpserts({
+          publishedYards: new Map(),
           inventory: new Map([
             ["VIN123", canonicalVehicle("VIN123", { source: "autorecycler" })],
           ]),
