@@ -9,10 +9,15 @@ import {
   fetchWhitebradstreetControl,
   fetchWhitebradstreetPage,
   WhitebradstreetProviderError,
+  WhitebradstreetRateLimitedError,
+  WhitebradstreetRateLimitExhaustedError,
 } from "./whitebradstreet-client";
 import {
+  WHITEBRADSTREET_MAX_DEFERRAL_MS,
+  WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS,
   WhitebradstreetCursor,
   WhitebradstreetCursorSchema,
+  type WhitebradstreetRateLimit,
   type WhitebradstreetSeen,
 } from "./whitebradstreet-cursor";
 import {
@@ -154,6 +159,49 @@ function append(
   return vehicles;
 }
 
+/** Schedule the durable wait for a rate-limited request. Cooldowns are
+ * bounded in count and in total time, so a source cannot defer forever. */
+function rateLimitCooldown(
+  prior: WhitebradstreetRateLimit | undefined,
+  refusal: WhitebradstreetRateLimitedError,
+) {
+  return ingestionValidation({
+    try: () => {
+      const deferrals = (prior?.deferrals ?? 0) + 1;
+      const cooldownMs = WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS[deferrals - 1];
+      const now = Date.now();
+      const since = prior?.since ?? now;
+      const exhausted = (bound: "cooldowns" | "window") =>
+        new WhitebradstreetRateLimitExhaustedError({
+          url: refusal.url,
+          retryAfterMs: refusal.retryAfterMs,
+          bound,
+          since,
+        });
+      if (cooldownMs === undefined) throw exhausted("cooldowns");
+      const retryAt = now + Math.max(cooldownMs, refusal.retryAfterMs);
+      if (
+        !Number.isSafeInteger(retryAt) ||
+        retryAt > since + WHITEBRADSTREET_MAX_DEFERRAL_MS
+      )
+        throw exhausted("window");
+      return { rateLimit: { since, deferrals }, retryAt };
+    },
+    catch: (cause) =>
+      cause instanceof WhitebradstreetRateLimitExhaustedError
+        ? cause
+        : new WhitebradstreetProviderError({
+            operation: "rate-limit cooldown",
+            cause,
+          }),
+  });
+}
+
+/** A resumed 16-page crawl is about 33 paced reads (replay, new pages and
+ * terminal recheck), roughly 140 seconds. The chunk limit leaves 30 seconds
+ * after the crawl for the batch and yard callbacks. */
+const CRAWL_DEADLINE = "270 seconds";
+
 export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
   options: WhitebradstreetOptions<E, R>,
   gate: ProviderRequestGate,
@@ -191,8 +239,19 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
       },
     };
     if (cursor.phase === "complete") return empty;
+    // The durable Workflow sleeps until retryAt; never request before it.
+    if (cursor.retryAt !== undefined && Date.now() < cursor.retryAt)
+      return {
+        ...empty,
+        status: "paused",
+        cursor,
+      } satisfies WhitebradstreetStreamResult;
     const progress = fresh();
     let controlValidated = false;
+    let lastRateLimit: { url: string; retryAfterMs: number } | null = null;
+    const onRateLimited = (url: string, retryAfterMs: number) => {
+      lastRateLimit = { url, retryAfterMs };
+    };
     const consume = (page: TruckPartsCatalogPage) =>
       ingestionValidation({
         try: () => append(progress, page),
@@ -213,132 +272,209 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
             "active donor control",
             "First native page has no complete donor for a source-linked Now Wrecking detail control",
           );
-        yield* fetchWhitebradstreetControl(record, gate);
+        yield* fetchWhitebradstreetControl(record, gate, onRateLimited);
         controlValidated = true;
       });
-    // Replay the complete accepted prefix before emitting resumed work. This
-    // ties the persisted ledger and its counters to current native evidence.
-    if (cursor.phase === "pages") {
-      for (let pageNumber = 1; pageNumber < cursor.nextPage; pageNumber++) {
-        const page = yield* fetchWhitebradstreetPage(pageNumber, gate);
-        if (
-          page.total !== cursor.total ||
-          page.hash !== cursor.hashes[pageNumber - 1]
-        )
-          return yield* failure(
-            "resume page " + pageNumber,
-            "Native catalog changed since the checkpoint; restart from the initial cursor",
-          );
-        yield* control(page);
-        yield* consume(page);
-      }
-      if (
-        JSON.stringify(progress) !==
-        JSON.stringify({
-          total: cursor.total,
-          processed: cursor.processed,
-          emitted: cursor.emitted,
-          rejected: cursor.rejected,
-          duplicates: cursor.duplicates,
-          seen: cursor.seen,
-          hashes: cursor.hashes,
-        })
-      )
-        return yield* failure(
-          "checkpoint evidence",
-          "Persisted donor identities or counters do not match the native prefix; restart from the initial cursor",
-        );
-    }
-    const before = {
-      processed: progress.processed,
-      rejected: progress.rejected,
-      duplicates: progress.duplicates,
-    };
+    const before = { processed: 0, rejected: 0, duplicates: 0 };
     const vehicles: WhitebradstreetCanonicalVehicle[] = [];
-    const seenStart = progress.seen.length;
+    let seenStart = 0;
     let pagesProcessed = 0;
     let terminal = false;
-    while (pagesProcessed < maxPages && !terminal) {
-      const page = yield* fetchWhitebradstreetPage(
-        progress.hashes.length + 1,
-        gate,
-      );
-      yield* control(page);
-      vehicles.push(...(yield* consume(page)));
-      pagesProcessed++;
-      terminal = page.nextUrl === null;
-    }
-    if (terminal) {
-      if (progress.processed !== progress.total || progress.emitted === 0)
-        return yield* failure(
-          "terminal catalog",
-          "Native terminal row count differs from its advertised total or no complete donors remain",
-        );
-      // Recheck every page at completion so an in-flight reorder or optional
-      // metadata change cannot silently qualify a mixed catalog snapshot.
-      for (
-        let pageNumber = 1;
-        pageNumber <= progress.hashes.length;
-        pageNumber++
-      ) {
-        const page = yield* fetchWhitebradstreetPage(pageNumber, gate);
+    const crawl = Effect.gen(function* () {
+      // Replay the complete accepted prefix before emitting resumed work. This
+      // ties the persisted ledger and its counters to current native evidence.
+      if (cursor.phase === "pages") {
+        for (let pageNumber = 1; pageNumber < cursor.nextPage; pageNumber++) {
+          const page = yield* fetchWhitebradstreetPage(
+            pageNumber,
+            gate,
+            onRateLimited,
+          );
+          if (
+            page.total !== cursor.total ||
+            page.hash !== cursor.hashes[pageNumber - 1]
+          )
+            return yield* failure(
+              "resume page " + pageNumber,
+              "Native catalog changed since the checkpoint; restart from the initial cursor",
+            );
+          yield* control(page);
+          yield* consume(page);
+        }
         if (
-          page.total !== progress.total ||
-          page.hash !== progress.hashes[pageNumber - 1]
+          JSON.stringify(progress) !==
+          JSON.stringify({
+            total: cursor.total,
+            processed: cursor.processed,
+            emitted: cursor.emitted,
+            rejected: cursor.rejected,
+            duplicates: cursor.duplicates,
+            seen: cursor.seen,
+            hashes: cursor.hashes,
+          })
         )
           return yield* failure(
-            "terminal page " + pageNumber,
-            "Native catalog changed during enumeration; restart from the initial cursor",
+            "checkpoint evidence",
+            "Persisted donor identities or counters do not match the native prefix; restart from the initial cursor",
           );
       }
+      before.processed = progress.processed;
+      before.rejected = progress.rejected;
+      before.duplicates = progress.duplicates;
+      seenStart = progress.seen.length;
+      while (pagesProcessed < maxPages && !terminal) {
+        const page = yield* fetchWhitebradstreetPage(
+          progress.hashes.length + 1,
+          gate,
+          onRateLimited,
+        );
+        yield* control(page);
+        vehicles.push(...(yield* consume(page)));
+        pagesProcessed++;
+        terminal = page.nextUrl === null;
+      }
+      if (terminal) {
+        if (progress.processed !== progress.total || progress.emitted === 0)
+          return yield* failure(
+            "terminal catalog",
+            "Native terminal row count differs from its advertised total or no complete donors remain",
+          );
+        // Recheck every page at completion so an in-flight reorder or optional
+        // metadata change cannot silently qualify a mixed catalog snapshot.
+        for (
+          let pageNumber = 1;
+          pageNumber <= progress.hashes.length;
+          pageNumber++
+        ) {
+          const page = yield* fetchWhitebradstreetPage(
+            pageNumber,
+            gate,
+            onRateLimited,
+          );
+          if (
+            page.total !== progress.total ||
+            page.hash !== progress.hashes[pageNumber - 1]
+          )
+            return yield* failure(
+              "terminal page " + pageNumber,
+              "Native catalog changed during enumeration; restart from the initial cursor",
+            );
+        }
+      }
+    }).pipe(
+      // In-chunk HTTP 429 waits can use up the crawl. That still defers, so a
+      // step retry never replays page 1 at a host that is rate-limiting.
+      Effect.timeoutFail({
+        duration: CRAWL_DEADLINE,
+        onTimeout: () =>
+          lastRateLimit === null
+            ? new WhitebradstreetProviderError({
+                operation: "crawl budget",
+                cause:
+                  "Crawl deadline exceeded without an HTTP 429; retain the last validated checkpoint",
+              })
+            : new WhitebradstreetRateLimitedError({
+                ...lastRateLimit,
+                reason: "chunk-deadline",
+              }),
+      }),
+    );
+    // Callbacks run only once a cursor that covers their pages is validated.
+    const emit = (next: WhitebradstreetCursor, warnings: string[]) =>
+      Effect.gen(function* () {
+        if (vehicles.length > 0) yield* options.onBatch(vehicles);
+        const rejected = progress.rejected - before.rejected;
+        return {
+          ...empty,
+          status: next.phase === "complete" ? "complete" : "paused",
+          cursor: next,
+          count: vehicles.length,
+          pagesProcessed,
+          observedVins: [
+            ...new Set(
+              progress.seen
+                .slice(seenStart)
+                .flatMap((row) =>
+                  row.status === "incomplete" && row.vin ? [row.vin] : [],
+                ),
+            ),
+          ],
+          warnings: rejected
+            ? [
+                ...warnings,
+                "White & Bradstreet rejected " +
+                  rejected +
+                  " required-field-incomplete donors; valid native VINs supply presence evidence only.",
+              ]
+            : warnings,
+          accounting: {
+            recordsProcessed: progress.processed - before.processed,
+            recordsExcluded: 0,
+            recordsRejected: rejected,
+            duplicateVehicles: progress.duplicates - before.duplicates,
+          },
+        } satisfies WhitebradstreetStreamResult;
+      });
+    const refusal = yield* crawl.pipe(
+      Effect.as(null),
+      Effect.catchTag("WhitebradstreetRateLimitedError", (error) =>
+        Effect.succeed(error),
+      ),
+    );
+    const advanced = {
+      source: "whitebradstreet",
+      phase: "pages",
+      nextPage: progress.hashes.length + 1,
+      ...progress,
+      ...(cursor.rateLimit === undefined
+        ? {}
+        : { rateLimit: cursor.rateLimit }),
+    } as const;
+    if (refusal !== null) {
+      const cooldown = yield* rateLimitCooldown(cursor.rateLimit, refusal);
+      const warnings = [
+        refusal.message +
+          " Cooldown " +
+          cooldown.rateLimit.deferrals +
+          " of " +
+          WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS.length +
+          " lasts until " +
+          new Date(cooldown.retryAt).toISOString() +
+          ".",
+      ];
+      // Keep this chunk's pages only when they form a resumable checkpoint. A
+      // refusal during the terminal recheck has no such checkpoint, so the
+      // input cursor repeats the work after the cooldown.
+      const kept =
+        pagesProcessed > 0
+          ? WhitebradstreetCursorSchema.safeParse({ ...advanced, ...cooldown })
+          : null;
+      if (!kept?.success) {
+        const retained = WhitebradstreetCursorSchema.safeParse({
+          ...cursor,
+          ...cooldown,
+        });
+        if (!retained.success)
+          return yield* failure("rate-limit checkpoint", retained.error);
+        return {
+          ...empty,
+          status: "paused",
+          cursor: retained.data,
+          warnings,
+        } satisfies WhitebradstreetStreamResult;
+      }
+      return yield* emit(kept.data, warnings);
     }
     const nextCursor: WhitebradstreetCursor = terminal
       ? { source: "whitebradstreet", phase: "complete" }
-      : {
-          source: "whitebradstreet",
-          phase: "pages",
-          nextPage: progress.hashes.length + 1,
-          ...progress,
-        };
+      : advanced;
     const validatedCursor = WhitebradstreetCursorSchema.safeParse(nextCursor);
     if (!validatedCursor.success)
       return yield* failure("checkpoint accounting", validatedCursor.error);
     if (terminal && options.onYards)
       yield* options.onYards([WHITEBRADSTREET_YARD]);
-    if (vehicles.length > 0) yield* options.onBatch(vehicles);
-    const rejected = progress.rejected - before.rejected;
-    return {
-      ...empty,
-      status: terminal ? "complete" : "paused",
-      cursor: validatedCursor.data,
-      count: vehicles.length,
-      pagesProcessed,
-      observedVins: [
-        ...new Set(
-          progress.seen
-            .slice(seenStart)
-            .flatMap((row) =>
-              row.status === "incomplete" && row.vin ? [row.vin] : [],
-            ),
-        ),
-      ],
-      warnings: rejected
-        ? [
-            "White & Bradstreet rejected " +
-              rejected +
-              " required-field-incomplete donors; valid native VINs supply presence evidence only.",
-          ]
-        : [],
-      accounting: {
-        recordsProcessed: progress.processed - before.processed,
-        recordsExcluded: 0,
-        recordsRejected: rejected,
-        duplicateVehicles: progress.duplicates - before.duplicates,
-      },
-    } satisfies WhitebradstreetStreamResult;
+    return yield* emit(validatedCursor.data, []);
   }).pipe(
-    // A resumed 16-page crawl is about 33 paced reads (replay, new pages,
-    // terminal recheck), plus room for two bounded HTTP 429 waits.
     Effect.timeoutFail({
       duration: "5 minutes",
       onTimeout: () =>
