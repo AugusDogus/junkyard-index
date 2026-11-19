@@ -1,8 +1,8 @@
-import type { Duration, Effect } from "effect";
+import type { Effect } from "effect";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import {
-  providerHostSession,
   providerHostSlot,
+  providerHostTurn,
   type ProviderHostPolicy,
 } from "./provider-host-slot";
 
@@ -69,12 +69,18 @@ export const sharedProviderHostSlot =
     return policy ? providerHostSlot(policy, request) : request;
   };
 
-/** For crawls that must finish atomically in one chunk: wait for one turn and
- * hold the backend lease through every request inside, each still followed by
- * the policy gap. Without a shared policy for `url` this is `session`. */
-export const sharedProviderHostSession =
-  (url: string, holdFor: Duration.DurationInput) =>
-  <A, E, R>(session: Effect.Effect<A, E, R>) => {
+/**
+ * One queue turn for `requests` sequential requests to `url`'s backend, each
+ * still followed by the policy gap. Connectors take a turn at every request
+ * site, grouping requests that only together let a chunk advance, so every
+ * chunk advances with one turn. Inside a chunk deadline a turn that cannot end
+ * before the chunk's turn horizon fails with `ProviderTurnDeferred` (see
+ * `ProviderChunkClock.unlessDeferred`). Without a shared policy for `url` this
+ * is `unit`.
+ */
+export const sharedProviderHostTurn =
+  (url: string, requests = 1) =>
+  <A, E, R>(unit: Effect.Effect<A, E, R>) => {
     const policy = sharedProviderHostPolicy(url);
-    return policy ? providerHostSession(policy, holdFor, session) : session;
+    return policy ? providerHostTurn(policy, requests, unit) : unit;
   };

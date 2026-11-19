@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect, Fiber, TestClock, TestContext } from "effect";
-import { streamAplusInventoryWithRequestGate } from "./aplus-connector";
+import { Effect, Either, Fiber, TestClock, TestContext } from "effect";
+import {
+  streamAplusInventory,
+  streamAplusInventoryWithRequestGate,
+} from "./aplus-connector";
 import { AplusCursor, AplusCursorSchema } from "./aplus-cursor";
 import type { AplusRecord } from "./aplus-parser";
 import type { AplusCanonicalVehicle } from "./aplus-transform";
@@ -19,6 +22,7 @@ import {
   aplusFixtureRecord,
   aplusFixtureRoot,
 } from "./aplus-test-fixtures";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -370,3 +374,38 @@ test("A Plus rejects oversized wire cursors before decoding and refuses invalid 
     expect(requests).toBe(1);
   }
 });
+
+test("Aplus keeps advancing when every shared host turn waits minutes", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // 2.5 minutes. The old three-minute wall deadline counted that queue time and
+  // failed every chunk before it could return its first page's checkpoint.
+  const native = transport();
+  let cursor: AplusCursor = AplusCursor.initial;
+  const pages: number[] = [];
+  let vehicles = 0;
+  while (cursor.phase !== "complete" && pages.length < 10) {
+    const chunk = await runWithQueuedHost(
+      streamAplusInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles += batch.length;
+          }),
+      }),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    pages.push(chunk.result.right.pagesProcessed);
+    cursor = AplusCursor.parse(
+      AplusCursor.serialize(chunk.result.right.cursor),
+    );
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(cursor.phase).toBe("complete");
+  expect(pages).toEqual([2, 2, 2, 2, 2]);
+  expect(native.urls).toHaveLength(10);
+  expect(vehicles).toBe(1000);
+}, 120_000);

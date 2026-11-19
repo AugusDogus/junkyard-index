@@ -1,11 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { VINPLUS_API, VINPLUS_TENANTS } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_CURSOR_BYTES } from "./vinplus-cursor";
 import { streamVinplusInventory } from "./vinplus-connector";
 import { inspectVinplusEvidence } from "./vinplus-parser";
 import { readVinplusControl } from "./vinplus-client";
 import { vinplusCensus } from "./vinplus-test-fixtures";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import { IngestionSourceFlags } from "./ingestion-source-flags";
 import {
   parseDurableSourceCursor,
@@ -284,3 +285,58 @@ test("production gate serializes complete bodies and waits 1.6 seconds before th
     throw new Error("Missing request timing");
   expect(second - firstEnd).toBeGreaterThanOrEqual(1550);
 }, 10_000);
+
+test("VinPlus keeps advancing when every API request waits minutes for a shared host turn", async () => {
+  // Production VinPlus queue on 2026-11-19: about 20 sources shared one lease,
+  // so each API control waited about 150 s for its turn.
+  const census = vinplusCensus();
+  const bodies = census.flat();
+  const first = census[0];
+  if (!first) throw new Error("Missing first tenant fixture");
+  let requests = 0;
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const body = bodies[requests++];
+      if (body === undefined) throw new Error("Unexpected extra request");
+      return new Response(body, {
+        headers: {
+          "Content-Type": String(input).startsWith(
+            "https://vinplus.texnrewards.com/",
+          )
+            ? "text/html"
+            : "application/json",
+        },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let cursor = VinplusCursor.initial();
+  const pages: number[] = [];
+  // Drive the first tenant through its opening and closing controls.
+  while (cursor.yards.length === 1) {
+    const chunk = await runWithQueuedHost(
+      streamVinplusInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        readControl: (control) =>
+          readVinplusControl(control, (effect) => effect),
+        onBatch: () => Effect.void,
+      }),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    pages.push(chunk.result.right.pagesProcessed);
+    cursor = parseDurableSourceCursor(
+      "vinplus",
+      serializeDurableSourceCursor(chunk.result.right.cursor),
+    );
+    // Every chunk advances, returns its checkpoint and releases each lease.
+    expect(chunk.result.right.pagesProcessed).toBeGreaterThan(0);
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(cursor.yards[0]).toEqual(first);
+  expect(pages.reduce((sum, page) => sum + page, 0)).toBe(requests);
+  // Two queued turns per chunk; the app pages around them are not queued.
+  expect(pages).toEqual([3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4]);
+}, 120_000);

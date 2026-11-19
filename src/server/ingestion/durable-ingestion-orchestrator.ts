@@ -1,5 +1,6 @@
 import type {
   DurableWorkflowCursor,
+  DurableWorkflowChunkDeferral,
   DurableWorkflowChunkResult,
   DurableWorkflowStart,
 } from "./durable-workflow-cursor";
@@ -19,7 +20,9 @@ export interface DurableSourceOperations<
   runChunk: (
     runId: string,
     cursor: DurableWorkflowCursor<Source>,
-  ) => Promise<DurableWorkflowChunkResult<Source>>;
+  ) => Promise<
+    DurableWorkflowChunkResult<Source> | DurableWorkflowChunkDeferral<Source>
+  >;
   markFailed: (
     runId: string,
     source: Source,
@@ -32,7 +35,9 @@ export interface DurableIngestionOperations {
   runChunk: <Source extends DurableIngestionSource>(
     runId: string,
     cursor: DurableWorkflowCursor<Source>,
-  ) => Promise<DurableWorkflowChunkResult<Source>>;
+  ) => Promise<
+    DurableWorkflowChunkResult<Source> | DurableWorkflowChunkDeferral<Source>
+  >;
   markFailed: <Source extends DurableIngestionSource>(
     runId: string,
     source: Source,
@@ -89,6 +94,14 @@ function formatError(error: unknown): string {
   return messages.join(": ") || "Unknown ingestion error";
 }
 
+/** Pause before retrying a chunk deferred by a deep shared host queue, so the
+ * source leaves the queue while it drains. */
+export const DEFERRED_CHUNK_DELAY_MS = 5 * 60_000;
+/** A source that gets no shared host turn in time for this long, with no
+ * chunk advancing in between, fails instead of deferring again. Prior
+ * inventory stays published and the source retries after its usual delay. */
+export const DEFERRED_SOURCE_LIMIT_MS = 3 * 60 * 60_000;
+
 export async function ingestDurableSource<
   Source extends DurableIngestionSource,
 >(params: {
@@ -100,6 +113,8 @@ export async function ingestDurableSource<
   const { runChunk, markFailed, sleepUntil } = params.operations;
   let cursor = params.initialCursor;
   const source = cursor.source;
+  // Workflow time of the first deferral since the source last advanced.
+  let deferredSince: number | null = null;
   try {
     while (true) {
       if (
@@ -119,6 +134,20 @@ export async function ingestDurableSource<
           `Source ${source} returned a ${result.cursor.source} cursor`,
         );
       }
+      if (result.status === "deferred") {
+        deferredSince ??= Date.now();
+        if (Date.now() - deferredSince >= DEFERRED_SOURCE_LIMIT_MS)
+          throw new Error(
+            `${result.message} No chunk advanced for ${Math.round((Date.now() - deferredSince) / 60_000)} minutes, so the source stopped waiting for shared host turns. Prior inventory is preserved; the source retries after its usual delay. If this repeats, the shared host queue needs more capacity or fewer sources.`,
+          );
+        if (!sleepUntil)
+          throw new Error(
+            `Source ${source} needs a durable wait before retrying a deferred chunk: ${result.message}`,
+          );
+        await sleepUntil(Date.now() + DEFERRED_CHUNK_DELAY_MS);
+        continue;
+      }
+      deferredSince = null;
       if (result.status !== "paused") return result;
       cursor = result.cursor;
     }

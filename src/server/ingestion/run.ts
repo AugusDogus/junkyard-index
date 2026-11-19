@@ -45,6 +45,7 @@ export async function runIngestion(): Promise<DurableIngestionResult> {
           runId: currentRunId,
           cursor,
         });
+        if (result.status === "deferred") return result;
         const progressError = durableSourceChunkProgressError(cursor, result);
         if (progressError) throw new Error(progressError);
         return result;

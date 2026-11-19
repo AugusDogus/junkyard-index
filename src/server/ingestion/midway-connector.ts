@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Clock, Effect, RateLimiter } from "effect";
+import { Clock, Effect, Option, RateLimiter } from "effect";
 import {
   fetchMidwayCatalog,
   fetchMidwayHome,
@@ -19,6 +19,7 @@ import {
   type MidwayCanonicalVehicle,
 } from "./midway-transform";
 import {
+  MIDWAY_ORIGIN,
   MIDWAY_YARDS,
   parseMidwayYards,
   type MidwayYard,
@@ -28,6 +29,8 @@ import type { ConnectorChunkResult } from "./connector-chunk";
 import { inventoryVin } from "./inventory-vin";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
+import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface MidwayOptions<E, R> {
   startCursor?: MidwayCursor;
@@ -131,14 +134,40 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
       recordsRejected: 0,
       duplicateVehicles: 0,
     };
-    if (cursor.phase !== "complete") {
-      const home = yield* fetchMidwayHome(gate);
-      yield* ingestionValidation({
-        try: () => parseMidwayYards(home),
-        catch: (cause) =>
-          new MidwayProviderError({ operation: "native yard identity", cause }),
-      });
-    }
+    // The ownership check shares the chunk's first shared host turn with its
+    // first native request, so a chunk advances with one turn; every later
+    // request takes its own turn and a deferred one ends the chunk.
+    const homeCheck = fetchMidwayHome(gate).pipe(
+      Effect.flatMap((home) =>
+        ingestionValidation({
+          try: () => parseMidwayYards(home),
+          catch: (cause) =>
+            new MidwayProviderError({
+              operation: "native yard identity",
+              cause,
+            }),
+        }),
+      ),
+    );
+    let homeChecked = false;
+    const turn = <A, E2, R2>(request: Effect.Effect<A, E2, R2>) =>
+      (homeChecked
+        ? request.pipe(
+            sharedProviderHostTurn(MIDWAY_ORIGIN + "/"),
+            ProviderChunkClock.unlessDeferred(nativePages > 0),
+          )
+        : homeCheck.pipe(
+            Effect.andThen(request),
+            sharedProviderHostTurn(MIDWAY_ORIGIN + "/", 2),
+            Effect.map(Option.some),
+          )
+      ).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            homeChecked = true;
+          }),
+        ),
+      );
     while (cursor.phase !== "complete" && pagesProcessed < maxPages) {
       // Always make progress, then checkpoint before the hard chunk limit.
       if (
@@ -150,7 +179,9 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
         const code = cursor.yardCode;
         const previousVins = cursor.observedVins;
         const previousStocks = cursor.stocks;
-        const html = yield* fetchMidwayCatalog(code, gate);
+        const read = yield* turn(fetchMidwayCatalog(code, gate));
+        if (Option.isNone(read)) break;
+        const html = read.value;
         nativePages++;
         const snapshot = yield* ingestionValidation({
           try: () => {
@@ -187,7 +218,9 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
         continue;
       }
       if (cursor.phase === "yard") {
-        const opening = yield* fetchMidwayCatalog("OO95", gate);
+        const read = yield* turn(fetchMidwayCatalog("OO95", gate));
+        if (Option.isNone(read)) break;
+        const opening = read.value;
         nativePages++;
         const census = yield* ingestionValidation({
           try: () => openMidwayMakeCensus(opening, "OO95"),
@@ -211,7 +244,9 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
       const tulsa = cursor;
       const [make, ...remaining] = tulsa.makes;
       if (make !== undefined) {
-        const records = yield* fetchMidwayMakeRecords("OO95", make, gate);
+        const read = yield* turn(fetchMidwayMakeRecords("OO95", make, gate));
+        if (Option.isNone(read)) break;
+        const records = read.value;
         nativePages++;
         const admitted = yield* ingestionValidation({
           try: () =>
@@ -246,7 +281,9 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
         };
         continue;
       }
-      const closing = yield* fetchMidwayCatalog("OO95", gate);
+      const read = yield* turn(fetchMidwayCatalog("OO95", gate));
+      if (Option.isNone(read)) break;
+      const closing = read.value;
       nativePages++;
       yield* ingestionValidation({
         try: () => {
@@ -279,7 +316,7 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
       accounting,
     } satisfies MidwayStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "5 minutes",
       onTimeout: () =>
         new MidwayProviderError({

@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { OemProviderError, readOemPage } from "./oem-client";
 import { OEM_ARRIVALS, OEM_MAKES } from "./oem-html";
 import {
@@ -29,6 +29,7 @@ import {
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { assessOemRecord } from "./oem-record";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface OemOptions<E, R> {
   startCursor?: unknown;
@@ -277,7 +278,6 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
         };
       }
       if (pagesProcessed >= budget) break;
-      if (yield* ProviderChunkClock.shouldYield(pagesProcessed)) break;
       if (
         cursor.requests >= OEM_MAX_REQUESTS ||
         cursor.bytes > OEM_MAX_TOTAL_BYTES - OEM_MAX_BODY_BYTES
@@ -291,7 +291,14 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
       const url = yield* attempt("next native control", () =>
         oemNextUrl(state),
       );
-      const raw = yield* options.readPage(url);
+      const page = yield* options
+        .readPage(url)
+        .pipe(
+          sharedProviderHostTurn(url),
+          ProviderChunkClock.unlessDeferred(pagesProcessed > 0),
+        );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       cursor = yield* attempt("native transition", () =>
         oemAdvance(cursor, raw),
       );

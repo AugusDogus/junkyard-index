@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { createHash } from "node:crypto";
 import { soakPickersInventory } from "../../../scripts/soak-pickers";
 import { connectorChunkMetrics } from "./connector-chunk";
@@ -19,6 +19,7 @@ import {
 } from "./pickers-test-fixtures";
 import { pickersHash } from "./pickers-parser";
 import { fetchPickersInventory } from "./pickers-client";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import type { VinplusRecord } from "./vinplus-protocol";
 import type { PickersCanonicalVehicle } from "./pickers-transform";
 import {
@@ -885,3 +886,65 @@ test("coverage envelopes compress a valid checkpoint just below the inner 1 MiB 
   expect(Buffer.byteLength(wire)).toBeLessThanOrEqual(PICKERS_MAX_CURSOR_BYTES);
   expect(PickersCoverageCursor.parse(wire)).toEqual(coverage);
 }, 15000);
+
+test("Pickers keeps advancing when every VinPlus request waits minutes for a shared host turn", async () => {
+  // Production VinPlus queue on 2026-11-19: about 20 sources shared one lease,
+  // so each config and search waited about 150 s for its turn. A resumed
+  // query chunk needs its config guard and a search before it can advance.
+  const records = Array.from({ length: 6 }, (_, index) => ({
+    ...pickersTestRecord,
+    stock: "STK" + String(100000 + index),
+    vin: "1FADP3E23EL" + String(100000 + index),
+    model: "MODEL" + String(index).padStart(3, "0"),
+  }));
+  const native = pickersTestInventory(records, ["FORD"]);
+  const queries = records.map((record) => ({
+    pair: { make: record.make, model: record.model },
+    body: pickersTestSearch([record], {
+      make: record.make,
+      model: record.model,
+    }),
+  }));
+  const first = queries[0],
+    last = queries.at(-1);
+  if (!first || !last) throw new Error("Missing finite selector endpoints");
+  const mock = transport(undefined, {
+    ...smallFixture(),
+    native: [{ make: "FORD", opening: native, closing: native }],
+    queries,
+    firstBookend: first.body,
+    lastBookend: last.body,
+  });
+  let cursor: PickersCursor = PickersCursor.initial;
+  const pages: number[] = [];
+  const batches: PickersCanonicalVehicle[][] = [];
+  while (cursor.phase !== "complete") {
+    const chunk = await runWithQueuedHost(
+      streamPickersInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 16,
+          onBatch: (vehicles) =>
+            Effect.sync(() => {
+              batches.push(vehicles);
+            }),
+        },
+        identityGate,
+      ),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    pages.push(chunk.result.right.pagesProcessed);
+    cursor = PickersCursor.parse(
+      PickersCursor.serialize(chunk.result.right.cursor),
+    );
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  // Native opening, three query chunks of two turns, native closing, bookends.
+  expect(pages).toEqual([1, 2, 2, 2, 1, 2]);
+  expect(batches).toHaveLength(1);
+  expect(batches[0]).toHaveLength(6);
+  expect(cursor.state.requests).toBe(mock.calls.length);
+}, 120_000);

@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
@@ -33,6 +33,7 @@ import {
 import type { ScottsCanonicalVehicle } from "./scotts-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface ScottsOptions<E, R> {
   startCursor?: ScottsCursor;
@@ -193,7 +194,6 @@ export function streamScottsInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current: ScottsProgress = cursor;
       if (current.requests >= SCOTTS_MAX_REQUESTS)
         return yield* new ScottsProviderError({
@@ -201,7 +201,12 @@ export function streamScottsInventoryWithRequestGate<E, R>(
           cause: "600 native GET limit reached; preserve prior inventory",
         });
       const url = yield* attempt("next control", () => nextUrl(current));
-      const raw = yield* fetchScottsPage(url, gate);
+      const page = yield* fetchScottsPage(url, gate).pipe(
+        sharedProviderHostTurn(url),
+        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+      );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       const advanced: ScottsProgress = yield* attempt(
         url,
         (): ScottsProgress => advance(current, raw),

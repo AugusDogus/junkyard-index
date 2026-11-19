@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { soakLittletonInventory } from "../../../scripts/soak-littleton";
 import { streamLittletonInventoryWithRequestGate } from "./littleton-connector";
 import { LittletonCursor, LittletonCursorSchema } from "./littleton-cursor";
@@ -13,6 +13,7 @@ import {
   littletonTestSearch,
 } from "./littleton-test-fixtures";
 import type { LittletonCanonicalVehicle } from "./littleton-transform";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   LITTLETON_ANALYTICS_URL,
   LITTLETON_CONFIG_URL,
@@ -411,3 +412,57 @@ test("Littleton soak rejects stalled chunks and invalid total query budgets", as
     })),
   ).rejects.toThrow("no query progress");
 });
+
+test("Littleton completes a crawl when every VinPlus turn waits minutes", async () => {
+  // About 20 sources share the VinPlus lease at 07:00, so each turn waits
+  // about 2.5 minutes. A resumed terminal chunk used to need five turns
+  // (config, analytics, last search, closing config, closing analytics) and
+  // hit the wall limit.
+  const records = Array.from({ length: 6 }, (_, i) => ({
+    ...littletonTestRecord,
+    stock: "STK" + String(60000 + i).padStart(6, "0"),
+    vin: "2HNYD18845H" + String(540300 + i),
+    model: "MODEL " + String.fromCharCode(65 + i),
+  }));
+  const requests = mock({ records });
+  let cursor: LittletonCursor = LittletonCursor.initial;
+  let vehicles: LittletonCanonicalVehicle[] = [];
+  const chunks: { status: string; elapsedMs: number }[] = [];
+  while (cursor.phase !== "complete" && chunks.length < 8) {
+    const chunk = await runWithQueuedHost(
+      streamLittletonInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 16,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles = [...vehicles, ...batch];
+            }),
+        },
+        gate,
+      ),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    chunks.push({
+      status: chunk.result.right.status,
+      elapsedMs: chunk.elapsedMs,
+    });
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    cursor = LittletonCursorSchema.parse(
+      JSON.parse(JSON.stringify(chunk.result.right.cursor)),
+    );
+  }
+  expect(cursor.phase).toBe("complete");
+  expect(vehicles).toHaveLength(6);
+  // Every chunk returns well inside an 800 s function started inline late.
+  expect(chunks.every((chunk) => chunk.elapsedMs <= 6 * 60_000)).toBe(true);
+  // The closing context still follows the last search.
+  expect(requests.slice(-5)).toEqual([
+    "search",
+    "owner",
+    "inventory",
+    "config",
+    "analytics",
+  ]);
+}, 120_000);

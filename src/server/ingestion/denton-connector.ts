@@ -1,7 +1,8 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 import {
   readDentonPage,
   DENTON_MAX_BODY_BYTES,
@@ -155,8 +156,6 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
         cursor = complete;
       } else {
         if (summary.pagesProcessed >= budget) break;
-        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
-          break;
         if (
           cursor.requests >= DENTON_MAX_REQUESTS ||
           cursor.bytes > DENTON_MAX_TOTAL_BYTES - DENTON_MAX_BODY_BYTES
@@ -168,9 +167,21 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
             ),
           );
         const url = yield* unwrap(dentonNextUrl(cursor));
-        const response = yield* options.readPage(url);
+        // A native slash 301 takes its own turn: the cursor holds it as a
+        // pending redirect, so either GET advances the chunk.
+        const response = yield* options
+          .readPage(url)
+          .pipe(
+            sharedProviderHostTurn(url),
+            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+          );
+        if (Option.isNone(response)) break;
         cursor = yield* unwrap(
-          DentonCursor.advance(cursor, response, options.previousAcceptedCount),
+          DentonCursor.advance(
+            cursor,
+            response.value,
+            options.previousAcceptedCount,
+          ),
         );
         summary.pagesProcessed++;
       }

@@ -162,6 +162,8 @@ for (const candidate of cases) {
             }).pipe(Effect.either),
           );
           if (outcome._tag === "Left") {
+            // Shared host and chunk clock failures carry no URG operation.
+            if (!("operation" in outcome.left)) throw outcome.left;
             expect(outcome.left.operation).toBe("snapshot " + tenant.code);
             expect(outcome.left.message).toContain(
               placeholderStocks.length

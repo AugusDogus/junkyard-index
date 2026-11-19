@@ -56,6 +56,19 @@ export interface DurableSourceChunkResult<
   rejectedVehicles?: number;
 }
 
+/**
+ * A chunk that could not get a shared provider host turn in time before it
+ * advanced. Nothing was fetched or checkpointed, so it never counts as
+ * progress; the source workflow retries `cursor` after a pause.
+ */
+export interface DurableSourceChunkDeferral<
+  Source extends DurableIngestionSource = DurableIngestionSource,
+> {
+  status: "deferred";
+  cursor: DurableCursorFor<Source>;
+  message: string;
+}
+
 export interface FetchedDurableSourceChunk<
   Source extends DurableIngestionSource = DurableIngestionSource,
 > {

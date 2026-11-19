@@ -140,12 +140,27 @@ request even after most sources had failed). Every new URG and VinPlus native
 connector failed its first chunk at its wall-clock three-minute deadline, while
 local soaks, which bypass the queue, took under a minute.
 [`provider-chunk-clock.ts`](../../src/server/ingestion/provider-chunk-clock.ts)
-now excludes time spent waiting for a shared turn from those deadlines. A chunk
-that has advanced stops before its next request after five minutes of wall time
-and returns its validated checkpoint. Every chunk still fails at eleven minutes,
-inside the 800-second Vercel step. Pick-A-Part VA and I-Pull must crawl their
-catalogs atomically, so they hold one shared lease for the whole crawl
-(`sharedProviderHostSession`), keeping the gap between their requests.
+now excludes time spent waiting for a shared turn from those deadlines.
+
+Every connector on these queues takes a shared host turn
+(`sharedProviderHostTurn`) at each request site. A turn holds one lease for a
+unit of sequential requests, each still followed by the policy gap. Requests
+that only together let a chunk advance share one turn: a context or owner fetch
+with the chunk's first data request, and a last page with the closing reads its
+cursor cannot hold separately. Pick-A-Part VA and I-Pull crawl atomically, so
+their whole crawl is one turn. A chunk therefore advances with a single turn.
+
+A chunk ends within six minutes of wall time: 800 seconds of function, less a
+step that can start inline five minutes into its invocation, less 140 seconds
+for the cursor and checkpoint writes around it. A turn waits only while its
+estimated requests still fit before that limit, and work still running at the
+limit is interrupted. Such a turn is deferred: nothing from it is accepted and
+its lease is released. A chunk that already advanced returns its validated
+checkpoint. One that has not is deferred as a whole: nothing is checkpointed,
+and the source workflow retries the same cursor after a five-minute durable
+pause. A source with no chunk advancing for three hours fails with a clear
+message; its prior inventory stays published and it retries after the usual
+two-hour delay.
 
 The production Lua is exercised against an isolated local Redis Unix socket:
 

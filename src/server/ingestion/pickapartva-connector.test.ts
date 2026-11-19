@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { connectorChunkMetrics } from "./connector-chunk";
 import { streamPickapartvaInventoryWithRequestGate } from "./pickapartva-connector";
 import {
@@ -12,6 +12,8 @@ import {
   pickapartvaTestRecord,
   pickapartvaTestRecords,
 } from "./pickapartva-test-fixtures";
+import { ProviderTurnDeferred } from "./provider-chunk-clock";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -291,3 +293,55 @@ test("Pick-A-Part VA rejects an entire repeated native payload below the duplica
   ).rejects.toThrow("repeated");
   expect(callbacks).toBe(0);
 });
+
+const queuedCrawl = (turnWaitMs: number) => {
+  const calls = mockPages({
+    pages: [
+      pickapartvaTestPage(pickapartvaTestRecords(500), 1, 3),
+      pickapartvaTestPage(pickapartvaTestRecords(500, 500), 2, 3),
+      pickapartvaTestPage(pickapartvaTestRecords(10, 1000), 3, 3),
+    ],
+  });
+  return {
+    calls,
+    // Build the crawl once the queued host environment is in place.
+    chunk: runWithQueuedHost(
+      Effect.suspend(() =>
+        streamPickapartvaInventoryWithRequestGate(
+          { onBatch: () => Effect.void },
+          gate,
+        ),
+      ),
+      { turnWaitMs },
+    ),
+  };
+};
+
+test("Pick-A-Part VA crawls its atomic census in one shared host turn", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // two minutes. The census, its closing reads and validation hold one lease.
+  const { calls, chunk } = queuedCrawl(2 * 60_000);
+  const { result, elapsedMs, turns } = await chunk;
+  if (Either.isLeft(result)) throw result.left;
+  expect(result.right).toMatchObject({
+    status: "complete",
+    count: 1010,
+    cursor: { source: "pickapartva", phase: "complete" },
+  });
+  expect(calls).toHaveLength(6);
+  expect(elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(turns).toHaveLength(1);
+  expect(turns[0]?.releasedAt).not.toBeNull();
+}, 120_000);
+
+test("a Pick-A-Part VA census without a turn in time is deferred whole", async () => {
+  const { calls, chunk } = queuedCrawl(5 * 60_000);
+  const { result, elapsedMs, turns, cancelled } = await chunk;
+  expect(Either.isLeft(result) && result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(turns).toHaveLength(0);
+  expect(cancelled).toBe(1);
+  expect(calls).toEqual([]);
+}, 60_000);

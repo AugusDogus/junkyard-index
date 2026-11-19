@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect, RateLimiter } from "effect";
+import { Effect, Option, RateLimiter } from "effect";
 import {
   Alln1ProviderError,
   fetchAlln1Owner,
@@ -30,6 +30,7 @@ import {
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
 
 interface Alln1Options<E, R, S extends Alln1Source> {
@@ -131,20 +132,44 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
       },
     };
     if (initial.phase === "complete") return empty;
-    const owner = yield* fetchAlln1Owner(gate, tenant);
-    const anchor = yield* fetchAlln1Page(tenant.inventoryUrl, gate, tenant);
-    const scopeHash = alln1Hash({ owner, scope: anchor.scopeHash });
-    if (
-      initial.phase === "pages" &&
-      (initial.scopeHash !== scopeHash ||
-        initial.anchorHash !== anchor.hash ||
-        initial.lastPage !== anchor.lastPage)
-    )
-      return yield* new Alln1ProviderError({
-        operation: "resume scope",
-        cause:
-          "Native owner, first-page inventory anchor or pagination changed during the crawl",
-      });
+    const resumeUrl = initial.phase === "pages" ? initial.nextUrl : null;
+    const closingRead = Effect.all([
+      fetchAlln1Owner(gate, tenant),
+      fetchAlln1Page(tenant.inventoryUrl, gate, tenant),
+    ]);
+    // One shared host turn reads the owner and first-page anchor, the page
+    // this chunk resumes at, and the closing reads when that page is the last,
+    // so a chunk needs one turn to advance. Nothing here touches chunk state.
+    const opening = yield* Effect.gen(function* () {
+      const owner = yield* fetchAlln1Owner(gate, tenant);
+      const anchor = yield* fetchAlln1Page(tenant.inventoryUrl, gate, tenant);
+      const scopeHash = alln1Hash({ owner, scope: anchor.scopeHash });
+      if (
+        initial.phase === "pages" &&
+        (initial.scopeHash !== scopeHash ||
+          initial.anchorHash !== anchor.hash ||
+          initial.lastPage !== anchor.lastPage)
+      )
+        return yield* new Alln1ProviderError({
+          operation: "resume scope",
+          cause:
+            "Native owner, first-page inventory anchor or pagination changed during the crawl",
+        });
+      const page =
+        resumeUrl === null
+          ? anchor
+          : yield* fetchAlln1Page(resumeUrl, gate, tenant);
+      const closing = page.nextUrl === null ? yield* closingRead : null;
+      return { owner, anchor, scopeHash, page, closing };
+    }).pipe(
+      sharedProviderHostTurn(
+        tenant.origin,
+        initial.phase === "pages" && initial.nextPage === initial.lastPage
+          ? 5
+          : 3,
+      ),
+    );
+    const { owner, anchor, scopeHash } = opening;
     const seen: Alln1Seen[] =
       initial.phase === "pages" ? [...initial.seen] : [];
     const receipts: { hash: string; count: number }[] =
@@ -157,10 +182,36 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
     let pagesProcessed = 0,
       processed = 0,
       rejected = 0;
+    type PageRead = { page: Alln1Page; closing: typeof opening.closing };
+    let pending: PageRead | null = {
+      page: opening.page,
+      closing: opening.closing,
+    };
+    let closing: typeof opening.closing = null;
     while (nextUrl && pagesProcessed < maxPages) {
-      if (yield* ProviderChunkClock.shouldYield(pagesProcessed)) break;
-      const page: Alln1Page =
-        nextPage === 1 ? anchor : yield* fetchAlln1Page(nextUrl, gate, tenant);
+      if (pending === null) {
+        const url: string = nextUrl;
+        // The last page shares its turn with the closing reads, because the
+        // cursor cannot hold a crawl whose closing reads are still pending.
+        const read: Option.Option<PageRead> = yield* Effect.gen(function* () {
+          const page: Alln1Page = yield* fetchAlln1Page(url, gate, tenant);
+          return {
+            page,
+            closing: page.nextUrl === null ? yield* closingRead : null,
+          };
+        }).pipe(
+          sharedProviderHostTurn(
+            tenant.origin,
+            nextPage === anchor.lastPage ? 3 : 1,
+          ),
+          ProviderChunkClock.unlessDeferred(pagesProcessed > 0),
+        );
+        if (Option.isNone(read)) break;
+        pending = read.value;
+      }
+      const page: Alln1Page = pending.page;
+      closing = pending.closing;
+      pending = null;
       if (
         page.page !== nextPage ||
         page.lastPage !== anchor.lastPage ||
@@ -202,12 +253,16 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
               " donors exceeds the unchanged 10% rejection limit or lacks complete valid yard coverage",
           );
       });
-      const closingOwner = yield* fetchAlln1Owner(gate, tenant);
-      const closing = yield* fetchAlln1Page(tenant.inventoryUrl, gate, tenant);
+      if (closing === null)
+        return yield* new Alln1ProviderError({
+          operation: "terminal anchor",
+          cause: "The last native page was read without its closing reads",
+        });
+      const [closingOwner, closingAnchor] = closing;
       if (
         closingOwner !== owner ||
-        closing.hash !== anchor.hash ||
-        closing.scopeHash !== anchor.scopeHash
+        closingAnchor.hash !== anchor.hash ||
+        closingAnchor.scopeHash !== anchor.scopeHash
       )
         return yield* new Alln1ProviderError({
           operation: "terminal anchor",

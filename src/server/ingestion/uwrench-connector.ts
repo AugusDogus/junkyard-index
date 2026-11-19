@@ -1,4 +1,4 @@
-import { Effect, RateLimiter } from "effect";
+import { Effect, Option, RateLimiter } from "effect";
 import {
   fetchUwrenchContext,
   fetchUwrenchSearch,
@@ -18,10 +18,18 @@ import {
   type UwrenchSnapshot,
 } from "./uwrench-snapshot";
 import type { UwrenchCanonicalVehicle } from "./uwrench-transform";
-import { UWRENCH_YARD, type UwrenchYard } from "./uwrench-yard-metadata";
+import {
+  UWRENCH_SEARCH_URL,
+  UWRENCH_YARD,
+  type UwrenchYard,
+} from "./uwrench-yard-metadata";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
+
+/** Owner and inventory HTML plus VinPlus config and analytics. */
+const CONTEXT_REQUESTS = 4;
 
 export interface UwrenchOptions<E, R> {
   startCursor?: UwrenchCursor;
@@ -118,23 +126,51 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
     if (initial.phase === "complete")
       return { ...summary, status: "complete" as const };
     const budget = { used: 0 };
-    const context = yield* fetchUwrenchContext(gate, budget);
-    const prior =
+    const resumeIndex =
       initial.phase === "start"
-        ? null
-        : yield* validateUwrench("rebuild complete retained prefix", () =>
-            rebuildUwrenchPrefix(context, initial),
-          );
+        ? 0
+        : initial.phase === "scan"
+          ? initial.scanReceipts.length
+          : initial.verificationReceipts.length;
+    // One VinPlus turn reads the context, the selector this chunk resumes at,
+    // and the closing context when that selector is the last verification, so
+    // a chunk needs one turn to advance. Nothing here touches chunk state.
+    const opening = yield* Effect.gen(function* () {
+      const context = yield* fetchUwrenchContext(gate, budget);
+      const prior =
+        initial.phase === "start"
+          ? null
+          : yield* validateUwrench("rebuild complete retained prefix", () =>
+              rebuildUwrenchPrefix(context, initial),
+            );
+      const pair = context.pairs[resumeIndex];
+      const search = pair
+        ? yield* fetchUwrenchSearch(pair, gate, budget)
+        : null;
+      const closing =
+        initial.phase === "verify" &&
+        (pair ? resumeIndex + 1 : resumeIndex) >= context.pairs.length
+          ? yield* fetchUwrenchContext(gate, budget)
+          : null;
+      return { context, prior, search, closing };
+    }).pipe(
+      sharedProviderHostTurn(
+        UWRENCH_SEARCH_URL,
+        initial.phase === "verify" && resumeIndex === initial.pairCount - 1
+          ? 2 * CONTEXT_REQUESTS + 1
+          : CONTEXT_REQUESTS + 1,
+      ),
+    );
+    const { context, prior } = opening;
     if (initial.phase === "start" || initial.phase === "scan") {
       const entries = initial.phase === "scan" ? [...initial.entries] : [];
       const scanReceipts =
         initial.phase === "scan" ? [...initial.scanReceipts] : [];
+      let scanned = opening.search;
       while (
         scanReceipts.length < context.pairs.length &&
         summary.pagesProcessed < maxPages
       ) {
-        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
-          break;
         const index = scanReceipts.length;
         const pair = context.pairs[index];
         if (!pair)
@@ -142,7 +178,16 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
             operation: "native query directory",
             cause: "Required literal pair is missing",
           });
-        const response = yield* fetchUwrenchSearch(pair, gate, budget);
+        if (scanned === null) {
+          const read = yield* fetchUwrenchSearch(pair, gate, budget).pipe(
+            sharedProviderHostTurn(UWRENCH_SEARCH_URL),
+            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+          );
+          if (Option.isNone(read)) break;
+          scanned = read.value;
+        }
+        const response = scanned;
+        scanned = null;
         yield* validateUwrench("whole-record selector append", () =>
           appendUwrenchRecords(
             entries,
@@ -188,11 +233,15 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
         cause: "Complete retained scan prefix is unavailable",
       });
     const verificationReceipts = [...initial.verificationReceipts];
+    let pending =
+      opening.search === null
+        ? null
+        : { response: opening.search, closing: opening.closing };
+    let closing = opening.search === null ? opening.closing : null;
     while (
       verificationReceipts.length < context.pairs.length &&
       summary.pagesProcessed < maxPages
     ) {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const index = verificationReceipts.length;
       const pair = context.pairs[index];
       const scan = initial.scanReceipts[index];
@@ -201,7 +250,29 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
           operation: "verification directory",
           cause: "Required retained query proof is missing",
         });
-      const response = yield* fetchUwrenchSearch(pair, gate, budget);
+      if (pending === null) {
+        const last = index === context.pairs.length - 1;
+        // The last verification shares its turn with the closing context,
+        // because the cursor cannot hold a crawl whose closing is pending.
+        const read = yield* Effect.gen(function* () {
+          const response = yield* fetchUwrenchSearch(pair, gate, budget);
+          return {
+            response,
+            closing: last ? yield* fetchUwrenchContext(gate, budget) : null,
+          };
+        }).pipe(
+          sharedProviderHostTurn(
+            UWRENCH_SEARCH_URL,
+            last ? CONTEXT_REQUESTS + 1 : 1,
+          ),
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
+        if (Option.isNone(read)) break;
+        pending = read.value;
+      }
+      const { response } = pending;
+      closing = pending.closing;
+      pending = null;
       yield* validateUwrench("closing whole-query verification", () => {
         if (
           uwrenchQueryHash(pair, response.records) !== scan.stableHash ||
@@ -227,7 +298,11 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
     yield* validateUwrench("terminal native/API union quality", () =>
       validateUwrenchScan(context, prior),
     );
-    const closing = yield* fetchUwrenchContext(gate, budget);
+    if (closing === null)
+      return yield* new UwrenchProviderError({
+        operation: "terminal native/public controls",
+        cause: "The last verification was read without its closing context",
+      });
     if (closing.hash !== context.hash)
       return yield* new UwrenchProviderError({
         operation: "terminal native/public controls",

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { connectorChunkMetrics } from "./connector-chunk";
 import { streamPipesInventoryWithRequestGate } from "./pipes-connector";
 import { PipesCursor } from "./pipes-cursor";
@@ -18,6 +18,7 @@ import {
 import type { PipesCanonicalVehicle } from "./pipes-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { soakPipesInventory } from "../../../scripts/soak-pipes";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -323,3 +324,31 @@ test("Pipes callback mutation cannot change returned metrics or future yard meta
   expect(PIPES_YARD.lat).toBe(32.5299208);
   expect(PIPES_YARD.name).toBe("Pipes U-Pull-It");
 });
+
+test("Pipes keeps advancing when every VinPlus request waits minutes for a shared host turn", async () => {
+  // Production VinPlus queue on 2026-11-19: about 20 sources shared one lease,
+  // so each config, search and bookend waited about 150 s for its turn.
+  const requests = replay();
+  let cursor = PipesCursor.initial;
+  const pages: number[] = [];
+  let count = 0;
+  while (cursor.phase !== "complete") {
+    const chunk = await runWithQueuedHost(
+      streamPipesInventoryWithRequestGate(
+        { startCursor: cursor, maxPages: 8, onBatch: () => Effect.void },
+        immediate,
+      ),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    pages.push(chunk.result.right.pagesProcessed);
+    count = chunk.result.right.count;
+    cursor = chunk.result.right.cursor;
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(pages).toEqual([7, 5, 1]);
+  expect(count).toBe(1);
+  expect(requests()).toBe(13);
+}, 120_000);

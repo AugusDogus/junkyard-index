@@ -13,7 +13,7 @@ import { IdipullCatalog } from "./idipull-catalog";
 import { inventoryVin } from "./inventory-vin";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { sharedProviderHostSession } from "./shared-provider-host";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
 import { conflictingVins } from "./vin-conflicts";
 
@@ -147,9 +147,13 @@ export function streamIdipullInventoryWithRequestGate<E, R>(
       },
     };
     if (parsed.data.phase === "complete") return empty;
-    const home = yield* fetchIdipullPage("/", gate);
-    const html = yield* fetchIdipullPage("/inventory/", gate);
-    const closingHtml = yield* fetchIdipullPage("/inventory/", gate);
+    // The closing read must match the opening read, so the home page and both
+    // catalog reads are one shared host turn. A deferred turn discards them.
+    const [home, html, closingHtml] = yield* Effect.all([
+      fetchIdipullPage("/", gate),
+      fetchIdipullPage("/inventory/", gate),
+      fetchIdipullPage("/inventory/", gate),
+    ]).pipe(sharedProviderHostTurn(IDIPULL_ORIGIN, 3));
     const snapshot = yield* ingestionValidation({
       try: () => {
         const yard = parseIdipullYard(home);
@@ -194,7 +198,6 @@ export function streamIdipullInventoryWithRequestGate<E, R>(
       },
     } satisfies IdipullStreamResult;
   }).pipe(
-    sharedProviderHostSession(IDIPULL_ORIGIN, "2 minutes"),
     ProviderChunkClock.deadline({
       duration: "2 minutes",
       onTimeout: () =>

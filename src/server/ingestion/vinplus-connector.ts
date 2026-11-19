@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { VINPLUS_TENANTS } from "./vinplus-configuration";
 import { VinplusCursor, VINPLUS_MAX_REQUESTS } from "./vinplus-cursor";
 import { inspectVinplusEvidence, type VinplusControl } from "./vinplus-parser";
@@ -9,6 +9,8 @@ import { vinplusSnapshot } from "./vinplus-snapshot";
 import type { CanonicalVehicle } from "./types";
 import type { Yard } from "~/lib/yard";
 import type { ConnectorChunkResult } from "./connector-chunk";
+import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface VinplusOptions<E, R> {
   startCursor?: unknown;
@@ -98,7 +100,14 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
           return progress.control;
         },
       );
-      const raw = yield* (options.readControl ?? readVinplusControl)(control);
+      const read = yield* (options.readControl ?? readVinplusControl)(
+        control,
+      ).pipe(
+        sharedProviderHostTurn(control.url),
+        ProviderChunkClock.unlessDeferred(pagesProcessed > 0),
+      );
+      if (Option.isNone(read)) break;
+      const raw = read.value;
       cursor = yield* validated(
         `response ${tenant.yardId} control ${evidence.length} and next checkpoint`,
         () => {
@@ -178,7 +187,7 @@ export function streamVinplusInventory<E, R>(options: VinplusOptions<E, R>) {
       ),
     } satisfies VinplusStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         VinplusError.create("chunk deadline", "Three-minute deadline exceeded"),

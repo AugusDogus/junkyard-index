@@ -236,6 +236,8 @@ for (const tenant of rejectedTenants) {
           }).pipe(Effect.either),
         );
         if (result._tag === "Left") {
+          // Shared host and chunk clock failures carry no URG operation.
+          if (!("operation" in result.left)) throw result.left;
           expect(result.left.operation).toBe("snapshot " + tenant.code);
           expect(result.left.message).toContain("failed admission");
           expect(

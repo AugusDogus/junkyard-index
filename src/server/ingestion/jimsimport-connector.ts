@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import {
   JimsimportProviderError,
@@ -28,6 +28,7 @@ import {
   type JimsimportYard,
 } from "./jimsimport-yard-metadata";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface JimsimportOptions<E, R> {
   previousUniqueInventory: number | null;
@@ -99,7 +100,6 @@ export function streamJimsimportInventory<E, R>(
       },
     };
     while (cursor.phase !== "complete" && summary.pagesProcessed < budget) {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current = cursor;
       if (
         current.requests >= 1024 ||
@@ -142,7 +142,16 @@ export function streamJimsimportInventory<E, R>(
             "Missing exact next published directory or model destination",
           ),
         );
-      const raw = yield* options.readPage(url);
+      // The terminal owner re-read is its own turn: the cursor holds
+      // owner-closing, so a chunk resumed there completes with one turn.
+      const page = yield* options
+        .readPage(url)
+        .pipe(
+          sharedProviderHostTurn(url),
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       summary.pagesProcessed++;
       const counters = {
         requests: current.requests + 1,

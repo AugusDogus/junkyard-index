@@ -18,7 +18,7 @@ import {
 } from "./urgiis-census";
 import { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisDetailSeller } from "./urgiis-detail";
-import { Effect } from "effect";
+import { Effect, Either, Option } from "effect";
 import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
@@ -44,16 +44,22 @@ import {
 } from "./urgiis-snapshot";
 import { readUrgiisPage, urgiisError, type UrgiisError } from "./urgiis-client";
 import { urgiisClosingEvidence } from "./urgiis-closing";
+import {
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 
 export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
   startCursor?: unknown;
   now?: number;
   maxPages?: number;
   tenants?: readonly UrgiisTenant[];
+  /** Takes its own shared host turn; fails with `ProviderTurnDeferred`, never
+   * wrapped, when the turn cannot arrive and finish within the chunk. */
   readPage: (
     url: string,
     tenant: UrgiisTenant,
-  ) => Effect.Effect<string, UrgiisError>;
+  ) => Effect.Effect<string, UrgiisError | ProviderTurnDeferred>;
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: Yard[]) => Effect.Effect<void, E, R>;
 }
@@ -176,6 +182,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       options,
     );
     cursor = resumed.cursor;
+    const resumedCursor = cursor;
     let census = resumed.census;
     result.warnings.push(...resumed.warnings);
     // Date every observation conservatively at the persistent run start. Carry,
@@ -399,9 +406,30 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         result.pagesProcessed > 0
       )
         break;
-      const response = yield* options
-        .readPage(task.url, tenant)
-        .pipe(Effect.either);
+      // A deferred turn is not a provider failure. After this chunk advanced
+      // it returns the last checkpoint; before that it escapes unwrapped and
+      // defers the chunk. A failed read whose retry was deferred counts as a
+      // failure only where it defers the model and carries its donors, so a
+      // failing model page cannot stall the census; elsewhere it defers too.
+      const carriesFailedModel =
+        task.kind === "model" &&
+        cursor.phase === "opening" &&
+        !cursor.entries.some(
+          (e) => e.kind === "model" && e.freshness.kind === "deferred",
+        );
+      const read = yield* options.readPage(task.url, tenant).pipe(
+        Effect.map(Either.right),
+        Effect.catchAll((error) =>
+          error instanceof ProviderTurnDeferred
+            ? Effect.fail(error)
+            : error.retryDeferred && !carriesFailedModel
+              ? Effect.fail(error.retryDeferred)
+              : Effect.succeed(Either.left(error)),
+        ),
+        ProviderChunkClock.unlessDeferred(cursor !== resumedCursor),
+      );
+      if (Option.isNone(read)) break;
+      const response = read.value;
       if (response._tag === "Left") {
         const failedAt = now;
         const alreadyDeferred = cursor.entries.some(
@@ -679,7 +707,7 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies UrgiisStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "8 minutes",
       onTimeout: () =>
         urgiisError(

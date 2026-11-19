@@ -1,10 +1,14 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
 } from "./connector-chunk";
-import { AplusProviderError, fetchAplusPage } from "./aplus-client";
+import {
+  APLUS_REQUEST_ATTEMPTS,
+  AplusProviderError,
+  fetchAplusPage,
+} from "./aplus-client";
 import {
   AplusCursor,
   AplusCursorSchema,
@@ -34,6 +38,8 @@ import {
 } from "./aplus-yard-metadata";
 import type { AplusCanonicalVehicle } from "./aplus-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface AplusOptions<E, R> {
   startCursor?: AplusCursor;
@@ -222,7 +228,13 @@ export function streamAplusInventoryWithRequestGate<E, R>(
         });
       const current: AplusProgress = cursor;
       const url = yield* attempt("next native control", () => nextUrl(current));
-      const raw = yield* fetchAplusPage(url, gate);
+      // One turn covers the page's timed-out attempts and their retries.
+      const page = yield* fetchAplusPage(url, gate).pipe(
+        sharedProviderHostTurn(url, APLUS_REQUEST_ATTEMPTS),
+        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+      );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       const advanced: AplusProgress = yield* attempt(
         "native control " + url,
         (): AplusProgress => advance(current, raw),
@@ -261,7 +273,7 @@ export function streamAplusInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies AplusStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "6 minutes",
       onTimeout: () =>
         new AplusProviderError({

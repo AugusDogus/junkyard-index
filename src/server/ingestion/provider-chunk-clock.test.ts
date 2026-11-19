@@ -1,16 +1,27 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
-import { Clock, Effect, Either, Fiber, TestClock, TestContext } from "effect";
+import { expect, test } from "bun:test";
+import {
+  Clock,
+  Effect,
+  Either,
+  Fiber,
+  Option,
+  TestClock,
+  TestContext,
+} from "effect";
 import {
   ProviderChunkClock,
   ProviderChunkWallTimeout,
+  ProviderTurnDeferred,
 } from "./provider-chunk-clock";
 import {
   providerHostSlot,
-  withProviderHostSession,
+  providerHostTurn,
   withProviderHostSlot,
+  withProviderHostTurn,
   type ProviderHostPolicy,
   type ProviderHostStore,
 } from "./provider-host-slot";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const policy: ProviderHostPolicy = {
   key: "offline",
@@ -94,7 +105,7 @@ test("queue time still counts toward the step's wall limit", async () => {
           deadline(ProviderChunkClock.queued(Effect.sleep("20 minutes"))),
         ),
       );
-      yield* TestClock.adjust("11 minutes");
+      yield* TestClock.adjust("6 minutes");
       return yield* Fiber.join(fiber);
     }),
   );
@@ -102,14 +113,14 @@ test("queue time still counts toward the step's wall limit", async () => {
     ProviderChunkWallTimeout,
   );
   expect(Either.isLeft(result) && result.left.message).toContain(
-    "660 s queued for shared host turns",
+    "360 s queued for shared host turns",
   );
 });
 
 test("overlapping waits in one chunk count once", async () => {
   const result = await run(
     Effect.gen(function* () {
-      const wait = ProviderChunkClock.queued(Effect.sleep("4 minutes"));
+      const wait = ProviderChunkClock.queued(Effect.sleep("3 minutes"));
       const fiber = yield* Effect.fork(
         Effect.either(
           deadline(
@@ -119,81 +130,172 @@ test("overlapping waits in one chunk count once", async () => {
           ),
         ),
       );
-      yield* TestClock.adjust("6 minutes");
+      yield* TestClock.adjust("5 minutes");
       return yield* Fiber.join(fiber);
     }),
   );
   expect(Either.isRight(result)).toBe(true);
 });
 
-test("a chunk yields only after it advanced and spent its wall share", async () => {
-  const outside = await run(ProviderChunkClock.shouldYield(8));
-  const observed = await run(
-    Effect.gen(function* () {
-      const fiber = yield* Effect.fork(
-        deadline(
-          Effect.gen(function* () {
-            const early = yield* ProviderChunkClock.shouldYield(1);
-            yield* ProviderChunkClock.queued(Effect.sleep("5 minutes"));
-            return {
-              early,
-              noProgress: yield* ProviderChunkClock.shouldYield(0),
-              late: yield* ProviderChunkClock.shouldYield(1),
-            };
-          }),
-        ),
-      );
-      yield* TestClock.adjust("5 minutes");
-      return yield* Fiber.join(fiber);
-    }),
+const page = (label: string) =>
+  providerHostSlot(
+    policy,
+    Effect.sleep("2 seconds").pipe(
+      Effect.andThen(Clock.currentTimeMillis),
+      Effect.map((at) => `${label}@${at}`),
+    ),
   );
-  expect(outside).toBe(false);
-  expect(observed).toEqual({ early: false, noProgress: false, late: true });
-});
 
-let vercel: string | undefined;
-beforeEach(() => {
-  vercel = process.env.VERCEL;
-  process.env.VERCEL = "1";
-});
-afterEach(() => {
-  if (vercel === undefined) delete process.env.VERCEL;
-  else process.env.VERCEL = vercel;
-});
-
-test("a host session waits once and keeps the gap between its requests", async () => {
-  const result = await run(
-    Effect.gen(function* () {
-      let reservations = 0;
-      const store: ProviderHostStore = {
-        reserve: async () => {
-          reservations++;
-          return true;
-        },
-        release: async () => true,
-        cancel: async () => true,
-      };
-      const finished: number[] = [];
-      const request = providerHostSlot(
+test("a turn waits once and keeps the gap between its requests", async () => {
+  const run = await runWithQueuedHost(
+    deadline(
+      providerHostTurn(
         policy,
-        Effect.sleep("1 second").pipe(
-          Effect.andThen(Clock.currentTimeMillis),
-          Effect.tap((at) => Effect.sync(() => finished.push(at))),
-        ),
-      );
+        3,
+        Effect.all([page("owner"), page("anchor"), page("page")]),
+      ),
+    ),
+    { turnWaitMs: 2 * 60_000 },
+  );
+  expect(run.result).toEqual(
+    Either.right(["owner@122000", "anchor@127500", "page@133000"]),
+  );
+  expect(run.turns).toHaveLength(1);
+  // The lease covers the three requests, each followed by one 3.5 s gap
+  // (released at 136.5 s, seen at the next simulated second), and no more.
+  expect(run.turns[0]?.releasedAt).toBe(137_000);
+}, 60_000);
+
+test("a turn that cannot arrive before the chunk's horizon is deferred and gives up its place", async () => {
+  const run = await runWithQueuedHost(deadline(page("late")), {
+    turnWaitMs: 7 * 60_000,
+  });
+  expect(Either.isLeft(run.result) && run.result.left).toBeInstanceOf(Error);
+  const deferred = await runWithQueuedHost(
+    deadline(providerHostTurn(policy, 1, page("late"))),
+    { turnWaitMs: 7 * 60_000 },
+  );
+  expect(Either.isLeft(deferred.result) && deferred.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(deferred.turns).toHaveLength(0);
+  expect(deferred.cancelled).toBe(1);
+  // Waiting stops early enough for the estimated request to still fit.
+  expect(deferred.elapsedMs).toBeLessThan(6 * 60_000 - 20_000);
+}, 60_000);
+
+test("work still running at the chunk's horizon is interrupted, deferred and releases its lease", async () => {
+  const run = await runWithQueuedHost(
+    deadline(
+      providerHostTurn(
+        policy,
+        2,
+        Effect.all([page("first"), Effect.sleep("10 minutes")]),
+      ),
+    ),
+    { turnWaitMs: 4 * 60_000 },
+  );
+  expect(Either.isLeft(run.result) && run.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(run.turns).toHaveLength(1);
+  expect(run.turns[0]?.releasedAt).not.toBeNull();
+  expect(run.turns[0]?.releasedAt ?? Infinity).toBeLessThanOrEqual(6 * 60_000);
+}, 60_000);
+
+test("a deferred turn ends an advanced chunk early and defers one that has not advanced", async () => {
+  const deferred = new ProviderTurnDeferred({
+    host: "offline",
+    stage: "wait",
+    elapsedMs: 0,
+    queuedMs: 0,
+  });
+  const advanced = await run(
+    ProviderChunkClock.unlessDeferred(true)(Effect.fail(deferred)),
+  );
+  const fresh = await run(
+    Effect.either(
+      ProviderChunkClock.unlessDeferred(false)(Effect.fail(deferred)),
+    ),
+  );
+  const other = await run(
+    Effect.either(
+      ProviderChunkClock.unlessDeferred(true)(
+        Effect.fail(new Error("HTTP 500")),
+      ),
+    ),
+  );
+  expect(advanced).toEqual(Option.none());
+  expect(fresh).toEqual(Either.left(deferred));
+  expect(other).toEqual(Either.left(new Error("HTTP 500")));
+});
+
+test("only a deferral that failed the chunk itself defers it", async () => {
+  const deferred = new ProviderTurnDeferred({
+    host: "offline",
+    stage: "wait",
+    elapsedMs: 0,
+    queuedMs: 0,
+  });
+  const failure = (effect: Effect.Effect<never, unknown>) =>
+    Effect.runPromise(effect).catch((error: unknown) => error);
+  expect(
+    ProviderChunkClock.deferralOf(await failure(Effect.fail(deferred))),
+  ).toBe(deferred);
+  expect(
+    ProviderChunkClock.deferralOf(
+      await failure(Effect.fail(new Error("provider", { cause: deferred }))),
+    ),
+  ).toBeNull();
+  expect(ProviderChunkClock.deferralOf(new Error("HTTP 500"))).toBeNull();
+  // The chunk deadline races the chunk against its watch; the deferral is
+  // still the run's only failure.
+  expect(
+    ProviderChunkClock.deferralOf(
+      await failure(deadline(Effect.fail(deferred))),
+    ),
+  ).toBe(deferred);
+});
+
+test("a reservation still in flight when the turn's wait budget ends is never left holding the lease", async () => {
+  // Near the horizon a turn may wait only milliseconds. An Upstash round trip
+  // can outlast that and still grant the lease, which must then be released.
+  let granted = false,
+    released = false;
+  const store: ProviderHostStore = {
+    reserve: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      granted = true;
+      return true;
+    },
+    release: async () => {
+      released = true;
+      return true;
+    },
+    cancel: async () => true,
+  };
+  await run(
+    Effect.gen(function* () {
       const fiber = yield* Effect.fork(
-        withProviderHostSession(
-          policy,
-          store,
-          "3 minutes",
-          Effect.all([request, request, request]),
+        Effect.either(
+          deadline(
+            ProviderChunkClock.queued(Effect.sleep(331_450)).pipe(
+              Effect.andThen(
+                withProviderHostTurn(policy, store, 1, Effect.void),
+              ),
+            ),
+          ),
         ),
       );
-      yield* TestClock.adjust("1 minute");
-      yield* Fiber.join(fiber);
-      return { reservations, finished };
+      yield* TestClock.adjust(331_450);
+      while (fiber.unsafePoll() === null) {
+        yield* Effect.promise(
+          () => new Promise<void>((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust("1 second");
+      }
     }),
   );
-  expect(result.reservations).toBe(1);
-  expect(result.finished).toEqual([1000, 5500, 10_000]);
-});
+  expect(granted).toBe(true);
+  expect(released).toBe(true);
+}, 60_000);

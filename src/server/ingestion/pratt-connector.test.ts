@@ -1,6 +1,10 @@
-import { expect, test } from "bun:test";
-import { Effect, Fiber, TestClock, TestContext } from "effect";
-import { streamPrattInventory } from "./pratt-connector";
+import { afterEach, expect, test } from "bun:test";
+import { Effect, Either, Fiber, TestClock, TestContext } from "effect";
+import {
+  streamPrattInventory,
+  streamPrattInventoryFromProvider,
+  type PrattStreamResult,
+} from "./pratt-connector";
 import { PrattCursor, PRATT_MAX_TOTAL_BYTES } from "./pratt-cursor";
 import { PRATT_ORIGIN, PRATT_MAKES, PRATT_ARRIVALS } from "./pratt-html";
 import { PrattResult } from "./pratt-result";
@@ -9,6 +13,12 @@ import {
   prattFixtureContract,
   prattOnlyControl,
 } from "./pratt-test-fixtures";
+import { runWithQueuedHost } from "./provider-host-test-support";
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
 
 function harness() {
   const requests: string[] = [],
@@ -174,3 +184,55 @@ test("Pratt chunk deadline interrupts an unfinished reader and preserves callbac
     expect(result.left.message).toContain("Three-minute limit");
   expect(run.batches).toEqual([]);
 });
+
+test("Pratt completes a full crawl when every request waits two minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // each request waited about two minutes for its turn. The live reader runs
+  // against the frozen documents so its own shared host slot is exercised.
+  const run = harness();
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      run.requests.push(url);
+      const body = run.documents.get(url);
+      if (body === undefined)
+        throw new Error("Unexpected fixture request " + url);
+      return new Response(body, { headers: { "content-type": "text/html" } });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let cursor: unknown = undefined;
+  const pages: number[] = [];
+  let result: PrattStreamResult | undefined;
+  while (result?.status !== "complete") {
+    const chunk = await runWithQueuedHost(
+      streamPrattInventoryFromProvider({
+        ...run.options,
+        startCursor: cursor,
+        maxPages: 8,
+      }),
+      { turnWaitMs: 2 * 60_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    result = chunk.result.right;
+    pages.push(result.pagesProcessed);
+    const wire = PrattCursor.serialize(result.cursor, prattFixtureContract);
+    if (!wire.ok) throw new Error(wire.error.message);
+    const resumed = PrattCursor.fromWire(wire.value, prattFixtureContract);
+    if (!resumed.ok) throw new Error(resumed.error.message);
+    cursor = resumed.value;
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(result.pagesProcessed).toBeGreaterThan(0);
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(pages).toEqual([2, 2, 1]);
+  expect(result.count).toBe(61);
+  expect(run.requests).toHaveLength(5);
+  expect(run.batches).toHaveLength(1);
+}, 120_000);

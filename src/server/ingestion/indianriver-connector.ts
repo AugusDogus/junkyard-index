@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import {
   IndianriverProviderError,
@@ -23,6 +23,7 @@ import {
   type IndianriverYard,
 } from "./indianriver-yard-metadata";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface IndianriverOptions<E, R> {
   previousUniqueInventory: number | null;
@@ -91,7 +92,6 @@ export function streamIndianriverInventory<E, R>(
       },
     };
     while (cursor.phase !== "complete" && summary.pagesProcessed < budget) {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current = cursor;
       const index =
         current.phase === "opening"
@@ -103,7 +103,16 @@ export function streamIndianriverInventory<E, R>(
         current.phase === "owner" || current.phase === "owner-closing"
           ? INDIANRIVER_OWNER
           : indianriverPageUrl(index);
-      const raw = yield* options.readPage(url);
+      // The terminal owner re-read is its own turn: the cursor holds
+      // owner-closing, so a chunk resumed there completes with one turn.
+      const page = yield* options
+        .readPage(url)
+        .pipe(
+          sharedProviderHostTurn(url),
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       summary.pagesProcessed++;
       switch (current.phase) {
         case "owner":

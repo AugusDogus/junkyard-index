@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
@@ -35,6 +35,7 @@ import {
 import type { ChazCanonicalVehicle } from "./chaz-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface ChazOptions<E, R> {
   startCursor?: ChazCursor;
@@ -209,7 +210,6 @@ export function streamChazInventoryWithRequestGate<E, R>(
     const started = Date.now();
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       if (Date.now() - started > 150_000) break;
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       if (cursor.requests >= CHAZ_MAX_REQUESTS)
         return yield* new ChazProviderError({
           operation: "run budget",
@@ -217,7 +217,12 @@ export function streamChazInventoryWithRequestGate<E, R>(
         });
       const current: ChazProgress = cursor;
       const url = yield* attempt("next native control", () => nextUrl(current));
-      const raw = yield* fetchChazPage(url, gate);
+      const page = yield* fetchChazPage(url, gate).pipe(
+        sharedProviderHostTurn(url),
+        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+      );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       const advanced: ChazProgress = yield* attempt(
         "native control " + url,
         (): ChazProgress => advance(current, raw),

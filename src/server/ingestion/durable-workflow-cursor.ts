@@ -3,6 +3,7 @@ import type {
   DurableIngestionSource,
 } from "./durable-source";
 import type {
+  DurableSourceChunkDeferral,
   DurableSourceChunkResult,
   DurableIngestionStart,
 } from "./durable-ingestion-types";
@@ -21,6 +22,11 @@ export type DurableWorkflowCursor<
 export type DurableWorkflowChunkResult<
   Source extends DurableIngestionSource = DurableIngestionSource,
 > = Omit<DurableSourceChunkResult<Source>, "cursor"> & {
+  cursor: DurableWorkflowCursor<Source>;
+};
+export type DurableWorkflowChunkDeferral<
+  Source extends DurableIngestionSource = DurableIngestionSource,
+> = Omit<DurableSourceChunkDeferral<Source>, "cursor"> & {
   cursor: DurableWorkflowCursor<Source>;
 };
 export type DurableWorkflowStart =

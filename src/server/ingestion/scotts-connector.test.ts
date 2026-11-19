@@ -1,17 +1,22 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import {
   ScottsCursor,
   SCOTTS_MAX_CURSOR_BYTES,
   type ScottsCursor as Cursor,
 } from "./scotts-cursor";
-import { streamScottsInventoryWithRequestGate } from "./scotts-connector";
+import {
+  streamScottsInventory,
+  streamScottsInventoryWithRequestGate,
+  type ScottsStreamResult,
+} from "./scotts-connector";
 import type { ScottsCanonicalVehicle } from "./scotts-transform";
 import {
   SCOTTS_MAKES,
   SCOTTS_ORIGIN,
   SCOTTS_ROOT,
 } from "./scotts-yard-metadata";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const original = globalThis.fetch;
 afterEach(() => {
@@ -190,3 +195,34 @@ test("Scotts closing rejects a stable-count membership change before staging", a
     ),
   ).rejects.toThrow("model cards changed");
 });
+
+test("Scotts completes a full crawl when every request waits two minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // each request waited about two minutes for its turn.
+  const { requested } = fixture();
+  let cursor: Cursor = ScottsCursor.initial;
+  const pages: number[] = [];
+  let count = 0;
+  while (cursor.phase !== "complete") {
+    const chunk = await runWithQueuedHost(
+      streamScottsInventory({
+        startCursor: cursor,
+        maxPages: 6,
+        onBatch: () => Effect.void,
+      }),
+      { turnWaitMs: 2 * 60_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    const result: ScottsStreamResult = chunk.result.right;
+    pages.push(result.pagesProcessed);
+    count = result.count;
+    cursor = ScottsCursor.parse(ScottsCursor.serialize(result.cursor));
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(result.pagesProcessed).toBeGreaterThan(0);
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(pages).toEqual([2, 2, 2, 2]);
+  expect(count).toBe(800);
+  expect(requested).toHaveLength(8);
+}, 120_000);

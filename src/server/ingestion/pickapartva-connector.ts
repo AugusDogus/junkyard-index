@@ -26,7 +26,7 @@ import {
 } from "./pickapartva-yard-metadata";
 import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
-import { sharedProviderHostSession } from "./shared-provider-host";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface PickapartvaOptions<E, R> {
   startCursor?: PickapartvaCursor;
@@ -85,53 +85,62 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
       },
     };
     if (parsed.data.phase === "complete") return summary;
-    let requests = 0;
-    const fetchPage = (url: string, ordinal: number) =>
-      Effect.gen(function* () {
-        if (++requests > PICKAPARTVA_MAX_PAGES + 3)
-          return yield* failure(
-            "request budget",
-            "18-request chunk limit exceeded",
+    // The census is atomic: emitting any page depends on every later page and
+    // the closing reads, so the whole crawl (up to 15 pages and 3 closing
+    // reads) is one shared host turn. It only fetches and validates; nothing
+    // here touches chunk state, so a deferred turn discards it whole.
+    const { pages, snapshot } = yield* Effect.gen(function* () {
+      let requests = 0;
+      const fetchPage = (url: string, ordinal: number) =>
+        Effect.gen(function* () {
+          if (++requests > PICKAPARTVA_MAX_PAGES + 3)
+            return yield* failure(
+              "request budget",
+              "18-request chunk limit exceeded",
+            );
+          const raw = yield* fetchPickapartvaPage(url, gate);
+          return yield* attempt("native page " + ordinal, () =>
+            parsePickapartvaPage(raw, ordinal),
           );
-        const raw = yield* fetchPickapartvaPage(url, gate);
-        return yield* attempt("native page " + ordinal, () =>
-          parsePickapartvaPage(raw, ordinal),
-        );
-      });
-    const pages: Array<{ url: string; page: PickapartvaPage }> = [];
-    let nextUrl: string | null = PICKAPARTVA_CATALOG;
-    while (nextUrl !== null) {
-      const url: string = nextUrl;
-      const page: PickapartvaPage = yield* fetchPage(url, pages.length + 1);
-      pages.push({ url, page });
-      if (pages[0]?.page.lastPage !== page.lastPage)
-        return yield* failure(
-          "page drift",
-          "Published terminal page changed during enumeration",
-        );
-      nextUrl = page.nextUrl;
-    }
-    const snapshot = yield* attempt("complete global census", () =>
-      buildPickapartvaSnapshot(pages),
+        });
+      const pages: Array<{ url: string; page: PickapartvaPage }> = [];
+      let nextUrl: string | null = PICKAPARTVA_CATALOG;
+      while (nextUrl !== null) {
+        const url: string = nextUrl;
+        const page: PickapartvaPage = yield* fetchPage(url, pages.length + 1);
+        pages.push({ url, page });
+        if (pages[0]?.page.lastPage !== page.lastPage)
+          return yield* failure(
+            "page drift",
+            "Published terminal page changed during enumeration",
+          );
+        nextUrl = page.nextUrl;
+      }
+      const snapshot = yield* attempt("complete global census", () =>
+        buildPickapartvaSnapshot(pages),
+      );
+      for (const ordinal of new Set([
+        1,
+        Math.min(2, pages.length),
+        pages.length,
+      ])) {
+        const opening = pages[ordinal - 1];
+        if (!opening)
+          return yield* failure(
+            "closing control",
+            "Missing opening native control",
+          );
+        const closing = yield* fetchPage(opening.url, ordinal);
+        if (closing.hash !== opening.page.hash)
+          return yield* failure(
+            "closing drift",
+            `Native page ${ordinal} donor fields, physical scope or continuation changed`,
+          );
+      }
+      return { pages, snapshot };
+    }).pipe(
+      sharedProviderHostTurn(PICKAPARTVA_CATALOG, PICKAPARTVA_MAX_PAGES + 3),
     );
-    for (const ordinal of new Set([
-      1,
-      Math.min(2, pages.length),
-      pages.length,
-    ])) {
-      const opening = pages[ordinal - 1];
-      if (!opening)
-        return yield* failure(
-          "closing control",
-          "Missing opening native control",
-        );
-      const closing = yield* fetchPage(opening.url, ordinal);
-      if (closing.hash !== opening.page.hash)
-        return yield* failure(
-          "closing drift",
-          `Native page ${ordinal} donor fields, physical scope or continuation changed`,
-        );
-    }
     const start = parsed.data.phase === "pages" ? parsed.data.nextPage : 1;
     const previous = pickapartvaPrefix(snapshot, start);
     if (parsed.data.phase === "pages") {
@@ -206,7 +215,6 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
           : [],
     } satisfies PickapartvaStreamResult;
   }).pipe(
-    sharedProviderHostSession(PICKAPARTVA_CATALOG, "3 minutes"),
     ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>

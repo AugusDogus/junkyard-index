@@ -1,9 +1,11 @@
-import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { afterEach, expect, test } from "bun:test";
+import { Effect, Either } from "effect";
 import {
   streamDentonInventory,
+  streamDentonInventoryWithRequestGate,
   type DentonStreamResult,
 } from "./denton-connector";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   DentonCursor,
   dentonNextUrl,
@@ -331,3 +333,76 @@ test("Denton rejects invalid chunk sizes, whole-run counter tampering and oversi
     false,
   );
 });
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+test("Denton keeps advancing when every GET waits two minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // each request, including the native slash 301, waited about two minutes.
+  const graph = dentonTestGraph();
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const page = Effect.runSync(Effect.either(graph.read(url)));
+      if (Either.isLeft(page)) throw new Error(page.left.message);
+      return page.right.kind === "redirect"
+        ? new Response(null, {
+            status: 301,
+            headers: {
+              location: page.right.target,
+              "content-type": "text/html",
+              "content-length": "0",
+            },
+          })
+        : new Response(page.right.body, {
+            headers: { "content-type": "text/html" },
+          });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let wire: string | undefined;
+  let batches = 0;
+  const pages: number[] = [];
+  for (let count = 0; count < 40; count++) {
+    const chunk = await runWithQueuedHost(
+      streamDentonInventoryWithRequestGate(
+        {
+          previousAcceptedCount: null,
+          startCursor: wire,
+          maxPages: 8,
+          onBatch: () =>
+            Effect.sync(() => {
+              batches++;
+            }),
+        },
+        (request) => request,
+      ),
+      { turnWaitMs: 2 * 60_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw new Error(chunk.result.left.message);
+    const result = chunk.result.right;
+    pages.push(result.pagesProcessed);
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    const encoded = DentonCursor.serialize(result.cursor, null);
+    if (!encoded.ok) throw new Error(encoded.error.message);
+    wire = encoded.value;
+    if (result.status === "complete") {
+      expect(result.count).toBe(2000);
+      break;
+    }
+  }
+  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(22);
+  expect(pages.every((value) => value > 0)).toBe(true);
+  expect(graph.calls).toHaveLength(22);
+  expect(batches).toBe(1);
+}, 120_000);
