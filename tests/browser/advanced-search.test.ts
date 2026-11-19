@@ -37,6 +37,7 @@ describe("advanced search browser interactions", () => {
   ]) {
     test(`can choose a sort and combine inventory filters at ${viewport.width}px`, async () => {
       const page = await browser.newPage({ viewport });
+      page.setDefaultTimeout(5_000);
       try {
         await page.route("http://advanced-search.test/**", (route) => {
           const path = new URL(route.request().url()).pathname;
@@ -58,31 +59,43 @@ describe("advanced search browser interactions", () => {
         await page
           .getByRole("button", { name: "Advanced search", exact: true })
           .click();
-        await page.getByRole("combobox", { name: "Order results by" }).click();
+        const dialog = page.getByRole("dialog", { name: "Advanced search" });
+        await dialog.getByRole("combobox", { name: "Sort results" }).click();
         // A real pointer click catches a menu rendered behind the dialog overlay.
         await page
           .getByRole("option", { name: "Oldest First", exact: true })
           .click();
         expect(
           await page
-            .getByRole("combobox", { name: "Order results by" })
+            .getByRole("combobox", { name: "Sort results" })
             .textContent(),
         ).toBe("Oldest First");
         await page
-          .getByRole("button", { name: "Make 1 selected", exact: true })
+          .getByRole("button", { name: "MakeSaab", exact: true })
           .click();
         expect(
           await page
-            .getByRole("checkbox", { name: "Saab", exact: true })
-            .isChecked(),
-        ).toBe(true);
-        for (const section of ["Color", "State", "Salvage yard"]) {
-          await page
-            .getByRole("button", { name: section, exact: true })
-            .click();
+            .getByRole("option", { name: "Saab", exact: true })
+            .getAttribute("aria-selected"),
+        ).toBe("true");
+        for (const name of ["Ford", "Honda"]) {
+          await page.getByRole("option", { name, exact: true }).click();
         }
-        for (const name of ["Ford", "Honda", "Red", "NE", "Omaha"]) {
-          await page.getByRole("checkbox", { name, exact: true }).check();
+        await page.getByRole("button", { name: "Done", exact: true }).click();
+        for (const [section, name] of [
+          ["Color", "Red"],
+          ["State", "NE"],
+          ["Salvage yard", "Omaha"],
+        ]) {
+          await page
+            .getByRole("button", { name: "Add filter", exact: true })
+            .click();
+          await page
+            .getByRole("menuitem", { name: section, exact: true })
+            .click();
+          await page.getByRole("menu").waitFor({ state: "hidden" });
+          await page.getByRole("option", { name, exact: true }).click();
+          await page.getByRole("button", { name: "Done", exact: true }).click();
         }
         await page
           .getByRole("button", { name: "Search inventory", exact: true })
@@ -91,14 +104,15 @@ describe("advanced search browser interactions", () => {
         expect(submission).toBe(
           JSON.stringify({
             query: "no-matching-vehicle",
-            queryMode: "keywords",
-            makes: ["Saab", "Ford", "Honda"],
-            colors: ["Red"],
-            states: ["NE"],
-            salvageYards: ["Omaha"],
-            sources: [],
-            yearRange: [1900, 2027],
-            sortBy: "oldest",
+            filters: {
+              makes: ["Saab", "Ford", "Honda"],
+              colors: ["Red"],
+              states: ["NE"],
+              salvageYards: ["Omaha"],
+              minYear: 1900,
+              maxYear: 2027,
+              sortBy: "oldest",
+            },
           }),
         );
       } finally {
