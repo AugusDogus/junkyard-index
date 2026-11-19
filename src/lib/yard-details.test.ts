@@ -28,6 +28,38 @@ const metadata: Yard = {
 };
 
 describe("yard directory metadata", () => {
+  test("normalizes full addresses and names on ingestion and on legacy reads", () => {
+    const raw = {
+      ...metadata,
+      source: "row52",
+      name: "KIKER'S U PULL IT",
+      city: "Paso Robles",
+      state: "CA",
+      address: "5795 Stockdale Rd, Paso Robles, CA 93446, USA",
+      postalCode: null,
+    };
+    const parsed = Yard.parse(raw);
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw new Error(parsed.error.message);
+    expect(parsed.data).toMatchObject({
+      name: "Kiker's U Pull It",
+      address: "5795 Stockdale Rd",
+      postalCode: "93446",
+    });
+    const details = getYardDetails(
+      { ...inventory, source: "row52" },
+      parsed.data,
+    );
+    expect(new URL(details.mapsUrl).searchParams.get("query")).toBe(
+      "Kiker's U Pull It, 5795 Stockdale Rd, Paso Robles, CA, 93446",
+    );
+    expect(
+      getYardDetails(
+        { ...inventory, source: "row52" },
+        { ...parsed.data, address: raw.address, postalCode: null },
+      ),
+    ).toMatchObject({ address: "5795 Stockdale Rd", postalCode: "93446" });
+  });
   test("uses the stored business name and contact details, with an address-based map search", () => {
     const details = getYardDetails(inventory, metadata);
     expect(details.name).toBe(metadata.name);

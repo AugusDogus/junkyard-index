@@ -95,7 +95,7 @@ describe("toAlgoliaRecord", () => {
     ]);
     expect(record.source).toBe("row52");
     expect(record.year).toBe(2015);
-    expect(record.make).toBe("FORD");
+    expect(record.make).toBe("Ford");
     expect(record.model).toBe("FOCUS");
     expect(record.color).toBe("Red");
     expect(record.locationCity).toBe("Sacramento");

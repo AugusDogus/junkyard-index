@@ -1,5 +1,53 @@
 import { describe, expect, test } from "bun:test";
 import { MakeInventory, type MakeRollupRow } from "./make-inventory";
+import { VehicleName } from "./vehicle-name";
+
+test("cars taxonomy combines corrected makes and models and resolves legacy URL identities", () => {
+  const [make] = MakeInventory.makes([
+    { make: "Nissian", count: 5 },
+    { make: "Nissan", count: 30 },
+  ]);
+  if (!make) throw new Error("Missing Nissan");
+  expect(make).toMatchObject({
+    href: "/cars/nissan",
+    count: 35,
+    rawMakes: ["Nissan", "Nissian"],
+  });
+  expect(VehicleName.makeKey("nissian")).toBe(make.key);
+  const [ford] = MakeInventory.makes([{ make: "Ford", count: 31 }]);
+  if (!ford) throw new Error("Missing Ford");
+  const models = MakeInventory.models(
+    ford,
+    ["FORD F150 PICKUP", "F150", "F-150"].map((model, index) => ({
+      source: "pratt",
+      code: String(index),
+      make: "Ford",
+      model,
+      count: 10,
+      minYear: 2012,
+      maxYear: 2012,
+    })),
+  );
+  expect(models).toHaveLength(1);
+  const model = models[0];
+  if (!model) throw new Error("Missing F-150");
+  expect(model).toMatchObject({
+    href: "/cars/ford/f-150",
+    count: 30,
+    rawModels: ["F-150", "F150", "FORD F150 PICKUP"],
+  });
+  for (const slug of [
+    "ford-f150-pickup",
+    "ford-f-150-pickup",
+    "f150-pickup",
+    "f150",
+    "f-150",
+  ]) {
+    expect(VehicleName.modelKey("Ford", slug.replace(/-/g, " "))).toBe(
+      model.key,
+    );
+  }
+});
 
 describe("MakeInventory.makes", () => {
   test("merges spellings and aliases and drops placeholders", () => {

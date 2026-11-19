@@ -1,3 +1,4 @@
+import { YardAddress } from "~/lib/yard-address";
 import { YardService } from "~/lib/yard-service";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
@@ -316,9 +317,7 @@ function YardContact({
   chain: { name: string; href: string; yards: number } | null;
 }) {
   const phoneHref = yardPhoneHref(yard.phone);
-  const street = [yard.address, `${yard.city}, ${yard.state}`, yard.postalCode]
-    .filter(Boolean)
-    .join(", ");
+  const street = YardAddress.format(yard);
   return (
     <div className="sm:border-ink sm:bg-paper-3 sm:border-2 sm:p-6 lg:col-span-5 xl:col-span-4">
       <address className="text-ink flex items-start gap-2.5 text-[0.9375rem] leading-snug not-italic">

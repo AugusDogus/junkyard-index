@@ -1,3 +1,5 @@
+import { YardAddress } from "./yard-address";
+import { YardName } from "./yard-name";
 import { z } from "zod";
 import { INGESTION_SOURCES } from "./ingestion-source";
 import { hasFiniteCoordinates } from "./location-preferences";
@@ -23,6 +25,11 @@ const schema = z
     phone: nullableText,
     email: z.string().email().nullable(),
   })
+  .transform((value) => ({
+    ...value,
+    name: YardName.display(value.name),
+    ...YardAddress.normalize(value),
+  }))
   .refine((value) => (value.lat === null) === (value.lng === null), {
     message: "Yard latitude and longitude must both be present or both be null",
   });

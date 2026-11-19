@@ -1,4 +1,4 @@
-import { YardName } from "~/lib/yard-name";
+import { normalizeCanonicalVehicle } from "./normalization";
 import { ArrivalDate } from "~/lib/arrival-date";
 import { VinPattern } from "~/lib/vin-pattern";
 import { buildAdvancedSearchTokens } from "~/lib/advanced-search-query";
@@ -96,12 +96,13 @@ export interface IngestionResult {
  * Pure function: map a canonical vehicle + timestamps to an Algolia record.
  */
 export function toAlgoliaRecord(
-  vehicle: CanonicalVehicle,
+  rawVehicle: CanonicalVehicle,
   firstSeenAt: Date,
   missingSinceAt: Date | null,
   missingRunCount: number,
   observedArrivalAt: Date | null,
 ): AlgoliaVehicleRecord {
+  const vehicle = normalizeCanonicalVehicle(rawVehicle);
   const arrivalDate = ArrivalDate.from(
     vehicle.availableDate,
     observedArrivalAt && Number.isFinite(observedArrivalAt.getTime())
@@ -137,12 +138,7 @@ export function toAlgoliaRecord(
     arrivalDateKnown: arrivalDate.kind === "unknown" ? 0 : 1,
     availableDateTs,
     locationCode: vehicle.locationCode,
-    locationName: YardName.resolve({
-      source: vehicle.source,
-      name: vehicle.locationName,
-      city: vehicle.locationCity,
-      inventoryUrl: vehicle.detailsUrl,
-    }),
+    locationName: vehicle.locationName,
     locationCity: vehicle.locationCity,
     state: vehicle.state,
     stateAbbr: vehicle.stateAbbr,

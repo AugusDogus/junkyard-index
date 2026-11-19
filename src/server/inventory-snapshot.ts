@@ -27,7 +27,8 @@ export type InventorySnapshot = {
 // and compute them. Each version reads and writes only its own keys, so a
 // deployment still serving the old version, or one rolled back to, keeps its
 // rows; delete a retired version's rows by hand.
-const SNAPSHOT_VERSION = "v2";
+// v3 regroups the source make aliases introduced with search schema 11.
+const SNAPSHOT_VERSION = "v3";
 // The publication this version's snapshot reflects, written with its rows.
 const CHECKPOINT_NAME = `inventory-snapshot:${SNAPSHOT_VERSION}`;
 const MAKE_COUNTS_KEY = `${SNAPSHOT_VERSION}:make-counts`;

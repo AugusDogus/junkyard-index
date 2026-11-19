@@ -6,13 +6,43 @@ type YardNameInput = {
   inventoryUrl?: string | null;
 };
 
+// Preserve established spellings after casing unformatted source names.
+const BRANDS: Readonly<Record<string, string>> = {
+  lkq: "LKQ",
+  usa: "USA",
+  llc: "LLC",
+  gmc: "GMC",
+  byot: "BYOT",
+  "pick-n-pull": "PICK-n-PULL",
+  "pull-a-part": "Pull-A-Part",
+  "u-pull-&-pay": "U-Pull-&-Pay",
+};
+
+function display(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      const brand = BRANDS[word.toLowerCase()];
+      if (brand) return brand;
+      // Keep deliberate mixed-case branding, such as AutoZone or eBay.
+      if (word !== word.toUpperCase() && word !== word.toLowerCase())
+        return word;
+      return word
+        .toLowerCase()
+        .replace(/(^|[-/])[a-z]/g, (letter) => letter.toUpperCase());
+    })
+    .join(" ");
+}
+
 function resolve({
   source,
-  name,
+  name: rawName,
   city,
   operator,
   inventoryUrl,
 }: YardNameInput): string {
+  const name = display(rawName);
   if (source === "pyp") {
     return /pick your part/i.test(name) ? name : `LKQ Pick Your Part - ${name}`;
   }
@@ -36,6 +66,7 @@ function resolve({
 }
 
 export const YardName = {
+  display,
   resolve,
   /**
    * The name people search for. A yard listed under a short brand whose

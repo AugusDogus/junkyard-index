@@ -8,6 +8,7 @@ import {
   CURRENT_SEARCH_SCHEMA_VERSION,
   ARRIVAL_DATE_SEARCH_SCHEMA_VERSION,
   YARD_SERVICE_SEARCH_SCHEMA_VERSION,
+  NUMERIC_PRECISION_SEARCH_SCHEMA_VERSION,
 } from "~/lib/search-index-schema";
 
 const legacy: typeof vehicle.$inferSelect = {
@@ -42,6 +43,70 @@ const legacy: typeof vehicle.$inferSelect = {
   missingSinceAt: null,
   missingRunCount: 0,
 };
+
+test("source cleanup reprojects stored rows and search tokens without changing identity or dates", async () => {
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      readFileSync(
+        new URL("../../../drizzle/0007_yard_metadata.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    const rows = [
+      {
+        ...legacy,
+        source: "row52",
+        make: "Nissian",
+        model: "NISSIAN SENTRA",
+        engine: "1.589545208L",
+        locationName: "KIKER'S U PULL IT",
+        availableDate: "2014-02-01",
+      },
+      {
+        ...legacy,
+        source: "pratt",
+        make: "Ford",
+        model: "FORD F150 PICKUP",
+        year: 2012,
+      },
+      {
+        ...legacy,
+        source: "row52",
+        make: "Toyota",
+        model: "TOYOTA TACOMA",
+        year: 1990,
+      },
+    ];
+    const records = await projectSearchVehicles(drizzle(client), rows);
+    expect(records[0]).toMatchObject({
+      objectID: legacy.vin,
+      make: "Nissan",
+      model: "SENTRA",
+      engine: "1.6L",
+      locationName: "Kiker's U Pull It",
+      availableDate: "2014-02-01",
+    });
+    expect(records[0]?.searchTokens).toContain("nissan");
+    expect(records[0]?.searchTokens).not.toContain("nissian");
+    expect(records[1]).toMatchObject({
+      make: "Ford",
+      model: "F-150",
+      year: 2012,
+    });
+    expect(records[2]).toMatchObject({
+      make: "Toyota",
+      model: "TACOMA",
+      year: 1990,
+    });
+    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBeGreaterThan(
+      NUMERIC_PRECISION_SEARCH_SCHEMA_VERSION,
+    );
+    expect(rows[0]?.make).toBe("Nissian");
+  } finally {
+    client.close();
+  }
+});
 
 test("existing rows are reprojected with the yard page's authoritative operator name", async () => {
   const client = createClient({ url: ":memory:" });

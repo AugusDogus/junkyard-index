@@ -1,6 +1,19 @@
 import { expect, test } from "bun:test";
 import { YardName } from "./yard-name";
 
+test.each([
+  ["KIKER'S U PULL IT", "Kiker's U Pull It"],
+  ["PICK-n-PULL OAKLAND", "PICK-n-PULL Oakland"],
+  ["LKQ PICK YOUR PART - HUNTSVILLE", "LKQ Pick Your Part - Huntsville"],
+  ["U-Pull-&-Pay - DENVER", "U-Pull-&-Pay - Denver"],
+  ["AutoZone Salvage LLC", "AutoZone Salvage LLC"],
+])(
+  "normalizes yard casing while preserving known brands: %s",
+  (raw, expected) => {
+    expect(YardName.display(raw)).toBe(expected);
+  },
+);
+
 test("headline names the operator when it extends the listed brand", () => {
   expect(
     YardName.headline("Pick Your Part - Sun Valley", "LKQ Pick Your Part"),

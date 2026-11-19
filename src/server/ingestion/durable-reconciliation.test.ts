@@ -93,6 +93,81 @@ async function stageSnapshots(params: {
 }
 
 describe("bounded durable reconciliation", () => {
+  test("persists cleaned source names and engines, then treats the same raw snapshot as unchanged", async () => {
+    const client = createClient({ url: ":memory:" });
+    try {
+      await client.executeMultiple(TEST_SCHEMA);
+      const database = drizzle(client);
+      const store = IngestionSnapshotStore.memory();
+      const raw = {
+        ...snapshot("row52", "Blue"),
+        make: "Nissian",
+        model: "NISSIAN SENTRA",
+        engine: "1.589545208L",
+        locationName: "KIKER'S U PULL IT",
+      };
+      for (const id of ["cleanup-first", "cleanup-again"]) {
+        const now = new Date();
+        await database
+          .insert(ingestionRun)
+          .values({
+            id,
+            source: "row52",
+            status: "running",
+            stage: "reconcile_upsert",
+            activeSlot: 1,
+            commitStartedAt: now,
+            acceptedSources: JSON.stringify(["row52"]),
+            startedAt: now,
+            lastProgressAt: now,
+          });
+        await database
+          .insert(ingestionSourceRun)
+          .values({
+            id: `${id}:row52`,
+            runId: id,
+            source: "row52",
+            status: "success",
+            acceptanceStatus: "accepted",
+            uniqueVehicles: 1,
+            startedAt: now,
+          });
+        await stageSnapshots({ client, store, runId: id, vehicles: [raw] });
+        await reconcileDurableIngestionRun({
+          runId: id,
+          database,
+          batchClient: client,
+          snapshotStore: store,
+        });
+        expect(
+          (
+            await client.execute(
+              "select make, model, engine, location_name from vehicle",
+            )
+          ).rows[0],
+        ).toMatchObject({
+          make: "Nissan",
+          model: "SENTRA",
+          engine: "1.6L",
+          location_name: "Kiker's U Pull It",
+        });
+        await database
+          .update(ingestionRun)
+          .set({ activeSlot: null })
+          .where(eq(ingestionRun.id, id));
+      }
+      expect(
+        (
+          await client.execute(
+            "select count(*) as count from vehicle_change_v2",
+          )
+        ).rows[0]?.count,
+      ).toBe(1);
+      expect(raw.make).toBe("Nissian");
+    } finally {
+      client.close();
+    }
+  });
   test("keeps backfills unknown per yard across batches and records only later arrivals", async () => {
     const client = createClient({ url: ":memory:" });
     try {
