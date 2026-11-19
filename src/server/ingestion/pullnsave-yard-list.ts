@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Data, Effect, Schedule, Schema } from "effect";
 import { PULLNSAVE_INVENTORY_PAGE_URL } from "./pullnsave-config";
 import {
   fetchProviderText,
@@ -6,6 +6,25 @@ import {
 } from "./provider-http-client";
 
 const BootstrapSchema = Schema.Struct({ nonce: Schema.NonEmptyString });
+
+/** Extra attempts after a challenge, spaced 10s then 20s so a short-lived
+ * block can clear without hammering the host. */
+const CHALLENGE_RETRY_LIMIT = 2;
+
+export class PullNSaveYardListChallengeError extends Data.TaggedError(
+  "PullNSaveYardListChallengeError",
+)<{ attempts: number }> {
+  override get message() {
+    return `Pull-N-Save public inventory page returned a SiteGround bot challenge instead of the yard selector on all ${this.attempts} attempts. This is a transient block on the request, not a site or parser change; no catalog was accepted and prior inventory is unchanged. Retry the run later; if challenges persist, the yard list needs a browser-based fetch.`;
+  }
+}
+
+/** The host sits behind SiteGround's anti-bot layer, which intermittently
+ * answers with a 2xx "Robot Challenge Screen" or a refresh to its captcha
+ * path. That page carries no evidence about which yards are listed. */
+function isSiteGroundChallenge(html: string): boolean {
+  return /\/\.well-known\/(?:sg)?captcha\//.test(html);
+}
 
 function attribute(attributes: string, name: string): string | undefined {
   const matches = [
@@ -87,6 +106,20 @@ export function fetchPullNSaveYardList(requestGate: ProviderRequestGate) {
         );
     },
   }).pipe(
+    Effect.flatMap((html) =>
+      isSiteGroundChallenge(html)
+        ? Effect.fail(
+            new PullNSaveYardListChallengeError({
+              attempts: CHALLENGE_RETRY_LIMIT + 1,
+            }),
+          )
+        : Effect.succeed(html),
+    ),
+    Effect.retry({
+      schedule: Schedule.exponential("10 seconds"),
+      times: CHALLENGE_RETRY_LIMIT,
+      while: (error) => error instanceof PullNSaveYardListChallengeError,
+    }),
     Effect.flatMap((html) =>
       Effect.try({
         try: () => parsePullNSaveYardList(html),
