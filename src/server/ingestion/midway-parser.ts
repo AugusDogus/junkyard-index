@@ -323,6 +323,9 @@ export function parseMidwayCatalog(
   return records;
 }
 
+/** A native make control value accepted for a per-make inventory request. */
+export const MIDWAY_MAKE_CONTROL = /^[A-Z0-9 /-]{1,50}$/;
+
 /** NISSAN occurs twice in the native menu; query each distinct value once. */
 export function parseMidwayMakeDirectory(
   html: string,
@@ -348,7 +351,7 @@ export function parseMidwayMakeDirectory(
   if (
     !makes.length ||
     makes.length > 100 ||
-    makes.some((make) => !/^[A-Z0-9 /-]{1,50}$/.test(make))
+    makes.some((make) => !MIDWAY_MAKE_CONTROL.test(make))
   )
     throw new Error("Midway make directory has unsupported controls");
   return makes;
