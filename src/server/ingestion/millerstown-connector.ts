@@ -24,6 +24,8 @@ import type { ConnectorChunkResult } from "./connector-chunk";
 import type { PipelineSourceName } from "./pipeline-policy";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
+import { inventoryVin } from "./inventory-vin";
+import { conflictingVins } from "./vin-conflicts";
 
 export type MillerstownStreamResult = Omit<
   ConnectorChunkResult<PipelineSourceName, MillerstownCursor>,
@@ -107,25 +109,31 @@ export function streamMillerstownInventoryWithRequestGate<E, R>(
         }),
     });
     const snapshot = yield* parse("complete catalog quality", () => {
+      // A VIN printed on rows that differ is quarantined on every row: stock
+      // numbers and row order never decide which vehicle owns it.
+      const conflicts = conflictingVins(records, ({ raw }) => {
+        const vin = inventoryVin(raw.vin, raw.year);
+        return vin === null ? null : { vin, signature: JSON.stringify(raw) };
+      });
       const vehicles: MillerstownCanonicalVehicle[] = [];
       const identities = new Set<string>();
-      const observedVins: string[] = [];
+      const observedVins = new Set<string>();
       let rejected = 0;
+      let duplicates = 0;
       for (const record of records) {
         const result = MillerstownDonor.parse(record.raw);
         const vin =
           result.status === "available" ? result.vehicle.vin : result.vin;
-        if (vin !== null) {
-          if (identities.has(vin))
-            throw new Error(
-              `Repeated native identity ${vin}; separate source rows cannot be merged`,
-            );
-          identities.add(vin);
-        }
-        if (result.status === "available") vehicles.push(result.vehicle);
-        else {
+        if (
+          result.status === "incomplete" ||
+          (vin !== null && conflicts.has(vin))
+        ) {
           rejected++;
-          if (vin !== null) observedVins.push(vin);
+          if (vin !== null) observedVins.add(vin);
+        } else if (identities.has(result.vehicle.vin)) duplicates++;
+        else {
+          identities.add(result.vehicle.vin);
+          vehicles.push(result.vehicle);
         }
       }
       if (
@@ -135,7 +143,19 @@ export function streamMillerstownInventoryWithRequestGate<E, R>(
         throw new Error(
           `Catalog quality failed: ${vehicles.length} complete and ${rejected} rejected of ${records.length} source rows; require 362 complete donors and retain the shared 10% rejection limit`,
         );
-      return { vehicles, observedVins, rejected };
+      if (
+        duplicates / records.length >
+        SourceValidationPolicy.maximumDuplicateRatio
+      )
+        throw new Error(
+          `Catalog quality failed: ${duplicates} identical repeated rows of ${records.length} exceed the shared 25% duplicate limit`,
+        );
+      return {
+        vehicles,
+        observedVins: [...observedVins],
+        rejected,
+        duplicates,
+      };
     });
     const closingHtml = yield* fetchMillerstownHtml("inventory", gate);
     yield* parse("closing inventory scope and published link", () => {
@@ -162,14 +182,14 @@ export function streamMillerstownInventoryWithRequestGate<E, R>(
       observedVins: snapshot.observedVins,
       warnings: snapshot.rejected
         ? [
-            `Millerstown rejected ${snapshot.rejected} incomplete source rows; valid rejected identities supply presence evidence only.`,
+            `Millerstown rejected ${snapshot.rejected} incomplete or conflicting source rows; valid rejected identities supply presence evidence only.`,
           ]
         : [],
       accounting: {
         recordsProcessed: records.length,
         recordsExcluded: 0,
         recordsRejected: snapshot.rejected,
-        duplicateVehicles: 0,
+        duplicateVehicles: snapshot.duplicates,
       },
     } satisfies MillerstownStreamResult;
   }).pipe(

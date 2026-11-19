@@ -2,7 +2,7 @@
 type Atom =
   | { kind: "number"; value: number }
   | { kind: "name"; value: string }
-  | { kind: "string"; value: string };
+  | { kind: "string"; value: Uint8Array };
 type Token =
   | Atom
   | { kind: "array"; value: Extract<Atom, { kind: "number" | "string" }>[] }
@@ -11,9 +11,22 @@ type Token =
 export type MillerstownTextObject = {
   font: string;
   size: number;
+  /** Tc in effect when the text was shown, in unscaled text space units. */
+  charSpacing: number;
   matrix: number[];
   text: string;
+  /** Single-byte codes shown, for measuring the advance of right-aligned cells. */
+  codes: number[];
+  /** Sum of TJ position adjustments in thousandths of a text space unit. */
+  adjustment: number;
 };
+/** Text state is part of the graphics state: it outlives ET and q/Q saves it. */
+type TextState = {
+  font: string | null;
+  size: number | null;
+  charSpacing: number;
+};
+const decoder = new TextDecoder("windows-1252", { fatal: true });
 
 function fail(reason: string): never {
   throw new Error(`Millerstown PDF content: ${reason}`);
@@ -26,7 +39,6 @@ function* lex(source: string): Generator<Token> {
   const delimiter = (char: string) =>
     whitespace(char) || "()<>[]{}/%".includes(char);
   const number = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
-  const decoder = new TextDecoder("windows-1252", { fatal: true });
   function numeric(raw: string): number {
     const value = Number(raw);
     if (!Number.isFinite(value)) fail("non-finite numeric token");
@@ -41,7 +53,7 @@ function* lex(source: string): Generator<Token> {
       } else break;
     }
   }
-  function literal(): string {
+  function literal(): Uint8Array {
     offset++;
     let depth = 1;
     const bytes: number[] = [];
@@ -71,7 +83,7 @@ function* lex(source: string): Generator<Token> {
         depth++;
         bytes.push(40);
       } else if (char === ")") {
-        if (--depth === 0) return decoder.decode(Uint8Array.from(bytes));
+        if (--depth === 0) return Uint8Array.from(bytes);
         bytes.push(41);
       } else if (char === "\r") {
         if (source.charAt(offset) === "\n") offset++;
@@ -163,14 +175,15 @@ export function readMillerstownText(
   graphicsStates: ReadonlySet<string>,
 ): MillerstownTextObject[] {
   const result: MillerstownTextObject[] = [];
+  let state: TextState = { font: null, size: null, charSpacing: 0 };
+  const saved: TextState[] = [];
   let text: {
-    font: string | null;
-    size: number | null;
     matrix: number[] | null;
-    shown: string | null;
+    fontSet: boolean;
+    spacingSet: boolean;
+    shown: boolean;
   } | null = null;
   let operands: Token[] = [];
-  let savedGraphics = 0;
   let markedContent = 0;
   for (const token of lex(source)) {
     if (token.kind !== "operator") {
@@ -183,36 +196,33 @@ export function readMillerstownText(
     );
     if (op === "BT") {
       if (text || operands.length) fail("nested or malformed BT");
-      text = { font: null, size: null, matrix: null, shown: null };
+      text = { matrix: null, fontSet: false, spacingSet: false, shown: false };
     } else if (op === "ET") {
-      if (
-        !text ||
-        operands.length ||
-        text.font === null ||
-        text.size === null ||
-        text.matrix === null ||
-        text.shown === null
-      )
+      if (!text || operands.length || !text.shown)
         fail("incomplete or unexpected ET");
-      result.push({
-        font: text.font,
-        size: text.size,
-        matrix: text.matrix,
-        text: text.shown,
-      });
-      if (result.length > 100_000) fail("text-object count exceeds 100000");
       text = null;
     } else if (text) {
       const first = operands[0];
+      const value = numbers[0];
       if (
         op === "Tf" &&
         operands.length === 2 &&
         first?.kind === "name" &&
-        numbers.length === 1 &&
-        text.font === null
+        value !== undefined &&
+        !text.fontSet &&
+        !text.shown
       ) {
-        text.font = first.value;
-        text.size = numbers[0] ?? null;
+        text.fontSet = true;
+        state = { ...state, font: first.value, size: value };
+      } else if (
+        op === "Tc" &&
+        operands.length === 1 &&
+        value !== undefined &&
+        !text.spacingSet &&
+        !text.shown
+      ) {
+        text.spacingSet = true;
+        state = { ...state, charSpacing: value };
       } else if (
         op === "Tm" &&
         operands.length === 6 &&
@@ -224,20 +234,34 @@ export function readMillerstownText(
         op === "TJ" &&
         operands.length === 1 &&
         first?.kind === "array" &&
-        text.shown === null &&
-        text.font !== null &&
-        text.size !== null &&
+        !text.shown &&
+        state.font !== null &&
+        state.size !== null &&
         text.matrix !== null
-      )
-        text.shown = first.value
-          .map((atom) => (atom.kind === "string" ? atom.value : ""))
-          .join("");
-      else if (
-        (op === "g" || op === "G" || op === "Tc") &&
+      ) {
+        text.shown = true;
+        const codes = first.value.flatMap((atom) =>
+          atom.kind === "string" ? [...atom.value] : [],
+        );
+        result.push({
+          font: state.font,
+          size: state.size,
+          charSpacing: state.charSpacing,
+          matrix: text.matrix,
+          text: decoder.decode(Uint8Array.from(codes)),
+          codes,
+          adjustment: first.value.reduce(
+            (sum, atom) => (atom.kind === "number" ? sum + atom.value : sum),
+            0,
+          ),
+        });
+        if (result.length > 100_000) fail("text-object count exceeds 100000");
+      } else if (
+        (op === "g" || op === "G") &&
         operands.length === 1 &&
         numbers.length === 1
       ) {
-        /* Source text color and character spacing do not change cell contents. */
+        /* Source text color does not change cell contents. */
       } else if (
         op === "gs" &&
         operands.length === 1 &&
@@ -295,16 +319,19 @@ export function readMillerstownText(
         markedContent++;
       } else {
         if (operands.length) fail(`unexpected operands for ${op}`);
-        if (op === "q") savedGraphics++;
-        if (op === "Q" && --savedGraphics < 0)
-          fail("unbalanced graphics state");
+        if (op === "q") saved.push(state);
+        if (op === "Q") {
+          const restored = saved.pop();
+          if (restored === undefined) fail("unbalanced graphics state");
+          state = restored;
+        }
         if (op === "EMC" && --markedContent < 0)
           fail("unbalanced marked content");
       }
     }
     operands = [];
   }
-  if (text || operands.length || savedGraphics || markedContent)
+  if (text || operands.length || saved.length || markedContent)
     fail("unconsumed or unterminated page content");
   return result;
 }

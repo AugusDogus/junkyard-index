@@ -36,15 +36,15 @@ function fixture(dictionary?: string, content?: Uint8Array, prefix = "") {
 }
 
 describe("Millerstown bounded public parser proof", () => {
-  it("fully preflights the golden native PDF and returns only unfiltered bounded streams", async () => {
+  it("fully preflights the trimmed native PDF and returns only unfiltered bounded streams", async () => {
     const result = await parseMillerstownDocument(
       await millerstownPdfFixture(),
     );
     expect(result.proof).toMatchObject({
-      rawStreams: 89,
-      decodedBytes: 4273155,
-      declaredObjects: 25214,
-      indirectObjects: 25297,
+      rawStreams: 21,
+      decodedBytes: 873078,
+      declaredObjects: 0,
+      indirectObjects: 50,
     });
     for (const [, object] of result.context.enumerateIndirectObjects())
       if (object instanceof PDFRawStream) {
@@ -70,7 +70,7 @@ describe("Millerstown bounded public parser proof", () => {
     const input = await millerstownPdfFixture();
     const pending = parseMillerstownDocument(input);
     input.fill(0);
-    expect((await pending).proof.indirectObjects).toBe(25297);
+    expect((await pending).proof.indirectObjects).toBe(50);
   });
   it("accepts a bounded unfiltered object stream", async () => {
     const good = objectStream();
@@ -220,7 +220,7 @@ describe("Millerstown bounded public parser proof", () => {
     ).toBe(1);
   });
   for (const dictionary of [
-    "/Size 100001 /W [1 4 2]",
+    "/Size 150001 /W [1 4 2]",
     "/Size -1 /W [1 4 2]",
     "/Size 1 0 R /W [1 4 2]",
     "/Size 1 /W [1 4 2] /Index [0 999999999]",
@@ -242,6 +242,25 @@ describe("Millerstown bounded public parser proof", () => {
         ),
       ).rejects.toThrow();
     });
+  // The 2026-11-12 template needs 275,248 raw integers, mostly classic xref
+  // entries. Two integers per entry put these documents either side of the bound.
+  const xrefHeavy = (entries: number) => {
+    const head = "%PDF-1.7\n1 0 obj\n<<>>\nendobj\n";
+    return Buffer.from(
+      `${head}xref\n0 ${entries}\n${"0000000000 65535 f\r\n".repeat(entries)}` +
+        `trailer\n<< /Size ${entries} /Root 1 0 R >>\nstartxref\n${head.length}\n%%EOF\n`,
+      "latin1",
+    );
+  };
+  it("admits the integer work of the current native template", async () => {
+    const result = await parseMillerstownDocument(xrefHeavy(140_000));
+    expect(result.proof.rawIntegers).toBeGreaterThan(275_248);
+  });
+  it("still bounds integer work beyond its headroom", async () => {
+    await expect(parseMillerstownDocument(xrefHeavy(300_001))).rejects.toThrow(
+      "integer work budget exceeded",
+    );
+  });
   it("enforces the time budget before parser progress", async () => {
     let calls = 0;
     const clock = spyOn(performance, "now").mockImplementation(() =>

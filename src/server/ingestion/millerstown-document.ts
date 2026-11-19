@@ -15,9 +15,12 @@ const limits = {
   stream: 1024 * 1024,
   decoded: 16 * 1024 * 1024,
   streams: 512,
-  indirectObjects: 100_000,
+  // The 2026-11-12 template measured 67,800 indirect objects and 275,248 raw
+  // integers (its tagged structure tree and classic xref grow with every table
+  // row, including blank padding rows). Both bounds allow about 2.2 times that.
+  indirectObjects: 150_000,
   parsedValues: 1_000_000,
-  rawIntegers: 200_000,
+  rawIntegers: 600_000,
   depth: 64,
   objectStreamEntries: 1000,
   milliseconds: 20_000,
@@ -214,7 +217,7 @@ class BoundedDocumentParser extends Probe {
       this.state.declaredObjects += objects;
       requireBound(
         this.state.declaredObjects <= limits.indirectObjects,
-        "aggregate ObjStm declarations exceed 100000",
+        "aggregate ObjStm declarations exceed 150000",
       );
       const header = Buffer.from(decoded.subarray(0, first)).toString("latin1");
       requireBound(
@@ -334,7 +337,7 @@ export async function parseMillerstownDocument(input: Uint8Array) {
   requireBound(
     context.enumerateIndirectObjects().length <= limits.indirectObjects &&
       context.largestObjectNumber <= limits.indirectObjects,
-    "indirect-object context exceeds 100000",
+    "indirect-object context exceeds 150000",
   );
   return {
     context,

@@ -4,7 +4,14 @@ import { gunzipSync } from "node:zlib";
 import { z } from "zod";
 
 export const MILLERSTOWN_FIXTURE_PDF_URL =
-  "http://picapartyard.com/wp-content/uploads/2021/01/2026_04_24-Millerstown-Inventory-2.pdf";
+  "http://picapartyard.com/wp-content/uploads/2021/01/2026_11_12-Millerstown-Inventory.pdf";
+/**
+ * Pages 1-10, 25-27, 35, 40, 44 and 45 of the published 2026-11-12 PDF
+ * (sha256 b3bd193f8badc9f2a6ef7746d0dde50e124b8ab06a193eb13658559cf283c1e4) with byte-identical content streams and fonts, plus
+ * blank template pages 46-47. Copied with pdf-lib without the tagged structure
+ * tree. They cover the sorted header row, a Roboto row, every right-aligned
+ * numeric cell, both cross-vehicle VIN conflicts and the last partial page.
+ */
 export async function millerstownPdfFixture() {
   const bytes = gunzipSync(
     await readFile(
@@ -13,9 +20,9 @@ export async function millerstownPdfFixture() {
   );
   if (
     createHash("sha256").update(bytes).digest("hex") !==
-    "9e4cd7f6c823648bc7fa18091cb2515c6fffb4c58235fc9be8ae43cbd6f54897"
+    "eba6fcf128415160b197bd39f7961dffc706ecdcd3633d6578f01b2a6bd301ed"
   )
-    throw new Error("Millerstown full binary fixture changed");
+    throw new Error("Millerstown trimmed binary fixture changed");
   return bytes;
 }
 export async function millerstownHtmlFixture(kind: "root" | "inventory") {
