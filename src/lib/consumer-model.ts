@@ -54,6 +54,8 @@ const RATINGS: Readonly<Record<string, string>> = {
   "1500HD": "1500HD",
   "2500HD": "2500HD",
   "3500HD": "3500HD",
+  "4500": "4500",
+  "4500CUTAWAY": "4500 Cutaway",
 };
 const RATED_GM_MODELS = new Set([
   "SILVERADO",
@@ -87,7 +89,7 @@ function ratedModel(
     return source && key(source).startsWith(key(base)) ? source : base;
   // Keep Classic/HD and unknown source variants even when their words precede
   // the rating. A contradictory source rating cannot override the clean VIN.
-  const sourceRating = source?.match(/(?:1500|2500|3500)(?:\s*HD)?/i)?.[0];
+  const sourceRating = source?.match(/(?:1500|2500|3500|4500)(?:\s*HD)?/i)?.[0];
   if (
     source &&
     key(source).startsWith(key(base)) &&
@@ -116,14 +118,27 @@ function resolve(input: ConsumerModel): string {
   const normalizedSource = sourceName
     ? VehicleName.display(VehicleName.modelName(input.make, sourceName))
     : null;
-  const source = sourceName
-    ? withoutYear(
-        SOURCE_NAMES[make]?.[key(sourceName)] ??
-          NAMES[make]?.[key(normalizedSource ?? "")] ??
-          normalizedSource ??
-          sourceName,
-      )
-    : null;
+  const sourceAlias = sourceName
+    ? SOURCE_NAMES[make]?.[key(sourceName)]
+    : undefined;
+  const aliasRating = sourceAlias?.match(/\b(\d{4})\b/)?.[1];
+  const decodedRatings = [input.series, input.series2].flatMap((series) => {
+    const rating = series?.trim().match(/^(\d{4})(?=\s|\(|HD|$)/i)?.[1];
+    return rating ? [rating] : [];
+  });
+  // Even an unfamiliar decoded series rules out a contradictory yard alias.
+  const conflictingAlias =
+    aliasRating !== undefined &&
+    decodedRatings.some((rating) => rating !== aliasRating);
+  const source =
+    sourceName && !conflictingAlias
+      ? withoutYear(
+          sourceAlias ??
+            NAMES[make]?.[key(normalizedSource ?? "")] ??
+            normalizedSource ??
+            sourceName,
+        )
+      : null;
   let result = NAMES[make]?.[modelKey] ?? base;
   const gm = make === "CHEVROLET" || make === "GMC";
   const rating =

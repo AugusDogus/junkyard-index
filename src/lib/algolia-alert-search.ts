@@ -1,5 +1,6 @@
 import { ArrivalWindow } from "./arrival-window";
 import type { SearchArea } from "./search-area";
+import { MakeFilter } from "./make-filter";
 import type { YardType } from "~/lib/yard-service";
 import type { SearchResponse } from "algoliasearch/lite";
 import {
@@ -133,7 +134,22 @@ export function compileAlertFilters(
     makeAliasesReady ? "makeAliases" : "make",
     filters.makes ?? [],
   );
-  if (makesClause) clauses.push(makesClause);
+  if (makesClause) {
+    const bridgeClause = makeAliasesReady
+      ? null
+      : buildStringOrFilter(
+          "searchTokens",
+          (filters.makes ?? [])
+            .filter((make) => make.trim())
+            .map(MakeFilter.token),
+        );
+    if (bridgeClause) {
+      const alternatives = [makesClause, bridgeClause].map((clause) =>
+        clause.startsWith("(") ? clause.slice(1, -1) : clause,
+      );
+      clauses.push(`(${alternatives.join(" OR ")})`);
+    } else clauses.push(makesClause);
+  }
 
   const colorsClause = buildStringOrFilter("color", filters.colors ?? []);
   if (colorsClause) clauses.push(colorsClause);

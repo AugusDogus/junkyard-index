@@ -19,3 +19,7 @@ each reviewed sample record as tuples: decoded make, decoded model, series,
 source make and source model. Property tests replay all 400 and compose every
 source alias against matching sampled families. These are public identity
 fields; no live calls are made by tests.
+
+`express-4500.json` retains selected original public response fields for
+`1GB6G5CL3F1161250` from the same recorded sample. Its clean `4500 Cutaway`
+series must override the contradictory `EXPRESS35` source alias.

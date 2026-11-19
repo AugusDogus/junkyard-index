@@ -1,3 +1,4 @@
+import { MakeFilter } from "./make-filter";
 import {
   parseExpression,
   type Condition,
@@ -13,13 +14,22 @@ export type CompiledExpression = {
 type Compilation =
   | { success: true; data: CompiledExpression }
   | { success: false; error: string };
-type Clauses = Condition[][];
+type FilterCondition =
+  | Condition
+  | {
+      kind: "condition";
+      field: "makeToken";
+      comparison: Condition["comparison"];
+      value: string;
+    };
+type Clauses = FilterCondition[][];
 const LIMIT = 128;
 const escape = (value: string) =>
   value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 const attributes = {
   text: "searchTokens",
   make: "makeAliases",
+  makeToken: "searchTokens",
   color: "color",
   state: "state",
   yard: "locationName",
@@ -28,11 +38,22 @@ const attributes = {
 } as const;
 
 /** Algolia accepts ANDs of OR clauses. Bound distribution before multiplying groups. */
-function toClauses(node: Expression): Clauses | null {
-  if (node.kind === "condition") return [[node]];
+function toClauses(
+  node: Expression,
+  makeAliasesReady: boolean,
+): Clauses | null {
+  if (node.kind === "condition") {
+    if (node.field !== "make" || makeAliasesReady) return [[node]];
+    const token: FilterCondition = {
+      ...node,
+      field: "makeToken",
+      value: MakeFilter.token(node.value),
+    };
+    return node.comparison === "not" ? [[node], [token]] : [[node, token]];
+  }
   let result: Clauses = node.operator === "AND" ? [] : [[]];
   for (const child of node.children) {
-    const next = toClauses(child);
+    const next = toClauses(child, makeAliasesReady);
     if (!next) return null;
     if (node.operator === "AND") result = [...result, ...next];
     else {
@@ -60,7 +81,7 @@ export function compileSearchExpression(
 ): Compilation {
   const parsed = parseExpression(input);
   if (!parsed.success) return parsed;
-  const clauses = toClauses(parsed.value);
+  const clauses = toClauses(parsed.value, makeAliasesReady);
   if (!clauses)
     return {
       success: false,

@@ -25,7 +25,7 @@ test("basic saved refinements use per-record make aliases while other facets sta
   ]);
 });
 
-test("the search client transforms legacy and modern saved refinements only after schema readiness", () => {
+test("the search client transforms legacy and modern saved refinements through schema readiness", () => {
   const script = `
     import {mock} from 'bun:test';
     const captured = [];
@@ -48,30 +48,57 @@ test("the search client transforms legacy and modern saved refinements only afte
   const calls: unknown = JSON.parse(result.stdout.toString());
   const expected = [false, true].flatMap((ready) => {
     const attribute = ready ? "makeAliases" : "make";
+    const facetFilters = ready
+      ? [["makeAliases:Chevrolet"]]
+      : [["make:Chevrolet", "searchTokens:make=chevrolet"]];
     return [
       [
         {
           indexName: "vehicles",
           params: expect.objectContaining({
-            facetFilters: [[`${attribute}:Chevrolet`]],
+            facetFilters,
           }),
         },
       ],
       {
-        requests: [
-          { indexName: "vehicles", facetFilters: [[`${attribute}:Chevrolet`]] },
-        ],
+        requests: [{ indexName: "vehicles", facetFilters }],
       },
       [
         {
           indexName: "vehicles",
           params: expect.objectContaining({
             query: "Sonoma",
-            filters: `${attribute}:"Chevrolet"`,
+            filters: ready
+              ? `${attribute}:"Chevrolet"`
+              : '(make:"Chevrolet" OR searchTokens:"make=chevrolet")',
           }),
         },
       ],
     ];
   });
   expect(calls).toMatchObject(expected);
+});
+
+test("rollout make facets retain OR selections and excluded makes without widening scope", () => {
+  expect(
+    MakeFilter.facets(
+      [["make:Chevrolet", "make:Ford"], "source:pyp", "make:-GMC"],
+      false,
+    ),
+  ).toEqual([
+    [
+      "make:Chevrolet",
+      "searchTokens:make=chevrolet",
+      "make:Ford",
+      "searchTokens:make=ford",
+    ],
+    "source:pyp",
+    "make:-GMC",
+    "searchTokens:-make=gmc",
+  ]);
+  expect(MakeFilter.facets([["make:-GMC", "source:pyp"]], false)).toEqual([
+    ["make:-GMC", "source:pyp"],
+    ["searchTokens:-make=gmc", "source:pyp"],
+  ]);
+  expect(MakeFilter.token(" Land   Rover ")).toBe("make=land rover");
 });

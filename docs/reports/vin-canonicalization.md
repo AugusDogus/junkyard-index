@@ -8,7 +8,7 @@ rejected decodes. These are consumer models, preserving ratings and variants.
 | Make      | Vehicles in sampled patterns | Model facets before | Model facets after |
 | --------- | ---------------------------: | ------------------: | -----------------: |
 | Ford      |                        3,793 |                 177 |                 92 |
-| Chevrolet |                        4,161 |                 231 |                115 |
+| Chevrolet |                        4,161 |                 231 |                116 |
 | Toyota    |                        6,027 |                 133 |                 71 |
 | Honda     |                        5,483 |                  82 |                 60 |
 
@@ -64,10 +64,16 @@ single pattern-wide source label.
 | Chevrolet Express                                                    | Source EXPRESS15, EXPRESS25 or EXPRESS35                               | Express 1500, 2500 or 3500; clean decoded rating takes precedence           |
 | Scion                                                                | Source TC SCION, XA SCION, XB SCION or XD SCION                        | tC, xA, xB or xD                                                            |
 
+The recorded clean decode for `1GB6G5CL3F1161250` has Series `4500 Cutaway`.
+It resolves to **Express 4500 Cutaway** even when the source says `EXPRESS35`.
+Source aliases with ratings conflicting with numeric decoder series are ignored,
+including unfamiliar series. Known series names win; unsupported series retain
+the neutral decoded family rather than the contradictory source rating.
+
 The explicit rating spellings are `1500`, `1500 (1/2 Ton)`, `1/2 Ton`,
 `1/2 Ton Nominal`, and corresponding `2500`/`3/4 Ton` and `3500`/`1 Ton`
-forms, plus `1500HD`, `2500HD`, `3500HD`. Matching ignores punctuation and
-case. Unknown rating labels are not guessed. A more specific source label in
+forms, plus `1500HD`, `2500HD`, `3500HD`, `4500` and `4500 Cutaway`. Matching ignores
+punctuation and case. Unknown rating labels are not guessed. A more specific source label in
 the same family is preserved when the decoder does not explain its suffix,
 including Classic, HD and unknown variants. Reordered labels such as
 Silverado Classic 1500 retain that distinction. A clean, explicit decoded
@@ -78,7 +84,7 @@ model variants. Source trim takes precedence over decoded trim.
 ## Source/canonical mismatches
 
 Ignoring differences already handled by the site's identity rules, the sample
-has **273 distinct source/canonical pairs**, covering **1,409
+has **274 distinct source/canonical pairs**, covering **1,409
 vehicles**. Largest examples:
 
 | Source make | Source model | Consumer model           | Vehicles |
@@ -140,9 +146,18 @@ record. A correctly sourced GMC truck gains no Chevrolet alias.
 Regressions cover `SILVRDO15`, `F150NEW`, Chevrolet SONOMA moving to GMC,
 Scion branding, ordinary source make keywords, Boolean expressions and alert
 matching. Stored saved filters need no rewrite or user reselection. The
-readiness gate uses the old make facet until migration completes; ingestion
-also waits for readiness before publishing changed identities. The app stores
-model choices in keyword queries rather than a `models` filter array. A
+readiness gate bridges `make` with exact `make=...` tokens in the existing
+filterable `searchTokens` field until migration completes. Legacy records match
+`make`; rewritten records include canonical and source-make tokens atomically
+with their changed identity. No new facet setting is required for the bridge.
+Both basic refinements and alert/field expressions retain OR and exclusion
+semantics, including clients with a cached false readiness value. The actual
+migration and server-alert wrapper regression matches once before, during and
+after rollout for both saved make criteria and expressions. Unrelated model
+text cannot create a make match because these tokens have a dedicated prefix.
+Ingestion waits for readiness before VIN enrichment but always applies existing
+string normalization, including invalid VINs and capability-lookup failures.
+The app stores model choices in keyword queries rather than a `models` filter array. A
 read-only aggregate found 17 saved searches and zero model arrays.
 
 ## URL coverage
