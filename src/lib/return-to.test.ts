@@ -16,7 +16,8 @@ describe("ReturnTo", () => {
     undefined,
   ]) {
     test(`rejects unsafe destination ${JSON.stringify(input)}`, () => {
-      expect(ReturnTo.parse(input)).toBe("/search");
+      const path: string = ReturnTo.parse(input);
+      expect(path).toBe("/search");
     });
   }
   for (const [input, expected] of [
@@ -26,9 +27,10 @@ describe("ReturnTo", () => {
       "/search?q=Saab%20900&saveSearch=1",
     ],
     ["/settings/billing?from=menu#plan", "/settings/billing?from=menu#plan"],
-  ]) {
+  ] as const) {
     test(`preserves same-site destination ${input}`, () => {
-      expect(ReturnTo.parse(input)).toBe(expected);
+      const path: string = ReturnTo.parse(input);
+      expect(path).toBe(expected);
     });
   }
 });
