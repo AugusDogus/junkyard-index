@@ -9,14 +9,15 @@ export interface IngestionSourceFreshness {
 /**
  * Whether a source's last accepted publication is recent enough to call its
  * inventory fresh. A daily source with one failed attempt is still fresh; a
- * source that misses its whole day goes stale after 30 hours.
+ * source that misses its whole day goes stale after 30 hours, or after
+ * `staleAfterMs` when a caller needs a wider window.
  */
 export function isFreshPublication(
   lastPublishedAt: number | null,
   now: Date,
+  staleAfterMs = STALE_AFTER_MS,
 ): boolean {
   return (
-    lastPublishedAt !== null &&
-    now.getTime() - lastPublishedAt <= STALE_AFTER_MS
+    lastPublishedAt !== null && now.getTime() - lastPublishedAt <= staleAfterMs
   );
 }
