@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
-import { streamWhitebradstreetInventoryWithRequestGate } from "./whitebradstreet-connector";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
+import {
+  streamWhitebradstreetInventory,
+  streamWhitebradstreetInventoryWithRequestGate,
+} from "./whitebradstreet-connector";
 import {
   WhitebradstreetCursorSchema,
   type WhitebradstreetCursor,
@@ -51,17 +54,17 @@ function inventory(
   );
   return requests;
 }
-const run = (
+const chunk = (
   cursor?: WhitebradstreetCursor,
   maxPages = 1,
   onBatch = (_batch: WhitebradstreetCanonicalVehicle[]) => Effect.void,
 ) =>
-  Effect.runPromise(
-    streamWhitebradstreetInventoryWithRequestGate(
-      { startCursor: cursor, maxPages, onBatch },
-      gate,
-    ),
+  streamWhitebradstreetInventoryWithRequestGate(
+    { startCursor: cursor, maxPages, onBatch },
+    gate,
   );
+const run = (...args: Parameters<typeof chunk>) =>
+  Effect.runPromise(chunk(...args));
 
 test("White & Bradstreet pauses, roundtrips and resumes without duplicate emissions", async () => {
   const requests = inventory();
@@ -285,9 +288,126 @@ test.each([
   },
 );
 
+// Production crawls at one request per 1.6 seconds hit Cloudflare HTTP 429
+// mid-traversal (page 5 or 9 of 16). Live reads spaced four seconds apart
+// completed all 16 native pages plus a replay without a 429.
+const throttled = (retryAfter: string | null) =>
+  new Response("rate limited", {
+    status: 429,
+    headers: {
+      "content-type": "text/html",
+      ...(retryAfter === null ? {} : { "retry-after": retryAfter }),
+    },
+  });
+const html = (body: string) =>
+  new Response(body, { headers: { "content-type": "text/html" } });
+const underTestClock = <A, E>(effect: Effect.Effect<A, E>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(TestContext.TestContext)));
+const settle = Effect.promise(
+  () => new Promise<void>((resolve) => setTimeout(resolve, 5)),
+);
+
+test("White & Bradstreet spaces native requests at least four seconds apart", async () => {
+  const requests = inventory();
+  const result = await underTestClock(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        streamWhitebradstreetInventory({
+          maxPages: 2,
+          onBatch: () => Effect.void,
+        }),
+      );
+      yield* settle;
+      expect(requests).toHaveLength(1);
+      yield* TestClock.adjust("3999 millis");
+      yield* settle;
+      expect(requests).toHaveLength(1);
+      for (let request = 2; request <= 5; request++) {
+        yield* TestClock.adjust("1 millis");
+        yield* settle;
+        expect(requests).toHaveLength(request);
+        yield* TestClock.adjust("3999 millis");
+        yield* settle;
+        expect(requests).toHaveLength(request);
+      }
+      return yield* Fiber.join(fiber);
+    }),
+  );
+  expect(result).toMatchObject({ status: "complete", count: 26 });
+});
+
+test.each([
+  ["Retry-After", "20", 20_000],
+  ["no Retry-After", null, 15_000],
+] as const)(
+  "White & Bradstreet waits out HTTP 429 with %s and retries the same page",
+  async (_name, retryAfter, waitMs) => {
+    let limited = false;
+    const requests = inventory({
+      response: (body) => {
+        if (limited) return html(body);
+        limited = true;
+        return throttled(retryAfter);
+      },
+    });
+    const result = await underTestClock(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(chunk());
+        yield* settle;
+        expect(requests).toHaveLength(1);
+        yield* TestClock.adjust(waitMs - 1);
+        yield* settle;
+        expect(requests).toHaveLength(1);
+        yield* TestClock.adjust(1);
+        yield* settle;
+        expect(requests[1]).toBe(requests[0]);
+        yield* TestClock.adjust("1 minute");
+        return yield* Fiber.join(fiber);
+      }),
+    );
+    expect(result).toMatchObject({ status: "paused", count: 25 });
+  },
+);
+
+test("White & Bradstreet stops after three rate-limited attempts and keeps the checkpoint", async () => {
+  const requests = inventory({ response: () => throttled(null) });
+  let emitted = false;
+  const outcome = await underTestClock(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        Effect.either(
+          chunk(undefined, 1, () =>
+            Effect.sync(() => {
+              emitted = true;
+            }),
+          ),
+        ),
+      );
+      yield* settle;
+      yield* TestClock.adjust("15 seconds");
+      yield* settle;
+      yield* TestClock.adjust("30 seconds");
+      yield* settle;
+      return yield* Fiber.join(fiber);
+    }),
+  );
+  expect(requests).toHaveLength(3);
+  expect(emitted).toBe(false);
+  expect(outcome._tag).toBe("Left");
+  if (outcome._tag === "Left")
+    expect(outcome.left.message).toContain(
+      "Previously published inventory is preserved",
+    );
+});
+
+test("White & Bradstreet fails fast when Retry-After exceeds the in-chunk wait budget", async () => {
+  const requests = inventory({ response: () => throttled("3600") });
+  await expect(run()).rejects.toThrow("asked to wait 3600 seconds");
+  expect(requests).toHaveLength(1);
+});
+
 const httpBoundaries: ResponseInit[] = [
   { status: 403 },
-  { status: 429 },
   { status: 206 },
   { status: 500 },
   { headers: { "content-type": "application/json" } },

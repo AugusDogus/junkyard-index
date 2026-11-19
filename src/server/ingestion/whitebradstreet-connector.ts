@@ -337,13 +337,15 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
       },
     } satisfies WhitebradstreetStreamResult;
   }).pipe(
+    // A resumed 16-page crawl is about 33 paced reads (replay, new pages,
+    // terminal recheck), plus room for two bounded HTTP 429 waits.
     Effect.timeoutFail({
-      duration: "2 minutes",
+      duration: "5 minutes",
       onTimeout: () =>
         new WhitebradstreetProviderError({
           operation: "crawl budget",
           cause:
-            "Two-minute chunk limit exceeded; retain the last validated checkpoint",
+            "Five-minute chunk limit exceeded; retain the last validated checkpoint",
         }),
     }),
   );
@@ -352,8 +354,10 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
 export function streamWhitebradstreetInventory<E, R>(
   options: WhitebradstreetOptions<E, R>,
 ) {
+  // Production reads 1.6 seconds apart drew Cloudflare HTTP 429 by page 5-9.
+  // Sequential reads four seconds apart completed every live page.
   return Effect.scoped(
-    RateLimiter.make({ limit: 1, interval: "1600 millis" }).pipe(
+    RateLimiter.make({ limit: 1, interval: "4 seconds" }).pipe(
       Effect.flatMap((gate) =>
         streamWhitebradstreetInventoryWithRequestGate(options, gate),
       ),
