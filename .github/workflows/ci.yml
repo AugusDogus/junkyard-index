@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    name: Lint, typecheck, test
+  static:
+    name: Lint and typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,4 +24,54 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
-      - run: bun test src
+      - run: bun test scripts/verify-test-shards.test.ts
+
+  test:
+    name: Test shard ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.1"
+      - run: bun install --frozen-lockfile
+      - name: Run weighted shard
+        run: |
+          mkdir -p test-results
+          cp .github/test-timings.json test-results/timings.json
+          bun test src --shard=${{ matrix.shard }}/8 --timings=test-results/timings.json --update-timings --reporter=junit --reporter-outfile=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-shard-${{ matrix.shard }}
+          path: test-results/
+          if-no-files-found: error
+
+  check:
+    # Preserve the single required branch-protection status, including failures
+    # and cancellations in either the matrix or the independent static checks.
+    name: Lint, typecheck, test
+    if: always()
+    needs: [static, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all jobs to pass
+        env:
+          STATIC_RESULT: ${{ needs.static.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: test "$STATIC_RESULT" = success && test "$TEST_RESULT" = success
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.1"
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-shard-*
+          path: test-results
+      - name: Verify every test file ran exactly once
+        run: bun scripts/verify-test-shards.ts test-results 8

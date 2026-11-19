@@ -104,6 +104,7 @@ test("all saved opening and closing bodies replay through production HTTP with c
   );
   try {
     let cursor = HollanderstoresCursor.initial();
+    let persistedAt = 0;
     while (cursor.phase !== "complete") {
       const result = await Effect.runPromise(
         streamHollanderstoresInventory({
@@ -146,9 +147,20 @@ test("all saved opening and closing bodies replay through production HTTP with c
             }),
         }),
       );
-      cursor = HollanderstoresCursor.fromWire(
-        HollanderstoresCursor.serialize(result.cursor),
-      );
+      const previousPhase = cursor.phase;
+      cursor = result.cursor;
+      // The durable test covers every chunk's persistence. This full HTTP
+      // replay needs wire coverage at phase boundaries, not another 20 MiB
+      // JSON round-trip after every eight cached VIN batches.
+      if (
+        cursor.phase !== previousPhase ||
+        cursor.requests - persistedAt >= 96
+      ) {
+        cursor = HollanderstoresCursor.fromWire(
+          HollanderstoresCursor.serialize(cursor),
+        );
+        persistedAt = cursor.requests;
+      }
       if (result.status === "paused")
         expect([result.count, batches, yards]).toEqual([0, 0, 0]);
     }
