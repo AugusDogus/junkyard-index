@@ -103,7 +103,14 @@ export function readUrgiisPage(
               },
               catch: (cause) => urgiisError("cancel response " + url, cause),
             });
-            if (response.status === 403 || response.status === 429) {
+            // A Cloudflare challenge scores this client, not the yard's
+            // capacity: it is an ordinary paced failure, not a host block.
+            const challenged =
+              response.headers.get("cf-mitigated") === "challenge";
+            if (
+              (response.status === 403 && !challenged) ||
+              response.status === 429
+            ) {
               const retryAfterMs = parseRetryAfterMs(
                 response.headers.get("Retry-After"),
                 Date.now(),
@@ -121,7 +128,7 @@ export function readUrgiisPage(
             return yield* Effect.fail(
               urgiisError(
                 "request/body " + url,
-                `Expected complete HTTP200 text/html; received HTTP${response.status}`,
+                `Expected complete HTTP200 text/html; received HTTP${response.status}${challenged ? " (Cloudflare challenge)" : ""}`,
               ),
             );
           }

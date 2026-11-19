@@ -5,6 +5,7 @@ import { Config } from "./context";
 import type { DocumentFetch } from "./document-fetch";
 import {
   createHyperbrowserSession,
+  HYPERBROWSER_SETUP_MS,
   withHyperbrowserSessionLease,
   type HyperbrowserCapacityError,
 } from "./hyperbrowser-session";
@@ -32,15 +33,23 @@ export type InPageResult =
       body: string;
     };
 
+declare global {
+  /** In-page fetches by request id, so a Node-side abort reaches the page. */
+  var junkyardDocumentFetches: Map<string, AbortController> | undefined;
+}
+
 /** Runs inside the browser page. Must stay self-contained: Playwright sends
  * only its source. Manual redirects surface as opaque redirects. */
 async function readInPage(input: {
+  id: string;
   url: string;
   accept: string;
   maxBytes: number;
   timeoutMs: number;
 }): Promise<InPageResult> {
   const controller = new AbortController();
+  const pending = (globalThis.junkyardDocumentFetches ??= new Map());
+  pending.set(input.id, controller);
   const timer = setTimeout(() => controller.abort(), input.timeoutMs);
   try {
     const response = await fetch(input.url, {
@@ -82,7 +91,13 @@ async function readInPage(input: {
     return { kind: "network", message: String(error) };
   } finally {
     clearTimeout(timer);
+    pending.delete(input.id);
   }
+}
+
+/** Runs inside the browser page: abandons one in-flight document fetch. */
+function abortInPage(id: string) {
+  globalThis.junkyardDocumentFetches?.get(id)?.abort();
 }
 
 function abortable<T>(
@@ -155,6 +170,7 @@ export function pageDocumentFetch(
       script: typeof readInPage,
       input: Parameters<typeof readInPage>[0],
     ): Promise<InPageResult>;
+    evaluate(script: typeof abortInPage, id: string): Promise<void>;
   },
   origin: string,
   challengeRetryMs = CHALLENGE_RETRY_MS,
@@ -171,15 +187,28 @@ export function pageDocumentFetch(
       throw new Error(`Browser session for ${origin} only sends GET requests`);
     const accept = new Headers(init.headers).get("Accept") ?? "text/html";
     for (let attempt = 0; ; attempt++) {
+      const id = crypto.randomUUID();
+      // The client's deadline or interruption must stop the page's request
+      // too, or a retry would overlap it on the same host.
+      const abandon = () => {
+        page.evaluate(abortInPage, id).catch((cause: unknown) => {
+          console.error(
+            `Could not abort the in-page request for ${url}; it ends at its ${BROWSER_REQUEST_TIMEOUT_MS / 1000}-second page timeout`,
+            cause,
+          );
+        });
+      };
+      init.signal?.addEventListener("abort", abandon, { once: true });
       const result = await abortable(
         page.evaluate(readInPage, {
+          id,
           url,
           accept,
           maxBytes: BROWSER_MAX_BODY_BYTES,
           timeoutMs: BROWSER_REQUEST_TIMEOUT_MS,
         }),
         init.signal,
-      );
+      ).finally(() => init.signal?.removeEventListener("abort", abandon));
       if (attempt >= CHALLENGE_RETRIES || !isChallenge(result))
         return browserDocumentResponse(url, result);
       await abortable(
@@ -274,7 +303,15 @@ export function acquireBrowserDocumentFetch(
         new Error(`Could not open ${origin} in the browser session`, { cause }),
     });
     return pageDocumentFetch(page, origin);
-  });
+  }).pipe(
+    Effect.timeoutFail({
+      duration: HYPERBROWSER_SETUP_MS,
+      onTimeout: () =>
+        new Error(
+          `Browser session setup for ${origin} exceeded ${HYPERBROWSER_SETUP_MS / 1000} seconds before any document request. The checkpoint is unchanged; retry the chunk.`,
+        ),
+    }),
+  );
 }
 
 /** Holds the browser lease and one session on `origin` for `use`. */

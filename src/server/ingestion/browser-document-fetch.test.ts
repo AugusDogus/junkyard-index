@@ -37,11 +37,11 @@ function page(respond: (url: string, init?: RequestInit) => Response) {
     evaluations: () => evaluations,
     page: {
       evaluate<Input, Output>(
-        script: (input: Input) => Promise<Output>,
+        script: (input: Input) => Output | Promise<Output>,
         input: Input,
       ) {
         evaluations++;
-        return script(input);
+        return Promise.resolve(script(input));
       },
     },
   };
@@ -180,4 +180,41 @@ test("a persistent challenge or plain denial reaches the client after bounded at
     expect(result._tag).toBe("Left");
     expect(calls).toBe(attempts);
   }
+});
+
+test("a client deadline also aborts the request running inside the page", async () => {
+  let pageSignal: AbortSignal | null | undefined;
+  globalThis.fetch = Object.assign(
+    async (_input: RequestInfo | URL, init?: RequestInit) => {
+      pageSignal = init?.signal;
+      return new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("aborted")),
+          {
+            once: true,
+          },
+        ),
+      );
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const fakePage = {
+    evaluate<Input, Output>(
+      script: (input: Input) => Output | Promise<Output>,
+      input: Input,
+    ) {
+      return Promise.resolve(script(input));
+    },
+  };
+  const deadline = new AbortController();
+  const pending = pageDocumentFetch(fakePage, SIX03_ORIGIN)(SIX03_CONTACT, {
+    method: "GET",
+    signal: deadline.signal,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(pageSignal?.aborted).toBe(false);
+  deadline.abort(new DOMException("deadline", "TimeoutError"));
+  await expect(pending).rejects.toThrow("deadline");
+  expect(pageSignal?.aborted).toBe(true);
 });

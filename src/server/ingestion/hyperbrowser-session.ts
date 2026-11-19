@@ -3,29 +3,35 @@ import { Cause, Chunk, Data, Effect, Runtime, Schedule } from "effect";
 import {
   ProviderHostBusyError,
   providerHostSlot,
+  providerHostSlotsEnabled,
   type ProviderHostPolicy,
 } from "./provider-host-slot";
 
+/** Session creation, CDP connection and the origin navigation together. */
+export const HYPERBROWSER_SETUP_MS = 2 * 60_000;
 /** The Hyperbrowser plan allows one active session. Every browser-backed
  * source holds this FIFO lease for its whole session, so chunks take turns
- * instead of failing at session creation. The hold cap covers the longest
- * browser chunk (URG IIS: eight minutes) plus session setup. */
+ * instead of failing at session creation. The hold cap covers bounded setup
+ * plus the longest browser chunk (URG IIS: eight minutes); with the wait it
+ * stays inside Vercel's 800-second function limit (90 s + 630 s). */
 export const HYPERBROWSER_SESSION_POLICY: ProviderHostPolicy = {
   key: "hyperbrowser-session",
   label: "Hyperbrowser session",
-  leaseMs: 10 * 60_000,
-  requestMs: 9 * 60_000,
+  leaseMs: 690_000,
+  requestMs: 630_000,
   waitMs: 90_000,
   pollMs: 1_000,
   gapMs: 2_000,
 };
 /** Server-side lifetime cap, so a session orphaned by a killed function ends
  * shortly after its lease expires instead of blocking the plan. */
-export const HYPERBROWSER_SESSION_TIMEOUT_MINUTES = 11;
+export const HYPERBROWSER_SESSION_TIMEOUT_MINUTES = 12;
 /** Durable wait before a deferred chunk queues for the session again. */
 export const HYPERBROWSER_BUSY_RETRY_MS = 2 * 60_000;
 const SESSION_LIMIT_POLL = "10 seconds";
 const SESSION_LIMIT_POLLS = 6;
+/** Local runs bypass Redis; this keeps their browser sources taking turns. */
+const localSessions = Effect.runSync(Effect.makeSemaphore(1));
 
 export class HyperbrowserCapacityError extends Data.TaggedError(
   "HyperbrowserCapacityError",
@@ -85,7 +91,9 @@ export function withHyperbrowserSessionLease<A, E, R>(
   slot: <B, F, Q>(
     effect: Effect.Effect<B, F, Q>,
   ) => Effect.Effect<B, F | Error, Q> = (effect) =>
-    providerHostSlot(HYPERBROWSER_SESSION_POLICY, effect),
+    providerHostSlotsEnabled()
+      ? providerHostSlot(HYPERBROWSER_SESSION_POLICY, effect)
+      : localSessions.withPermits(1)(effect),
 ): Effect.Effect<A, E | Error | HyperbrowserCapacityError, R> {
   return slot(use).pipe(
     Effect.catchIf(

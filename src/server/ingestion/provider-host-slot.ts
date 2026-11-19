@@ -165,12 +165,15 @@ export function withProviderHostSlot<A, E, R>(
   );
 }
 
+/** Redis leases apply on Vercel and in production; local runs bypass them. */
+export const providerHostSlotsEnabled = () =>
+  process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+
 export function providerHostSlot<A, E, R>(
   policy: ProviderHostPolicy,
   request: Effect.Effect<A, E, R>,
 ) {
-  if (process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production")
-    return request;
+  if (!providerHostSlotsEnabled()) return request;
   return Effect.try({
     try: () => {
       const url = process.env.UPSTASH_REDIS_REST_URL;

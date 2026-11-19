@@ -75,21 +75,19 @@ test("Weber retries the transient HTTP 500 seen in production, then reads the do
 
 test("Weber does not retry a request deadline that would overrun its chunk", async () => {
   let calls = 0;
-  stub(async (options) => {
+  stub(async () => {
     calls++;
-    const signal = options?.signal;
-    return new Promise<Response>((_resolve, reject) => {
-      signal?.addEventListener("abort", () => reject(signal.reason), {
-        once: true,
-      });
-    });
+    // The same rejection fetch produces when its deadline signal fires.
+    throw new DOMException("The operation timed out.", "TimeoutError");
   });
   const result = await Effect.runPromise(
     Effect.gen(function* () {
       const fiber = yield* Effect.fork(
         fetchWeberbrothersPage(WEBERBROTHERS_CATALOG, direct),
       );
-      yield* TestClock.adjust("25 seconds");
+      yield* Effect.promise(
+        () => new Promise((resolve) => setTimeout(resolve, 5)),
+      );
       yield* TestClock.adjust("10 seconds");
       return yield* Effect.either(Fiber.join(fiber));
     }).pipe(Effect.provide(TestContext.TestContext)),
