@@ -42,8 +42,10 @@ export class ProviderHostBusyError extends Error {
 
 /** Atomic FIFO registration and acquisition. Polls renew the waiter's deadline
  * without changing its order. Dead workers expire instead of blocking the queue.
+ * A cancelled token (KEYS[5]) never registers or acquires again.
  * All keys share one Redis hash tag for cluster-safe scripts. */
 export const RESERVE_HOST_SLOT = `
+if redis.call('EXISTS', KEYS[5]) == 1 then return 0 end
 local now = redis.call('TIME')
 local ms = now[1] * 1000 + math.floor(now[2] / 1000)
 local expired = redis.call('ZRANGEBYSCORE', KEYS[3], '-inf', ms)
@@ -65,6 +67,21 @@ redis.call('ZREM', KEYS[3], ARGV[1])
 return 1
 `;
 
+/** Abandons a token whose reservation outcome is unknown. A reserve call that
+ * timed out on the client may still have won the lease in Redis, and one still
+ * in flight may land later; the tombstone (KEYS[4]) refuses that late call and
+ * the token's own lease is deleted. Tokens are unique, so nothing else is
+ * released. */
+export const CANCEL_HOST_SLOT = `
+redis.call('ZREM', KEYS[2], ARGV[1])
+redis.call('ZREM', KEYS[3], ARGV[1])
+redis.call('SET', KEYS[4], '1', 'PX', ARGV[2])
+if redis.call('GET', KEYS[1]) == ARGV[1] then redis.call('DEL', KEYS[1]) end
+return 1
+`;
+/** Outlives any reserve request still in flight (the client aborts at 5 s). */
+const CANCELLED_TOKEN_TTL_MS = 60_000;
+
 export function redisProviderHostStore(
   policy: ProviderHostPolicy,
   redis: Pick<Redis, "eval">,
@@ -74,11 +91,12 @@ export function redisProviderHostStore(
   const key = `ingestion:host:${policy.key}:v1`;
   const queue = `{${key}}:queue`;
   const deadlines = `{${key}}:deadlines`;
+  const cancelled = (owner: string) => `{${key}}:cancelled:${owner}`;
   return {
     reserve: async (owner, ttl) =>
       (await redis.eval(
         RESERVE_HOST_SLOT,
-        [key, queue, deadlines, `{${key}}:sequence`],
+        [key, queue, deadlines, `{${key}}:sequence`, cancelled(owner)],
         [owner, ttl],
       )) === 1,
     release: async (owner) =>
@@ -88,12 +106,10 @@ export function redisProviderHostStore(
         [owner],
       )) === 1,
     cancel: async (owner) => {
-      // A timed-out Redis response may have acquired the lease. Keep that
-      // lease until expiry; cancellation removes only its queued registration.
       await redis.eval(
-        "redis.call('ZREM', KEYS[1], ARGV[1]); redis.call('ZREM', KEYS[2], ARGV[1]); return 1",
-        [queue, deadlines],
-        [owner],
+        CANCEL_HOST_SLOT,
+        [key, queue, deadlines, cancelled(owner)],
+        [owner, CANCELLED_TOKEN_TTL_MS],
       );
       return true;
     },
