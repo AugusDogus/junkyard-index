@@ -10,32 +10,34 @@ import { useYardMapView } from "~/hooks/use-yard-map-view";
 import { YardMapPin } from "./YardMapPin";
 import {
   type CSSProperties,
+  memo,
+  useMemo,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
 import { Button } from "~/components/ui/button";
-import type { HomepageYard } from "~/lib/homepage-inventory";
+import type { MapYard } from "./yard-map-data";
 import {
   getYardMapView,
   getYardMapBounds,
   hasMapCoordinates,
 } from "~/lib/yard-map-projection";
 
-export default function YardMapCanvas({
+const YardMapCanvas = memo(function YardMapCanvas({
   yards,
   compact,
   selected,
   onSelect,
 }: {
-  yards: HomepageYard[];
+  yards: MapYard[];
   compact: boolean;
-  selected: HomepageYard | null;
-  onSelect: (yard: HomepageYard | null) => void;
+  selected: MapYard | null;
+  onSelect: (yard: MapYard | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const pins = yards.filter(hasMapCoordinates);
+  const pins = useMemo(() => yards.filter(hasMapCoordinates), [yards]);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const pinRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   const activeKey = pins.some((yard) => YardPath.key(yard) === focusedKey)
@@ -48,7 +50,10 @@ export default function YardMapCanvas({
     compact ? { width: 360, height: 240 } : { width: 900, height: 400 },
   );
   const [tileError, setTileError] = useState(false);
-  const overview = getYardMapView(yards, size.width, size.height);
+  const overview = useMemo(
+    () => getYardMapView(yards, size.width, size.height),
+    [yards, size.width, size.height],
+  );
   const { view, requestView, syncView, loading, loadError } = useYardMapView(
     overview,
     size.width,
@@ -66,7 +71,7 @@ export default function YardMapCanvas({
   }, [loading]);
 
   const current = view ?? overview;
-  const bounds = getYardMapBounds(yards);
+  const bounds = useMemo(() => getYardMapBounds(yards), [yards]);
   // Match getYardMapView's geographic fit before the actual size is known.
   // Scaling the estimated viewport instead changes the framing on hydration.
   const fitScale = `calc(clamp(0.5, min(calc((100cqw - 32px) / ${bounds.width}px), calc((100cqh - 32px) / ${bounds.height}px)), 32) / ${2 ** (overview.zoom - 2)})`;
@@ -287,4 +292,6 @@ export default function YardMapCanvas({
       )}
     </div>
   );
-}
+});
+
+export default YardMapCanvas;

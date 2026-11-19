@@ -1,5 +1,5 @@
 import { useRef, type PointerEvent, type Ref } from "react";
-import type { HomepageYard } from "~/lib/homepage-inventory";
+import type { MapYard } from "./yard-map-data";
 
 export function YardMapPin({
   yard,
@@ -9,7 +9,7 @@ export function YardMapPin({
   buttonRef,
   onFocus,
 }: {
-  yard: HomepageYard;
+  yard: MapYard;
   selected: boolean;
   onSelect: () => void;
   tabIndex: 0 | -1;

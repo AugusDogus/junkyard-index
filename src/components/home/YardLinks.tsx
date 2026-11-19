@@ -2,18 +2,25 @@ import { ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
-import type { HomepageYard } from "~/lib/homepage-inventory";
+import type { MapYard } from "./yard-map-data";
 import { yardPhoneHref } from "~/lib/yard-phone";
 
 const linkClassName =
   "board-step pointer-events-auto hover:text-signal focus-visible:outline-focus inline-flex min-h-9 shrink-0 items-center gap-1 whitespace-nowrap underline decoration-1 underline-offset-[0.3em] hover:decoration-2 outline-none focus-visible:outline-2 focus-visible:outline-solid";
 
-export function YardLinks({ yard }: { yard: HomepageYard }) {
+export function YardLinks({
+  yard,
+  tabIndex = 0,
+}: {
+  yard: MapYard;
+  tabIndex?: 0 | -1;
+}) {
   const phoneHref = yardPhoneHref(yard.phone);
   return (
     <div className="text-ink-2 pointer-events-none relative z-10 flex flex-wrap items-center gap-x-3.5 text-[0.8125rem]">
       {yard.path && (
         <Link
+          tabIndex={tabIndex}
           href={yard.path.href}
           prefetch={false}
           aria-label={`Inventory at ${yard.name}`}
@@ -24,6 +31,7 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
       )}
       {yard.website && (
         <a
+          tabIndex={tabIndex}
           href={yard.website.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -35,6 +43,7 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
         </a>
       )}
       <a
+        tabIndex={tabIndex}
         href={yard.mapsUrl}
         target="_blank"
         rel="noopener noreferrer"
@@ -53,6 +62,7 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
               className="pointer-events-auto size-9"
             >
               <a
+                tabIndex={tabIndex}
                 href={phoneHref}
                 aria-label={`Call ${yard.name}: ${yard.phone}`}
               >
@@ -70,6 +80,7 @@ export function YardLinks({ yard }: { yard: HomepageYard }) {
               className="pointer-events-auto size-9"
             >
               <a
+                tabIndex={tabIndex}
                 href={`mailto:${encodeURIComponent(yard.email)}`}
                 aria-label={`Email ${yard.name}: ${yard.email}`}
               >

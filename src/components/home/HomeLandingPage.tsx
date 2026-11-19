@@ -1,4 +1,3 @@
-import { type Metadata } from "next";
 import { geolocation } from "@vercel/functions";
 import { headers } from "next/headers";
 import { userAgent } from "next/server";
@@ -15,29 +14,13 @@ import { getHomepageInventory } from "~/lib/homepage-inventory";
 import { JsonLd } from "~/components/JsonLd";
 import { env } from "~/env";
 import { hasFiniteCoordinates } from "~/lib/location-preferences";
-import { SITE_OPEN_GRAPH } from "~/lib/site-metadata";
+import { homeMetadata } from "./home-metadata";
+import { MapYard } from "./yard-map-data";
 
-const HOME_TITLE = "Search Junkyard Inventory at 200+ Salvage Yards";
-const HOME_DESCRIPTION =
-  "Search live inventory at 200+ salvage yards, including LKQ Pick Your Part, Pick-n-Pull, and Pull-A-Part. Updated daily, with alerts when a match arrives.";
-
-export const HOME_METADATA: Metadata = {
-  title: { absolute: `${HOME_TITLE} | Junkyard Index` },
-  description: HOME_DESCRIPTION,
-  alternates: { canonical: "/" },
-  openGraph: {
-    ...SITE_OPEN_GRAPH,
-    type: "website",
-    url: "/",
-    title: HOME_TITLE,
-    description: HOME_DESCRIPTION,
-  },
-  twitter: {
-    card: "summary",
-    title: HOME_TITLE,
-    description: HOME_DESCRIPTION,
-  },
-};
+export async function generateHomeMetadata() {
+  const inventory = await getHomepageInventory();
+  return homeMetadata(inventory.yards.length);
+}
 
 export async function HomeLandingPage() {
   const requestHeaders = await headers();
@@ -119,7 +102,7 @@ export async function HomeLandingPage() {
             >
               <YardMap
                 compactMap={compactMap}
-                yards={inventory.yards}
+                yards={inventory.yards.map(MapYard.from)}
                 vehicleCount={vehicleCount}
                 approximateLocation={approximateLocation}
               />
