@@ -2,8 +2,9 @@ import type { Yard } from "~/lib/yard";
 
 export const RIGHTWAY_ORIGIN = "https://rightwayautorecycling.com";
 export const RIGHTWAY_INVENTORY_URL = RIGHTWAY_ORIGIN + "/vehicle-search/";
+// 2.5.11 (2026-11-18 upgrade) serves the same sha256-pinned body as 2.5.10.
 export const RIGHTWAY_SCRIPT_PATH =
-  "/wp-content/plugins/wp-inventory-manager/js/wpinventory.js?ver=2.5.10";
+  "/wp-content/plugins/wp-inventory-manager/js/wpinventory.js?ver=2.5.11";
 
 // Official root confirms this physical address and phone. Coordinates are from
 // its matching saved ASYD business profile, not a map viewport or inferred town.
