@@ -1,3 +1,4 @@
+import { getVehicleModelRedirect } from "~/server/vehicle-model-redirect";
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import {
@@ -25,7 +26,13 @@ export function generateStaticParams(): Params[] {
 async function load(params: Promise<Params>) {
   const requested = await params;
   const data = await getModelPageData(requested.make, requested.model);
-  if (!data) return null;
+  if (!data) {
+    const redirect = await getVehicleModelRedirect(
+      `/cars/${requested.make}/${requested.model}`,
+    );
+    if (redirect) permanentRedirect(redirect);
+    return null;
+  }
   const yards = data.model.yards.flatMap((entry) => {
     const yard = data.yards.get(`${entry.source}:${entry.code}`);
     return yard

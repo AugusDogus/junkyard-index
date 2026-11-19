@@ -8,6 +8,7 @@ export type YardVehicle = {
   year: number;
   make: string;
   model: string;
+  sourceModel?: string | null;
   trim: string | null;
   engine: string | null;
   color: string | null;
@@ -76,6 +77,7 @@ export const YardInventory = {
     year: number;
     make: string;
     model: string;
+    sourceModel?: string | null;
     trim: string | null;
     engine: string | null;
     color: string | null;

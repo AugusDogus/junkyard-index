@@ -10,8 +10,8 @@ import {
 } from "../search-index-schema";
 
 describe("search index schema", () => {
-  it("advances the in-place migration to source cleanup schema 11", () => {
-    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(11);
+  it("advances the in-place migration to VIN canonicalization schema 12", () => {
+    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(12);
   });
   it("treats missing or invalid metadata as version zero", () => {
     expect(getSearchSchemaVersion(undefined)).toBe(0);

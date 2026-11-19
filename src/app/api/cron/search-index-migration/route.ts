@@ -16,7 +16,10 @@ export async function GET(request: Request) {
   }
 
   const run = await pRetry(
-    () => start(searchIndexMigrationWorkflow),
+    () =>
+      start(searchIndexMigrationWorkflow, [
+        new URL(request.url).searchParams.get("force") === "true",
+      ]),
     workflowStartRetryOptions,
   );
   return Response.json(

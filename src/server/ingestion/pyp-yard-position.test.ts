@@ -44,6 +44,8 @@ test("updates a previously unpositioned vehicle from the bulk fixture through se
     existingRows: [
       {
         ...canonical,
+        sourceMake: null,
+        sourceModel: null,
         section: null,
         row: null,
         space: null,

@@ -10,7 +10,7 @@ import {
 const MIGRATION_RUN_TOKEN = "search-index-schema-migration";
 const LOCK_RETRY_DELAY = "30s";
 
-export async function searchIndexMigrationWorkflow() {
+export async function searchIndexMigrationWorkflow(force = false) {
   "use workflow";
 
   using migrationRun = createHook({ token: MIGRATION_RUN_TOKEN });
@@ -49,7 +49,7 @@ export async function searchIndexMigrationWorkflow() {
         reason: "search_rebuild_in_flight",
       };
     }
-    const initialized = await initializeSearchIndexMigrationStep();
+    const initialized = await initializeSearchIndexMigrationStep(force);
     if (initialized.status === "ready") {
       return { status: "completed" as const, migration: initialized.result };
     }

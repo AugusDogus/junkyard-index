@@ -14,6 +14,8 @@ export interface CanonicalVehicle {
   year: number;
   make: string;
   model: string;
+  sourceMake?: string | null;
+  sourceModel?: string | null;
   color: string | null;
   stockNumber: string | null;
   imageUrl: string | null;
@@ -53,6 +55,8 @@ export interface AlgoliaVehicleRecord {
   year: number;
   make: string;
   model: string;
+  sourceMake?: string | null;
+  sourceModel?: string | null;
   color: string | null;
   stockNumber: string | null;
   imageUrl: string | null;
@@ -130,6 +134,8 @@ export function toAlgoliaRecord(
     year: vehicle.year,
     make: vehicle.make,
     model: vehicle.model,
+    sourceMake: vehicle.sourceMake,
+    sourceModel: vehicle.sourceModel,
     color: vehicle.color,
     stockNumber: vehicle.stockNumber,
     imageUrl: vehicle.imageUrl,

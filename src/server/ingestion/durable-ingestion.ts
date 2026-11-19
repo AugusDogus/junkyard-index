@@ -1,3 +1,4 @@
+import { canonicalizeVinVehicles } from "./vin-canonicalization";
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
@@ -230,6 +231,8 @@ export async function reconcileDurableIngestion(
     batchClient: dbClient,
     snapshotStore,
     searchPublication,
+    canonicalize: (rows) => canonicalizeVinVehicles(db, rows),
+    budgetMs: 60_000,
   });
 }
 

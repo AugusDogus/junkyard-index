@@ -113,6 +113,7 @@ async function loadModelArrivals(
       year: vehicle.year,
       make: vehicle.make,
       model: vehicle.model,
+      sourceModel: vehicle.sourceModel,
       trim: vehicle.trim,
       engine: vehicle.engine,
       color: vehicle.color,

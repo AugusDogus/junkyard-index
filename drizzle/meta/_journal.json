@@ -183,6 +183,13 @@
       "when": 1795449600000,
       "tag": "0025_search_projector",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1795536000000,
+      "tag": "0026_vin_canonical_models",
+      "breakpoints": true
     }
   ]
 }

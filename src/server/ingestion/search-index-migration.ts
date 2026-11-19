@@ -1,4 +1,6 @@
 import { AlgoliaError } from "./algolia-error";
+import { backfillVinVehicles } from "./vin-backfill";
+import { InventorySnapshot } from "~/server/inventory-snapshot";
 import { asc, gt } from "drizzle-orm";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import { ALGOLIA_SEARCH_INDEX_NAMES } from "~/lib/constants";
@@ -17,7 +19,7 @@ import {
 } from "./search-index-validation";
 import { configureAlgoliaIndex, syncToAlgolia } from "./sync-algolia";
 
-const DEFAULT_BATCH_SIZE = 1000;
+const DEFAULT_BATCH_SIZE = 100;
 const VALIDATION_SAMPLE_SIZE = 3;
 
 export { SearchIndexMigrationValidationError } from "./search-index-validation";
@@ -99,7 +101,9 @@ async function markSchemaReady(userData: unknown): Promise<void> {
   });
 }
 
-export async function initializeSearchIndexMigration(): Promise<InitializeSearchIndexMigrationResult> {
+export async function initializeSearchIndexMigration(
+  force = false,
+): Promise<InitializeSearchIndexMigrationResult> {
   // A missing index (a new environment) counts as schema version 0: the
   // settings plan creates it and the migration fills it.
   const currentVersion = await getAlgoliaAdminClient()
@@ -115,7 +119,7 @@ export async function initializeSearchIndexMigration(): Promise<InitializeSearch
         throw error;
       },
     );
-  if (currentVersion >= CURRENT_SEARCH_SCHEMA_VERSION) {
+  if (!force && currentVersion >= CURRENT_SEARCH_SCHEMA_VERSION) {
     return {
       status: "ready",
       result: {
@@ -144,11 +148,15 @@ export async function migrateSearchIndexBatch(
   state: SearchIndexMigrationState,
   batchSize = DEFAULT_BATCH_SIZE,
 ): Promise<SearchIndexMigrationBatchResult> {
-  const normalizedBatchSize = Math.max(1, batchSize);
+  const normalizedBatchSize = Math.min(
+    DEFAULT_BATCH_SIZE,
+    Math.max(1, batchSize),
+  );
   const rows = await readVehicleBatch(state.cursor, normalizedBatchSize);
   if (rows.length === 0) return { done: true, state };
 
-  const records = await projectSearchVehicles(db, rows);
+  const projectedRows = await backfillVinVehicles(db, rows);
+  const records = await projectSearchVehicles(db, projectedRows);
   await syncToAlgolia(records, []);
 
   const validationVins = [...state.validationVins];
@@ -183,6 +191,7 @@ export async function finalizeSearchIndexMigration(
   const latestSettings = await getAlgoliaAdminClient().getSettings({
     indexName: ALGOLIA_INDEX_NAME,
   });
+  await InventorySnapshot.project(db, new Date());
   await markSchemaReady(latestSettings.userData);
 
   return {

@@ -42,6 +42,7 @@ export interface Vehicle {
   year: number;
   make: string;
   model: string;
+  sourceModel?: string;
   color: string;
   vin: string;
   stockNumber: string;
@@ -74,6 +75,7 @@ export interface SearchVehicle {
   year: number;
   make: string;
   model: string;
+  sourceModel?: string;
   color: string;
   vin: string;
   stockNumber: string;

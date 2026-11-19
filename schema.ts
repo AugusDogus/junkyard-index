@@ -315,6 +315,24 @@ export const yardArrivalBaseline = sqliteTable(
   (table) => [primaryKey({ columns: [table.source, table.locationCode] })],
 );
 
+/** Pattern identities only; failed attempts have no canonical fields and expire. */
+export const vinDecodeCache = sqliteTable("vin_decode_cache", {
+  pattern: text("pattern").primaryKey(),
+  data: text("data", { mode: "json" }).$type<{
+    make: string;
+    model: string;
+    year: number;
+    trim: string | null;
+  }>(),
+  retryAfter: integer("retry_after", { mode: "timestamp_ms" }),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const vehicleModelRedirect = sqliteTable("vehicle_model_redirect", {
+  fromPath: text("from_path").primaryKey(),
+  toPath: text("to_path").notNull(),
+});
+
 export const vehicle = sqliteTable(
   "vehicle",
   {
@@ -323,6 +341,8 @@ export const vehicle = sqliteTable(
     year: integer("year").notNull(),
     make: text("make").notNull(),
     model: text("model").notNull(),
+    sourceMake: text("source_make"),
+    sourceModel: text("source_model"),
     color: text("color"),
     stockNumber: text("stock_number"),
     imageUrl: text("image_url"),
