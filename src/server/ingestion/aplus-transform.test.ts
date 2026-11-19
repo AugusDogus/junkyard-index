@@ -75,7 +75,7 @@ test("A Plus delimits native arrival aliases only when the whole supplied label 
   record[4] = "/parts/NISSAN.DATSUN/KICKS/ST1/2003";
   expect(transformAplusRecord(record, { make: "", model: "" })).toMatchObject({
     status: "available",
-    vehicle: { make: "Nissan/Datsun", model: "KICKS" },
+    vehicle: { make: "Nissan", model: "KICKS" },
   });
   record[2] = "MERCEDES-BENZ MERCEDES GLC-CLASS";
   record[4] = "/parts/MERCEDES~BENZ/MERCEDES_GLC~CLASS/ST1/2003";

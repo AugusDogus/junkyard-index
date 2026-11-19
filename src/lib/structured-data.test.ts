@@ -65,7 +65,7 @@ describe("StructuredData", () => {
       vin: "1HGCM82633A004352",
       year: 2003,
       make: "HONDA",
-      model: "ACCORD",
+      model: "HONDA ACCORD",
       trim: "EX",
       engine: null,
       color: null,
@@ -85,7 +85,12 @@ describe("StructuredData", () => {
       itemListElement: [
         {
           position: 101,
-          item: { name: "2003 HONDA ACCORD EX", vehicleModelDate: "2003" },
+          item: {
+            name: "2003 Honda ACCORD EX",
+            model: "ACCORD",
+            brand: { name: "Honda" },
+            vehicleModelDate: "2003",
+          },
         },
       ],
     });

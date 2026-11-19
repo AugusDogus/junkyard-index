@@ -58,6 +58,7 @@ test("every saved native control and all 2,027 donor records match the independe
     duplicateVehicles: 0,
   });
   const reference = brandywineReference();
+  // Canonical Mercedes labels use Mercedes-Benz; native MT21 data stays literal.
   expect(
     [...snapshot.vehicles].sort((a, b) =>
       (a.stockNumber ?? "").localeCompare(b.stockNumber ?? ""),
