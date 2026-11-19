@@ -3,6 +3,7 @@ import { Data, Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
   fetchProviderResponse,
+  parseRetryAfterMs,
   type ProviderRequestGate,
 } from "./provider-http-client";
 import type { TruckPartsCatalogRecord } from "./truck-parts-catalog";
@@ -30,14 +31,44 @@ export class WhitebradstreetProviderError extends Data.TaggedError(
   }
 }
 
+/**
+ * The Cloudflare edge answers bursts with HTTP 429. Each paced attempt passes
+ * the request gate again, so a retried page still respects the crawl pacing.
+ * Longer requested waits end the chunk so the checkpoint resumes later.
+ */
+const RATE_LIMITED = 429;
+const MAX_IN_CHUNK_RETRY_AFTER_MS = 60_000;
+
 function read(url: string, gate: ProviderRequestGate) {
   return Effect.gen(function* () {
     const response = yield* fetchProviderResponse({
       url,
       context: "White & Bradstreet " + url,
       requestGate: gate,
-      retry: { timeoutMs: 20_000, retryLimit: 0, retryNetworkErrors: false },
+      retry: {
+        timeoutMs: 20_000,
+        retryLimit: 2,
+        retryBaseDelayMs: 15_000,
+        retryableStatusCodes: [RATE_LIMITED],
+        retryNetworkErrors: false,
+        jitter: false,
+      },
       onResponse: (response) => {
+        if (response.status === RATE_LIMITED) {
+          const waitMs = parseRetryAfterMs(
+            response.headers.get("retry-after"),
+            Date.now(),
+          );
+          if (waitMs > MAX_IN_CHUNK_RETRY_AFTER_MS)
+            throw new Error(
+              "Native endpoint rate-limited the crawl (HTTP 429) and asked to wait " +
+                Math.ceil(waitMs / 1_000) +
+                " seconds, longer than the " +
+                MAX_IN_CHUNK_RETRY_AFTER_MS / 1_000 +
+                "-second in-chunk retry budget; resume the last validated checkpoint after that wait",
+            );
+          return;
+        }
         if (
           response.status !== 200 ||
           response.redirected ||
