@@ -6,6 +6,7 @@ import { AppProviders } from "~/components/AppProviders";
 import { PageShell } from "~/components/PageShell";
 import { SettingsNav } from "~/components/settings/SettingsNav";
 import { auth } from "~/lib/auth";
+import { ReturnTo } from "~/lib/return-to";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -17,9 +18,13 @@ export default async function SettingsLayout({
 }: {
   children: ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session?.user) {
-    redirect("/auth/sign-in?returnTo=%2Fsettings%2Fsearches");
+    const returnTo = ReturnTo.parse(
+      requestHeaders.get("x-settings-return-to") ?? "/settings/searches",
+    );
+    redirect(`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
   return (

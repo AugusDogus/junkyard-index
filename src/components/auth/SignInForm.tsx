@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn } from "~/lib/auth-client";
+import { ReturnTo } from "~/lib/return-to";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -17,7 +18,7 @@ import { AlertCircle } from "lucide-react";
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo");
+  const returnTo = ReturnTo.parse(searchParams.get("returnTo"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -51,7 +52,7 @@ export function SignInForm() {
         Analytics.capture(AnalyticsEvents.SIGN_IN_SUCCEEDED, {
           method: "email",
         });
-        router.push(returnTo || "/search");
+        router.push(returnTo);
         router.refresh();
       }
     } catch (err) {
@@ -76,7 +77,7 @@ export function SignInForm() {
     try {
       await signIn.social({
         provider: "discord",
-        callbackURL: returnTo || "/search",
+        callbackURL: returnTo,
         requestSignUp: false,
       });
     } catch (err) {
@@ -173,11 +174,7 @@ export function SignInForm() {
       <div className="text-muted-foreground text-center text-sm">
         Don't have an account?{" "}
         <Link
-          href={
-            returnTo
-              ? `/auth/sign-up?returnTo=${encodeURIComponent(returnTo)}`
-              : "/auth/sign-up"
-          }
+          href={`/auth/sign-up?returnTo=${encodeURIComponent(returnTo)}`}
           className="text-signal hover:underline"
         >
           Sign up

@@ -77,6 +77,9 @@ function toSavedSearch(
   const query = commit.kind === "query" ? commit.value : "";
   const parsedQuery = parseAdvancedSearchQuery(query);
   if (!parsedQuery.success) return parsedQuery;
+  const defaultYearRange =
+    value.yearRange[0] === SEARCHABLE_VEHICLE_YEAR_RANGE.min &&
+    value.yearRange[1] === SEARCHABLE_VEHICLE_YEAR_RANGE.max;
   const filters = filtersSchema.safeParse({
     vinPattern: commit.kind === "vin" ? commit.value : undefined,
     makes: value.makes.length ? value.makes : undefined,
@@ -85,8 +88,8 @@ function toSavedSearch(
     salvageYards: value.salvageYards.length ? value.salvageYards : undefined,
     sources: value.sources.length ? value.sources : undefined,
     yardTypes: value.yardTypes.length ? value.yardTypes : undefined,
-    minYear: value.yearRange[0],
-    maxYear: value.yearRange[1],
+    minYear: defaultYearRange ? undefined : value.yearRange[0],
+    maxYear: defaultYearRange ? undefined : value.yearRange[1],
     sortBy: value.sortBy,
   });
   if (!filters.success) {

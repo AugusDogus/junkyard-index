@@ -8,10 +8,18 @@ import { NextResponse, type NextRequest } from "next/server";
  * which works signed out too.
  */
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/settings")) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(
+      "x-settings-return-to",
+      request.nextUrl.pathname + request.nextUrl.search,
+    );
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
   if (getSessionCookie(request)) {
     return NextResponse.redirect(new URL("/search", request.url));
   }
   return NextResponse.next();
 }
 
-export const config = { matcher: "/" };
+export const config = { matcher: ["/", "/settings/:path*"] };
