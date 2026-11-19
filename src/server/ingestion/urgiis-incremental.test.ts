@@ -7,6 +7,10 @@ import { iisCards, iisDirectory } from "./urgiis-catalog";
 import { urgiisSnapshot, validateUrgiisSnapshot } from "./urgiis-snapshot";
 import { streamUrgiisInventory } from "./urgiis-connector";
 import { urgiisError } from "./urgiis-client";
+import {
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 import { UrgiisCursor, URGIIS_MAX_CURSOR_BYTES } from "./urgiis-cursor";
 import { URGIIS_DAY_MS as DAY, UrgiisCensus } from "./urgiis-census";
 import { IngestionSnapshotStore } from "./ingestion-snapshot-store";
@@ -68,6 +72,8 @@ interface Day {
   badgeCount?: number;
   replace?: { path: string; records: UrgiisRecord[] };
   fail?: string | readonly string[];
+  /** Failed reads report that their retry could not get a shared host turn. */
+  retryDeferred?: boolean;
   reads?: string[];
   maxPages?: number;
   clock?: (chunk: number) => number;
@@ -125,9 +131,17 @@ async function run(day: Day = {}) {
               ? path === day.fail
               : day.fail?.includes(path)
           )
-            return Effect.fail(
-              urgiisError("request/body " + url, "offline repeated HTTP500"),
-            );
+            return Effect.fail({
+              ...urgiisError("request/body " + url, "offline repeated HTTP500"),
+              ...(day.retryDeferred && {
+                retryDeferred: new ProviderTurnDeferred({
+                  host: "URG IIS",
+                  stage: "wait",
+                  elapsedMs: 330_000,
+                  queuedMs: 300_000,
+                }),
+              }),
+            });
           if (path === tenant.ownerPath) return Effect.succeed(owner);
           if (path === tenant.makesPath)
             return Effect.succeed(directory(makes, "makes"));
@@ -398,6 +412,30 @@ test("failed model carries its donors, persists a retry, and cannot reset the re
   ).rejects.toThrow("offline repeated HTTP500");
   const recovered = await run({ previous: failed.cursor, badge: path });
   expect(readModels(recovered)).toEqual([tenant.origin + path]);
+});
+test("a failed model whose retry could not get a shared host turn still carries its donors", async () => {
+  // Under 07:00 contention a failing page's retries cannot all get turns in
+  // one chunk. A model page must still reach its carry instead of deferring
+  // the chunk onto the same page until the source gives up.
+  const path = target().model.path;
+  const failed = await run({
+    previous: baseline.cursor,
+    badge: path,
+    fail: path,
+    retryDeferred: true,
+  });
+  expect(failed.vehicles).toEqual(baseline.vehicles);
+  expect(readModels(failed)).toEqual([tenant.origin + path]);
+  expect(failed.warnings.join(" ")).toContain("Retry next run");
+  // Any other page defers the chunk with its cursor unchanged.
+  const deferral = await run({
+    previous: baseline.cursor,
+    fail: tenant.makesPath,
+    retryDeferred: true,
+  }).catch((error: unknown) => error);
+  expect(ProviderChunkClock.deferralOf(deferral)).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
 });
 test("first-census page failures and parse/structural drift never use a carry", async () => {
   await expect(run({ fail: target().model.path })).rejects.toThrow(

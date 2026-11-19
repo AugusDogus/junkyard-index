@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import {
   fetchPickersApp,
   fetchPickersConfig,
@@ -30,6 +30,7 @@ import {
   type PickersNativeRow,
 } from "./pickers-parser";
 import {
+  PICKERS_SEARCH_URL,
   PICKERS_SITES,
   type PickersSite,
   type PickersYard,
@@ -37,6 +38,8 @@ import {
 import type { PickersCanonicalVehicle } from "./pickers-transform";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
 
 interface PickersOptions<E, R> {
@@ -50,6 +53,15 @@ export type PickersStreamResult = ConnectorChunkResult<
   "pickers",
   PickersCursor
 >;
+type PickersSearchResponse = Effect.Effect.Success<
+  ReturnType<typeof fetchPickersSearch>
+>;
+/** The literal pair a query or bookend control at `next` searches. */
+const searchIndex = (
+  kind: "query" | "bookend",
+  next: number,
+  state: PickersState,
+) => (kind === "bookend" ? (next === 0 ? 0 : state.pairs.length - 1) : next);
 const requireCapacity = (requests: number) =>
   pickersValidated("HTTP capacity", () => {
     if (requests >= PICKERS_MAX_REQUESTS)
@@ -153,11 +165,16 @@ export function streamPickersInventoryWithRequestGate<E, R>(
     let state: PickersState;
     let phase: "native-opening" | "queries" | "native-closing" | "bookends";
     let next: number;
+    // A resumed query or bookend chunk reads its first search in the same
+    // shared host turn as the config guard, so it advances with one turn.
+    let prefetched: PickersSearchResponse | null = null;
     if (initial.phase === "start") {
       const owner = yield* fetchPickersOwner(gate, site);
       const app = yield* fetchPickersApp(gate, site);
       const inventory = yield* fetchPickersInventory(gate, undefined, site);
-      const config = yield* fetchPickersConfig(gate, site);
+      const config = yield* fetchPickersConfig(gate, site).pipe(
+        sharedProviderHostTurn(site.configUrl),
+      );
       state = {
         ...(site.code === "pickers-texarkana" ? {} : { siteCode: site.code }),
         scopeHash: "",
@@ -213,7 +230,24 @@ export function streamPickersInventoryWithRequestGate<E, R>(
         );
       });
       yield* requireCapacity(state.requests);
-      const config = yield* fetchPickersConfig(gate, site);
+      const searchKind =
+        phase === "queries" ? "query" : phase === "bookends" ? "bookend" : null;
+      const firstPair =
+        searchKind !== null &&
+        next < (searchKind === "query" ? state.pairs.length : 2)
+          ? state.pairs[searchIndex(searchKind, next, state)]
+          : undefined;
+      // The config guard adds one request before the first search.
+      if (firstPair) yield* requireCapacity(state.requests + 1);
+      const resumed = yield* Effect.gen(function* () {
+        const config = yield* fetchPickersConfig(gate, site);
+        const search = firstPair
+          ? yield* fetchPickersSearch(firstPair, gate, site)
+          : null;
+        return { config, search };
+      }).pipe(sharedProviderHostTurn(site.configUrl, firstPair ? 2 : 1));
+      const { config } = resumed;
+      prefetched = resumed.search;
       yield* pickersValidated("resumed public location", () => {
         if (config.value !== state.configHash)
           throw new Error(
@@ -231,7 +265,9 @@ export function streamPickersInventoryWithRequestGate<E, R>(
     while (
       next < phaseLength &&
       summary.pagesProcessed < maxPages &&
-      Date.now() - started < 155_000
+      // The first control always runs: a shared host turn before it may
+      // already have waited past this soft check.
+      (summary.pagesProcessed === 0 || Date.now() - started < 155_000)
     ) {
       yield* requireCapacity(state.requests);
       const kind =
@@ -287,15 +323,25 @@ export function streamPickersInventoryWithRequestGate<E, R>(
           });
         });
       } else {
-        const queryIndex =
-          kind === "bookend" ? (next === 0 ? 0 : state.pairs.length - 1) : next;
+        const queryIndex = searchIndex(kind, next, state);
         const pair = state.pairs[queryIndex];
         if (!pair)
           return yield* new PickersProviderError({
             operation: "public directory",
             cause: "Missing literal native make/model",
           });
-        const response = yield* fetchPickersSearch(pair, gate, site);
+        let response: PickersSearchResponse;
+        if (prefetched) {
+          response = prefetched;
+          prefetched = null;
+        } else {
+          const read = yield* fetchPickersSearch(pair, gate, site).pipe(
+            sharedProviderHostTurn(PICKERS_SEARCH_URL),
+            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+          );
+          if (Option.isNone(read)) break;
+          response = read.value;
+        }
         yield* pickersValidated(
           "whole public records and stock binding",
           () => {
@@ -458,7 +504,7 @@ export function streamPickersInventoryWithRequestGate<E, R>(
     );
     return { ...summary, cursor };
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new PickersProviderError({

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { inventoryVinWithCheckDigit } from "./inventory-vin-check-digit";
 import { streamIdipullInventoryWithRequestGate } from "./idipull-connector";
 import { IdipullCursor, IdipullCursorSchema } from "./idipull-cursor";
@@ -11,6 +11,8 @@ import {
   idipullTestRecord,
   idipullTestRow,
 } from "./idipull-test-fixtures";
+import { ProviderTurnDeferred } from "./provider-chunk-clock";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -339,3 +341,51 @@ test.each([
     await expect(run()).rejects.toThrow("closing inventory");
   },
 );
+
+const queuedCatalog = (turnWaitMs: number) =>
+  runWithQueuedHost(
+    // Build the crawl once the queued host environment is in place.
+    Effect.suspend(() =>
+      streamIdipullInventoryWithRequestGate(
+        {
+          onBatch: () => Effect.void,
+          asOf: new Date("2026-11-16T12:00:00Z"),
+        },
+        gate,
+      ),
+    ),
+    { turnWaitMs },
+  );
+
+test("Idaho Falls reads its home page and both catalogs in one shared host turn", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // two minutes. The opening and closing catalog reads hold one lease.
+  const requests = mockInventory();
+  const { result, elapsedMs, turns } = await queuedCatalog(2 * 60_000);
+  if (Either.isLeft(result)) throw result.left;
+  expect(result.right).toMatchObject({
+    status: "complete",
+    count: 1,
+    cursor: { source: "idipull", phase: "complete" },
+  });
+  expect(requests).toEqual(["/", "/inventory/", "/inventory/"]);
+  expect(elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(turns).toHaveLength(1);
+  expect(turns[0]?.releasedAt).not.toBeNull();
+}, 120_000);
+
+test("an Idaho Falls catalog without a turn in time is deferred whole", async () => {
+  // Three requests still fit a five-minute turn before the chunk's turn
+  // horizon, so only a longer queue defers the crawl.
+  const requests = mockInventory();
+  const { result, elapsedMs, turns, cancelled } = await queuedCatalog(
+    6 * 60_000,
+  );
+  expect(Either.isLeft(result) && result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(turns).toHaveLength(0);
+  expect(cancelled).toBe(1);
+  expect(requests).toEqual([]);
+}, 60_000);

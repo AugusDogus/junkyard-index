@@ -1,23 +1,30 @@
 import { describe, expect, test, spyOn } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import {
   JimsimportProviderError,
   readJimsimportPage,
 } from "./jimsimport-client";
 import { streamJimsimportInventory } from "./jimsimport-connector";
 import { JimsimportCursor } from "./jimsimport-cursor";
-import { jimsimportHash } from "./jimsimport-parser";
+import {
+  jimsimportHash,
+  parseJimsimportModel,
+  type JimsimportPage,
+} from "./jimsimport-parser";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   jimsimportFixture,
   jimsimportOpeningFixture,
 } from "./jimsimport-test-fixtures";
 import {
+  jimsimportModels,
   jimsimportSnapshot,
   validateJimsimportSnapshot,
   type JimsimportVehicle,
 } from "./jimsimport-transform";
 import {
   JIMSIMPORT_CATALOG,
+  JIMSIMPORT_ORIGIN,
   JIMSIMPORT_OWNER,
   JIMSIMPORT_YARD,
 } from "./jimsimport-yard-metadata";
@@ -427,3 +434,122 @@ describe("Jim's Import complete census guards", () => {
     }
   });
 });
+
+/** Renders a saved opening page as native model HTML, from the CL capture. */
+function nativeModelPage(page: JimsimportPage) {
+  const body = jimsimportFixture("cl").body;
+  const start = body.indexOf('<div class="aps-la-card-wrapper">');
+  let end = body.indexOf("See Inventory</a>");
+  for (let closed = 0; closed < 3; closed++)
+    end = body.indexOf("</div>", end) + "</div>".length;
+  const card = body.slice(start, end);
+  const literal = (value: string) => () => value;
+  const cards = page.records.map((record) => {
+    const [link, parts] = record.destinations;
+    if (!link || !parts || record.destinations.length !== 2 || !record.image)
+      throw new Error("Fixture renderer covers two links and one image only");
+    return card
+      .replace('id="2F572"', literal(`id="${record.id}"`))
+      .replace(
+        /https:\/\/jimsimport\.com\/used-parts\/ACURA\/CL\/2F572\/1999/,
+        literal(link),
+      )
+      .replace(
+        /https:\/\/jimsimport\.com\/used-parts\/ACURA\/CL\/2F572\/1999/,
+        literal(parts),
+      )
+      .replaceAll("ACURA CL", literal(record.title))
+      .replace("VIN: -", literal("VIN: " + (record.vin ?? "")))
+      .replace(
+        /(Year<\/span>\s*)1999/,
+        (_, label: string) => label + record.year,
+      )
+      .replace(
+        '<div class="aps-la-stat-value">2F572</div>',
+        literal(`<div class="aps-la-stat-value">${record.stock}</div>`),
+      )
+      .replace(/src="[^"]*"/, literal(`src="${record.image}"`));
+  });
+  return body.slice(0, start) + cards.join("") + body.slice(end);
+}
+
+test("Jim's Import closing tail and owner re-read complete when every GET waits two minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // each request, including the terminal owner re-read, waited about two
+  // minutes for its turn.
+  const state = closingState();
+  const models = jimsimportModels(state.menus);
+  const remaining = 4;
+  const native = new Map<string, string>([
+    [JIMSIMPORT_OWNER, jimsimportFixture("owner").body],
+  ]);
+  state.opening.slice(-remaining).forEach((page, offset) => {
+    const context = models[state.opening.length - remaining + offset];
+    if (!context) throw new Error("Missing fixture model control");
+    const html = nativeModelPage(page);
+    expect(parseJimsimportModel(html, context.make, context.model)).toEqual(
+      page,
+    );
+    native.set(JIMSIMPORT_ORIGIN + context.model.path, html);
+  });
+  const calls: string[] = [];
+  const emitted: JimsimportVehicle[][] = [];
+  let cursor: unknown = JimsimportCursor.checkpoint({
+    ...state,
+    phase: "closing",
+    closing: state.opening.slice(0, -remaining),
+  });
+  const pages: number[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      calls.push(url);
+      const body = native.get(url);
+      if (body === undefined)
+        throw new Error("Unexpected fixture request " + url);
+      return new Response(body, { headers: { "content-type": "text/html" } });
+    },
+    { preconnect: original.preconnect },
+  );
+  try {
+    for (let count = 0; count < 10; count++) {
+      const chunk = await runWithQueuedHost(
+        streamJimsimportInventory({
+          previousUniqueInventory: null,
+          startCursor: cursor,
+          readPage: (url) => readJimsimportPage(url, (request) => request),
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              emitted.push(batch);
+            }),
+        }),
+        { turnWaitMs: 2 * 60_000 },
+      );
+      if (Either.isLeft(chunk.result)) throw chunk.result.left;
+      const result = chunk.result.right;
+      pages.push(result.pagesProcessed);
+      // Every chunk returns its checkpoint and releases each lease in time.
+      expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+      expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+      cursor = JSON.parse(JSON.stringify(result.cursor));
+      if (result.status === "complete") {
+        expect(result.count).toBe(3649);
+        break;
+      }
+      expect(emitted).toEqual([]);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+  expect(pages.reduce((sum, value) => sum + value, 0)).toBe(remaining + 1);
+  expect(pages.every((value) => value > 0)).toBe(true);
+  expect(calls).toHaveLength(remaining + 1);
+  expect(calls.at(-1)).toBe(JIMSIMPORT_OWNER);
+  expect(emitted).toHaveLength(1);
+}, 120_000);

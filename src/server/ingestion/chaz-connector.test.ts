@@ -1,6 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
-import { streamChazInventoryWithRequestGate } from "./chaz-connector";
+import { Effect, Either } from "effect";
+import {
+  streamChazInventory,
+  streamChazInventoryWithRequestGate,
+  type ChazStreamResult,
+} from "./chaz-connector";
 import { ChazCursor, ChazCursorSchema } from "./chaz-cursor";
 import type { ChazRecord } from "./chaz-parser";
 import type { ChazCanonicalVehicle } from "./chaz-transform";
@@ -19,6 +23,7 @@ import {
   chazFixtureRecord,
   chazFixtureRoot,
 } from "./chaz-test-fixtures";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -245,3 +250,34 @@ test("Chaz HTTP failures do not retry and completed cursors make no requests", a
   expect(complete.pagesProcessed).toBe(0);
   expect(requests).toBe(1);
 });
+
+test("Chaz completes a full crawl when every request waits two minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // each request waited about two minutes for its turn.
+  const { urls } = transport();
+  let cursor: ChazCursor = ChazCursor.initial;
+  const pages: number[] = [];
+  let count = 0;
+  while (cursor.phase !== "complete") {
+    const chunk = await runWithQueuedHost(
+      streamChazInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        onBatch: () => Effect.void,
+      }),
+      { turnWaitMs: 2 * 60_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    const result: ChazStreamResult = chunk.result.right;
+    pages.push(result.pagesProcessed);
+    count = result.count;
+    cursor = ChazCursor.parse(ChazCursor.serialize(result.cursor));
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(result.pagesProcessed).toBeGreaterThan(0);
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(pages).toEqual([2, 2, 2, 2, 2]);
+  expect(count).toBe(901);
+  expect(urls).toHaveLength(10);
+}, 120_000);

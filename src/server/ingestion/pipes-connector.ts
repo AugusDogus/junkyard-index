@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import {
   fetchPipesControl,
   PipesProviderError,
@@ -21,10 +21,18 @@ import {
   pipesPairs,
   PIPES_MAX_RESPONSE_BYTES,
 } from "./pipes-parser";
-import { PIPES_YARD, type PipesYard } from "./pipes-yard-metadata";
+import {
+  PIPES_CONFIG_URL,
+  PIPES_ORIGIN,
+  PIPES_SEARCH_URL,
+  PIPES_YARD,
+  type PipesYard,
+} from "./pipes-yard-metadata";
 import type { PipesCanonicalVehicle } from "./pipes-transform";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface PipesOptions<E, R> {
   startCursor?: PipesCursor;
@@ -230,7 +238,20 @@ export function streamPipesInventoryWithRequestGate<E, R>(
         nextControl(cursor),
       );
       if (!control) break;
-      const raw = yield* fetchPipesControl(control, gate);
+      // Only the public config and search controls share the VinPlus queue;
+      // the native origin has no shared host policy.
+      const page = yield* fetchPipesControl(control, gate).pipe(
+        sharedProviderHostTurn(
+          control.kind === "query"
+            ? PIPES_SEARCH_URL
+            : control.kind === "context" && control.index === 3
+              ? PIPES_CONFIG_URL
+              : PIPES_ORIGIN,
+        ),
+        ProviderChunkClock.unlessDeferred(pagesProcessed > 0),
+      );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       cursor = yield* validated("complete control prefix", () =>
         advance(cursor, control, raw),
       );
@@ -273,7 +294,7 @@ export function streamPipesInventoryWithRequestGate<E, R>(
     if (options.onYards) yield* options.onYards([{ ...PIPES_YARD }]);
     return terminal;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new PipesProviderError({

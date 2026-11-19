@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { PrattContract, type PrattYard } from "./pratt-contract";
 import {
@@ -12,6 +12,7 @@ import { PrattResult, type PrattError } from "./pratt-result";
 import { prattSnapshot, validatePrattSnapshot } from "./pratt-snapshot";
 import type { PrattCanonicalVehicle } from "./pratt-transform";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface PrattOptions<E, R> {
   contract: PrattContract;
@@ -116,8 +117,6 @@ export function streamPrattInventory<E, R>(options: PrattOptions<E, R>) {
         );
       } else {
         if (summary.pagesProcessed >= budget) break;
-        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
-          break;
         if (
           cursor.requests >= PRATT_MAX_REQUESTS ||
           cursor.bytes > PRATT_MAX_TOTAL_BYTES - PRATT_MAX_BODY_BYTES
@@ -129,7 +128,14 @@ export function streamPrattInventory<E, R>(options: PrattOptions<E, R>) {
             ),
           );
         const url = yield* unwrap(prattNextUrl(cursor));
-        const raw = yield* options.readPage(url);
+        const page = yield* options
+          .readPage(url)
+          .pipe(
+            sharedProviderHostTurn(url),
+            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+          );
+        if (Option.isNone(page)) break;
+        const raw = page.value;
         cursor = yield* unwrap(prattAdvance(cursor, raw, contract));
         summary.pagesProcessed++;
       }

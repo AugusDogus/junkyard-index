@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Effect, Fiber, TestClock, TestContext } from "effect";
+import { Effect, Either, Fiber, TestClock, TestContext } from "effect";
 import { inventoryHtmlAttribute } from "./inventory-html";
 import {
   alliedFixture,
@@ -7,9 +7,13 @@ import {
   alliedValue,
 } from "./allied-test-fixtures";
 import { AlliedCursor, ALLIED_MAX_TOTAL_BYTES } from "./allied-cursor";
-import { streamAlliedInventory } from "./allied-connector";
+import {
+  streamAlliedInventory,
+  streamAlliedInventoryFromProvider,
+} from "./allied-connector";
 import { AlliedResult } from "./allied-result";
 import { ALLIED_ORIGIN } from "./allied-html";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 // Reduce real native directories for traversal tests only. The census test
 // separately verifies the entire 45-make graph without reducing its controls.
@@ -218,3 +222,54 @@ test("Allied chunk deadline interrupts a stalled reader before publication", asy
     expect(result.left.message).toContain("Four-minute limit");
   expect(h.batches).toEqual([]);
 });
+
+test("Allied keeps advancing when every shared host turn waits minutes", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // 2.5 minutes. The old four-minute wall deadline counted that queue time and
+  // failed every chunk before it could return its first page's checkpoint.
+  const h = harness();
+  const original = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: string | URL | Request) => {
+      const url = (input instanceof Request ? input.url : String(input))
+        .replaceAll("%28", "(")
+        .replaceAll("%29", ")");
+      fetched.push(url);
+      const raw = h.docs.get(url);
+      if (raw === undefined) throw new Error("Unexpected Allied request");
+      return new Response(raw, { headers: { "content-type": "text/html" } });
+    },
+    { preconnect: original.preconnect },
+  );
+  try {
+    let cursor: unknown = undefined;
+    const pages: number[] = [];
+    let status = "paused";
+    while (status !== "complete" && pages.length < 8) {
+      const chunk = await runWithQueuedHost(
+        streamAlliedInventoryFromProvider({
+          contract: h.options.contract,
+          previousUniqueInventory: null,
+          onBatch: h.options.onBatch,
+          startCursor: cursor,
+          maxPages: 4,
+        }),
+        { turnWaitMs: 150_000 },
+      );
+      if (Either.isLeft(chunk.result)) throw chunk.result.left;
+      pages.push(chunk.result.right.pagesProcessed);
+      status = chunk.result.right.status;
+      cursor = chunk.result.right.cursor;
+      // Every chunk returns its checkpoint and releases each lease in time.
+      expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+      expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    }
+    expect(status).toBe("complete");
+    expect(pages).toEqual([2, 2, 2, 2]);
+    expect(fetched).toHaveLength(8);
+    expect(h.batches).toHaveLength(1);
+  } finally {
+    globalThis.fetch = original;
+  }
+}, 120_000);

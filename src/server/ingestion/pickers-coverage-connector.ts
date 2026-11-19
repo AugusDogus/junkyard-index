@@ -10,6 +10,10 @@ import type { PickersCanonicalVehicle } from "./pickers-transform";
 import type { PickersYard } from "./pickers-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
 import type { PickersProviderError } from "./pickers-client";
+import type {
+  ProviderChunkWallTimeout,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 
 interface Options<E, R> {
   startCursor?: PickersCoverageCursor;
@@ -22,7 +26,11 @@ export function streamPickersCoverageWithRequestGate<E, R>(
   gate: ProviderRequestGate,
 ): Effect.Effect<
   ConnectorChunkResult<"pickers", PickersCoverageCursor>,
-  PickersProviderError | E,
+  | PickersProviderError
+  | ProviderTurnDeferred
+  | ProviderChunkWallTimeout
+  | Error
+  | E,
   R
 > {
   return Effect.gen(function* () {

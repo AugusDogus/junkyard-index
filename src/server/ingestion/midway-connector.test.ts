@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
-import { streamMidwayInventoryWithRequestGate } from "./midway-connector";
+import { Effect, Either } from "effect";
+import {
+  streamMidwayInventory,
+  streamMidwayInventoryWithRequestGate,
+} from "./midway-connector";
 import type { MidwayCursor } from "./midway-cursor";
 import type { MidwayRecord } from "./midway-parser";
 import type { MidwayCanonicalVehicle } from "./midway-transform";
@@ -11,6 +14,7 @@ import {
   midwayTestRecord,
   midwayTestRow,
 } from "./midway-test-fixtures";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -269,3 +273,53 @@ test("Midway rejects a redirected response before callbacks", async () => {
   });
   await expect(run()).rejects.toThrow("unredirected HTTP 200");
 });
+
+test("Midway keeps advancing through its first yards when every shared host turn waits minutes", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // 2.5 minutes. The old five-minute wall deadline counted that queue time,
+  // and the ownership page took a turn of its own before every yard.
+  const requests = mockInventory();
+  const vehicles: MidwayCanonicalVehicle[] = [];
+  const chunk = (startCursor: MidwayCursor | undefined) =>
+    runWithQueuedHost(
+      streamMidwayInventory({
+        startCursor,
+        maxPages: 2,
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles.push(...batch);
+          }),
+      }),
+      { turnWaitMs: 150_000 },
+    );
+  const first = await chunk(undefined);
+  if (Either.isLeft(first.result)) throw first.result.left;
+  // The ownership page and MO38 share one turn, and the chunk advances.
+  expect(first.result.right.pagesProcessed).toBe(1);
+  expect(first.result.right.cursor).toMatchObject({ yardCode: "MO09" });
+  expect(first.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(first.turns).toHaveLength(1);
+  expect(first.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["KS"]);
+  expect(requests.map((url) => new URL(url).searchParams.get("id"))).toEqual([
+    null,
+    "MO38",
+  ]);
+
+  // A resumed chunk re-checks ownership in the same turn as its next yard.
+  requests.length = 0;
+  vehicles.length = 0;
+  if (first.result.right.cursor.phase !== "yard")
+    throw new Error("Expected a yard checkpoint");
+  const second = await chunk(first.result.right.cursor);
+  if (Either.isLeft(second.result)) throw second.result.left;
+  expect(second.result.right.pagesProcessed).toBe(1);
+  expect(second.result.right.cursor).toMatchObject({ yardCode: "OO95" });
+  expect(second.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(second.turns).toHaveLength(1);
+  expect(vehicles.map((v) => v.stateAbbr)).toEqual(["MO"]);
+  expect(requests.map((url) => new URL(url).searchParams.get("id"))).toEqual([
+    null,
+    "MO09",
+  ]);
+}, 120_000);

@@ -17,8 +17,10 @@ import type {
   DurableIngestionWakeupResult,
   DurableReconciliationBatchResult,
   DurableIngestionStart,
+  DurableSourceChunkDeferral,
   DurableSourceChunkResult,
 } from "./durable-ingestion-types";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   getDurableSourceDefinition,
   type DurableCursorFor,
@@ -42,6 +44,7 @@ export type {
   DurableIngestionResult,
   DurableIngestionWakeupResult,
   DurableReconciliationBatchResult,
+  DurableSourceChunkDeferral,
   DurableSourceChunkResult,
   InitializeDurableIngestionResult,
 } from "./durable-ingestion-types";
@@ -132,7 +135,9 @@ export async function runDurableSourceChunk<
 >(params: {
   runId: string;
   cursor: DurableCursorFor<Source>;
-}): Promise<DurableSourceChunkResult<Source>> {
+}): Promise<
+  DurableSourceChunkResult<Source> | DurableSourceChunkDeferral<Source>
+> {
   const checkpoint = await repository.getCheckpoint({
     runId: params.runId,
     requestedCursor: params.cursor,
@@ -141,6 +146,13 @@ export async function runDurableSourceChunk<
 
   const fetched = await fetchDurableSourceChunk(params.cursor).catch(
     async (error: unknown) => {
+      const deferral = ProviderChunkClock.deferralOf(error);
+      if (deferral)
+        return {
+          status: "deferred" as const,
+          cursor: params.cursor,
+          message: `${params.cursor.source}: ${deferral.message}`,
+        };
       if (!isValidationRejection(error)) throw error;
       return repository.markSourceFailed({
         runId: params.runId,

@@ -9,8 +9,13 @@ import type { DurableIngestionResult } from "./durable-ingestion-types";
 import {
   DURABLE_INGESTION_SOURCES,
   DURABLE_INITIAL_SOURCE_CURSORS,
+  type DurableCursorFor,
   type DurableSourceCursor,
 } from "./durable-source";
+import type {
+  DurableWorkflowChunkDeferral,
+  DurableWorkflowChunkResult,
+} from "./durable-workflow-cursor";
 
 function pypCursorFromBoundary(): DurableSourceCursor {
   return { source: "pyp", storeCodes: null, storeIndex: 0, page: 0 };
@@ -632,4 +637,104 @@ test("a persisted provider retry time sleeps before the first resumed chunk", as
   release();
   expect((await pending).status).toBe("complete");
   expect(requests).toBe(1);
+});
+
+describe("chunks deferred by a deep shared host queue", () => {
+  const initialCursor: DurableCursorFor<"row52"> = {
+    source: "row52",
+    afterLocationId: 0,
+    locationIds: [],
+    skip: 0,
+  };
+  const deferral: DurableWorkflowChunkDeferral<"row52"> = {
+    status: "deferred",
+    cursor: initialCursor,
+    message: "row52: URG IIS shared host turn did not arrive.",
+  };
+  const paused: DurableWorkflowChunkResult<"row52"> = {
+    cursor: { ...initialCursor, skip: 1 },
+    status: "paused",
+    count: 0,
+    pagesProcessed: 1,
+    errors: [],
+  };
+
+  test("retry the same cursor after a durable pause, then keep advancing", async () => {
+    const outcomes = [deferral, deferral, paused, deferral];
+    const cursors: number[] = [];
+    const waits: number[] = [];
+    const now = spyOn(Date, "now");
+    let clock = 0;
+    now.mockImplementation(() => clock);
+    try {
+      const result = await ingestDurableSource({
+        runId: "run-1",
+        initialCursor,
+        operations: {
+          sleepUntil: async (time) => {
+            waits.push(time - clock);
+            clock = time;
+          },
+          runChunk: async (_runId, cursor) => {
+            if ("snapshotCursor" in cursor || cursor.source !== "row52")
+              throw new Error("Expected an inline Row52 cursor");
+            cursors.push(cursor.skip);
+            return (
+              outcomes.shift() ?? {
+                ...paused,
+                cursor: { ...initialCursor, skip: 2 },
+                status: "complete",
+              }
+            );
+          },
+          markFailed: async () => {
+            throw new Error("A deferral must not fail the source");
+          },
+        },
+      });
+      expect(result.status).toBe("complete");
+    } finally {
+      now.mockRestore();
+    }
+    expect(cursors).toEqual([0, 0, 0, 1, 1]);
+    expect(waits).toEqual([300_000, 300_000, 300_000]);
+  });
+
+  test("fail the source clearly once no chunk has advanced for three hours", async () => {
+    const now = spyOn(Date, "now");
+    let clock = 0;
+    now.mockImplementation(() => clock);
+    let chunks = 0;
+    try {
+      const result = await ingestDurableSource({
+        runId: "run-1",
+        initialCursor,
+        operations: {
+          sleepUntil: async (time) => {
+            clock = time;
+          },
+          runChunk: async () => {
+            chunks++;
+            return deferral;
+          },
+          markFailed: async (_runId, _source, message) => ({
+            cursor: initialCursor,
+            status: "failed",
+            count: 0,
+            pagesProcessed: 0,
+            errors: [message],
+          }),
+        },
+      });
+      expect(result.status).toBe("failed");
+      expect(result.errors[0]).toContain(
+        "row52 ingestion failed: row52: URG IIS shared host turn did not arrive.",
+      );
+      expect(result.errors[0]).toContain("No chunk advanced for 180 minutes");
+      expect(result.errors[0]).toContain("Prior inventory is preserved");
+    } finally {
+      now.mockRestore();
+    }
+    expect(chunks).toBe(37);
+  });
 });

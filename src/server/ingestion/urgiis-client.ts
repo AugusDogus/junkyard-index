@@ -1,5 +1,6 @@
 import { IisSupplierIdentityError } from "./iis-supplier-identity";
-import { sharedProviderHostSlot } from "./shared-provider-host";
+import { ProviderTurnDeferred } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 import { Effect, Schedule } from "effect";
 import { parseRetryAfterMs } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
@@ -11,6 +12,9 @@ export type UrgiisError = {
   tag: "UrgiisError";
   operation: string;
   message: string;
+  /** Set when a retry of this failed read could not get a shared host turn
+   * within the chunk, so fewer attempts than usual ran. */
+  retryDeferred?: ProviderTurnDeferred;
 } & (
   | { kind: "failure" }
   | { kind: "identity" }
@@ -52,7 +56,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
   ).href
     .replaceAll("(", "%28")
     .replaceAll(")", "%29");
-  return Effect.suspend(() => {
+  const attempt = Effect.suspend(() => {
     const request = Effect.tryPromise({
       try: async (signal) => {
         const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
@@ -133,23 +137,49 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
         }),
       ),
     );
+    // Each attempt takes its own shared host turn, so client pacing and retry
+    // backoff run after the lease is released. A deferred turn sent no request:
+    // it is neither a provider failure nor retried.
     return serial.withPermits(1)(
       request.pipe(
-        sharedProviderHostSlot(url),
+        sharedProviderHostTurn(url),
         Effect.mapError((cause) =>
-          cause instanceof Error
-            ? urgiisError("shared host " + url, cause)
-            : cause,
+          cause instanceof ProviderTurnDeferred
+            ? cause
+            : cause instanceof Error
+              ? urgiisError("shared host " + url, cause)
+              : cause,
         ),
         Effect.ensuring(Effect.sleep(tenant.pacingMs)),
       ),
     );
-  }).pipe(
-    Effect.retry({
-      schedule: Schedule.exponential("4 seconds").pipe(
-        Schedule.intersect(Schedule.recurs(2)),
+  });
+  // A retry that cannot get its turn in this chunk ends the read with the
+  // failure it is retrying, marked with that deferral, so the connector can
+  // still apply its failed-model handling instead of deferring onto the same
+  // failing page every chunk.
+  return Effect.suspend(() => {
+    let failure: UrgiisError | null = null;
+    return attempt.pipe(
+      Effect.tapError((error) =>
+        Effect.sync(() => {
+          if (!(error instanceof ProviderTurnDeferred)) failure = error;
+        }),
       ),
-      while: (error) => error.kind !== "blocked",
-    }),
-  );
+      Effect.retry({
+        schedule: Schedule.exponential("4 seconds").pipe(
+          Schedule.intersect(Schedule.recurs(2)),
+        ),
+        while: (error) =>
+          !(error instanceof ProviderTurnDeferred) && error.kind !== "blocked",
+      }),
+      Effect.catchAll((error) =>
+        Effect.fail(
+          error instanceof ProviderTurnDeferred && failure !== null
+            ? { ...failure, retryDeferred: error }
+            : error,
+        ),
+      ),
+    );
+  });
 }

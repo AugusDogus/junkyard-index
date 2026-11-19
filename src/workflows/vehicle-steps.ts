@@ -290,6 +290,15 @@ export async function runDurableSourceChunkStep<
       error,
     );
   });
+  if (result.status === "deferred") {
+    // Nothing was checkpointed; the source workflow retries this cursor.
+    console.warn("[Workflow] Deferred source chunk", {
+      runId,
+      source: cursor.source,
+      message: result.message,
+    });
+    return { ...result, cursor };
+  }
   console.info("[Workflow] Completed source chunk", {
     source: result.cursor.source,
     status: result.status,

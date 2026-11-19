@@ -27,7 +27,7 @@ export class AplusProviderError extends Data.TaggedError("AplusProviderError")<{
 const APLUS_REQUEST_TIMEOUT_MS = 40_000;
 /** Two more attempts, 4 then 8 seconds apart. Every attempt acquires its own
  * shared host slot, so the worst case for one page stays below three minutes. */
-const APLUS_REQUEST_ATTEMPTS = 3;
+export const APLUS_REQUEST_ATTEMPTS = 3;
 const retrySchedule = Schedule.exponential("4 seconds").pipe(
   Schedule.intersect(Schedule.recurs(APLUS_REQUEST_ATTEMPTS - 1)),
 );

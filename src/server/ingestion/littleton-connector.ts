@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect, RateLimiter } from "effect";
+import { Effect, Option, RateLimiter } from "effect";
 import {
   fetchLittletonContext,
   fetchLittletonSearch,
@@ -23,11 +23,19 @@ import {
   transformLittletonRecord,
   type LittletonCanonicalVehicle,
 } from "./littleton-transform";
-import { LITTLETON_YARD, type LittletonYard } from "./littleton-yard-metadata";
+import {
+  LITTLETON_SEARCH_URL,
+  LITTLETON_YARD,
+  type LittletonYard,
+} from "./littleton-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
+
+/** Owner and inventory HTML plus VinPlus config and analytics. */
+const CONTEXT_REQUESTS = 4;
 
 interface LittletonOptions<E, R> {
   startCursor?: LittletonCursor;
@@ -213,9 +221,32 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
     };
     if (initial.phase === "complete")
       return { ...summary, status: "complete" as const };
-    const context = yield* fetchLittletonContext(gate);
-    if (initial.phase === "queries")
-      yield* validated("durable scope", () => validateResume(initial, context));
+    const resumeQuery = initial.phase === "queries" ? initial.nextQuery : 0;
+    // One VinPlus turn reads the context, the query this chunk resumes at, and
+    // the closing context when that query is the last, so a chunk needs one
+    // turn to advance. Nothing here touches chunk state.
+    const opening = yield* Effect.gen(function* () {
+      const context = yield* fetchLittletonContext(gate);
+      if (initial.phase === "queries")
+        yield* validated("durable scope", () =>
+          validateResume(initial, context),
+        );
+      const pair = context.pairs[resumeQuery];
+      const search = pair ? yield* fetchLittletonSearch(pair, gate) : null;
+      const closing =
+        (pair ? resumeQuery + 1 : resumeQuery) >= context.pairs.length
+          ? yield* fetchLittletonContext(gate)
+          : null;
+      return { context, search, closing };
+    }).pipe(
+      sharedProviderHostTurn(
+        LITTLETON_SEARCH_URL,
+        initial.phase === "queries" && resumeQuery === initial.pairCount - 1
+          ? 2 * CONTEXT_REQUESTS + 1
+          : CONTEXT_REQUESTS + 1,
+      ),
+    );
+    const { context } = opening;
     const seen = new Map<string, LittletonSeen>(
       (initial.phase === "queries" ? initial.seen : []).map((r) => [
         r.stock,
@@ -227,24 +258,50 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
       if (entry.vin) vins.set(entry.vin, entry.stock);
     const receipts: QueryCursor["receipts"] =
       initial.phase === "queries" ? [...initial.receipts] : [];
-    let nextQuery = initial.phase === "queries" ? initial.nextQuery : 0;
+    let nextQuery = resumeQuery;
     const vehicles: LittletonCanonicalVehicle[] = [];
     const observedVins: string[] = [];
     let processed = 0,
       excluded = 0,
       rejected = 0;
+    let pending =
+      opening.search === null
+        ? null
+        : { response: opening.search, closing: opening.closing };
+    let closing = opening.search === null ? opening.closing : null;
     while (
       nextQuery < context.pairs.length &&
       summary.pagesProcessed < maxPages
     ) {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const pair = context.pairs[nextQuery];
       if (!pair)
         return yield* new LittletonProviderError({
           operation: "query directory",
           cause: "Required native make/model pair is missing",
         });
-      const response = yield* fetchLittletonSearch(pair, gate);
+      if (pending === null) {
+        const last = nextQuery === context.pairs.length - 1;
+        // The last query shares its turn with the closing context, because
+        // the cursor cannot hold a crawl whose closing context is pending.
+        const read = yield* Effect.gen(function* () {
+          const response = yield* fetchLittletonSearch(pair, gate);
+          return {
+            response,
+            closing: last ? yield* fetchLittletonContext(gate) : null,
+          };
+        }).pipe(
+          sharedProviderHostTurn(
+            LITTLETON_SEARCH_URL,
+            last ? CONTEXT_REQUESTS + 1 : 1,
+          ),
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
+        if (Option.isNone(read)) break;
+        pending = read.value;
+      }
+      const { response } = pending;
+      closing = pending.closing;
+      pending = null;
       const result = yield* validated(
         "stock/year and exact-query coverage",
         () =>
@@ -288,7 +345,11 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
               " active donors exceeds the unchanged 10% rejection limit or leaves no valid donors",
           );
       });
-      const closing = yield* fetchLittletonContext(gate);
+      if (closing === null)
+        return yield* new LittletonProviderError({
+          operation: "terminal scope",
+          cause: "The last native query was read without its closing context",
+        });
       if (closing.hash !== context.hash)
         return yield* new LittletonProviderError({
           operation: "terminal scope",

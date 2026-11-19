@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect, Fiber, TestClock, TestContext } from "effect";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import { Effect, Either } from "effect";
+import { ProviderTurnDeferred } from "./provider-chunk-clock";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   CentralCursor,
   CENTRAL_MAX_CURSOR_BYTES,
@@ -173,41 +174,61 @@ test("Central rejects corrupt or oversized checkpoints before transport", async 
     ),
   ).rejects.toThrow("integrity");
   expect(requested).toEqual([]);
-});
+}, 60_000);
+const queuedChunk = (startCursor: Cursor, turnWaitMs: number) =>
+  runWithQueuedHost(
+    streamCentralInventoryWithRequestGate(
+      { startCursor, maxPages: 8, onBatch: () => Effect.void },
+      gate,
+    ),
+    { turnWaitMs },
+  );
+
 test("Central keeps advancing when every request waits minutes for a shared host turn", async () => {
   // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
-  // eight two-minute turns exceeded the old wall-clock three-minute deadline.
+  // each request waited about two minutes for its turn.
   const { requested } = fixture();
-  const queuedGate = <A, E, R>(request: Effect.Effect<A, E, R>) =>
-    ProviderChunkClock.queued(Effect.sleep("2 minutes")).pipe(
-      Effect.andThen(request),
-    );
-  const chunk = (startCursor: Cursor) =>
-    Effect.gen(function* () {
-      const fiber = yield* Effect.fork(
-        streamCentralInventoryWithRequestGate(
-          { startCursor, maxPages: 8, onBatch: () => Effect.void },
-          queuedGate,
-        ),
-      );
-      while (fiber.unsafePoll() === null) yield* TestClock.adjust("1 minute");
-      return yield* Fiber.join(fiber);
-    });
-  const chunks = await Effect.runPromise(
-    Effect.gen(function* () {
-      let cursor: Cursor = CentralCursor.initial;
-      const pages: number[] = [];
-      let count = 0;
-      while (cursor.phase !== "complete") {
-        const result: CentralStreamResult = yield* chunk(cursor);
-        pages.push(result.pagesProcessed);
-        count = result.count;
-        cursor = result.cursor;
-      }
-      return { pages, count };
-    }).pipe(Effect.provide(TestContext.TestContext)),
-  );
-  expect(chunks.pages).toEqual([3, 3, 3, 3, 1]);
-  expect(chunks.count).toBe(5000);
+  let cursor: Cursor = CentralCursor.initial;
+  const pages: number[] = [];
+  let count = 0;
+  while (cursor.phase !== "complete") {
+    const chunk = await queuedChunk(cursor, 2 * 60_000);
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    const result: CentralStreamResult = chunk.result.right;
+    pages.push(result.pagesProcessed);
+    count = result.count;
+    cursor = result.cursor;
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(pages).toEqual([2, 2, 2, 2, 2, 2, 1]);
+  expect(count).toBe(5000);
   expect(requested).toHaveLength(13);
-});
+}, 120_000);
+
+test("a Central chunk started five minutes into its function returns before the function ends", async () => {
+  // Workflow starts chunk steps inline up to five minutes into an 800 s
+  // function. Four-minute turns must not carry a chunk past the remaining
+  // 500 s, less the checkpoint write after it.
+  fixture();
+  const chunk = await queuedChunk(CentralCursor.initial, 4 * 60_000);
+  if (Either.isLeft(chunk.result)) throw chunk.result.left;
+  expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(chunk.result.right.pagesProcessed).toBe(1);
+  expect(chunk.result.right.cursor).not.toEqual(CentralCursor.initial);
+  expect(chunk.turns).toHaveLength(1);
+  expect(chunk.turns[0]?.releasedAt).not.toBeNull();
+}, 60_000);
+
+test("a Central chunk without a turn in time is deferred without advancing", async () => {
+  const { requested } = fixture();
+  const chunk = await queuedChunk(CentralCursor.initial, 7 * 60_000);
+  expect(Either.isLeft(chunk.result) && chunk.result.left).toBeInstanceOf(
+    ProviderTurnDeferred,
+  );
+  expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+  expect(chunk.turns).toHaveLength(0);
+  expect(chunk.cancelled).toBe(1);
+  expect(requested).toEqual([]);
+}, 60_000);

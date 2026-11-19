@@ -1,8 +1,13 @@
-import { expect, test } from "bun:test";
-import { Effect } from "effect";
+import { afterEach, expect, test } from "bun:test";
+import { Effect, Either } from "effect";
 import { UrgiisEntrySchema, urgiisFingerprint } from "./urgiis-traversal";
 import { UrgiisCursor, URGIIS_MAX_CURSOR_BYTES } from "./urgiis-cursor";
-import { streamUrgiisInventory } from "./urgiis-connector";
+import {
+  streamUrgiisInventory,
+  streamUrgiisInventoryFromProvider,
+  type UrgiisStreamResult,
+} from "./urgiis-connector";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import { urgiisError } from "./urgiis-client";
 import {
   urgiisSnapshot,
@@ -1094,3 +1099,81 @@ test.each([0, 4, 5, "photo"] as const)(
     expect(reads).toBe(mismatchAt === "photo" ? 8 : mismatchAt + 1);
   },
 );
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+test("URG IIS keeps advancing when every shared host turn waits 150 seconds", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // 2.5 minutes. One transient HTTP 500 retried in a second queued turn used to
+  // carry the chunk past its eight-minute wall deadline, which discarded every
+  // checkpoint the chunk had validated. Each attempt still takes its own turn.
+  const site: UrgiisTenant = { ...tenant, origin: "https://eagleautopart.com" };
+  const paths = [
+    "/",
+    "/parts/makes/",
+    "/recent-arrivals/",
+    make.path,
+    model.path,
+    "/",
+    "/parts/makes/",
+    make.path,
+  ];
+  const requested: string[] = [];
+  let failed = false;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!failed && url === site.origin + "/parts/makes/") {
+        failed = true;
+        return new Response("", { status: 500 });
+      }
+      const raw = responses[requested.length];
+      requested.push(url);
+      if (raw === undefined) throw new Error("Unexpected URG request " + url);
+      return new Response(raw, {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  let cursor = UrgiisCursor.initial([site]);
+  const pages: number[] = [];
+  const turns: number[] = [];
+  let vehicles = 0;
+  while (cursor.phase !== "complete" && pages.length < 10) {
+    const chunk = await runWithQueuedHost(
+      streamUrgiisInventoryFromProvider({
+        tenants: [site],
+        startCursor: cursor,
+        maxPages: 3,
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            vehicles += batch.length;
+          }),
+      }),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    const result: UrgiisStreamResult = chunk.result.right;
+    expect(result.errors).toEqual([]);
+    // Every chunk returns an advanced checkpoint and releases each lease in time.
+    expect(result.pagesProcessed).toBeGreaterThan(0);
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    pages.push(result.pagesProcessed);
+    turns.push(chunk.turns.length);
+    cursor = UrgiisCursor.fromWire(
+      UrgiisCursor.serialize(result.cursor, [site]),
+      [site],
+    );
+  }
+  expect(cursor.phase).toBe("complete");
+  expect(failed).toBe(true);
+  expect(pages).toEqual([1, 2, 2, 2, 1]);
+  expect(turns).toEqual([2, 2, 2, 2, 1]);
+  expect(vehicles).toBe(1);
+  expect(requested).toEqual(paths.map((path) => site.origin + path));
+}, 120_000);

@@ -1,5 +1,10 @@
 import { expect, spyOn, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
+import {
+  ProviderChunkClock,
+  ProviderTurnDeferred,
+} from "./provider-chunk-clock";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import { readUrgiisPage } from "./urgiis-client";
 import type { UrgiisTenant } from "./urgiis-tenant";
 
@@ -143,6 +148,7 @@ for (const status of [403, 429] as const) {
       );
       expect(result._tag).toBe("Left");
       if (result._tag !== "Left") throw new Error("Expected blocked response");
+      if (result.left instanceof ProviderTurnDeferred) throw result.left;
       expect(result.left.kind).toBe("blocked");
       if (result.left.kind !== "blocked")
         throw new Error("Expected structured host block");
@@ -155,3 +161,35 @@ for (const status of [403, 429] as const) {
     }
   });
 }
+
+test("a URG IIS read whose retry cannot get a shared host turn in this chunk ends with its failure", async () => {
+  // Under 07:00 contention a failing page's retries cannot all get turns in
+  // one chunk. Ending the read with its failure lets the connector defer the
+  // model and carry its donors instead of deferring onto the same page.
+  const site: UrgiisTenant = { ...tenant, origin: "https://eagleautopart.com" };
+  const fetch = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(async () => new Response("", { status: 500 }), {
+      preconnect: globalThis.fetch.preconnect,
+    }),
+  );
+  try {
+    const run = await runWithQueuedHost(
+      ProviderChunkClock.deadline({
+        duration: "8 minutes",
+        onTimeout: () => new Error("work deadline"),
+      })(readUrgiisPage(site.origin + site.makesPath, site)),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isRight(run.result)) throw new Error("Expected a failure");
+    expect(run.result.left).not.toBeInstanceOf(ProviderTurnDeferred);
+    expect(run.result.left).toMatchObject({
+      tag: "UrgiisError",
+      kind: "failure",
+    });
+    expect(run.turns).toHaveLength(2);
+    expect(run.cancelled).toBe(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  } finally {
+    fetch.mockRestore();
+  }
+}, 60_000);

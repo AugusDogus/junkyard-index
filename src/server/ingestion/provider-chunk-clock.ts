@@ -1,4 +1,13 @@
-import { Clock, Data, Duration, Effect, FiberRef } from "effect";
+import {
+  Cause,
+  Clock,
+  Data,
+  Duration,
+  Effect,
+  FiberRef,
+  Option,
+  Runtime,
+} from "effect";
 
 /**
  * Time accounting for one connector chunk.
@@ -7,8 +16,11 @@ import { Clock, Data, Duration, Effect, FiberRef } from "effect";
  * request to a backend across all sources. Under the daily 07:00 contention a
  * request can wait minutes for its turn, so a deadline measured in wall time
  * fails chunks whose own provider work takes seconds. The chunk clock excludes
- * queue time from the work deadline while a separate wall limit keeps the chunk
- * inside one Vercel step.
+ * queue time from the work deadline, while a wall limit keeps the whole chunk
+ * inside the Vercel function that runs it. Shared host turns
+ * (`sharedProviderHostTurn`) end by the chunk's turn horizon: a turn that
+ * cannot arrive and finish its work in time is deferred instead, so the chunk
+ * returns its last validated checkpoint rather than failing.
  */
 interface ChunkClock {
   readonly startedAt: number;
@@ -20,19 +32,49 @@ interface ChunkClock {
 
 const CurrentChunkClock = FiberRef.unsafeMake<ChunkClock | null>(null);
 
-/** Vercel steps for this project run at most 800 seconds. Leave room for the
- * checkpoint write that follows the provider chunk in the same step. */
-export const PROVIDER_CHUNK_WALL_LIMIT = Duration.minutes(11);
-/** After this much wall time, a chunk that already advanced stops queueing
- * further shared-host requests and returns its validated checkpoint. A request
- * started just before it still fits the wall limit at observed queue depths. */
-export const PROVIDER_CHUNK_YIELD_AFTER = Duration.minutes(5);
+/** Workflow routes run with Vercel `maxDuration: "max"`, 800 s here. */
+const FUNCTION_LIMIT = Duration.seconds(800);
+/** Workflow 5.4.0 keeps starting steps inline until five minutes into an
+ * invocation, so a chunk step can begin with only 500 s of function left. */
+const LATEST_INLINE_STEP_START = Duration.minutes(5);
+/** Cursor resolution before the chunk and the checkpoint write after it run in
+ * the same step. */
+const STEP_RESERVE = Duration.seconds(140);
+/** Every chunk ends within this much wall time, so even a step started inline
+ * at the latest point finishes its checkpoint well inside the function. */
+export const PROVIDER_CHUNK_WALL_LIMIT = Duration.subtract(
+  Duration.subtract(FUNCTION_LIMIT, LATEST_INLINE_STEP_START),
+  STEP_RESERVE,
+);
+/** Shared host turns end this long before the wall limit, leaving time for the
+ * policy gap, the lease release and the connector's own validation. */
+const TURN_HORIZON_MARGIN = Duration.seconds(20);
 
 export class ProviderChunkWallTimeout extends Data.TaggedError(
   "ProviderChunkWallTimeout",
 )<{ elapsedMs: number; queuedMs: number }> {
   override get message() {
-    return `Provider chunk reached its ${Duration.format(PROVIDER_CHUNK_WALL_LIMIT)} step allowance after ${Math.round(this.queuedMs / 1000)} s queued for shared host turns and ${Math.round((this.elapsedMs - this.queuedMs) / 1000)} s of provider work. No advanced checkpoint was accepted; prior inventory is preserved. The shared host queue is saturated; the step retries from the last validated checkpoint.`;
+    return `Provider chunk reached its ${Duration.format(PROVIDER_CHUNK_WALL_LIMIT)} step allowance after ${Math.round(this.queuedMs / 1000)} s queued for shared host turns and ${Math.round((this.elapsedMs - this.queuedMs) / 1000)} s of provider work. No advanced checkpoint was accepted; prior inventory is preserved. A request ran past its shared host turn; the step retries from the last validated checkpoint.`;
+  }
+}
+
+/**
+ * A shared host turn could not arrive and finish its requests before the
+ * chunk's turn horizon. Nothing from the deferred turn was accepted. A chunk
+ * that already advanced returns its validated checkpoint instead
+ * (`ProviderChunkClock.unlessDeferred`); a chunk that has not is deferred as a
+ * whole and the source retries the same cursor.
+ */
+export class ProviderTurnDeferred extends Data.TaggedError(
+  "ProviderTurnDeferred",
+)<{
+  host: string;
+  stage: "wait" | "work";
+  elapsedMs: number;
+  queuedMs: number;
+}> {
+  override get message() {
+    return `${this.host} shared host turn ${this.stage === "wait" ? "did not arrive" : "did not finish"} before this chunk's ${Duration.format(PROVIDER_CHUNK_WALL_LIMIT)} step allowance (${Math.round(this.elapsedMs / 1000)} s elapsed, ${Math.round(this.queuedMs / 1000)} s queued). The queue is too deep for another turn in this step, so nothing from that turn was accepted and the last validated checkpoint is preserved.`;
   }
 }
 
@@ -44,7 +86,8 @@ export const ProviderChunkClock = {
    * Like `Effect.timeoutFail`, but `duration` bounds only the chunk's own work:
    * time spent waiting for a shared provider host turn does not count. The
    * whole chunk still fails with `ProviderChunkWallTimeout` once it reaches
-   * `PROVIDER_CHUNK_WALL_LIMIT` of wall time.
+   * `PROVIDER_CHUNK_WALL_LIMIT` of wall time, which shared host turns avoid by
+   * ending at the chunk's turn horizon.
    */
   deadline:
     <E2>(options: { duration: Duration.DurationInput; onTimeout: () => E2 }) =>
@@ -106,23 +149,67 @@ export const ProviderChunkClock = {
           ),
     ),
 
-  /**
-   * Whether a chunk that has processed `pagesProcessed` pages should stop
-   * before its next request and return its validated checkpoint. Always false
-   * before the first page, so every chunk makes progress, and outside a chunk
-   * deadline.
-   */
-  shouldYield: (pagesProcessed: number): Effect.Effect<boolean> =>
-    pagesProcessed < 1
-      ? Effect.succeed(false)
-      : Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
-          clock === null
-            ? Effect.succeed(false)
-            : Effect.map(
-                Clock.currentTimeMillis,
-                (now) =>
-                  now - clock.startedAt >=
-                  Duration.toMillis(PROVIDER_CHUNK_YIELD_AFTER),
-              ),
+  /** The clock time by which a shared host turn in the current chunk must
+   * finish, or none outside a chunk deadline. */
+  turnHorizon: Effect.map(FiberRef.get(CurrentChunkClock), (clock) =>
+    clock === null
+      ? Option.none<number>()
+      : Option.some(
+          clock.startedAt +
+            Duration.toMillis(PROVIDER_CHUNK_WALL_LIMIT) -
+            Duration.toMillis(TURN_HORIZON_MARGIN),
         ),
+  ),
+
+  /** A deferral describing the current chunk's elapsed and queued time. */
+  deferred: (host: string, stage: "wait" | "work") =>
+    Effect.flatMap(FiberRef.get(CurrentChunkClock), (clock) =>
+      Effect.map(
+        Clock.currentTimeMillis,
+        (now) =>
+          new ProviderTurnDeferred({
+            host,
+            stage,
+            elapsedMs: clock === null ? 0 : now - clock.startedAt,
+            queuedMs: clock === null ? 0 : queuedMs(clock, now),
+          }),
+      ),
+    ),
+
+  /**
+   * For a request site where the chunk can stop and return a validated
+   * checkpoint: a deferred turn becomes `Option.none()` once the chunk has
+   * `advanced`, and the caller returns its checkpoint without the request.
+   * Before any advance the deferral still fails, deferring the whole chunk.
+   */
+  unlessDeferred:
+    (advanced: boolean) =>
+    <A, E, R>(
+      request: Effect.Effect<A, E, R>,
+    ): Effect.Effect<Option.Option<A>, E, R> =>
+      request.pipe(
+        Effect.map(Option.some),
+        // A predicate, not a refinement: before an advance the deferral is
+        // still a failure of this effect.
+        Effect.catchIf(
+          (error: E): boolean =>
+            advanced && error instanceof ProviderTurnDeferred,
+          () => Effect.succeed(Option.none<A>()),
+        ),
+      ),
+
+  /**
+   * The deferral that failed a chunk run with `Effect.runPromise`, if that is
+   * why it failed. Only a deferral that is the chunk's own failure counts; one
+   * wrapped inside a provider error is a provider failure.
+   */
+  deferralOf: (error: unknown): ProviderTurnDeferred | null => {
+    if (error instanceof ProviderTurnDeferred) return error;
+    if (!Runtime.isFiberFailure(error)) return null;
+    const failures = [...Cause.failures(error[Runtime.FiberFailureCauseId])];
+    const deferral = failures[0];
+    return failures.length === 1 && deferral instanceof ProviderTurnDeferred
+      ? deferral
+      : null;
+  },
 } as const;

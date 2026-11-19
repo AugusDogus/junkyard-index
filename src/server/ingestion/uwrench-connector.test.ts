@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { z } from "zod";
 import { soakUwrenchInventory } from "../../../scripts/soak-uwrench";
 import { connectorChunkMetrics } from "./connector-chunk";
@@ -21,6 +21,7 @@ import {
   uwrenchTestRow,
 } from "./uwrench-test-fixtures";
 import type { UwrenchCanonicalVehicle } from "./uwrench-transform";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import {
   UWRENCH_ANALYTICS_URL,
   UWRENCH_CONFIG_URL,
@@ -458,3 +459,65 @@ test("bad count, foreign scope and partial HTTP never become missing-identity su
   }
   expect(uwrenchPairKey(uwrenchTestRow)).toBe('["JEEP","WRANGLER"]');
 });
+
+test("U-Wrench completes a crawl when every VinPlus turn waits minutes", async () => {
+  // About 20 sources share the VinPlus lease at 07:00, so each turn waits
+  // about 2.5 minutes. The terminal verification chunk used to need five
+  // turns (config, analytics, last verification, closing config, closing
+  // analytics) and hit the wall limit.
+  const native = rows.slice(0, 4).map((row, index) => ({
+    ...row,
+    model: "MODEL " + String.fromCharCode(65 + index),
+  }));
+  const api = records.slice(0, 4);
+  const requests = mock({
+    native,
+    api,
+    select: (pair) =>
+      api.filter((_, index) => native[index]?.model === pair.model),
+  });
+  let cursor: UwrenchCursor = UwrenchCursor.initial;
+  let vehicles: UwrenchCanonicalVehicle[] = [];
+  const chunks: { status: string; elapsedMs: number }[] = [];
+  while (cursor.phase !== "complete" && chunks.length < 12) {
+    const chunk = await runWithQueuedHost(
+      streamUwrenchInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 16,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles = [...vehicles, ...batch];
+            }),
+        },
+        gate,
+      ),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    chunks.push({
+      status: chunk.result.right.status,
+      elapsedMs: chunk.elapsedMs,
+    });
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    cursor = UwrenchCursor.parse(
+      UwrenchCursor.serialize(chunk.result.right.cursor),
+    );
+  }
+  expect(cursor.phase).toBe("complete");
+  expect(vehicles.map((vehicle) => vehicle.stockNumber)).toEqual(
+    native.map((row) => row.stock),
+  );
+  // Every chunk returns well inside an 800 s function started inline late.
+  expect(chunks.every((chunk) => chunk.elapsedMs <= 6 * 60_000)).toBe(true);
+  // Every selector is scanned and verified, and the closing context still
+  // follows the last verification.
+  expect(requests.filter((kind) => kind === "search")).toHaveLength(8);
+  expect(requests.slice(-5)).toEqual([
+    "search",
+    "owner",
+    "inventory",
+    "config",
+    "analytics",
+  ]);
+}, 120_000);

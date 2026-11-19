@@ -1,7 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { soakAviationInventory } from "../../../scripts/soak-aviation";
-import { streamAviationInventoryWithRequestGate } from "./aviation-connector";
+import {
+  streamAviationInventory,
+  streamAviationInventoryWithRequestGate,
+  type AviationStreamResult,
+} from "./aviation-connector";
 import {
   AviationCursor,
   AviationCursorSchema,
@@ -25,6 +29,7 @@ import {
 } from "./aviation-test-fixtures";
 import type { AviationCanonicalVehicle } from "./aviation-transform";
 import type { AviationRecord } from "./aviation-parser";
+import { runWithQueuedHost } from "./provider-host-test-support";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -346,3 +351,36 @@ test("Aviation soak rejects paused presence/accounting and a chunk exceeding its
     ),
   ).rejects.toThrow("request progress");
 });
+
+test("Aviation completes a full crawl when every request waits two minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // each request waited about two minutes for its turn.
+  const native = transport();
+  let cursor: AviationCursor = AviationCursor.initial;
+  const pages: number[] = [];
+  let count = 0;
+  while (cursor.phase !== "complete") {
+    const chunk = await runWithQueuedHost(
+      streamAviationInventory({
+        startCursor: cursor,
+        maxPages: 8,
+        onBatch: () => Effect.void,
+      }),
+      { turnWaitMs: 2 * 60_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    const result: AviationStreamResult = chunk.result.right;
+    pages.push(result.pagesProcessed);
+    count = result.count;
+    cursor = AviationCursorSchema.parse(
+      JSON.parse(JSON.stringify(result.cursor)),
+    );
+    // Every chunk returns its checkpoint and releases each lease in time.
+    expect(result.pagesProcessed).toBeGreaterThan(0);
+    expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+  }
+  expect(pages).toEqual([2, 2, 2, 2, 2, 2]);
+  expect(count).toBe(21);
+  expect(native.urls).toHaveLength(12);
+}, 120_000);

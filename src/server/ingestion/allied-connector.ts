@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { AlliedContract, type AlliedYard } from "./allied-contract";
 import {
@@ -15,6 +15,8 @@ import {
 import { AlliedResult, type AlliedError } from "./allied-result";
 import { alliedSnapshot, validateAlliedSnapshot } from "./allied-snapshot";
 import type { AlliedCanonicalVehicle } from "./allied-transform";
+import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 export interface AlliedOptions<E, R> {
   contract: AlliedContract;
@@ -133,7 +135,14 @@ export function streamAlliedInventory<E, R>(options: AlliedOptions<E, R>) {
             ),
           );
         const url = yield* unwrap(alliedNextUrl(cursor));
-        const raw = yield* options.readPage(url);
+        const page = yield* options
+          .readPage(url)
+          .pipe(
+            sharedProviderHostTurn(url),
+            ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+          );
+        if (Option.isNone(page)) break;
+        const raw = page.value;
         cursor = yield* unwrap(alliedAdvance(cursor, raw, contract));
         summary.pagesProcessed++;
       }
@@ -144,7 +153,7 @@ export function streamAlliedInventory<E, R>(options: AlliedOptions<E, R>) {
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies AlliedStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "4 minutes",
       onTimeout: () =>
         AlliedResult.error(

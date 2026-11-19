@@ -1,4 +1,4 @@
-import { Effect, RateLimiter } from "effect";
+import { Effect, Option, RateLimiter } from "effect";
 import {
   fetchJolietContext,
   fetchJolietSearch,
@@ -23,12 +23,20 @@ import {
   transformJolietRecord,
   type JolietCanonicalVehicle,
 } from "./joliet-transform";
-import { JOLIET_YARD, type JolietYard } from "./joliet-yard-metadata";
+import {
+  JOLIET_SEARCH_URL,
+  JOLIET_YARD,
+  type JolietYard,
+} from "./joliet-yard-metadata";
 import { vinplusOptionalText, vinplusSourceDate } from "./vinplus-protocol";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
+
+/** Owner, contact and inventory HTML plus VinPlus config and analytics. */
+const CONTEXT_REQUESTS = 5;
 
 interface JolietOptions<E, R> {
   startCursor?: JolietCursor;
@@ -199,11 +207,32 @@ export function streamJolietInventoryWithRequestGate<E, R>(
     };
     if (initial.phase === "complete")
       return { ...summary, status: "complete" as const };
-    const context = yield* fetchJolietContext(gate);
-    if (initial.phase === "queries")
-      yield* validateJoliet("durable scope", () =>
-        validateResume(initial, context),
-      );
+    const resumeQuery = initial.phase === "queries" ? initial.nextQuery : 0;
+    // One VinPlus turn reads the context, the query this chunk resumes at, and
+    // the closing context when that query is the last, so a chunk needs one
+    // turn to advance. Nothing here touches chunk state.
+    const opening = yield* Effect.gen(function* () {
+      const context = yield* fetchJolietContext(gate);
+      if (initial.phase === "queries")
+        yield* validateJoliet("durable scope", () =>
+          validateResume(initial, context),
+        );
+      const pair = context.pairs[resumeQuery];
+      const search = pair ? yield* fetchJolietSearch(pair, gate) : null;
+      const closing =
+        (pair ? resumeQuery + 1 : resumeQuery) >= context.pairs.length
+          ? yield* fetchJolietContext(gate)
+          : null;
+      return { context, search, closing };
+    }).pipe(
+      sharedProviderHostTurn(
+        JOLIET_SEARCH_URL,
+        initial.phase === "queries" && resumeQuery === initial.pairCount - 1
+          ? 2 * CONTEXT_REQUESTS + 1
+          : CONTEXT_REQUESTS + 1,
+      ),
+    );
+    const { context } = opening;
     const seen = new Map<string, JolietSeen>(
       (initial.phase === "queries" ? initial.seen : []).map((entry) => [
         entry.stock,
@@ -215,25 +244,51 @@ export function streamJolietInventoryWithRequestGate<E, R>(
       if (entry.vin) vins.set(entry.vin, entry.stock);
     const receipts: QueryCursor["receipts"] =
       initial.phase === "queries" ? [...initial.receipts] : [];
-    let nextQuery = initial.phase === "queries" ? initial.nextQuery : 0;
+    let nextQuery = resumeQuery;
     const vehicles: JolietCanonicalVehicle[] = [];
     const observedVins: string[] = [];
     const warnings: string[] = [];
     let processed = 0,
       excluded = 0,
       rejected = 0;
+    let pending =
+      opening.search === null
+        ? null
+        : { response: opening.search, closing: opening.closing };
+    let closing = opening.search === null ? opening.closing : null;
     while (
       nextQuery < context.pairs.length &&
       summary.pagesProcessed < maxPages
     ) {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const pair = context.pairs[nextQuery];
       if (!pair)
         return yield* new JolietProviderError({
           operation: "query directory",
           cause: "Required native make/model pair is missing",
         });
-      const response = yield* fetchJolietSearch(pair, gate);
+      if (pending === null) {
+        const last = nextQuery === context.pairs.length - 1;
+        // The last query shares its turn with the closing context, because
+        // the cursor cannot hold a crawl whose closing context is pending.
+        const read = yield* Effect.gen(function* () {
+          const response = yield* fetchJolietSearch(pair, gate);
+          return {
+            response,
+            closing: last ? yield* fetchJolietContext(gate) : null,
+          };
+        }).pipe(
+          sharedProviderHostTurn(
+            JOLIET_SEARCH_URL,
+            last ? CONTEXT_REQUESTS + 1 : 1,
+          ),
+          ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+        );
+        if (Option.isNone(read)) break;
+        pending = read.value;
+      }
+      const { response } = pending;
+      closing = pending.closing;
+      pending = null;
       const result = yield* validateJoliet(
         "stock/year and stable identity",
         () => applySearch(context, nextQuery, response.records, seen, vins),
@@ -307,7 +362,11 @@ export function streamJolietInventoryWithRequestGate<E, R>(
               " active donors exceeds the unchanged 10% rejection limit or leaves no valid donors",
           );
       });
-      const closing = yield* fetchJolietContext(gate);
+      if (closing === null)
+        return yield* new JolietProviderError({
+          operation: "terminal scope",
+          cause: "The last native query was read without its closing context",
+        });
       if (closing.hash !== context.hash)
         return yield* new JolietProviderError({
           operation: "terminal scope",

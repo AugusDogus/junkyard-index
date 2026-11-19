@@ -4,7 +4,7 @@ import {
   serializeDurableSourceCursor,
 } from "./durable-cursor";
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Either } from "effect";
 import { soakAlln1Inventory } from "../../../scripts/soak-alln1";
 import { streamAlln1InventoryWithRequestGate } from "./alln1-connector";
 import { Alln1Cursor, Alln1CursorSchema } from "./alln1-cursor";
@@ -14,6 +14,7 @@ import {
   alln1TestRecords,
 } from "./alln1-test-fixtures";
 import type { Alln1CanonicalVehicle } from "./alln1-transform";
+import { runWithQueuedHost } from "./provider-host-test-support";
 import { ALLN1_ORIGIN, alln1PageNumber } from "./alln1-yard-metadata";
 
 const originalFetch = globalThis.fetch;
@@ -310,3 +311,44 @@ test.each([1, 2, 3, 32])(
     ).toBe("1ca9f680d8502ed80b686a0a144fcd0264d86540ccb7af0f76c5dfceb4b05a71");
   },
 );
+
+test("All-N-1 completes a crawl when every shared host turn waits minutes", async () => {
+  // About 20 URG sources share one lease at 07:00, so each turn waits about
+  // 2.5 minutes. A resumed terminal chunk used to need five turns (owner,
+  // anchor, last page, closing owner, closing anchor) and hit the wall limit.
+  const requests = mock();
+  let cursor: Alln1Cursor = Alln1Cursor.initial;
+  let vehicles: Alln1CanonicalVehicle[] = [];
+  const chunks: { status: string; elapsedMs: number }[] = [];
+  while (cursor.phase !== "complete" && chunks.length < 6) {
+    const chunk = await runWithQueuedHost(
+      streamAlln1InventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 3,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles = [...vehicles, ...batch];
+            }),
+        },
+        gate,
+      ),
+      { turnWaitMs: 150_000 },
+    );
+    if (Either.isLeft(chunk.result)) throw chunk.result.left;
+    chunks.push({
+      status: chunk.result.right.status,
+      elapsedMs: chunk.elapsedMs,
+    });
+    expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
+    cursor = Alln1CursorSchema.parse(
+      JSON.parse(JSON.stringify(chunk.result.right.cursor)),
+    );
+  }
+  expect(cursor.phase).toBe("complete");
+  expect(vehicles).toHaveLength(600);
+  // Every chunk returns well inside an 800 s function started inline late.
+  expect(chunks.every((chunk) => chunk.elapsedMs <= 6 * 60_000)).toBe(true);
+  // Closing reads still re-check the owner and the first page.
+  expect(requests.slice(-2)).toEqual([0, 1]);
+}, 120_000);

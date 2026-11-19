@@ -1,6 +1,9 @@
 import { Redis } from "@upstash/redis";
-import { Duration, Effect, FiberRef } from "effect";
-import { ProviderChunkClock } from "./provider-chunk-clock";
+import { Clock, Effect, FiberRef, Option } from "effect";
+import {
+  ProviderChunkClock,
+  type ProviderTurnDeferred,
+} from "./provider-chunk-clock";
 
 export interface ProviderHostStore {
   reserve(token: string, leaseMs: number): Promise<boolean>;
@@ -87,11 +90,22 @@ export function redisProviderHostStore(
   };
 }
 
-export function withProviderHostSlot<A, E, R>(
+/** How long a lease holder may wait and then hold the lease. */
+interface LeaseTerms<W, T> {
+  /** Held after the request, inside the lease. */
+  gapMs: number;
+  waitMs: number;
+  onWaitTimeout: Effect.Effect<W>;
+  /** Request time and timeout failure for a lease acquired at clock `now`. */
+  hold: (now: number) => { ms: number; onTimeout: Effect.Effect<T> };
+}
+
+function withHostLease<A, E, R, W, T>(
   policy: ProviderHostPolicy,
   store: ProviderHostStore,
   request: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E | Error, R> {
+  terms: LeaseTerms<W, T>,
+): Effect.Effect<A, E | Error | W | T, R> {
   const call = (operation: string, run: () => Promise<boolean>) =>
     Effect.tryPromise({
       try: run,
@@ -103,24 +117,29 @@ export function withProviderHostSlot<A, E, R>(
           slotError(policy, operation, "Redis deadline exceeded"),
       }),
     );
+  // The lease outlives the request by the policy's usual margin.
+  const leaseMargin = policy.leaseMs - policy.requestMs;
   return Effect.uninterruptibleMask((restore) =>
     Effect.gen(function* () {
       const token = crypto.randomUUID();
       const acquired = yield* Effect.exit(
         restore(
           Effect.gen(function* () {
-            while (
-              !(yield* call("reservation", () =>
-                store.reserve(token, policy.leaseMs),
-              ))
-            )
+            const waitUntil = (yield* Clock.currentTimeMillis) + terms.waitMs;
+            while (true) {
+              const leaseMs =
+                terms.hold(yield* Clock.currentTimeMillis).ms + leaseMargin;
+              if (
+                yield* call("reservation", () => store.reserve(token, leaseMs))
+              )
+                return;
+              // The wait ends between polls, never during a reservation that
+              // Redis may still grant, which would leave the lease held.
+              if ((yield* Clock.currentTimeMillis) + policy.pollMs > waitUntil)
+                return yield* Effect.flatMap(terms.onWaitTimeout, Effect.fail);
               yield* Effect.sleep(policy.pollMs);
+            }
           }).pipe(
-            Effect.timeoutFail({
-              duration: policy.waitMs,
-              onTimeout: () =>
-                slotError(policy, "reservation", "Host remained busy"),
-            }),
             // Waiting for a turn is not the chunk's provider work.
             ProviderChunkClock.queued,
           ),
@@ -130,18 +149,18 @@ export function withProviderHostSlot<A, E, R>(
         yield* call("queue cancellation", () => store.cancel(token));
         return yield* Effect.failCause(acquired.cause);
       }
+      const hold = terms.hold(yield* Clock.currentTimeMillis);
       const result = yield* Effect.exit(
         restore(request).pipe(
           Effect.timeoutFail({
-            duration: policy.requestMs,
-            onTimeout: () =>
-              slotError(
-                policy,
-                "request",
-                "Host lease request deadline exceeded",
-              ),
+            duration: Math.max(0, hold.ms),
+            onTimeout: () => null,
           }),
-          Effect.ensuring(Effect.sleep(policy.gapMs)),
+          Effect.catchIf(
+            (error): error is null => error === null,
+            () => Effect.flatMap(hold.onTimeout, Effect.fail),
+          ),
+          Effect.ensuring(Effect.sleep(terms.gapMs)),
         ),
       );
       const released = yield* call("release", () => store.release(token));
@@ -154,60 +173,137 @@ export function withProviderHostSlot<A, E, R>(
   );
 }
 
-/** Policy keys whose lease the current fiber holds for a whole session. */
-const HeldHostKeys = FiberRef.unsafeMake<ReadonlySet<string>>(new Set());
-
-/**
- * Holds one lease for every request `session` makes to the policy's backend,
- * for crawls that must complete atomically in one chunk. Requests inside keep
- * the policy gap. `holdFor` bounds the session the way `requestMs` bounds one
- * request; the lease outlives it by the policy's usual margin.
- */
-export function withProviderHostSession<A, E, R>(
+export function withProviderHostSlot<A, E, R>(
   policy: ProviderHostPolicy,
   store: ProviderHostStore,
-  holdFor: Duration.DurationInput,
-  session: Effect.Effect<A, E, R>,
+  request: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | Error, R> {
-  const requestMs = Duration.toMillis(holdFor);
-  return withProviderHostSlot(
-    {
-      ...policy,
-      requestMs,
-      leaseMs: requestMs + policy.leaseMs - policy.requestMs,
-    },
-    store,
-    Effect.locallyWith(session, HeldHostKeys, (held) =>
-      new Set(held).add(policy.key),
+  return withHostLease(policy, store, request, {
+    gapMs: policy.gapMs,
+    waitMs: policy.waitMs,
+    onWaitTimeout: Effect.succeed(
+      slotError(policy, "reservation", "Host remained busy"),
     ),
+    hold: () => ({
+      ms: policy.requestMs,
+      onTimeout: Effect.succeed(
+        slotError(policy, "request", "Host lease request deadline exceeded"),
+      ),
+    }),
+  });
+}
+
+/** Policy keys whose lease the current fiber holds for a whole turn. */
+const HeldHostKeys = FiberRef.unsafeMake<ReadonlySet<string>>(new Set());
+
+/** Expected time for one request in a turn, before the policy gap. Live URG
+ * and VinPlus pages typically answer in one to two seconds. */
+const TURN_REQUEST_ESTIMATE_MS = 5_000;
+
+/**
+ * Holds one lease for `unit`, which makes `requests` sequential requests to
+ * the policy's backend. Each request's own host slot keeps the policy gap
+ * after it inside the lease, so the turn adds none of its own. Use it for a
+ * request site, or for requests that only together let a chunk advance, so a
+ * chunk needs one queue turn to make progress.
+ *
+ * Inside a chunk deadline the turn must end by the chunk's turn horizon: it
+ * waits only while the estimated work still fits, and work still running at
+ * the horizon is interrupted. Either way it fails with `ProviderTurnDeferred`
+ * and nothing from the turn is returned. Outside a chunk each request may take
+ * the policy's usual request time. A turn inside a held lease runs directly.
+ */
+export function withProviderHostTurn<A, E, R>(
+  policy: ProviderHostPolicy,
+  store: ProviderHostStore,
+  requests: number,
+  unit: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | Error | ProviderTurnDeferred, R> {
+  const bound = requests * policy.requestMs;
+  const held = Effect.locallyWith(unit, HeldHostKeys, (keys) =>
+    new Set(keys).add(policy.key),
   );
+  const requestDeadline = Effect.succeed(
+    slotError(policy, "request", "Host lease request deadline exceeded"),
+  );
+  return Effect.flatMap(ProviderChunkClock.turnHorizon, (horizon) =>
+    Option.match(horizon, {
+      onNone: () =>
+        withHostLease(policy, store, held, {
+          gapMs: 0,
+          waitMs: policy.waitMs,
+          onWaitTimeout: Effect.succeed(
+            slotError(policy, "reservation", "Host remained busy"),
+          ),
+          hold: () => ({ ms: bound, onTimeout: requestDeadline }),
+        }),
+      onSome: (horizon) =>
+        Effect.gen(function* () {
+          const work = requests * (TURN_REQUEST_ESTIMATE_MS + policy.gapMs);
+          const waitMs = horizon - work - (yield* Clock.currentTimeMillis);
+          if (waitMs <= 0)
+            return yield* Effect.flip(
+              ProviderChunkClock.deferred(policy.label, "wait"),
+            );
+          return yield* withHostLease(policy, store, held, {
+            gapMs: 0,
+            waitMs,
+            onWaitTimeout: ProviderChunkClock.deferred(policy.label, "wait"),
+            hold: (now) =>
+              horizon - now < bound
+                ? {
+                    ms: horizon - now,
+                    onTimeout: ProviderChunkClock.deferred(
+                      policy.label,
+                      "work",
+                    ),
+                  }
+                : { ms: bound, onTimeout: requestDeadline },
+          });
+        }),
+    }),
+  );
+}
+
+function onHostStore<A, E, R>(
+  policy: ProviderHostPolicy,
+  use: (store: ProviderHostStore) => Effect.Effect<A, E | Error, R>,
+  bypass: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | Error, R> {
+  return process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production"
+    ? bypass
+    : withRedisProviderHostStore(policy, use);
 }
 
 export function providerHostSlot<A, E, R>(
   policy: ProviderHostPolicy,
   request: Effect.Effect<A, E, R>,
-) {
-  if (process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production")
-    return request;
+): Effect.Effect<A, E | Error, R> {
   return Effect.flatMap(FiberRef.get(HeldHostKeys), (held) =>
     held.has(policy.key)
-      ? // The enclosing session owns the lease; keep the gap between requests.
+      ? // The enclosing turn owns the lease; keep the gap between requests.
         request.pipe(Effect.ensuring(Effect.sleep(policy.gapMs)))
-      : withRedisProviderHostStore(policy, (store) =>
-          withProviderHostSlot(policy, store, request),
+      : onHostStore(
+          policy,
+          (store) => withProviderHostSlot(policy, store, request),
+          request,
         ),
   );
 }
 
-export function providerHostSession<A, E, R>(
+export function providerHostTurn<A, E, R>(
   policy: ProviderHostPolicy,
-  holdFor: Duration.DurationInput,
-  session: Effect.Effect<A, E, R>,
-) {
-  if (process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production")
-    return session;
-  return withRedisProviderHostStore(policy, (store) =>
-    withProviderHostSession(policy, store, holdFor, session),
+  requests: number,
+  unit: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | Error | ProviderTurnDeferred, R> {
+  return Effect.flatMap(FiberRef.get(HeldHostKeys), (held) =>
+    held.has(policy.key)
+      ? unit
+      : onHostStore(
+          policy,
+          (store) => withProviderHostTurn(policy, store, requests, unit),
+          unit,
+        ),
   );
 }
 

@@ -1,5 +1,5 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import type {
   ConnectorChunkAccounting,
   ConnectorChunkStatus,
@@ -33,6 +33,7 @@ import {
 import type { NorthwestCandidate } from "./northwest-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { ProviderChunkClock } from "./provider-chunk-clock";
+import { sharedProviderHostTurn } from "./shared-provider-host";
 
 interface NorthwestOptions<E, R> {
   startCursor?: NorthwestCursor;
@@ -197,7 +198,6 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
-      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current: NorthwestProgress = cursor;
       if (current.requests >= NORTHWEST_MAX_REQUESTS)
         return yield* new NorthwestProviderError({
@@ -205,7 +205,12 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
           cause: "1600 native GET limit reached; preserve prior inventory",
         });
       const url = yield* attempt("next control", () => nextUrl(current));
-      const raw = yield* fetchNorthwestPage(url, gate);
+      const page = yield* fetchNorthwestPage(url, gate).pipe(
+        sharedProviderHostTurn(url),
+        ProviderChunkClock.unlessDeferred(summary.pagesProcessed > 0),
+      );
+      if (Option.isNone(page)) break;
+      const raw = page.value;
       const advanced: NorthwestProgress = yield* attempt(
         url,
         (): NorthwestProgress => advance(current, raw),
