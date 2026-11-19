@@ -10,8 +10,8 @@ import {
 } from "../search-index-schema";
 
 describe("search index schema", () => {
-  it("advances the in-place migration to chronological sorting schema 8", () => {
-    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(8);
+  it("advances the in-place migration to numeric precision schema 9", () => {
+    expect(CURRENT_SEARCH_SCHEMA_VERSION).toBe(9);
   });
   it("treats missing or invalid metadata as version zero", () => {
     expect(getSearchSchemaVersion(undefined)).toBe(0);

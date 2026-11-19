@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { SearchClient } from "algoliasearch";
+import type { IndexSettings, SearchClient } from "algoliasearch";
 import {
   ALGOLIA_INDEX_NAME,
   ALGOLIA_REPLICA_INDEX_NAMES,
+  ALGOLIA_SEARCH_INDEX_NAMES,
 } from "~/lib/constants";
 import {
   buildAlgoliaSettingsPlan,
@@ -11,6 +12,41 @@ import {
 } from "./algolia-settings-plan";
 
 describe("Algolia settings plan", () => {
+  test("disables numeric typos on the primary and every replica after all overrides", () => {
+    const settings = new Map<string, IndexSettings>(
+      ALGOLIA_SEARCH_INDEX_NAMES.map((indexName) => [
+        indexName,
+        { allowTyposOnNumericTokens: true },
+      ]),
+    );
+    for (const operation of buildAlgoliaSettingsPlan()) {
+      if (operation.kind !== "settings") continue;
+      const targets = operation.forwardToReplicas
+        ? ALGOLIA_SEARCH_INDEX_NAMES
+        : [operation.indexName];
+      for (const indexName of targets) {
+        settings.set(indexName, {
+          ...settings.get(indexName),
+          ...operation.indexSettings,
+        });
+      }
+    }
+
+    for (const indexName of ALGOLIA_SEARCH_INDEX_NAMES) {
+      expect(settings.get(indexName)).toMatchObject({
+        allowTyposOnNumericTokens: false,
+        typoTolerance: true,
+        minWordSizefor1Typo: 3,
+        minWordSizefor2Typos: 7,
+      });
+      // Keep Algolia's prefix matching and word typo tolerance for models and VINs.
+      expect(settings.get(indexName)?.queryType).toBeUndefined();
+      expect(
+        settings.get(indexName)?.disableTypoToleranceOnAttributes,
+      ).toBeUndefined();
+    }
+  });
+
   test("creates replicas before forwarding the VIN filtering settings", () => {
     const plan = buildAlgoliaSettingsPlan();
     const [oldestIndex, yearDescIndex, yearAscIndex, newestIndex] =
