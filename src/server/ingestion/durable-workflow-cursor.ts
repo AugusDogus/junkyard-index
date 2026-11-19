@@ -23,6 +23,17 @@ export type DurableWorkflowChunkResult<
 > = Omit<DurableSourceChunkResult<Source>, "cursor"> & {
   cursor: DurableWorkflowCursor<Source>;
 };
+/** A chunk that could not start because a shared provider resource (the
+ * single Hyperbrowser session) stayed busy. It sent no provider requests and
+ * saved nothing; the workflow sleeps until `retryAt` and reruns `cursor`. */
+export type DurableWorkflowDeferredChunk<
+  Source extends DurableIngestionSource = DurableIngestionSource,
+> = {
+  status: "deferred";
+  cursor: DurableWorkflowCursor<Source>;
+  retryAt: number;
+  reason: string;
+};
 export type DurableWorkflowStart =
   | Exclude<DurableIngestionStart, { status: "started" }>
   | {

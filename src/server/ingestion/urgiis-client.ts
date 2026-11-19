@@ -6,6 +6,7 @@ import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import { iisOwnedUrl, iisBrowsePath } from "./urgiis-catalog";
 import type { UrgiisTenant } from "./urgiis-tenant";
 import { urgiisModelRoute } from "./urgiis-model-route";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 export type UrgiisError = {
   tag: "UrgiisError";
@@ -27,7 +28,11 @@ export const urgiisError = (
 });
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const URGIIS_MAX_BODY_BYTES = 4 * 1024 * 1024;
-export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
+export function readUrgiisPage(
+  url: string,
+  tenant: UrgiisTenant,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
+) {
   const owned = iisOwnedUrl(url, tenant);
   if (
     !owned ||
@@ -57,7 +62,7 @@ export function readUrgiisPage(url: string, tenant: UrgiisTenant) {
       try: async (signal) => {
         const timeout = AbortSignal.timeout(tenant.requestTimeoutMs);
         const combined = AbortSignal.any([signal, timeout]);
-        const response = await fetch(requestUrl, {
+        const response = await fetchDocument(requestUrl, {
           signal: combined,
           redirect: "manual",
           headers: {

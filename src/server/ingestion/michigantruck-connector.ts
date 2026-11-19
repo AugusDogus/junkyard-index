@@ -34,6 +34,8 @@ import {
 } from "./michigantruck-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { withBrowserDocumentFetch } from "./browser-document-fetch";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 interface MichigantruckOptions<E, R> {
   startCursor?: MichigantruckCursor;
@@ -59,6 +61,7 @@ const attempt = <A>(operation: string, run: () => A) =>
 export function streamMichigantruckInventoryWithRequestGate<E, R>(
   options: MichigantruckOptions<E, R>,
   gate: ProviderRequestGate,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
 ) {
   return Effect.gen(function* () {
     const parsed = MichigantruckCursorSchema.safeParse(
@@ -101,7 +104,7 @@ export function streamMichigantruckInventoryWithRequestGate<E, R>(
             "request budget",
             "The 32-request chunk limit was reached; no advanced checkpoint returned",
           );
-        return yield* fetchMichigantruckPage(url, gate);
+        return yield* fetchMichigantruckPage(url, gate, fetchDocument);
       });
     const contact = yield* fetchPage(MICHIGANTRUCK_ORIGIN + "/contact/");
     yield* attempt("physical ownership", () => michigantruckDocument(contact));
@@ -283,7 +286,15 @@ export function streamMichigantruckInventory<E, R>(
   return Effect.scoped(
     RateLimiter.make({ limit: 1, interval: "1600 millis" }).pipe(
       Effect.flatMap((gate) =>
-        streamMichigantruckInventoryWithRequestGate(options, gate),
+        // Cloudflare challenges datacenter IPs regardless of headers, so
+        // production reads through a browser session on the yard's origin.
+        withBrowserDocumentFetch(MICHIGANTRUCK_ORIGIN, (fetchDocument) =>
+          streamMichigantruckInventoryWithRequestGate(
+            options,
+            gate,
+            fetchDocument,
+          ),
+        ),
       ),
     ),
   );

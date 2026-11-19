@@ -27,6 +27,8 @@ import {
   type Six03Yard,
 } from "./six03-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { withBrowserDocumentFetch } from "./browser-document-fetch";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 interface Six03Options<E, R> {
   startCursor?: Six03Cursor;
@@ -64,6 +66,7 @@ const nativeDetailProjection = (record: ReturnType<typeof parseSix03Detail>) =>
 export function streamSix03InventoryWithRequestGate<E, R>(
   options: Six03Options<E, R>,
   gate: ProviderRequestGate,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
 ) {
   return Effect.gen(function* () {
     const validated = Six03CursorSchema.safeParse(
@@ -96,7 +99,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
       const state: Six03Progress = cursor;
       switch (state.phase) {
         case "contact": {
-          const html = yield* fetchSix03Page(SIX03_CONTACT, gate);
+          const html = yield* fetchSix03Page(
+            SIX03_CONTACT,
+            gate,
+            fetchDocument,
+          );
           const contact = yield* parse("native contact", () =>
             parseSix03Contact(html),
           );
@@ -111,7 +118,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
           break;
         }
         case "catalog": {
-          const html = yield* fetchSix03Page(SIX03_CATALOG, gate);
+          const html = yield* fetchSix03Page(
+            SIX03_CATALOG,
+            gate,
+            fetchDocument,
+          );
           const catalog = yield* parse("complete native catalog", () =>
             parseSix03Catalog(html),
           );
@@ -142,7 +153,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 cause: "Native donor control is missing",
               }),
             );
-          const html = yield* fetchSix03Page(SIX03_ORIGIN + post[0], gate);
+          const html = yield* fetchSix03Page(
+            SIX03_ORIGIN + post[0],
+            gate,
+            fetchDocument,
+          );
           const record = yield* parse("native donor " + post[0], () =>
             parseSix03Detail(html, post),
           );
@@ -167,7 +182,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
               }),
             );
           if (state.closing === 0) {
-            const html = yield* fetchSix03Page(SIX03_CONTACT, gate);
+            const html = yield* fetchSix03Page(
+              SIX03_CONTACT,
+              gate,
+              fetchDocument,
+            );
             const actual = yield* parse("closing physical contact", () =>
               parseSix03Contact(html),
             );
@@ -179,7 +198,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
                 }),
               );
           } else if (state.closing === 1) {
-            const html = yield* fetchSix03Page(SIX03_CATALOG, gate);
+            const html = yield* fetchSix03Page(
+              SIX03_CATALOG,
+              gate,
+              fetchDocument,
+            );
             const actual = yield* parse("closing complete native catalog", () =>
               parseSix03Catalog(html),
             );
@@ -208,7 +231,11 @@ export function streamSix03InventoryWithRequestGate<E, R>(
             const post = posts[index];
             const expected = state.details[index];
             if (post && expected) {
-              const html = yield* fetchSix03Page(SIX03_ORIGIN + post[0], gate);
+              const html = yield* fetchSix03Page(
+                SIX03_ORIGIN + post[0],
+                gate,
+                fetchDocument,
+              );
               const actual = yield* parse("closing native donor", () =>
                 parseSix03Detail(html, post),
               );
@@ -298,7 +325,11 @@ export function streamSix03Inventory<E, R>(options: Six03Options<E, R>) {
       });
       const gate: ProviderRequestGate = (request) =>
         limit(request).pipe(Effect.ensuring(Effect.sleep("1600 millis")));
-      return yield* streamSix03InventoryWithRequestGate(options, gate);
+      // Cloudflare challenges datacenter IPs regardless of headers, so
+      // production reads through a browser session on the yard's origin.
+      return yield* withBrowserDocumentFetch(SIX03_ORIGIN, (fetchDocument) =>
+        streamSix03InventoryWithRequestGate(options, gate, fetchDocument),
+      );
     }),
   );
 }

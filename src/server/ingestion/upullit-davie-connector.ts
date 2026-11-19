@@ -8,6 +8,7 @@ import {
   UPULLIT_DAVIE_MAX_CATALOG_PAGES,
 } from "./upullit-davie-catalog";
 import { acquireUpullitDavieSession } from "./upullit-davie-browser-session";
+import { withHyperbrowserSessionLease } from "./hyperbrowser-session";
 import type { UpullitDaviePage } from "./upullit-davie-client";
 import { transformUpullitDavieVehicle } from "./upullit-davie-transform";
 import type { CanonicalVehicle } from "./types";
@@ -35,13 +36,15 @@ export function streamUpullitDavieInventory<E, R>(options: {
 }): Effect.Effect<UpullitDavieStreamResult, Error | E, Config | R> {
   return Effect.gen(function* () {
     const config = yield* Config;
-    return yield* Effect.scoped(
-      Effect.gen(function* () {
-        const source = yield* acquireUpullitDavieSession(
-          config.hyperbrowserApiKey,
-        );
-        return yield* streamUpullitDavieInventoryFromSource(options, source);
-      }),
+    return yield* withHyperbrowserSessionLease(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const source = yield* acquireUpullitDavieSession(
+            config.hyperbrowserApiKey,
+          );
+          return yield* streamUpullitDavieInventoryFromSource(options, source);
+        }),
+      ),
     );
   });
 }

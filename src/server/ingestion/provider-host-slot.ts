@@ -26,6 +26,20 @@ const slotError = (
     { cause },
   );
 
+/** The FIFO wait ended before this worker reached the lease. Nothing was
+ * requested from the host; callers may defer instead of failing. */
+export class ProviderHostBusyError extends Error {
+  readonly tag = "ProviderHostBusyError";
+  constructor(
+    readonly policyKey: string,
+    label: string,
+  ) {
+    super(
+      `${label} shared host slot reservation failed: Host remained busy for the whole wait, so no request was sent. Prior inventory and checkpoint remain preserved; retry once the other worker releases the slot.`,
+    );
+  }
+}
+
 /** Atomic FIFO registration and acquisition. Polls renew the waiter's deadline
  * without changing its order. Dead workers expire instead of blocking the queue.
  * All keys share one Redis hash tag for cluster-safe scripts. */
@@ -118,7 +132,7 @@ export function withProviderHostSlot<A, E, R>(
             Effect.timeoutFail({
               duration: policy.waitMs,
               onTimeout: () =>
-                slotError(policy, "reservation", "Host remained busy"),
+                new ProviderHostBusyError(policy.key, policy.label),
             }),
           ),
         ),

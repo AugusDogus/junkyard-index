@@ -15,8 +15,10 @@ import {
 } from "./bigd-cursor";
 import { parseBigdInventory, parseBigdYard } from "./bigd-parser";
 import { bigdSnapshot, type BigdVehicle } from "./bigd-snapshot";
-import { BIGD_YARD, type BigdYard } from "./bigd-yard-metadata";
+import { BIGD_ORIGIN, BIGD_YARD, type BigdYard } from "./bigd-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { withBrowserDocumentFetch } from "./browser-document-fetch";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 
 interface BigdOptions<E, R> {
   startCursor?: BigdCursor;
@@ -26,6 +28,12 @@ interface BigdOptions<E, R> {
   onYards?: (yards: BigdYard[]) => Effect.Effect<void, E, R>;
 }
 export type BigdStreamResult = ConnectorChunkResult<"bigd", BigdCursor>;
+/** Direct HTTP bootstraps a __cf_bm cookie per chunk. Cloudflare challenges
+ * datacenter IPs regardless, so production reads through a browser session
+ * whose own navigation is the bootstrap. */
+export type BigdTransport =
+  | { kind: "http" }
+  | { kind: "browser"; fetchDocument: DocumentFetch };
 const attempt = <A>(operation: string, run: () => A) =>
   ingestionValidation({
     try: run,
@@ -34,6 +42,7 @@ const attempt = <A>(operation: string, run: () => A) =>
 export function streamBigdInventoryWithRequestGate<E, R>(
   options: BigdOptions<E, R>,
   gate: ProviderRequestGate,
+  transport: BigdTransport = { kind: "http" },
 ): Effect.Effect<BigdStreamResult, E | BigdProviderError, R> {
   return Effect.gen(function* () {
     let cursor = yield* attempt("checkpoint", () =>
@@ -68,16 +77,20 @@ export function streamBigdInventoryWithRequestGate<E, R>(
         pagesProcessed,
       } satisfies BigdStreamResult;
     const session: BigdSession = { cookie: null };
+    const fetchDocument =
+      transport.kind === "browser"
+        ? transport.fetchDocument
+        : httpDocumentFetch;
     // One bounded public session bootstrap per chunk, with no automatic retry.
     // Its 403 challenge may supply a cookie but is never inventory evidence.
-    yield* fetchBigdPage("/", session, gate);
+    if (transport.kind === "http") yield* fetchBigdPage("/", session, gate);
     while (pagesProcessed < budget) {
       const current: BigdProgress = cursor;
       const path =
         current.phase === "owner" || current.phase === "closing-owner"
           ? "/contact/"
           : "/inventory/";
-      const body = yield* fetchBigdPage(path, session, gate);
+      const body = yield* fetchBigdPage(path, session, gate, fetchDocument);
       pagesProcessed++;
       if (current.phase === "closing") {
         yield* attempt("closing table", () => {
@@ -136,5 +149,10 @@ export function streamBigdInventoryWithRequestGate<E, R>(
   );
 }
 export function streamBigdInventory<E, R>(options: BigdOptions<E, R>) {
-  return streamBigdInventoryWithRequestGate(options, bigdRequestGate);
+  return withBrowserDocumentFetch(BIGD_ORIGIN, (fetchDocument) =>
+    streamBigdInventoryWithRequestGate(options, bigdRequestGate, {
+      kind: "browser",
+      fetchDocument,
+    }),
+  );
 }

@@ -7,6 +7,7 @@ import {
 } from "playwright-core";
 import { Effect, Schema, Scope } from "effect";
 import { BrowserSessionError } from "./errors";
+import { createHyperbrowserSession } from "./hyperbrowser-session";
 import {
   UPULLIT_DAVIE_ORIGIN,
   type UpullitDaviePage,
@@ -89,14 +90,10 @@ function openSession(
 
 function doOpen(state: MutableSessionState): Effect.Effect<void, unknown> {
   return Effect.gen(function* () {
-    const session = yield* Effect.tryPromise({
-      try: () =>
-        state.client.sessions.create({
-          useStealth: true,
-          acceptCookies: true,
-          region: HYPERBROWSER_REGION,
-        }),
-      catch: toError,
+    const session = yield* createHyperbrowserSession(state.client.sessions, {
+      useStealth: true,
+      acceptCookies: true,
+      region: HYPERBROWSER_REGION,
     });
     state.sessionId = session.id;
 

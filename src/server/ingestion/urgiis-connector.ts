@@ -23,7 +23,8 @@ import type { Yard } from "~/lib/yard";
 import type { CanonicalVehicle } from "./types";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { UrgiisCursor, URGIIS_MAX_REQUESTS } from "./urgiis-cursor";
-import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { URGIIS_BROWSER_TENANTS, URGIIS_TENANTS } from "./urgiis-configuration";
+import { withBrowserDocumentFetch } from "./browser-document-fetch";
 import {
   urgiisTasks,
   urgiisFingerprint,
@@ -54,6 +55,9 @@ export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
     url: string,
     tenant: UrgiisTenant,
   ) => Effect.Effect<string, UrgiisError>;
+  /** Tenants read through a per-chunk browser session. Only `session` has one
+   * in this chunk; the others start in a fresh chunk. */
+  browserTenants?: { codes: ReadonlySet<string>; session: string | null };
   onBatch: (vehicles: CanonicalVehicle[]) => Effect.Effect<void, E, R>;
   onYards?: (yards: Yard[]) => Effect.Effect<void, E, R>;
 }
@@ -391,6 +395,11 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
         continue;
       }
       if (result.pagesProcessed >= budget) break;
+      if (
+        options.browserTenants?.codes.has(tenant.code) &&
+        options.browserTenants.session !== tenant.code
+      )
+        break;
       // One 90-second model (with its retries) fits the chunk deadline. Do not
       // begin it after other requests have already consumed this chunk's budget.
       if (
@@ -689,8 +698,58 @@ export function streamUrgiisInventory<E, R>(options: UrgiisOptions<E, R>) {
     }),
   );
 }
+/** The tenant whose frontier this chunk starts on, or null when the cursor is
+ * complete or invalid (the stream then reports the precise failure). */
+export function urgiisChunkTenant(
+  startCursor: unknown,
+  tenants: readonly UrgiisTenant[],
+): UrgiisTenant | null {
+  try {
+    const cursor = UrgiisCursor.parse(
+      startCursor ?? UrgiisCursor.initial(tenants),
+      tenants,
+    );
+    return tenants[cursor.completed.length] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function streamUrgiisInventoryFromProvider<E, R>(
-  options: Omit<UrgiisOptions<E, R>, "readPage">,
+  options: Omit<UrgiisOptions<E, R>, "readPage" | "browserTenants">,
 ) {
-  return streamUrgiisInventory({ ...options, readPage: readUrgiisPage });
+  return Effect.gen(function* () {
+    const tenants = options.tenants ?? URGIIS_TENANTS;
+    const start = urgiisChunkTenant(options.startCursor, tenants);
+    if (!start || !URGIIS_BROWSER_TENANTS.has(start.code))
+      return yield* streamUrgiisInventory({
+        ...options,
+        browserTenants: { codes: URGIIS_BROWSER_TENANTS, session: null },
+        readPage: (url, tenant) => readUrgiisPage(url, tenant),
+      });
+    const cookies = (start.cookie ?? "")
+      .split(";")
+      .map((pair) => pair.trim().split("="))
+      .flatMap(([name, value]) =>
+        name && value !== undefined ? [{ name, value }] : [],
+      );
+    return yield* withBrowserDocumentFetch(
+      start.origin,
+      (fetchDocument) =>
+        streamUrgiisInventory({
+          ...options,
+          browserTenants: {
+            codes: URGIIS_BROWSER_TENANTS,
+            session: start.code,
+          },
+          readPage: (url, tenant) =>
+            readUrgiisPage(
+              url,
+              tenant,
+              tenant.code === start.code ? fetchDocument : undefined,
+            ),
+        }),
+      cookies,
+    );
+  });
 }

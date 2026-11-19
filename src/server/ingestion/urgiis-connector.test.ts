@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { Effect } from "effect";
 import { UrgiisEntrySchema, urgiisFingerprint } from "./urgiis-traversal";
 import { UrgiisCursor, URGIIS_MAX_CURSOR_BYTES } from "./urgiis-cursor";
-import { streamUrgiisInventory } from "./urgiis-connector";
+import { streamUrgiisInventory, urgiisChunkTenant } from "./urgiis-connector";
 import { urgiisError } from "./urgiis-client";
 import {
   urgiisSnapshot,
@@ -1094,3 +1094,48 @@ test.each([0, 4, 5, "photo"] as const)(
     expect(reads).toBe(mismatchAt === "photo" ? 8 : mismatchAt + 1);
   },
 );
+
+test("URG leaves a browser tenant's pages for a chunk that opened its browser session", async () => {
+  const withoutSession = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      browserTenants: { codes: new Set([tenant.code]), session: null },
+      readPage: () =>
+        Effect.die("A browser tenant must not be read over direct HTTP"),
+      onBatch: () => Effect.die("No page was read"),
+    }),
+  );
+  expect(withoutSession.status).toBe("paused");
+  expect(withoutSession.pagesProcessed).toBe(0);
+
+  const read: string[] = [];
+  const withSession = await Effect.runPromise(
+    streamUrgiisInventory({
+      tenants: [tenant],
+      maxPages: 1,
+      browserTenants: { codes: new Set([tenant.code]), session: tenant.code },
+      readPage: (url) => {
+        read.push(url);
+        return Effect.succeed(responses[0] ?? "");
+      },
+      onBatch: () => Effect.void,
+    }),
+  );
+  expect(read).toEqual([tenant.origin + "/"]);
+  expect(withSession.pagesProcessed).toBe(1);
+});
+
+test("URG names the tenant a chunk starts on so production opens its browser session", () => {
+  const second: UrgiisTenant = { ...tenant, code: "second" };
+  expect(urgiisChunkTenant(undefined, [tenant, second])?.code).toBe(
+    tenant.code,
+  );
+  expect(
+    urgiisChunkTenant(UrgiisCursor.initial([tenant, second]), [
+      tenant,
+      second,
+    ])?.code,
+  ).toBe(tenant.code);
+  expect(urgiisChunkTenant(UrgiisCursor.initial([]), [])).toBeNull();
+  expect(urgiisChunkTenant({ checksum: "tampered" }, [tenant])).toBeNull();
+});

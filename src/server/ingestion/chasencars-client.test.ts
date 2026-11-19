@@ -35,7 +35,7 @@ test("Chase N Cars performs one bounded manual GET and consumes its full native 
   expect(calls[0]?.redirect).toBe("manual");
   expect(calls[0]?.signal?.aborted).toBe(true);
 });
-test("Chase N Cars refuses foreign/detail destinations, denied/challenge/status boundaries, partial bytes and unknown outcomes without retry", async () => {
+test("Chase N Cars refuses foreign/detail destinations, denied/challenge/redirect boundaries, partial bytes and unknown outcomes without retry", async () => {
   let calls = 0;
   stub(async () => {
     calls++;
@@ -61,7 +61,6 @@ test("Chase N Cars refuses foreign/detail destinations, denied/challenge/status 
       headers: { location: "https://foreign.test/" },
     }),
     new Response("challenge", { status: 403 }),
-    new Response("unavailable", { status: 503 }),
     new Response("partial", { status: 206 }),
     new Response("{}", { headers: { "content-type": "application/json" } }),
     new Response("partial", {
@@ -103,27 +102,104 @@ test("Chase N Cars refuses foreign/detail destinations, denied/challenge/status 
   });
   expect(calls).toBe(1);
 });
-test("Chase N Cars combined body deadline aborts and releases a stalled stream", async () => {
-  let canceled = false;
-  const response = new Response(
-    new ReadableStream<Uint8Array>({
-      cancel() {
-        canceled = true;
-      },
-    }),
-    { headers: { "content-type": "text/html" } },
-  );
-  stub(async () => response);
+test("Chase N Cars combined body deadline aborts each stalled stream and retries it twice", async () => {
+  const responses: Response[] = [];
+  let canceled = 0;
+  stub(async () => {
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        cancel() {
+          canceled++;
+        },
+      }),
+      { headers: { "content-type": "text/html" } },
+    );
+    responses.push(response);
+    return response;
+  });
   const result = await Effect.runPromise(
     Effect.gen(function* () {
       const fiber = yield* Effect.fork(readChasencarsPage(url, direct));
-      yield* TestClock.adjust("20 seconds");
+      for (const step of [
+        "20 seconds",
+        "2 seconds",
+        "20 seconds",
+        "4 seconds",
+        "20 seconds",
+      ] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
       return yield* Effect.either(Fiber.join(fiber));
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
-  expect(result._tag).toBe("Left");
-  expect(canceled).toBe(true);
-  expect(response.body?.locked).toBe(false);
+  expect(result).toMatchObject({
+    _tag: "Left",
+    left: {
+      message: expect.stringContaining("Combined request and body deadline"),
+    },
+  });
+  expect(responses).toHaveLength(3);
+  expect(canceled).toBe(3);
+  expect(responses.every((response) => !response.body?.locked)).toBe(true);
+});
+test("Chase N Cars retries 5xx answers and transport failures, then succeeds", async () => {
+  const outcomes: (() => Response)[] = [
+    () => new Response("unavailable", { status: 503 }),
+    () => {
+      throw new TypeError("fetch failed");
+    },
+    () =>
+      new Response("<html>native body</html>", {
+        headers: { "content-type": "text/html" },
+      }),
+  ];
+  let calls = 0;
+  stub(async () => {
+    const next = outcomes[calls++];
+    if (!next) throw new Error("unexpected extra request");
+    return next();
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(readChasencarsPage(url, direct));
+      for (const step of ["2 seconds", "4 seconds"] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
+      return yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result).toBe("<html>native body</html>");
+  expect(calls).toBe(3);
+});
+test("Chase N Cars gives up after three 5xx answers", async () => {
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return new Response("unavailable", { status: 500 });
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(readChasencarsPage(url, direct));
+      for (const step of ["2 seconds", "4 seconds"] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result).toMatchObject({
+    _tag: "Left",
+    left: { message: expect.stringContaining("received HTTP500") },
+  });
+  expect(calls).toBe(3);
 });
 test("Chase N Cars shared gate serializes chunks with 1600ms padding, including failures", async () => {
   const starts: number[] = [];

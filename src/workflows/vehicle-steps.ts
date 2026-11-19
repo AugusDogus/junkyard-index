@@ -1,4 +1,8 @@
-import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-cursor";
+import type {
+  DurableWorkflowCursor,
+  DurableWorkflowDeferredChunk,
+} from "~/server/ingestion/durable-workflow-cursor";
+import { findHyperbrowserCapacityError } from "~/server/ingestion/hyperbrowser-session";
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
@@ -271,10 +275,26 @@ export async function runDurableSourceChunkStep<
     source: cursor.source,
   });
   const requestedCursor = await resolveDurableWorkflowCursor(runId, cursor);
-  const result = await runDurableSourceChunk({
+  const outcome = await runDurableSourceChunk({
     runId,
     cursor: requestedCursor,
-  }).catch((error: unknown) => {
+  }).catch((error: unknown): DurableWorkflowDeferredChunk<Source> => {
+    // A busy browser session is a queue position, not a provider failure:
+    // sleep durably instead of spending this chunk's retries.
+    const capacity = findHyperbrowserCapacityError(error);
+    if (capacity) {
+      console.info("[Workflow] Deferring source chunk", {
+        runId,
+        source: cursor.source,
+        reason: capacity.message,
+      });
+      return {
+        status: "deferred",
+        cursor,
+        retryAt: Date.now() + capacity.retryAfterMs,
+        reason: capacity.message,
+      };
+    }
     try {
       Sentry.logger.warn("Vehicle ingestion source attempt failed", {
         runId,
@@ -290,6 +310,8 @@ export async function runDurableSourceChunkStep<
       error,
     );
   });
+  if (outcome.status === "deferred") return outcome;
+  const result = outcome;
   console.info("[Workflow] Completed source chunk", {
     source: result.cursor.source,
     status: result.status,

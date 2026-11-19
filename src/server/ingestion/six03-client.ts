@@ -1,5 +1,6 @@
 import { Data, Effect } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { httpDocumentFetch, type DocumentFetch } from "./document-fetch";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
   SIX03_CATALOG,
@@ -21,8 +22,9 @@ export class Six03ProviderError extends Data.TaggedError("Six03ProviderError")<{
 async function readSix03Document(
   url: string,
   signal: AbortSignal,
+  fetchDocument: DocumentFetch,
 ): Promise<string> {
-  const response = await fetch(url, {
+  const response = await fetchDocument(url, {
     method: "GET",
     redirect: "manual",
     signal,
@@ -62,7 +64,11 @@ async function readSix03Document(
   );
 }
 
-export function fetchSix03Page(url: string, gate: ProviderRequestGate) {
+export function fetchSix03Page(
+  url: string,
+  gate: ProviderRequestGate,
+  fetchDocument: DocumentFetch = httpDocumentFetch,
+) {
   return gate(
     Effect.suspend(() => {
       if (![SIX03_CATALOG, SIX03_CONTACT].includes(url) && !six03DonorPath(url))
@@ -77,6 +83,7 @@ export function fetchSix03Page(url: string, gate: ProviderRequestGate) {
           pending = readSix03Document(
             url,
             AbortSignal.any([lifetime.signal, interruption, deadline]),
+            fetchDocument,
           );
           return pending;
         },

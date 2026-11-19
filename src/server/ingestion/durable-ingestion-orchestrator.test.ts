@@ -3,6 +3,7 @@ import { stringify } from "devalue";
 import {
   executeDurableIngestion,
   ingestDurableSource,
+  MAX_CONSECUTIVE_CHUNK_DEFERRALS,
   type DurableIngestionOperations,
 } from "./durable-ingestion-orchestrator";
 import type { DurableIngestionResult } from "./durable-ingestion-types";
@@ -632,4 +633,93 @@ test("a persisted provider retry time sleeps before the first resumed chunk", as
   release();
   expect((await pending).status).toBe("complete");
   expect(requests).toBe(1);
+});
+
+test("a chunk deferred by a busy browser session sleeps durably and reruns the same cursor", async () => {
+  const cursor = {
+    source: "upullitdavie",
+    page: 1,
+    totalPages: null,
+    totalCount: null,
+    pageSize: null,
+    recordsProcessed: 0,
+    recordsRejected: 0,
+  } as const;
+  const requested: unknown[] = [];
+  const waits: number[] = [];
+  const result = await ingestDurableSource({
+    runId: "busy-browser",
+    initialCursor: cursor,
+    operations: {
+      sleepUntil: async (time) => {
+        waits.push(time);
+      },
+      runChunk: async (_runId, current) => {
+        requested.push(current);
+        return requested.length === 1
+          ? {
+              status: "deferred",
+              cursor: current,
+              retryAt: 1_000,
+              reason: "busy",
+            }
+          : {
+              cursor: { ...cursor, page: 120 },
+              status: "complete",
+              count: 0,
+              pagesProcessed: 0,
+              errors: [],
+            };
+      },
+      markFailed: async () => {
+        throw new Error("A busy browser session must not fail the source");
+      },
+    },
+  });
+  expect(result.status).toBe("complete");
+  expect(waits).toEqual([1_000]);
+  expect(requested).toEqual([cursor, cursor]);
+});
+
+test("a source deferred past the consecutive limit fails with the last reason", async () => {
+  const cursor = {
+    source: "upullitdavie",
+    page: 1,
+    totalPages: null,
+    totalCount: null,
+    pageSize: null,
+    recordsProcessed: 0,
+    recordsRejected: 0,
+  } as const;
+  let chunks = 0;
+  let failure = "";
+  await ingestDurableSource({
+    runId: "busy-browser",
+    initialCursor: cursor,
+    operations: {
+      sleepUntil: async () => {},
+      runChunk: async (_runId, current) => {
+        chunks++;
+        return {
+          status: "deferred",
+          cursor: current,
+          retryAt: 0,
+          reason: "plan session held",
+        };
+      },
+      markFailed: async (_runId, source, message) => {
+        failure = message;
+        return {
+          cursor,
+          status: "failed",
+          count: 0,
+          pagesProcessed: 0,
+          errors: [message],
+        };
+      },
+    },
+  });
+  expect(chunks).toBe(MAX_CONSECUTIVE_CHUNK_DEFERRALS + 1);
+  expect(failure).toContain("consecutive deferrals");
+  expect(failure).toContain("plan session held");
 });

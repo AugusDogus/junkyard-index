@@ -101,20 +101,20 @@ test("K&R interruption aborts transport and settles the full-body reader", async
   expect(body.locked).toBe(false);
 });
 
-test("K&R body deadline cancels the reader without an automatic retry", async () => {
-  let cancelled = false,
-    calls = 0;
-  const response = new Response(
-    new ReadableStream<Uint8Array>({
-      cancel() {
-        cancelled = true;
-      },
-    }),
-    { headers: { "content-type": "text/html" } },
-  );
+test("K&R body deadline cancels each stalled reader and retries it twice", async () => {
+  const responses: Response[] = [];
+  let cancelled = 0;
   globalThis.fetch = Object.assign(
     async () => {
-      calls++;
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          cancel() {
+            cancelled++;
+          },
+        }),
+        { headers: { "content-type": "text/html" } },
+      );
+      responses.push(response);
       return response;
     },
     { preconnect: original.preconnect },
@@ -122,14 +122,69 @@ test("K&R body deadline cancels the reader without an automatic retry", async ()
   const result = await Effect.runPromise(
     Effect.gen(function* () {
       const fiber = yield* Effect.fork(readKandrPage(KANDR_CONTROLS, gate));
-      yield* TestClock.adjust("20 seconds");
+      for (const step of [
+        "20 seconds",
+        "2 seconds",
+        "20 seconds",
+        "4 seconds",
+        "20 seconds",
+      ] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
       return yield* Effect.either(Fiber.join(fiber));
     }).pipe(Effect.provide(TestContext.TestContext)),
   );
-  expect(result._tag).toBe("Left");
-  expect(calls).toBe(1);
-  expect(cancelled).toBe(true);
-  expect(response.body?.locked).toBe(false);
+  expect(result).toMatchObject({
+    _tag: "Left",
+    left: {
+      tag: "KandrError",
+      message: expect.stringContaining(
+        "Combined request and body deadline exceeded 20 seconds",
+      ),
+    },
+  });
+  expect(responses).toHaveLength(3);
+  expect(cancelled).toBe(3);
+  expect(responses.every((response) => !response.body?.locked)).toBe(true);
+});
+
+test("K&R retries a 502 and a dropped connection, then reads the page", async () => {
+  const outcomes: (() => Response)[] = [
+    () => new Response("bad gateway", { status: 502 }),
+    () => {
+      throw new TypeError("fetch failed");
+    },
+    () =>
+      new Response("<html>controls</html>", {
+        headers: { "content-type": "text/html" },
+      }),
+  ];
+  let calls = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      const next = outcomes[calls++];
+      if (!next) throw new Error("unexpected extra request");
+      return next();
+    },
+    { preconnect: original.preconnect },
+  );
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(readKandrPage(KANDR_CONTROLS, gate));
+      for (const step of ["2 seconds", "4 seconds"] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
+      return yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result).toBe("<html>controls</html>");
+  expect(calls).toBe(3);
 });
 
 test("K&R gate keeps the full request lifetime and 2.5-second settled gap serial", async () => {

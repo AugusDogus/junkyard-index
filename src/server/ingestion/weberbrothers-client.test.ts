@@ -47,6 +47,57 @@ test("Weber stalled body deadline aborts its request and settles reader cleanup"
   expect(response.body?.locked).toBe(false);
 });
 
+test("Weber retries the transient HTTP 500 seen in production, then reads the donor page", async () => {
+  const url =
+    "https://www.weberbrothersauto.com/product/2016-hyundai-santa-fe-ta385/";
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return calls === 1
+      ? new Response("error", { status: 500 })
+      : new Response("<html>donor</html>", {
+          headers: { "content-type": "text/html" },
+        });
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(fetchWeberbrothersPage(url, direct));
+      yield* Effect.promise(
+        () => new Promise((resolve) => setTimeout(resolve, 5)),
+      );
+      yield* TestClock.adjust("2 seconds");
+      return yield* Fiber.join(fiber);
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result).toBe("<html>donor</html>");
+  expect(calls).toBe(2);
+});
+
+test("Weber does not retry a request deadline that would overrun its chunk", async () => {
+  let calls = 0;
+  stub(async (options) => {
+    calls++;
+    const signal = options?.signal;
+    return new Promise<Response>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(signal.reason), {
+        once: true,
+      });
+    });
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        fetchWeberbrothersPage(WEBERBROTHERS_CATALOG, direct),
+      );
+      yield* TestClock.adjust("25 seconds");
+      yield* TestClock.adjust("10 seconds");
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result._tag).toBe("Left");
+  expect(calls).toBe(1);
+});
+
 test("Weber denied response cancels its unread body exactly once without retry", async () => {
   let calls = 0;
   let cancellations = 0;
@@ -145,8 +196,8 @@ test("Weber overlapping default invocations hold the shared gate through failed 
         Effect.runSync(Deferred.succeed(started, undefined));
         return calls === 1
           ? response
-          : new Response("unavailable", {
-              status: 503,
+          : new Response("missing", {
+              status: 404,
               headers: { "content-type": "text/html" },
             });
       });

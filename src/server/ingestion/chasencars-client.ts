@@ -1,6 +1,12 @@
 import { Effect } from "effect";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { RequestTimeoutError } from "./errors";
+import {
+  fetchTransportResponse,
+  retryTransientRequest,
+  transientStatusCause,
+} from "./transient-request";
 import {
   CHASENCARS_YARD_URL,
   CHASENCARS_CATALOG,
@@ -27,7 +33,7 @@ export const chasencarsRequestGate: ProviderRequestGate = (request) =>
   );
 
 async function document(url: string, signal: AbortSignal): Promise<string> {
-  const response = await fetch(url, {
+  const response = await fetchTransportResponse("Chase N Cars " + url, url, {
     method: "GET",
     redirect: "manual",
     signal,
@@ -50,6 +56,7 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
   ) {
     const failure = new Error(
       `Expected complete owned HTTP200 ${expected} at ${url}; received HTTP${response.status}`,
+      transientStatusCause("Chase N Cars " + url, response.status),
     );
     try {
       await response.body?.cancel();
@@ -69,57 +76,65 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
   );
 }
 
-/** No retries. The gate owns the entire request/body lifetime and completion gap. */
+/** The gate owns each attempt's request/body lifetime and completion gap.
+ * Transport failures, deadlines and 5xx answers get two paced retries. */
 export function readChasencarsPage(
   url: string,
   gate: ProviderRequestGate = chasencarsRequestGate,
 ) {
-  return gate(
-    Effect.suspend(() => {
-      if (
-        ![CHASENCARS_YARD_URL, CHASENCARS_CATALOG, CHASENCARS_OWNER].includes(
-          url,
-        )
-      )
-        return Effect.fail(
-          new ChasencarsProviderError(
-            "destination",
-            "URL is outside the verified native inventory controls",
-          ),
-        );
-      const lifetime = new AbortController(),
-        deadline = AbortSignal.timeout(20_000);
-      let pending: Promise<string> | null = null;
-      return Effect.tryPromise({
-        try: (interruption) => {
-          pending = document(
+  return retryTransientRequest(
+    gate(
+      Effect.suspend(() => {
+        if (
+          ![CHASENCARS_YARD_URL, CHASENCARS_CATALOG, CHASENCARS_OWNER].includes(
             url,
-            AbortSignal.any([lifetime.signal, deadline, interruption]),
-          );
-          return pending;
-        },
-        catch: (cause) =>
-          new ChasencarsProviderError("request/body " + url, cause),
-      }).pipe(
-        Effect.ensuring(
-          Effect.promise(async () => {
-            lifetime.abort();
-            if (pending)
-              await pending.then(
-                () => undefined,
-                () => undefined,
-              );
-          }),
-        ),
-        Effect.timeoutFail({
-          duration: "20 seconds",
-          onTimeout: () =>
+          )
+        )
+          return Effect.fail(
             new ChasencarsProviderError(
-              "request/body " + url,
-              "Combined request and body deadline exceeded 20 seconds",
+              "destination",
+              "URL is outside the verified native inventory controls",
             ),
-        }),
-      );
-    }),
+          );
+        const lifetime = new AbortController(),
+          deadline = AbortSignal.timeout(20_000);
+        let pending: Promise<string> | null = null;
+        return Effect.tryPromise({
+          try: (interruption) => {
+            pending = document(
+              url,
+              AbortSignal.any([lifetime.signal, deadline, interruption]),
+            );
+            return pending;
+          },
+          catch: (cause) =>
+            new ChasencarsProviderError("request/body " + url, cause),
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(async () => {
+              lifetime.abort();
+              if (pending)
+                await pending.then(
+                  () => undefined,
+                  () => undefined,
+                );
+            }),
+          ),
+          Effect.timeoutFail({
+            duration: "20 seconds",
+            onTimeout: () =>
+              new ChasencarsProviderError(
+                "request/body " + url,
+                new RequestTimeoutError({
+                  context: "Chase N Cars " + url,
+                  cause:
+                    "Combined request and body deadline exceeded 20 seconds",
+                }),
+              ),
+          }),
+        );
+      }),
+    ),
+    { timeouts: true },
   );
 }
