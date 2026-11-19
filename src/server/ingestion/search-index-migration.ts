@@ -70,7 +70,7 @@ async function validateSearchFilters(vins: string[]): Promise<void> {
       const matchingHit = response.results[index]?.hits[0];
       if (matchingHit?.objectID !== vin) {
         throw new SearchIndexMigrationValidationError(
-          `Search filter validation failed for ${vin} on ${indexName}. The schema marker was not advanced, so VIN patterns and Boolean OR queries remain unavailable. Re-run the search-index migration after confirming every replica contains the expected filter tokens.`,
+          `Search filter validation failed for ${vin} on ${indexName}. The schema marker was not advanced. Re-run the search-index migration after confirming every replica contains the expected filter tokens and searchable VIN prefixes.`,
         );
       }
     }

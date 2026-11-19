@@ -1,4 +1,5 @@
 const VIN_LENGTH = 17;
+const VIN_SEARCH_PREFIX_MIN_LENGTH = 8;
 const VIN_CHARACTERS = "0123456789ABCDEFGHJKLMNPRSTUVWXYZ";
 
 export type VinPatternError =
@@ -175,8 +176,24 @@ function toIndexTokens(vin: string): string[] {
   );
 }
 
+// Exact tokens keep bare VIN searches at 8+ characters when Algolia's native
+// prefix expansion is disabled. The full VIN is indexed separately.
+function toSearchPrefixes(vin: string): string[] {
+  const normalized = normalize(vin);
+  return Array.from(
+    {
+      length: Math.max(
+        0,
+        Math.min(normalized.length, VIN_LENGTH) - VIN_SEARCH_PREFIX_MIN_LENGTH,
+      ),
+    },
+    (_, offset) => normalized.slice(0, VIN_SEARCH_PREFIX_MIN_LENGTH + offset),
+  );
+}
+
 export const VinPattern = {
   length: VIN_LENGTH,
+  minSearchPrefixLength: VIN_SEARCH_PREFIX_MIN_LENGTH,
   maxInputLength: VIN_LENGTH * 5,
   normalize,
   isSearchCandidate,
@@ -184,4 +201,5 @@ export const VinPattern = {
   errorMessage,
   toAlgoliaFilter,
   toIndexTokens,
+  toSearchPrefixes,
 } as const;

@@ -45,6 +45,8 @@ export interface CanonicalVehicle {
  */
 export interface AlgoliaVehicleRecord {
   objectID: string;
+  vin: string;
+  vinPrefixes: string[];
   vinPositionTokens: string[];
   searchTokens: string[];
   source: IngestionSource;
@@ -113,6 +115,8 @@ export function toAlgoliaRecord(
 
   return {
     objectID: vehicle.vin,
+    vin: vehicle.vin,
+    vinPrefixes: VinPattern.toSearchPrefixes(vehicle.vin),
     vinPositionTokens: VinPattern.toIndexTokens(vehicle.vin),
     searchTokens: buildAdvancedSearchTokens([
       vehicle.make,

@@ -25,7 +25,9 @@ export function buildVinFilterValidationRequests(vin: string) {
   const advancedSearchFilter = `searchTokens:"${vin.toLocaleLowerCase("en-US")}"`;
   return ALGOLIA_SEARCH_INDEX_NAMES.map((indexName) => ({
     indexName,
-    query: "",
+    // Exercise the minimum bare prefix as well as the exact filter tokens
+    // before marking the rewritten index ready.
+    query: vin.slice(0, VinPattern.minSearchPrefixLength),
     filters: `(${filters}) AND ${advancedSearchFilter}`,
     hitsPerPage: 1,
     attributesToRetrieve: ["objectID"],

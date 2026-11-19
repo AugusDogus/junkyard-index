@@ -12,7 +12,7 @@ import {
 } from "./algolia-settings-plan";
 
 describe("Algolia settings plan", () => {
-  test("disables numeric typos on the primary and every replica after all overrides", () => {
+  test("preserves numeric precision and exact VIN matching on every index after all overrides", () => {
     const settings = new Map<string, IndexSettings>(
       ALGOLIA_SEARCH_INDEX_NAMES.map((indexName) => [
         indexName,
@@ -39,11 +39,22 @@ describe("Algolia settings plan", () => {
         minWordSizefor1Typo: 3,
         minWordSizefor2Typos: 7,
       });
-      // Keep Algolia's prefix matching and word typo tolerance for models and VINs.
+      // Keep Algolia's prefix matching and word typo tolerance for models.
       expect(settings.get(indexName)?.queryType).toBeUndefined();
-      expect(
-        settings.get(indexName)?.disableTypoToleranceOnAttributes,
-      ).toBeUndefined();
+      expect(settings.get(indexName)).toMatchObject({
+        searchableAttributes: [
+          "make",
+          "model",
+          "year",
+          "unordered(color)",
+          "unordered(vin)",
+          "unordered(vinPrefixes)",
+        ],
+        // Exact prefix tokens enforce the eight-character floor without
+        // allowing shorter or mistyped VINs to match either VIN field.
+        disablePrefixOnAttributes: ["vin", "vinPrefixes"],
+        disableTypoToleranceOnAttributes: ["vin", "vinPrefixes"],
+      });
     }
   });
 
@@ -79,6 +90,9 @@ describe("Algolia settings plan", () => {
     );
     expect(COMMON_ALGOLIA_INDEX_SETTINGS.unretrievableAttributes).toContain(
       "vinPositionTokens",
+    );
+    expect(COMMON_ALGOLIA_INDEX_SETTINGS.unretrievableAttributes).toContain(
+      "vinPrefixes",
     );
     expect(COMMON_ALGOLIA_INDEX_SETTINGS.unretrievableAttributes).toContain(
       "searchTokens",
