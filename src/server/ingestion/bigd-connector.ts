@@ -149,10 +149,13 @@ export function streamBigdInventoryWithRequestGate<E, R>(
   );
 }
 export function streamBigdInventory<E, R>(options: BigdOptions<E, R>) {
-  return withBrowserDocumentFetch(BIGD_ORIGIN, (fetchDocument) =>
-    streamBigdInventoryWithRequestGate(options, bigdRequestGate, {
-      kind: "browser",
-      fetchDocument,
-    }),
+  return withBrowserDocumentFetch(
+    BIGD_ORIGIN,
+    bigdRequestGate,
+    (fetchDocument) =>
+      streamBigdInventoryWithRequestGate(options, bigdRequestGate, {
+        kind: "browser",
+        fetchDocument,
+      }),
   );
 }

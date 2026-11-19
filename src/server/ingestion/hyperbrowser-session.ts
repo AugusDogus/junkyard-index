@@ -7,7 +7,8 @@ import {
   type ProviderHostPolicy,
 } from "./provider-host-slot";
 
-/** Session creation, CDP connection and the origin navigation together. */
+/** Session creation, CDP connection, the wait for the yard's request gate and
+ * the origin navigation together. */
 export const HYPERBROWSER_SETUP_MS = 2 * 60_000;
 /** The Hyperbrowser plan allows one active session. Every browser-backed
  * source holds this FIFO lease for its whole session, so chunks take turns
@@ -37,7 +38,7 @@ export class HyperbrowserCapacityError extends Data.TaggedError(
   "HyperbrowserCapacityError",
 )<{ reason: string; retryAfterMs: number }> {
   override get message() {
-    return `No Hyperbrowser session is free: ${this.reason}. The chunk sent no provider requests, and its checkpoint and published inventory are preserved. It will queue again in ${Math.round(this.retryAfterMs / 1000)} seconds.`;
+    return `The browser chunk could not start: ${this.reason}. The chunk sent no provider requests, and its checkpoint and published inventory are preserved. It will queue again in ${Math.round(this.retryAfterMs / 1000)} seconds.`;
   }
 }
 

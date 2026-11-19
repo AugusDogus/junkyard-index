@@ -28,6 +28,19 @@ export const urgiisError = (
 });
 const serial = Effect.runSync(Effect.makeSemaphore(1));
 export const URGIIS_MAX_BODY_BYTES = 4 * 1024 * 1024;
+/** Admits one request to a URG tenant: one at a time in this process, the
+ * shared URG host lease for its complete response lifetime (with the host
+ * gap), then the tenant's pacing. Document reads and the browser session's
+ * origin navigation both pass through it. */
+export const urgiisRequestGate =
+  (url: string, tenant: UrgiisTenant) =>
+  <A, E, R>(request: Effect.Effect<A, E, R>) =>
+    serial.withPermits(1)(
+      request.pipe(
+        sharedProviderHostSlot(url),
+        Effect.ensuring(Effect.sleep(tenant.pacingMs)),
+      ),
+    );
 export function readUrgiisPage(
   url: string,
   tenant: UrgiisTenant,
@@ -145,15 +158,14 @@ export function readUrgiisPage(
         }),
       ),
     );
-    return serial.withPermits(1)(
-      request.pipe(
-        sharedProviderHostSlot(url),
-        Effect.mapError((cause) =>
-          cause instanceof Error
-            ? urgiisError("shared host " + url, cause)
-            : cause,
-        ),
-        Effect.ensuring(Effect.sleep(tenant.pacingMs)),
+    return urgiisRequestGate(
+      url,
+      tenant,
+    )(request).pipe(
+      Effect.mapError((cause) =>
+        cause instanceof Error
+          ? urgiisError("shared host " + url, cause)
+          : cause,
       ),
     );
   }).pipe(

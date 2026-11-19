@@ -5,14 +5,16 @@ import { Config } from "./context";
 import type { DocumentFetch } from "./document-fetch";
 import {
   createHyperbrowserSession,
+  HYPERBROWSER_BUSY_RETRY_MS,
   HYPERBROWSER_SETUP_MS,
+  HyperbrowserCapacityError,
   withHyperbrowserSessionLease,
-  type HyperbrowserCapacityError,
 } from "./hyperbrowser-session";
 
 /** Ceiling inside the page; each client still enforces its own smaller cap. */
 const BROWSER_MAX_BODY_BYTES = 8 * 1024 * 1024;
 const BROWSER_REQUEST_TIMEOUT_MS = 90_000;
+const NAVIGATION_TIMEOUT_MS = 60_000;
 const CHALLENGE_WAIT_MS = 20_000;
 /** From Hyperbrowser, Big D's Cloudflare zone challenges a minority of
  * same-origin fetches and passes a later identical one; a client then still
@@ -233,90 +235,158 @@ const isChallenge = (result: InPageResult) =>
  * before navigation because page scripts cannot send a Cookie header. */
 export type BrowserCookie = { name: string; value: string };
 
-/** Opens a Hyperbrowser page on `origin` so its Cloudflare clearance and
- * cookies apply to later same-origin requests. Must run under the session
- * lease; `withBrowserDocumentFetch` does both. */
+/** The Playwright page surface the origin navigation uses. */
+export interface BrowserNavigationPage {
+  goto(
+    url: string,
+    options: { waitUntil: "domcontentloaded"; timeout: number },
+  ): Promise<unknown>;
+  waitForFunction(
+    predicate: () => boolean,
+    arg: null,
+    options: { timeout: number },
+  ): Promise<unknown>;
+}
+
+/** Admits one request to the yard: the source's pacing and, for a shared
+ * backend, its host lease. Every `ProviderRequestGate` is one. */
+export type BrowserNavigationGate = (
+  request: Effect.Effect<void, Error>,
+) => Effect.Effect<void, Error>;
+
+/** Opens `origin` in `page` so its Cloudflare clearance and cookies apply to
+ * later same-origin fetches. The navigation is a request to the yard like any
+ * other, so it runs inside the source's request `gate` (its pacing and, for a
+ * shared backend such as URG, the host lease). A Cloudflare challenge clears
+ * by reloading the yard's page, so its bounded wait stays inside the gate; an
+ * unchallenged page releases the gate as soon as it loads. */
+export function navigateBrowserPage(
+  page: BrowserNavigationPage,
+  origin: string,
+  gate: BrowserNavigationGate,
+): Effect.Effect<void, Error> {
+  return gate(
+    Effect.tryPromise({
+      try: async () => {
+        // A challenge answers this navigation with 403 and clears itself in a
+        // real browser. Some sites keep challenging navigations while serving
+        // same-origin fetches, so an uncleared challenge is not an error
+        // here: every document request is validated by its client.
+        await page.goto(origin + "/", {
+          waitUntil: "domcontentloaded",
+          timeout: NAVIGATION_TIMEOUT_MS,
+        });
+        await page
+          .waitForFunction(() => !/just a moment/i.test(document.title), null, {
+            timeout: CHALLENGE_WAIT_MS,
+          })
+          .catch(() => undefined);
+      },
+      catch: (cause) =>
+        new Error(`Could not open ${origin} in the browser session`, { cause }),
+    }),
+  );
+}
+
+/** Where browser setup stood when its deadline passed. */
+type SetupStage = "session" | "host-queue" | "navigation";
+
+/** Opens a Hyperbrowser page on `origin` and navigates it through `gate`.
+ * Must run under the session lease; `withBrowserDocumentFetch` does both. A
+ * deadline reached before the navigation request was sent defers the chunk:
+ * nothing was requested from the yard. */
 export function acquireBrowserDocumentFetch(
   apiKey: string,
   origin: string,
+  gate: BrowserNavigationGate,
   cookies: readonly BrowserCookie[] = [],
 ): Effect.Effect<
   DocumentFetch,
   Error | HyperbrowserCapacityError,
   Scope.Scope
 > {
-  return Effect.gen(function* () {
-    const client = new Hyperbrowser({ apiKey });
-    const session = yield* Effect.acquireRelease(
-      createHyperbrowserSession(client.sessions, {
-        useStealth: true,
-        acceptCookies: true,
-        region: "us-west",
-      }),
-      (opened) =>
-        Effect.promise(() =>
-          client.sessions.stop(opened.id).then(
-            () => undefined,
-            (cause: unknown) =>
-              console.error(
-                `Could not stop Hyperbrowser session ${opened.id}; its ${origin} chunk result is unaffected and the session ends at its server-side timeout`,
-                cause,
-              ),
+  return Effect.suspend(() => {
+    let stage: SetupStage = "session";
+    return Effect.gen(function* () {
+      const client = new Hyperbrowser({ apiKey });
+      const session = yield* Effect.acquireRelease(
+        createHyperbrowserSession(client.sessions, {
+          useStealth: true,
+          acceptCookies: true,
+          region: "us-west",
+        }),
+        (opened) =>
+          Effect.promise(() =>
+            client.sessions.stop(opened.id).then(
+              () => undefined,
+              (cause: unknown) =>
+                console.error(
+                  `Could not stop Hyperbrowser session ${opened.id}; its ${origin} chunk result is unaffected and the session ends at its server-side timeout`,
+                  cause,
+                ),
+            ),
           ),
-        ),
-    );
-    const browser = yield* Effect.acquireRelease(
-      Effect.tryPromise({
-        try: () =>
-          chromium.connectOverCDP(session.wsEndpoint, { timeout: 45_000 }),
+      );
+      const browser = yield* Effect.acquireRelease(
+        Effect.tryPromise({
+          try: () =>
+            chromium.connectOverCDP(session.wsEndpoint, { timeout: 45_000 }),
+          catch: (cause) =>
+            new Error(`Could not connect to the ${origin} browser session`, {
+              cause,
+            }),
+        }),
+        (connected) => Effect.promise(() => connected.close().catch(() => {})),
+      );
+      const page = yield* Effect.tryPromise({
+        try: async () => {
+          const context = browser.contexts()[0] ?? (await browser.newContext());
+          if (cookies.length > 0)
+            await context.addCookies(
+              cookies.map((cookie) => ({ ...cookie, url: origin + "/" })),
+            );
+          return context.pages()[0] ?? (await context.newPage());
+        },
         catch: (cause) =>
-          new Error(`Could not connect to the ${origin} browser session`, {
+          new Error(`Could not open a page in the ${origin} browser session`, {
             cause,
           }),
-      }),
-      (connected) => Effect.promise(() => connected.close().catch(() => {})),
-    );
-    const page = yield* Effect.tryPromise({
-      try: async () => {
-        const context = browser.contexts()[0] ?? (await browser.newContext());
-        if (cookies.length > 0)
-          await context.addCookies(
-            cookies.map((cookie) => ({ ...cookie, url: origin + "/" })),
-          );
-        const opened = context.pages()[0] ?? (await context.newPage());
-        // A Cloudflare challenge answers this navigation with 403 and clears
-        // itself in a real browser. Some sites keep challenging navigations
-        // while serving same-origin fetches, so an uncleared challenge is not
-        // an error here: every document request is validated by its client.
-        await opened.goto(origin + "/", {
-          waitUntil: "domcontentloaded",
-          timeout: 60_000,
-        });
-        await opened
-          .waitForFunction(() => !/just a moment/i.test(document.title), null, {
-            timeout: CHALLENGE_WAIT_MS,
-          })
-          .catch(() => undefined);
-        return opened;
-      },
-      catch: (cause) =>
-        new Error(`Could not open ${origin} in the browser session`, { cause }),
-    });
-    return pageDocumentFetch(page, origin);
-  }).pipe(
-    Effect.timeoutFail({
-      duration: HYPERBROWSER_SETUP_MS,
-      onTimeout: () =>
-        new Error(
-          `Browser session setup for ${origin} exceeded ${HYPERBROWSER_SETUP_MS / 1000} seconds before any document request. The checkpoint is unchanged; retry the chunk.`,
+      });
+      stage = "host-queue";
+      yield* navigateBrowserPage(page, origin, (request) =>
+        gate(
+          Effect.sync(() => {
+            stage = "navigation";
+          }).pipe(Effect.zipRight(request)),
         ),
-    }),
-  );
+      );
+      return pageDocumentFetch(page, origin);
+    }).pipe(
+      Effect.timeoutFail({
+        duration: HYPERBROWSER_SETUP_MS,
+        onTimeout: (): Error | HyperbrowserCapacityError =>
+          stage === "navigation"
+            ? new Error(
+                `Browser navigation to ${origin} did not finish within the ${HYPERBROWSER_SETUP_MS / 1000}-second setup window. The checkpoint is unchanged; retry the chunk.`,
+              )
+            : new HyperbrowserCapacityError({
+                reason:
+                  stage === "session"
+                    ? `starting the browser session for ${origin} used the whole ${HYPERBROWSER_SETUP_MS / 1000}-second setup window`
+                    : `${origin}'s request queue stayed busy for the rest of the ${HYPERBROWSER_SETUP_MS / 1000}-second browser setup window`,
+                retryAfterMs: HYPERBROWSER_BUSY_RETRY_MS,
+              }),
+      }),
+    );
+  });
 }
 
-/** Holds the browser lease and one session on `origin` for `use`. */
+/** Holds the browser lease and one session on `origin` for `use`. The origin
+ * navigation is sent through `gate`, the same request gate (pacing and host
+ * lease) the source's document requests use. */
 export function withBrowserDocumentFetch<A, E, R>(
   origin: string,
+  gate: BrowserNavigationGate,
   use: (fetchDocument: DocumentFetch) => Effect.Effect<A, E, R>,
   cookies: readonly BrowserCookie[] = [],
 ): Effect.Effect<A, E | Error | HyperbrowserCapacityError, R | Config> {
@@ -327,6 +397,7 @@ export function withBrowserDocumentFetch<A, E, R>(
           acquireBrowserDocumentFetch(
             config.hyperbrowserApiKey,
             origin,
+            gate,
             cookies,
           ),
           use,

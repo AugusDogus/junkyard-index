@@ -288,7 +288,7 @@ export function streamMichigantruckInventory<E, R>(
       Effect.flatMap((gate) =>
         // Cloudflare challenges datacenter IPs regardless of headers, so
         // production reads through a browser session on the yard's origin.
-        withBrowserDocumentFetch(MICHIGANTRUCK_ORIGIN, (fetchDocument) =>
+        withBrowserDocumentFetch(MICHIGANTRUCK_ORIGIN, gate, (fetchDocument) =>
           streamMichigantruckInventoryWithRequestGate(
             options,
             gate,

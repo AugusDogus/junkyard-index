@@ -43,7 +43,12 @@ import {
   validateUrgiisSnapshot,
   type UrgiisModelPage,
 } from "./urgiis-snapshot";
-import { readUrgiisPage, urgiisError, type UrgiisError } from "./urgiis-client";
+import {
+  readUrgiisPage,
+  urgiisError,
+  urgiisRequestGate,
+  type UrgiisError,
+} from "./urgiis-client";
 import { urgiisClosingEvidence } from "./urgiis-closing";
 
 export interface UrgiisOptions<E, R> extends UrgiisCensusHistory {
@@ -735,6 +740,7 @@ export function streamUrgiisInventoryFromProvider<E, R>(
       );
     return yield* withBrowserDocumentFetch(
       start.origin,
+      urgiisRequestGate(start.origin, start),
       (fetchDocument) =>
         streamUrgiisInventory({
           ...options,

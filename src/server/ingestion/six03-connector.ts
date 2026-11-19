@@ -327,8 +327,11 @@ export function streamSix03Inventory<E, R>(options: Six03Options<E, R>) {
         limit(request).pipe(Effect.ensuring(Effect.sleep("1600 millis")));
       // Cloudflare challenges datacenter IPs regardless of headers, so
       // production reads through a browser session on the yard's origin.
-      return yield* withBrowserDocumentFetch(SIX03_ORIGIN, (fetchDocument) =>
-        streamSix03InventoryWithRequestGate(options, gate, fetchDocument),
+      return yield* withBrowserDocumentFetch(
+        SIX03_ORIGIN,
+        gate,
+        (fetchDocument) =>
+          streamSix03InventoryWithRequestGate(options, gate, fetchDocument),
       );
     }),
   );

@@ -1,9 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
+import { z } from "zod";
 import {
   browserDocumentResponse,
+  navigateBrowserPage,
   pageDocumentFetch,
 } from "./browser-document-fetch";
+import { URGIIS_TENANTS } from "./urgiis-configuration";
+import { urgiisRequestGate } from "./urgiis-client";
+import { URG_HOST_POLICY } from "./shared-provider-host";
 import { fetchSix03Page } from "./six03-client";
 import { SIX03_CONTACT, SIX03_ORIGIN } from "./six03-yard-metadata";
 import { fetchMichigantruckPage } from "./michigantruck-client";
@@ -217,4 +222,114 @@ test("a client deadline also aborts the request running inside the page", async 
   deadline.abort(new DOMException("deadline", "TimeoutError"));
   await expect(pending).rejects.toThrow("deadline");
   expect(pageSignal?.aborted).toBe(true);
+});
+
+/** Records the navigation's position relative to the gate around it. */
+function navigationPage(events: string[]) {
+  return {
+    goto: async (url: string) => {
+      events.push("goto " + url);
+    },
+    waitForFunction: async () => {
+      events.push("challenge wait");
+    },
+  };
+}
+
+test("the origin navigation and its challenge wait run inside the source's request gate", async () => {
+  const events: string[] = [];
+  const gate: ProviderRequestGate = (request) =>
+    Effect.sync(() => events.push("gate admits")).pipe(
+      Effect.zipRight(request),
+      Effect.ensuring(Effect.sync(() => events.push("gate releases"))),
+    );
+  await Effect.runPromise(
+    navigateBrowserPage(navigationPage(events), SIX03_ORIGIN, gate),
+  );
+  expect(events).toEqual([
+    "gate admits",
+    `goto ${SIX03_ORIGIN}/`,
+    "challenge wait",
+    "gate releases",
+  ]);
+});
+
+test("United's origin navigation holds the shared URG host lease and the tenant's pacing", async () => {
+  const united = URGIIS_TENANTS.find((tenant) => tenant.code === "united");
+  if (!united) throw new Error("United tenant is missing");
+  const events: string[] = [];
+  const environment = {
+    VERCEL: process.env.VERCEL,
+    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  };
+  process.env.VERCEL = "1";
+  process.env.UPSTASH_REDIS_REST_URL = "https://redis.invalid";
+  process.env.UPSTASH_REDIS_REST_TOKEN = "offline";
+  // Stands in for Upstash (which auto-pipelines): every EVAL succeeds, and
+  // its first key names the lease.
+  globalThis.fetch = Object.assign(
+    async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const commands = z
+        .array(
+          z
+            .tuple([z.string(), z.string(), z.number(), z.string()])
+            .rest(z.unknown()),
+        )
+        .parse(JSON.parse(String(init?.body)));
+      for (const [command, script, , key] of commands)
+        events.push(
+          `${command} ${script.includes("ZADD") ? "reserve" : "release"} ${key}`,
+        );
+      return Response.json(commands.map(() => ({ result: 1 })));
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  try {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.fork(
+          navigateBrowserPage(
+            navigationPage(events),
+            united.origin,
+            urgiisRequestGate(united.origin, united),
+          ),
+        );
+        let elapsed = 0;
+        while ((yield* Fiber.poll(fiber))._tag === "None") {
+          yield* Effect.promise(
+            () => new Promise((resolve) => setTimeout(resolve, 1)),
+          );
+          if ((yield* Fiber.poll(fiber))._tag === "Some") break;
+          // Logged before the adjustment, so the step that ends a sleep
+          // precedes whatever that sleep releases.
+          elapsed += 100;
+          events.push(`clock ${elapsed}`);
+          yield* TestClock.adjust("100 millis");
+        }
+        yield* Fiber.join(fiber);
+      }).pipe(Effect.provide(TestContext.TestContext)),
+    );
+  } finally {
+    for (const [name, value] of Object.entries(environment))
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+  }
+  const significant = events.filter((event) => !event.startsWith("clock"));
+  expect(significant).toEqual([
+    "eval reserve ingestion:host:urg-iis:v1",
+    `goto ${united.origin}/`,
+    "challenge wait",
+    "eval release ingestion:host:urg-iis:v1",
+  ]);
+  // The lease is held through the URG host gap, then the tenant pacing runs.
+  const released = events.indexOf("eval release ingestion:host:urg-iis:v1");
+  const clocks = (from: number, to: number) =>
+    events.slice(from, to).filter((event) => event.startsWith("clock")).length;
+  expect(clocks(0, released) * 100).toBeGreaterThanOrEqual(
+    URG_HOST_POLICY.gapMs,
+  );
+  expect(clocks(released, events.length) * 100).toBeGreaterThanOrEqual(
+    united.pacingMs,
+  );
 });
