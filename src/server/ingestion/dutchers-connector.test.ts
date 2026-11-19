@@ -471,4 +471,45 @@ describe("Dutcher heavy division complete native census", () => {
       fetcher.mockRestore();
     }
   });
+
+  test("2026-11-19 Request Info item control parses, and year ties overlap adjacent pages", () => {
+    const live = z
+      .object({
+        note: z.string(),
+        receipts: z.array(
+          z.object({ key: z.string(), status: z.literal(200) }),
+        ),
+        total: z.number().int().positive(),
+        pages: z.record(z.string()),
+      })
+      .parse(
+        JSON.parse(
+          gunzipSync(
+            readFileSync(
+              new URL(
+                "./dutchers-test-fixtures/unstable-year-ties.json.gz",
+                import.meta.url,
+              ),
+            ),
+          ).toString(),
+        ),
+      );
+    const [first, second] = [1, 2].map((page) => {
+      const raw = live.pages[`dutchers-desc-${page}`];
+      if (raw === undefined) throw new Error("Missing live page " + page);
+      return parseDutchersCatalog(raw, "DESC", page, live.total);
+    });
+    if (!first || !second) throw new Error("Missing parsed live pages");
+    expect(live.total).toBe(592);
+    expect(first.records).toHaveLength(25);
+    expect(second.records).toHaveLength(25);
+    expect(first.records[0]?.vin).toBe("1XPCD49X1TD794754");
+    // dutchersRoster treats repeats as traversal overlap and still needs every ID.
+    expect(
+      second.records
+        .filter((r) => first.records.some((o) => o.id === r.id))
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(["11515", "12314"]);
+  });
 });

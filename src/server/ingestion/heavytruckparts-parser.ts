@@ -17,9 +17,23 @@ export function heavyTruckPartsParser(config: HeavyTruckPartsSupplier) {
   function cards(region: string): HeavyTruckPartsRecord[] {
     const records = heavyTruckPartsDivs(region, "product").map(
       (card): HeavyTruckPartsRecord => {
+        const itemLinks = heavyTruckPartsAnchors(card).filter((a) =>
+          a.href.includes("/item/"),
+        );
+        // Since 2026-11-18 the native Request Info control posts to the item
+        // page itself. Only that exact control, bound to this card's single
+        // item destination, is not a second destination.
         const destinations = new Set(
-          heavyTruckPartsAnchors(card)
-            .filter((a) => a.href.includes("/item/"))
+          itemLinks
+            .filter(
+              (a) =>
+                a.text !== "Request Info" ||
+                !itemLinks.some(
+                  (b) =>
+                    b.text !== "Request Info" &&
+                    a.href === b.href + "?inquiry=true",
+                ),
+            )
             .map((a) => a.href),
         );
         const path = [...destinations][0] ?? "",

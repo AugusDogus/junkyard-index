@@ -1,4 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { Effect } from "effect";
 import { z } from "zod";
 import { cstruckFixture } from "./cstruck-test-fixtures";
@@ -465,4 +467,68 @@ test("unfiltered traversal requires every Next page and rejects duplicate native
   ).toThrow("frontier");
   second.records = first.records;
   expect(() => cstruckRoster(pages, 64)).toThrow();
+});
+
+test("2026-11-19 unstable native year ties repeat and skip unfiltered items, yet the census reconciles", () => {
+  const live = z
+    .object({
+      note: z.string(),
+      receipts: z.array(z.object({ key: z.string(), status: z.literal(200) })),
+      total: z.number().int().positive(),
+      pages: z.record(z.string()),
+    })
+    .parse(
+      JSON.parse(
+        gunzipSync(
+          readFileSync(
+            new URL(
+              "./cstruck-test-fixtures/unstable-year-ties.json.gz",
+              import.meta.url,
+            ),
+          ),
+        ).toString(),
+      ),
+    );
+  const raw = (key: string) => {
+    const value = live.pages[key];
+    if (value === undefined) throw new Error("Missing live C&S page " + key);
+    return value;
+  };
+  const pages = [
+    ...CSTRUCK_RANGES.map((range) =>
+      parseCstruckPage(raw(`cstruck-${range[0]}-${range[1]}`), range),
+    ),
+    ...[1, 2, 3].map((page) =>
+      parseCstruckPage(raw(`cstruck-page-${page}`), { page }),
+    ),
+  ];
+  expect(live.total).toBe(64);
+  expect(cstruckFrontier(pages)).toEqual([]);
+  const unfiltered = pages.slice(4).flatMap((p) => p.records.map((r) => r.id));
+  expect(unfiltered).toHaveLength(64);
+  expect(unfiltered.filter((id, i) => unfiltered.indexOf(id) !== i)).toEqual([
+    "6043",
+    "6615",
+  ]);
+  expect(unfiltered).not.toContain("6419");
+  expect(unfiltered).not.toContain("6420");
+  const roster = cstruckRoster(pages, live.total);
+  expect(new Set(roster.map((r) => r.id)).size).toBe(64);
+  expect(roster.map((r) => r.id)).toEqual(
+    expect.arrayContaining(["6419", "6420"]),
+  );
+  expect(cstruckSnapshot(roster, null).vehicles.length).toBeGreaterThan(50);
+  expect(() => cstruckRoster(pages, 65)).toThrow("store count");
+  // A repeat that moves an item into another year no longer reconciles.
+  const replacement = pages[6]?.records[0];
+  if (!replacement) throw new Error("Missing live 2007 item");
+  const shifted = pages.map((p, i) =>
+    i === 5
+      ? {
+          ...p,
+          records: p.records.map((r) => (r.id === "6043" ? replacement : r)),
+        }
+      : p,
+  );
+  expect(() => cstruckRoster(shifted, 64)).toThrow("disagree");
 });
