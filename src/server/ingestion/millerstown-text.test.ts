@@ -15,10 +15,41 @@ describe("Millerstown source TJ lexer", () => {
       {
         font: "F2",
         size: 11.04,
+        charSpacing: 0,
         matrix: [1, 0, 0, 1, 104.42, 492.94],
         text: "TD Tj BT ET [still text]",
+        codes: [...Buffer.from("TD Tj BT ET [still text]", "latin1")],
+        adjustment: 12,
       },
     ]);
+  });
+  it("keeps text state across text objects until Q restores it", () => {
+    const cell = (x: number) => `BT 1 0 0 1 ${x} 72.98 Tm [(1)-4(.)8(4)] TJ ET`;
+    const result = readMillerstownText(
+      `q BT /F1 11.28 Tf -0.0317 Tc 1 0 0 1 52.44 72.98 Tm [(A)] TJ ET ${cell(106.7)} Q`,
+      states,
+    );
+    expect(
+      result.map(({ font, size, charSpacing }) => ({
+        font,
+        size,
+        charSpacing,
+      })),
+    ).toEqual([
+      { font: "F1", size: 11.28, charSpacing: -0.0317 },
+      { font: "F1", size: 11.28, charSpacing: -0.0317 },
+    ]);
+    expect(result[1]).toMatchObject({
+      text: "1.4",
+      codes: [49, 46, 52],
+      adjustment: 4,
+    });
+    expect(() =>
+      readMillerstownText(
+        `q BT /F1 11.28 Tf 1 0 0 1 52.44 72.98 Tm [(A)] TJ ET Q ${cell(106.7)}`,
+        states,
+      ),
+    ).toThrow("unsupported or repeated text operator TJ");
   });
   it("decodes nested parentheses, delimiters, octal, escapes and line continuations", () => {
     const result = readMillerstownText(
@@ -35,6 +66,9 @@ describe("Millerstown source TJ lexer", () => {
     text("(donor)").replace("TJ", "TD"),
     text("(donor)").replace("ET", "1 1 Td ET"),
     text("(donor)").replace("ET", "[(extra)] TJ ET"),
+    text("(donor)").replace("Tm", "Tm /F2 11.04 Tf"),
+    text("(donor)").replace("0 g", "0 Tc 1 Tc"),
+    text("(donor)").replace("ET", "0 Tc ET"),
     text("(unterminated"),
     text("<4142>"),
     "Q",

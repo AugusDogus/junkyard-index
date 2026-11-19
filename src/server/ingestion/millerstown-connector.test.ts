@@ -137,26 +137,34 @@ test("five serial native reads emit the full oracle only after closing proof and
   );
   expect(start).toEqual(MillerstownCursor.initial);
   expect(MILLERSTOWN_YARD).toEqual(originalYard);
-  expect(emitted).toEqual(oracle.canonical);
+  // The native sheet prints each of these VINs on two different vehicles.
+  const conflicts = ["5GAER23708J268506", "2HKYF18427H509793"];
+  expect(emitted).toEqual(
+    oracle.canonical.filter((vehicle) => !conflicts.includes(vehicle.vin)),
+  );
   expect({ gates, batches, yards }).toEqual({ gates: 5, batches: 1, yards: 1 });
   expect(result).toMatchObject({
     source: "millerstown",
     status: "complete",
-    count: 1087,
+    count: 411,
     pagesProcessed: 1,
     errors: [],
-    observedVins: oracle.rejectedPresence,
+    observedVins: [
+      "5GAER23708J268506",
+      ...oracle.rejectedPresence,
+      "2HKYF18427H509793",
+    ],
     accounting: {
-      recordsProcessed: 1122,
+      recordsProcessed: 421,
       recordsExcluded: 0,
-      recordsRejected: 35,
+      recordsRejected: 10,
       duplicateVehicles: 0,
     },
   });
   expect(connectorChunkMetrics(result, emitted.length)).toEqual({
-    vehiclesProcessed: 1122,
-    uniqueVehicles: 1087,
-    rejectedVehicles: 35,
+    vehiclesProcessed: 421,
+    uniqueVehicles: 411,
+    rejectedVehicles: 10,
     duplicateVehicles: 0,
   });
   const complete = parseDurableSourceCursor(
@@ -221,8 +229,8 @@ for (const [name, needle, replacement] of [
   ["full scope", "<title>Vehicles on Premises", "<title>Filtered Vehicles"],
   [
     "PDF link",
-    "2026_04_24-Millerstown-Inventory-2.pdf",
-    "2026_04_25-Millerstown-Inventory.pdf",
+    "2026_11_12-Millerstown-Inventory.pdf",
+    "2026_11_13-Millerstown-Inventory.pdf",
   ],
   ["viewer", "viewer?url=http", "viewer?url=xhttp"],
 ] as const)
@@ -292,43 +300,106 @@ function editContent(
     );
   }
 }
-test("repeated actual native VIN fails without stock merging", async () => {
+async function completes(pdf: Uint8Array) {
+  await replay((index, body) => (index === 2 || index === 4 ? pdf : body));
+  const emitted: MillerstownCanonicalVehicle[] = [];
+  const result = await Effect.runPromise(
+    streamMillerstownInventoryWithRequestGate(
+      {
+        onBatch: (batch) =>
+          Effect.sync(() => {
+            emitted.push(...batch);
+          }),
+      },
+      immediate,
+    ),
+  );
+  return { result, emitted };
+}
+test("a VIN repeated on a different row quarantines every row without stock merging", async () => {
   const pdf = await changedPdf((document) =>
     editContent(document, (source, page) =>
       page === 0
         ? source.replace(
-            /(1 0 0 1 104\.42 478\.42 Tm[\s\S]*?)\[[\s\S]*?\] TJ/,
+            /(1 0 0 1 106\.7 525\.24 Tm[\s\S]*?)\[[\s\S]*?\] TJ/,
             "$1[(JH4DC4456YS013792)] TJ",
           )
         : source,
     ),
   );
+  const { result, emitted } = await completes(pdf);
+  expect(
+    emitted.filter((vehicle) =>
+      ["JH4DC4456YS013792", "19UUA66236A047635"].includes(vehicle.vin),
+    ),
+  ).toEqual([]);
+  expect(result).toMatchObject({
+    count: 409,
+    observedVins: [
+      "JH4DC4456YS013792",
+      "5GAER23708J268506",
+      "1GTS7AFXXC1121857",
+      "2HKYF18427H509793",
+    ],
+    accounting: {
+      recordsProcessed: 421,
+      recordsRejected: 12,
+      duplicateVehicles: 0,
+    },
+  });
+}, 20_000);
+async function withRepeatedPages(indices: number[]) {
+  const document = await PDFDocument.load(await millerstownPdfFixture());
+  // Identical copies of full pages sit before the last partial page.
+  for (const copy of (await document.copyPages(document, indices)).reverse())
+    document.insertPage(16, copy);
+  return document.save({
+    useObjectStreams: false,
+    updateFieldAppearances: false,
+  });
+}
+test("identical repeated rows are benign duplicates within the shared 25% limit", async () => {
+  const { result, emitted } = await completes(await withRepeatedPages([1]));
+  expect(emitted).toHaveLength(411);
+  expect(result.accounting).toEqual({
+    recordsProcessed: 447,
+    recordsExcluded: 0,
+    recordsRejected: 11,
+    duplicateVehicles: 25,
+  });
+}, 20_000);
+test("identical repeated rows beyond the shared 25% limit fail the source", async () => {
+  const pdf = await withRepeatedPages([1, 2, 3, 4, 5, 6]);
   await failsWithoutCallbacks(
     (index, body) => (index === 2 ? pdf : body),
-    "Repeated native identity JH4DC4456YS013792",
+    "exceed the shared 25% duplicate limit",
     3,
   );
 }, 20_000);
 test("unchanged shared rejection cap rejects excessive required-field failures", async () => {
+  // Blank the make on page 2 and the first nine rows of page 3: 43 of 421 rows
+  // are then rejected while 378 complete donors still clear the floor.
   const pdf = await changedPdf((document) =>
     editContent(document, (source, page) =>
-      page < 4
-        ? source.replace(
-            /BT\s+\/F2 11\.04 Tf\s+1 0 0 1 280\.13 [\s\S]*?\bET\b/g,
-            "",
-          )
+      page === 1 || page === 2
+        ? source.replace(/BT[\s\S]*?\bET\b/g, (block) => {
+            const y = / 271\.37 ([\d.]+) Tm/.exec(block)?.[1];
+            return y !== undefined && (page === 1 || Number(y) > 390)
+              ? ""
+              : block;
+          })
         : source,
     ),
   );
   await failsWithoutCallbacks(
     (index, body) => (index === 2 ? pdf : body),
-    "shared 10% rejection limit",
+    "378 complete and 43 rejected of 421 source rows; require 362 complete donors and retain the shared 10% rejection limit",
     3,
   );
 }, 20_000);
 test("a complete but undersized native catalog fails the 362 donor floor", async () => {
   const pdf = await changedPdf((document) => {
-    for (let index = 32; index >= 8; index--) {
+    for (let index = 15; index >= 4; index--) {
       const page = document.getPages()[index];
       if (!page) throw new Error("Missing page for minimized catalog");
       document.removePage(index);
@@ -379,8 +450,8 @@ test("callback consumption cannot change validated terminal count", async () => 
       immediate,
     ),
   );
-  expect(result.count).toBe(1087);
-  expect(result.accounting?.recordsProcessed).toBe(1122);
+  expect(result.count).toBe(411);
+  expect(result.accounting?.recordsProcessed).toBe(421);
 }, 20_000);
 test("invalid initial checkpoints and budgets perform no requests or callbacks", async () => {
   const requests = await replay();

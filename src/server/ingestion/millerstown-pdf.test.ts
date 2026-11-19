@@ -22,9 +22,13 @@ async function modified(change: (document: PDFDocument) => void) {
     updateFieldAppearances: false,
   });
 }
-function content(document: PDFDocument, edit: (source: string) => string) {
-  const page = document.getPages()[0];
-  if (!page) throw new Error("Missing native first page");
+function content(
+  document: PDFDocument,
+  edit: (source: string) => string,
+  pageIndex = 0,
+) {
+  const page = document.getPages()[pageIndex];
+  if (!page) throw new Error(`Missing native page ${pageIndex + 1}`);
   const stream = page.node.Contents();
   if (!(stream instanceof PDFRawStream))
     throw new Error("Missing native raw content stream");
@@ -41,62 +45,150 @@ describe("Millerstown full PDF format controls", () => {
       (await millerstownOracleFixture()).rawRecords,
     );
   }, 20_000);
+  it("reads the sorted header row, right-aligned numbers, a second font and trailing blank pages", async () => {
+    const records = await parseMillerstownPdf(await millerstownPdfFixture());
+    expect(records).toHaveLength(421);
+    expect(records.some(({ raw }) => raw.vin === "VIN")).toBe(false);
+    expect(
+      records
+        .filter(({ raw }) => /^(?:1\.4|454)$/.test(raw.engine))
+        .map(({ raw }) => raw.engine),
+    ).toEqual(["1.4", "454", "454"]);
+    expect(
+      records.filter(({ raw }) => ["1784", "1412202500"].includes(raw.vin)),
+    ).toHaveLength(2);
+    expect(
+      records.find(({ raw }) => raw.vin === "2CNFLFE51B6232881")?.raw,
+    ).toMatchObject({ stock: "2604011", trim: "FWD", engine: "3.0 V6" });
+    expect(records.at(-1)?.provenance).toEqual({
+      page: 17,
+      rowOnPage: 6,
+      baseline: 162.12,
+    });
+  }, 20_000);
   it("keeps a donor row when optional stock and color cells are absent", async () => {
     const records = await parseMillerstownPdf(
       await modified((document) =>
         content(document, (source) =>
           source
             .replace(
-              /BT\s+\/F2 11\.04 Tf\s+1 0 0 1 52\.8 492\.94 Tm[\s\S]*?\bET\b/,
+              /BT\s+\/F1 11\.28 Tf\s+1 0 0 1 52\.44 543\.96 Tm[\s\S]*?\bET\b/,
               "",
             )
             .replace(
-              /BT\s+\/F2 11\.04 Tf\s+1 0 0 1 366\.41 492\.94 Tm[\s\S]*?\bET\b/,
+              /BT\s+\/F1 11\.28 Tf\s+1 0 0 1 409\.25 544\.08 Tm[\s\S]*?\bET\b/,
               "",
             ),
         ),
       ),
     );
-    expect(records).toHaveLength(1122);
+    expect(records).toHaveLength(421);
     expect(records[0]?.raw).toMatchObject({
       stock: "",
       color: "",
       vin: "JH4DC4456YS013792",
     });
   }, 20_000);
-  for (const [name, edit] of [
+  for (const [name, edit, page, message] of [
     [
-      "moved native heading",
-      (source: string) =>
-        source.replace("124.46 506.02 Tm", "352.01 506.02 Tm"),
+      "missing sorted header row",
+      (source: string) => source.replace("[(Color)] TJ", "[(Colour)] TJ"),
+      0,
+      "exactly one column header row",
     ],
     [
       "unknown body column",
       (source: string) =>
-        source.replace("1 0 0 1 52.8 492.94 Tm", "1 0 0 1 55.8 492.94 Tm"),
+        source.replace("1 0 0 1 52.44 543.96 Tm", "1 0 0 1 55.44 543.96 Tm"),
+      0,
+      "unassigned text",
+    ],
+    [
+      "right-aligned number off its column edge",
+      (source: string) =>
+        source.replace("1 0 0 1 529.03 544.08 Tm", "1 0 0 1 528.5 544.08 Tm"),
+      11,
+      "unassigned text",
+    ],
+    [
+      "off-grid row",
+      (source: string) =>
+        source.replace("1 0 0 1 52.44 525.24 Tm", "1 0 0 1 52.44 530 Tm"),
+      0,
+      "off-grid text",
     ],
     [
       "missing interior row",
       (source: string) =>
         source.replace(/BT[\s\S]*?\bET\b/g, (block) =>
-          block.includes("478.42 Tm") ? "" : block,
+          block.includes(" 525.24 Tm") ? "" : block,
         ),
+      0,
+      "missing interior row",
+    ],
+    [
+      "partial page before the last inventory page",
+      (source: string) =>
+        source.replace(/BT[\s\S]*?\bET\b/g, (block) =>
+          block.includes(" 72.984 Tm") ? "" : block,
+        ),
+      0,
+      "partial page before the last inventory page",
+    ],
+    [
+      "unsupported body font size",
+      (source: string) =>
+        source.replace(
+          "/F1 11.28 Tf\r\n1 0 0 1 52.44",
+          "/F1 11.04 Tf\r\n1 0 0 1 52.44",
+        ),
+      0,
+      "unsupported body text font or transform",
     ],
     [
       "duplicate body cell",
       (source: string) =>
         source.replace(
-          /BT\s+\/F2 11\.04 Tf\s+1 0 0 1 52\.8 492\.94 Tm[\s\S]*?\bET\b/,
+          /BT\s+\/F1 11\.28 Tf\s+1 0 0 1 52\.44 543\.96 Tm[\s\S]*?\bET\b/,
           (block) => block + "\n" + block,
         ),
+      0,
+      "duplicates column stock",
     ],
   ] as const)
     it(`rejects ${name} as a whole source`, async () => {
       await expect(
         parseMillerstownPdf(
-          await modified((document) => content(document, edit)),
+          await modified((document) => content(document, edit, page)),
         ),
-      ).rejects.toThrow();
+      ).rejects.toThrow(message);
+    }, 20_000);
+  for (const [name, change, message] of [
+    [
+      "inventory after a blank page",
+      (document: PDFDocument) => {
+        const last = document.getPages()[16];
+        if (!last) throw new Error("Missing last inventory page");
+        document.removePage(16);
+        document.addPage(last);
+      },
+      "inventory after a blank page",
+    ],
+    [
+      "a blank page before any inventory",
+      (document: PDFDocument) => {
+        const blank = document.getPages()[17];
+        if (!blank) throw new Error("Missing blank template page");
+        document.removePage(17);
+        document.insertPage(0, blank);
+      },
+      "blank before any inventory page",
+    ],
+  ] as const)
+    it(`rejects ${name}`, async () => {
+      await expect(parseMillerstownPdf(await modified(change))).rejects.toThrow(
+        message,
+      );
     }, 20_000);
   for (const [name, change] of [
     [

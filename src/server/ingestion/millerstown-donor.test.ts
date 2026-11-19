@@ -6,7 +6,7 @@ import {
   millerstownPdfFixture,
 } from "./millerstown-test-fixtures";
 
-describe("Millerstown full binary donor semantics", () => {
+describe("Millerstown native donor semantics", () => {
   for (const field of ["make", "model"] as const)
     it(`rejects unavailable required ${field} while preserving valid identity`, async () => {
       const first = (await millerstownOracleFixture()).rawRecords[0];
@@ -34,8 +34,7 @@ describe("Millerstown full binary donor semantics", () => {
   it("matches every raw cell, canonical field, rejection and presence identity", async () => {
     const records = await parseMillerstownPdf(await millerstownPdfFixture());
     const expected = await millerstownOracleFixture();
-    // Only canonical makes changed: the two native Infinity rows use Infiniti.
-    // The PDF cells, rejection accounting and presence oracle stay literal.
+    // The oracle comes from an independent extraction of the trimmed PDF.
     expect(records).toEqual(expected.rawRecords);
     const vehicles = [];
     const rejections = [];
@@ -64,12 +63,14 @@ describe("Millerstown full binary donor semantics", () => {
     expect(rejectedPresence).toEqual(expected.rejectedPresence);
     expect(
       vehicles
-        .filter((vehicle) => vehicle.stockNumber === "2503033")
+        .filter((vehicle) => vehicle.stockNumber === "2609078")
         .map((vehicle) => vehicle.vin),
-    ).toEqual(["KNAGG4A8XA5376065", "3GSCL33P985730819"]);
+    ).toEqual(["1HGCP267X8A086479", "JF1SG65657H729410"]);
     expect(
-      vehicles.filter((vehicle) => vehicle.vin.length !== 17),
-    ).toHaveLength(9);
+      vehicles
+        .filter((vehicle) => vehicle.vin.length !== 17)
+        .map((vehicle) => [vehicle.vin, vehicle.year]),
+    ).toEqual([["1412202500", 1972]]);
     const first = records[0];
     if (!first) throw new Error("Missing golden donor");
     const optional = MillerstownDonor.parse({
