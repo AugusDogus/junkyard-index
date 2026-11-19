@@ -1,3 +1,4 @@
+import { SearchArea } from "./search-area";
 import {
   compileSearchExpression,
   combineSearchFilters,
@@ -27,6 +28,8 @@ export interface AlertSearchClient {
     requests: Array<{
       indexName: string;
       query: string;
+      aroundLatLng?: string;
+      aroundRadius?: number | "all";
       advancedSyntax: true;
       advancedSyntaxFeatures: ["exactPhrase", "excludeWords"];
       filters: string | undefined;
@@ -105,6 +108,7 @@ async function scanSearch(
     (page, hitsPerPage) =>
       searchPage({
         indexName: ALGOLIA_INDEX_NAME,
+        ...SearchArea.params(filters.near),
         query: expression?.success
           ? expression.data.query
           : parsedQuery.data.algoliaQuery,

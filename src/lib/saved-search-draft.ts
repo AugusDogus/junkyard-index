@@ -76,7 +76,11 @@ export function serializeSavedSearchDraft(
             const text =
               value.expression ?? expressionFromCriteria(value.criteria);
             const compiled = compileSearchExpression(text);
-            return compiled.success ? JSON.stringify(compiled.data) : text;
+            return JSON.stringify({
+              expression: compiled.success ? compiled.data : text,
+              arrivalWindow: value.criteria.arrivalWindow,
+              near: value.criteria.near,
+            });
           })();
     if (matching(initial) === matching(draft))
       return {
@@ -90,6 +94,8 @@ export function serializeSavedSearchDraft(
   if (draft.expression !== null) {
     const parsed = filtersSchema.safeParse({
       expression: draft.expression,
+      arrivalWindow: draft.criteria.arrivalWindow,
+      near: draft.criteria.near,
       sortBy: draft.criteria.sortBy,
     });
     return parsed.success

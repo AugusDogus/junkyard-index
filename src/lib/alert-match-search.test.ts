@@ -362,3 +362,33 @@ test("batched matches stop at the checked-through second", async () => {
     },
   ]);
 });
+
+test("saved arrival searches apply a rolling window and the saved radius to alerts", async () => {
+  const requests: unknown[] = [];
+  const filters = filtersSchema.parse({
+    arrivalWindow: "7d",
+    near: { lat: 33.448, lng: -112.074, radiusMiles: 50 },
+  });
+  const before = Math.floor(Date.now() / 1000) - 7 * 86400;
+  await getAlertMatchStatsWithClient(
+    emptySearchClient((input) => requests.push(input)),
+    "",
+    filters,
+    null,
+  );
+  const after = Math.floor(Date.now() / 1000) - 7 * 86400;
+  const lowerBound = Number(
+    JSON.stringify(requests[0]).match(/availableDateTs >= (\d+)/)?.[1],
+  );
+  expect(lowerBound).toBeGreaterThanOrEqual(before);
+  expect(lowerBound).toBeLessThanOrEqual(after);
+  expect(requests[0]).toMatchObject({
+    requests: [
+      {
+        aroundLatLng: "33.448, -112.074",
+        aroundRadius: 80467,
+        filters: expect.stringContaining("availableDateTs >= "),
+      },
+    ],
+  });
+});

@@ -69,6 +69,8 @@ function AdvancedSearchForm({
       name: "",
       query: props.query,
       filters: {
+        arrivalWindow: props.arrivalWindow,
+        near: props.near,
         expression: props.expression,
         makes: props.makes,
         colors: props.colors,

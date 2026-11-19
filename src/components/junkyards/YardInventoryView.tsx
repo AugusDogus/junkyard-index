@@ -1,3 +1,4 @@
+import { buildSearchUrl } from "~/lib/search-utils";
 import { YardAddress } from "~/lib/yard-address";
 import { YardService } from "~/lib/yard-service";
 import { isIngestionSource } from "~/lib/ingestion-source";
@@ -58,7 +59,7 @@ export function YardInventoryView({
   inventory: YardInventoryPage;
   /** Vehicles in the yard, or of the filtered make. */
   total: number;
-  /** Of those, how many arrived in the week before the latest update. */
+  /** Of those, how many have a known arrival in the current seven-day window. */
   newCount: number;
   /**
    * Whether "new" means anything at this yard, judged from the whole yard
@@ -138,16 +139,18 @@ export function YardInventoryView({
                 filter ? `${filterName(filter)} vehicles` : "vehicles",
               )}
             </span>{" "}
-            in the yard in {yard.city}, {yard.state}
-            {newIsMeaningful && newCount > 0 && (
-              <>
-                ,{" "}
-                <span className="text-signal font-extrabold tabular-nums">
-                  {InventoryFormat.count(newCount)} new
-                </span>{" "}
-                this week
-              </>
-            )}
+            in the yard in {yard.city}, {yard.state},{" "}
+            <Link
+              className="text-signal font-extrabold tabular-nums underline underline-offset-4"
+              href={buildSearchUrl(filter ? filterName(filter) : "", {
+                arrivalWindow: "7d",
+                salvageYards: [yard.name],
+                sources: [yard.source],
+                yardTypes: [],
+              })}
+            >
+              {InventoryFormat.count(newCount)} new this week
+            </Link>
             .
           </p>
         </div>

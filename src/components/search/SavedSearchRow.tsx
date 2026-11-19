@@ -1,5 +1,6 @@
 "use client";
 
+import { ARRIVAL_WINDOWS } from "~/lib/arrival-window";
 import { YardService } from "~/lib/yard-service";
 
 import Link from "next/link";
@@ -38,6 +39,12 @@ function criteriaPreview(search: SavedSearch): string {
         .map((source) => INGESTION_SOURCE_DISPLAY_NAMES[source])
         .join(", "),
     );
+  if (filters.arrivalWindow)
+    details.push(
+      ARRIVAL_WINDOWS.find((option) => option.value === filters.arrivalWindow)
+        ?.label,
+    );
+  if (filters.near) details.push(`Within ${filters.near.radiusMiles} miles`);
   return details.filter(Boolean).join("; ") || "All vehicles";
 }
 

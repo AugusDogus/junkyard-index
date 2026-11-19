@@ -1,3 +1,5 @@
+import type { ArrivalWindow } from "./arrival-window";
+import type { SearchArea } from "./search-area";
 import { SearchYardSelection } from "./search-yard-selection";
 import { SearchFilterUrl } from "~/lib/search-filter-url";
 import type { YardType } from "~/lib/yard-service";
@@ -12,6 +14,8 @@ interface SearchFilters {
   yardTypes?: YardType[];
   minYear?: number;
   maxYear?: number;
+  arrivalWindow?: ArrivalWindow;
+  near?: SearchArea;
   sortBy?: string;
 }
 
@@ -52,6 +56,13 @@ export function buildSearchUrl(
   }
   if (filters.maxYear) {
     params.set("maxYear", filters.maxYear.toString());
+  }
+  if (filters.arrivalWindow)
+    SearchFilterUrl.write(params, "arrivalWindow", [filters.arrivalWindow]);
+  if (filters.near) {
+    params.set("lat", String(filters.near.lat));
+    params.set("lng", String(filters.near.lng));
+    params.set("radius", String(filters.near.radiusMiles));
   }
   if (filters.sortBy) {
     params.set("sort", filters.sortBy);

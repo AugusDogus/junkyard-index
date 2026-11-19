@@ -1,5 +1,9 @@
 "use client";
 
+import { ArrivalWindow } from "~/lib/arrival-window";
+import { SearchArea } from "~/lib/search-area";
+import { combineSearchFilters } from "~/lib/compile-search-expression";
+import { ArrivalWindowChips } from "./ArrivalWindowChips";
 import { SearchYardSelection } from "~/lib/search-yard-selection";
 import { SearchRadius, SEARCH_RADIUS_MILES } from "~/lib/search-radius";
 import { readFullServiceCount } from "~/lib/full-service-search";
@@ -21,17 +25,17 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
-  useClearRefinements,
   useConfigure,
   useInfiniteHits,
   useInstantSearch,
+  useInstantSearchContext,
   useRange,
   useRefinementList,
   useSearchBox,
   useSortBy,
   useStats,
 } from "react-instantsearch";
-import { parseAsString, useQueryState } from "nuqs";
+import { parseAsString, useQueryState, useQueryStates } from "nuqs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import {
   AdvancedSearchDialog,
@@ -117,6 +121,7 @@ function clampRouteYear(
 }
 
 interface SearchPageContentProps {
+  arrivalReferenceTime: number;
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
   /** The key this visitor's browser searches with, minted for their plan. */
@@ -127,6 +132,7 @@ interface SearchPageContentProps {
 }
 
 interface AlgoliaSearchInnerProps {
+  arrivalReferenceTime: number;
   isLoggedIn: boolean;
   initialIsMobile?: boolean;
   planAccess: PlanAccessState;
@@ -215,8 +221,8 @@ function DistancePreferenceDialog({
         <DialogHeader>
           <DialogTitle>Distance Location</DialogTitle>
           <DialogDescription className="text-pretty">
-            Choose how to determine your location when sorting by distance. You
-            can change this anytime using the Distance location button.
+            Choose a location for nearby inventory. The radius works with any
+            sort, including Newest First.
           </DialogDescription>
         </DialogHeader>
 
@@ -307,6 +313,7 @@ function DistancePreferenceDialog({
  * Inner component that uses Algolia hooks (must be inside InstantSearch provider).
  */
 function AlgoliaSearchInner({
+  arrivalReferenceTime,
   isLoggedIn,
   planAccess,
   serverSearchKeyTier,
@@ -315,6 +322,7 @@ function AlgoliaSearchInner({
   booleanOrSearchReady,
   newestSortReady,
 }: AlgoliaSearchInnerProps) {
+  const instantSearch = useInstantSearchContext();
   const canUseAdvancedFilters = resolveClientPlanFeatureAccess({
     access: planAccess,
     feature: "advanced_filters",
@@ -552,9 +560,30 @@ function AlgoliaSearchInner({
   const isDistanceSort = sortBy === "distance";
   const [radius, setRadius] = useQueryState("radius", parseAsString);
   const radiusMiles = SearchRadius.parse(radius);
+  const [arrivalParams, setArrivalParams] = useQueryStates({
+    arrivalWindow: parseAsString.withOptions({ history: "push" }),
+    "arrivalWindow[]": parseAsString.withOptions({ history: "push" }),
+  });
+  const [, setOriginParams] = useQueryStates({
+    lat: parseAsString,
+    lng: parseAsString,
+  });
+  const arrivalWindow = ArrivalWindow.parse(
+    arrivalParams["arrivalWindow[]"] ?? arrivalParams.arrivalWindow,
+  );
+  const routedArea = SearchArea.fromUrl(
+    new URLSearchParams(searchParams.toString()),
+  );
+  // The server passes one clock value through hydration and capability remounts.
+  // Advancing it mid-visit would spend another request and discard cached pages.
+  const arrivalFilter = ArrivalWindow.filter(
+    arrivalWindow,
+    arrivalReferenceTime,
+  );
+  const isNearbySearch = isDistanceSort || radiusMiles !== null;
   const shouldUseBrowserFallback =
-    isDistanceSort &&
-    effectiveLocationPreference?.mode === "auto" &&
+    isNearbySearch &&
+    !routedArea &&
     browserGeolocationPermission === "granted" &&
     !hasValidCoordinates(browserLocation);
 
@@ -640,6 +669,7 @@ function AlgoliaSearchInner({
   }, [shouldUseBrowserFallback]);
 
   const resolvedUserLocation = useMemo(() => {
+    if (routedArea) return { lat: routedArea.lat, lng: routedArea.lng };
     if (
       effectiveLocationPreference?.mode === "zip" &&
       hasFiniteCoordinates(effectiveLocationPreference)
@@ -650,15 +680,17 @@ function AlgoliaSearchInner({
       };
     }
 
-    if (
-      effectiveLocationPreference?.mode === "auto" &&
-      hasValidCoordinates(browserLocation)
-    ) {
+    if (hasValidCoordinates(browserLocation)) {
       return browserLocation;
     }
 
     return undefined;
-  }, [browserLocation, effectiveLocationPreference]);
+  }, [
+    browserLocation,
+    effectiveLocationPreference,
+    routedArea?.lat,
+    routedArea?.lng,
+  ]);
   // ── Derived state ──────────────────────────────────────────────────────
 
   // Map Algolia hits to search-display vehicles.
@@ -763,6 +795,8 @@ function AlgoliaSearchInner({
   const isYearFiltered = yearRange[0] !== yearMin || yearRange[1] !== yearMax;
 
   const activeFilterCount =
+    (arrivalWindow ? 1 : 0) +
+    (radiusMiles !== null ? 1 : 0) +
     (selectedMakes.length > 0 ? 1 : 0) +
     (selectedColors.length > 0 ? 1 : 0) +
     (selectedStates.length > 0 ? 1 : 0) +
@@ -773,6 +807,14 @@ function AlgoliaSearchInner({
 
   const currentSaveSearchFilters = useMemo(
     () => ({
+      arrivalWindow,
+      near: (() => {
+        const parsed = SearchArea.schema.safeParse({
+          ...resolvedUserLocation,
+          radiusMiles,
+        });
+        return parsed.success ? parsed.data : undefined;
+      })(),
       expression: expressionMode ? query : undefined,
       vinPattern: effectiveVinPatternFilter ? vinPattern : undefined,
       makes: selectedMakes,
@@ -786,6 +828,9 @@ function AlgoliaSearchInner({
       sortBy,
     }),
     [
+      arrivalWindow,
+      resolvedUserLocation,
+      radiusMiles,
       expressionMode,
       query,
       selectedMakes,
@@ -1014,6 +1059,7 @@ function AlgoliaSearchInner({
   const handleDistancePreferenceConfirm = useCallback(async () => {
     try {
       await applyDistancePreference(selectedDistanceMode);
+      await setOriginParams({ lat: null, lng: null });
       setShowDistancePreferenceDialog(false);
       toast.success(
         isLoggedIn
@@ -1035,6 +1081,7 @@ function AlgoliaSearchInner({
     }
   }, [
     applyDistancePreference,
+    setOriginParams,
     isLoggedIn,
     pendingDistanceSort,
     refineSortBy,
@@ -1070,20 +1117,29 @@ function AlgoliaSearchInner({
     ],
   );
 
-  const { refine: clearRefinements } = useClearRefinements(
-    {},
-    { skipSuspense: true },
-  );
-
   const clearAllFilters = useCallback(() => {
     Analytics.capture(AnalyticsEvents.FILTERS_CLEARED, {
       previous_filter_count: activeFilterCount,
     });
-    clearRefinements();
-    if (typedYears?.range) {
-      setIndexUiState((previous) => ({ ...previous, query: typedYears.query }));
-    }
-  }, [activeFilterCount, clearRefinements, setIndexUiState, typedYears]);
+    const helper = instantSearch.mainIndex.getHelper();
+    if (!helper) return;
+    // Clear facets without searching the old window/radius. Configure performs
+    // the combined search once the URL-controlled filters have been cleared.
+    helper.clearRefinements();
+    // Typed years filter results too, so clearing filters drops them as well.
+    if (typedYears?.range) helper.setQuery(typedYears.query);
+    void setArrivalParams({ arrivalWindow: null, "arrivalWindow[]": null });
+    void setRadius(null);
+    if (!arrivalWindow && radiusMiles === null) helper.search();
+  }, [
+    activeFilterCount,
+    instantSearch,
+    arrivalWindow,
+    radiusMiles,
+    setArrivalParams,
+    setRadius,
+    typedYears,
+  ]);
 
   const handleSearchModeChange = useCallback(
     async (value: { query: string | null; vinPattern: string | null }) => {
@@ -1253,15 +1309,14 @@ function AlgoliaSearchInner({
   // Infinite scroll is handled inside SearchResults via the virtualizer.
   // showMore and isLastPage are passed as props.
 
-  // Only send geo params when distance sort is active.
-  // The primary's default ranking already puts geo before text/custom ranking.
-  // Other sorts must NOT send aroundLatLng or geo would override customRanking.
+  // aroundRadius filters virtual replicas without creating another index.
+  // Newest keeps its chronological ranking while geo restricts the candidate set.
   const aroundLatLng =
-    isDistanceSort && resolvedUserLocation
+    isNearbySearch && resolvedUserLocation
       ? `${resolvedUserLocation.lat}, ${resolvedUserLocation.lng}`
       : undefined;
   const useAlgoliaIpLocation =
-    isDistanceSort &&
+    isNearbySearch &&
     effectiveLocationPreference?.mode === "auto" &&
     !resolvedUserLocation;
 
@@ -1283,6 +1338,8 @@ function AlgoliaSearchInner({
       yardTypes={selectedYardTypes}
       yearRange={filterYearRange}
       sortBy={sortBy}
+      arrivalWindow={arrivalWindow}
+      near={currentSaveSearchFilters.near}
       filterOptions={inventoryFilterOptions.data}
       filterOptionsFeedback={
         <InventoryFilterFeedback
@@ -1352,7 +1409,9 @@ function AlgoliaSearchInner({
           query={expressionMode ? "" : query}
           filters={currentSaveSearchFilters}
           planAccess={planAccess}
-          disabled={!hasActiveSearch}
+          disabled={
+            !hasActiveSearch || (radiusMiles !== null && !resolvedUserLocation)
+          }
           isLoggedIn={isLoggedIn}
           autoOpen={autoOpenSaveDialog}
           onAutoOpenHandled={handleAutoOpenHandled}
@@ -1450,8 +1509,8 @@ function AlgoliaSearchInner({
     aroundLatLng,
     aroundLatLngViaIP: useAlgoliaIpLocation,
     getRankingInfo: Boolean(aroundLatLng || useAlgoliaIpLocation),
-    aroundRadius: isDistanceSort ? SearchRadius.meters(radiusMiles) : undefined,
-    filters: effectiveVinPatternFilter,
+    aroundRadius: isNearbySearch ? SearchRadius.meters(radiusMiles) : undefined,
+    filters: combineSearchFilters(effectiveVinPatternFilter, arrivalFilter),
   });
 
   return (
@@ -1508,49 +1567,62 @@ function AlgoliaSearchInner({
           Advanced search
         </Button>
 
-        {isDistanceSort && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            {!hasUsableLocationPreference && (
+        <ArrivalWindowChips
+          value={arrivalWindow}
+          onChange={(value) =>
+            void setArrivalParams({
+              arrivalWindow: null,
+              "arrivalWindow[]": value ?? null,
+            })
+          }
+        />
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {radiusMiles !== null &&
+            !resolvedUserLocation &&
+            !useAlgoliaIpLocation && (
               <p className="text-muted-foreground">
-                Choose a location to sort nearby vehicles.
+                Choose a location to see arrivals within this radius.
               </p>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedDistanceMode(
-                  effectiveLocationPreference?.mode ?? "auto",
-                );
-                setManualZipCode(effectiveLocationPreference?.zipCode ?? "");
-                setShowDistancePreferenceDialog(true);
-              }}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedDistanceMode(
+                effectiveLocationPreference?.mode ?? "zip",
+              );
+              setManualZipCode(effectiveLocationPreference?.zipCode ?? "");
+              setShowDistancePreferenceDialog(true);
+            }}
+          >
+            {routedArea
+              ? "Saved search location"
+              : effectiveLocationPreference?.zipCode
+                ? `ZIP ${effectiveLocationPreference.zipCode}`
+                : "Distance location"}
+          </Button>
+          <label className="flex items-center gap-2">
+            Within
+            <select
+              aria-label="Distance radius"
+              className="bg-background border-input min-h-11 rounded-md border px-3 text-sm"
+              value={radiusMiles ?? "all"}
+              onChange={(event) =>
+                void setRadius(
+                  event.target.value === "all" ? null : event.target.value,
+                )
+              }
             >
-              Distance location
-            </Button>
-            <label className="flex items-center gap-2">
-              Within
-              <select
-                aria-label="Distance radius"
-                className="bg-background border-input min-h-11 rounded-md border px-3 text-sm"
-                value={radiusMiles ?? "all"}
-                onChange={(event) =>
-                  void setRadius(
-                    event.target.value === "all" ? null : event.target.value,
-                  )
-                }
-              >
-                <option value="all">Any distance</option>
-                {SEARCH_RADIUS_MILES.map((miles) => (
-                  <option key={miles} value={miles}>
-                    {miles} miles
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
+              <option value="all">Any distance</option>
+              {SEARCH_RADIUS_MILES.map((miles) => (
+                <option key={miles} value={miles}>
+                  {miles} miles
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <SearchYardTypeControls
           types={selectedYardTypes}
           expression={expressionMode ? query : undefined}
@@ -1613,6 +1685,7 @@ function AlgoliaSearchInner({
 }
 
 export function SearchPageContent({
+  arrivalReferenceTime,
   isLoggedIn,
   initialIsMobile = false,
   userLocation,
@@ -1634,6 +1707,7 @@ export function SearchPageContent({
         newestSortReady,
       }) => (
         <AlgoliaSearchInner
+          arrivalReferenceTime={arrivalReferenceTime}
           isLoggedIn={isLoggedIn}
           serverSearchKeyTier={searchKey.tier}
           initialIsMobile={initialIsMobile}

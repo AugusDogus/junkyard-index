@@ -1,3 +1,5 @@
+import type { ArrivalWindow } from "./arrival-window";
+import type { SearchArea } from "./search-area";
 import { SearchYardSelection } from "./search-yard-selection";
 import type { YardType } from "~/lib/yard-service";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
@@ -22,6 +24,8 @@ export type SearchCriteria = {
   sources: IngestionSource[];
   yardTypes: YardType[];
   yearRange: [number, number];
+  arrivalWindow?: ArrivalWindow;
+  near?: SearchArea;
   sortBy: string;
 };
 
@@ -55,6 +59,8 @@ function fromSavedSearch(
       SearchYardSelection.fromSaved(filters.yardTypes),
     ),
     yearRange: [Math.min(min, max), Math.max(min, max)],
+    arrivalWindow: filters.arrivalWindow,
+    near: filters.near,
     sortBy: sort?.key ?? "newest",
   };
 }
@@ -90,6 +96,8 @@ function toSavedSearch(
     yardTypes: value.yardTypes.length ? value.yardTypes : undefined,
     minYear: defaultYearRange ? undefined : value.yearRange[0],
     maxYear: defaultYearRange ? undefined : value.yearRange[1],
+    arrivalWindow: value.arrivalWindow,
+    near: value.near,
     sortBy: value.sortBy,
   });
   if (!filters.success) {
