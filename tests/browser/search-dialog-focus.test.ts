@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { chromium, type Browser } from "playwright-core";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -21,7 +22,9 @@ afterAll(async () => {
 
 for (const width of [390, 640]) {
   test(`drawer takes and traps focus, then restores it at ${width}px`, async () => {
-    const page = await browser.newPage({ viewport: { width, height: 844 } });
+    const page = await createPage(browser, {
+      viewport: { width, height: 844 },
+    });
     page.setDefaultTimeout(3000);
     try {
       await page.route("http://focus.test/**", (route) =>
@@ -83,7 +86,7 @@ for (const width of [390, 640]) {
         await trigger.evaluate((el) => el === document.activeElement),
       ).toBe(true);
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 15_000);
 }

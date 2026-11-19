@@ -5,6 +5,7 @@ import { chromium, type Browser, type Page } from "playwright-core";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { VehicleRowPhoto } from "~/components/inventory/VehicleRowPhoto";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -65,7 +66,7 @@ async function openFixture(page: Page, hydrate = false) {
 }
 
 test("photos that fail before hydration also show the placeholder", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await openFixture(page, true);
     await page.waitForFunction(() => {
@@ -76,12 +77,14 @@ test("photos that fail before hydration also show the placeholder", async () => 
     await page.getByText("No photo", { exact: true }).waitFor();
     expect(await page.locator("img").count()).toBe(0);
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 20_000);
 
 test("failed photos show the placeholder and a changed source can load", async () => {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const page = await createPage(browser, {
+    viewport: { width: 390, height: 844 },
+  });
   try {
     await openFixture(page);
     await page.getByText("No photo", { exact: true }).nth(1).waitFor();
@@ -96,13 +99,15 @@ test("failed photos show the placeholder and a changed source can load", async (
     });
     expect(await page.getByText("No photo", { exact: true }).count()).toBe(0);
   } finally {
-    await page.close();
+    await closePage(page);
   }
 });
 
 for (const width of [320, 390, 1440]) {
   test(`long VINs and arrival dates stay inside inventory rows at ${width}px`, async () => {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const page = await createPage(browser, {
+      viewport: { width, height: 900 },
+    });
     try {
       await openFixture(page);
       await page
@@ -137,7 +142,7 @@ for (const width of [320, 390, 1440]) {
         0,
       );
     } finally {
-      await page.close();
+      await closePage(page);
     }
   });
 }

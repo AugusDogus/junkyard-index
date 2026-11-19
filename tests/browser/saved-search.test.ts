@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
 import { chromium, type Browser, type Page } from "playwright-core";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -58,7 +59,7 @@ const workspace = (page: Page) =>
 
 describe("auth save-search funnel", () => {
   test("restores the search and save intent after Lite checkout", async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     try {
       await page.addInitScript(() =>
         sessionStorage.setItem(
@@ -87,7 +88,7 @@ describe("auth save-search funnel", () => {
         await page.evaluate(() => sessionStorage.getItem("pendingSaveSearch")),
       ).toBeNull();
     } finally {
-      await page.close();
+      await closePage(page);
     }
   });
   for (const form of ["sign-in", "sign-up"]) {
@@ -106,7 +107,7 @@ describe("auth save-search funnel", () => {
           destination.startsWith("%2Fsearch")
             ? "/search?q=Saab&saveSearch=1"
             : "/search";
-        const page = await browser.newPage();
+        const page = await createPage(browser);
         try {
           await openFixture(
             page,
@@ -160,14 +161,14 @@ describe("auth save-search funnel", () => {
             expected,
           );
         } finally {
-          await page.close();
+          await closePage(page);
         }
       });
     }
   }
   for (const signedOut of [false, true]) {
     test(`resumes a late save intent, signed out: ${signedOut}`, async () => {
-      const page = await browser.newPage();
+      const page = await createPage(browser);
       try {
         await openFixture(page, signedOut ? "?signed-out=1" : "");
         await page.getByRole("button", { name: "Resume save intent" }).click();
@@ -183,14 +184,14 @@ describe("auth save-search funnel", () => {
         await page.getByRole("dialog").waitFor({ state: "hidden" });
         expect(await page.locator("#handled").textContent()).toBe("1");
       } finally {
-        await page.close();
+        await closePage(page);
       }
     });
   }
 
   for (const newFree of [true, false]) {
     test(`explains the Lite gate for ${newFree ? "new" : "returning"} Free users`, async () => {
-      const page = await browser.newPage();
+      const page = await createPage(browser);
       try {
         await openFixture(
           page,
@@ -224,13 +225,13 @@ describe("auth save-search funnel", () => {
           ),
         ).toEqual({ query: "Saab", filters: { makes: ["Saab"] } });
       } finally {
-        await page.close();
+        await closePage(page);
       }
     });
   }
 
   test("sign-up explains that saving requires Lite", async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     try {
       await openFixture(page, "?auth=sign-up");
       await page
@@ -239,7 +240,7 @@ describe("auth save-search funnel", () => {
         })
         .waitFor();
     } finally {
-      await page.close();
+      await closePage(page);
     }
   });
 });
@@ -299,7 +300,7 @@ describe("saved search browser flow", () => {
     { width: 1440, height: 900 },
   ]) {
     test(`edits Boolean criteria and future-inventory values at ${viewport.width}px`, async () => {
-      const page = await browser.newPage({ viewport });
+      const page = await createPage(browser, { viewport });
       try {
         await openFixture(page);
         await openEditor(page);
@@ -342,12 +343,12 @@ describe("saved search browser flow", () => {
           'wagon "roof rack" (Volvo OR Saab) !diesel !damaged make:Qvale year:>=1980 year:<=2000',
         );
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 20_000);
 
     test(`saves a filter-only search and preserves edits after a failed save at ${viewport.width}px`, async () => {
-      const page = await browser.newPage({ viewport });
+      const page = await createPage(browser, { viewport });
       try {
         await openFixture(page, "?fail=1");
         await page
@@ -393,14 +394,16 @@ describe("saved search browser flow", () => {
           },
         });
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 20_000);
   }
 
   for (const width of [390, 1440]) {
     test(`starts simple and reveals advanced criteria and new filters at ${width}px`, async () => {
-      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const page = await createPage(browser, {
+        viewport: { width, height: 900 },
+      });
       try {
         await openFixture(page, "?query=volvo&no-suggestions=1");
         await openEditor(page);
@@ -477,7 +480,7 @@ describe("saved search browser flow", () => {
             .getAttribute("aria-pressed"),
         ).toBe("true");
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 20_000);
   }
@@ -485,7 +488,7 @@ describe("saved search browser flow", () => {
   for (const settings of [false, true]) {
     for (const width of [390, 1440]) {
       test(`edits alerts with criteria and discards cancelled changes in ${settings ? "Settings" : "search"} at ${width}px`, async () => {
-        const page = await browser.newPage({
+        const page = await createPage(browser, {
           viewport: { width, height: 900 },
         });
         try {
@@ -572,13 +575,13 @@ describe("saved search browser flow", () => {
           );
           await expectNoOverflow(page);
         } finally {
-          await page.close();
+          await closePage(page);
         }
       }, 20_000);
     }
 
     test(`confirms deletion within the editor in ${settings ? "Settings" : "search"}`, async () => {
-      const page = await browser.newPage({
+      const page = await createPage(browser, {
         viewport: { width: 390, height: 844 },
       });
       try {
@@ -630,13 +633,13 @@ describe("saved search browser flow", () => {
           input: { id: "saved-volvo" },
         });
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 20_000);
   }
 
   test("opens scoped quick alerts from the inline bell and edits channels independently", async () => {
-    const page = await browser.newPage({
+    const page = await createPage(browser, {
       viewport: { width: 1440, height: 900 },
     });
     try {
@@ -703,12 +706,12 @@ describe("saved search browser flow", () => {
           .count(),
       ).toBe(1);
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 20_000);
 
   test("preserves both drafts through notification setup and a failed combined save", async () => {
-    const page = await browser.newPage({
+    const page = await createPage(browser, {
       viewport: { width: 390, height: 844 },
     });
     try {
@@ -758,12 +761,12 @@ describe("saved search browser flow", () => {
         })
         .waitFor();
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 20_000);
 
   test("keeps a failed deletion open with recovery and preserves the search", async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     try {
       await openFixture(page, "?fail=1");
       await openEditor(page);
@@ -793,12 +796,12 @@ describe("saved search browser flow", () => {
         .click();
       await page.getByText("No saved searches yet", { exact: true }).waitFor();
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 20_000);
 
   test("preserves complex syntax, validates errors, and discards cancelled changes", async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     try {
       const query = '(Ford OR Ram) (diesel OR gasoline) "crew cab"';
       await openFixture(
@@ -832,12 +835,12 @@ describe("saved search browser flow", () => {
         expect.objectContaining({ input: expect.objectContaining({ query }) }),
       );
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 20_000);
 
   test("keeps mode drafts and rejects an incomplete VIN before saving", async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     try {
       await openFixture(page, "?fail=1");
       await openEditor(page);
@@ -895,12 +898,12 @@ describe("saved search browser flow", () => {
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await workspace(page).waitFor({ state: "hidden" });
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 20_000);
 
   test("edits a VIN search from Settings without replacing the VIN with keywords", async () => {
-    const page = await browser.newPage({
+    const page = await createPage(browser, {
       viewport: { width: 390, height: 844 },
     });
     try {
@@ -944,7 +947,7 @@ describe("saved search browser flow", () => {
       );
       expect(new URL(page.url()).pathname).toBe("/settings/searches");
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 20_000);
 });

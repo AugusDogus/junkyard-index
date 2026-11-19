@@ -7,6 +7,7 @@ import {
   bundleSharedSearchFixture,
   renderSharedSearchFixture,
 } from "./fixtures/build-shared-search";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -35,7 +36,7 @@ afterAll(async () => {
 
 for (const ready of [true, false]) {
   test(`phone sort labels and options honor chronological readiness: ${ready}`, async () => {
-    const page = await browser.newPage({
+    const page = await createPage(browser, {
       viewport: { width: 390, height: 844 },
     });
     try {
@@ -106,7 +107,7 @@ for (const ready of [true, false]) {
         await relevance.waitFor();
       }
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 15_000);
 }
@@ -117,7 +118,7 @@ for (const scenario of [
   { name: "plan remount", button: "Switch plan", count: 2 },
 ]) {
   test(`shared search cards and count agree after ${scenario.name}`, async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     try {
@@ -177,7 +178,7 @@ for (const scenario of [
       ).toBe(scenario.count - 1);
       expect(errors).toEqual([]);
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 15_000);
 }
@@ -188,7 +189,7 @@ for (const scenario of [
   { query: "Toyota OR Ford", extra: "&fixtureBooleanReady=0", count: 1 },
 ]) {
   test(`rejected shared expression can be edited and submitted: ${scenario.query}${scenario.extra}`, async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     try {
@@ -234,7 +235,7 @@ for (const scenario of [
       ).toBe(0);
       expect(errors).toEqual([]);
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 15_000);
 }
@@ -242,7 +243,9 @@ for (const scenario of [
 for (const width of [390, 1440]) {
   for (const query of ["Volvo 740", "Volvo"]) {
     test(`self-service recovery selects both types and survives reload: ${query}, ${width}px`, async () => {
-      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const page = await createPage(browser, {
+        viewport: { width, height: 900 },
+      });
       try {
         await page.route("http://shared-search.test/**", async (route) => {
           const url = new URL(route.request().url());
@@ -393,7 +396,7 @@ for (const width of [390, 1440]) {
             .count(),
         ).toBe(0);
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 15_000);
   }
@@ -401,7 +404,9 @@ for (const width of [390, 1440]) {
 
 for (const width of [390, 1440]) {
   test(`all yards has a distinct visible selection and changes in one tap: ${width}px`, async () => {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const page = await createPage(browser, {
+      viewport: { width, height: 900 },
+    });
     try {
       await page.route("http://shared-search.test/**", async (route) => {
         const url = new URL(route.request().url());
@@ -460,13 +465,13 @@ for (const width of [390, 1440]) {
         ),
       ).toBe(true);
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 15_000);
 }
 
 test("expression-owned yard types are visible without an implicit self-service facet", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await page.route("http://shared-search.test/**", async (route) => {
       const url = new URL(route.request().url());
@@ -513,12 +518,12 @@ test("expression-owned yard types are visible without an implicit self-service f
       new URL(page.url()).searchParams.getAll("yardTypes[]"),
     ).not.toContain("self_service");
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 15_000);
 
 test("settled counts replace the full-service announcement after another query", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await page.route("http://shared-search.test/**", async (route) => {
       const url = new URL(route.request().url());
@@ -566,6 +571,6 @@ test("settled counts replace the full-service announcement after another query",
       .filter({ hasText: /^1 vehicle found\.$/ })
       .waitFor();
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 15_000);
