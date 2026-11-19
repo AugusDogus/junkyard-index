@@ -346,6 +346,21 @@ test("Clear host 403 on a published donor pauses at a durable cooldown and resum
   expect(requests.filter((url) => url === GMC6)).toHaveLength(2);
 });
 
+test("Clear waits out a wake that starts just before retryAt", async () => {
+  const requests = mockInventory({ blocked: { url: GMC6, times: 1 } });
+  let cursor = settle(await Effect.runPromise(invoke(await prefix(160), 8)));
+  if (cursor.phase !== "details" || cursor.retryAt === undefined)
+    throw new Error("Expected the blocked donor to wait on a cooldown");
+  const sent = requests.length;
+  const retryAt = Date.now() + 200;
+  cursor = ClearsalvageCursor.checkpoint({ ...cursor, retryAt });
+  const resumed = await Effect.runPromise(invoke(cursor, 8));
+  expect(Date.now()).toBeGreaterThanOrEqual(retryAt);
+  expect(resumed.pagesProcessed).toBeGreaterThan(0);
+  expect(requests.length).toBeGreaterThan(sent);
+  expect(requests[sent]).toBe(GMC6);
+});
+
 test("Clear repeated host blocks exhaust three cooldowns and reject before every callback", async () => {
   const requests = mockInventory({
     blocked: { url: GMC6, times: Number.POSITIVE_INFINITY },

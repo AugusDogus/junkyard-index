@@ -201,6 +201,8 @@ function rateLimitCooldown(
  * terminal recheck), roughly 140 seconds. The chunk limit leaves 30 seconds
  * after the crawl for the batch and yard callbacks. */
 const CRAWL_DEADLINE = "270 seconds";
+/** How early a step may start against the Workflow's sleep before it waits. */
+const RETRY_AT_CLOCK_SKEW_MS = 10_000;
 
 export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
   options: WhitebradstreetOptions<E, R>,
@@ -239,13 +241,19 @@ export function streamWhitebradstreetInventoryWithRequestGate<E, R>(
       },
     };
     if (cursor.phase === "complete") return empty;
-    // The durable Workflow sleeps until retryAt; never request before it.
-    if (cursor.retryAt !== undefined && Date.now() < cursor.retryAt)
-      return {
-        ...empty,
-        status: "paused",
-        cursor,
-      } satisfies WhitebradstreetStreamResult;
+    // The durable Workflow sleeps until retryAt; never request before it. A
+    // wake within clock skew of retryAt waits out the rest, because returning
+    // the unchanged cursor would fail the run as making no progress.
+    if (cursor.retryAt !== undefined) {
+      const remainingMs = cursor.retryAt - Date.now();
+      if (remainingMs > RETRY_AT_CLOCK_SKEW_MS)
+        return {
+          ...empty,
+          status: "paused",
+          cursor,
+        } satisfies WhitebradstreetStreamResult;
+      if (remainingMs > 0) yield* Effect.sleep(remainingMs);
+    }
     const progress = fresh();
     let controlValidated = false;
     let lastRateLimit: { url: string; retryAfterMs: number } | null = null;
