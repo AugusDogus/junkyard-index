@@ -1344,6 +1344,7 @@ function AlgoliaSearchInner({
     attributesToSnippet: [],
     aroundLatLng,
     aroundLatLngViaIP: useAlgoliaIpLocation,
+    getRankingInfo: Boolean(aroundLatLng || useAlgoliaIpLocation),
     aroundRadius: isDistanceSort ? "all" : undefined,
     filters: effectiveVinPatternFilter,
   });

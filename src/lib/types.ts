@@ -86,7 +86,7 @@ export interface SearchVehicle {
   stateAbbr: string;
   lat: number;
   lng: number;
-  distance: number;
+  distance: number | null;
   section: string;
   row: string;
   space: string;
