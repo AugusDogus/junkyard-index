@@ -1,4 +1,3 @@
-import { YardServiceLine } from "~/components/junkyards/YardServiceLine";
 import { YardService } from "~/lib/yard-service";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { ArrowUpRight, MapPin, Phone } from "lucide-react";
@@ -77,6 +76,15 @@ export function YardInventoryView({
   filter: YardMakeFilter | YardModelFilter | null;
 }) {
   const headline = YardName.headline(yard.name, yard.operator);
+  const service = isIngestionSource(yard.source)
+    ? YardService.resolve(yard.source, yard.code).kind
+    : "unknown";
+  const serviceLabel = {
+    self_service: "Self-service, bring tools",
+    full_service: "Full-service, call first",
+    both: "Self & full service",
+    unknown: "Yard type unknown",
+  }[service];
   const crumbs: Crumb[] = filter
     ? [
         ...yardCrumbs(yard),
@@ -118,14 +126,9 @@ export function YardInventoryView({
           <h1 className="text-display-s leading-[1.02] font-extrabold text-pretty">
             {filter ? `${filterName(filter)} at ${headline}` : headline}
           </h1>
-          {isIngestionSource(yard.source) && (
-            <div className="mt-3">
-              <YardServiceLine
-                service={YardService.resolve(yard.source, yard.code)}
-                hint
-              />
-            </div>
-          )}
+          <p className="border-ink bg-paper-2 text-ink mt-3 inline-block border-2 px-2.5 py-1 text-sm font-bold">
+            {serviceLabel}
+          </p>
           <p className="text-lead text-ink-2 mt-5 max-w-[48ch] leading-[1.45]">
             <span className="text-ink font-extrabold tabular-nums">
               {InventoryFormat.plural(
@@ -163,7 +166,7 @@ export function YardInventoryView({
               ? "Newest first"
               : `Page ${inventory.page}, newest first`}
           </h2>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <FreshnessBadge publishedAt={publishedAt} />
             {total > 0 && (
               <p className="text-ink text-sm font-medium tabular-nums">

@@ -30,6 +30,30 @@ test("yard publications advance only accepted yards and survive summary refreshe
         await client.execute("select last_published_at from yard_inventory")
       ).rows.every((row) => row.last_published_at === null),
     ).toBe(true);
+    // The first post-deploy publication fills only accepted, non-preserved
+    // yards. A failed source and a preserved yard remain honestly unknown.
+    const partial = yardPublicationStatement(
+      ["autorecycler"],
+      new Map([["autorecycler", new Set(["preserved"])]]),
+      100,
+    );
+    if (!partial) throw new Error("Expected partial publication statement");
+    await client.execute(partial);
+    expect(
+      (
+        await client.execute(
+          "select location_code, last_published_at from yard_inventory order by location_code",
+        )
+      ).rows.map((row) => ({
+        location_code: row.location_code,
+        last_published_at: row.last_published_at,
+      })),
+    ).toEqual([
+      { location_code: "failed", last_published_at: null },
+      { location_code: "fresh", last_published_at: 100 },
+      { location_code: "preserved", last_published_at: null },
+    ]);
+    // Each unknown yard gets its date when it is eventually accepted.
     const first = yardPublicationStatement(sources, new Map(), 100);
     if (!first) throw new Error("Expected publication statement");
     await client.execute(first);
