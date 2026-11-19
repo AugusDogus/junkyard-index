@@ -123,6 +123,24 @@ describe("advanced search query", () => {
     expect(hasAdvancedSearchSyntax("Toyota OR Honda !damaged")).toBe(true);
   });
 
+  test.each([
+    "2012 ford f-150",
+    "1990 toyota tacoma",
+    "F-150",
+    "F150",
+    "3 series",
+    "4runner",
+    "RX-8",
+    "300ZX",
+    "1FTEW1C",
+    "toyta",
+  ])("preserves model digits, VIN prefixes, and word typos in %s", (query) => {
+    expect(parseAdvancedSearchQuery(query)).toEqual({
+      success: true,
+      data: { algoliaQuery: query, anyWordGroups: [] },
+    });
+  });
+
   test("rejects incomplete Boolean expressions", () => {
     expect(parseAdvancedSearchQuery("Honda OR")).toEqual({
       success: false,

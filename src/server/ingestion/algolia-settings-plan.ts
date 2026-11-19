@@ -39,6 +39,8 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   ],
   numericAttributesForFiltering: ["year", "availableDateTs", "firstSeenAt"],
   typoTolerance: true,
+  // Years and model numbers must not match neighboring numeric values.
+  allowTyposOnNumericTokens: false,
   minWordSizefor1Typo: 3,
   minWordSizefor2Typos: 7,
   advancedSyntax: true,

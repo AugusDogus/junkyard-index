@@ -33,10 +33,10 @@ to Algolia or deliver alerts after losing the lock.
 1. Merge the PR to `main`.
 2. Vercel deploys the application and Workflow SDK entry points together.
 3. Vercel Cron starts `searchIndexMigrationWorkflow` at 06:00 UTC each day. The
-   migration exits immediately after schema version `8` is ready.
+   migration exits immediately after schema version `9` is ready.
 4. The migration configures Algolia, backfills one durable vehicle batch per
    Workflow step, validates exact VIN and Boolean token filters, then writes
-   search schema version `8` to the index settings. A retried batch safely
+   search schema version `9` to the index settings. A retried batch safely
    rewrites the same object IDs before advancing its VIN cursor.
 5. The production UI reads readiness on load. VIN patterns stay inactive until version
    `3`; Boolean OR queries stay inactive until version `4`. Each capability
@@ -93,7 +93,7 @@ curl --fail \
 ```
 
 Starting the route more than once is safe. A second active run deduplicates to
-the first, and a completed migration exits after reading schema version `8`.
+the first, and a completed migration exits after reading schema version `9`.
 
 Do not run `scripts/sync-algolia.ts` as the deployment path. It remains a manual
 recovery tool.
@@ -141,3 +141,18 @@ the longest matching name before treating a comma as a separator. Unknown or
 renamed legacy names remain best effort because the old encoding is ambiguous.
 Saved filters and alerts retain JSON arrays, and links generated from them use
 the new URL encoding.
+
+## Schema 9: numeric query precision
+
+`allowTyposOnNumericTokens: false` prevents typo matching on years and model
+numbers. The primary forwards this setting to every virtual replica, including
+`vehicles_newest` and `vehicles_oldest`; their sort overrides preserve it.
+Word typo tolerance and prefix-matching configuration are unchanged. Models
+with digits and wildcard VIN filters continue working. Plain typed year ranges
+are unchanged.
+
+After deployment, the existing in-place migration applies these settings,
+backfills records, validates the indices, and advances the marker from 8 to 9.
+A separate `bun run algolia:settings:apply` is **not required** after a
+successful migration. Until the scheduled migration runs, searches continue
+using the previous numeric typo behavior.
