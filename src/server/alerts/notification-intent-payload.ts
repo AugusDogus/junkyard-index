@@ -23,7 +23,7 @@ const SearchVehicleFields = z
     stateAbbr: z.string(),
     lat: z.number(),
     lng: z.number(),
-    distance: z.number(),
+    distance: z.number().nullable(),
     section: z.string(),
     row: z.string(),
     space: z.string(),

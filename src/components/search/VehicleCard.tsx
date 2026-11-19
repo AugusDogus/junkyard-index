@@ -10,15 +10,10 @@ import { toast } from "sonner";
 import { VehicleImage } from "~/components/search/VehicleImage";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "~/components/ui/card";
 import { ArrivalDate } from "~/lib/arrival-date";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
+import { VehicleCardDetails } from "~/lib/vehicle-card-details";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 
 function VehicleCardComponent({
@@ -30,6 +25,11 @@ function VehicleCardComponent({
   const [copyError, setCopyError] = useState<string | null>(null);
   const vin = vehicle.vin.trim();
   const primaryImage = vehicle.imageUrl;
+  const position = VehicleCardDetails.position(vehicle);
+  const miles = VehicleCardDetails.miles(vehicle.distance);
+  const engine = VehicleCardDetails.text(vehicle.engine);
+  const transmission = VehicleCardDetails.text(vehicle.transmission);
+  const title = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
   const geoLabel =
     vehicle.locationCity && vehicle.locationCity !== "Unknown"
       ? `${vehicle.locationCity}, ${vehicle.stateAbbr}`
@@ -65,10 +65,13 @@ function VehicleCardComponent({
     : "Marked missing";
 
   return (
-    <Card className="hover:border-foreground/20 h-full gap-0 overflow-hidden py-0 hover:shadow-md">
-      <CardHeader className="p-0">
+    <article
+      aria-label={title}
+      className="border-ink bg-paper text-ink flex h-full min-w-0 flex-col overflow-hidden border-2"
+    >
+      <div className="border-ink border-b-2">
         {/* Vehicle Image */}
-        <div className="bg-muted relative aspect-video overflow-hidden">
+        <div className="bg-paper-2 relative aspect-[2/1] overflow-hidden">
           {primaryImage ? (
             <VehicleImage
               priority={priority}
@@ -84,19 +87,23 @@ function VehicleCardComponent({
             </div>
           )}
           {/* Stock Number Badge */}
-          <Badge className="absolute top-3 right-3 tabular-nums">
-            Stock #{vehicle.stockNumber}
-          </Badge>
+          {VehicleCardDetails.text(vehicle.stockNumber) && (
+            <Badge className="border-ink bg-paper text-ink absolute top-2 right-2 rounded-none border-2 tabular-nums">
+              Stock #{vehicle.stockNumber}
+            </Badge>
+          )}
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="flex-1 p-4">
-        <div className="mb-4">
-          <h3 className="truncate text-lg font-semibold text-balance">
+      <div className="flex-1 space-y-3 p-3 sm:p-4">
+        <div>
+          <h3 className="text-xl leading-tight font-extrabold text-balance break-words">
             <span className="tabular-nums">{vehicle.year}</span> {vehicle.make}{" "}
             {vehicle.model}
           </h3>
-          <p className="text-muted-foreground mt-1 text-sm">{vehicle.color}</p>
+          {VehicleCardDetails.text(vehicle.color) && (
+            <p className="text-ink-2 mt-1 text-xs">{vehicle.color}</p>
+          )}
           {vehicle.isMissing && (
             <Badge variant="destructive" className="mt-2">
               {missingLabel}
@@ -105,15 +112,33 @@ function VehicleCardComponent({
         </div>
 
         {service.kind !== "unknown" && (
-          <div className="mb-3">
+          <div>
             <YardServiceLine service={service} hint />
           </div>
         )}
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+        {position && (
+          <p className="border-ink bg-paper-2 border-l-2 px-2 py-1 text-xs leading-snug font-bold break-words">
+            {position}
+          </p>
+        )}
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs leading-snug">
           <dt className="text-muted-foreground">Yard</dt>
-          <dd className="truncate text-right">
+          <dd className="text-right break-words">
             {vehicle.locationName || "N/A"}
           </dd>
+
+          {engine && (
+            <>
+              <dt className="text-muted-foreground">Engine</dt>
+              <dd className="text-right break-words">{engine}</dd>
+            </>
+          )}
+          {transmission && (
+            <>
+              <dt className="text-muted-foreground">Transmission</dt>
+              <dd className="text-right break-words">{transmission}</dd>
+            </>
+          )}
 
           <dt className="text-muted-foreground">VIN</dt>
           <dd className="text-right font-mono break-all select-text">
@@ -126,20 +151,33 @@ function VehicleCardComponent({
           </dd>
         </dl>
 
-        <div className="text-muted-foreground mt-4 flex items-center gap-1.5 text-sm">
+        <div className="text-ink-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
           <MapPin aria-hidden="true" className="size-4 shrink-0" />
-          <span className="truncate">{geoLabel}</span>
+          <span className="min-w-0 flex-1 break-words">{geoLabel}</span>
+          {miles && (
+            <span
+              className="text-ink shrink-0 font-bold tabular-nums"
+              aria-label={`${miles} from your location`}
+            >
+              {miles}
+            </span>
+          )}
         </div>
-      </CardContent>
+      </div>
 
-      <CardFooter className="flex-col items-stretch gap-2 p-4 pt-0">
+      <div className="flex flex-col items-stretch gap-2 p-3 pt-0 sm:p-4 sm:pt-0">
         {destination.kind !== "inventory" && (
           <>
             <p className="text-muted-foreground text-xs text-pretty">
               {destination.explanation}
             </p>
             {vin && (
-              <Button type="button" variant="outline" onClick={copyVin}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 rounded-none"
+                onClick={copyVin}
+              >
                 <Copy aria-hidden="true" data-icon="inline-start" />
                 Copy VIN
               </Button>
@@ -152,9 +190,14 @@ function VehicleCardComponent({
           </>
         )}
         {destination.kind !== "unavailable" && (
-          <Button asChild className="w-full" variant="default">
+          <Button
+            asChild
+            className="h-11 w-full rounded-none"
+            variant="outline"
+          >
             <Link
               href={destination.href}
+              aria-label={`${destination.label} for the ${title} (opens in a new tab)`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleDetailsClick}
@@ -164,8 +207,8 @@ function VehicleCardComponent({
             </Link>
           </Button>
         )}
-      </CardFooter>
-    </Card>
+      </div>
+    </article>
   );
 }
 

@@ -1,4 +1,5 @@
 import { ArrivalDate } from "~/lib/arrival-date";
+import { hasFiniteCoordinates } from "~/lib/location-preferences";
 import { calculateDistance } from "~/lib/utils";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import type { DataSource, SearchVehicle } from "~/lib/types";
@@ -52,6 +53,11 @@ export const SEARCH_CARD_ATTRIBUTES = [
   "locationCity",
   "stateAbbr",
   "_geoloc",
+  "section",
+  "row",
+  "space",
+  "engine",
+  "transmission",
   "imageUrl",
   "detailsUrl",
   "isMissing",
@@ -63,7 +69,7 @@ type AlgoliaVehicleHitAttribute =
 
 export type AlgoliaVehicleHit = Partial<
   Record<AlgoliaVehicleHitAttribute, unknown>
->;
+> & { _rankingInfo?: unknown };
 
 function parseDataSource(value: unknown): DataSource | null {
   return isIngestionSource(value) ? value : null;
@@ -88,7 +94,9 @@ function parseGeoloc(value: unknown): { lat: number; lng: number } | null {
   return typeof lat === "number" &&
     Number.isFinite(lat) &&
     typeof lng === "number" &&
-    Number.isFinite(lng)
+    Number.isFinite(lng) &&
+    hasFiniteCoordinates({ lat, lng }) &&
+    (lat !== 0 || lng !== 0)
     ? { lat, lng }
     : null;
 }
@@ -131,6 +139,29 @@ export function algoliaHitToSearchVehicle(
       : undefined;
 
   const yardArrival = ArrivalDate.from(hit.availableDate, null);
+  const ranking = hit._rankingInfo;
+  const geoDistance =
+    typeof ranking === "object" && ranking !== null && "geoDistance" in ranking
+      ? ranking.geoDistance
+      : null;
+  const geoPrecision =
+    typeof ranking === "object" && ranking !== null && "geoPrecision" in ranking
+      ? ranking.geoPrecision
+      : 1;
+  // Algolia's geoDistance is in geoPrecision buckets (10 meters for Nearest).
+  // Otherwise use the origin and yard coordinates without another request.
+  const distance =
+    typeof geoDistance === "number" &&
+    Number.isFinite(geoDistance) &&
+    geoDistance >= 0 &&
+    typeof geoPrecision === "number" &&
+    Number.isFinite(geoPrecision) &&
+    geoPrecision > 0 &&
+    Number.isFinite(geoDistance * geoPrecision)
+      ? (geoDistance * geoPrecision) / 1609.344
+      : userLocation && hasFiniteCoordinates(userLocation) && geoloc
+        ? calculateDistance(userLocation.lat, userLocation.lng, lat, lng)
+        : null;
 
   return {
     id: parseOptionalString(hit.objectID) ?? parseString(hit.vin),
@@ -152,10 +183,7 @@ export function algoliaHitToSearchVehicle(
     stateAbbr,
     lat,
     lng,
-    distance:
-      userLocation && geoloc
-        ? calculateDistance(userLocation.lat, userLocation.lng, lat, lng)
-        : 0,
+    distance,
     section: parseString(hit.section),
     row: parseString(hit.row),
     space: parseString(hit.space),
