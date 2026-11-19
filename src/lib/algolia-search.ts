@@ -1,4 +1,5 @@
 import { withFullServiceCount } from "~/lib/full-service-search";
+import { withSearchCountsCache } from "~/lib/search-counts-cache";
 import {
   compileSearchExpression,
   type CompiledExpression,
@@ -25,12 +26,16 @@ export { ALGOLIA_INDEX_NAME } from "~/lib/constants";
 // must never be replaced here with an admin or write-capable key.
 const baseSearchClient = withFullServiceCount(
   withDistanceSort(
-    algoliasearch(
-      env.NEXT_PUBLIC_ALGOLIA_APP_ID,
-      env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
+    withSearchCountsCache(
+      algoliasearch(
+        env.NEXT_PUBLIC_ALGOLIA_APP_ID,
+        env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY,
+      ),
     ),
   ),
 );
+
+export const primeSearchCounts = baseSearchClient.primeCounts;
 
 export type SearchExpressionError = {
   kind: "invalid" | "upgrade_required" | "unavailable";

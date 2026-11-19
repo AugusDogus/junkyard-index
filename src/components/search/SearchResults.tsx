@@ -28,6 +28,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton";
 import { useIsMobile, useIsMediumScreen } from "~/hooks/use-media-query";
 import type { SearchResult, SearchVehicle } from "~/lib/types";
+import { SearchScroll } from "~/lib/search-scroll";
 import { VehicleCard } from "./VehicleCard";
 
 interface SearchSummaryProps {
@@ -55,6 +56,7 @@ export function SearchSummary({
 }
 
 interface SearchResultsProps {
+  sessionKey?: string;
   searchResult: SearchResult;
   isLoading: boolean;
   showMore?: () => void;
@@ -68,6 +70,7 @@ interface SearchResultsProps {
 
 export function SearchResults({
   searchResult,
+  sessionKey,
   isLoading,
   showMore,
   isLastPage = true,
@@ -164,9 +167,45 @@ export function SearchResults({
     showMore,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     rowVirtualizer.measure();
   }, [columns, estimatedRowHeight, rowVirtualizer]);
+
+  useLayoutEffect(() => {
+    if (!sessionKey || isLoading || isLockedPreview) return;
+    const snapshot = SearchScroll.read(sessionKey);
+    let frame = 0;
+    if (snapshot) {
+      snapshot.rowSizes.forEach((size, index) =>
+        rowVirtualizer.resizeItem(index, size),
+      );
+      // Restore the cached pages and row geometry first. The second frame
+      // follows the virtualizer's measured render at the restored offset.
+      frame = requestAnimationFrame(() => {
+        window.scrollTo(0, snapshot.scrollY);
+        frame = requestAnimationFrame(() =>
+          window.scrollTo(0, snapshot.scrollY),
+        );
+      });
+    }
+    const save = () =>
+      SearchScroll.write(sessionKey, {
+        width: window.innerWidth,
+        scrollY: window.scrollY,
+        rowSizes: rowVirtualizer.measurementsCache.map((row) => row.size),
+      });
+    window.addEventListener("pagehide", save);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [
+    sessionKey,
+    isLoading,
+    isLockedPreview,
+    rowVirtualizer,
+    estimatedRowHeight,
+  ]);
 
   const amountOfSkeletons = 6;
 

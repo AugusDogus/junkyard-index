@@ -92,6 +92,14 @@ const client = {
           indexName,
           params,
         }));
+    if (typeof document !== "undefined") {
+      const previous: unknown = JSON.parse(
+        document.documentElement.dataset.searchQueryLog ?? "[]",
+      );
+      const log: unknown[] = Array.isArray(previous) ? previous : [];
+      log.push(...requests);
+      document.documentElement.dataset.searchQueryLog = JSON.stringify(log);
+    }
     return {
       results: requests.map(({ indexName, params }) => {
         if (indexName === "vehicles_distance") {
@@ -111,27 +119,26 @@ const client = {
         const extraOnly = params?.filters?.includes(
           "NOT yardTypes:self_service",
         );
-        const matchingVehicles =
-          query === "pagination"
-            ? Array.from({ length: 96 }, (_, index) => ({
-                yardTypes: ["self_service"],
-                source: "pyp",
-                locationName: "Fixture yard",
-                availableDate: "2026-10-01",
-                state: "Alabama",
-                stateAbbr: "AL",
-                objectID: `pagination-${index}`,
-                year: 2000 + index,
-                make: "Pagination",
-                model: "Car",
-                vin: `VIN${index}`,
-                detailsUrl: "https://example.com/vehicle",
-                imageUrl: "https://example.com/car.jpg",
-              }))
-            : vehicles;
+        const matchingVehicles = query.startsWith("pagination")
+          ? Array.from({ length: 96 }, (_, index) => ({
+              yardTypes: ["self_service"],
+              source: "pyp",
+              locationName: "Fixture yard",
+              availableDate: "2026-10-01",
+              state: "Alabama",
+              stateAbbr: "AL",
+              objectID: `pagination-${index}`,
+              year: 2000 + index,
+              make: "Pagination",
+              model: "Car",
+              vin: `VIN${index}`,
+              detailsUrl: "https://example.com/vehicle",
+              imageUrl: "https://example.com/car.jpg",
+            }))
+          : vehicles;
         const matched = matchingVehicles.filter(
           (vehicle) =>
-            (query === "pagination" ||
+            (query.startsWith("pagination") ||
               `${vehicle.make} ${vehicle.model}`
                 .toLowerCase()
                 .includes(query.toLowerCase())) &&
@@ -152,7 +159,7 @@ const client = {
                 !vehicle.yardTypes.includes("self_service"))),
         );
         const sorted =
-          query === "pagination" && !indexName.includes("oldest")
+          query.startsWith("pagination") && !indexName.includes("oldest")
             ? [...matched].reverse()
             : matched;
         const pageSize = params?.hitsPerPage ?? 24;

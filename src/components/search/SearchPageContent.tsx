@@ -85,6 +85,7 @@ import {
   algoliaHitToSearchVehicle,
   type AlgoliaVehicleHit,
 } from "~/lib/search-vehicles";
+import { primeSearchCounts } from "~/lib/algolia-search";
 import { SearchHitsCache } from "~/lib/search-hits-cache";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
@@ -422,9 +423,21 @@ function AlgoliaSearchInner({
   // Register the complete routed search before suspending in useConfigure below.
   // The input shares this query widget; registering it here includes it in SSR.
   const { query } = useSearchBox({}, { skipSuspense: true });
-  const [hitsCache] = useState(() =>
-    SearchHitsCache.create<AlgoliaVehicleHit>(),
-  );
+  const [hitsCache] = useState(() => SearchHitsCache.create());
+  const [cacheRestored, setCacheRestored] = useState(false);
+  useEffect(() => {
+    if (isLoggedIn) {
+      try {
+        hitsCache.restore(window.sessionStorage);
+      } catch {
+        /* Tab storage can be disabled. */
+      }
+    }
+    setCacheRestored(true);
+  }, [hitsCache, isLoggedIn]);
+  useEffect(() => {
+    primeSearchCounts(results._rawResults[0]?.userData);
+  }, [results]);
   const { hits, showMore, isLastPage } = useInfiniteHits<AlgoliaVehicleHit>(
     { cache: hitsCache },
     { skipSuspense: true },
@@ -779,18 +792,16 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
-  const anonymousVisibleLimit = initialIsMobile
+  const anonymousVisibleLimit = isMobile
     ? 4
     : SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
   const anonymousClearRows = isMobile ? 3 : 1;
 
-  const isAnonymousCapped =
-    !isLoggedIn && !isSearching && nbHits > anonymousVisibleLimit;
+  const isAnonymousCapped = !isLoggedIn && nbHits > anonymousVisibleLimit;
 
   const visibleVehicles = useMemo(
-    () =>
-      isAnonymousCapped ? vehicles.slice(0, anonymousVisibleLimit) : vehicles,
-    [isAnonymousCapped, vehicles, anonymousVisibleLimit],
+    () => (!isLoggedIn ? vehicles.slice(0, anonymousVisibleLimit) : vehicles),
+    [isLoggedIn, vehicles, anonymousVisibleLimit],
   );
 
   // Build search result object for SearchResults/SearchSummary components
@@ -1322,6 +1333,8 @@ function AlgoliaSearchInner({
           }
         : undefined,
       visibleCount: isAnonymousCapped ? anonymousVisibleLimit : undefined,
+      sessionKey:
+        isLoggedIn && cacheRestored ? hitsCache.activeKey() : undefined,
     },
   });
 
