@@ -2,6 +2,7 @@
 
 import type { YardType } from "~/lib/yard-service";
 import { Filter, LockKeyhole } from "lucide-react";
+import { useRef } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Drawer,
@@ -68,10 +69,13 @@ export function MobileFiltersDrawer({
   canUseAdvancedFilters,
   iconOnly,
 }: MobileFiltersDrawerProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const openAdvancedOnClose = useRef(false);
   return (
-    <Drawer>
+    <Drawer autoFocus>
       <DrawerTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           size={iconOnly ? "sm" : "default"}
           aria-label={
@@ -87,7 +91,17 @@ export function MobileFiltersDrawer({
           )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent>
+      <DrawerContent
+        onCloseAutoFocus={(event) => {
+          if (!openAdvancedOnClose.current) return;
+          event.preventDefault();
+          openAdvancedOnClose.current = false;
+          // The drawer's Advanced button is about to unmount. Use its stable
+          // trigger as the return target before opening the next dialog.
+          triggerRef.current?.focus();
+          onAdvancedSearch();
+        }}
+      >
         <DrawerHeader className="group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-1">
@@ -117,7 +131,9 @@ export function MobileFiltersDrawer({
                   ? undefined
                   : "Advanced search, upgrade required"
               }
-              onClick={onAdvancedSearch}
+              onClick={() => {
+                openAdvancedOnClose.current = true;
+              }}
             >
               {!canUseAdvancedFilters && (
                 <LockKeyhole data-icon="inline-start" aria-hidden="true" />

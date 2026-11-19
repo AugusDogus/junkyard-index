@@ -96,6 +96,65 @@ interface SearchLocation {
 
 type SearchState = Record<string, Record<string, unknown>>;
 
+// One draft per browser window, shared by the input and its routed search.
+// Keep the starting URL so submitting a live preview preserves the last search.
+type InputHistory =
+  | { kind: "typing"; previous: string }
+  | { kind: "submitting"; previous: string };
+const inputHistory = new WeakMap<Window, InputHistory>();
+
+function pushSubmittedSearch(previous: string, url: string) {
+  if (previous === url) {
+    window.history.replaceState(window.history.state, "", url);
+    return;
+  }
+  window.history.replaceState(window.history.state, "", previous);
+  window.history.pushState(window.history.state, "", url);
+}
+
+export const SearchInputHistory = {
+  begin() {
+    if (!inputHistory.has(window)) {
+      inputHistory.set(window, {
+        kind: "typing",
+        previous: window.location.href,
+      });
+    }
+  },
+  cancel() {
+    inputHistory.delete(window);
+  },
+  submit(query: string) {
+    const draft = inputHistory.get(window);
+    if ((new URL(window.location.href).searchParams.get("q") ?? "") !== query) {
+      // An immediate submit can beat the router's pending write. Let that write
+      // create the checkpoint using the final URL, rather than a partial query.
+      inputHistory.set(window, {
+        kind: "submitting",
+        previous: draft?.previous ?? window.location.href,
+      });
+      return;
+    }
+    inputHistory.delete(window);
+    if (draft) pushSubmittedSearch(draft.previous, window.location.href);
+  },
+  write(url: string, navigationKey: (url: string) => string) {
+    const draft = inputHistory.get(window);
+    if (draft?.kind === "submitting") {
+      inputHistory.delete(window);
+      pushSubmittedSearch(draft.previous, url);
+    } else if (
+      draft?.kind === "typing" &&
+      navigationKey(url) === navigationKey(window.location.href)
+    ) {
+      window.history.replaceState(window.history.state, "", url);
+    } else {
+      inputHistory.delete(window);
+      window.history.pushState(window.history.state, "", url);
+    }
+  },
+} as const;
+
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -302,7 +361,7 @@ export function createSearchRouting(
   const defaultSortIndex = newestSortReady
     ? ALGOLIA_NEWEST_INDEX_NAME
     : ALGOLIA_INDEX_NAME;
-  return {
+  const routing = {
     router: {
       cleanUrlOnDispose: false,
       // The input already debounces. Reset native history navigation before
@@ -416,6 +475,24 @@ export function createSearchRouting(
         };
 
         return { [indexName]: uiState };
+      },
+    },
+  };
+  return {
+    ...routing,
+    router: {
+      ...routing.router,
+      push(url: string) {
+        SearchInputHistory.write(url, (href) => {
+          const location = new URL(href);
+          // Query expressions can themselves select yard types. Exclude the
+          // query before parsing so those edits are still treated as typing.
+          location.searchParams.delete("q");
+          const state = routing.stateMapping.routeToState(
+            routing.router.parseURL({ location }),
+          );
+          return JSON.stringify(state);
+        });
       },
     },
   };

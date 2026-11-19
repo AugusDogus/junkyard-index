@@ -78,9 +78,7 @@ export function SearchAccessShell({
       canUseAdvancedFilters,
       { knownYardNames, newestSortReady },
     );
-    const sync = createSearchRouteSync((url) => {
-      window.history.pushState({}, "", url);
-    });
+    const sync = createSearchRouteSync(config.router.push);
     return {
       ...config,
       router: {
