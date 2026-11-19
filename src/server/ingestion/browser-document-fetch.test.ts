@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect, Fiber, TestClock, TestContext } from "effect";
+import { type Duration, Effect, Fiber, TestClock, TestContext } from "effect";
 import { z } from "zod";
 import {
   browserDocumentResponse,
@@ -9,6 +9,7 @@ import {
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import { urgiisRequestGate } from "./urgiis-client";
 import { URG_HOST_POLICY } from "./shared-provider-host";
+import { HyperbrowserCapacityError } from "./hyperbrowser-session";
 import { fetchSix03Page } from "./six03-client";
 import { SIX03_CONTACT, SIX03_ORIGIN } from "./six03-yard-metadata";
 import { fetchMichigantruckPage } from "./michigantruck-client";
@@ -225,26 +226,45 @@ test("a client deadline also aborts the request running inside the page", async 
 });
 
 /** Records the navigation's position relative to the gate around it. */
-function navigationPage(events: string[]) {
+function navigationPage(
+  events: string[],
+  load: Promise<void> = Promise.resolve(),
+) {
   return {
     goto: async (url: string) => {
       events.push("goto " + url);
+      await load;
     },
     waitForFunction: async () => {
       events.push("challenge wait");
     },
+    close: async () => {
+      events.push("page closed");
+    },
   };
 }
-
-test("the origin navigation and its challenge wait run inside the source's request gate", async () => {
-  const events: string[] = [];
-  const gate: ProviderRequestGate = (request) =>
-    Effect.sync(() => events.push("gate admits")).pipe(
+const recordingGate =
+  (events: string[], queue: Duration.DurationInput = 0): ProviderRequestGate =>
+  (request) =>
+    Effect.sleep(queue).pipe(
+      Effect.zipRight(Effect.sync(() => events.push("gate admits"))),
       Effect.zipRight(request),
       Effect.ensuring(Effect.sync(() => events.push("gate releases"))),
     );
+/** Yields to pending promises, then advances the test clock. */
+const tick = (step: Duration.DurationInput) =>
+  Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 1))).pipe(
+    Effect.zipRight(TestClock.adjust(step)),
+  );
+
+test("the origin navigation and its challenge wait run inside the source's request gate", async () => {
+  const events: string[] = [];
   await Effect.runPromise(
-    navigateBrowserPage(navigationPage(events), SIX03_ORIGIN, gate),
+    navigateBrowserPage(
+      navigationPage(events),
+      SIX03_ORIGIN,
+      recordingGate(events),
+    ),
   );
   expect(events).toEqual([
     "gate admits",
@@ -332,4 +352,73 @@ test("United's origin navigation holds the shared URG host lease and the tenant'
   expect(clocks(released, events.length) * 100).toBeGreaterThanOrEqual(
     united.pacingMs,
   );
+});
+
+test("a request gate that admits nothing in time defers the chunk without navigating", async () => {
+  const events: string[] = [];
+  const result = await Effect.gen(function* () {
+    const fiber = yield* Effect.fork(
+      navigateBrowserPage(
+        navigationPage(events),
+        SIX03_ORIGIN,
+        recordingGate(events, "10 minutes"),
+      ),
+    );
+    for (let step = 0; step < 4; step++) yield* tick("1 minute");
+    return yield* Effect.either(Fiber.join(fiber));
+  }).pipe(Effect.provide(TestContext.TestContext), Effect.runPromise);
+  if (result._tag !== "Left") throw new Error("expected a deferral");
+  expect(result.left).toBeInstanceOf(HyperbrowserCapacityError);
+  expect(events).toEqual(["gate releases"]);
+});
+
+test("a navigation admitted late in the queue window still gets its full load time", async () => {
+  const events: string[] = [];
+  let finishLoad = () => {};
+  const load = new Promise<void>((resolve) => {
+    finishLoad = resolve;
+  });
+  const result = await Effect.gen(function* () {
+    const fiber = yield* Effect.fork(
+      navigateBrowserPage(
+        navigationPage(events, load),
+        SIX03_ORIGIN,
+        recordingGate(events, "149 seconds"),
+      ),
+    );
+    yield* tick("149 seconds");
+    yield* tick("50 seconds");
+    expect((yield* Fiber.poll(fiber))._tag).toBe("None");
+    finishLoad();
+    yield* tick("1 second");
+    return yield* Effect.either(Fiber.join(fiber));
+  }).pipe(Effect.provide(TestContext.TestContext), Effect.runPromise);
+  expect(result._tag).toBe("Right");
+  expect(events).toEqual([
+    "gate admits",
+    `goto ${SIX03_ORIGIN}/`,
+    "challenge wait",
+    "gate releases",
+  ]);
+});
+
+test("an interrupted navigation closes the page before the gate releases its lease", async () => {
+  const events: string[] = [];
+  await Effect.gen(function* () {
+    const fiber = yield* Effect.fork(
+      navigateBrowserPage(
+        navigationPage(events, new Promise<void>(() => {})),
+        SIX03_ORIGIN,
+        recordingGate(events),
+      ),
+    );
+    yield* tick("1 second");
+    yield* Fiber.interrupt(fiber);
+  }).pipe(Effect.provide(TestContext.TestContext), Effect.runPromise);
+  expect(events).toEqual([
+    "gate admits",
+    `goto ${SIX03_ORIGIN}/`,
+    "page closed",
+    "gate releases",
+  ]);
 });

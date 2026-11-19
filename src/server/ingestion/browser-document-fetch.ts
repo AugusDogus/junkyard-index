@@ -1,6 +1,6 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
-import { chromium } from "playwright-core";
-import { Effect, type Scope } from "effect";
+import { chromium, type Page } from "playwright-core";
+import { Deferred, Effect, Fiber, Option, type Scope } from "effect";
 import { Config } from "./context";
 import type { DocumentFetch } from "./document-fetch";
 import {
@@ -15,6 +15,13 @@ import {
 const BROWSER_MAX_BODY_BYTES = 8 * 1024 * 1024;
 const BROWSER_REQUEST_TIMEOUT_MS = 90_000;
 const NAVIGATION_TIMEOUT_MS = 60_000;
+/** Longest wait for the source's request gate (URG's shared host queue can
+ * be minutes deep) before the origin navigation is sent. */
+const NAVIGATION_QUEUE_MS = 150_000;
+/** Origin navigation plus the source's document requests. With the setup cap
+ * it fits the session hold (120 s + 480 s <= 630 s); the longest browser
+ * chunk (URG IIS) keeps its own eight-minute deadline inside it. */
+const BROWSER_CHUNK_WINDOW_MS = 8 * 60_000;
 const CHALLENGE_WAIT_MS = 20_000;
 /** From Hyperbrowser, Big D's Cloudflare zone challenges a minority of
  * same-origin fetches and passes a later identical one; a client then still
@@ -246,6 +253,7 @@ export interface BrowserNavigationPage {
     arg: null,
     options: { timeout: number },
   ): Promise<unknown>;
+  close(): Promise<void>;
 }
 
 /** Admits one request to the yard: the source's pacing and, for a shared
@@ -257,133 +265,135 @@ export type BrowserNavigationGate = (
 /** Opens `origin` in `page` so its Cloudflare clearance and cookies apply to
  * later same-origin fetches. The navigation is a request to the yard like any
  * other, so it runs inside the source's request `gate` (its pacing and, for a
- * shared backend such as URG, the host lease). A Cloudflare challenge clears
- * by reloading the yard's page, so its bounded wait stays inside the gate; an
- * unchallenged page releases the gate as soon as it loads. */
+ * shared backend such as URG, the host lease).
+ * - A gate that admits nothing within `queueMs` defers the chunk: nothing was
+ *   requested from the yard.
+ * - Once admitted, the navigation has its full load and challenge bounds. A
+ *   Cloudflare challenge clears by reloading the yard's page, so its bounded
+ *   wait stays inside the gate; an unchallenged page releases it on load.
+ * - An interrupted navigation closes the page before the gate releases, so
+ *   no browser request outlives the host lease. */
 export function navigateBrowserPage(
   page: BrowserNavigationPage,
   origin: string,
   gate: BrowserNavigationGate,
-): Effect.Effect<void, Error> {
-  return gate(
-    Effect.tryPromise({
+  queueMs = NAVIGATION_QUEUE_MS,
+): Effect.Effect<void, Error | HyperbrowserCapacityError> {
+  const load = Effect.tryPromise({
+    try: async () => {
+      // A challenge answers this navigation with 403 and clears itself in a
+      // real browser. Some sites keep challenging navigations while serving
+      // same-origin fetches, so an uncleared challenge is not an error here:
+      // every document request is validated by its client.
+      await page.goto(origin + "/", {
+        waitUntil: "domcontentloaded",
+        timeout: NAVIGATION_TIMEOUT_MS,
+      });
+      await page
+        .waitForFunction(() => !/just a moment/i.test(document.title), null, {
+          timeout: CHALLENGE_WAIT_MS,
+        })
+        .catch(() => undefined);
+    },
+    catch: (cause) =>
+      new Error(`Could not open ${origin} in the browser session`, { cause }),
+  }).pipe(
+    Effect.onInterrupt(() =>
+      Effect.promise(() => page.close().catch(() => undefined)),
+    ),
+  );
+  return Effect.gen(function* () {
+    const admitted = yield* Deferred.make<void>();
+    const navigation = yield* Effect.fork(
+      gate(Deferred.succeed(admitted, undefined).pipe(Effect.zipRight(load))),
+    );
+    const started = yield* Effect.raceFirst(
+      Deferred.await(admitted),
+      Fiber.await(navigation),
+    ).pipe(Effect.timeoutOption(queueMs));
+    if (Option.isNone(started)) {
+      yield* Fiber.interrupt(navigation);
+      return yield* Effect.fail(
+        new HyperbrowserCapacityError({
+          reason: `${origin}'s request gate admitted nothing for ${queueMs / 1000} seconds, so its browser chunk sent no request`,
+          retryAfterMs: HYPERBROWSER_BUSY_RETRY_MS,
+        }),
+      );
+    }
+    return yield* Fiber.join(navigation);
+  });
+}
+
+/** Opens a Hyperbrowser page with `cookies` set on `origin`. Must run under
+ * the session lease; `withBrowserDocumentFetch` does both. Setup that
+ * outlasts its cap defers the chunk: nothing was requested from the yard. */
+function openBrowserPage(
+  apiKey: string,
+  origin: string,
+  cookies: readonly BrowserCookie[],
+): Effect.Effect<Page, Error | HyperbrowserCapacityError, Scope.Scope> {
+  return Effect.gen(function* () {
+    const client = new Hyperbrowser({ apiKey });
+    const session = yield* Effect.acquireRelease(
+      createHyperbrowserSession(client.sessions, {
+        useStealth: true,
+        acceptCookies: true,
+        region: "us-west",
+      }),
+      (opened) =>
+        Effect.promise(() =>
+          client.sessions.stop(opened.id).then(
+            () => undefined,
+            (cause: unknown) =>
+              console.error(
+                `Could not stop Hyperbrowser session ${opened.id}; its ${origin} chunk result is unaffected and the session ends at its server-side timeout`,
+                cause,
+              ),
+          ),
+        ),
+    );
+    const browser = yield* Effect.acquireRelease(
+      Effect.tryPromise({
+        try: () =>
+          chromium.connectOverCDP(session.wsEndpoint, { timeout: 45_000 }),
+        catch: (cause) =>
+          new Error(`Could not connect to the ${origin} browser session`, {
+            cause,
+          }),
+      }),
+      (connected) => Effect.promise(() => connected.close().catch(() => {})),
+    );
+    return yield* Effect.tryPromise({
       try: async () => {
-        // A challenge answers this navigation with 403 and clears itself in a
-        // real browser. Some sites keep challenging navigations while serving
-        // same-origin fetches, so an uncleared challenge is not an error
-        // here: every document request is validated by its client.
-        await page.goto(origin + "/", {
-          waitUntil: "domcontentloaded",
-          timeout: NAVIGATION_TIMEOUT_MS,
-        });
-        await page
-          .waitForFunction(() => !/just a moment/i.test(document.title), null, {
-            timeout: CHALLENGE_WAIT_MS,
-          })
-          .catch(() => undefined);
+        const context = browser.contexts()[0] ?? (await browser.newContext());
+        if (cookies.length > 0)
+          await context.addCookies(
+            cookies.map((cookie) => ({ ...cookie, url: origin + "/" })),
+          );
+        return context.pages()[0] ?? (await context.newPage());
       },
       catch: (cause) =>
-        new Error(`Could not open ${origin} in the browser session`, { cause }),
+        new Error(`Could not open a page in the ${origin} browser session`, {
+          cause,
+        }),
+    });
+  }).pipe(
+    Effect.timeoutFail({
+      duration: HYPERBROWSER_SETUP_MS,
+      onTimeout: () =>
+        new HyperbrowserCapacityError({
+          reason: `starting the browser session for ${origin} took more than ${HYPERBROWSER_SETUP_MS / 1000} seconds, before any request to the yard`,
+          retryAfterMs: HYPERBROWSER_BUSY_RETRY_MS,
+        }),
     }),
   );
 }
 
-/** Where browser setup stood when its deadline passed. */
-type SetupStage = "session" | "host-queue" | "navigation";
-
-/** Opens a Hyperbrowser page on `origin` and navigates it through `gate`.
- * Must run under the session lease; `withBrowserDocumentFetch` does both. A
- * deadline reached before the navigation request was sent defers the chunk:
- * nothing was requested from the yard. */
-export function acquireBrowserDocumentFetch(
-  apiKey: string,
-  origin: string,
-  gate: BrowserNavigationGate,
-  cookies: readonly BrowserCookie[] = [],
-): Effect.Effect<
-  DocumentFetch,
-  Error | HyperbrowserCapacityError,
-  Scope.Scope
-> {
-  return Effect.suspend(() => {
-    let stage: SetupStage = "session";
-    return Effect.gen(function* () {
-      const client = new Hyperbrowser({ apiKey });
-      const session = yield* Effect.acquireRelease(
-        createHyperbrowserSession(client.sessions, {
-          useStealth: true,
-          acceptCookies: true,
-          region: "us-west",
-        }),
-        (opened) =>
-          Effect.promise(() =>
-            client.sessions.stop(opened.id).then(
-              () => undefined,
-              (cause: unknown) =>
-                console.error(
-                  `Could not stop Hyperbrowser session ${opened.id}; its ${origin} chunk result is unaffected and the session ends at its server-side timeout`,
-                  cause,
-                ),
-            ),
-          ),
-      );
-      const browser = yield* Effect.acquireRelease(
-        Effect.tryPromise({
-          try: () =>
-            chromium.connectOverCDP(session.wsEndpoint, { timeout: 45_000 }),
-          catch: (cause) =>
-            new Error(`Could not connect to the ${origin} browser session`, {
-              cause,
-            }),
-        }),
-        (connected) => Effect.promise(() => connected.close().catch(() => {})),
-      );
-      const page = yield* Effect.tryPromise({
-        try: async () => {
-          const context = browser.contexts()[0] ?? (await browser.newContext());
-          if (cookies.length > 0)
-            await context.addCookies(
-              cookies.map((cookie) => ({ ...cookie, url: origin + "/" })),
-            );
-          return context.pages()[0] ?? (await context.newPage());
-        },
-        catch: (cause) =>
-          new Error(`Could not open a page in the ${origin} browser session`, {
-            cause,
-          }),
-      });
-      stage = "host-queue";
-      yield* navigateBrowserPage(page, origin, (request) =>
-        gate(
-          Effect.sync(() => {
-            stage = "navigation";
-          }).pipe(Effect.zipRight(request)),
-        ),
-      );
-      return pageDocumentFetch(page, origin);
-    }).pipe(
-      Effect.timeoutFail({
-        duration: HYPERBROWSER_SETUP_MS,
-        onTimeout: (): Error | HyperbrowserCapacityError =>
-          stage === "navigation"
-            ? new Error(
-                `Browser navigation to ${origin} did not finish within the ${HYPERBROWSER_SETUP_MS / 1000}-second setup window. The checkpoint is unchanged; retry the chunk.`,
-              )
-            : new HyperbrowserCapacityError({
-                reason:
-                  stage === "session"
-                    ? `starting the browser session for ${origin} used the whole ${HYPERBROWSER_SETUP_MS / 1000}-second setup window`
-                    : `${origin}'s request queue stayed busy for the rest of the ${HYPERBROWSER_SETUP_MS / 1000}-second browser setup window`,
-                retryAfterMs: HYPERBROWSER_BUSY_RETRY_MS,
-              }),
-      }),
-    );
-  });
-}
-
 /** Holds the browser lease and one session on `origin` for `use`. The origin
  * navigation is sent through `gate`, the same request gate (pacing and host
- * lease) the source's document requests use. */
+ * lease) the source's document requests use. Navigation and `use` share
+ * BROWSER_CHUNK_WINDOW_MS, so setup plus the window stays inside the session
+ * hold. */
 export function withBrowserDocumentFetch<A, E, R>(
   origin: string,
   gate: BrowserNavigationGate,
@@ -394,13 +404,20 @@ export function withBrowserDocumentFetch<A, E, R>(
     withHyperbrowserSessionLease(
       Effect.scoped(
         Effect.flatMap(
-          acquireBrowserDocumentFetch(
-            config.hyperbrowserApiKey,
-            origin,
-            gate,
-            cookies,
-          ),
-          use,
+          openBrowserPage(config.hyperbrowserApiKey, origin, cookies),
+          (page) =>
+            navigateBrowserPage(page, origin, gate).pipe(
+              Effect.zipRight(
+                Effect.suspend(() => use(pageDocumentFetch(page, origin))),
+              ),
+              Effect.timeoutFail({
+                duration: BROWSER_CHUNK_WINDOW_MS,
+                onTimeout: () =>
+                  new Error(
+                    `The browser chunk on ${origin} (origin navigation and document requests) exceeded ${BROWSER_CHUNK_WINDOW_MS / 60_000} minutes. Its checkpoint and published inventory are unchanged; retry the chunk.`,
+                  ),
+              }),
+            ),
         ),
       ),
     ),

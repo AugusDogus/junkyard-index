@@ -8,8 +8,7 @@ import {
   type ProviderHostPolicy,
 } from "./provider-host-slot";
 
-/** Session creation, CDP connection, the wait for the yard's request gate and
- * the origin navigation together. */
+/** Session creation, CDP connection and page setup together. */
 export const HYPERBROWSER_SETUP_MS = 2 * 60_000;
 /** The Hyperbrowser plan allows one active session. Every browser-backed
  * source holds this FIFO lease for its whole session, so chunks take turns
