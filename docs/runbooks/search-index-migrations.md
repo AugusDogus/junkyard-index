@@ -211,6 +211,13 @@ make tokens in the already-filterable searchTokens field. Each rewritten
 record includes those tokens with its changed make, so saved filters and
 alerts keep matching throughout the in-place migration, even with cached
 pre-readiness capabilities.
+Projection and each daily alert check batch hold the same writer lock, the
+batch through all its alert pages, notification intents and checkpoint
+writes. This prevents in-place schema migrations from reordering results
+between alert pages. The lock scope explicitly awaits its action before
+disposal, including errors and stopped batches. An uncontended batch makes
+no additional search requests and takes no lock-retry delay. The check's
+retry waits and notification delivery remain outside the writer lock.
 No owner-run step is needed for the initial backfill or outage recovery.
 
 Keys include VIN positions 1-8, 10-11 and the explicit vehicle year. Low-volume
