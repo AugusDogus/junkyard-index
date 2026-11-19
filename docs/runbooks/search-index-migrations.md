@@ -191,3 +191,51 @@ After migration, search a known VIN's first 8, 9, 10, 11, and 16 characters and
 confirm the vehicle appears under Relevance, Newest, and Oldest. Check its full
 VIN and wildcard filter too. A seven-character prefix, a non-prefix substring,
 or a single-character mutation must not match through either VIN field.
+
+## Schema 12: VIN make/model identities
+
+Deployment applies `0026_vin_canonical_models` through the normal Drizzle chain.
+The scheduled search-index migration then walks existing vehicles in 100-row
+steps, caches vPIC identities, updates only make/model/source-name/trim fields,
+rewrites the same Algolia object IDs, rebuilds inventory snapshots, revalidates
+inventory pages and advances readiness to 12. No owner-run step is needed for
+the initial backfill. Daily ingestion uses the same cache before reconciliation.
+
+Keys include VIN positions 1-8, 10-11 and the explicit vehicle year. Low-volume
+WMIs (position 3 is 9) also retain positions 12-14. Plant codes are always kept.
+Pre-1981 serials, forbidden characters and inconsistent year codes never request
+vPIC. Only error codes 0 and 1 (check digit), with a matching model year and
+nonempty make/model, produce canonical identity. Source names stay in
+`source_make`/`source_model`; source trim takes precedence over vPIC trim.
+
+Each ingestion batch requests at most 100 new patterns. Requests run serially,
+50 VINs per POST, with a one-second minimum delay, eight-second timeout and
+three attempts for network failures, 429 and 5xx. Backoff and Retry-After apply;
+a server cooldown over ten seconds defers the pattern. Requests use a generic
+User-Agent and include no project or owner identity. Failed/untrusted patterns
+keep normalized source strings and retry after 24 hours on later ingestion.
+The search migration publishes fallbacks and can finish during a vPIC outage.
+To revisit every stored fallback after recovery (including observation-only
+sources), the owner can invoke the existing authenticated migration endpoint
+with `?force=true` after the cooldown. This deliberately rewrites the index;
+it is optional and must run in the hosted environment, never from an agent's
+machine against production.
+
+Existing make/model spelling rules still select display names and slugs.
+Changed source model URLs are retained as permanent redirects after their last
+live page disappears. If an old label identifies multiple canonical models,
+it gets no arbitrary redirect. vPIC taxonomy can merge product names, for
+example Silverado 1500/2500 into Silverado. The yard's original model remains
+visible on cards and inventory rows. Existing saved filters and alert criteria
+are not rewritten, so filters using retired source labels should be reselected.
+
+A read-only census and resumable live sample can be repeated with:
+
+```sh
+bun scripts/report-vin-canonicalization.ts --credentials=/path/to/production/.env
+```
+
+It only executes SELECTs and calls public vPIC. Local reports and decode
+checkpoints go under `.scratchpad/vin-dry-run/`. Delete that directory for a new
+sample. See [the recorded sample](../reports/vin-canonicalization.md) for facet
+counts, mismatches, coverage and the cold-cache request estimate.

@@ -1,3 +1,4 @@
+import { rememberModelRedirects } from "./vin-canonicalization";
 import type { Client, InStatement, InValue } from "@libsql/client";
 import { and, asc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -45,7 +46,7 @@ import {
 
 const RECONCILIATION_BATCH_SIZE = 500;
 const MISSING_DELETE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
-const VEHICLE_VALUE_COLUMN_COUNT = 30;
+const VEHICLE_VALUE_COLUMN_COUNT = 32;
 
 // Leave most of a workflow step's duration for the batches' own writes.
 const RECONCILIATION_STEP_BUDGET_MS = 240_000;
@@ -60,6 +61,7 @@ interface ReconciliationContext {
   inventory: () => Promise<RunSnapshotInventory>;
   /** Whether the final batch hands the run to search or releases it. */
   searchPublication: SearchPublicationMode;
+  canonicalize?: (rows: CanonicalVehicle[]) => Promise<CanonicalVehicle[]>;
 }
 
 /**
@@ -185,6 +187,8 @@ function toVehicleValues(params: {
     value.year,
     value.make,
     value.model,
+    value.sourceMake ?? null,
+    value.sourceModel ?? null,
     value.color,
     value.stockNumber,
     value.imageUrl,
@@ -237,7 +241,7 @@ function vehicleUpsertStatement(params: {
   return {
     sql: `
       insert into vehicle (
-        vin, source, year, make, model, color, stock_number, image_url,
+        vin, source, year, make, model, source_make, source_model, color, stock_number, image_url,
         available_date, observed_arrival_at, location_code, location_name, location_city, state,
         state_abbr, lat, lng, section, row, space, details_url, parts_url,
         prices_url, engine, trim, transmission, first_seen_at, last_seen_at,
@@ -251,6 +255,8 @@ function vehicleUpsertStatement(params: {
         year = excluded.year,
         make = excluded.make,
         model = excluded.model,
+        source_make = excluded.source_make,
+        source_model = excluded.source_model,
         color = excluded.color,
         stock_number = excluded.stock_number,
         image_url = excluded.image_url,
@@ -496,13 +502,16 @@ async function runUpsertBatch(
 ): Promise<DurableReconciliationBatchResult> {
   const inventory = await params.inventory();
   const start = firstVinAfter(inventory.vins, params.cursor);
-  const rows = inventory.vins
+  const sourceRows = inventory.vins
     .slice(start, start + RECONCILIATION_BATCH_SIZE)
     .flatMap((vin) => {
       const snapshot = inventory.vehicles.get(vin);
-      return snapshot ? [normalizeCanonicalVehicle(snapshot)] : [];
+      return snapshot ? [snapshot] : [];
     });
 
+  const rows = params.canonicalize
+    ? await params.canonicalize(sourceRows)
+    : sourceRows.map(normalizeCanonicalVehicle);
   const finalInventory = new Map(
     rows.map((snapshot) => [snapshot.vin, snapshot] as const),
   );
@@ -649,6 +658,10 @@ async function runUpsertBatch(
   if (checkpoint.rowsAffected === 0) {
     return reconcileBatch(params);
   }
+  await rememberModelRedirects(
+    params.database,
+    changed.map((entry) => entry.vehicle),
+  );
   return {
     status: "paused",
     phase: nextStage === "reconcile_missing" ? "missing" : "upsert",
@@ -1125,6 +1138,7 @@ export async function reconcileDurableIngestionRun(params: {
   budgetMs?: number;
   /** Defaults to inline search publication. */
   searchPublication?: SearchPublicationMode;
+  canonicalize?: (rows: CanonicalVehicle[]) => Promise<CanonicalVehicle[]>;
 }): Promise<DurableReconciliationBatchResult> {
   let inventory: Promise<RunSnapshotInventory> | null = null;
   const context: ReconciliationContext = {
@@ -1132,6 +1146,7 @@ export async function reconcileDurableIngestionRun(params: {
     database: params.database,
     batchClient: params.batchClient,
     searchPublication: params.searchPublication ?? "inline",
+    canonicalize: params.canonicalize,
     inventory: () =>
       (inventory ??= loadRunSnapshotInventory({
         runId: params.runId,

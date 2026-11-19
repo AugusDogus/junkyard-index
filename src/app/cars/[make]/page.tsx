@@ -1,3 +1,4 @@
+import { getVehicleModelRedirect } from "~/server/vehicle-model-redirect";
 import { Minus, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -38,7 +39,11 @@ const TOP_YARDS = 12;
 async function load(params: Promise<Params>) {
   const requested = (await params).make;
   const data = await getMakePageData(requested);
-  if (!data) return null;
+  if (!data) {
+    const redirect = await getVehicleModelRedirect(`/cars/${requested}`);
+    if (redirect) permanentRedirect(redirect);
+    return null;
+  }
   // The make's vehicles per yard, across all its models.
   const counts = new Map<string, number>();
   for (const model of data.models) {

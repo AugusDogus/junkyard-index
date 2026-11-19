@@ -17,6 +17,8 @@ const legacy: typeof vehicle.$inferSelect = {
   year: 1999,
   make: "Volvo",
   model: "S70",
+  sourceMake: null,
+  sourceModel: null,
   color: null,
   stockNumber: null,
   imageUrl: null,

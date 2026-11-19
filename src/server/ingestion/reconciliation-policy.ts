@@ -139,6 +139,8 @@ function vehicleNeedsUpsert(
     existing.year !== next.year ||
     existing.make !== next.make ||
     existing.model !== next.model ||
+    existing.sourceMake !== (next.sourceMake ?? null) ||
+    existing.sourceModel !== (next.sourceModel ?? null) ||
     existing.color !== next.color ||
     existing.stockNumber !== next.stockNumber ||
     existing.imageUrl !== next.imageUrl ||

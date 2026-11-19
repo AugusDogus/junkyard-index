@@ -17,6 +17,8 @@ export function mapDbVehicleToCanonical(
     year: row.year,
     make: row.make,
     model: row.model,
+    sourceMake: row.sourceMake,
+    sourceModel: row.sourceModel,
     color: row.color,
     stockNumber: row.stockNumber,
     imageUrl: row.imageUrl,

@@ -51,6 +51,9 @@ export function VehicleRow({
   const details = [
     vehicle.color,
     vehicle.engine,
+    vehicle.sourceModel && vehicle.sourceModel !== vehicle.model
+      ? `Yard model: ${vehicle.sourceModel}`
+      : null,
     YardInventory.addedLabel(vehicle),
   ].filter((detail): detail is string => Boolean(detail));
 

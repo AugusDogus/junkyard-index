@@ -1,7 +1,9 @@
 import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-cursor";
 import { FatalError, getStepMetadata } from "workflow";
+import { revalidateTag } from "next/cache";
 import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
+import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
 import * as Sentry from "@sentry/nextjs";
 import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
@@ -334,12 +336,12 @@ export async function cleanupDurableIngestionStateBatchStep(runId: string) {
 }
 cleanupDurableIngestionStateBatchStep.maxRetries = 2;
 
-export async function initializeSearchIndexMigrationStep() {
+export async function initializeSearchIndexMigrationStep(force = false) {
   "use step";
 
   console.info("[Workflow] Initializing search index schema migration");
   try {
-    return await initializeSearchIndexMigration();
+    return await initializeSearchIndexMigration(force);
   } catch (error) {
     throwRetryableStepError("Initialize search index schema migration", error);
   }
@@ -372,6 +374,7 @@ export async function finalizeSearchIndexMigrationStep(
 
   try {
     const result = await finalizeSearchIndexMigration(state);
+    revalidateTag(INVENTORY_CACHE_TAG, "max");
     console.info("[Workflow] Completed search index schema migration", result);
     return result;
   } catch (error) {

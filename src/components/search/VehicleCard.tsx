@@ -101,6 +101,14 @@ function VehicleCardComponent({
             <span className="tabular-nums">{vehicle.year}</span> {vehicle.make}{" "}
             {vehicle.model}
           </h3>
+          {vehicle.trim && (
+            <p className="text-muted-foreground text-sm">{vehicle.trim}</p>
+          )}
+          {vehicle.sourceModel && vehicle.sourceModel !== vehicle.model && (
+            <p className="text-muted-foreground text-xs">
+              Yard model: {vehicle.sourceModel}
+            </p>
+          )}
           {VehicleCardDetails.text(vehicle.color) && (
             <p className="text-ink-2 mt-1 text-xs">{vehicle.color}</p>
           )}

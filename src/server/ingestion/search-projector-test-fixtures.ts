@@ -230,6 +230,8 @@ export function vehicleRow(
     year: 2004,
     make: "Honda",
     model: "Civic",
+    sourceMake: null,
+    sourceModel: null,
     color: null,
     stockNumber: null,
     imageUrl: null,
