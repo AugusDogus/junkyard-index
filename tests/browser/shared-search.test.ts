@@ -2,12 +2,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import { chromium, type Browser } from "playwright-core";
+import type { Browser } from "playwright-core";
 import {
   bundleSharedSearchFixture,
   renderSharedSearchFixture,
 } from "./fixtures/build-shared-search";
-import { closePage, createPage } from "./browser-page";
+import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -27,7 +27,7 @@ beforeAll(async () => {
         return result.css;
       }),
   ]);
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser();
 }, 30_000);
 
 afterAll(async () => {

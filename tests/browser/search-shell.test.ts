@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { z } from "zod";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import { chromium, type Browser, type Page } from "playwright-core";
+import type { Browser, Page } from "playwright-core";
 import {
   bundleSharedSearchFixture,
   renderSharedSearchFixture,
@@ -27,6 +27,7 @@ async function requestLog(page: Page) {
     ),
   );
 }
+import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -46,7 +47,7 @@ beforeAll(async () => {
           ).css,
       ),
   ]);
-  browser = await chromium.launch();
+  browser = await launchBrowser();
 }, 60_000);
 
 afterAll(async () => {
@@ -54,7 +55,7 @@ afterAll(async () => {
 });
 
 async function open(query: string, width = 1440, height = 900) {
-  const page = await browser.newPage({ viewport: { width, height } });
+  const page = await createPage(browser, { viewport: { width, height } });
   const html = await renderSharedSearchFixture(query);
   await page.route("http://shared-search.test/**", async (route) => {
     const url = new URL(route.request().url());
@@ -121,7 +122,7 @@ test("SSR includes eager visible images and the mobile cap; teasers contain no l
       await page.getByRole("link", { name: "View inventory" }).count(),
     ).toBe(3);
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 30_000);
 
@@ -175,7 +176,7 @@ test("signed-in pagination survives sort switches and rows do not overlap after 
     });
     expect(overlap).toBe(false);
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 60_000);
 
@@ -194,7 +195,7 @@ test("a shared distance URL remains selected without opening a dialog", async ()
     await page.keyboard.press("Escape");
     expect(new URL(page.url()).searchParams.get("sort")).toBe("distance");
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 30_000);
 
@@ -210,7 +211,7 @@ test("the toolbar scrolls away on short screens with filters open", async () => 
     const box = await toolbar.boundingBox();
     expect(box?.y).toBeLessThan(0);
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 30_000);
 
@@ -284,7 +285,7 @@ test("signed-in reload restores once and leaves Sort reachable after returning t
     await oldest.click();
     await page.getByRole("heading", { name: "2000 Pagination Car" }).waitFor();
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 45_000);
 
@@ -308,7 +309,7 @@ test("resizing a desktop visitor caps both the new query request and visible mob
     ).toBe(3);
     expect(await page.locator("[inert] a").count()).toBe(0);
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 30_000);
 
@@ -333,7 +334,7 @@ test("each scroll page sends exactly one Algolia search after SSR, including the
       });
     }
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 30_000);
 
@@ -355,7 +356,7 @@ for (const width of [1440, 390]) {
           .filter(({ params }) => (params.hitsPerPage ?? 0) > 0)
           .every(({ params }) => params.hitsPerPage === 4),
       ).toBe(true);
-      const serverPage = await browser.newPage({
+      const serverPage = await createPage(browser, {
         viewport: { width, height: 844 },
         javaScriptEnabled: false,
       });
@@ -374,10 +375,10 @@ for (const width of [1440, 390]) {
             1,
           );
       } finally {
-        await serverPage.close();
+        await closePage(serverPage);
       }
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 30_000);
 }

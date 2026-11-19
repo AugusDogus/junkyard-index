@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import { chromium, type Browser } from "playwright-core";
-import { closePage, createPage } from "./browser-page";
+import type { Browser } from "playwright-core";
+import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let directory: string;
@@ -59,7 +59,7 @@ beforeAll(async () => {
       { from: "src/styles/globals.css" },
     )
   ).css;
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser();
 }, 30_000);
 
 afterAll(async () => {
