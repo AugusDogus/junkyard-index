@@ -53,7 +53,8 @@ jobs:
 
   browser:
     name: Browser shard ${{ matrix.shard }}/2
-    runs-on: ubuntu-latest
+    # Playwright Core 1.58 does not support Ubuntu 26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
