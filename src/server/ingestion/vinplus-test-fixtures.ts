@@ -19,3 +19,14 @@ export function vinplusCensus(): string[][] {
   ];
 }
 export const vinplusQualification = (): unknown => fixture("qualification");
+/** Live US Auto Supply opening year distribution and its uncapped 1960-1999
+ * search, captured 2026-11-19. See the fixture's provenance field. */
+export const vinplusUsAutoSupplyLive = () =>
+  z
+    .object({
+      provenance: z.string(),
+      capturedAt: z.string(),
+      analytics: z.string(),
+      search: z.string(),
+    })
+    .parse(fixture("us-auto-supply-live"));
