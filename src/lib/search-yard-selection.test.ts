@@ -70,10 +70,7 @@ describe("search yard selection", () => {
     expect(saved.success).toBe(true);
     if (!saved.success) return;
     const legacyAlert = compileAlertFilters(saved.data.filters, null);
-    expect(legacyAlert.kind).toBe("filter");
-    expect(legacyAlert.kind === "filter" && legacyAlert.value).not.toContain(
-      "yardTypes",
-    );
+    expect(legacyAlert).toEqual({ kind: "filter", value: undefined });
     expect(compileAlertFilters(parsed.data, null)).toEqual({
       kind: "filter",
       value: undefined,

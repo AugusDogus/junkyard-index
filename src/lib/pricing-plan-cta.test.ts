@@ -5,6 +5,24 @@ import {
 } from "./pricing-plan-cta";
 
 describe("pricing plan CTA", () => {
+  for (const tier of ["lite", "full"] as const) {
+    for (const interval of ["monthly", "annual"] as const) {
+      test(`keeps guest selection ${tier}/${interval} through sign-up`, () => {
+        const cta = resolvePricingPlanCta({
+          viewer: { kind: "guest" },
+          tier,
+          interval,
+          account: { kind: "none" },
+        });
+        expect(cta.kind).toBe("signup");
+        if (cta.kind !== "signup") return;
+        const signup = new URL(cta.href, "https://app.example");
+        expect(signup.searchParams.get("returnTo")).toBe(
+          `/subscribe?tier=${tier}&interval=${interval}`,
+        );
+      });
+    }
+  }
   test("uses the signed-out server state while authentication is pending", () => {
     const viewer = resolvePricingViewerState({
       initialIsRegistered: false,
@@ -20,7 +38,7 @@ describe("pricing plan CTA", () => {
       }),
     ).toEqual({
       kind: "signup",
-      href: "/auth/sign-up?returnTo=%2Fpricing",
+      href: "/auth/sign-up?returnTo=%2Fsubscribe%3Ftier%3Dfull%26interval%3Dmonthly",
       label: "Get Full",
     });
   });

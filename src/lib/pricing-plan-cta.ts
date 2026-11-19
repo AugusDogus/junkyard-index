@@ -1,5 +1,6 @@
 import type { BillingAccountState } from "~/lib/billing-account";
 import { PLANS, type BillingInterval, type PlanTier } from "~/lib/plans";
+import { subscriptionReturnTo } from "~/lib/subscription-selection";
 import {
   resolveSubscriptionAction,
   type SubscriptionUpgradeAction,
@@ -10,9 +11,7 @@ type ActionablePricingUpgrade = Extract<
   { kind: "checkout" | "portal" }
 >;
 
-export type PricingViewerState =
-  | { kind: "guest" }
-  | { kind: "registered" };
+export type PricingViewerState = { kind: "guest" } | { kind: "registered" };
 
 export type PricingPlanCta =
   | { kind: "disabled"; label: string }
@@ -74,7 +73,7 @@ export function resolvePricingPlanCta(input: {
           }
         : {
             kind: "signup",
-            href: "/auth/sign-up?returnTo=%2Fpricing",
+            href: `/auth/sign-up?returnTo=${encodeURIComponent(subscriptionReturnTo({ tier: input.tier, interval: input.interval }))}`,
             label: `Get ${PLANS[input.tier].name}`,
           };
     case "registered":

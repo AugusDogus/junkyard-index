@@ -5,7 +5,7 @@ import type { YardType } from "~/lib/yard-service";
 import { Bookmark, ChevronDown, ExternalLink, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { InventoryFilterFeedback } from "~/components/search/InventoryFilterFeedback";
 import { SearchTerms } from "~/components/search/editor/QueryView";
 import { SortField } from "~/components/search/editor/controls";
@@ -48,11 +48,11 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { PLANS, type SavedSearchGateFeature } from "~/lib/plans";
+import { ReturnTo } from "~/lib/return-to";
+import { PendingSaveSearch } from "~/lib/pending-save-search";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
-
-const PENDING_SAVE_KEY = "pendingSaveSearch";
 
 function isPlanGateData(
   data: unknown,
@@ -99,24 +99,21 @@ export function storePendingSaveSearch(
   query: string,
   filters: SaveSearchFilters,
 ) {
-  sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify({ query, filters }));
+  PendingSaveSearch.store(query, {
+    ...filters,
+    sources: filters.sources?.filter(isIngestionSource),
+  });
 }
 
 export function getPendingSaveSearch(): {
   query: string;
   filters: SaveSearchFilters;
 } | null {
-  const stored = sessionStorage.getItem(PENDING_SAVE_KEY);
-  if (!stored) return null;
-  try {
-    return JSON.parse(stored) as { query: string; filters: SaveSearchFilters };
-  } catch {
-    return null;
-  }
+  return PendingSaveSearch.read();
 }
 
 export function clearPendingSaveSearch() {
-  sessionStorage.removeItem(PENDING_SAVE_KEY);
+  PendingSaveSearch.clear();
 }
 
 export function SaveSearchDialog({
@@ -132,13 +129,13 @@ export function SaveSearchDialog({
   responsive,
 }: SaveSearchDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(() => {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
     if (autoOpen && isLoggedIn) {
+      setOpen(true);
       onAutoOpenHandled?.();
-      return true;
     }
-    return false;
-  });
+  }, [autoOpen, isLoggedIn, onAutoOpenHandled]);
   const [name, setName] = useState("");
   const initialDraft = () =>
     savedSearchDraft({
@@ -166,6 +163,14 @@ export function SaveSearchDialog({
   const [isNavigatingToAuth, setIsNavigatingToAuth] = useState(false);
 
   const utils = api.useUtils();
+  const { data: savedSearches } = api.savedSearches.list.useQuery(undefined, {
+    enabled:
+      !!isLoggedIn &&
+      open &&
+      planAccess.kind === "resolved" &&
+      planAccess.tier === "free",
+  });
+  const hasSavedSearches = (savedSearches?.length ?? 0) > 0;
 
   const canAttemptSaveSearch = resolveClientPlanFeatureAccess({
     access: planAccess,
@@ -328,7 +333,7 @@ export function SaveSearchDialog({
       );
       returnUrl.searchParams.set("saveSearch", "1");
       const returnTo = encodeURIComponent(
-        `${returnUrl.pathname}${returnUrl.search}`,
+        ReturnTo.parse(`${returnUrl.pathname}${returnUrl.search}`),
       );
       router.push(`/auth/sign-in?returnTo=${returnTo}`);
     }
@@ -374,31 +379,40 @@ export function SaveSearchDialog({
           <DialogHeader>
             <DialogTitle>Unlock Saved Searches</DialogTitle>
             <DialogDescription>
-              Lite lets you reopen saved searches with every filter intact and
-              save new searches.
+              {hasSavedSearches
+                ? "Lite lets you reopen saved searches with every filter intact and save new searches."
+                : "Save this search with every filter intact on Lite."}
             </DialogDescription>
           </DialogHeader>
           <div className="bg-muted/40 my-4 flex items-start gap-3 rounded-lg border p-4">
             <Lock className="text-muted-foreground mt-0.5 size-4 shrink-0" />
             <div>
-              <p className="text-sm font-medium">Your searches stay saved</p>
+              <p className="text-sm font-medium">
+                {hasSavedSearches
+                  ? "Your searches stay saved"
+                  : savedSearches?.length === 0
+                    ? "Save your first search with Lite"
+                    : "Save searches with Lite"}
+              </p>
               <p className="text-muted-foreground mt-1 text-sm text-pretty">
-                Nothing is deleted on the Free plan. Upgrade when you want to
-                reopen or add saved searches.
+                {hasSavedSearches
+                  ? "Nothing is deleted on the Free plan. Upgrade when you want to reopen or add saved searches."
+                  : "Free includes full search results. Lite adds saved searches so you can pick up where you left off."}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button asChild>
               <Link
-                href="/pricing"
-                onClick={() =>
+                href="/subscribe?tier=lite&interval=monthly"
+                onClick={() => {
+                  storePendingSaveSearch(query, filters);
                   Analytics.capture(AnalyticsEvents.PRICING_CTA_CLICKED, {
                     source_page: "search",
                     cta_location: "saved_search_gate",
                     is_logged_in: true,
-                  })
-                }
+                  });
+                }}
               >
                 Upgrade to Lite
               </Link>

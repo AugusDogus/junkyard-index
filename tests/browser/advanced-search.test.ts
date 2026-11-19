@@ -109,8 +109,6 @@ describe("advanced search browser interactions", () => {
               colors: ["Red"],
               states: ["NE"],
               salvageYards: ["Omaha"],
-              minYear: 1900,
-              maxYear: 2027,
               sortBy: "oldest",
             },
           }),

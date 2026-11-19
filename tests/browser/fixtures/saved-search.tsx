@@ -12,7 +12,11 @@ import {
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { NuqsTestingAdapter } from "nuqs/adapters/testing";
+import { useCheckoutConfirmation } from "~/hooks/use-checkout-confirmation";
 import { SaveSearchDialog } from "~/components/search/SaveSearchDialog";
+import { SignInForm } from "~/components/auth/SignInForm";
+import { SignUpForm } from "~/components/auth/SignUpForm";
 import { SearchStartPanel } from "~/components/search/SearchStartPanel";
 import { SavedSearchesList } from "~/components/search/SavedSearchesList";
 import { SavedSearchEditorPage } from "~/components/search/editor/SavedSearchEditorPage";
@@ -30,6 +34,10 @@ const updateSchema = z.object({
   discordAlertsEnabled: z.boolean().optional(),
 });
 const parameters = new URLSearchParams(window.location.search);
+function CheckoutResume() {
+  useCheckoutConfirmation({ kind: "resolved", tier: "lite" });
+  return null;
+}
 const search: RouterOutputs["savedSearches"]["list"][number] = {
   id: "saved-volvo",
   userId: "test-user",
@@ -58,10 +66,17 @@ const search: RouterOutputs["savedSearches"]["list"][number] = {
 };
 
 function Fixture() {
+  const [autoOpen, setAutoOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(!parameters.has("signed-out"));
+  const [handled, setHandled] = useState(0);
   const [location, setLocation] = useState(
     () =>
       new URL(
-        parameters.has("settings") ? "/settings/searches" : "/search",
+        parameters.has("auth")
+          ? window.location.pathname + window.location.search
+          : parameters.has("settings")
+            ? "/settings/searches"
+            : "/search",
         window.location.origin,
       ),
   );
@@ -76,7 +91,7 @@ function Fixture() {
   const [submission, setSubmission] = useState<unknown>(null);
   const failNext = useRef(parameters.has("fail"));
   const currentSearches = useRef([
-    search,
+    ...(parameters.has("new-free") ? [] : [search]),
     ...(parameters.has("multiple")
       ? [
           {
@@ -265,7 +280,21 @@ function Fixture() {
             <QueryClientProvider client={queryClient}>
               <api.Provider client={client} queryClient={queryClient}>
                 <main className="mx-auto flex max-w-6xl flex-col gap-8 p-5 sm:p-8">
-                  {editorId ? (
+                  {parameters.has("checkout") && (
+                    <NuqsTestingAdapter searchParams={parameters}>
+                      <CheckoutResume />
+                    </NuqsTestingAdapter>
+                  )}
+                  <output id="location">
+                    {location.pathname + location.search}
+                  </output>
+                  {parameters.has("auth") ? (
+                    parameters.get("auth") === "sign-up" ? (
+                      <SignUpForm />
+                    ) : (
+                      <SignInForm />
+                    )
+                  ) : editorId ? (
                     <SavedSearchEditorPage id={decodeURIComponent(editorId)} />
                   ) : location.pathname === "/settings/searches" ? (
                     <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
@@ -288,13 +317,30 @@ function Fixture() {
                   ) : (
                     <SavedSearchesList locked={false} />
                   )}
-                  {!editorId && (
-                    <SaveSearchDialog
-                      query=""
-                      filters={{ makes: ["Saab"] }}
-                      planAccess={{ kind: "resolved", tier: "full" }}
-                      isLoggedIn
-                    />
+                  {!editorId && !parameters.has("auth") && (
+                    <>
+                      <button onClick={() => setAutoOpen(true)}>
+                        Resume save intent
+                      </button>
+                      <button onClick={() => setLoggedIn(true)}>
+                        Finish sign in
+                      </button>
+                      <output id="handled">{handled}</output>
+                      <SaveSearchDialog
+                        query={parameters.get("save-query") ?? ""}
+                        filters={{ makes: ["Saab"] }}
+                        planAccess={{
+                          kind: "resolved",
+                          tier: parameters.has("free") ? "free" : "full",
+                        }}
+                        isLoggedIn={loggedIn}
+                        autoOpen={autoOpen}
+                        onAutoOpenHandled={() => {
+                          setHandled((value) => value + 1);
+                          setAutoOpen(false);
+                        }}
+                      />
+                    </>
                   )}
                   <output
                     id="submission"

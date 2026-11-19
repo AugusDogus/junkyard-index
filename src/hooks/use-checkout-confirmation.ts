@@ -3,16 +3,25 @@
 import { useQueryState } from "nuqs";
 import { Analytics } from "~/lib/analytics";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { PlanAccessState } from "~/lib/plan-access";
+import { PendingSaveSearch } from "~/lib/pending-save-search";
 
 export function useCheckoutConfirmation(planAccess: PlanAccessState): void {
+  const router = useRouter();
   const [subscriptionParam, setSubscriptionParam] =
     useQueryState("subscription");
 
   useEffect(() => {
     const isCheckoutSuccess = subscriptionParam === "success";
+    const pending = isCheckoutSuccess ? PendingSaveSearch.read() : null;
+    if (pending) {
+      PendingSaveSearch.clear();
+      router.replace(PendingSaveSearch.checkoutReturnTo(pending));
+      return;
+    }
     const confirmationTimedOut =
       planAccess.kind === "unavailable" &&
       planAccess.reason === "confirmation_timeout";
@@ -35,5 +44,5 @@ export function useCheckoutConfirmation(planAccess: PlanAccessState): void {
       "Subscription activated! Manage your plan anytime from Settings.",
     );
     void setSubscriptionParam(null);
-  }, [subscriptionParam, setSubscriptionParam, planAccess]);
+  }, [subscriptionParam, setSubscriptionParam, planAccess, router]);
 }

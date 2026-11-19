@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AnalyticsEvents } from "~/lib/analytics-events";
 import { signIn, signUp } from "~/lib/auth-client";
+import { ReturnTo } from "~/lib/return-to";
 import { TERMS_METADATA } from "~/lib/legal";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -19,7 +20,7 @@ import { AlertCircle } from "lucide-react";
 export function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo");
+  const returnTo = ReturnTo.parse(searchParams.get("returnTo"));
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,7 +62,7 @@ export function SignUpForm() {
         Analytics.capture(AnalyticsEvents.SIGN_UP_SUCCEEDED, {
           method: "email",
         });
-        router.push(returnTo || "/search");
+        router.push(returnTo);
         router.refresh();
       }
     } catch (err) {
@@ -90,7 +91,7 @@ export function SignUpForm() {
     try {
       await signIn.social({
         provider: "discord",
-        callbackURL: returnTo || "/search",
+        callbackURL: returnTo,
         requestSignUp: true,
         additionalData: { termsVersion: TERMS_METADATA.version },
       });
@@ -211,17 +212,13 @@ export function SignUpForm() {
       </Button>
 
       <div className="text-muted-foreground text-center text-sm">
-        Save searches now. Upgrade to alerts later.
+        See full results free. Save searches with Lite.
       </div>
 
       <div className="text-muted-foreground text-center text-sm">
         Already have an account?{" "}
         <Link
-          href={
-            returnTo
-              ? `/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`
-              : "/auth/sign-in"
-          }
+          href={`/auth/sign-in?returnTo=${encodeURIComponent(returnTo)}`}
           className="text-signal hover:underline"
         >
           Sign in

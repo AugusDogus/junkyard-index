@@ -56,6 +56,194 @@ async function openFixture(page: Page, parameters = "") {
 const workspace = (page: Page) =>
   page.getByRole("form", { name: "Saved search workspace" });
 
+describe("auth save-search funnel", () => {
+  test("restores the search and save intent after Lite checkout", async () => {
+    const page = await browser.newPage();
+    try {
+      await page.addInitScript(() =>
+        sessionStorage.setItem(
+          "pendingSaveSearch",
+          JSON.stringify({
+            query: "Saab",
+            filters: { makes: ["Saab"], minYear: 1980 },
+          }),
+        ),
+      );
+      await openFixture(page, "?checkout=1&subscription=success");
+      await page.waitForFunction(() =>
+        document
+          .querySelector("#location")
+          ?.textContent?.includes("saveSearch=1"),
+      );
+      const location = new URL(
+        await page.locator("#location").innerText(),
+        "http://saved-search.test",
+      );
+      expect(location.searchParams.get("q")).toBe("Saab");
+      expect(location.searchParams.getAll("makes[]")).toEqual(["Saab"]);
+      expect(location.searchParams.get("minYear")).toBe("1980");
+      expect(location.searchParams.get("subscription")).toBe("success");
+      expect(
+        await page.evaluate(() => sessionStorage.getItem("pendingSaveSearch")),
+      ).toBeNull();
+    } finally {
+      await page.close();
+    }
+  });
+  for (const form of ["sign-in", "sign-up"]) {
+    for (const destination of [
+      "https://evil",
+      "//evil",
+      "/\\evil",
+      "%2F%2Fevil",
+      "javascript:",
+      "/search?q=Saab&saveSearch=1",
+      "%2Fsearch%3Fq%3DSaab%26saveSearch%3D1",
+    ]) {
+      test(`${form} validates email and Discord returnTo ${destination}`, async () => {
+        const expected =
+          destination.startsWith("/search") ||
+          destination.startsWith("%2Fsearch")
+            ? "/search?q=Saab&saveSearch=1"
+            : "/search";
+        const page = await browser.newPage();
+        try {
+          await openFixture(
+            page,
+            `?auth=${form}&returnTo=${encodeURIComponent(destination)}`,
+          );
+          await page.route("**/api/auth/**", (route) =>
+            route.fulfill({
+              contentType: "application/json",
+              body: route.request().url().includes("/social")
+                ? JSON.stringify({ redirect: false })
+                : JSON.stringify({
+                    token: "test",
+                    user: {
+                      id: "test-user",
+                      name: "Test",
+                      email: "test@example.com",
+                    },
+                  }),
+            }),
+          );
+          if (form === "sign-up") await page.getByRole("checkbox").check();
+          const socialRequest = page.waitForRequest(
+            "**/api/auth/sign-in/social",
+          );
+          await page
+            .getByRole("button", { name: "Discord", exact: true })
+            .click();
+          expect((await socialRequest).postData()).toContain(
+            `"callbackURL":${JSON.stringify(expected)}`,
+          );
+          // Social success leaves the page in a loading state until OAuth navigates.
+          await page.reload();
+          if (form === "sign-up") {
+            await page.getByLabel("Name", { exact: true }).fill("Test");
+            await page.getByRole("checkbox").check();
+          }
+          await page
+            .getByLabel("Email", { exact: true })
+            .fill("test@example.com");
+          await page
+            .getByLabel("Password", { exact: true })
+            .fill("test-password");
+          await page
+            .getByRole("button", {
+              name: form === "sign-up" ? "Create Free Account" : "Sign in",
+              exact: true,
+            })
+            .click();
+          await page.waitForFunction(
+            (path) => document.querySelector("#location")?.textContent === path,
+            expected,
+          );
+        } finally {
+          await page.close();
+        }
+      });
+    }
+  }
+  for (const signedOut of [false, true]) {
+    test(`resumes a late save intent, signed out: ${signedOut}`, async () => {
+      const page = await browser.newPage();
+      try {
+        await openFixture(page, signedOut ? "?signed-out=1" : "");
+        await page.getByRole("button", { name: "Resume save intent" }).click();
+        if (signedOut) {
+          expect(await page.getByRole("dialog").count()).toBe(0);
+          await page.getByRole("button", { name: "Finish sign in" }).click();
+        }
+        await page
+          .getByRole("dialog", { name: "Save search", exact: true })
+          .waitFor();
+        expect(await page.locator("#handled").textContent()).toBe("1");
+        await page.getByRole("button", { name: "Cancel", exact: true }).click();
+        await page.getByRole("dialog").waitFor({ state: "hidden" });
+        expect(await page.locator("#handled").textContent()).toBe("1");
+      } finally {
+        await page.close();
+      }
+    });
+  }
+
+  for (const newFree of [true, false]) {
+    test(`explains the Lite gate for ${newFree ? "new" : "returning"} Free users`, async () => {
+      const page = await browser.newPage();
+      try {
+        await openFixture(
+          page,
+          `?free=1&save-query=Saab${newFree ? "&new-free=1" : ""}`,
+        );
+        await page
+          .getByRole("button", { name: "Save Search", exact: true })
+          .click();
+        const dialog = page.getByRole("dialog");
+        await dialog
+          .getByText(
+            newFree
+              ? "Save your first search with Lite"
+              : "Your searches stay saved",
+            { exact: true },
+          )
+          .waitFor();
+        expect(
+          await dialog
+            .getByText("Nothing is deleted", { exact: false })
+            .count(),
+        ).toBe(newFree ? 0 : 1);
+        const upgrade = dialog.getByRole("link", { name: "Upgrade to Lite" });
+        expect(await upgrade.getAttribute("href")).toBe(
+          "/subscribe?tier=lite&interval=monthly",
+        );
+        await upgrade.click();
+        expect(
+          await page.evaluate(() =>
+            JSON.parse(sessionStorage.getItem("pendingSaveSearch") ?? "null"),
+          ),
+        ).toEqual({ query: "Saab", filters: { makes: ["Saab"] } });
+      } finally {
+        await page.close();
+      }
+    });
+  }
+
+  test("sign-up explains that saving requires Lite", async () => {
+    const page = await browser.newPage();
+    try {
+      await openFixture(page, "?auth=sign-up");
+      await page
+        .getByText("See full results free. Save searches with Lite.", {
+          exact: true,
+        })
+        .waitFor();
+    } finally {
+      await page.close();
+    }
+  });
+});
+
 async function openEditor(page: Page, name = "Future donor") {
   const link = page.getByRole("link", {
     name: `Edit saved search ${name}`,
