@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchBox } from "react-instantsearch";
 import { SearchField } from "~/components/search/SearchField";
+import { SearchInputHistory } from "~/components/search/search-routing";
 import {
   hasAdvancedSearchSyntax,
   parseAdvancedSearchQuery,
@@ -13,6 +14,7 @@ import { cn } from "~/lib/utils";
 import {
   executeSearchCommit,
   resolveCommittedSearchSync,
+  resolveSearchCommit,
   type PendingSearchCommit,
 } from "~/lib/search-commit";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -86,22 +88,24 @@ export function VehicleSearchInput({
     },
     [expressionMode],
   );
-  const urlQuery = searchParams.get("q") ?? "";
   useEffect(() => {
-    if (pendingCommitRef.current !== null) return;
-    if (!urlQuery && inputValueRef.current) {
-      setInputValue("");
-      void onSearchModeChange({ query: null, vinPattern: null });
-      refine("");
-    }
-  }, [onSearchModeChange, refine, urlQuery]);
-
-  useEffect(
-    () => () => {
+    const cancelDraft = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-    },
-    [],
-  );
+      pendingCommitRef.current = null;
+      SearchInputHistory.cancel();
+    };
+    const onPopState = () => {
+      cancelDraft();
+      const value = new URL(window.location.href).searchParams.get("q") ?? "";
+      inputValueRef.current = value;
+      setInputValue(value);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      cancelDraft();
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
 
   const isVinCandidate =
     !expressionMode &&
@@ -156,7 +160,7 @@ export function VehicleSearchInput({
   const displayedFeedback = searchError ?? searchFeedback;
 
   const commitSearchValue = useCallback(
-    async (value: string) => {
+    async (value: string, history: "replace" | "push" = "replace") => {
       const parsedQuery = validateQuery(value);
       if (
         !parsedQuery.success ||
@@ -164,7 +168,18 @@ export function VehicleSearchInput({
       ) {
         return;
       }
-      await executeSearchCommit({
+      const commit = resolveSearchCommit(
+        value,
+        vinPatternSearchReady && !expressionMode,
+      );
+      if (commit.kind === "invalid-vin") return;
+      if (commit.value === committedValue) {
+        pendingCommitRef.current = null;
+        if (history === "push") SearchInputHistory.submit(commit.value);
+        return;
+      }
+      if (history === "replace") SearchInputHistory.begin();
+      const result = await executeSearchCommit({
         value,
         vinPatternSearchReady: vinPatternSearchReady && !expressionMode,
         currentVinPattern: vinPattern,
@@ -176,9 +191,13 @@ export function VehicleSearchInput({
           refine: (queryValue) => refineRef.current(queryValue),
         },
       });
+      if (history === "push" && result.kind !== "invalid-vin") {
+        SearchInputHistory.submit(result.value);
+      }
     },
     [
       booleanOrSearchReady,
+      committedValue,
       validateQuery,
       expressionMode,
       onSearchModeChange,
@@ -190,7 +209,7 @@ export function VehicleSearchInput({
   const clearSearch = useCallback(() => {
     setInputValue("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    void commitSearchValue("");
+    void commitSearchValue("", "push");
     document.getElementById("search")?.focus();
   }, [commitSearchValue]);
 
@@ -198,7 +217,7 @@ export function VehicleSearchInput({
     (event: React.FormEvent) => {
       event.preventDefault();
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      void commitSearchValue(inputValueRef.current);
+      void commitSearchValue(inputValueRef.current, "push");
     },
     [commitSearchValue],
   );
@@ -218,6 +237,8 @@ export function VehicleSearchInput({
         value={inputValue}
         onChange={(event) => {
           const value = event.target.value;
+          SearchInputHistory.begin();
+          inputValueRef.current = value;
           setInputValue(value);
           if (debounceRef.current) clearTimeout(debounceRef.current);
           debounceRef.current = setTimeout(
@@ -226,10 +247,10 @@ export function VehicleSearchInput({
           );
         }}
         onKeyDown={(event) => {
-          if (event.key !== "Enter") return;
+          if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
           event.preventDefault();
           if (debounceRef.current) clearTimeout(debounceRef.current);
-          void commitSearchValue(inputValueRef.current);
+          void commitSearchValue(inputValueRef.current, "push");
         }}
         placeholder="Year, make, model or VIN"
         aria-describedby={

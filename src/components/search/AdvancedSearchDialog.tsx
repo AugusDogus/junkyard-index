@@ -2,7 +2,7 @@
 
 import { LockKeyhole, Search } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { SearchTerms } from "~/components/search/editor/QueryView";
 import { SortField } from "~/components/search/editor/controls";
 import { EditorPortal } from "~/components/search/editor/EditorPortal";
@@ -196,6 +196,7 @@ export function AdvancedSearchDialog(props: AdvancedSearchDialogProps) {
     showTrigger = true,
   } = props;
   const [internalOpen, setInternalOpen] = useState(false);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const open = controlledOpen ?? internalOpen;
   const setOpen = (next: boolean) => {
     if (controlledOpen === undefined) setInternalOpen(next);
@@ -207,7 +208,20 @@ export function AdvancedSearchDialog(props: AdvancedSearchDialogProps) {
     if (!showTrigger) {
       return (
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent
+            className="sm:max-w-md"
+            onOpenAutoFocus={() => {
+              returnFocusRef.current =
+                document.activeElement instanceof HTMLElement
+                  ? document.activeElement
+                  : null;
+            }}
+            onCloseAutoFocus={(event) => {
+              if (!returnFocusRef.current?.isConnected) return;
+              event.preventDefault();
+              returnFocusRef.current.focus({ preventScroll: true });
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Upgrade to use advanced search</DialogTitle>
               <DialogDescription className="text-pretty">
