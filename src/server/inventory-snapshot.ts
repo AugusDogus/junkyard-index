@@ -1,7 +1,7 @@
 import { and, eq, like, max, notInArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { z } from "zod";
-import type { MakeRollupRow } from "~/lib/make-inventory";
+import { MakeInventory, type MakeRollupRow } from "~/lib/make-inventory";
 import { VehicleName } from "~/lib/vehicle-name";
 import { InventoryRollup } from "~/server/inventory-rollup";
 import {
@@ -220,6 +220,42 @@ async function project(database: LibSQLDatabase, now: Date): Promise<void> {
 
 export const InventorySnapshot = {
   project,
+
+  /** Preferred URLs in every retained snapshot, including older serving builds. */
+  async modelUrls(
+    database: LibSQLDatabase,
+    source: "current" | "retained" = "current",
+  ): Promise<string[]> {
+    const rows = await database
+      .select()
+      .from(inventorySnapshot)
+      .where(
+        like(
+          inventorySnapshot.key,
+          source === "retained" ? "%:make-%" : `${SNAPSHOT_VERSION}:make-%`,
+        ),
+      );
+    const byKey = new Map(rows.map((row) => [row.key, row.data]));
+    const paths = new Set<string>();
+    for (const row of rows) {
+      if (!row.key.endsWith(":make-counts")) continue;
+      const version = row.key.slice(0, -":make-counts".length);
+      for (const make of MakeInventory.makes(
+        parse(row.key, row.data, makeCountsSchema),
+      )) {
+        paths.add(make.href);
+        const key = `${version}:make-models:${make.key}`;
+        const data = byKey.get(key);
+        if (data === undefined) continue;
+        const models = MakeInventory.models(
+          make,
+          parse(key, data, makeModelsSchema).map(fromTuple),
+        );
+        for (const model of models) paths.add(model.href);
+      }
+    }
+    return [...paths];
+  },
 
   /** The publication the stored snapshot reflects; 0 before the first. */
   async projectedThrough(database: LibSQLDatabase): Promise<number> {

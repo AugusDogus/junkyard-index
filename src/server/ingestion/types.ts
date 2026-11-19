@@ -126,6 +126,9 @@ export function toAlgoliaRecord(
     searchTokens: buildAdvancedSearchTokens([
       vehicle.make,
       vehicle.model,
+      vehicle.sourceModel,
+      vehicle.sourceMake,
+      vehicle.trim,
       vehicle.year,
       vehicle.color,
       vehicle.vin,

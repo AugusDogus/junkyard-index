@@ -1,3 +1,5 @@
+import { ModelRedirect } from "~/lib/model-redirect";
+import { ConsumerModel } from "~/lib/consumer-model";
 import { inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { vinDecodeCache, vehicleModelRedirect } from "~/schema";
@@ -77,7 +79,10 @@ export async function canonicalizeVinVehicles<T extends CanonicalVehicle>(
       ...row,
       ...normalized,
       make: decode.make,
-      model: decode.model,
+      model: ConsumerModel.resolve({
+        ...decode,
+        sourceModel: row.sourceModel ?? row.model,
+      }),
       sourceMake: row.sourceMake ?? row.make,
       sourceModel: row.sourceModel ?? row.model,
       trim: row.trim?.trim() || decode.trim,
@@ -85,7 +90,7 @@ export async function canonicalizeVinVehicles<T extends CanonicalVehicle>(
   });
 }
 
-/** Only unambiguous old URLs redirect. Conflicting targets remain unresolved. */
+/** Unique aliases redirect to a model; ambiguous labels retain a live make destination. */
 export async function rememberModelRedirects(
   database: LibSQLDatabase,
   rows: CanonicalVehicle[],
@@ -93,8 +98,8 @@ export async function rememberModelRedirects(
   const redirects = new Map<string, string>();
   for (const row of rows) {
     if (!row.sourceMake || !row.sourceModel) continue;
-    const from = modelPath(row.sourceMake, row.sourceModel);
-    const to = modelPath(row.make, row.model);
+    const from = ModelRedirect.path(row.sourceMake, row.sourceModel);
+    const to = ModelRedirect.path(row.make, row.model);
     if (from === to) continue;
     for (const [fromPath, toPath] of [
       [from, to],
@@ -105,10 +110,7 @@ export async function rememberModelRedirects(
     ]) {
       if (!fromPath || !toPath || fromPath === toPath) continue;
       const previous = redirects.get(fromPath);
-      redirects.set(
-        fromPath,
-        previous === undefined || previous === toPath ? toPath : "",
-      );
+      redirects.set(fromPath, ModelRedirect.merge(fromPath, previous, toPath));
     }
   }
   const entries = [...redirects].map(([fromPath, toPath]) => ({
@@ -122,16 +124,14 @@ export async function rememberModelRedirects(
       .onConflictDoUpdate({
         target: vehicleModelRedirect.fromPath,
         set: {
-          // An ambiguous label stays unresolved, including across later batches.
-          toPath: sql`case when ${vehicleModelRedirect.toPath} = excluded.to_path then excluded.to_path else '' end`,
+          // An ambiguous label keeps its parent destination across later batches.
+          toPath: sql`case
+            when ${vehicleModelRedirect.toPath} = '' or ${vehicleModelRedirect.toPath} = excluded.to_path then excluded.to_path
+            when instr(substr(${vehicleModelRedirect.fromPath}, 7), '/') > 0
+              then substr(${vehicleModelRedirect.fromPath}, 1, 5 + instr(substr(${vehicleModelRedirect.fromPath}, 7), '/'))
+            else '/cars' end`,
         },
       });
-}
-
-function modelPath(make: string, model: string): string {
-  const normalizedMake = VehicleName.makeName(make);
-  const name = VehicleName.modelName(normalizedMake, model);
-  return `/cars/${VehicleName.slug(normalizedMake)}/${VehicleName.slug(name)}`;
 }
 
 function sourceFallback<T extends CanonicalVehicle>(row: T): T {

@@ -1,4 +1,5 @@
 import { AlgoliaError } from "./algolia-error";
+import { retainModelUrls } from "~/server/model-url-history";
 import { backfillVinVehicles } from "./vin-backfill";
 import { InventorySnapshot } from "~/server/inventory-snapshot";
 import { asc, gt } from "drizzle-orm";
@@ -11,7 +12,7 @@ import {
   withSearchSchemaVersion,
 } from "~/lib/search-index-schema";
 import { VinPattern } from "~/lib/vin-pattern";
-import { vehicle } from "~/schema";
+import { vehicle, vehicleModelRedirect } from "~/schema";
 import { projectSearchVehicles } from "./vehicle-search-projection";
 import {
   buildVinFilterValidationRequests,
@@ -33,6 +34,7 @@ export interface SearchIndexMigrationResult extends SearchIndexMigrationProgress
   alreadyReady: boolean;
   schemaVersion: number;
   validatedVins: string[];
+  redirects: number;
 }
 
 export interface SearchIndexMigrationState extends SearchIndexMigrationProgress {
@@ -128,10 +130,12 @@ export async function initializeSearchIndexMigration(
         recordsProcessed: 0,
         schemaVersion: currentVersion,
         validatedVins: [],
+        redirects: 0,
       },
     };
   }
 
+  await retainModelUrls(db);
   await configureAlgoliaIndex();
   return {
     status: "pending",
@@ -192,6 +196,11 @@ export async function finalizeSearchIndexMigration(
     indexName: ALGOLIA_INDEX_NAME,
   });
   await InventorySnapshot.project(db, new Date());
+  const livePaths = new Set(await InventorySnapshot.modelUrls(db));
+  const retainedUrls = await db.select().from(vehicleModelRedirect);
+  const redirects = retainedUrls.filter(
+    (row) => !livePaths.has(row.fromPath),
+  ).length;
   await markSchemaReady(latestSettings.userData);
 
   return {
@@ -200,5 +209,6 @@ export async function finalizeSearchIndexMigration(
     recordsProcessed: state.recordsProcessed,
     schemaVersion: CURRENT_SEARCH_SCHEMA_VERSION,
     validatedVins: state.validationVins,
+    redirects,
   };
 }

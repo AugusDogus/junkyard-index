@@ -55,7 +55,7 @@ import {
 const schema = `${TEST_SCHEMA}
   create table vehicle (
     vin text primary key, source text not null, year integer not null,
-    make text not null, model text not null, color text, stock_number text,
+    make text not null, model text not null, source_make text, source_model text, color text, stock_number text,
     image_url text, available_date text, observed_arrival_at integer,
     location_code text not null,
     location_name text not null, location_city text not null, state text not null,

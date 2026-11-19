@@ -221,13 +221,25 @@ with `?force=true` after the cooldown. This deliberately rewrites the index;
 it is optional and must run in the hosted environment, never from an agent's
 machine against production.
 
-Existing make/model spelling rules still select display names and slugs.
-Changed source model URLs are retained as permanent redirects after their last
-live page disappears. If an old label identifies multiple canonical models,
-it gets no arbitrary redirect. vPIC taxonomy can merge product names, for
-example Silverado 1500/2500 into Silverado. The yard's original model remains
-visible on cards and inventory rows. Existing saved filters and alert criteria
-are not rewritten, so filters using retired source labels should be reselected.
+Consumer models combine vPIC Model with explicit Series/Series2 ratings,
+DriveType and Civic variants. Silverado 1500/2500, C1500/K1500, Civic Hybrid
+and Super Duty stay distinct. More specific source family variants, including
+Classic and HD, remain when vPIC cannot explain the distinction. The small,
+make-scoped alias table and the refreshed facet counts are in the
+[recorded report](../reports/vin-canonicalization.md). Cache keys are versioned
+so old flattened identities cannot suppress the richer decode metadata.
+
+Before changing vehicles, the search migration retains preferred make/model
+URLs from every retained inventory snapshot version. Missing unique model
+URLs 308 to the canonical model; ambiguous labels 308 to a live make page,
+and retired makes to `/cars`. Known URLs cannot disappear into a 404. The
+migration result reports the final retired-alias count in `redirects`.
+
+Existing saved model queries and alerts need no user action. The original
+source model remains searchable for ordinary queries and Boolean tokens,
+alongside canonical names. Recorded regressions cover `SILVRDO15` and
+`F150NEW`. This preserves the matching scope of a yard-specific keyword;
+it does not globally expand it into every equivalent provider's vehicle.
 
 A read-only census and resumable live sample can be repeated with:
 
