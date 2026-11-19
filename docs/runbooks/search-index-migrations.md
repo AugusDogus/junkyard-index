@@ -33,10 +33,10 @@ to Algolia or deliver alerts after losing the lock.
 1. Merge the PR to `main`.
 2. Vercel deploys the application and Workflow SDK entry points together.
 3. Vercel Cron starts `searchIndexMigrationWorkflow` at 06:00 UTC each day. The
-   migration exits immediately after schema version `9` is ready.
+   migration exits immediately after schema version `10` is ready.
 4. The migration configures Algolia, backfills one durable vehicle batch per
    Workflow step, validates exact VIN and Boolean token filters, then writes
-   search schema version `9` to the index settings. A retried batch safely
+   search schema version `10` to the index settings. A retried batch safely
    rewrites the same object IDs before advancing its VIN cursor.
 5. The production UI reads readiness on load. VIN patterns stay inactive until version
    `3`; Boolean OR queries stay inactive until version `4`. Each capability
@@ -93,7 +93,7 @@ curl --fail \
 ```
 
 Starting the route more than once is safe. A second active run deduplicates to
-the first, and a completed migration exits after reading schema version `9`.
+the first, and a completed migration exits after reading schema version `10`.
 
 Do not run `scripts/sync-algolia.ts` as the deployment path. It remains a manual
 recovery tool.
@@ -156,3 +156,41 @@ backfills records, validates the indices, and advances the marker from 8 to 9.
 A separate `bun run algolia:settings:apply` is **not required** after a
 successful migration. Until the scheduled migration runs, searches continue
 using the previous numeric typo behavior.
+
+## Schema 10: bare VIN prefixes
+
+Bare VIN searches match the first **8 through 16 characters**, without a
+wildcard. Eight characters cover the manufacturer/type positions (1-3) and
+vehicle-attribute positions (4-8) described in
+[49 CFR 565.15(a)-(b)](https://www.law.cornell.edu/cfr/text/49/565.15).
+This provides a useful descriptor-level search without matching broad, shorter
+manufacturer prefixes. Matching is case-insensitive. Full VIN searches and
+position-based wildcard filters continue working.
+
+Projection now includes the full `vin` plus at most nine `vinPrefixes` tokens
+(lengths 8-16) on the existing record. Both fields follow make, model, year,
+and color in `searchableAttributes`. `disablePrefixOnAttributes` prevents
+Algolia from expanding these tokens below eight characters, and
+`disableTypoToleranceOnAttributes` prevents mistyped VIN matches. Other fields
+retain prefix matching and word typo tolerance, while numeric typo protection
+from schema 9 and chronological replica settings from schema 8 are preserved.
+Legacy serials remain searchable in full, even when shorter than eight characters.
+
+The new fields add at most 180 serialized JSON bytes per modern VIN (covered
+by a projection regression, including a representative record under 10 KB).
+There are no new records, indices, or replicas. Existing records already close
+to the free plan's 10 KB record limit still need that headroom; the size check
+is a representative fixture, not a production-wide size audit.
+
+After deployment, the existing in-place migration applies settings, rewrites
+the same object IDs, validates an eight-character prefix query together with
+exact VIN and Boolean token filters on every selectable index, and advances
+the marker from 9 to 10. A separate `bun run algolia:settings:apply` is
+**not required** after a successful migration. Applying settings alone cannot
+populate either new field on existing records. Before the backfill runs, bare VIN prefixes still
+lack matching indexed tokens.
+
+After migration, search a known VIN's first 8, 9, 10, 11, and 16 characters and
+confirm the vehicle appears under Relevance, Newest, and Oldest. Check its full
+VIN and wildcard filter too. A seven-character prefix, a non-prefix substring,
+or a single-character mutation must not match through either VIN field.

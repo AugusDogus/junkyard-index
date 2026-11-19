@@ -16,6 +16,9 @@ describe("search index migration validation", () => {
       "vehicles_newest",
     ]);
     expect(requests.every((request) => request.filters.length > 0)).toBe(true);
+    expect(requests.every((request) => request.query === "1FADP3F2")).toBe(
+      true,
+    );
     expect(
       requests.every((request) => request.filters.includes("searchTokens:")),
     ).toBe(true);

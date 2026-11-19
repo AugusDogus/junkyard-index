@@ -23,7 +23,11 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
     "year",
     "unordered(color)",
     "unordered(vin)",
+    "unordered(vinPrefixes)",
   ],
+  // VIN prefixes are exact 8-16 character tokens; the full VIN stays exact.
+  disablePrefixOnAttributes: ["vin", "vinPrefixes"],
+  disableTypoToleranceOnAttributes: ["vin", "vinPrefixes"],
   attributesForFaceting: [
     "source",
     "yardTypes",
@@ -47,7 +51,12 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
   hitsPerPage: 1000,
   paginationLimitedTo: ALGOLIA_PAGINATION_LIMIT,
-  unretrievableAttributes: ["firstSeenAt", "vinPositionTokens", "searchTokens"],
+  unretrievableAttributes: [
+    "firstSeenAt",
+    "vinPositionTokens",
+    "vinPrefixes",
+    "searchTokens",
+  ],
 } satisfies IndexSettings;
 
 export function buildAlgoliaSettingsPlan(): readonly AlgoliaSettingsOperation[] {

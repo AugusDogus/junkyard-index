@@ -37,6 +37,36 @@ describe("toAlgoliaRecord", () => {
     const record = toAlgoliaRecord(vehicle, firstSeenAt, null, 0, null);
 
     expect(record.objectID).toBe("1FADP3F29FL123456");
+    const { vin, vinPrefixes, ...previousRecord } = record;
+    expect(vin).toBe(vehicle.vin);
+    expect(vinPrefixes).toEqual([
+      "1FADP3F2",
+      "1FADP3F29",
+      "1FADP3F29F",
+      "1FADP3F29FL",
+      "1FADP3F29FL1",
+      "1FADP3F29FL12",
+      "1FADP3F29FL123",
+      "1FADP3F29FL1234",
+      "1FADP3F29FL12345",
+    ]);
+    expect(record.vinPrefixes).not.toContain("1FADP3F");
+    expect(record.vinPrefixes).not.toContain("FADP3F29");
+    // Bound the free-plan record overhead, including JSON keys and separators.
+    expect(
+      Buffer.byteLength(JSON.stringify(record)) -
+        Buffer.byteLength(JSON.stringify(previousRecord)),
+    ).toBeLessThanOrEqual(180);
+    expect(Buffer.byteLength(JSON.stringify(record))).toBeLessThan(10_000);
+    const legacyRecord = toAlgoliaRecord(
+      { ...vehicle, vin: "ABC123" },
+      firstSeenAt,
+      null,
+      0,
+      null,
+    );
+    expect(legacyRecord.vin).toBe("ABC123");
+    expect(legacyRecord.vinPrefixes).toEqual([]);
     expect(record.searchTokens).toEqual([
       "ford",
       "focus",
