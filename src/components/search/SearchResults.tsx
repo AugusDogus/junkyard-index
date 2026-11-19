@@ -10,7 +10,15 @@
  */
 
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { type ReactNode, useCallback, useEffect, useMemo } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Card,
   CardContent,
@@ -70,32 +78,65 @@ export function SearchResults({
   const isMediumScreen = useIsMediumScreen();
 
   const getGridColumns = useCallback(() => {
-    if (isMobile) return 1;
+    if (isMobile ?? lockedPreview?.clearRows === 3) return 1;
     if (isMediumScreen) return 2;
     return 3;
-  }, [isMobile, isMediumScreen]);
+  }, [isMobile, isMediumScreen, lockedPreview?.clearRows]);
 
   const columns = getGridColumns();
+
+  // Keep the first cards in normal document flow, including SSR. The virtual
+  // tail starts below them, so measuring the viewport never hides the LCP image.
+  const firstVehicles = searchResult.vehicles.slice(0, 3);
+  const isLockedPreview = Boolean(lockedPreview);
+  const tailRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const [rowWidth, setRowWidth] = useState(1000);
+  useLayoutEffect(() => {
+    const element = tailRef.current;
+    if (!element) return;
+    const measure = () => {
+      setScrollMargin(element.getBoundingClientRect().top + window.scrollY);
+      setRowWidth(element.clientWidth);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    const main = element.closest("main");
+    if (main) observer.observe(main);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [isLoading, isLockedPreview]);
 
   const rows = useMemo(() => {
     if (!searchResult.vehicles) return [];
     const result: SearchVehicle[][] = [];
-    for (let i = 0; i < searchResult.vehicles.length; i += columns) {
+    for (
+      let i = lockedPreview ? 0 : 3;
+      i < searchResult.vehicles.length;
+      i += columns
+    ) {
       result.push(searchResult.vehicles.slice(i, i + columns));
     }
     return result;
-  }, [searchResult.vehicles, columns]);
+  }, [searchResult.vehicles, columns, lockedPreview]);
 
   const gapHeight = 16;
-  const estimatedCardHeight = 480;
+  const estimatedCardHeight =
+    (((rowWidth - (columns - 1) * gapHeight) / columns) * 9) / 16 + 360;
   const estimatedRowHeight = estimatedCardHeight + gapHeight;
 
   const rowCount = !isLastPage ? rows.length + 1 : rows.length;
 
   const rowVirtualizer = useWindowVirtualizer({
     count: rowCount,
+    enabled: !isLockedPreview && !isLoading,
     estimateSize: () => estimatedRowHeight,
-    overscan: 5,
+    overscan: 2,
+    scrollMargin,
     scrollPaddingEnd: 100,
   });
 
@@ -105,6 +146,8 @@ export function SearchResults({
 
   useEffect(() => {
     if (
+      !lockedPreview &&
+      rows.length > 0 &&
       lastVirtualItemIndex >= rows.length - 1 &&
       !isLastPage &&
       !isFetchingNextPage &&
@@ -114,6 +157,7 @@ export function SearchResults({
     }
   }, [
     lastVirtualItemIndex,
+    lockedPreview,
     rows.length,
     isLastPage,
     isFetchingNextPage,
@@ -122,9 +166,8 @@ export function SearchResults({
 
   useEffect(() => {
     rowVirtualizer.measure();
-  }, [columns, rowVirtualizer]);
+  }, [columns, estimatedRowHeight, rowVirtualizer]);
 
-  const viewportReady = isMobile !== null && isMediumScreen !== null;
   const amountOfSkeletons = 6;
 
   const renderGridRow = useCallback(
@@ -137,6 +180,7 @@ export function SearchResults({
           <VehicleCard
             key={`${keyPrefix}-${vehicle.locationCode}-${vehicle.id}`}
             vehicle={vehicle}
+            priority={keyPrefix === "preview-clear-0"}
           />
         ))}
         {Array.from({
@@ -149,7 +193,7 @@ export function SearchResults({
     [columns],
   );
 
-  if (isLoading || !viewportReady) {
+  if (isLoading) {
     return (
       <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: amountOfSkeletons }).map((_, index) => (
@@ -207,20 +251,26 @@ export function SearchResults({
 
         {lockedRows.length > 0 && (
           <div className="relative">
-            <div aria-hidden="true" className="pointer-events-none select-none">
-              {lockedRows.map((row, rowIndex) => (
-                <div
-                  key={`preview-locked-wrapper-${rowIndex}`}
-                  className="relative overflow-hidden rounded-xl"
-                >
-                  {renderGridRow(
-                    row,
-                    `preview-locked-${rowIndex}`,
-                    "grid w-full gap-4 pb-4 opacity-45 blur-sm",
-                  )}
-                  <div className="bg-background/55 absolute inset-0" />
-                </div>
-              ))}
+            <div
+              inert
+              aria-hidden="true"
+              className="pointer-events-none select-none"
+            >
+              <div className="grid gap-4 pb-4 opacity-45 blur-sm md:grid-cols-2 lg:grid-cols-3">
+                {lockedRows.flat().map((vehicle) => (
+                  <Card
+                    key={vehicle.id}
+                    className="h-[480px] gap-0 overflow-hidden py-0"
+                  >
+                    <Skeleton className="aspect-video rounded-none" />
+                    <CardContent className="space-y-4 p-4">
+                      <Skeleton className="h-7 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-24 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
 
             <div className="absolute inset-0 z-10 flex items-center justify-center p-4 sm:p-6">
@@ -233,40 +283,48 @@ export function SearchResults({
   }
 
   return (
-    <div
-      style={{
-        height: `${rowVirtualizer.getTotalSize()}px`,
-        width: "100%",
-        position: "relative",
-      }}
-    >
-      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-        const isLoaderRow = virtualRow.index >= rows.length;
-        const row = rows[virtualRow.index];
+    <div>
+      <div className="grid gap-4 pb-4 md:grid-cols-2 lg:grid-cols-3">
+        {firstVehicles.map((vehicle) => (
+          <VehicleCard key={vehicle.id} vehicle={vehicle} priority />
+        ))}
+      </div>
+      <div
+        ref={tailRef}
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const isLoaderRow = virtualRow.index >= rows.length;
+          const row = rows[virtualRow.index];
 
-        return (
-          <div
-            key={`row-${virtualRow.index}`}
-            data-index={virtualRow.index}
-            ref={rowVirtualizer.measureElement}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualRow.start}px)`,
-            }}
-          >
-            {isLoaderRow ? (
-              <div className="text-muted-foreground flex items-center justify-center py-8 text-sm">
-                Loading more vehicles...
-              </div>
-            ) : row ? (
-              renderGridRow(row, `row-${virtualRow.index}`)
-            ) : null}
-          </div>
-        );
-      })}
+          return (
+            <div
+              key={`row-${virtualRow.index}`}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualRow.start - scrollMargin}px)`,
+              }}
+            >
+              {isLoaderRow ? (
+                <div className="text-muted-foreground flex items-center justify-center py-8 text-sm">
+                  Loading more vehicles...
+                </div>
+              ) : row ? (
+                renderGridRow(row, `row-${virtualRow.index}`)
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

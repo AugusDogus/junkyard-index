@@ -35,6 +35,29 @@ export const ALGOLIA_VEHICLE_HIT_ATTRIBUTES = [
   "missingRunCount",
 ] as const;
 
+// The search cards do not consume provider metadata, raw descriptions or highlights.
+export const SEARCH_CARD_ATTRIBUTES = [
+  "objectID",
+  "year",
+  "make",
+  "model",
+  "color",
+  "vin",
+  "stockNumber",
+  "availableDate",
+  "arrivalDate",
+  "source",
+  "locationCode",
+  "locationName",
+  "locationCity",
+  "stateAbbr",
+  "_geoloc",
+  "imageUrl",
+  "detailsUrl",
+  "isMissing",
+  "missingSinceAt",
+] as const satisfies readonly AlgoliaVehicleHitAttribute[];
+
 type AlgoliaVehicleHitAttribute =
   (typeof ALGOLIA_VEHICLE_HIT_ATTRIBUTES)[number];
 

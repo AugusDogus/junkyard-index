@@ -20,6 +20,13 @@ export async function bundleSharedSearchFixture(target: "bun" | "browser") {
           builder.onResolve({ filter: /^algoliasearch\/lite$/ }, () => ({
             path: resolve("tests/browser/fixtures/shared-search-client.ts"),
           }));
+          // Bun's CJS interop wraps next/image's default export. Keep the real
+          // Next image component when rendering this standalone SSR fixture.
+          builder.onLoad({ filter: /next\/image\.js$/ }, () => ({
+            contents:
+              'export { Image as default } from "next/dist/client/image-component";',
+            loader: "js",
+          }));
           builder.onLoad({ filter: /next\/headers\.js$/ }, () => ({
             contents:
               'export function headers() { return new Headers({host:"shared-search.test"}); }',

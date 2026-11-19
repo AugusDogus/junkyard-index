@@ -7,6 +7,7 @@ import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { Footer } from "~/components/Footer";
 import { Header } from "~/components/Header";
 import { ScrollToTop } from "~/components/ScrollToTop";
+import { SearchPageSkeleton } from "~/components/search/SearchPageSkeleton";
 import { SearchPageContent } from "~/components/search/SearchPageContent";
 import { db } from "~/lib/db";
 import { getHomepageYards } from "~/server/homepage-yards";
@@ -71,12 +72,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <div className="bg-background flex min-h-svh flex-col">
       <Header />
-      <div className="flex-1">
+      <div className="min-h-screen flex-1">
         <ErrorBoundary>
-          <Suspense>
+          <Suspense fallback={<SearchPageSkeleton />}>
             <HydrateClient>
               <SearchPageContent
                 isLoggedIn={isLoggedIn}
+                initialIsMobile={/Mobile|Android|iPhone|iPod/i.test(
+                  reqHeaders.get("user-agent") ?? "",
+                )}
                 userLocation={geo}
                 knownYardNames={knownYardNames}
               />

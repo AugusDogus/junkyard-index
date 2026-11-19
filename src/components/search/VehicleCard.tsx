@@ -21,7 +21,10 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { VehicleCardProps } from "~/lib/types";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 
-function VehicleCardComponent({ vehicle }: VehicleCardProps) {
+function VehicleCardComponent({
+  vehicle,
+  priority = false,
+}: VehicleCardProps & { priority?: boolean }) {
   const destination = VehicleDestination.resolve(vehicle);
   const service = YardService.resolve(vehicle.source, vehicle.locationCode);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -68,6 +71,7 @@ function VehicleCardComponent({ vehicle }: VehicleCardProps) {
         <div className="bg-muted relative aspect-video overflow-hidden">
           {primaryImage ? (
             <VehicleImage
+              priority={priority}
               src={primaryImage}
               alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

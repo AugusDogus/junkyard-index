@@ -9,9 +9,15 @@ type VehicleImageProps = {
   src: string;
   alt: string;
   sizes: string;
+  priority?: boolean;
 };
 
-export function VehicleImage({ src, alt, sizes }: VehicleImageProps) {
+export function VehicleImage({
+  src,
+  alt,
+  sizes,
+  priority = false,
+}: VehicleImageProps) {
   const [useWsrvImage, setUseWsrvImage] = useState(true);
   const [isPrimaryImageLoading, setIsPrimaryImageLoading] = useState(true);
   const [isFallbackImageLoading, setIsFallbackImageLoading] = useState(false);
@@ -27,16 +33,19 @@ export function VehicleImage({ src, alt, sizes }: VehicleImageProps) {
   if (useWsrvImage) {
     return (
       <>
-        {isPrimaryImageLoading && (
+        {isPrimaryImageLoading && !priority && (
           <Skeleton className="absolute inset-0" aria-hidden="true" />
         )}
         <Image
+          priority={priority}
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
           loader={wsrvLoader}
           src={src}
           alt={alt}
           fill
           className={`object-cover transition-opacity duration-200 ${
-            isPrimaryImageLoading ? "opacity-0" : "opacity-100"
+            isPrimaryImageLoading && !priority ? "opacity-0" : "opacity-100"
           }`}
           sizes={sizes}
           onLoad={() => {
@@ -54,7 +63,7 @@ export function VehicleImage({ src, alt, sizes }: VehicleImageProps) {
 
   return (
     <>
-      {isFallbackImageLoading && (
+      {isFallbackImageLoading && !priority && (
         <Skeleton className="absolute inset-0" aria-hidden="true" />
       )}
       {isFallbackImageFailed ? (
@@ -68,9 +77,10 @@ export function VehicleImage({ src, alt, sizes }: VehicleImageProps) {
           src={src}
           alt={alt}
           className={`h-full w-full object-cover transition-opacity duration-200 ${
-            isFallbackImageLoading ? "opacity-0" : "opacity-100"
+            isFallbackImageLoading && !priority ? "opacity-0" : "opacity-100"
           }`}
-          loading="lazy"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
           decoding="async"
           referrerPolicy="no-referrer"
           onLoad={() => {
