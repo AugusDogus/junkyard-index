@@ -26,6 +26,7 @@ import { AnalyticsEvents } from "~/lib/analytics-events";
 import type { PlanAccessState } from "~/lib/plan-access";
 import { trackRequestYardClick } from "~/lib/track-request-yard-click";
 import type { SearchResult } from "~/lib/types";
+import { cn } from "~/lib/utils";
 
 export type SearchResultsHeaderModel = {
   status:
@@ -135,9 +136,11 @@ const LOADING_RESULT: SearchResult = {
 function SearchResultsHeader({
   model,
   headingRef,
+  fullServiceSuggestion,
 }: {
   model: SearchResultsHeaderModel;
   headingRef: RefObject<HTMLHeadingElement | null>;
+  fullServiceSuggestion?: FullServiceSuggestion;
 }) {
   return (
     <div className="mb-5 flex min-h-12 items-end justify-between gap-4 border-b pb-4">
@@ -152,15 +155,20 @@ function SearchResultsHeader({
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="truncate text-xl font-semibold text-balance"
+              className="text-xl font-semibold text-balance tabular-nums"
             >
-              {model.status.totalCount.toLocaleString()} vehicles
+              {model.status.totalCount.toLocaleString()}{" "}
+              {model.status.totalCount === 1 ? "vehicle" : "vehicles"}
+              {fullServiceSuggestion && " at self-service yards"}
             </h2>
             <p className="text-muted-foreground mt-1 text-sm tabular-nums">
               {model.status.visibleCount === null
                 ? `Results in ${model.status.processingTimeMS} ms`
                 : `Showing ${model.status.visibleCount.toLocaleString()} · ${model.status.processingTimeMS} ms`}
             </p>
+            {fullServiceSuggestion?.kind === "hint" && (
+              <FullServiceMessage suggestion={fullServiceSuggestion} />
+            )}
           </div>
         )}
       </div>
@@ -184,11 +192,10 @@ function FullServiceMessage({
   const fallback = suggestion.kind === "fallback";
   return (
     <div
-      className={
-        fallback
-          ? "flex flex-col items-start border-b py-12 sm:py-16"
-          : "text-muted-foreground mt-5 text-sm"
-      }
+      className={cn(
+        "flex flex-col items-start",
+        fallback ? "border-b py-12 sm:py-16" : "mt-3",
+      )}
     >
       {fallback && (
         <h2 className="text-xl font-semibold text-balance">
@@ -198,23 +205,24 @@ function FullServiceMessage({
         </h2>
       )}
       <p
-        className={
-          fallback
-            ? "text-muted-foreground mt-2 max-w-md text-sm text-pretty"
-            : undefined
-        }
+        className={cn(
+          "text-muted-foreground max-w-md text-sm text-pretty tabular-nums",
+          fallback && "mt-2",
+        )}
       >
         +{suggestion.extraCount.toLocaleString()} more{" "}
         {suggestion.extraCount === 1 ? "vehicle" : "vehicles"} at full-service
-        yards. They pull the parts for you, so call first.{" "}
-        <button
-          type="button"
-          className="text-foreground min-h-11 font-semibold underline underline-offset-2"
-          onClick={suggestion.showThem}
-        >
-          Show them
-        </button>
+        yards. They pull the parts for you, so call first.
       </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-3 min-h-11 sm:min-h-9"
+        onClick={suggestion.showThem}
+      >
+        Show full-service results
+      </Button>
     </div>
   );
 }
@@ -232,23 +240,45 @@ export function SearchResultsPanel({
   const readyCount =
     model.kind === "results" && model.header.status.kind === "ready"
       ? model.header.status.totalCount
-      : null;
+      : model.kind === "empty"
+        ? 0
+        : null;
+  const suggestionCount = fullServiceSuggestion?.extraCount;
   useEffect(() => {
-    if (model.kind === "error") expansionFromCount.current = null;
-    // Ignore the previous count while the new selection starts its search.
+    setAnnouncement("");
     if (
-      expansionFromCount.current === null ||
-      readyCount === null ||
-      readyCount <= expansionFromCount.current
-    )
-      return;
-    expansionFromCount.current = null;
-    headingRef.current?.focus({ preventScroll: true });
-    headingRef.current?.scrollIntoView({ block: "center" });
-    setAnnouncement(
-      `${readyCount.toLocaleString()} vehicles found. Full-service yards included.`,
-    );
-  }, [readyCount, model.kind]);
+      model.kind === "error" ||
+      model.kind === "inactive" ||
+      model.kind === "empty"
+    ) {
+      expansionFromCount.current = null;
+    }
+    if (readyCount === null) return;
+    const expanded =
+      expansionFromCount.current !== null &&
+      readyCount > expansionFromCount.current;
+    if (expanded) {
+      expansionFromCount.current = null;
+      headingRef.current?.focus({ preventScroll: true });
+      headingRef.current?.scrollIntoView({ block: "center" });
+    }
+    const timeout = setTimeout(() => {
+      const countMessage =
+        readyCount === 0
+          ? "No vehicles found"
+          : `${readyCount.toLocaleString()} ${readyCount === 1 ? "vehicle" : "vehicles"} found`;
+      if (expanded) {
+        setAnnouncement(`${countMessage}. Full-service yards included.`);
+      } else if (suggestionCount !== undefined) {
+        setAnnouncement(
+          `${countMessage} at self-service yards. ${suggestionCount.toLocaleString()} more ${suggestionCount === 1 ? "vehicle" : "vehicles"} at full-service yards.`,
+        );
+      } else {
+        setAnnouncement(`${countMessage}.`);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [readyCount, model.kind, suggestionCount]);
   const suggestion = fullServiceSuggestion
     ? {
         ...fullServiceSuggestion,
@@ -322,9 +352,17 @@ function SearchResultsPanelContent({
             No vehicles found
           </h2>
           <p className="text-muted-foreground mt-2 max-w-md text-sm text-pretty">
-            {model.activeFilterCount > 0
-              ? "No vehicles match this query and filter set. Clear the filters to broaden the search."
-              : "No vehicles match this query. Check the spelling or try fewer details."}
+            No vehicles match this search. Try nearby years or remove a search
+            term.
+            {model.activeFilterCount > 0 && (
+              <>
+                {" "}
+                You can also clear filters
+                {(model.filters.yardTypes?.length ?? 0) > 0 &&
+                  " or include more yard types"}
+                .
+              </>
+            )}
           </p>
 
           {model.activeFilterCount > 0 && (
@@ -406,15 +444,16 @@ function SearchResultsPanelContent({
           {fullServiceSuggestion?.kind === "fallback" && (
             <FullServiceMessage suggestion={fullServiceSuggestion} />
           )}
-          <SearchResultsHeader model={model.header} headingRef={headingRef} />
+          <SearchResultsHeader
+            model={model.header}
+            headingRef={headingRef}
+            fullServiceSuggestion={fullServiceSuggestion}
+          />
           <SearchResults searchResult={model.searchResult} {...model.list} />
           <SearchSummary
             searchResult={model.searchResult}
             visibleCount={model.list.visibleCount}
           />
-          {fullServiceSuggestion?.kind === "hint" && (
-            <FullServiceMessage suggestion={fullServiceSuggestion} />
-          )}
         </>
       );
   }

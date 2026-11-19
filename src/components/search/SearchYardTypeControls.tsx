@@ -1,6 +1,7 @@
 import { Button } from "~/components/ui/button";
-import { Toggle } from "~/components/ui/toggle";
+import { Checkbox } from "~/components/ui/checkbox";
 import { SearchYardSelection } from "~/lib/search-yard-selection";
+import { cn } from "~/lib/utils";
 import { YARD_TYPE_OPTIONS, type YardType } from "~/lib/yard-service";
 
 export function SearchYardTypeControls({
@@ -18,7 +19,11 @@ export function SearchYardTypeControls({
     expression !== undefined &&
     SearchYardSelection.expressionTypes(expression).length > 0;
   return (
-    <div className="flex flex-col items-start gap-2" aria-label="Yard type">
+    <div
+      role="group"
+      className="flex flex-col items-start gap-2"
+      aria-label="Yard type"
+    >
       {expressionOwnsTypes && (
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span>Yard types set in advanced search</span>
@@ -39,38 +44,45 @@ export function SearchYardTypeControls({
             <span className="text-muted-foreground w-full text-xs sm:w-auto">
               {expressionOwnsTypes ? "Additional yard filter" : "Yard type"}
             </span>
-            <Toggle
+            <Button
+              type="button"
               variant="outline"
-              className="min-h-11 px-1.5 sm:min-h-9 sm:px-2"
+              className={cn(
+                "min-h-11 px-1.5 text-xs sm:min-h-9 sm:px-2 sm:text-sm",
+                types.length === 0 && "bg-ink text-paper",
+              )}
               aria-label="All yards, including unclassified"
-              pressed={types.length === 0}
-              onPressedChange={() => onChange([])}
+              aria-pressed={types.length === 0}
+              onClick={() => onChange([])}
             >
               All yards
-            </Toggle>
+            </Button>
             {YARD_TYPE_OPTIONS.map(({ value, label }) => (
-              <Toggle
+              <label
                 key={value}
-                variant="outline"
-                className="min-h-11 sm:min-h-9"
-                pressed={types.includes(value)}
-                onPressedChange={(pressed) =>
-                  onChange(
-                    pressed
-                      ? [...types, value]
-                      : types.filter((type) => type !== value),
-                  )
-                }
+                className={cn(
+                  "border-ink flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md border-2 px-1 text-xs font-medium has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus sm:min-h-9 sm:px-2 sm:text-sm",
+                  types.includes(value) && "bg-ink text-paper",
+                )}
               >
+                <Checkbox
+                  checked={types.includes(value)}
+                  onCheckedChange={(checked) =>
+                    onChange(
+                      checked === true
+                        ? [...types, value]
+                        : types.filter((type) => type !== value),
+                    )
+                  }
+                />
                 {label}
-              </Toggle>
+              </label>
             ))}
           </div>
-          {types.length === 0 && (
-            <p className="text-muted-foreground w-full text-xs sm:w-auto">
-              Includes yards with an unclassified service type.
-            </p>
-          )}
+          <p className="text-muted-foreground text-xs text-pretty">
+            Select one or both service types. All yards also includes
+            unclassified yards.
+          </p>
         </>
       )}
     </div>

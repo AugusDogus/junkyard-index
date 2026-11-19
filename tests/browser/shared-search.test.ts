@@ -160,7 +160,10 @@ for (const scenario of [
       );
       expect(
         await page
-          .getByText(`${scenario.count} vehicles`, { exact: true })
+          .getByText(
+            `${scenario.count} ${scenario.count === 1 ? "vehicle" : "vehicles"}`,
+            { exact: true },
+          )
           .count(),
       ).toBeGreaterThan(0);
       expect(
@@ -220,7 +223,10 @@ for (const scenario of [
       ]);
       expect(
         await page
-          .getByText(`${scenario.count} vehicles`, { exact: true })
+          .getByText(
+            `${scenario.count} ${scenario.count === 1 ? "vehicle" : "vehicles"}`,
+            { exact: true },
+          )
           .count(),
       ).toBeGreaterThan(0);
       expect(
@@ -251,19 +257,25 @@ for (const width of [390, 1440]) {
         await page.goto(
           `http://shared-search.test/search?q=${encodeURIComponent(query)}`,
         );
-        const self = page.getByRole("button", {
+        await page
+          .getByRole("group", { name: "Yard type", exact: true })
+          .waitFor();
+        const self = page.getByRole("checkbox", {
           name: "Self-service",
           exact: true,
         });
-        const full = page.getByRole("button", {
+        const full = page.getByRole("checkbox", {
           name: "Full-service",
           exact: true,
         });
         await page
-          .getByRole("button", { name: "Show them", exact: true })
+          .getByRole("button", {
+            name: "Show full-service results",
+            exact: true,
+          })
           .waitFor();
-        expect(await self.getAttribute("aria-pressed")).toBe("true");
-        expect(await full.getAttribute("aria-pressed")).toBe("false");
+        expect(await self.getAttribute("aria-checked")).toBe("true");
+        expect(await full.getAttribute("aria-checked")).toBe("false");
         expect(
           await page
             .getByText("+3 more vehicles at full-service yards.", {
@@ -281,8 +293,26 @@ for (const width of [390, 1440]) {
               .getByRole("heading", { name: /self-service matches/ })
               .count(),
           ).toBe(0);
+        if (query === "Volvo") {
+          const count = page.getByRole("heading", {
+            name: "3 vehicles at self-service yards",
+            exact: true,
+          });
+          await count.waitFor();
+          const header = count.locator("xpath=../..");
+          expect(
+            await header
+              .getByRole("button", { name: "Show full-service results" })
+              .count(),
+          ).toBe(1);
+          expect(
+            await header
+              .getByRole("button", { name: "Show full-service results" })
+              .getAttribute("data-slot"),
+          ).toBe("button");
+        }
         const showThem = page.getByRole("button", {
-          name: "Show them",
+          name: "Show full-service results",
           exact: true,
         });
         await showThem.focus();
@@ -303,20 +333,18 @@ for (const width of [390, 1440]) {
         expect(headingBox && headingBox.y > 300 && headingBox.y < 900).toBe(
           true,
         );
-        expect(
-          await page
-            .getByRole("status")
-            .filter({
-              hasText: `${expandedCount} vehicles found. Full-service yards included.`,
-            })
-            .count(),
-        ).toBe(1);
+        await page
+          .getByRole("status")
+          .filter({
+            hasText: `${expandedCount} vehicles found. Full-service yards included.`,
+          })
+          .waitFor();
         await page.waitForFunction(
           () =>
             new URL(location.href).searchParams.getAll("yardTypes[]").length ===
             2,
         );
-        expect(await full.getAttribute("aria-pressed")).toBe("true");
+        expect(await full.getAttribute("aria-checked")).toBe("true");
         expect(new URL(page.url()).searchParams.getAll("yardTypes[]")).toEqual([
           "self_service",
           "full_service",
@@ -326,11 +354,14 @@ for (const width of [390, 1440]) {
           .getByRole("heading", { name: "1987 Volvo 740" })
           .first()
           .waitFor();
-        expect(await self.getAttribute("aria-pressed")).toBe("true");
-        expect(await full.getAttribute("aria-pressed")).toBe("true");
+        expect(await self.getAttribute("aria-checked")).toBe("true");
+        expect(await full.getAttribute("aria-checked")).toBe("true");
         expect(
           await page
-            .getByRole("button", { name: "Show them", exact: true })
+            .getByRole("button", {
+              name: "Show full-service results",
+              exact: true,
+            })
             .count(),
         ).toBe(0);
         expect(
@@ -338,7 +369,8 @@ for (const width of [390, 1440]) {
             () => document.documentElement.scrollWidth <= window.innerWidth,
           ),
         ).toBe(true);
-        await self.click();
+        await self.focus();
+        await self.press("Space");
         await page.waitForFunction(() => {
           const types = new URL(location.href).searchParams.getAll(
             "yardTypes[]",
@@ -350,11 +382,14 @@ for (const width of [390, 1440]) {
           .getByRole("heading", { name: "1987 Volvo 740" })
           .first()
           .waitFor();
-        expect(await self.getAttribute("aria-pressed")).toBe("false");
-        expect(await full.getAttribute("aria-pressed")).toBe("true");
+        expect(await self.getAttribute("aria-checked")).toBe("false");
+        expect(await full.getAttribute("aria-checked")).toBe("true");
         expect(
           await page
-            .getByRole("button", { name: "Show them", exact: true })
+            .getByRole("button", {
+              name: "Show full-service results",
+              exact: true,
+            })
             .count(),
         ).toBe(0);
       } finally {
@@ -377,6 +412,7 @@ for (const width of [390, 1440]) {
         });
       });
       await page.goto("http://shared-search.test/search?q=Volvo&yardTypes=all");
+      await page.addStyleTag({ content: stylesheet });
       const all = page.getByRole("button", {
         name: "All yards, including unclassified",
         exact: true,
@@ -385,26 +421,29 @@ for (const width of [390, 1440]) {
       expect(await all.getAttribute("aria-pressed")).toBe("true");
       expect(
         await page
-          .getByRole("button", { name: "Self-service", exact: true })
-          .getAttribute("aria-pressed"),
+          .getByRole("checkbox", { name: "Self-service", exact: true })
+          .getAttribute("aria-checked"),
       ).toBe("false");
       expect(
         await page
-          .getByRole("button", { name: "Full-service", exact: true })
-          .getAttribute("aria-pressed"),
+          .getByRole("checkbox", { name: "Full-service", exact: true })
+          .getAttribute("aria-checked"),
       ).toBe("false");
       await page
         .getByRole("heading", { name: "7 vehicles", exact: true })
         .waitFor();
       await page
-        .getByRole("button", { name: "Self-service", exact: true })
+        .getByRole("checkbox", { name: "Self-service", exact: true })
         .click();
       await page
-        .getByRole("heading", { name: "3 vehicles", exact: true })
+        .getByRole("heading", {
+          name: "3 vehicles at self-service yards",
+          exact: true,
+        })
         .waitFor();
       expect(await all.getAttribute("aria-pressed")).toBe("false");
       await page
-        .getByRole("button", { name: "Full-service", exact: true })
+        .getByRole("checkbox", { name: "Full-service", exact: true })
         .click();
       await page
         .getByRole("heading", { name: "6 vehicles", exact: true })
@@ -458,7 +497,7 @@ test("expression-owned yard types are visible without an implicit self-service f
     ).toBe(0);
     expect(
       await page
-        .getByRole("button", { name: "Self-service", exact: true })
+        .getByRole("checkbox", { name: "Self-service", exact: true })
         .count(),
     ).toBe(0);
     await page
@@ -473,6 +512,59 @@ test("expression-owned yard types are visible without an implicit self-service f
     expect(
       new URL(page.url()).searchParams.getAll("yardTypes[]"),
     ).not.toContain("self_service");
+  } finally {
+    await page.close();
+  }
+}, 15_000);
+
+test("settled counts replace the full-service announcement after another query", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.route("http://shared-search.test/**", async (route) => {
+      const url = new URL(route.request().url());
+      const isScript = url.pathname === "/app.js";
+      return route.fulfill({
+        contentType: isScript ? "text/javascript" : "text/html",
+        body: isScript ? script : await renderSharedSearchFixture(url.search),
+      });
+    });
+    await page.goto("http://shared-search.test/search?q=Volvo");
+    const status = page
+      .getByRole("status")
+      .filter({ hasText: "3 vehicles found at self-service yards." });
+    await status.waitFor();
+    await page
+      .getByRole("button", { name: "Show full-service results", exact: true })
+      .click();
+    await page
+      .getByRole("status")
+      .filter({ hasText: "6 vehicles found. Full-service yards included." })
+      .waitFor();
+    await page.getByRole("searchbox").fill("1990 toyota tacoma");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "No vehicles found", exact: true })
+      .waitFor();
+    await page
+      .getByRole("status")
+      .filter({ hasText: /^No vehicles found\.$/ })
+      .waitFor();
+    expect(
+      await page
+        .getByText("Try nearby years or remove a search term.", {
+          exact: false,
+        })
+        .count(),
+    ).toBe(1);
+    await page.getByRole("searchbox").fill("ford focus");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "1 vehicle", exact: true })
+      .waitFor();
+    await page
+      .getByRole("status")
+      .filter({ hasText: /^1 vehicle found\.$/ })
+      .waitFor();
   } finally {
     await page.close();
   }
