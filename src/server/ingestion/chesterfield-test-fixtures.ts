@@ -29,6 +29,25 @@ export const chesterfieldRecord: ChesterfieldRecord = {
   ],
 };
 
+/**
+ * Live /newest-cars row captured 2026-11-19. Its make (AMC) is absent from the
+ * native search make directory, so no make/model query can return it.
+ */
+export const chesterfieldOffDirectoryRecord: ChesterfieldRecord = {
+  yard: "Richmond",
+  make: "AMC",
+  model: "RAMBLER",
+  year: "1963",
+  color: "BLUE",
+  body: "Unknown",
+  engine: "",
+  position: "Chrysler 9 C",
+  arrivalDate: "11/18/2026",
+  stock: "000000086897",
+  vin: "G246747",
+  images: [],
+};
+
 export function chesterfieldPage(
   records: ChesterfieldRecord[] = [chesterfieldRecord],
   options: { token?: string; makeId?: string; tableCount?: 1 | 3 } = {},

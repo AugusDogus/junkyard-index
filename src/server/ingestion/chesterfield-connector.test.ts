@@ -12,6 +12,7 @@ import {
   serializeDurableSourceCursor,
 } from "./durable-cursor";
 import {
+  chesterfieldOffDirectoryRecord,
   chesterfieldPage,
   chesterfieldRecord,
 } from "./chesterfield-test-fixtures";
@@ -190,6 +191,56 @@ test("missing newest-car controls prevent completion", async () => {
   await expect(
     run(ChesterfieldCursor.initial, DonorPhotoStore.memory(), [], 16),
   ).rejects.toThrow("newest-car control");
+});
+
+const reachableControls = Array.from(
+  { length: 10 },
+  (_, index): ChesterfieldRecord => ({
+    ...chesterfieldRecord,
+    yard: ["Fort Lee", "Richmond", "Southside"][index % 3] ?? "Fort Lee",
+    stock: String(86000 + index).padStart(12, "0"),
+    vin: chesterfieldRecord.vin.slice(0, -1) + index,
+    images: [],
+  }),
+);
+
+test("newest cars whose make is absent from the native directory are not catalog controls", async () => {
+  mockInventory({
+    records: reachableControls,
+    newestRecords: [...reachableControls, chesterfieldOffDirectoryRecord],
+  });
+  const vehicles: ChesterfieldCanonicalVehicle[] = [];
+  const result = await run(
+    ChesterfieldCursor.initial,
+    DonorPhotoStore.memory(),
+    vehicles,
+    16,
+  );
+  expect(result.status).toBe("complete");
+  expect(vehicles).toHaveLength(reachableControls.length);
+  expect(result.warnings.join(" ")).toContain('["Richmond","000000086897"]');
+});
+
+test("a newest car of an off-directory make that is not pinned unsearchable prevents completion", async () => {
+  const missingMake: ChesterfieldRecord = {
+    ...chesterfieldRecord,
+    make: "NISSAN",
+    model: "ALTIMA",
+    stock: "000000086898",
+    vin: chesterfieldRecord.vin.slice(0, -1) + "9",
+    images: [],
+  };
+  mockInventory({
+    records: reachableControls,
+    newestRecords: [...reachableControls, missingMake],
+  });
+  const vehicles: ChesterfieldCanonicalVehicle[] = [];
+  await expect(
+    run(ChesterfieldCursor.initial, DonorPhotoStore.memory(), vehicles, 16),
+  ).rejects.toThrow(
+    "Newest cars of make NISSAN are absent from the native make directory",
+  );
+  expect(vehicles).toHaveLength(0);
 });
 
 test("changed official yard metadata fails before donor emission", async () => {
