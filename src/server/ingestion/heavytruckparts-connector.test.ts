@@ -515,4 +515,68 @@ describe("HeavyTruckParts marketplace", () => {
       expect(result._tag).toBe("Failure");
     }
   });
+  test("2026-11-19 Request Info item control is not a second destination, and year ties overlap pages", () => {
+    const live = z
+      .object({
+        note: z.string(),
+        receipts: z.array(
+          z
+            .object({
+              key: z.string(),
+              url: z.string(),
+              status: z.literal(200),
+              bytes: z.number(),
+              started: z.number(),
+              finished: z.number(),
+            })
+            .strict(),
+        ),
+        total: z.number().int().positive(),
+        pages: z.record(z.string()),
+      })
+      .strict()
+      .parse(
+        JSON.parse(
+          gunzipSync(
+            readFileSync(
+              new URL(
+                "./heavytruckparts-test-fixtures/unstable-year-ties.json.gz",
+                import.meta.url,
+              ),
+            ),
+          ).toString(),
+        ),
+      );
+    const westside = HTP_SUPPLIERS.find((s) => s.code === "westside");
+    if (!westside) throw new Error("West Side supplier missing");
+    const page = (n: number, change = (raw: string) => raw) => {
+      const raw = live.pages[`westside-desc-${n}`];
+      if (raw === undefined) throw new Error("Missing live page " + n);
+      return parseHtpCatalog(change(raw), westside, "DESC", n, live.total);
+    };
+    expect(live.total).toBe(623);
+    const [p1, p2, p25] = [page(1), page(2), page(25)];
+    expect(p1.records).toHaveLength(25);
+    expect(p2.records).toHaveLength(25);
+    expect(p25.records).toHaveLength(live.total - 600);
+    expect(p1.records[0]?.url).toBe(
+      "https://www.heavytruckparts.net/item/Mack/Gr64f/Complete-Vehicle/7641244/1/147606",
+    );
+    // Native year ties no longer break by item ID, so offset pages overlap.
+    // htpRoster treats repeats as traversal overlap and still needs every ID.
+    expect(
+      p2.records
+        .filter((r) => p1.records.some((o) => o.id === r.id))
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(["146082", "146132"]);
+    const inquiry =
+      "/item/Mack/Gr64f/Complete-Vehicle/7641244/1/147606?inquiry=true";
+    for (const change of [
+      (raw: string) =>
+        raw.replace(inquiry, inquiry.replace("147606", "147651")),
+      (raw: string) => raw.replace("Request Info", "Ask Seller"),
+    ])
+      expect(() => page(1, change)).toThrow("conflicting destination");
+  });
 });

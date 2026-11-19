@@ -105,24 +105,40 @@ export function cstruckFrontier(pages: readonly CstruckPage[]): CstruckQuery[] {
 export function cstruckRoster(pages: readonly CstruckPage[], total: number) {
   if (cstruckFrontier(pages).length)
     throw new Error("C&S census still has unvisited year ranges");
-  const records = pages
+  // Since 2026-11-19 the native year sort no longer breaks ties by item ID, so
+  // offset pages can repeat one same-year item and skip another. Uncapped
+  // ranges are single complete pages, and the unfiltered census adds years the
+  // range controls cannot express. Both must agree per item and per year.
+  const unfiltered = pages
     .filter((p) => "page" in p.range)
     .flatMap((p) => p.records);
-  const byId = new Map(records.map((r) => [r.id, heavyTruckPartsHash(r)]));
+  const ranged = pages
+    .filter((p) => !("page" in p.range) && !p.capped)
+    .flatMap((p) => p.records);
+  const rows = new Map<string, CstruckPage["records"][number]>();
+  const years = [new Map<string, number>(), new Map<string, number>()];
+  for (const [index, group] of [unfiltered, ranged].entries())
+    for (const r of group) {
+      const prior = rows.get(r.id);
+      if (prior && heavyTruckPartsHash(prior) !== heavyTruckPartsHash(r))
+        throw new Error(
+          "C&S year ranges disagree with the unfiltered native census",
+        );
+      rows.set(r.id, r);
+      const year = Number(r.year),
+        counts = years[index];
+      if (/^\d{4}$/.test(r.year) && year >= 1970 && year <= 2027 && counts)
+        counts.set(r.year, (counts.get(r.year) ?? 0) + 1);
+    }
   if (
-    pages
-      .filter((p) => !("page" in p.range) && !p.capped)
-      .some((p) =>
-        p.records.some((r) => byId.get(r.id) !== heavyTruckPartsHash(r)),
-      )
+    heavyTruckPartsHash([...(years[0] ?? [])].sort()) !==
+    heavyTruckPartsHash([...(years[1] ?? [])].sort())
   )
     throw new Error(
       "C&S year ranges disagree with the unfiltered native census",
     );
-  if (
-    records.length !== total ||
-    new Set(records.map((r) => r.id)).size !== total
-  )
+  const records = [...rows.values()];
+  if (unfiltered.length !== total || records.length !== total)
     throw new Error(
       "C&S complete enumeration does not reconcile to the independent store count",
     );
