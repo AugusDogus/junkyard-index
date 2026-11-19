@@ -525,6 +525,40 @@ describe("durable ingestion repository", () => {
     }
   });
 
+  test("reads source freshness through the started_at index", async () => {
+    const testDatabase = createTestClient();
+    const { client } = testDatabase;
+    try {
+      await client.executeMultiple(`${TEST_SCHEMA}
+        create index ingestion_source_run_source_idx on ingestion_source_run(source);
+        create index ingestion_source_run_started_at_idx on ingestion_source_run(started_at);`);
+      const queries: { sql: string; params: unknown[] }[] = [];
+      const repository = createDurableIngestionRepository(
+        drizzle(client, {
+          logger: { logQuery: (sql, params) => queries.push({ sql, params }) },
+        }),
+        client,
+        IngestionSnapshotStore.memory(),
+      );
+
+      await repository.getSourceFreshness(new Date("2026-11-19T12:00:00Z"));
+
+      const [query] = queries;
+      if (!query) throw new Error("getSourceFreshness ran no query.");
+      const plan = await client.execute({
+        sql: `explain query plan ${query.sql}`,
+        args: query.params.map((param) =>
+          typeof param === "number" || typeof param === "string" ? param : null,
+        ),
+      });
+      expect(plan.rows.map((row) => String(row.detail))).toContain(
+        "SEARCH ingestion_source_run USING INDEX ingestion_source_run_started_at_idx (started_at>?)",
+      );
+    } finally {
+      testDatabase.cleanup();
+    }
+  });
+
   test("retries a failed source on its own and completes the pass after its last attempt", async () => {
     const testDatabase = createTestClient();
     const { client } = testDatabase;
