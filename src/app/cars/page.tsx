@@ -36,7 +36,7 @@ export const metadata: Metadata = {
 const COLUMN_HEADS = ["flex", "hidden sm:flex", "hidden lg:flex"] as const;
 
 export default async function CarsPage() {
-  const makes = await getMakes();
+  const makes = (await getMakes()).filter((make) => make.count > 1);
   const [common, rare] = [
     makes.filter((make) => MakeInventory.indexable(make)),
     makes.filter((make) => !MakeInventory.indexable(make)),

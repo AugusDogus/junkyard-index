@@ -6,10 +6,53 @@ const MAKE_ALIASES: Readonly<Record<string, string>> = {
   MERCEDES: "MERCEDESBENZ",
   CHEVY: "CHEVROLET",
   FERRARY: "FERRARI",
+  NISSIAN: "NISSAN",
+  OLDMOBILE: "OLDSMOBILE",
+  MITSIBISHI: "MITSUBISHI",
+  PETERBUILT: "PETERBILT",
+  CHEVROLETTE: "CHEVROLET",
+  INFINITY: "INFINITI",
+  DATSUNNISSAN: "NISSAN",
+  NISSANDATSUN: "NISSAN",
+  RANGEROVER: "LANDROVER",
+  MINICOOPER: "MINI",
+  AMERICANMOTORS: "AMC",
+  RAMTRUCKS: "RAM",
+  MBENZ: "MERCEDESBENZ",
+  IC: "ICCORPORATION",
+  ICBUS: "ICCORPORATION",
 };
 
 // Values providers put in the make field that aren't makes.
 const NOT_MAKES = new Set(["", "OTHER", "MISC", "UNKNOWN", "YELLOW", "AM"]);
+// These aliases correct a make field but remain meaningful model names.
+const MODEL_MAKE_ALIASES = new Set(["RANGEROVER", "MINICOOPER"]);
+
+// Exact catalog labels in Pratt, Allied, Midway, Northwest, TAP and Ario
+// fixtures. Bare "1500 Pickup" and "Ram Pickup" cannot identify a model.
+const PICKUP_MODELS: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  FORD: {
+    F100: "F-100",
+    F150: "F-150",
+    F250: "F-250",
+    F350: "F-350",
+    F450: "F-450",
+    F250SD: "F-250 Super Duty",
+    F250SUPERDUTY: "F-250 Super Duty",
+    F350SD: "F-350 Super Duty",
+    F350SUPERDUTY: "F-350 Super Duty",
+    F450SD: "F-450 Super Duty",
+    F450SUPERDUTY: "F-450 Super Duty",
+  },
+  CHEVROLET: {
+    SILVERADO1500: "Silverado 1500",
+    SILVERADO2500: "Silverado 2500",
+    SILVERADO3500: "Silverado 3500",
+  },
+  TOYOTA: { T100: "T100" },
+};
 
 // A mixed-case spelling must be this common, relative to the most common
 // spelling, to be shown instead of it: one "Rx 300" doesn't outvote 154 "RX 300".
@@ -28,14 +71,24 @@ function key(value: string): string {
  * only a number would remain ("MAZDA 3" stays as written).
  */
 function modelName(make: string, model: string): string {
-  const [first, ...rest] = model.trim().split(/\s+/);
-  const remainder = rest.join(" ");
-  const strip =
-    first !== undefined &&
-    rest.length > 0 &&
-    VehicleName.makeKey(first) === VehicleName.makeKey(make) &&
-    /[A-Za-z]/.test(remainder);
-  return strip ? remainder : model.trim();
+  const words = model.trim().split(/\s+/);
+  let name = model.trim();
+  const makeKey = VehicleName.makeKey(make);
+  // Match whole tokens so multiword makes work without truncating Mazda3.
+  for (let end = 1; end < words.length; end++) {
+    const remainder = words.slice(end).join(" ");
+    if (
+      makeKey &&
+      !MODEL_MAKE_ALIASES.has(key(words.slice(0, end).join(" "))) &&
+      VehicleName.makeKey(words.slice(0, end).join(" ")) === makeKey &&
+      /[A-Za-z]/.test(remainder)
+    ) {
+      name = remainder;
+      break;
+    }
+  }
+  const base = name.replace(/\s+pickup$/i, "");
+  return PICKUP_MODELS[makeKey ?? ""]?.[key(base)] ?? name;
 }
 
 /**
@@ -70,6 +123,18 @@ export const VehicleName = {
       MERCEDESBENZ: "Mercedes-Benz",
       CHEVROLET: "Chevrolet",
       FERRARI: "Ferrari",
+      NISSAN: "Nissan",
+      OLDSMOBILE: "Oldsmobile",
+      MITSUBISHI: "Mitsubishi",
+      PETERBILT: "Peterbilt",
+      INFINITI: "Infiniti",
+      LANDROVER: "Land Rover",
+      MINI: "Mini",
+      AMC: "AMC",
+      RAM: "Ram",
+      ICCORPORATION: "IC Corporation",
+      // A historical truck manufacturer, not an alias for Volvo or GMC.
+      VOLVOWHITEGMC: "Volvo White GMC",
     };
     return (
       canonical[VehicleName.makeKey(make) ?? ""] ?? VehicleName.display(make)
@@ -88,7 +153,11 @@ export const VehicleName = {
     const makeKey = VehicleName.makeKey(make);
     const base = key(modelName(make, model));
     if (!base || !makeKey) return null;
-    if (VehicleName.makeKey(model) === makeKey) return null;
+    if (
+      !MODEL_MAKE_ALIASES.has(key(model)) &&
+      VehicleName.makeKey(model) === makeKey
+    )
+      return null;
     if (/^\d+$/.test(base)) return `${makeKey}${base}`;
     return base;
   },

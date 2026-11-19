@@ -31,6 +31,7 @@ import {
   loadRunSnapshotInventory,
   type RunSnapshotInventory,
 } from "./run-snapshot-inventory";
+import { normalizeCanonicalVehicle } from "./normalization";
 import type { CanonicalVehicle } from "./types";
 import {
   yardInventoryRefreshStatements,
@@ -314,7 +315,7 @@ async function runUpsertBatch(
     .slice(start, start + RECONCILIATION_BATCH_SIZE)
     .flatMap((vin) => {
       const snapshot = inventory.vehicles.get(vin);
-      return snapshot ? [snapshot] : [];
+      return snapshot ? [normalizeCanonicalVehicle(snapshot)] : [];
     });
 
   const finalInventory = new Map(

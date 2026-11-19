@@ -1,3 +1,4 @@
+import { VehicleEngine } from "./vehicle-engine";
 import { InventoryFormat } from "./inventory-format";
 import { VehicleName } from "./vehicle-name";
 
@@ -83,8 +84,10 @@ export const YardInventory = {
     const { availableDate, firstSeenAt, observedArrivalAt, ...rest } = row;
     return {
       ...rest,
+      make: VehicleName.makeName(rest.make),
+      model: VehicleName.modelName(rest.make, rest.model),
       trim: text(rest.trim),
-      engine: text(rest.engine),
+      engine: VehicleEngine.normalize(text(rest.engine)),
       color: text(rest.color),
       stockNumber: text(rest.stockNumber),
       section: text(rest.section),

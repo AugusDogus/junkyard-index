@@ -5,6 +5,17 @@ import {
 } from "./autorecycler-transform";
 
 describe("autorecycler transform", () => {
+  test.each([
+    ["2000 Datsun - Nissan Sentra", "Nissan", "Sentra"],
+    ["2000 IC Corporation CE", "IC Corporation", "CE"],
+    ["2000 Volvo White GMC WIA", "Volvo White GMC", "WIA"],
+  ])("parses complete evidenced make labels: %s", (raw, make, model) => {
+    expect(parseAutorecyclerNameText(raw, undefined)).toEqual({
+      year: 2000,
+      make,
+      model,
+    });
+  });
   test("parseAutorecyclerNameText parses leading year in name_text", () => {
     expect(parseAutorecyclerNameText("2000 Nissan Sentra", undefined)).toEqual({
       year: 2000,
@@ -115,9 +126,11 @@ describe("autorecycler transform", () => {
       row_text: "300",
       added_date_date: 1_774_396_800_000,
       preview_image_image: "//cdn.example/img.jpg",
+      engine_size_text: "1.589545208L",
     };
     const v = transformAutorecyclerMsearchHit(src, geo);
     expect(v).not.toBeNull();
+    expect(v?.engine).toBe("1.6L");
     expect(v!.vin).toBe("3N1CB51D7YL308709");
     expect(v!.source).toBe("autorecycler");
     expect(v!.imageUrl).toBe("https://cdn.example/img.jpg");

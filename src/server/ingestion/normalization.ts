@@ -1,3 +1,8 @@
+import { VehicleEngine } from "~/lib/vehicle-engine";
+import { VehicleName } from "~/lib/vehicle-name";
+import { YardName } from "~/lib/yard-name";
+import type { CanonicalVehicle } from "./types";
+
 const REGION_NAME_TO_ABBR = new Map<string, string>([
   ["alabama", "AL"],
   ["alaska", "AK"],
@@ -98,6 +103,7 @@ const CANONICAL_MAKES = [
   "Hummer",
   "Hyundai",
   "Infiniti",
+  "IC Corporation",
   "International",
   "Isuzu",
   "Jaguar",
@@ -116,6 +122,7 @@ const CANONICAL_MAKES = [
   "Oldsmobile",
   "Opel",
   "Peugeot",
+  "Peterbilt",
   "Plymouth",
   "Pontiac",
   "Porsche",
@@ -132,6 +139,7 @@ const CANONICAL_MAKES = [
   "VAM",
   "Volkswagen",
   "Volvo",
+  "Volvo White GMC",
   "VPG",
   "Yugo",
 ] as const;
@@ -185,7 +193,12 @@ const COMPARABLE_CANONICAL_MAKES = new Map(
   CANONICAL_MAKES.map((make) => [normalizeComparableMake(make), make] as const),
 );
 
-const CANONICAL_MAKE_PREFIX_PATTERNS = [...CANONICAL_MAKES]
+const CANONICAL_MAKE_PREFIX_PATTERNS = [
+  ...CANONICAL_MAKES,
+  "Datsun - Nissan",
+  "Nissan/Datsun",
+  "American Motors",
+]
   .sort((left, right) => right.length - left.length)
   .map((make) => ({
     make,
@@ -216,7 +229,7 @@ export function matchCanonicalMakePrefix(
     const match = pattern.exec(trimmed);
     if (match) {
       return {
-        make,
+        make: normalizeCanonicalMake(make),
         end: match[0].length,
       };
     }
@@ -280,13 +293,36 @@ export function normalizeCanonicalMake(value: string): string {
     return "Other";
   }
 
-  const canonical = matchCanonicalMake(trimmed);
+  const canonical = matchCanonicalMake(VehicleName.makeName(trimmed));
   if (canonical) {
     return canonical;
   }
 
   const normalized = trimmed.toLowerCase();
-  return MAKE_DISPLAY_OVERRIDES[normalized] ?? toTitleCase(trimmed);
+  return VehicleName.makeName(
+    MAKE_DISPLAY_OVERRIDES[normalized] ?? toTitleCase(trimmed),
+  );
+}
+
+export const normalizeCanonicalEngine = VehicleEngine.normalize;
+
+/** Shared publication boundary for new snapshots and existing indexed rows. */
+export function normalizeCanonicalVehicle(
+  vehicle: CanonicalVehicle,
+): CanonicalVehicle {
+  const make = normalizeCanonicalMake(vehicle.make);
+  return {
+    ...vehicle,
+    make,
+    model: VehicleName.modelName(make, vehicle.model),
+    engine: normalizeCanonicalEngine(vehicle.engine),
+    locationName: YardName.resolve({
+      source: vehicle.source,
+      name: vehicle.locationName,
+      city: vehicle.locationCity,
+      inventoryUrl: vehicle.detailsUrl,
+    }),
+  };
 }
 
 export function normalizeCanonicalColor(value: string | null): string | null {

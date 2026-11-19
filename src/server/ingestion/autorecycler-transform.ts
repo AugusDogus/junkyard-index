@@ -1,6 +1,7 @@
 import { AUTORECYCLER_ORIGIN } from "./autorecycler-client";
 import {
   normalizeCanonicalColor,
+  normalizeCanonicalEngine,
   parseAutorecyclerMakeModel,
 } from "./normalization";
 import type { CanonicalVehicle } from "./types";
@@ -108,10 +109,9 @@ export function transformAutorecyclerMsearchHit(
     typeof src.stock_number_text === "string"
       ? src.stock_number_text.trim() || null
       : null;
-  const engine =
-    typeof src.engine_size_text === "string"
-      ? src.engine_size_text.trim() || null
-      : null;
+  const engine = normalizeCanonicalEngine(
+    typeof src.engine_size_text === "string" ? src.engine_size_text : null,
+  );
   const row =
     typeof src.row_text === "string" ? src.row_text.trim() || null : null;
 

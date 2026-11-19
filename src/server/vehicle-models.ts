@@ -26,7 +26,7 @@ const LIVE_BY_MAKE = sql`+${vehicle.missingSinceAt} is null`;
 /** Live vehicles per raw make, from the stored inventory snapshot. */
 const getMakeCounts = cacheInventory(
   () => InventorySnapshot.makeCounts(db),
-  ["make-counts-snapshot-v2"],
+  ["make-counts-snapshot-v3"],
 );
 
 /** Every make with live vehicles, most first. */
@@ -58,7 +58,7 @@ export const findMake = cache(
 /** One make's live vehicles per yard and raw model, from the snapshot. */
 const getMakeRollup = cacheInventory(
   (makeKey: string) => InventorySnapshot.makeModels(db, makeKey),
-  ["make-rollup-snapshot-v2"],
+  ["make-rollup-snapshot-v3"],
 );
 
 /** A model's vehicle with the yard it sits in. */

@@ -1,3 +1,4 @@
+import { YardAddress } from "./yard-address";
 import { isIngestionSource } from "./ingestion-source";
 import { YardService } from "./yard-service";
 import { YardName } from "./yard-name";
@@ -33,8 +34,12 @@ export function getYardDetails(
     metadata?.lat ?? null,
     metadata?.lng ?? null,
   );
-  const address = metadata?.address ?? null;
-  const postalCode = metadata?.postalCode ?? null;
+  const { address, postalCode } = YardAddress.normalize({
+    address: metadata?.address ?? null,
+    city,
+    state,
+    postalCode: metadata?.postalCode,
+  });
   const mapsQuery = new URLSearchParams({
     api: "1",
     query: [name, address, city, state, postalCode].filter(Boolean).join(", "),

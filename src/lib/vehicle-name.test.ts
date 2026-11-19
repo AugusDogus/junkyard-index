@@ -55,11 +55,61 @@ describe("VehicleName.modelKey", () => {
 
 describe("VehicleName.modelName", () => {
   test("strips a repeated make from the spelling shown", () => {
-    expect(VehicleName.modelName("Ford", "FORD F150 PICKUP")).toBe(
-      "F150 PICKUP",
-    );
+    expect(VehicleName.modelName("Ford", "FORD F150 PICKUP")).toBe("F-150");
     expect(VehicleName.modelName("Mazda", "MAZDA 3")).toBe("MAZDA 3");
   });
+});
+
+test.each([
+  ["Nissian", "Nissan"],
+  ["Oldmobile", "Oldsmobile"],
+  ["Mitsibishi", "Mitsubishi"],
+  ["Peterbuilt", "Peterbilt"],
+  ["Chevrolette", "Chevrolet"],
+  ["Infinity", "Infiniti"],
+  ["Datsun - Nissan", "Nissan"],
+  ["Range Rover", "Land Rover"],
+  ["Mini Cooper", "Mini"],
+  ["Ic Corporation", "IC Corporation"],
+  ["Volvowhitegmc", "Volvo White GMC"],
+])("canonicalizes the evidenced make %s", (raw, expected) => {
+  expect(VehicleName.makeName(raw)).toBe(expected);
+  expect(VehicleName.makeKey(raw)).toBe(VehicleName.makeKey(expected));
+});
+
+test.each([
+  ["Ford", "F150", "F-150"],
+  ["Ford", "FORD F-150 PICKUP", "F-150"],
+  ["Ford", "FORD F100 PICKUP", "F-100"],
+  ["Ford", "FORD F250 PICKUP", "F-250"],
+  ["Ford", "FORD F250SD PICKUP", "F-250 Super Duty"],
+  ["Ford", "F350 SUPER DUTY PICKUP", "F-350 Super Duty"],
+  ["Chevrolet", "CHEVROLET SILVERADO 1500 PICKUP", "Silverado 1500"],
+  ["Toyota", "TOYOTA T100 PICKUP", "T100"],
+  ["Ford", "ford-f150-pickup".replace(/-/g, " "), "F-150"],
+  ["Toyota", "TOYOTA TACOMA", "TACOMA"],
+  ["Land Rover", "LAND ROVER RANGE ROVER", "RANGE ROVER"],
+  ["Land Rover", "Range Rover Sport", "Range Rover Sport"],
+  ["Ford", "F150 RAPTOR PICKUP", "F150 RAPTOR PICKUP"],
+  ["Chevrolet", "FORD F150 PICKUP", "FORD F150 PICKUP"],
+  ["Toyota", "PICKUP", "PICKUP"],
+  ["Ford", "CUSTOM PICKUP", "CUSTOM PICKUP"],
+  ["Chevrolet", "1500 PICKUP", "1500 PICKUP"],
+  ["Dodge", "RAM PICKUP", "RAM PICKUP"],
+])("normalizes only clear model identities: %s %s", (make, raw, expected) => {
+  expect(VehicleName.modelName(make, raw)).toBe(expected);
+});
+
+test("keeps ambiguous makes and distinct historical brands separate", () => {
+  expect(VehicleName.makeName("Chevrolet / GMC")).toBe("Chevrolet / GMC");
+  expect(VehicleName.makeKey("Volvowhitegmc")).not.toBe(
+    VehicleName.makeKey("Volvo"),
+  );
+  expect(VehicleName.makeKey("IC Corporation")).not.toBe(
+    VehicleName.makeKey("International"),
+  );
+  expect(VehicleName.makeKey("Datsun")).not.toBe(VehicleName.makeKey("Nissan"));
+  expect(VehicleName.modelKey("Land Rover", "Range Rover")).toBe("RANGEROVER");
 });
 
 describe("VehicleName.title", () => {
