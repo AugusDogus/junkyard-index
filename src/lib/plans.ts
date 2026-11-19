@@ -28,9 +28,16 @@ export function tierSatisfies(tier: PlanTier, required: PlanTier): boolean {
   return TIER_RANK[tier] >= TIER_RANK[required];
 }
 
-export type PlanFeature = "advanced_filters" | "saved_searches" | "alerts";
+export type PlanFeature =
+  | "year_filter"
+  | "distance_filter"
+  | "advanced_filters"
+  | "saved_searches"
+  | "alerts";
 
-const PLAN_FEATURE_MINIMUM_TIER: Record<PlanFeature, PaidPlanTier> = {
+const PLAN_FEATURE_MINIMUM_TIER: Record<PlanFeature, PlanTier> = {
+  year_filter: "free",
+  distance_filter: "free",
   advanced_filters: "lite",
   saved_searches: "lite",
   alerts: "full",

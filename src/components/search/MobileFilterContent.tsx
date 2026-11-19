@@ -159,10 +159,12 @@ export function MobileFilterContent({
   // Keep a filter available while editing even after its last value is removed.
   const initiallySelectedSections = useRef(selectedSections);
   const isVisible = (section: FilterSectionKey) =>
-    !progressiveDisclosure ||
-    initiallySelectedSections.current[section] ||
-    selectedSections[section] ||
-    addedSections.includes(section);
+    canUseAdvancedFilters
+      ? !progressiveDisclosure ||
+        initiallySelectedSections.current[section] ||
+        selectedSections[section] ||
+        addedSections.includes(section)
+      : section === "yearRange";
   const unusedSections = FILTER_SECTIONS.filter(
     (section) => !isVisible(section),
   );
@@ -173,8 +175,6 @@ export function MobileFilterContent({
       : values.length > 0
         ? `${values.length} selected`
         : undefined;
-
-  if (!canUseAdvancedFilters) return <AdvancedFiltersUpsell />;
 
   return (
     <div className="flex flex-col gap-3">
@@ -335,7 +335,8 @@ export function MobileFilterContent({
           </div>
         </FilterSection>
       </div>
-      {unusedSections.length > 0 && (
+      {!canUseAdvancedFilters && <AdvancedFiltersUpsell />}
+      {canUseAdvancedFilters && unusedSections.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

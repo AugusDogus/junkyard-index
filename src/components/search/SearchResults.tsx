@@ -62,10 +62,8 @@ interface SearchResultsProps {
   showMore?: () => void;
   isLastPage?: boolean;
   isFetchingNextPage?: boolean;
-  lockedPreview?: {
-    clearRows: number;
-    overlay: ReactNode;
-  };
+  endOfResults?: ReactNode;
+  staticPage?: boolean;
 }
 
 export function SearchResults({
@@ -75,23 +73,23 @@ export function SearchResults({
   showMore,
   isLastPage = true,
   isFetchingNextPage = false,
-  lockedPreview,
+  endOfResults,
+  staticPage = false,
 }: SearchResultsProps) {
   const isMobile = useIsMobile();
   const isMediumScreen = useIsMediumScreen();
 
   const getGridColumns = useCallback(() => {
-    if (isMobile ?? lockedPreview?.clearRows === 3) return 1;
+    if (isMobile) return 1;
     if (isMediumScreen) return 2;
     return 3;
-  }, [isMobile, isMediumScreen, lockedPreview?.clearRows]);
+  }, [isMobile, isMediumScreen]);
 
   const columns = getGridColumns();
 
   // Keep the first cards in normal document flow, including SSR. The virtual
   // tail starts below them, so measuring the viewport never hides the LCP image.
   const firstVehicles = searchResult.vehicles.slice(0, 3);
-  const isLockedPreview = Boolean(lockedPreview);
   const tailRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const [rowWidth, setRowWidth] = useState<number | null>(null);
@@ -99,11 +97,10 @@ export function SearchResults({
     typeof SearchScroll.prepareRestoration
   > | null>(null);
   useLayoutEffect(() => {
-    if (isLockedPreview) return;
     const pending = SearchScroll.prepareRestoration();
     restoration.current = pending;
     return pending.cancel;
-  }, [isLockedPreview]);
+  }, []);
   useLayoutEffect(() => {
     const element = tailRef.current;
     if (!element) return;
@@ -121,20 +118,16 @@ export function SearchResults({
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [isLoading, isLockedPreview]);
+  }, [isLoading]);
 
   const rows = useMemo(() => {
     if (!searchResult.vehicles) return [];
     const result: SearchVehicle[][] = [];
-    for (
-      let i = lockedPreview ? 0 : 3;
-      i < searchResult.vehicles.length;
-      i += columns
-    ) {
+    for (let i = 3; i < searchResult.vehicles.length; i += columns) {
       result.push(searchResult.vehicles.slice(i, i + columns));
     }
     return result;
-  }, [searchResult.vehicles, columns, lockedPreview]);
+  }, [searchResult.vehicles, columns]);
 
   const gapHeight = 16;
   const estimatedCardHeight =
@@ -146,7 +139,7 @@ export function SearchResults({
 
   const rowVirtualizer = useWindowVirtualizer({
     count: rowCount,
-    enabled: !isLockedPreview && !isLoading,
+    enabled: !staticPage && !isLoading,
     estimateSize: () => estimatedRowHeight,
     overscan: 2,
     scrollMargin,
@@ -159,7 +152,7 @@ export function SearchResults({
 
   useEffect(() => {
     if (
-      !lockedPreview &&
+      !staticPage &&
       rows.length > 0 &&
       lastVirtualItemIndex >= rows.length - 1 &&
       !isLastPage &&
@@ -170,7 +163,7 @@ export function SearchResults({
     }
   }, [
     lastVirtualItemIndex,
-    lockedPreview,
+    staticPage,
     rows.length,
     isLastPage,
     isFetchingNextPage,
@@ -185,7 +178,6 @@ export function SearchResults({
     if (
       !sessionKey ||
       isLoading ||
-      isLockedPreview ||
       rowWidth === null ||
       isMobile === null ||
       isMediumScreen === null
@@ -206,7 +198,6 @@ export function SearchResults({
   }, [
     sessionKey,
     isLoading,
-    isLockedPreview,
     rowWidth,
     isMobile,
     isMediumScreen,
@@ -215,7 +206,7 @@ export function SearchResults({
   ]);
 
   useLayoutEffect(() => {
-    if (!sessionKey || isLoading || isLockedPreview) return;
+    if (!sessionKey || isLoading) return;
     const save = () =>
       SearchScroll.write(sessionKey, {
         width: window.innerWidth,
@@ -226,7 +217,7 @@ export function SearchResults({
     return () => {
       window.removeEventListener("pagehide", save);
     };
-  }, [sessionKey, isLoading, isLockedPreview, rowVirtualizer]);
+  }, [sessionKey, isLoading, rowVirtualizer]);
 
   const amountOfSkeletons = 6;
 
@@ -295,49 +286,19 @@ export function SearchResults({
     );
   }
 
-  if (lockedPreview) {
-    const visibleRows = Math.max(
-      0,
-      Math.min(lockedPreview.clearRows, rows.length),
-    );
-    const clearRows = rows.slice(0, visibleRows);
-    const lockedRows = rows.slice(visibleRows);
-
+  if (staticPage) {
     return (
       <div>
-        {clearRows.map((row, rowIndex) =>
-          renderGridRow(row, `preview-clear-${rowIndex}`),
-        )}
-
-        {lockedRows.length > 0 && (
-          <div className="relative">
-            <div
-              inert
-              aria-hidden="true"
-              className="pointer-events-none select-none"
-            >
-              <div className="grid gap-4 pb-4 opacity-45 blur-sm md:grid-cols-2 lg:grid-cols-3">
-                {lockedRows.flat().map((vehicle) => (
-                  <Card
-                    key={vehicle.id}
-                    className="h-[480px] gap-0 overflow-hidden py-0"
-                  >
-                    <Skeleton className="aspect-video rounded-none" />
-                    <CardContent className="space-y-4 p-4">
-                      <Skeleton className="h-7 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <Skeleton className="h-24 w-full" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 sm:p-6">
-              {lockedPreview.overlay}
-            </div>
-          </div>
-        )}
+        <div className="grid gap-4 pb-4 md:grid-cols-2 lg:grid-cols-3">
+          {searchResult.vehicles.map((vehicle, index) => (
+            <VehicleCard
+              key={vehicle.id}
+              vehicle={vehicle}
+              priority={index < 3}
+            />
+          ))}
+        </div>
+        {endOfResults}
       </div>
     );
   }
@@ -385,6 +346,7 @@ export function SearchResults({
           );
         })}
       </div>
+      {endOfResults}
     </div>
   );
 }

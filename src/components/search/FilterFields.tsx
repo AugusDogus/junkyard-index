@@ -246,8 +246,9 @@ export function AdvancedFiltersUpsell({
       <div className="flex max-w-sm flex-col gap-2">
         <h3 className="text-base font-semibold">Filter the full inventory</h3>
         <p className="text-muted-foreground text-sm leading-6">
-          Lite adds filters for source, make, year, color, state, and individual
-          salvage yards from ${PLANS.lite.monthlyPrice}/month.
+          Year range and distance radius are free. Lite adds filters for source,
+          make, color, state, and individual salvage yards from $
+          {PLANS.lite.monthlyPrice}/month.
         </p>
       </div>
       <Button asChild size="sm">

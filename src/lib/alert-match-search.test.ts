@@ -30,6 +30,24 @@ function emptySearchClient(onSearch?: (input: unknown) => void) {
 }
 
 describe("alert match search", () => {
+  test("saved plain year ranges match the same numeric intersection as live search", async () => {
+    const requests: unknown[] = [];
+    await getAlertMatchStatsWithClient(
+      emptySearchClient((input) => requests.push(input)),
+      "2010-14 Ford F-150",
+      { minYear: 2012, maxYear: 2016 },
+      null,
+    );
+    expect(requests[0]).toMatchObject({
+      requests: [
+        {
+          query: "Ford F-150",
+          filters:
+            "year >= 2012 AND year <= 2016 AND year >= 2010 AND year <= 2014",
+        },
+      ],
+    });
+  });
   test("saved distance sorts still scan the primary without geo restrictions", async () => {
     for (const sortBy of ["distance", "vehicles_distance"]) {
       const requests: unknown[] = [];

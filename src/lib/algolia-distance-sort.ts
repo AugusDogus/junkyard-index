@@ -29,7 +29,11 @@ export function withDistanceSort<Client extends Pick<LiteClient, "search">>(
               ? {
                   ...request,
                   indexName: ALGOLIA_INDEX_NAME,
-                  params: { ...request.params, ...DISTANCE_SEARCH_PARAMS },
+                  params: {
+                    ...DISTANCE_SEARCH_PARAMS,
+                    ...request.params,
+                    aroundPrecision: 10,
+                  },
                 }
               : request,
           )
@@ -38,9 +42,10 @@ export function withDistanceSort<Client extends Pick<LiteClient, "search">>(
             requests: input.requests.map((request) =>
               request.indexName === ALGOLIA_DISTANCE_SORT_ALIAS
                 ? {
+                    ...DISTANCE_SEARCH_PARAMS,
                     ...request,
                     indexName: ALGOLIA_INDEX_NAME,
-                    ...DISTANCE_SEARCH_PARAMS,
+                    aroundPrecision: 10,
                   }
                 : request,
             ),

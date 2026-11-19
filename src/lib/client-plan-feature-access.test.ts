@@ -2,6 +2,22 @@ import { describe, expect, test } from "bun:test";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 
 describe("resolveClientPlanFeatureAccess", () => {
+  test("free filters remain available while billing is loading or unavailable", () => {
+    for (const feature of ["year_filter", "distance_filter"] as const) {
+      expect(
+        resolveClientPlanFeatureAccess({
+          access: { kind: "loading" },
+          feature,
+        }),
+      ).toBe(true);
+      expect(
+        resolveClientPlanFeatureAccess({
+          access: { kind: "unavailable", reason: "lookup_failed" },
+          feature,
+        }),
+      ).toBe(true);
+    }
+  });
   test("locks client-only filters while account access is unresolved", () => {
     expect(
       resolveClientPlanFeatureAccess({

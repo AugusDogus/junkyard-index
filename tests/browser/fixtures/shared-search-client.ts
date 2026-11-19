@@ -71,6 +71,7 @@ type SearchParams = {
   page?: number;
   hitsPerPage?: number;
   filters?: string;
+  numericFilters?: unknown;
 };
 type SearchRequest = { indexName: string; params?: SearchParams };
 
@@ -128,7 +129,7 @@ const client = {
               state: "Alabama",
               stateAbbr: "AL",
               objectID: `pagination-${index}`,
-              year: 2000 + index,
+              year: 1900 + index,
               make: "Pagination",
               model: "Car",
               vin: `VIN${index}`,
@@ -138,6 +139,25 @@ const client = {
           : vehicles;
         const matched = matchingVehicles.filter(
           (vehicle) =>
+            [
+              ...`${params?.filters ?? ""} ${JSON.stringify(params?.numericFilters ?? [])}`.matchAll(
+                /year\s*(>=|<=|=|>|<)\s*(\d+)/g,
+              ),
+            ].every((match) => {
+              const year = Number(match[2]);
+              switch (match[1]) {
+                case ">=":
+                  return vehicle.year >= year;
+                case "<=":
+                  return vehicle.year <= year;
+                case ">":
+                  return vehicle.year > year;
+                case "<":
+                  return vehicle.year < year;
+                default:
+                  return vehicle.year === year;
+              }
+            }) &&
             (query.startsWith("pagination") ||
               `${vehicle.make} ${vehicle.model}`
                 .toLowerCase()

@@ -16,6 +16,7 @@ const requestLogSchema = z.array(
       query: z.string().optional(),
       hitsPerPage: z.number().optional(),
       page: z.number().optional(),
+      aroundRadius: z.union([z.number(), z.literal("all")]).optional(),
     }),
   }),
 );
@@ -96,7 +97,7 @@ async function open(query: string, width = 1440, height = 900) {
   return { page, html };
 }
 
-test("SSR includes eager visible images and the mobile cap; teasers contain no links", async () => {
+test("SSR sends one full visitor page with eager images and no teasers", async () => {
   const { page, html } = await open(
     "q=pagination&fixtureGuest=1&fixtureMobile=1",
     390,
@@ -105,22 +106,56 @@ test("SSR includes eager visible images and the mobile cap; teasers contain no l
   try {
     expect(html).toContain("<img");
     expect(html).toContain('fetchPriority="high"');
-    expect(html).toContain("Showing 4");
-    expect(html).toContain('"hitsPerPage":4');
+    expect(html).toContain("Showing 24");
+    expect(html).toContain('"hitsPerPage":24');
     expect(html).toContain('"attributesToHighlight":[]');
-    expect(html).not.toContain('"objectID":"pagination-91"');
-    expect(await page.locator("[inert]").count()).toBe(1);
-    await page.getByRole("heading", { name: "2095 Pagination Car" }).waitFor();
+    expect(html).not.toContain('"objectID":"pagination-71"');
+    expect(await page.locator("[inert]").count()).toBe(0);
+    await page.getByRole("heading", { name: "1995 Pagination Car" }).waitFor();
     expect(await page.locator("[inert] a, [inert] button").count()).toBe(0);
     expect(
       await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
-    ).toBe(3);
+    ).toBe(24);
     expect(await page.locator("img").first().getAttribute("loading")).toBe(
       "eager",
     );
     expect(
       await page.getByRole("link", { name: "View inventory" }).count(),
-    ).toBe(3);
+    ).toBe(24);
+  } finally {
+    await closePage(page);
+  }
+}, 30_000);
+
+test("visitor pages include a free radius and stop after 24 results", async () => {
+  const { page, html } = await open(
+    "q=pagination&sort=distance&radius=100&fixtureGuest=1",
+  );
+  try {
+    expect(html).toContain('"aroundRadius":160934');
+    expect(
+      await page
+        .getByRole("combobox", { name: "Distance radius", exact: true })
+        .inputValue(),
+    ).toBe("100");
+    await page.evaluate(() => {
+      document.documentElement.dataset.searchQueryLog = "[]";
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+    await page
+      .getByRole("heading", {
+        name: "Create a free account to unlock full search results.",
+        exact: true,
+      })
+      .waitFor();
+    expect(
+      (await requestLog(page)).filter(({ params }) => (params.page ?? 0) > 0),
+    ).toEqual([]);
+    expect(
+      await page
+        .getByRole("link", { name: /^View inventory for the / })
+        .count(),
+    ).toBe(24);
   } finally {
     await closePage(page);
   }
@@ -145,12 +180,12 @@ test("signed-in pagination survives sort switches and rows do not overlap after 
     await page
       .getByRole("option", { name: "Oldest First", exact: true })
       .click();
-    await page.getByRole("heading", { name: "2000 Pagination Car" }).waitFor();
+    await page.getByRole("heading", { name: "1900 Pagination Car" }).waitFor();
     await page.getByRole("combobox", { name: /^Sort vehicles:/ }).click();
     await page
       .getByRole("option", { name: "Newest First", exact: true })
       .click();
-    await page.getByRole("heading", { name: "2095 Pagination Car" }).waitFor();
+    await page.getByRole("heading", { name: "1995 Pagination Car" }).waitFor();
     await page
       .getByText("Showing 48 of 96 vehicles", { exact: true })
       .waitFor();
@@ -283,7 +318,7 @@ test("signed-in reload restores once and leaves Sort reachable after returning t
     const box = await oldest.boundingBox();
     expect(box?.y).toBeGreaterThanOrEqual(0);
     await oldest.click();
-    await page.getByRole("heading", { name: "2000 Pagination Car" }).waitFor();
+    await page.getByRole("heading", { name: "1900 Pagination Car" }).waitFor();
   } finally {
     await closePage(page);
   }
@@ -292,21 +327,25 @@ test("signed-in reload restores once and leaves Sort reachable after returning t
 test("resizing a desktop visitor caps both the new query request and visible mobile results", async () => {
   const { page } = await open("q=pagination&fixtureGuest=1");
   try {
-    await page.getByText("Showing 4 of 96 vehicles", { exact: true }).waitFor();
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("searchbox").fill("pagination2");
     await page.getByRole("searchbox").press("Enter");
-    await page.getByText("Showing 4 of 96 vehicles", { exact: true }).waitFor();
+    await page
+      .getByText("Showing 24 of 96 vehicles", { exact: true })
+      .waitFor();
     const requests = (await requestLog(page))
       .filter(
         ({ params }) =>
           params.query === "pagination2" && (params.hitsPerPage ?? 0) > 0,
       )
       .map(({ params }) => params.hitsPerPage);
-    expect(requests).toEqual([4]);
+    expect(requests).toEqual([24]);
     expect(
       await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
-    ).toBe(3);
+    ).toBe(24);
     expect(await page.locator("[inert] a").count()).toBe(0);
   } finally {
     await closePage(page);
@@ -339,22 +378,22 @@ test("each scroll page sends exactly one Algolia search after SSR, including the
 }, 30_000);
 
 for (const width of [1440, 390]) {
-  test(`unknown viewport SSR and hydration keep the four-record visitor cap at ${width}px`, async () => {
+  test(`unknown viewport SSR and hydration keep the 24-record visitor cap at ${width}px`, async () => {
     const { page, html } = await open(
       "q=pagination&fixtureGuest=1",
       width,
       844,
     );
     try {
-      expect(html).toContain('"hitsPerPage":4');
-      expect(html).not.toContain('"objectID":"pagination-91"');
+      expect(html).toContain('"hitsPerPage":24');
+      expect(html).not.toContain('"objectID":"pagination-71"');
       await page
-        .getByText("Showing 4 of 96 vehicles", { exact: true })
+        .getByText("Showing 24 of 96 vehicles", { exact: true })
         .waitFor();
       expect(
         (await requestLog(page))
           .filter(({ params }) => (params.hitsPerPage ?? 0) > 0)
-          .every(({ params }) => params.hitsPerPage === 4),
+          .every(({ params }) => params.hitsPerPage === 24),
       ).toBe(true);
       const serverPage = await createPage(browser, {
         viewport: { width, height: 844 },

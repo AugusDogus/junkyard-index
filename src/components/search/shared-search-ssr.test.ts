@@ -2,6 +2,65 @@ import { expect, test } from "bun:test";
 import { z } from "zod";
 import { renderSharedSearchFixture } from "../../../tests/browser/fixtures/build-shared-search";
 
+test("visitor server payload contains exactly the 24 visible records and an honest prompt", async () => {
+  const html = await renderSharedSearchFixture("q=pagination&fixtureGuest=1");
+  const match = html.match(
+    /window\[Symbol\.for\("InstantSearchInitialResults"\)\] = ([^<]+)/,
+  );
+  const initial = z
+    .object({
+      vehicles: z.object({
+        results: z.array(
+          z.object({
+            hitsPerPage: z.number(),
+            hits: z.array(z.object({ objectID: z.string() })),
+          }),
+        ),
+      }),
+    })
+    .parse(JSON.parse(match?.[1] ?? "null"));
+  expect(initial.vehicles.results[0]?.hitsPerPage).toBe(24);
+  expect(initial.vehicles.results[0]?.hits).toHaveLength(24);
+  expect(html).not.toContain('"objectID":"pagination-71"');
+  expect(html).not.toContain("blur-sm");
+  expect(html.indexOf("Want the rest of the results?")).toBeGreaterThan(
+    html.indexOf("1972 Pagination Car"),
+  );
+}, 15_000);
+
+for (const [query, bounds, years] of [
+  ["2010-2014 Toyota Venza", "minYear=2011", [2011]],
+  ["2010-14 Toyota Venza", "maxYear=2010", [2010]],
+  ["2010..2014 Toyota Venza", "minYear=2015", []],
+  ["2010 - 2014 Toyota Venza", "", [2010, 2011]],
+  ["2011 Toyota Venza", "", [2011]],
+] as const) {
+  test(`free typed years intersect routed bounds: ${query} ${bounds}`, async () => {
+    const html = await renderSharedSearchFixture(
+      `q=${encodeURIComponent(query)}&fixtureGuest=1&${bounds}`,
+    );
+    const match = html.match(
+      /window\[Symbol\.for\("InstantSearchInitialResults"\)\] = ([^<]+)/,
+    );
+    const initial = z
+      .object({
+        vehicles: z.object({
+          results: z.array(
+            z.object({
+              query: z.string(),
+              hits: z.array(z.object({ year: z.number() })),
+            }),
+          ),
+        }),
+      })
+      .parse(JSON.parse(match?.[1] ?? "null"));
+    expect(initial.vehicles.results[0]?.query).toBe("Toyota Venza");
+    expect(initial.vehicles.results[0]?.hits.map((hit) => hit.year)).toEqual([
+      ...years,
+    ]);
+  }, 15_000);
+}
+
 for (const sort of ["distance", "vehicles_distance"]) {
   test(`shared distance search hydrates its sort alias after querying the primary: ${sort}`, async () => {
     const html = await renderSharedSearchFixture(
