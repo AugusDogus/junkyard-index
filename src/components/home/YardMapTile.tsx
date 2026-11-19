@@ -1,5 +1,5 @@
 import type { TileComponentProps } from "pigeon-maps";
-import { useRef, type CSSProperties } from "react";
+import { createContext, useContext, useRef, type CSSProperties } from "react";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
 
 /**
@@ -18,7 +18,12 @@ function tilePosition(tile: TileComponentProps["tile"]): CSSProperties {
   };
 }
 
+// Keep Pigeon's tile component stable when loading starts, preserving its image nodes.
+export const YardMapTilesReady = createContext(true);
+
 export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
+  // Many tiles arrive before the hero paints. Keep its font and CSS ahead of them.
+  const ready = useContext(YardMapTilesReady);
   const loadedParts = useRef(new Set<number>());
   const [x, y, zoom] = tile.key.split("-").map(Number);
   // Pigeon's tile keys are x-y-zoom. Keep ordinary tiles working if that changes.
@@ -30,14 +35,17 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
   ) {
     return (
       <img
-        src={tile.url}
-        fetchPriority={tile.active ? "high" : "auto"}
+        src={ready ? tile.url : undefined}
+        fetchPriority="low"
         width={tile.width}
         height={tile.height}
         alt=""
         onLoad={tileLoaded}
         onError={tileLoaded}
-        style={tilePosition(tile)}
+        style={{
+          ...tilePosition(tile),
+          visibility: ready ? undefined : "hidden",
+        }}
       />
     );
   }
@@ -68,11 +76,15 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
             <picture>
               <source
                 media="(min-resolution: 1.5dppx)"
-                srcSet={yardTileProvider(x * 2 + column, y * 2 + row, zoom + 1)}
+                srcSet={
+                  ready
+                    ? yardTileProvider(x * 2 + column, y * 2 + row, zoom + 1)
+                    : undefined
+                }
               />
               <img
-                src={tile.url}
-                fetchPriority={tile.active ? "high" : "auto"}
+                src={ready ? tile.url : undefined}
+                fetchPriority="low"
                 width={256}
                 height={256}
                 alt=""
@@ -80,7 +92,10 @@ export function YardMapTile({ tile, tileLoaded }: TileComponentProps) {
                 decoding="async"
                 onLoad={loaded}
                 onError={loaded}
-                style={{ translate: `${-column * 50}% ${-row * 50}%` }}
+                style={{
+                  translate: `${-column * 50}% ${-row * 50}%`,
+                  visibility: ready ? undefined : "hidden",
+                }}
               />
             </picture>
           </div>
