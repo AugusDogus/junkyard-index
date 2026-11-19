@@ -1,5 +1,7 @@
 // Run with `bun test tests/browser/shared-search.test.ts` after installing Playwright Chromium.
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import tailwind from "@tailwindcss/postcss";
+import postcss from "postcss";
 import { chromium, type Browser } from "playwright-core";
 import {
   bundleSharedSearchFixture,
@@ -9,11 +11,20 @@ import {
 let browser: Browser;
 let script: string;
 let html: string;
+let stylesheet: string;
 
 beforeAll(async () => {
-  [html, script] = await Promise.all([
+  [html, script, stylesheet] = await Promise.all([
     renderSharedSearchFixture(),
     bundleSharedSearchFixture("browser").then((output) => output.text()),
+    Bun.file("src/styles/globals.css")
+      .text()
+      .then(async (source) => {
+        const result = await postcss([tailwind()]).process(source, {
+          from: "src/styles/globals.css",
+        });
+        return result.css;
+      }),
   ]);
   browser = await chromium.launch({ headless: true });
 }, 30_000);
@@ -21,6 +32,84 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
 });
+
+for (const ready of [true, false]) {
+  test(`phone sort labels and options honor chronological readiness: ${ready}`, async () => {
+    const page = await browser.newPage({
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      await page.route("http://shared-search.test/**", async (route) => {
+        const url = new URL(route.request().url());
+        const isScript = url.pathname === "/app.js";
+        return route.fulfill({
+          contentType: isScript ? "text/javascript" : "text/html",
+          body: isScript ? script : await renderSharedSearchFixture(url.search),
+        });
+      });
+      await page.goto(
+        `http://shared-search.test/search?q=toyota+venza&fixtureNewestReady=${ready ? "1" : "0"}`,
+      );
+      await page.addStyleTag({ content: stylesheet });
+      await page.getByRole("heading", { name: "2010 Toyota Venza" }).waitFor();
+      const initialName = ready
+        ? "Sort vehicles: Newest (Newest First)"
+        : "Sort vehicles: Relevance (Relevance)";
+      const initial = page.getByRole("combobox", {
+        name: initialName,
+        exact: true,
+      });
+      await initial.waitFor();
+      expect(await initial.locator('span[class="md:hidden"]').isVisible()).toBe(
+        true,
+      );
+      expect(
+        await initial.locator('span[class="hidden md:inline"]').isVisible(),
+      ).toBe(false);
+      await initial.click();
+      expect(
+        await page
+          .getByRole("option", { name: "Newest First", exact: true })
+          .count(),
+      ).toBe(ready ? 1 : 0);
+      await page
+        .getByRole("option", { name: "Oldest First", exact: true })
+        .click();
+      const oldest = page.getByRole("combobox", {
+        name: "Sort vehicles: Oldest (Oldest First)",
+        exact: true,
+      });
+      await oldest.waitFor();
+      expect(
+        await oldest.locator('span[class="md:hidden"]').textContent(),
+      ).toBe("Oldest");
+      await oldest.click();
+      await page
+        .getByRole("option", { name: "Relevance", exact: true })
+        .click();
+      const relevance = page.getByRole("combobox", {
+        name: "Sort vehicles: Relevance (Relevance)",
+        exact: true,
+      });
+      await relevance.waitFor();
+      expect(
+        await relevance.locator('span[class="md:hidden"]').textContent(),
+      ).toBe("Relevance");
+      await page.waitForFunction(
+        (ready) =>
+          new URL(window.location.href).searchParams.get("sort") ===
+          (ready ? "relevance" : null),
+        ready,
+      );
+      if (ready) {
+        await page.reload();
+        await relevance.waitFor();
+      }
+    } finally {
+      await page.close();
+    }
+  }, 15_000);
+}
 
 for (const scenario of [
   { name: "initial hydration", button: null, count: 1 },
