@@ -118,13 +118,23 @@ const unavailable = (retryAfter?: string) => () =>
     ),
   );
 
-test("a short Retry-After replaces the in-chunk backoff when it is longer", async () => {
+test("a Retry-After within the in-chunk backoff is retried on schedule", async () => {
   const { starts, result } = await settle([
-    unavailable("7"),
+    unavailable("2"),
+    unavailable("4"),
     () => Effect.succeed("page"),
   ]);
-  expect(starts).toEqual([0, 7_000]);
+  expect(starts).toEqual([0, 2_000, 6_000]);
   expect(result).toMatchObject({ _tag: "Right", right: "page" });
+});
+
+test("a Retry-After longer than the next backoff ends the chunk with that cooldown", async () => {
+  const { starts, result } = await settle([unavailable("2"), unavailable("5")]);
+  expect(starts).toEqual([0, 2_000]);
+  if (result._tag !== "Left") throw new Error("expected a cooldown");
+  expect(findProviderCooldownError(result.left)?.retryAfterMs).toBe(
+    PROVIDER_COOLDOWN_MS,
+  );
 });
 
 test("a Retry-After longer than a chunk can hold is not retried in-chunk and becomes a cooldown", async () => {

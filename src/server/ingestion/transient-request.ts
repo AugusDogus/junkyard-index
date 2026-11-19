@@ -12,9 +12,6 @@ const TRANSIENT_STATUSES = new Set([500, 502, 503, 504]);
 /** Retries inside the chunk, after about two and four seconds. */
 const IN_CHUNK_RETRIES = 2;
 const IN_CHUNK_BACKOFF_MS = 2_000;
-/** Longest Retry-After waited out inside a chunk. A longer one ends the chunk
- * at once with a durable cooldown instead of holding the function. */
-export const IN_CHUNK_RETRY_AFTER_LIMIT_MS = 10_000;
 /** Shortest durable cooldown once the in-chunk retries are spent, so the
  * chunk is not rerun against the failing host within seconds. */
 export const PROVIDER_COOLDOWN_MS = 2 * 60_000;
@@ -114,12 +111,11 @@ export function isTransientRequestFailure(
   return transientRetryAfterMs(failure, options) !== null;
 }
 
-/** Two more attempts after about two and four seconds, or after a longer
- * Retry-After of up to ten seconds. Retrying the gated request re-enters the
- * gate, so pacing and deadlines apply every time. A failure still transient
- * after that, or one asking for a longer wait, becomes a
- * ProviderCooldownError: the workflow waits durably instead of spending its
- * step retries on the same host. */
+/** Two more attempts after about two and four seconds. Retrying the gated
+ * request re-enters the gate, so pacing and deadlines apply every time. A
+ * failure still transient after that, or one whose Retry-After asks for more
+ * than the next backoff, becomes a ProviderCooldownError: the workflow waits
+ * durably instead of spending its step retries on the same host. */
 export function retryTransientRequest<A, E, R>(
   request: Effect.Effect<A, E, R>,
   options: { context: string; timeouts: boolean },
@@ -130,10 +126,10 @@ export function retryTransientRequest<A, E, R>(
     Effect.catchAll(request, (error) => {
       const retryAfterMs = transientRetryAfterMs(error, options);
       if (retryAfterMs === null) return Effect.fail(error);
-      if (
-        retries >= IN_CHUNK_RETRIES ||
-        retryAfterMs > IN_CHUNK_RETRY_AFTER_LIMIT_MS
-      )
+      // Chunk deadlines budget for the backoff only, so a longer requested
+      // wait ends the chunk now instead of being cut off by the deadline.
+      const backoffMs = IN_CHUNK_BACKOFF_MS * 2 ** retries;
+      if (retries >= IN_CHUNK_RETRIES || retryAfterMs > backoffMs)
         return Effect.fail(
           new ProviderCooldownError({
             context: options.context,
@@ -141,9 +137,9 @@ export function retryTransientRequest<A, E, R>(
             cause: error,
           }),
         );
-      return Effect.sleep(
-        Math.max(IN_CHUNK_BACKOFF_MS * 2 ** retries, retryAfterMs),
-      ).pipe(Effect.zipRight(attempt(retries + 1)));
+      return Effect.sleep(backoffMs).pipe(
+        Effect.zipRight(attempt(retries + 1)),
+      );
     });
   return attempt(0);
 }
