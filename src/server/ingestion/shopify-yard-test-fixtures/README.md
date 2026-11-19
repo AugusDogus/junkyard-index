@@ -15,4 +15,6 @@ Captured on 2026-11-15 with sequential GETs. Gzip contents are complete response
 
 The native UI fixture verifies the feed URL, list-visible filter and stock-number destination contract. Tests use saved responses only and never contact these sites.
 
+`hawaiiparts-yard-html.gz` was recaptured on 2026-11-19 after the yard moved each VIN out of page text into base64 `data-v` (decoded by the page with `atob`) and switched card anchors to positional `car-N`. Styles, link tags, SVG bodies and scripts were removed, except the address JSON-LD and the yard script that decodes `data-v` and resolves `?car=<vin>`. All 44 cards are unchanged.
+
 `requests.json` records all 27 sequential live GET attempts (including two Census lookups and eight HTTP429 responses). Eight GETs completed the two live connector censuses. One earlier HTTP200 attempt exposed an incorrect local reader limit and was repeated after fixing it. LaChance's JSON fixture preserves the qualification gap: only 14 of 139 donor bodies carry a VIN. No deferred-yard source is registered.

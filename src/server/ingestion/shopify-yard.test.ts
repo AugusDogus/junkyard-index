@@ -106,15 +106,15 @@ describe("Shopify yard native census", () => {
         (v) =>
           v.stateAbbr === "HI" &&
           v.locationCode === "kapolei" &&
-          v.detailsUrl === HAWAIIPARTS_CATALOG + "#car-" + v.vin.toLowerCase(),
+          v.detailsUrl === HAWAIIPARTS_CATALOG + "?car=" + v.vin.toLowerCase(),
       ),
     ).toBe(true);
     expect(
       result.vehicles.find((v) => v.vin === "SALCP2BG1GH623503")?.make,
     ).toBe("Land Rover");
-    // Three provider-relative photo paths are broken; no invented media destination.
+    // "Photo coming soon" placeholder card; no invented media destination.
     expect(
-      result.vehicles.find((v) => v.vin === "JTHKD5BH6D2133318")?.imageUrl,
+      result.vehicles.find((v) => v.vin === "YV449MRS6H2030085")?.imageUrl,
     ).toBeNull();
   });
   test("fails closed for missing cards, pagination, duplicate anchors, missing totals and incomplete HTML", () => {
@@ -123,7 +123,7 @@ describe("Shopify yard native census", () => {
       html.replace('data-total="44"', 'data-total="45"'),
       html.replace('id="hpy-count"', 'id="missing"'),
       html.replace("</article>", ""),
-      html.replace('id="car-kmhl34jj2sa121642"', 'id="car-4t1bf1fk8fu473924"'),
+      html.replace('id="car-2"', 'id="car-1"'),
       html.slice(0, -30),
       html.replace(
         'id="hpy-grid">',
@@ -137,8 +137,8 @@ describe("Shopify yard native census", () => {
       shopifyYardFixture("hawaiiparts-yard-html")
         .replace("📍 Kapolei, Oahu", "📍 Tampa, Florida")
         .replace(
-          ">2025 Hyundai Sonata Hybrid</h2>",
-          ">2024 Hyundai Sonata Hybrid</h2>",
+          ">2025 Hyundai Sonata Hybrid</a></h2>",
+          ">2024 Hyundai Sonata Hybrid</a></h2>",
         ),
     );
     expect(snapshot(changed).accounting.recordsRejected).toBe(2);
