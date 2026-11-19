@@ -1,3 +1,4 @@
+import { MakeFilter } from "~/lib/make-filter";
 import { normalizeCanonicalVehicle } from "./normalization";
 import { ArrivalDate } from "~/lib/arrival-date";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -51,6 +52,7 @@ export interface AlgoliaVehicleRecord {
   vinPrefixes: string[];
   vinPositionTokens: string[];
   searchTokens: string[];
+  makeAliases: string[];
   source: IngestionSource;
   year: number;
   make: string;
@@ -136,6 +138,7 @@ export function toAlgoliaRecord(
     source: vehicle.source,
     year: vehicle.year,
     make: vehicle.make,
+    makeAliases: MakeFilter.aliases(vehicle.make, vehicle.sourceMake),
     model: vehicle.model,
     sourceMake: vehicle.sourceMake,
     sourceModel: vehicle.sourceModel,

@@ -1,3 +1,4 @@
+import { MakeFilter } from "~/lib/make-filter";
 import { withFullServiceCount } from "~/lib/full-service-search";
 import { SearchYearQuery } from "~/lib/search-year-query";
 import { withSearchCountsCache } from "~/lib/search-counts-cache";
@@ -119,10 +120,11 @@ export function prepareSearchExpression(
   query: string,
   booleanOrSearchReady: boolean,
   allowAdvancedFilters: boolean,
+  makeAliasesReady = true,
 ):
   | { success: true; data: CompiledExpression }
   | { success: false; error: SearchExpressionError } {
-  const compiled = compileSearchExpression(query);
+  const compiled = compileSearchExpression(query, makeAliasesReady);
   if (!compiled.success) {
     return {
       success: false,
@@ -156,14 +158,24 @@ function addAdvancedSyntax(
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
+  makeAliasesReady = false,
 ): SearchParamsObject | undefined {
-  if (!params || typeof params.query !== "string") return params;
+  if (!params) return params;
+  params = {
+    ...params,
+    facetFilters:
+      makeAliasesReady && params.facetFilters
+        ? MakeFilter.facets(params.facetFilters)
+        : params.facetFilters,
+  };
+  if (typeof params.query !== "string") return params;
 
   if (expressionMode) {
     const compiled = prepareSearchExpression(
       params.query,
       booleanOrSearchReady,
       allowAdvancedFilters,
+      makeAliasesReady,
     );
     if (!compiled.success) throw new Error(compiled.error.message);
     return {
@@ -198,6 +210,7 @@ function transformLegacyRequests(
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
+  makeAliasesReady = false,
 ): LegacySearchMethodProps {
   return requests.map((request) => ({
     ...request,
@@ -206,6 +219,7 @@ function transformLegacyRequests(
       booleanOrSearchReady,
       expressionMode,
       allowAdvancedFilters,
+      makeAliasesReady,
     ),
   }));
 }
@@ -215,11 +229,12 @@ function transformSearchMethodParams(
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
+  makeAliasesReady = false,
 ): SearchMethodParams {
   return {
     ...searchMethodParams,
     requests: searchMethodParams.requests.map((request) => {
-      if (!("query" in request) || typeof request.query !== "string") {
+      if (!("query" in request) && !("facetFilters" in request)) {
         return request;
       }
 
@@ -230,6 +245,7 @@ function transformSearchMethodParams(
           booleanOrSearchReady,
           expressionMode,
           allowAdvancedFilters,
+          makeAliasesReady,
         ),
       };
     }),
@@ -240,6 +256,7 @@ function createSearchClient(
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
+  makeAliasesReady = false,
 ) {
   return {
     ...baseSearchClient,
@@ -254,6 +271,7 @@ function createSearchClient(
               booleanOrSearchReady,
               expressionMode,
               allowAdvancedFilters,
+              makeAliasesReady,
             ),
             requestOptions,
           )
@@ -263,6 +281,7 @@ function createSearchClient(
               booleanOrSearchReady,
               expressionMode,
               allowAdvancedFilters,
+              makeAliasesReady,
             ),
             requestOptions,
           );
@@ -275,14 +294,16 @@ export function getSearchClient(
   booleanOrSearchReady: boolean,
   expressionMode = false,
   allowAdvancedFilters = false,
+  makeAliasesReady = false,
 ) {
-  const key = `${booleanOrSearchReady}:${expressionMode}:${allowAdvancedFilters}`;
+  const key = `${booleanOrSearchReady}:${expressionMode}:${allowAdvancedFilters}:${makeAliasesReady}`;
   const existing = clients.get(key);
   if (existing) return existing;
   const client = createSearchClient(
     booleanOrSearchReady,
     expressionMode,
     allowAdvancedFilters,
+    makeAliasesReady,
   );
   clients.set(key, client);
   return client;

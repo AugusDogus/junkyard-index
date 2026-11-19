@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MakeInventory, type MakeRollupRow } from "../src/lib/make-inventory";
 import { ModelRedirect } from "../src/lib/model-redirect";
-import { ConsumerModel } from "../src/lib/consumer-model";
+import { ConsumerIdentity } from "../src/lib/consumer-identity";
 import { VinDecode } from "../src/server/ingestion/vin-decode";
 import { VehicleName } from "../src/lib/vehicle-name";
 
@@ -78,9 +78,9 @@ export function auditVinModelUrls(
     const id = VinDecode.identity(row.vin, row.year);
     const identity = id ? decoded.get(id.key) : undefined;
     if (!identity) continue;
-    const make = identity.make;
-    const model = ConsumerModel.resolve({
+    const { make, model } = ConsumerIdentity.resolve({
       ...identity,
+      sourceMake: row.make,
       sourceModel: row.model,
     });
     const oldKey = JSON.stringify([row.make, row.model]);

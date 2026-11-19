@@ -21,6 +21,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
     "make",
     "model",
     "unordered(sourceModel)",
+    "unordered(makeAliases)",
     "year",
     "unordered(color)",
     "unordered(vin)",
@@ -33,6 +34,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
     "source",
     "yardTypes",
     "searchable(make)",
+    "filterOnly(makeAliases)",
     "searchable(model)",
     "searchable(color)",
     "searchable(state)",
@@ -57,6 +59,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
     "vinPositionTokens",
     "vinPrefixes",
     "searchTokens",
+    "makeAliases",
   ],
 } satisfies IndexSettings;
 

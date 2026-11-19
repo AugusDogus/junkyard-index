@@ -1,3 +1,4 @@
+import { compileSearchExpression } from "./compile-search-expression";
 import type { SearchResponse } from "algoliasearch/lite";
 import type { AlgoliaVehicleHit } from "~/lib/search-vehicles";
 import { describe, expect, test } from "bun:test";
@@ -62,7 +63,7 @@ describe("alert match search", () => {
           {
             indexName: "vehicles",
             query: "civic",
-            filters: 'make:"Honda"',
+            filters: 'makeAliases:"Honda"',
             advancedSyntax: true,
             advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
             hitsPerPage: 100,
@@ -94,7 +95,7 @@ describe("alert match search", () => {
       requests: [
         {
           query: "civic",
-          filters: 'firstSeenAt > 1787616000 AND make:"Honda"',
+          filters: 'firstSeenAt > 1787616000 AND makeAliases:"Honda"',
           hitsPerPage: 100,
           page: 0,
         },
@@ -156,7 +157,7 @@ test("expression alerts retain the time window outside Boolean alternatives", as
       {
         query: "",
         filters:
-          '(make:"Volvo" OR make:"Saab") AND year < 2000 AND firstSeenAt > 1787616000',
+          '(makeAliases:"Volvo" OR makeAliases:"Saab") AND year < 2000 AND firstSeenAt > 1787616000',
       },
     ],
   });
@@ -357,7 +358,10 @@ test("batched matches stop at the checked-through second", async () => {
   expect(requests).toMatchObject([
     {
       requests: [
-        { filters: 'firstSeenAt > 1 AND firstSeenAt <= 5 AND make:"Ford"' },
+        {
+          filters:
+            'firstSeenAt > 1 AND firstSeenAt <= 5 AND makeAliases:"Ford"',
+        },
       ],
     },
   ]);
@@ -417,4 +421,22 @@ test("batched arrival windows end at the check's bound, not the wall clock", asy
       ],
     },
   ]);
+});
+
+test("pre-migration alerts keep using the existing make facet until alias records are ready", async () => {
+  const requests: unknown[] = [];
+  await getAlertMatchStatsWithClient(
+    emptySearchClient((input) => requests.push(input)),
+    "Sonoma",
+    { makes: ["Chevrolet"] },
+    null,
+    false,
+  );
+  expect(requests[0]).toMatchObject({
+    requests: [{ filters: 'make:"Chevrolet"' }],
+  });
+  expect(compileSearchExpression("make:Chevrolet", false)).toMatchObject({
+    success: true,
+    data: { filters: 'make:"Chevrolet"' },
+  });
 });

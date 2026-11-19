@@ -55,7 +55,25 @@ test("outages and malformed bodies yield no identities; long Retry-After defers 
         return response();
       },
     });
-    expect((await client.decode([request])).size).toBe(0);
+    expect((await client.decode([request])).decodes.size).toBe(0);
     expect(calls).toBe(index === 2 ? 1 : 3);
+  }
+});
+
+test("JSON service errors trip the circuit, while valid rejected decodes do not", async () => {
+  for (const [body, expectedStatus, attempts] of [
+    [{ error: "unavailable" }, "unavailable", 3],
+    [{ Results: [] }, "complete", 1],
+  ] as const) {
+    let calls = 0;
+    const decoder = createVpicClient({
+      sleep: async () => {},
+      fetch: async () => {
+        calls++;
+        return Response.json(body);
+      },
+    });
+    expect((await decoder.decode([request])).status).toBe(expectedStatus);
+    expect(calls).toBe(attempts);
   }
 });

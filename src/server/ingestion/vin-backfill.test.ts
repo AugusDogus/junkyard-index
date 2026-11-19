@@ -1,3 +1,4 @@
+import { warmVinDecodeCache } from "./vin-cache-warmer";
 import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -29,10 +30,13 @@ test("backfill publishes canonical facets while preserving source names, trim, i
     };
     await database.insert(vehicle).values(raw);
     const rows = await database.select().from(vehicle);
-    const result = await backfillVinVehicles(database, rows, {
-      decode: async (requests) =>
-        new Map(requests.map((row) => [row.key, canonical])),
+    await warmVinDecodeCache(database, rows, {
+      decode: async (requests) => ({
+        status: "complete",
+        decodes: new Map(requests.map((row) => [row.key, canonical])),
+      }),
     });
+    const result = await backfillVinVehicles(database, rows);
     expect(result[0]).toMatchObject({
       ...raw,
       make: "Ford",
@@ -66,7 +70,7 @@ test("a concurrent ingestion update wins over a stale backfill read and is the p
     };
     await database.insert(vehicle).values(raw);
     const rows = await database.select().from(vehicle);
-    const result = await backfillVinVehicles(database, rows, {
+    await warmVinDecodeCache(database, rows, {
       decode: async (requests) => {
         await database
           .update(vehicle)
@@ -77,9 +81,13 @@ test("a concurrent ingestion update wins over a stale backfill read and is the p
             lastSeenAt: new Date(5000),
           })
           .where(eq(vehicle.vin, raw.vin));
-        return new Map(requests.map((row) => [row.key, canonical]));
+        return {
+          status: "complete",
+          decodes: new Map(requests.map((row) => [row.key, canonical])),
+        };
       },
     });
+    const result = await backfillVinVehicles(database, rows);
     expect(result[0]).toMatchObject({
       year: 2007,
       make: "Honda",

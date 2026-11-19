@@ -1,3 +1,4 @@
+import { getSearchIndexCapabilities } from "./search-index-readiness";
 import { canonicalizeVinVehicles } from "./vin-canonicalization";
 import { isValidationRejection } from "./ingestion-validation";
 import type { DurableWorkflowCursor } from "./durable-workflow-cursor";
@@ -225,13 +226,17 @@ export async function reconcileDurableIngestion(
     console.warn(`[Ingestion] Run ${runId}: ${error.message}`);
     return { status: "mode_unavailable" };
   }
+  const { makeAliasesReady } = await getSearchIndexCapabilities();
   return reconcileDurableIngestionRun({
     runId,
     database: db,
     batchClient: dbClient,
     snapshotStore,
     searchPublication,
-    canonicalize: (rows) => canonicalizeVinVehicles(db, rows),
+    canonicalize: (rows) =>
+      makeAliasesReady
+        ? canonicalizeVinVehicles(db, rows)
+        : Promise.resolve(rows),
     budgetMs: 60_000,
   });
 }

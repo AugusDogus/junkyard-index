@@ -31,7 +31,7 @@ describe("expression execution", () => {
       success: true,
       data: {
         query: 'pickup "crew cab" -diesel',
-        filters: '(make:"Volvo" OR make:"Saab") AND year < 2000',
+        filters: '(makeAliases:"Volvo" OR makeAliases:"Saab") AND year < 2000',
         requiresTokens: false,
         hasFields: true,
       },
@@ -44,7 +44,7 @@ describe("expression execution", () => {
     expect(result.success).toBe(true);
     if (result.success)
       expect(result.data.filters).toBe(
-        '(make:"Volvo" OR make:"Saab") AND (make:"Volvo" OR state:"Iowa") AND (state:"Texas" OR make:"Saab") AND (state:"Texas" OR state:"Iowa")',
+        '(makeAliases:"Volvo" OR makeAliases:"Saab") AND (makeAliases:"Volvo" OR state:"Iowa") AND (state:"Texas" OR makeAliases:"Saab") AND (state:"Texas" OR state:"Iowa")',
       );
   });
   test("rejects unsupported or explosive queries instead of weakening them", () => {

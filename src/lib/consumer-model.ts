@@ -32,7 +32,11 @@ const SOURCE_NAMES: Readonly<Record<string, Readonly<Record<string, string>>>> =
       SILVRDO15: "Silverado 1500",
       SILVRDO25: "Silverado 2500",
       SILVRDO35: "Silverado 3500",
+      EXPRESS15: "Express 1500",
+      EXPRESS25: "Express 2500",
+      EXPRESS35: "Express 3500",
     },
+    SCION: { TCSCION: "tC", XASCION: "xA", XBSCION: "xB", XDSCION: "xD" },
   };
 const RATINGS: Readonly<Record<string, string>> = {
   "1500": "1500",
@@ -203,4 +207,4 @@ function resolve(input: ConsumerModel): string {
   return result;
 }
 
-export const ConsumerModel = { resolve } as const;
+export const ConsumerModel = { resolve, sourceAliases: SOURCE_NAMES } as const;

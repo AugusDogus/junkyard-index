@@ -29,6 +29,7 @@ test("a provider reports published once Turso has its accepted inventory, whethe
         args: [id, status, stage, inventory, search, accepted],
       });
     }
+    mock.module("server-only", () => ({}));
     mock.module("~/lib/db", () => ({ db: drizzle(client), dbClient: client }));
     mock.module("~/lib/algolia", () => ({
       ALGOLIA_INDEX_NAME: "vehicles",

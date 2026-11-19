@@ -50,7 +50,7 @@ describe("algolia alert search helpers", () => {
       null,
     );
 
-    expect(filters).toContain('(make:"Honda" OR make:"Toyota")');
+    expect(filters).toContain('(makeAliases:"Honda" OR makeAliases:"Toyota")');
     expect(filters).toContain('(state:"California" OR state:"Nevada")');
     expect(filters).toContain(
       '(source:"pyp" OR source:"row52" OR source:"autorecycler" OR source:"pullapart" OR source:"upullitne" OR source:"upullitdavie" OR source:"gopullit")',
@@ -78,8 +78,8 @@ describe("algolia alert search helpers", () => {
       null,
     );
 
-    expect(filters).toContain('(make:"Honda" OR make:"Toyota")');
-    expect(filters).not.toContain('make:""');
+    expect(filters).toContain('(makeAliases:"Honda" OR makeAliases:"Toyota")');
+    expect(filters).not.toContain('makeAliases:""');
   });
 
   test("handles finite and inverted year ranges safely", () => {

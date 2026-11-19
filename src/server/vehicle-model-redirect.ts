@@ -1,7 +1,6 @@
 import "server-only";
-import { eq } from "drizzle-orm";
 import { db } from "~/lib/db";
-import { vehicleModelRedirect } from "~/schema";
+import { findModelRedirect } from "./model-url-history";
 import { getMakePageData } from "./vehicle-models";
 import { ModelRedirect } from "~/lib/model-redirect";
 
@@ -9,11 +8,7 @@ import { ModelRedirect } from "~/lib/model-redirect";
 export async function getVehicleModelRedirect(
   path: string,
 ): Promise<string | null> {
-  const [redirect] = await db
-    .select()
-    .from(vehicleModelRedirect)
-    .where(eq(vehicleModelRedirect.fromPath, path))
-    .limit(1);
+  const redirect = await findModelRedirect(db, path);
   if (!redirect) return null;
   const targetPath = redirect.toPath || ModelRedirect.parent(path);
   const makeSlug = targetPath.split("/")[2];

@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { ALGOLIA_INDEX_NAME, getAlgoliaAdminClient } from "~/lib/algolia";
 import {
   CHRONOLOGICAL_SEARCH_SCHEMA_VERSION,
+  VIN_CANONICAL_SEARCH_SCHEMA_VERSION,
   getSearchSchemaVersion,
   isAdvancedSearchReady,
   isVinPatternSearchReady,
@@ -12,6 +13,7 @@ export interface SearchIndexCapabilities {
   vinPatternSearchReady: boolean;
   booleanOrSearchReady: boolean;
   newestSortReady: boolean;
+  makeAliasesReady: boolean;
 }
 
 async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
@@ -20,6 +22,9 @@ async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
       indexName: ALGOLIA_INDEX_NAME,
     });
     return {
+      makeAliasesReady:
+        getSearchSchemaVersion(settings.userData) >=
+        VIN_CANONICAL_SEARCH_SCHEMA_VERSION,
       vinPatternSearchReady: isVinPatternSearchReady(settings.userData),
       booleanOrSearchReady: isAdvancedSearchReady(settings.userData),
       newestSortReady:
@@ -32,6 +37,7 @@ async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
       error,
     );
     return {
+      makeAliasesReady: false,
       vinPatternSearchReady: false,
       booleanOrSearchReady: false,
       newestSortReady: false,
@@ -41,6 +47,6 @@ async function readSearchIndexCapabilities(): Promise<SearchIndexCapabilities> {
 
 export const getSearchIndexCapabilities = unstable_cache(
   readSearchIndexCapabilities,
-  ["search-index-capabilities"],
+  ["search-index-capabilities:v12"],
   { revalidate: 30 },
 );

@@ -19,7 +19,7 @@ const escape = (value: string) =>
   value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 const attributes = {
   text: "searchTokens",
-  make: "make",
+  make: "makeAliases",
   color: "color",
   state: "state",
   yard: "locationName",
@@ -54,7 +54,10 @@ export function combineSearchFilters(
   return clauses.length ? clauses.join(" AND ") : undefined;
 }
 
-export function compileSearchExpression(input: string): Compilation {
+export function compileSearchExpression(
+  input: string,
+  makeAliasesReady = true,
+): Compilation {
   const parsed = parseExpression(input);
   if (!parsed.success) return parsed;
   const clauses = toClauses(parsed.value);
@@ -95,7 +98,7 @@ export function compileSearchExpression(input: string): Compilation {
         const normalized =
           field === "text" ? value.toLocaleLowerCase("en-US") : value;
         parts.push(
-          `${comparison === "not" ? "NOT " : ""}${attributes[field]}:"${escape(normalized)}"`,
+          `${comparison === "not" ? "NOT " : ""}${field === "make" && !makeAliasesReady ? "make" : attributes[field]}:"${escape(normalized)}"`,
         );
       }
     }

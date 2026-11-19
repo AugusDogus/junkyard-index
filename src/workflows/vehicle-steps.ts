@@ -1,9 +1,12 @@
 import type { DurableWorkflowCursor } from "~/server/ingestion/durable-workflow-cursor";
+import { warmVinCacheBatch } from "~/server/ingestion/vin-cache-warmer";
+import type { VinCachePassState } from "~/server/ingestion/vin-cache-pass";
 import { FatalError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { formatError, throwRetryableStepError } from "./step-errors";
 import { resumeHook } from "workflow/api";
 import { INVENTORY_CACHE_TAG } from "~/lib/inventory-cache";
+import { db } from "~/lib/db";
 import * as Sentry from "@sentry/nextjs";
 import { runDailySearchAlertCheckBatch } from "~/server/alerts/search-alert-check-runtime";
 import { runDurableAlgoliaProjectionBatch } from "~/server/ingestion/algolia-projector";
@@ -347,6 +350,22 @@ export async function initializeSearchIndexMigrationStep(force = false) {
   }
 }
 initializeSearchIndexMigrationStep.maxRetries = 2;
+
+export async function warmVinCacheBatchStep(state: VinCachePassState) {
+  "use step";
+
+  // Enrichment is optional. Even a cache database error must leave publication
+  // free to read existing identities and publish source fallbacks.
+  try {
+    return await warmVinCacheBatch(db, state);
+  } catch (error) {
+    console.warn(
+      `[VIN cache] Decode pass stopped; publication uses cached identities or source names: ${formatError(error)}`,
+    );
+    return { status: "unavailable" as const, state };
+  }
+}
+warmVinCacheBatchStep.maxRetries = 0;
 
 export async function runSearchIndexMigrationBatchStep(
   state: SearchIndexMigrationState,

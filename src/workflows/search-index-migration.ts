@@ -1,10 +1,12 @@
 import { createHook, sleep } from "workflow";
 import { IngestionTokens } from "./ingestion-tokens";
 import { searchRebuildInFlightStep } from "./search-projector-steps";
+import { runVinCachePass } from "~/server/ingestion/vin-cache-pass";
 import {
   finalizeSearchIndexMigrationStep,
   initializeSearchIndexMigrationStep,
   runSearchIndexMigrationBatchStep,
+  warmVinCacheBatchStep,
 } from "./vehicle-steps";
 
 const MIGRATION_RUN_TOKEN = "search-index-schema-migration";
@@ -21,6 +23,10 @@ export async function searchIndexMigrationWorkflow(force = false) {
       activeRunId: activeRun.runId,
     };
   }
+
+  // No shared writer or ingestion commit is held during network enrichment.
+  // A service failure opens the circuit for this pass, then publishes fallbacks.
+  const warmed = await runVinCachePass(warmVinCacheBatchStep);
 
   while (true) {
     using algoliaWrites = createHook({ token: IngestionTokens.algoliaWrites });
@@ -49,7 +55,9 @@ export async function searchIndexMigrationWorkflow(force = false) {
         reason: "search_rebuild_in_flight",
       };
     }
-    const initialized = await initializeSearchIndexMigrationStep(force);
+    const initialized = await initializeSearchIndexMigrationStep(
+      force || warmed.accepted > 0,
+    );
     if (initialized.status === "ready") {
       return { status: "completed" as const, migration: initialized.result };
     }

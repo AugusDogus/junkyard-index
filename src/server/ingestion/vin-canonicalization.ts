@@ -1,5 +1,5 @@
 import { ModelRedirect } from "~/lib/model-redirect";
-import { ConsumerModel } from "~/lib/consumer-model";
+import { ConsumerIdentity } from "~/lib/consumer-identity";
 import { inArray, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { vinDecodeCache, vehicleModelRedirect } from "~/schema";
@@ -7,17 +7,10 @@ import { VehicleName } from "~/lib/vehicle-name";
 import { normalizeCanonicalVehicle } from "./normalization";
 import type { CanonicalVehicle } from "./types";
 import { VinDecode } from "./vin-decode";
-import { vpicClient, type VpicClient } from "./vpic-client";
-
-const RETRY_DELAY_MS = 24 * 60 * 60 * 1000;
-// At most two 50-VIN requests per reconciliation/migration batch. New misses
-// beyond this budget keep source names until the next daily ingestion.
-const MAX_NEW_PATTERNS = 100;
 
 export async function canonicalizeVinVehicles<T extends CanonicalVehicle>(
   database: LibSQLDatabase,
   rows: T[],
-  client: VpicClient = vpicClient,
 ): Promise<T[]> {
   const requests = new Map(
     rows.flatMap((row) => {
@@ -31,58 +24,20 @@ export async function canonicalizeVinVehicles<T extends CanonicalVehicle>(
     .from(vinDecodeCache)
     .where(inArray(vinDecodeCache.pattern, [...requests.keys()]));
   const byPattern = new Map(cached.map((row) => [row.pattern, row]));
-  const now = new Date();
-  const pending = [...requests.values()]
-    .filter((request) => {
-      const entry = byPattern.get(request.key);
-      return (
-        !entry ||
-        (!entry.data && (!entry.retryAfter || entry.retryAfter <= now))
-      );
-    })
-    .slice(0, MAX_NEW_PATTERNS);
-  const decoded = pending.length
-    ? await client.decode(pending)
-    : new Map<string, VinDecode>();
-  const entries = pending.map((request) => {
-    const data = decoded.get(request.key) ?? null;
-    return {
-      pattern: request.key,
-      data,
-      retryAfter: data ? null : new Date(now.getTime() + RETRY_DELAY_MS),
-      updatedAt: now,
-    };
-  });
-  if (entries.length)
-    await database
-      .insert(vinDecodeCache)
-      .values(entries)
-      .onConflictDoUpdate({
-        target: vinDecodeCache.pattern,
-        set: {
-          data: sql`excluded.data`,
-          retryAfter: sql`excluded.retry_after`,
-          updatedAt: now,
-        },
-      });
-  for (const entry of entries) byPattern.set(entry.pattern, entry);
-  if (decoded.size < pending.length)
-    console.warn(
-      `[VIN decode] ${pending.length - decoded.size} of ${pending.length} patterns have no trusted identity. Source names are preserved; retry after 24 hours.`,
-    );
   return rows.map((row) => {
     const request = VinDecode.identity(row.vin, row.year);
     const decode = request ? byPattern.get(request.key)?.data : null;
     const normalized = sourceFallback(row);
     if (!decode || decode.year !== row.year) return normalized;
+    const identity = ConsumerIdentity.resolve({
+      ...decode,
+      sourceMake: row.sourceMake ?? row.make,
+      sourceModel: row.sourceModel ?? row.model,
+    });
     return {
       ...row,
       ...normalized,
-      make: decode.make,
-      model: ConsumerModel.resolve({
-        ...decode,
-        sourceModel: row.sourceModel ?? row.model,
-      }),
+      ...identity,
       sourceMake: row.sourceMake ?? row.make,
       sourceModel: row.sourceModel ?? row.model,
       trim: row.trim?.trim() || decode.trim,

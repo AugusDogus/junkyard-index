@@ -12,6 +12,7 @@ const SCRIPT = `
   const client = createClient({ url: ":memory:" });
   await client.executeMultiple(TEST_SCHEMA);
   const deleteIndexCalls = [];
+  mock.module("server-only", () => ({}));
   mock.module("~/lib/db", () => ({ db: drizzle(client), dbClient: client }));
   mock.module("~/lib/algolia", () => ({
     ALGOLIA_INDEX_NAME: "vehicles",
