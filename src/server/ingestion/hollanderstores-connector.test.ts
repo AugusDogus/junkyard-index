@@ -222,6 +222,20 @@ describe("Hollander Stores saved complete census", () => {
   test("closing drift and corrupt checkpoints cannot emit", async () => {
     let requests = 0,
       emitted = false;
+    const response = (yard: HollanderstoresYard) => {
+      // Standard's saved stock A18031 retains the field-drift proof. The other
+      // yards need only matching opening/closing bodies and cursor membership.
+      if (yard.code === "standardauto") return fixture(yard.code);
+      return `<html><body><a class="hpdcLogo">${yard.logo.replaceAll("&", "&amp;")}</a>
+          <p>Showing 1 Vehicles in Inventory</p><div class="individualPartHolder">
+          <span>&#39;13 ACURA RDX</span><li>VIN 5J8TB4H35DL015046</li><li>Stock# offline</li>
+          <a href="/VehicleDealerShowParts/${yard.tenant}/1">View Parts</a></div></body></html>`;
+    };
+    const readPage = (yard: HollanderstoresYard) =>
+      Effect.sync(() => {
+        requests++;
+        return response(yard);
+      });
     const run = streamHollanderstoresInventory({
       maxPages: 8,
       decodeBatch: decode,
@@ -229,11 +243,7 @@ describe("Hollander Stores saved complete census", () => {
         Effect.sync(() => {
           emitted = true;
         }),
-      readPage: (yard) =>
-        Effect.sync(() => {
-          requests++;
-          return fixture(yard.code);
-        }),
+      readPage,
     });
     let first = await Effect.runPromise(run);
     while (first.cursor.phase !== "closing") {
@@ -250,11 +260,7 @@ describe("Hollander Stores saved complete census", () => {
           startCursor: first.cursor,
           maxPages: Math.min(8, remaining),
           decodeBatch: decode,
-          readPage: (yard) =>
-            Effect.sync(() => {
-              requests++;
-              return fixture(yard.code);
-            }),
+          readPage,
           onBatch: () => Effect.die("No inventory before closing"),
         }),
       );
@@ -273,7 +279,7 @@ describe("Hollander Stores saved complete census", () => {
             emitted = true;
           }),
         readPage: (yard) =>
-          Effect.succeed(fixture(yard.code).replace("A18031", "OTHER")),
+          Effect.succeed(response(yard).replace("A18031", "OTHER")),
       }),
     );
     expect(result.status).toBe("failed");
