@@ -7,7 +7,11 @@ export function PublicPageShell({ children }: { children: ReactNode }) {
   return (
     <div className="bg-background flex min-h-dvh flex-col">
       <PublicHeader />
-      <main className="shell flex-1 pt-8 pb-24 sm:pt-12 sm:pb-32">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="shell flex-1 pt-8 pb-24 sm:pt-12 sm:pb-32"
+      >
         {children}
       </main>
       <Footer status="link" />

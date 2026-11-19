@@ -94,7 +94,7 @@ export function SignInForm() {
         <Input
           id="email"
           type="email"
-          placeholder="john.doe@gmail.com"
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -144,17 +144,6 @@ export function SignInForm() {
       >
         {isLoading ? "Signing in..." : "Sign in"}
       </Button>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background sm:bg-card text-muted-foreground px-2">
-            Or continue with
-          </span>
-        </div>
-      </div>
 
       <Button
         type="button"

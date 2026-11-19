@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import { cn } from "~/lib/utils";
 import { HeaderAuthButtons } from "./HeaderAuthButtons";
 import { SessionHeaderAuthButtons } from "./SessionHeaderAuthButtons";
@@ -23,6 +24,20 @@ interface HeaderContentProps {
 export function HeaderContent({ auth }: HeaderContentProps) {
   return (
     <header className="bg-paper border-ink sticky top-0 z-50 border-b-2">
+      <a
+        href="#main-content"
+        className="bg-paper text-ink focus-visible:outline-focus fixed top-2 left-2 z-50 -translate-y-[200%] border-2 px-4 py-3 focus:translate-y-0 focus:outline-2"
+        onClick={(event) => {
+          const main = document.querySelector("main");
+          if (!main) return;
+          event.preventDefault();
+          main.tabIndex = -1;
+          main.focus();
+          main.scrollIntoView();
+        }}
+      >
+        Skip to content
+      </a>
       <div className="shell">
         <div className="flex h-16 items-center gap-2 sm:h-18 sm:gap-4 md:gap-8">
           <Link
@@ -32,20 +47,22 @@ export function HeaderContent({ auth }: HeaderContentProps) {
           >
             Junkyard Index
           </Link>
-          <nav aria-label="Main" className="hidden self-stretch sm:flex">
+          <nav aria-label="Main" className="hidden self-stretch md:flex">
             <MainLinks />
           </nav>
           <div className="flex-1" />
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            {auth.kind === "server" ? (
-              <HeaderAuthButtons user={auth.user} />
-            ) : (
-              <SessionHeaderAuthButtons />
-            )}
+            <Suspense>
+              {auth.kind === "server" ? (
+                <HeaderAuthButtons user={auth.user} />
+              ) : (
+                <SessionHeaderAuthButtons />
+              )}
+            </Suspense>
           </div>
         </div>
         {/* No room beside the brand and actions on phones: a slim row below. */}
-        <nav aria-label="Main" className="-mt-1 flex h-10 sm:hidden">
+        <nav aria-label="Main" className="-mt-1 flex h-10 md:hidden">
           <MainLinks />
         </nav>
       </div>
@@ -54,10 +71,13 @@ export function HeaderContent({ auth }: HeaderContentProps) {
 }
 
 function MainLinks() {
+  const pathname = usePathname();
   return (
     <>
       <MainLink href="/junkyards">Junkyards</MainLink>
       <MainLink href="/cars">Cars</MainLink>
+      <MainLink href="/pricing">Pricing</MainLink>
+      {pathname !== "/search" && <MainLink href="/search">Search</MainLink>}
     </>
   );
 }

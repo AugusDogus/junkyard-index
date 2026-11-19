@@ -5,12 +5,14 @@ import { PasswordVisibilityButton } from "./PasswordVisibilityButton";
 
 test("auth has one form, main landmark, and heading at every breakpoint", () => {
   const html = renderToStaticMarkup(
-    <AuthCard title="Welcome back" description="Sign in">
-      <form>
-        <label htmlFor="email">Email</label>
-        <input id="email" />
-      </form>
-    </AuthCard>,
+    <main>
+      <AuthCard title="Welcome back" description="Sign in">
+        <form>
+          <label htmlFor="email">Email</label>
+          <input id="email" />
+        </form>
+      </AuthCard>
+    </main>,
   );
   expect(html.match(/<main\b/g)).toHaveLength(1);
   expect(html.match(/<form\b/g)).toHaveLength(1);
