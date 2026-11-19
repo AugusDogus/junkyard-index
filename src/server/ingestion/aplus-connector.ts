@@ -173,6 +173,13 @@ function advance(state: AplusProgress, raw: string): AplusProgress {
   return AplusCursor.checkpoint(next);
 }
 
+/** No page starts after this point in a chunk. One page with every retry takes
+ * at most 3 x (40 second deadline + 3.5 second host gap + 1.6 second gate)
+ * plus 12 seconds of backoff, about 147 seconds, so a page started just before
+ * the cutoff still finishes well inside the chunk deadline, with room left for
+ * shared host slot waits. */
+const APLUS_CHUNK_START_CUTOFF_MS = 150_000;
+
 export function streamAplusInventoryWithRequestGate<E, R>(
   options: AplusOptions<E, R>,
   gate: ProviderRequestGate,
@@ -207,7 +214,7 @@ export function streamAplusInventoryWithRequestGate<E, R>(
       return { ...summary, status: "complete" as const };
     const started = Date.now();
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
-      if (Date.now() - started > 150_000) break;
+      if (Date.now() - started > APLUS_CHUNK_START_CUTOFF_MS) break;
       if (cursor.requests >= APLUS_MAX_REQUESTS)
         return yield* new AplusProviderError({
           operation: "run budget",
@@ -255,12 +262,12 @@ export function streamAplusInventoryWithRequestGate<E, R>(
     } satisfies AplusStreamResult;
   }).pipe(
     Effect.timeoutFail({
-      duration: "3 minutes",
+      duration: "6 minutes",
       onTimeout: () =>
         new AplusProviderError({
           operation: "chunk deadline",
           cause:
-            "Three-minute limit exceeded; retain the last validated checkpoint",
+            "Six-minute limit exceeded; retain the last validated checkpoint",
         }),
     }),
   );
