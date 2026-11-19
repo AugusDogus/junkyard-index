@@ -83,9 +83,27 @@ test("publishes the observed opening set after saved one-vehicle additions and r
 }, 300000);
 
 test("large identity turnover with an unchanged count fails once without publishing", async () => {
-  const opening = pages();
   const yard = HOLLANDERSTORES_YARDS[0];
   const raw = fixture(yard.code);
+  const first = parseHollanderstoresPage(raw, 0);
+  const row = first.rows[0];
+  if (!row) throw new Error("Missing saved first-yard row");
+  // The first closing response fails before the other yards are read. Keep
+  // their cursor membership without loading another 76K unrelated records.
+  const opening = HOLLANDERSTORES_YARDS.map((other, index) =>
+    index === 0
+      ? first
+      : {
+          yard: other.code,
+          total: 1,
+          rows: [
+            {
+              ...row,
+              url: `${other.websiteUrl}VehicleDealerShowParts/${other.tenant}/1`,
+            },
+          ],
+        },
+  );
   // Four replacements change eight identities, above this yard's five-row bound.
   const destinations = opening[0]?.rows.slice(0, 4) ?? [];
   let changed = raw;
@@ -118,10 +136,9 @@ test("large identity turnover with an unchanged count fails once without publish
 });
 
 test("census turnover accepts the exact per-yard limit and rejects one more removal", () => {
-  const opening = pages();
   for (const code of ["aabcoautoparts", "bandmauto"]) {
-    const page = opening.find((page) => page.yard === code);
-    if (!page) throw new Error("Missing saved yard " + code);
+    const index = HOLLANDERSTORES_YARDS.findIndex((yard) => yard.code === code);
+    const page = parseHollanderstoresPage(fixture(code), index);
     const limit = code === "aabcoautoparts" ? 53 : 3;
     const closing = {
       ...page,

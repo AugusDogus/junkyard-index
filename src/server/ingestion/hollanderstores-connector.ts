@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import { z } from "zod";
 import {
   fetchHollanderstoresPage,
   hollanderstoresAttempt,
@@ -24,6 +25,15 @@ import {
 } from "./hollanderstores-yard-metadata";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { hollanderstoresCensusError } from "./hollanderstores-census";
+import {
+  HOLLANDERSTORES_MAX_REQUESTS,
+  HOLLANDERSTORES_MAX_ROWS,
+} from "./hollanderstores-limits";
+
+const decodedMakes = z.record(
+  z.string().regex(/^[A-HJ-NPR-Z0-9]{17}$/),
+  z.string().trim().min(1).max(100).nullable(),
+);
 
 export interface HollanderstoresOptions<E, R> {
   startCursor?: unknown;
@@ -61,7 +71,7 @@ export function streamHollanderstoresInventory<E, R>(
 ) {
   return Effect.gen(function* () {
     const budget = options.maxPages ?? 1;
-    let cursor = yield* hollanderstoresAttempt("resume checkpoint", () => {
+    const start = yield* hollanderstoresAttempt("resume checkpoint", () => {
       if (!Number.isSafeInteger(budget) || budget < 1 || budget > 8)
         throw new Error("Use a chunk request budget from 1 through 8");
       const value = HollanderstoresCursor.parse(
@@ -78,7 +88,7 @@ export function streamHollanderstoresInventory<E, R>(
     const empty: HollanderstoresStreamResult = {
       source: "hollanderstores",
       status: "paused",
-      cursor,
+      cursor: start,
       count: 0,
       pagesProcessed: 0,
       accounting: {
@@ -91,11 +101,16 @@ export function streamHollanderstoresInventory<E, R>(
       errors: [],
       warnings: [],
     };
-    if (cursor.phase === "complete")
+    if (start.phase === "complete")
       return { ...empty, status: "complete" as const };
+    // Only chunk boundaries are persisted. Keep typed, individually validated
+    // HTTP/decode results in memory instead of cloning and hashing the entire
+    // census after each of the chunk's (at most eight) requests.
+    let cursor: HollanderstoresState = start;
+    let missingVins: string[] | undefined;
     let pagesProcessed = 0;
     while (cursor.phase !== "ready" && pagesProcessed < budget) {
-      const current: HollanderstoresCursor = cursor;
+      const current: HollanderstoresState = cursor;
       yield* hollanderstoresAttempt("run lifetime", () => {
         if (
           current.startedAt &&
@@ -119,12 +134,15 @@ export function streamHollanderstoresInventory<E, R>(
       };
       let next: HollanderstoresState | { phase: "failed"; error: string };
       if (current.phase === "decoding") {
-        const missing = hollanderstoresMissing(current);
+        const missing = (missingVins ??= hollanderstoresMissing(current));
         const needed = missing.slice(
           Object.keys(current.decoded).length,
           Object.keys(current.decoded).length + 50,
         );
-        const decoded = yield* options.decodeBatch(needed);
+        const response = yield* options.decodeBatch(needed);
+        const decoded = yield* hollanderstoresAttempt("VIN batch values", () =>
+          decodedMakes.parse(response),
+        );
         next = yield* hollanderstoresAttempt(
           "VIN batch membership",
           (): HollanderstoresState => {
@@ -152,9 +170,10 @@ export function streamHollanderstoresInventory<E, R>(
           },
         );
       } else {
-        const index =
+        const index: number =
           current.phase === "opening" ? current.pages.length : current.closed;
-        const yard = HOLLANDERSTORES_YARDS[index];
+        const yard: HollanderstoresYard | undefined =
+          HOLLANDERSTORES_YARDS[index];
         if (!yard)
           return yield* Effect.fail(
             new HollanderstoresProviderError({
@@ -225,18 +244,43 @@ export function streamHollanderstoresInventory<E, R>(
           ...empty,
           status: "failed" as const,
           failureKind: "validation" as const,
-          cursor,
+          cursor:
+            pagesProcessed === 0
+              ? start
+              : yield* hollanderstoresAttempt("failed checkpoint", () =>
+                  HollanderstoresCursor.checkpoint(cursor),
+                ),
           pagesProcessed: pagesProcessed + 1,
           errors: [next.error],
         };
-      cursor = yield* hollanderstoresAttempt(
-        "checkpoint advance",
-        (): HollanderstoresCursor => HollanderstoresCursor.checkpoint(next),
-      );
+      yield* hollanderstoresAttempt("census bounds", () => {
+        if (
+          next.requests > HOLLANDERSTORES_MAX_REQUESTS ||
+          next.pages.reduce(
+            (sum, page) => sum + page.total,
+            next.phase === "opening" ? (next.pending?.total ?? 0) : 0,
+          ) > HOLLANDERSTORES_MAX_ROWS
+        )
+          throw new Error(
+            "Hollander Stores census exceeds request or row bounds",
+          );
+      });
+      cursor = next;
       pagesProcessed++;
     }
-    if (cursor.phase !== "ready") return { ...empty, cursor, pagesProcessed };
+    if (cursor.phase !== "ready")
+      return {
+        ...empty,
+        cursor: yield* hollanderstoresAttempt("checkpoint advance", () =>
+          HollanderstoresCursor.checkpoint(cursor),
+        ),
+        pagesProcessed,
+      };
     const ready = cursor;
+    if (ready !== start)
+      yield* hollanderstoresAttempt("ready checkpoint", () =>
+        HollanderstoresCursor.checkpoint(ready),
+      );
     yield* hollanderstoresAttempt("completed census lifetime", () => {
       if (
         Date.now() < ready.startedAt ||
@@ -267,25 +311,28 @@ export function streamHollanderstoresInventory<E, R>(
     );
     if (options.onYards) yield* options.onYards([...HOLLANDERSTORES_YARDS]);
     yield* options.onBatch(snapshot.vehicles);
-    cursor = yield* hollanderstoresAttempt("terminal checkpoint", () => {
-      return HollanderstoresCursor.checkpoint({
-        source: ready.source,
-        version: ready.version,
-        scope: ready.scope,
-        startedAt: ready.startedAt,
-        previousAcceptedCount: ready.previousAcceptedCount,
-        pages: ready.pages,
-        pending: null,
-        decoded: ready.decoded,
-        requests: ready.requests,
-        phase: "complete",
-        closed: ready.closed,
-      });
-    });
+    const complete = yield* hollanderstoresAttempt(
+      "terminal checkpoint",
+      () => {
+        return HollanderstoresCursor.checkpoint({
+          source: ready.source,
+          version: ready.version,
+          scope: ready.scope,
+          startedAt: ready.startedAt,
+          previousAcceptedCount: ready.previousAcceptedCount,
+          pages: ready.pages,
+          pending: null,
+          decoded: ready.decoded,
+          requests: ready.requests,
+          phase: "complete",
+          closed: ready.closed,
+        });
+      },
+    );
     return {
       ...empty,
       status: "complete" as const,
-      cursor,
+      cursor: complete,
       pagesProcessed,
       count: snapshot.vehicles.length,
       accounting: snapshot.accounting,

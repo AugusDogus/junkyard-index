@@ -32,7 +32,12 @@ export function hollanderstoresFixturePages(): HollanderstoresPage[] {
   parsed ??= HOLLANDERSTORES_YARDS.map((yard, index) =>
     parseHollanderstoresPage(hollanderstoresFixture(yard.code), index),
   );
-  return structuredClone(parsed);
+  // Rows contain only scalar fields. Copy the mutable rows directly instead of
+  // sending all 77K records through structuredClone for every unit mutation.
+  return parsed.map((page) => ({
+    ...page,
+    rows: page.rows.map((row) => ({ ...row })),
+  }));
 }
 
 // Each qualification retains its independent frozen census. Merge shared yards

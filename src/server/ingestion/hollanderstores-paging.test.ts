@@ -109,6 +109,7 @@ test("list pages resume durably and release inventory only after the closing ros
     reads = 0;
   try {
     let cursor = HollanderstoresCursor.initial();
+    let persistedAt = 0;
     do {
       const result = await Effect.runPromise(
         streamHollanderstoresInventory({
@@ -132,9 +133,20 @@ test("list pages resume durably and release inventory only after the closing ros
             }),
         }),
       );
-      cursor = HollanderstoresCursor.fromWire(
-        HollanderstoresCursor.serialize(result.cursor),
-      );
+      const previousPhase = cursor.phase;
+      cursor = result.cursor;
+      // Retain the partial-list resume and every phase transition. The full
+      // durable replay separately persists every chunk of the census.
+      if (
+        cursor.requests === 1 ||
+        cursor.phase !== previousPhase ||
+        cursor.requests - persistedAt >= 96
+      ) {
+        cursor = HollanderstoresCursor.fromWire(
+          HollanderstoresCursor.serialize(cursor),
+        );
+        persistedAt = cursor.requests;
+      }
       if (cursor.requests === 1) {
         expect(cursor.pages).toHaveLength(0);
         expect(cursor.pending?.rows).toHaveLength(20);

@@ -301,6 +301,52 @@ describe("Hollander Stores saved complete census", () => {
     );
     expect(result._tag).toBe("Failure");
     expect(emitted).toBe(false);
+
+    // Invalid decoder values must stop inside a chunk, before another request.
+    // Each yard needs one saved row to validate the cursor, not the full census.
+    const minimal = HOLLANDERSTORES_YARDS.map((yard) => ({
+      yard: yard.code,
+      total: 1,
+      rows: [
+        {
+          displayYear: "'13",
+          make: null,
+          model: "RDX",
+          stock: "offline",
+          vin: "5J8TB4H35DL015046",
+          url: `${yard.websiteUrl}VehicleDealerShowParts/${yard.tenant}/1`,
+        },
+      ],
+    }));
+    const { checksum, ...initial } = HollanderstoresCursor.initial();
+    expect(checksum).toBeString();
+    const decoding = HollanderstoresCursor.checkpoint({
+      ...initial,
+      phase: "decoding",
+      startedAt: Date.now(),
+      pages: minimal,
+      requests: minimal.length,
+    });
+    for (const make of ["", " ", "x".repeat(101)]) {
+      let decodes = 0;
+      const invalid = await Effect.runPromiseExit(
+        streamHollanderstoresInventory({
+          startCursor: decoding,
+          maxPages: 8,
+          decodeBatch: (vins) => {
+            decodes++;
+            return Effect.succeed(
+              Object.fromEntries(vins.map((vin) => [vin, make])),
+            );
+          },
+          readPage: () =>
+            Effect.die("Invalid decoding must stop before closing"),
+          onBatch: () => Effect.die("Invalid decoding cannot publish"),
+        }),
+      );
+      expect(invalid._tag).toBe("Failure");
+      expect(decodes).toBe(1);
+    }
   });
 });
 
