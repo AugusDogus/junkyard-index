@@ -21,6 +21,13 @@ export const CLEARSALVAGE_MAX_REQUESTS =
   CLEARSALVAGE_MAX_PAGES * (CLEARSALVAGE_PAGE_SIZE + 2);
 export const CLEARSALVAGE_MAX_BODY_BYTES = 128 * 1024 * 1024;
 export const CLEARSALVAGE_MAX_ELAPSED_MS = 60 * 60 * 1000;
+/** Host refusals (HTTP 403/429) waited out per census before it rejects.
+ * The 11-19 census got one 403 on a published donor that served 200 later. */
+export const CLEARSALVAGE_HOST_COOLDOWNS_MS = [
+  2 * 60 * 1000,
+  5 * 60 * 1000,
+  10 * 60 * 1000,
+] as const;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const scope = clearsalvageHash({
   yard: CLEARSALVAGE_YARD,
@@ -38,6 +45,15 @@ const progress = {
   startedAt: z.number().int().nonnegative(),
   bodyBytes: z.number().int().nonnegative().max(CLEARSALVAGE_MAX_BODY_BYTES),
   pages: z.array(ClearsalvageCatalogSchema).max(CLEARSALVAGE_MAX_PAGES),
+  /** Host refusals already waited out in this census. */
+  hostBlocks: z
+    .number()
+    .int()
+    .min(1)
+    .max(CLEARSALVAGE_HOST_COOLDOWNS_MS.length)
+    .optional(),
+  /** Durable Workflow sleeps until this time before the refused request repeats. */
+  retryAt: z.number().int().nonnegative().safe().optional(),
 };
 const records = z
   .array(ClearsalvageRecordSchema)
@@ -77,6 +93,15 @@ export const ClearsalvageCursorSchema = z
         checksum(state) !== state.checksum
       )
         throw new Error("Clear Salvage checkpoint size or integrity changed");
+      if (
+        state.retryAt !== undefined &&
+        (state.hostBlocks === undefined ||
+          state.retryAt <= state.startedAt ||
+          state.retryAt >= state.startedAt + CLEARSALVAGE_MAX_ELAPSED_MS)
+      )
+        throw new Error(
+          "Clear Salvage cooldown is not bound to a recorded host refusal inside the census hour",
+        );
       const first = state.pages[0],
         last = state.pages.at(-1);
       const posts = state.pages.flatMap((page) => page.posts);
@@ -194,6 +219,12 @@ export const ClearsalvageCursor = {
     });
   },
   checkpoint,
+  /** The progress a request resumes from, without its elapsed cooldown. */
+  resume(progress: ClearsalvageProgress): ClearsalvageProgress {
+    const resumed = { ...progress };
+    delete resumed.retryAt;
+    return resumed;
+  },
   parse(raw: string): ClearsalvageCursor {
     if (Buffer.byteLength(raw) > CLEARSALVAGE_MAX_CURSOR_BYTES)
       throw new Error(

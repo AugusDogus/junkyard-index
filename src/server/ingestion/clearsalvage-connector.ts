@@ -6,10 +6,12 @@ import type {
 import {
   fetchClearsalvageCatalog,
   fetchClearsalvageDetail,
+  ClearsalvageBlockedError,
   ClearsalvageProviderError,
   clearsalvageValidated,
 } from "./clearsalvage-client";
 import {
+  CLEARSALVAGE_HOST_COOLDOWNS_MS,
   CLEARSALVAGE_MAX_BODY_BYTES,
   CLEARSALVAGE_MAX_ELAPSED_MS,
   ClearsalvageCursor,
@@ -49,6 +51,36 @@ export interface ClearsalvageStreamResult {
   warnings: string[];
   observedVins: string[];
   accounting: ConnectorChunkAccounting;
+}
+/** Checkpoint a host refusal so the durable Workflow sleeps, then repeats the
+ * same native request. Records, roster and body bytes stay exactly as they
+ * were, and the closing pass still proves the roster before any publish. */
+function hostCooldown(
+  current: ClearsalvageProgress,
+  refusal: ClearsalvageBlockedError,
+) {
+  return clearsalvageValidated("host refusal " + refusal.url, () => {
+    const hostBlocks = (current.hostBlocks ?? 0) + 1;
+    const cooldownMs = CLEARSALVAGE_HOST_COOLDOWNS_MS[hostBlocks - 1];
+    const refused = `host refused ${refusal.url} with HTTP ${refusal.status}`;
+    if (cooldownMs === undefined)
+      throw new Error(
+        `${refused} for the ${hostBlocks}th time in one census after ${CLEARSALVAGE_HOST_COOLDOWNS_MS.length} cooldowns, so the run stops without publishing. Check whether clearsalvage.com now blocks this client before the next scheduled census`,
+      );
+    const retryAt = Date.now() + Math.max(cooldownMs, refusal.retryAfterMs);
+    if (retryAt >= current.startedAt + CLEARSALVAGE_MAX_ELAPSED_MS)
+      throw new Error(
+        `${refused} and its ${Math.ceil((retryAt - Date.now()) / 1000)}s cooldown ends after the one-hour census deadline, so the run stops without publishing; the next scheduled census starts fresh`,
+      );
+    return {
+      progress: ClearsalvageCursor.checkpoint({
+        ...current,
+        hostBlocks,
+        retryAt,
+      }),
+      warning: `${refusal.message} Cooldown ${hostBlocks} of ${CLEARSALVAGE_HOST_COOLDOWNS_MS.length} lasts until ${new Date(retryAt).toISOString()}.`,
+    };
+  });
 }
 export function streamClearsalvageInventoryWithRequestGate<E, R>(
   options: ClearsalvageOptions<E, R>,
@@ -116,10 +148,14 @@ export function streamClearsalvageInventoryWithRequestGate<E, R>(
       }
       if (summary.pagesProcessed >= maximum) break;
       if (Date.now() - chunkStarted > 150_000) break;
-      const current: ClearsalvageProgress =
+      const progress: ClearsalvageProgress =
         cursor.phase === "start"
           ? ClearsalvageCursor.start(Date.now())
           : cursor;
+      // The durable Workflow sleeps until retryAt; never request before it.
+      if (progress.retryAt !== undefined && Date.now() < progress.retryAt)
+        break;
+      const current = ClearsalvageCursor.resume(progress);
       yield* clearsalvageValidated("persisted source bounds", () => {
         if (
           Date.now() < current.startedAt ||
@@ -130,100 +166,114 @@ export function streamClearsalvageInventoryWithRequestGate<E, R>(
             "Persisted Clear Salvage hour/body bound is exhausted; inspect the source and start a new census",
           );
       });
-      let next: ClearsalvageProgress;
       const maximumBytes = Math.min(
         CLEARSALVAGE_MAX_RESPONSE_BYTES,
         CLEARSALVAGE_MAX_BODY_BYTES - current.bodyBytes,
       );
-      if (current.phase === "details") {
-        const post = current.pages.flatMap((page) => page.posts)[
-          current.records.length
-        ];
-        if (!post)
-          return yield* Effect.fail(
-            new ClearsalvageProviderError({
-              operation: "donor checkpoint",
-              cause: "Next native donor is absent",
-            }),
-          );
-        const record = yield* fetchClearsalvageDetail(post, gate, maximumBytes);
-        next = yield* clearsalvageValidated(
-          "primary donor checkpoint " + post.id,
-          () => {
-            const records = [...current.records, record];
-            const terminal =
-              records.length ===
-              current.pages.reduce((sum, page) => sum + page.posts.length, 0);
-            return ClearsalvageCursor.checkpoint(
-              terminal
-                ? {
-                    ...current,
-                    phase: "closing",
-                    records,
-                    closing: 0,
-                    closingBodyBytes: 0,
-                    bodyBytes: current.bodyBytes + record.bodyBytes,
-                  }
-                : {
-                    ...current,
-                    records,
-                    bodyBytes: current.bodyBytes + record.bodyBytes,
-                  },
+      const next: ClearsalvageProgress = yield* Effect.gen(function* () {
+        if (current.phase === "details") {
+          const post = current.pages.flatMap((page) => page.posts)[
+            current.records.length
+          ];
+          if (!post)
+            return yield* Effect.fail(
+              new ClearsalvageProviderError({
+                operation: "donor checkpoint",
+                cause: "Next native donor is absent",
+              }),
             );
-          },
-        );
-      } else {
-        const expected =
-          current.phase === "closing"
-            ? current.pages[current.closing]
-            : undefined;
-        if (current.phase === "closing" && !expected)
-          return yield* Effect.fail(
-            new ClearsalvageProviderError({
-              operation: "closing checkpoint",
-              cause: "Next native closing page is absent",
-            }),
+          const record = yield* fetchClearsalvageDetail(
+            post,
+            gate,
+            maximumBytes,
           );
-        const url =
-          expected?.url ??
-          current.pages.at(-1)?.next ??
-          clearsalvageCatalogUrl(1);
-        const page = yield* fetchClearsalvageCatalog(url, gate, maximumBytes);
-        next = yield* clearsalvageValidated(
-          "catalog checkpoint " + page.page,
-          () => {
-            const bodyBytes = current.bodyBytes + page.bodyBytes;
-            if (current.phase === "closing") {
-              if (
-                !expected ||
-                JSON.stringify(clearsalvageCatalogMembership(page)) !==
-                  JSON.stringify(clearsalvageCatalogMembership(expected))
-              )
-                throw new Error(
-                  "Clear Salvage closing page changed native ordered IDs, make titles, literal destinations or pagination; restart after inspecting source drift",
-                );
-              return ClearsalvageCursor.checkpoint({
-                ...current,
-                closing: current.closing + 1,
-                closingBodyBytes: current.closingBodyBytes + page.bodyBytes,
-                bodyBytes,
-              });
-            }
-            const pages = [...current.pages, page];
-            return ClearsalvageCursor.checkpoint(
-              page.next === null
-                ? {
-                    ...current,
-                    phase: "details",
-                    pages,
-                    records: [],
-                    bodyBytes,
-                  }
-                : { ...current, pages, bodyBytes },
+          return yield* clearsalvageValidated(
+            "primary donor checkpoint " + post.id,
+            () => {
+              const records = [...current.records, record];
+              const terminal =
+                records.length ===
+                current.pages.reduce((sum, page) => sum + page.posts.length, 0);
+              return ClearsalvageCursor.checkpoint(
+                terminal
+                  ? {
+                      ...current,
+                      phase: "closing",
+                      records,
+                      closing: 0,
+                      closingBodyBytes: 0,
+                      bodyBytes: current.bodyBytes + record.bodyBytes,
+                    }
+                  : {
+                      ...current,
+                      records,
+                      bodyBytes: current.bodyBytes + record.bodyBytes,
+                    },
+              );
+            },
+          );
+        } else {
+          const expected =
+            current.phase === "closing"
+              ? current.pages[current.closing]
+              : undefined;
+          if (current.phase === "closing" && !expected)
+            return yield* Effect.fail(
+              new ClearsalvageProviderError({
+                operation: "closing checkpoint",
+                cause: "Next native closing page is absent",
+              }),
             );
-          },
-        );
-      }
+          const url =
+            expected?.url ??
+            current.pages.at(-1)?.next ??
+            clearsalvageCatalogUrl(1);
+          const page = yield* fetchClearsalvageCatalog(url, gate, maximumBytes);
+          return yield* clearsalvageValidated(
+            "catalog checkpoint " + page.page,
+            () => {
+              const bodyBytes = current.bodyBytes + page.bodyBytes;
+              if (current.phase === "closing") {
+                if (
+                  !expected ||
+                  JSON.stringify(clearsalvageCatalogMembership(page)) !==
+                    JSON.stringify(clearsalvageCatalogMembership(expected))
+                )
+                  throw new Error(
+                    "Clear Salvage closing page changed native ordered IDs, make titles, literal destinations or pagination; restart after inspecting source drift",
+                  );
+                return ClearsalvageCursor.checkpoint({
+                  ...current,
+                  closing: current.closing + 1,
+                  closingBodyBytes: current.closingBodyBytes + page.bodyBytes,
+                  bodyBytes,
+                });
+              }
+              const pages = [...current.pages, page];
+              return ClearsalvageCursor.checkpoint(
+                page.next === null
+                  ? {
+                      ...current,
+                      phase: "details",
+                      pages,
+                      records: [],
+                      bodyBytes,
+                    }
+                  : { ...current, pages, bodyBytes },
+              );
+            },
+          );
+        }
+      }).pipe(
+        Effect.catchTag("ClearsalvageBlockedError", (refusal) =>
+          hostCooldown(current, refusal).pipe(
+            Effect.map(({ progress, warning }) => {
+              summary.warnings.push(warning);
+              return progress;
+            }),
+          ),
+        ),
+      );
       yield* clearsalvageValidated("persisted source deadline", () => {
         if (Date.now() >= next.startedAt + CLEARSALVAGE_MAX_ELAPSED_MS)
           throw new Error(
@@ -232,6 +282,8 @@ export function streamClearsalvageInventoryWithRequestGate<E, R>(
       });
       summary.pagesProcessed++;
       cursor = next;
+      // Resumed progress never carries retryAt, so only a refusal sets it.
+      if (next.retryAt !== undefined) break;
     }
     return {
       ...summary,
