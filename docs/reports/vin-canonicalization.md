@@ -201,6 +201,22 @@ one 31-second failed request batch outside the lock, then stop. Backfilling
 The workflow regression verifies decoding finishes before the writer is
 acquired. Cache errors in this optional phase also defer enrichment.
 
+Projection holds that same writer lock, and so does each batch of the
+daily saved-search alert check, continuously through every alert page,
+notification-intent creation and checkpoint write. Backfills cannot reorder
+results during a scan, even when changed searchable attributes would alter
+ranking. The lock is awaited within its resource scope and released on
+completion, a stopped batch or an exception. An uncontended check batch adds
+one lock acquisition and no search request or retry delay. The check's retry
+waits and notification delivery remain outside this lock.
+
+The pagination regression runs the actual daily alert check and migration
+workflows with local SQLite and mocked Algolia ranking. Its 101-record
+fixture puts one live Sonoma behind 100 grace-period rows. A migration
+attempted after page 0 must wait for page 1 and its notification/checkpoint.
+The control still needs exactly two search requests, one writer acquisition
+and zero lock waits. Global fetch is guarded against live network requests.
+
 Failed patterns retain a 24-hour cooldown. The next scheduled pass retries
 eligible patterns, and newly accepted decodes automatically request a
 cache-only projection even if schema 12 was already ready. This also revisits

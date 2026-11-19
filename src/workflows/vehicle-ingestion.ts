@@ -53,9 +53,8 @@ import { waitForPublicationMode } from "./publication-mode-wait";
 import { vehicleNotificationDeliveryWorkflow } from "./downstream-consumers";
 import { searchProjectorWorkflow } from "./search-projector";
 import { PublicationModeFlag } from "~/server/ingestion/publication-mode-flag";
-import { withAlgoliaWriterLock } from "~/server/ingestion/algolia-writer-lock";
+import { withSearchWriteLock } from "./search-write-lock";
 
-const LOCK_RETRY_DELAY = "30s";
 // Fallbacks for signals that never arrive, such as a workflow that died.
 // Each commit claim attempt also keeps a waiter live in the commit queue,
 // which skips waiters silent for 15 minutes (CommitLease).
@@ -302,22 +301,14 @@ async function runSourceIngestion(runId: string) {
     const publicationResult = await runDurablePublicationLifecycle({
       runId,
       project: () =>
-        withAlgoliaWriterLock({
-          acquire: () => createHook({ token: IngestionTokens.algoliaWrites }),
-          waitForWriter: async (activeRunId) => {
-            console.info(
-              `[Workflow] Waiting for Algolia writer ${activeRunId}`,
-            );
-            await sleep(LOCK_RETRY_DELAY);
-          },
-          write: () =>
-            runProjectionWithFailureRecording({
-              runId,
-              runBatch: () => runAlgoliaProjectorStep(runId),
-              markFailed: markRunFailed,
-              waitForPublicationMode,
-            }),
-        }),
+        withSearchWriteLock(() =>
+          runProjectionWithFailureRecording({
+            runId,
+            runBatch: () => runAlgoliaProjectorStep(runId),
+            markFailed: markRunFailed,
+            waitForPublicationMode,
+          }),
+        ),
       reportHealth: reportProviderStatusStep,
     });
     if (publicationResult.status === "stopped") return publicationResult;
@@ -354,7 +345,11 @@ export async function searchAlertCheckWorkflow(day: string) {
     return { status: "deduplicated" as const, activeRunId: activeCheck.runId };
   }
   const result = await runSearchAlertCheck({
-    runBatch: () => runSearchAlertCheckBatchStep(day),
+    // Each batch scans its searches' pages and writes their checkpoints under
+    // the shared writer lock, so a search index rewrite cannot reorder
+    // matches between pages. Retry waits and delivery run outside it.
+    runBatch: () =>
+      withSearchWriteLock(() => runSearchAlertCheckBatchStep(day)),
     waitForRetry: () => sleep(ALERT_CHECK_RETRY_DELAY),
     startDelivery: startNotificationDeliveryStep,
   });
