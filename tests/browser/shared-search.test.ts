@@ -232,3 +232,88 @@ for (const scenario of [
     }
   }, 15_000);
 }
+
+for (const width of [390, 1440]) {
+  for (const query of ["Volvo 740", "Volvo"]) {
+    test(`self-service recovery selects both types and survives reload: ${query}, ${width}px`, async () => {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      try {
+        await page.route("http://shared-search.test/**", async (route) => {
+          const url = new URL(route.request().url());
+          const isScript = url.pathname === "/app.js";
+          return route.fulfill({
+            contentType: isScript ? "text/javascript" : "text/html",
+            body: isScript
+              ? script
+              : await renderSharedSearchFixture(url.search),
+          });
+        });
+        await page.goto(
+          `http://shared-search.test/search?q=${encodeURIComponent(query)}`,
+        );
+        const self = page.getByRole("button", {
+          name: "Self-service",
+          exact: true,
+        });
+        const full = page.getByRole("button", {
+          name: "Full-service",
+          exact: true,
+        });
+        await page
+          .getByRole("button", { name: "Show them", exact: true })
+          .waitFor();
+        expect(await self.getAttribute("aria-pressed")).toBe("true");
+        expect(await full.getAttribute("aria-pressed")).toBe("false");
+        expect(
+          await page
+            .getByText("+3 more vehicles at full-service yards.", {
+              exact: false,
+            })
+            .count(),
+        ).toBe(1);
+        if (query === "Volvo 740")
+          await page
+            .getByRole("heading", { name: "No self-service matches" })
+            .waitFor();
+        else
+          expect(
+            await page
+              .getByRole("heading", { name: /self-service matches/ })
+              .count(),
+          ).toBe(0);
+        await page
+          .getByRole("button", { name: "Show them", exact: true })
+          .click();
+        await page.waitForFunction(
+          () =>
+            new URL(location.href).searchParams.getAll("yardTypes[]").length ===
+            2,
+        );
+        expect(await full.getAttribute("aria-pressed")).toBe("true");
+        expect(new URL(page.url()).searchParams.getAll("yardTypes[]")).toEqual([
+          "self_service",
+          "full_service",
+        ]);
+        await page.reload();
+        await page
+          .getByRole("heading", { name: "1987 Volvo 740" })
+          .first()
+          .waitFor();
+        expect(await self.getAttribute("aria-pressed")).toBe("true");
+        expect(await full.getAttribute("aria-pressed")).toBe("true");
+        expect(
+          await page
+            .getByRole("button", { name: "Show them", exact: true })
+            .count(),
+        ).toBe(0);
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        ).toBe(true);
+      } finally {
+        await page.close();
+      }
+    }, 15_000);
+  }
+}

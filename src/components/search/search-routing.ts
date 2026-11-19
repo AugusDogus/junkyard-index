@@ -1,3 +1,4 @@
+import { SearchYardSelection } from "~/lib/search-yard-selection";
 import { YardService, type YardType } from "~/lib/yard-service";
 import {
   ALGOLIA_DISTANCE_SORT_ALIAS,
@@ -124,7 +125,6 @@ const ADVANCED_URL_KEYS = [
   "states",
   "yards",
   "sources",
-  "yardTypes",
   "minYear",
   "maxYear",
 ] as const;
@@ -135,7 +135,7 @@ interface AdvancedRouteFilters {
   states?: string[];
   yards?: string[];
   sources?: DataSource[];
-  yardTypes?: YardType[];
+  yardTypes?: (YardType | "all")[];
   minYear?: number;
   maxYear?: number;
 }
@@ -162,10 +162,9 @@ function parseAdvancedUrlFilters(
     SearchFilterUrl.read(params, "sources"),
   );
   if (sources.length > 0) filters.sources = sources;
-  const yardTypes = sanitizeYardTypes(
-    SearchFilterUrl.read(params, "yardTypes"),
-  );
-  if (yardTypes.length) filters.yardTypes = yardTypes;
+  const selection = SearchYardSelection.fromUrl(params);
+  if (selection.kind === "explicit")
+    filters.yardTypes = selection.types.length ? selection.types : ["all"];
   for (const key of ["minYear", "maxYear"] as const) {
     const value = params.get(key);
     if (!value) continue;
@@ -256,8 +255,6 @@ function advancedUiStateFromRoute(
   }
   const sources = sanitizeSearchSources(state.sources);
   if (sources.length > 0) refinementList.source = sources;
-  const yardTypes = sanitizeYardTypes(state.yardTypes);
-  if (yardTypes.length) refinementList.yardTypes = yardTypes;
   if (Object.keys(refinementList).length > 0) {
     uiState.refinementList = refinementList;
   }
@@ -337,6 +334,15 @@ export function createSearchRouting(
           state,
           advancedFilterPolicy.preserveUrlFilters ? locationParams : undefined,
         );
+        if (Array.isArray(state.yardTypes) && state.yardTypes.length) {
+          SearchFilterUrl.write(
+            params,
+            "yardTypes",
+            state.yardTypes.filter(
+              (value): value is string => typeof value === "string",
+            ),
+          );
+        }
         if (state.sort) params.set("sort", String(state.sort));
 
         const queryString = params.toString();
@@ -374,6 +380,7 @@ export function createSearchRouting(
         }
 
         Object.assign(state, advancedRouteFromUiState(indexState));
+        if (!state.yardTypes) state.yardTypes = ["all"];
 
         return { [indexName]: state };
       },
@@ -393,6 +400,18 @@ export function createSearchRouting(
             : mapped;
 
         Object.assign(uiState, advancedFilterPolicy.toUiState(state));
+        const types =
+          Array.isArray(state.yardTypes) && state.yardTypes.includes("all")
+            ? []
+            : Array.isArray(state.yardTypes)
+              ? sanitizeYardTypes(state.yardTypes)
+              : ["self_service"];
+        uiState.refinementList = {
+          ...(isUnknownRecord(uiState.refinementList)
+            ? uiState.refinementList
+            : {}),
+          yardTypes: types,
+        };
 
         return { [indexName]: uiState };
       },

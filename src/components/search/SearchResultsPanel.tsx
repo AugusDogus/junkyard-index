@@ -153,10 +153,62 @@ function SearchResultsHeader({ model }: { model: SearchResultsHeaderModel }) {
   );
 }
 
+export type FullServiceSuggestion = {
+  kind: "hint" | "fallback";
+  selfServiceCount: number;
+  extraCount: number;
+  showThem(): void;
+};
+
+function FullServiceMessage({
+  suggestion,
+}: {
+  suggestion: FullServiceSuggestion;
+}) {
+  const fallback = suggestion.kind === "fallback";
+  return (
+    <div
+      className={
+        fallback
+          ? "flex flex-col items-start border-b py-12 sm:py-16"
+          : "text-muted-foreground mt-5 text-sm"
+      }
+    >
+      {fallback && (
+        <h2 className="text-xl font-semibold text-balance">
+          {suggestion.selfServiceCount === 0
+            ? "No self-service matches"
+            : "Only a few self-service matches"}
+        </h2>
+      )}
+      <p
+        className={
+          fallback
+            ? "text-muted-foreground mt-2 max-w-md text-sm text-pretty"
+            : undefined
+        }
+      >
+        +{suggestion.extraCount.toLocaleString()} more{" "}
+        {suggestion.extraCount === 1 ? "vehicle" : "vehicles"} at full-service
+        yards. They pull the parts for you, so call first.{" "}
+        <button
+          type="button"
+          className="text-foreground min-h-11 font-semibold underline underline-offset-2"
+          onClick={suggestion.showThem}
+        >
+          Show them
+        </button>
+      </p>
+    </div>
+  );
+}
+
 export function SearchResultsPanel({
   model,
+  fullServiceSuggestion,
 }: {
   model: SearchResultsPanelModel;
+  fullServiceSuggestion?: FullServiceSuggestion;
 }) {
   switch (model.kind) {
     case "inactive":
@@ -185,6 +237,8 @@ export function SearchResultsPanel({
         </Alert>
       );
     case "empty":
+      if (fullServiceSuggestion)
+        return <FullServiceMessage suggestion={fullServiceSuggestion} />;
       return (
         <div className="flex flex-col items-start border-b py-12 sm:py-16">
           <h2 className="text-xl font-semibold text-balance">
@@ -272,12 +326,18 @@ export function SearchResultsPanel({
     case "results":
       return (
         <>
+          {fullServiceSuggestion?.kind === "fallback" && (
+            <FullServiceMessage suggestion={fullServiceSuggestion} />
+          )}
           <SearchResultsHeader model={model.header} />
           <SearchResults searchResult={model.searchResult} {...model.list} />
           <SearchSummary
             searchResult={model.searchResult}
             visibleCount={model.list.visibleCount}
           />
+          {fullServiceSuggestion?.kind === "hint" && (
+            <FullServiceMessage suggestion={fullServiceSuggestion} />
+          )}
         </>
       );
   }

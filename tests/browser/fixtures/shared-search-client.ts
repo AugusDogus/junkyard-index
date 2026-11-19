@@ -1,4 +1,6 @@
-const vehicles = [
+import type { YardType } from "~/lib/yard-service";
+
+const selfServiceVehicles = [
   {
     objectID: "venza-al",
     year: 2010,
@@ -25,13 +27,47 @@ const vehicles = [
   },
 ].map((vehicle) => ({
   ...vehicle,
+  yardTypes: ["self_service"] satisfies YardType[],
   source: "pyp",
   locationName: "Fixture yard",
   availableDate: "2026-10-01",
   vin: vehicle.objectID,
 }));
 
-type SearchParams = { query?: string; facetFilters?: unknown; page?: number };
+const vehicles = [
+  ...selfServiceVehicles,
+  ...[
+    "full-740-1",
+    "full-740-2",
+    "full-740-3",
+    "both-940",
+    "self-940-1",
+    "self-940-2",
+  ].map((id) => ({
+    objectID: id,
+    year: 1987,
+    make: "Volvo",
+    model: id.includes("740") ? "740" : "940",
+    state: "Alabama",
+    stateAbbr: "AL",
+    source: "pyp",
+    locationName: "Fixture yard",
+    availableDate: "2026-10-01",
+    vin: id,
+    yardTypes: id.startsWith("both")
+      ? ["self_service", "full_service"]
+      : id.startsWith("self")
+        ? ["self_service"]
+        : ["full_service"],
+  })),
+];
+
+type SearchParams = {
+  query?: string;
+  facetFilters?: unknown;
+  page?: number;
+  filters?: string;
+};
 type SearchRequest = { indexName: string; params?: SearchParams };
 
 const client = {
@@ -60,6 +96,12 @@ const client = {
           );
         }
         const query = params?.query ?? "";
+        const serializedFacets = JSON.stringify(params?.facetFilters ?? []);
+        const self = serializedFacets.includes("yardTypes:self_service");
+        const full = serializedFacets.includes("yardTypes:full_service");
+        const extraOnly = params?.filters?.includes(
+          "NOT yardTypes:self_service",
+        );
         const hits = vehicles.filter(
           (vehicle) =>
             `${vehicle.make} ${vehicle.model}`
@@ -68,7 +110,13 @@ const client = {
             (!JSON.stringify(params?.facetFilters ?? []).includes(
               "state:Alabama",
             ) ||
-              vehicle.state === "Alabama"),
+              vehicle.state === "Alabama") &&
+            ((!self && !full) ||
+              (self && vehicle.yardTypes.includes("self_service")) ||
+              (full && vehicle.yardTypes.includes("full_service"))) &&
+            (!extraOnly ||
+              (vehicle.yardTypes.includes("full_service") &&
+                !vehicle.yardTypes.includes("self_service"))),
         );
         return {
           index: indexName,
@@ -82,6 +130,14 @@ const client = {
           exhaustiveNbHits: true,
           params: "",
           facets: {
+            yardTypes: {
+              self_service: hits.filter((hit) =>
+                hit.yardTypes.includes("self_service"),
+              ).length,
+              full_service: hits.filter((hit) =>
+                hit.yardTypes.includes("full_service"),
+              ).length,
+            },
             state: { Alabama: 2, California: 1 },
             make: { Toyota: 2, Ford: 1 },
           },
