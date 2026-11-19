@@ -13,6 +13,7 @@ import { IdipullCatalog } from "./idipull-catalog";
 import { inventoryVin } from "./inventory-vin";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
+import { conflictingVins } from "./vin-conflicts";
 
 interface IdipullOptions<E, R> {
   startCursor?: IdipullCursor;
@@ -52,13 +53,10 @@ function validateCatalog(catalog: IdipullCatalog, asOf: Date) {
   }
   // Reject every conflicting copy. Native stocks are not a tie-breaker for a
   // repeated VIN, even when its required YMM happens to agree.
-  const conflicts = new Set(
-    repeated
-      .filter(
-        ([, rows]) => new Set(rows.map((row) => JSON.stringify(row))).size > 1,
-      )
-      .map(([vin]) => vin),
-  );
+  const conflicts = conflictingVins(records, (record) => {
+    const vin = inventoryVin(record.vin, record.year);
+    return vin ? { vin, signature: JSON.stringify(record) } : null;
+  });
   const seen = new Set<string>();
   const stocks = new Map<string, string>();
   const observedVins = new Set<string>();

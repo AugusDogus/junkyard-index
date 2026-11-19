@@ -7,20 +7,14 @@ import {
   type KodakCanonicalVehicle,
 } from "./kodak-transform";
 import { SourceValidationPolicy } from "./source-validation";
+import { conflictingVins } from "./vin-conflicts";
 
 export function kodakSnapshot(records: KodakRecord[]) {
-  const identities = new Map<string, Set<string>>();
-  for (const record of records) {
+  const conflicts = conflictingVins(records, (record) => {
     const native = kodakNativeIdentity(record);
     const vin = inventoryVin(record.fields.VIN ?? "", native.year);
-    if (!vin) continue;
-    const group = identities.get(vin) ?? new Set<string>();
-    group.add(JSON.stringify(native));
-    identities.set(vin, group);
-  }
-  const conflicts = new Set(
-    [...identities].filter(([, group]) => group.size > 1).map(([vin]) => vin),
-  );
+    return vin ? { vin, signature: JSON.stringify(native) } : null;
+  });
   const vehicles = new Map<string, KodakCanonicalVehicle>();
   const optionalValues = new Map<
     string,
