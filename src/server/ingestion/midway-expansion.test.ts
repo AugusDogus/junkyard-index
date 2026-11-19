@@ -3,7 +3,13 @@ import { Effect } from "effect";
 import { readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { z } from "zod";
-import { streamMidwayInventoryWithRequestGate } from "./midway-connector";
+import {
+  MIDWAY_CHUNK_SOFT_MS,
+  streamMidwayInventoryWithRequestGate,
+} from "./midway-connector";
+import { openMidwayMakeCensus } from "./midway-catalog";
+import { MidwayCursorSchema, type MidwayCursor } from "./midway-cursor";
+import type { MidwayCanonicalVehicle } from "./midway-transform";
 import { parseMidwayCatalog, parseMidwayMakeDirectory } from "./midway-parser";
 import { MIDWAY_YARDS } from "./midway-yard-metadata";
 
@@ -42,17 +48,22 @@ const saved = z
       ).toString("utf8"),
     ),
   );
-afterEach(() => spyOn(globalThis, "fetch").mockRestore());
+afterEach(() => {
+  spyOn(globalThis, "fetch").mockRestore();
+  spyOn(Date, "now").mockRestore();
+});
 
-test("Tulsa replays all 59 production make controls, closing and rejection accounting offline", async () => {
-  const used = new Set<string>();
+/** Replays the saved production census; each request costs `latencyMs`. */
+function replayCensus(latencyMs = 0) {
+  const requests: string[] = [];
   let broad = 0;
-  let batches = 0;
-  let yards = 0;
+  let now = Date.now();
+  spyOn(Date, "now").mockImplementation(() => now);
   spyOn(globalThis, "fetch").mockImplementation(
     Object.assign(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        now += latencyMs;
         const response =
           url === saved.opening.url
             ? ++broad === 1
@@ -66,7 +77,7 @@ test("Tulsa replays all 59 production make controls, closing and rejection accou
         expect(new Headers(init?.headers).get("Accept")).toBe(
           "application/json,text/html;q=0.9,*/*;q=0.8",
         );
-        used.add(url);
+        requests.push(url);
         return new Response(response.raw, {
           status: response.status,
           headers: response.headers,
@@ -75,30 +86,34 @@ test("Tulsa replays all 59 production make controls, closing and rejection accou
       { preconnect: globalThis.fetch.preconnect },
     ),
   );
+  return { requests, broadRequests: () => broad };
+}
+const tulsaStart: MidwayCursor = {
+  source: "midway",
+  phase: "yard",
+  yardCode: "OO95",
+  observedVins: saved.previous.map((r) => r.vin),
+  stocks: saved.previous.flatMap((r) => (r.stockNumber ? [r.stockNumber] : [])),
+};
+const tulsaVehicles = (vehicles: readonly MidwayCanonicalVehicle[]) =>
+  vehicles.every(
+    (v) =>
+      v.stateAbbr === "OK" && v.detailsUrl === MIDWAY_YARDS.OO95.websiteUrl,
+  );
+
+test("Tulsa replays all 59 production make controls, closing and rejection accounting offline", async () => {
+  const replay = replayCensus();
+  const vehicles: MidwayCanonicalVehicle[] = [];
+  let yards = 0;
   const result = await Effect.runPromise(
     streamMidwayInventoryWithRequestGate(
       {
-        startCursor: {
-          source: "midway",
-          phase: "yard",
-          yardCode: "OO95",
-          observedVins: saved.previous.map((r) => r.vin),
-          stocks: saved.previous.flatMap((r) =>
-            r.stockNumber ? [r.stockNumber] : [],
-          ),
-        },
+        startCursor: tulsaStart,
         maxPages: 1,
-        onBatch: (vehicles) =>
+        onBatch: (batch) =>
           Effect.sync(() => {
-            batches++;
-            expect(vehicles).toHaveLength(1064);
-            expect(
-              vehicles.every(
-                (v) =>
-                  v.stateAbbr === "OK" &&
-                  v.detailsUrl === MIDWAY_YARDS.OO95.websiteUrl,
-              ),
-            ).toBe(true);
+            expect(yards).toBe(0);
+            vehicles.push(...batch);
           }),
         onYards: (values) =>
           Effect.sync(() => {
@@ -109,6 +124,8 @@ test("Tulsa replays all 59 production make controls, closing and rejection accou
       (request) => request,
     ),
   );
+  expect(vehicles).toHaveLength(1064);
+  expect(tulsaVehicles(vehicles)).toBe(true);
   expect(result.status).toBe("complete");
   expect(result.accounting).toEqual({
     recordsProcessed: 1083,
@@ -116,10 +133,9 @@ test("Tulsa replays all 59 production make controls, closing and rejection accou
     recordsExcluded: 0,
     duplicateVehicles: 0,
   });
-  expect(batches).toBe(1);
   expect(yards).toBe(1);
-  expect(broad).toBe(2);
-  expect(used.size).toBe(61);
+  expect(replay.broadRequests()).toBe(2);
+  expect(new Set(replay.requests).size).toBe(61);
   const makes = parseMidwayMakeDirectory(saved.opening.raw, "OO95");
   const counts = makes.map((make) => {
     const response = saved.captures.find(
@@ -152,4 +168,123 @@ test("a captured empty make needs the exact native yard and make controls", () =
       "ALFA ROMEO",
     ),
   ).toThrow();
+});
+
+test("a slow Tulsa make traversal checkpoints within the chunk budget and resumes without recrawling", async () => {
+  // Production rejected two 07:00 runs when one chunk spent its whole
+  // five-minute limit on Tulsa's 61 requests behind the shared URG host slot.
+  const replay = replayCensus(15_000);
+  const vehicles: MidwayCanonicalVehicle[] = [];
+  const accounting = { processed: 0, rejected: 0 };
+  let yards = 0;
+  let cursor: MidwayCursor = tulsaStart;
+  const chunks: { status: string; phase: string; makes: number }[] = [];
+  while (cursor.phase !== "complete" && chunks.length < 20) {
+    const result = await Effect.runPromise(
+      streamMidwayInventoryWithRequestGate(
+        {
+          startCursor: cursor,
+          maxPages: 1,
+          onBatch: (batch) =>
+            Effect.sync(() => {
+              vehicles.push(...batch);
+            }),
+          onYards: () =>
+            Effect.sync(() => {
+              yards++;
+            }),
+        },
+        (request) => request,
+      ),
+    );
+    accounting.processed += result.accounting?.recordsProcessed ?? 0;
+    accounting.rejected += result.accounting?.recordsRejected ?? 0;
+    // Every checkpoint survives durable JSON serialization.
+    cursor = MidwayCursorSchema.parse(
+      JSON.parse(JSON.stringify(result.cursor)),
+    );
+    chunks.push({
+      status: result.status,
+      phase: cursor.phase,
+      makes: cursor.phase === "tulsa" ? cursor.makes.length : 0,
+    });
+  }
+  const perChunk = Math.ceil(MIDWAY_CHUNK_SOFT_MS / 15_000);
+  expect(chunks.length).toBeGreaterThan(2);
+  expect(chunks[0]).toEqual({
+    status: "paused",
+    phase: "tulsa",
+    makes: 59 - (perChunk - 2),
+  });
+  expect(chunks.at(-1)).toEqual({
+    status: "complete",
+    phase: "complete",
+    makes: 0,
+  });
+  expect(chunks.slice(0, -1).every((c) => c.status === "paused")).toBe(true);
+  // The make traversal is never published before the closing witness.
+  expect(yards).toBe(1);
+  expect(vehicles).toHaveLength(1064);
+  expect(new Set(vehicles.map((v) => v.vin)).size).toBe(1064);
+  expect(tulsaVehicles(vehicles)).toBe(true);
+  expect(accounting).toEqual({ processed: 1083, rejected: 19 });
+  // One opening and one closing broad view, each make exactly once, and only
+  // the identity page repeats per chunk.
+  expect(replay.broadRequests()).toBe(2);
+  const repeated = replay.requests.filter(
+    (url, index) => replay.requests.indexOf(url) !== index,
+  );
+  expect(new Set(repeated)).toEqual(
+    new Set(["https://midwayupull.com/", saved.opening.url]),
+  );
+  expect(
+    replay.requests.filter((url) => url === "https://midwayupull.com/"),
+  ).toHaveLength(chunks.length);
+});
+
+test("a resumed Tulsa traversal still fails closed on missed donors, closing drift and rejections", async () => {
+  const census = openMidwayMakeCensus(saved.opening.raw, "OO95");
+  const closingCursor = {
+    source: "midway",
+    observedVins: tulsaStart.observedVins,
+    stocks: tulsaStart.stocks,
+    phase: "tulsa",
+    makes: [],
+    witness: [],
+    openingHash: census.openingHash,
+    processed: 100,
+    rejected: 0,
+  } satisfies MidwayCursor;
+  const cases: [MidwayCursor, string][] = [
+    [
+      { ...closingCursor, witness: census.witness.slice(0, 1) },
+      "missed or changed 1 donors",
+    ],
+    [
+      { ...closingCursor, openingHash: "0".repeat(64) },
+      "closing witness changed",
+    ],
+    [{ ...closingCursor, rejected: 11 }, "10% rejection limit"],
+    [{ ...closingCursor, rejected: 100 }, "no accepted donor"],
+  ];
+  for (const [startCursor, message] of cases) {
+    replayCensus();
+    let yards = 0;
+    await expect(
+      Effect.runPromise(
+        streamMidwayInventoryWithRequestGate(
+          {
+            startCursor,
+            onBatch: () => Effect.void,
+            onYards: () =>
+              Effect.sync(() => {
+                yards++;
+              }),
+          },
+          (request) => request,
+        ),
+      ),
+    ).rejects.toThrow(message);
+    expect(yards).toBe(0);
+  }
 });

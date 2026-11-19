@@ -1,13 +1,18 @@
 import { ingestionValidation } from "./ingestion-validation";
-import { Effect, RateLimiter } from "effect";
+import { Clock, Effect, RateLimiter } from "effect";
 import {
   fetchMidwayCatalog,
   fetchMidwayHome,
   MidwayProviderError,
 } from "./midway-client";
 import { MidwayCursor, MidwayCursorSchema } from "./midway-cursor";
-import { parseMidwayCatalog } from "./midway-parser";
-import { fetchMidwayMakeEnumeration } from "./midway-catalog";
+import { parseMidwayCatalog, type MidwayRecord } from "./midway-parser";
+import {
+  closeMidwayMakeCensus,
+  fetchMidwayMakeRecords,
+  midwayRecordDigest,
+  openMidwayMakeCensus,
+} from "./midway-catalog";
 import {
   parseMidwayStockNumber,
   transformMidwayRecord,
@@ -17,6 +22,7 @@ import {
   MIDWAY_YARDS,
   parseMidwayYards,
   type MidwayYard,
+  type MidwayYardCode,
 } from "./midway-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import { inventoryVin } from "./inventory-vin";
@@ -31,7 +37,69 @@ interface MidwayOptions<E, R> {
 }
 export type MidwayStreamResult = ConnectorChunkResult<"midway", MidwayCursor>;
 
-/** One page unit validates and emits one complete selected physical yard. */
+/**
+ * Start no new native request after this much of the five-minute chunk
+ * limit. Midway shares the URG host slot, so one request can wait well beyond
+ * its own latency; the remainder covers that wait plus the 25-second request.
+ */
+export const MIDWAY_CHUNK_SOFT_MS = 120_000;
+
+/** Dedupe and transform one native page of donors against prior identities. */
+function admitMidwayRecords(
+  records: readonly MidwayRecord[],
+  code: MidwayYardCode,
+  previousVins: readonly string[],
+  previousStocks: readonly string[],
+) {
+  const vins = new Set(previousVins);
+  const stocks = new Set(previousStocks);
+  const vehicles: MidwayCanonicalVehicle[] = [];
+  const rejectedVins: string[] = [];
+  let rejected = 0;
+  for (const record of records) {
+    const vin = inventoryVin(record.vin, record.year);
+    const stock = parseMidwayStockNumber(record.stock);
+    if (
+      (vin !== null && vins.has(vin)) ||
+      (stock !== null && stocks.has(stock))
+    )
+      throw new Error(
+        "Duplicate native stock/VIN within or across selected Midway yards",
+      );
+    if (vin) vins.add(vin);
+    if (stock) stocks.add(stock);
+    const result = transformMidwayRecord(record, code);
+    if (result.status === "available") vehicles.push(result.vehicle);
+    else {
+      rejected++;
+      if (result.vin) rejectedVins.push(result.vin);
+    }
+  }
+  return {
+    vehicles,
+    rejectedVins,
+    rejected,
+    vins: [...vins],
+    stocks: [...stocks],
+  };
+}
+
+function assertMidwayYardQuality(processed: number, rejected: number) {
+  if (
+    processed - rejected <= 0 ||
+    rejected / processed > SourceValidationPolicy.maximumRejectionRatio
+  )
+    throw new Error(
+      `${rejected} rejected of ${processed} donors exceeds the 10% rejection limit or leaves no accepted donor`,
+    );
+}
+
+/**
+ * One page unit validates and emits one complete selected physical yard.
+ * Tulsa exceeds the native 500-row view, so its make traversal checkpoints
+ * after every make page and completes only when the closing broad witness
+ * proves the whole traversal, across however many chunks it takes.
+ */
 export function streamMidwayInventoryWithRequestGate<E, R>(
   options: MidwayOptions<E, R>,
   gate: ProviderRequestGate,
@@ -54,6 +122,8 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
     let cursor: MidwayCursor = parsed.data;
     let count = 0;
     let pagesProcessed = 0;
+    let nativePages = 0;
+    const started = yield* Clock.currentTimeMillis;
     const observedVins: string[] = [];
     const accounting = {
       recordsProcessed: 0,
@@ -69,103 +139,129 @@ export function streamMidwayInventoryWithRequestGate<E, R>(
           new MidwayProviderError({ operation: "native yard identity", cause }),
       });
     }
-    while (cursor.phase === "yard" && pagesProcessed < maxPages) {
-      const code = cursor.yardCode;
-      const previousVins = cursor.observedVins;
-      const previousStocks = cursor.stocks;
-      const html = yield* fetchMidwayCatalog(code, gate);
-      const partitioned =
-        code === "OO95"
-          ? yield* fetchMidwayMakeEnumeration(html, code, gate)
-          : null;
-      if (code === "OO95") {
-        const closing = yield* fetchMidwayCatalog(code, gate);
-        yield* ingestionValidation({
+    while (cursor.phase !== "complete" && pagesProcessed < maxPages) {
+      // Always make progress, then checkpoint before the hard chunk limit.
+      if (
+        nativePages > 0 &&
+        (yield* Clock.currentTimeMillis) - started >= MIDWAY_CHUNK_SOFT_MS
+      )
+        break;
+      if (cursor.phase === "yard" && cursor.yardCode !== "OO95") {
+        const code = cursor.yardCode;
+        const previousVins = cursor.observedVins;
+        const previousStocks = cursor.stocks;
+        const html = yield* fetchMidwayCatalog(code, gate);
+        nativePages++;
+        const snapshot = yield* ingestionValidation({
           try: () => {
-            if (
-              JSON.stringify(
-                parseMidwayCatalog(html, code, undefined, true),
-              ) !==
-              JSON.stringify(parseMidwayCatalog(closing, code, undefined, true))
-            )
-              throw new Error(
-                "Midway Tulsa broad closing witness changed during make enumeration",
-              );
+            const records = parseMidwayCatalog(html, code);
+            const admitted = admitMidwayRecords(
+              records,
+              code,
+              previousVins,
+              previousStocks,
+            );
+            assertMidwayYardQuality(records.length, admitted.rejected);
+            return { ...admitted, processed: records.length };
           },
           catch: (cause) =>
             new MidwayProviderError({
-              operation: "Tulsa closing coverage witness",
+              operation: "yard " + code + " complete inventory validation",
               cause,
             }),
         });
+        if (options.onYards) yield* options.onYards([MIDWAY_YARDS[code]]);
+        yield* options.onBatch(snapshot.vehicles);
+        count += snapshot.vehicles.length;
+        accounting.recordsProcessed += snapshot.processed;
+        accounting.recordsRejected += snapshot.rejected;
+        observedVins.push(...snapshot.rejectedVins);
+        pagesProcessed++;
+        cursor = {
+          source: "midway",
+          phase: "yard",
+          yardCode: code === "MO38" ? "MO09" : "OO95",
+          observedVins: snapshot.vins,
+          stocks: snapshot.stocks,
+        };
+        continue;
       }
-      const snapshot = yield* ingestionValidation({
+      if (cursor.phase === "yard") {
+        const opening = yield* fetchMidwayCatalog("OO95", gate);
+        nativePages++;
+        const census = yield* ingestionValidation({
+          try: () => openMidwayMakeCensus(opening, "OO95"),
+          catch: (cause) =>
+            new MidwayProviderError({
+              operation: "Tulsa opening coverage witness",
+              cause,
+            }),
+        });
+        cursor = {
+          source: "midway",
+          phase: "tulsa",
+          observedVins: cursor.observedVins,
+          stocks: cursor.stocks,
+          ...census,
+          processed: 0,
+          rejected: 0,
+        };
+        continue;
+      }
+      const tulsa = cursor;
+      const [make, ...remaining] = tulsa.makes;
+      if (make !== undefined) {
+        const records = yield* fetchMidwayMakeRecords("OO95", make, gate);
+        nativePages++;
+        const admitted = yield* ingestionValidation({
+          try: () =>
+            admitMidwayRecords(
+              records,
+              "OO95",
+              tulsa.observedVins,
+              tulsa.stocks,
+            ),
+          catch: (cause) =>
+            new MidwayProviderError({
+              operation: "yard OO95 make " + make + " inventory validation",
+              cause,
+            }),
+        });
+        // Staged only; the run cannot publish until the closing witness and
+        // yard-wide rejection guard below accept the whole Tulsa traversal.
+        if (admitted.vehicles.length) yield* options.onBatch(admitted.vehicles);
+        count += admitted.vehicles.length;
+        accounting.recordsProcessed += records.length;
+        accounting.recordsRejected += admitted.rejected;
+        observedVins.push(...admitted.rejectedVins);
+        const reproduced = new Set(records.map(midwayRecordDigest));
+        cursor = {
+          ...tulsa,
+          makes: remaining,
+          witness: tulsa.witness.filter((hash) => !reproduced.has(hash)),
+          observedVins: admitted.vins,
+          stocks: admitted.stocks,
+          processed: tulsa.processed + records.length,
+          rejected: tulsa.rejected + admitted.rejected,
+        };
+        continue;
+      }
+      const closing = yield* fetchMidwayCatalog("OO95", gate);
+      nativePages++;
+      yield* ingestionValidation({
         try: () => {
-          const records = partitioned ?? parseMidwayCatalog(html, code);
-          const vins = new Set(previousVins);
-          const stocks = new Set(previousStocks);
-          const vehicles: MidwayCanonicalVehicle[] = [];
-          const rejectedVins: string[] = [];
-          let rejected = 0;
-          for (const record of records) {
-            const vin = inventoryVin(record.vin, record.year);
-            const stock = parseMidwayStockNumber(record.stock);
-            if (
-              (vin !== null && vins.has(vin)) ||
-              (stock !== null && stocks.has(stock))
-            )
-              throw new Error(
-                "Duplicate native stock/VIN within or across selected Midway yards",
-              );
-            if (vin) vins.add(vin);
-            if (stock) stocks.add(stock);
-            const result = transformMidwayRecord(record, code);
-            if (result.status === "available") vehicles.push(result.vehicle);
-            else {
-              rejected++;
-              if (result.vin) rejectedVins.push(result.vin);
-            }
-          }
-          if (
-            !vehicles.length ||
-            rejected / records.length >
-              SourceValidationPolicy.maximumRejectionRatio
-          )
-            throw new Error(
-              `${rejected} rejected of ${records.length} donors exceeds the 10% rejection limit or leaves no accepted donor`,
-            );
-          return {
-            vehicles,
-            rejectedVins,
-            rejected,
-            processed: records.length,
-            vins: [...vins],
-            stocks: [...stocks],
-          };
+          closeMidwayMakeCensus(closing, "OO95", tulsa);
+          assertMidwayYardQuality(tulsa.processed, tulsa.rejected);
         },
         catch: (cause) =>
           new MidwayProviderError({
-            operation: "yard " + code + " complete inventory validation",
+            operation: "yard OO95 complete inventory validation",
             cause,
           }),
       });
-      if (options.onYards) yield* options.onYards([MIDWAY_YARDS[code]]);
-      yield* options.onBatch(snapshot.vehicles);
-      count += snapshot.vehicles.length;
-      accounting.recordsProcessed += snapshot.processed;
-      accounting.recordsRejected += snapshot.rejected;
-      observedVins.push(...snapshot.rejectedVins);
+      if (options.onYards) yield* options.onYards([MIDWAY_YARDS.OO95]);
       pagesProcessed++;
-      cursor =
-        code !== "OO95"
-          ? {
-              source: "midway",
-              phase: "yard",
-              yardCode: code === "MO38" ? "MO09" : "OO95",
-              observedVins: snapshot.vins,
-              stocks: snapshot.stocks,
-            }
-          : { source: "midway", phase: "complete" };
+      cursor = { source: "midway", phase: "complete" };
     }
     return {
       source: "midway",
