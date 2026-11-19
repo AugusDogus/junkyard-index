@@ -4,7 +4,7 @@ import { nextYardPin } from "~/lib/yard-map-focus";
 import { YardPath } from "~/lib/yard-path";
 import { Minus, Plus, Scan } from "lucide-react";
 import { Map, Overlay } from "pigeon-maps";
-import { YardMapTile } from "./YardMapTile";
+import { YardMapTile, YardMapTilesReady } from "./YardMapTile";
 import { yardTileProvider } from "~/lib/yard-map-tiles";
 import { useYardMapView } from "~/hooks/use-yard-map-view";
 import { YardMapPin } from "./YardMapPin";
@@ -50,6 +50,25 @@ const YardMapCanvas = memo(function YardMapCanvas({
     compact ? { width: 360, height: 240 } : { width: 900, height: 400 },
   );
   const [tileError, setTileError] = useState(false);
+  const [tilesReady, setTilesReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let frame: number | undefined;
+    // Paint the hero in its final font before starting the decorative tile requests.
+    void document.fonts.ready.then(() => {
+      if (cancelled) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => {
+          if (!cancelled) setTilesReady(true);
+        });
+      });
+    });
+    return () => {
+      cancelled = true;
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+    };
+  }, []);
   const overview = useMemo(
     () => getYardMapView(yards, size.width, size.height),
     [yards, size.width, size.height],
@@ -181,54 +200,56 @@ const YardMapCanvas = memo(function YardMapCanvas({
         style={mapStyle}
         aria-busy={loading}
       >
-        <Map
-          ref={mapRef}
-          width={size.width}
-          height={size.height}
-          center={current.center}
-          zoom={current.zoom}
-          provider={yardTileProvider}
-          tileComponent={YardMapTile}
-          boxClassname="yard-map-tiles"
-          animate={false}
-          zoomSnap={false}
-          metaWheelZoom
-          metaWheelZoomWarning="Hold Ctrl or ⌘ while scrolling to zoom"
-          twoFingerDrag
-          onBoundsChanged={({ center, zoom, initial }) => {
-            if (
-              !initial &&
-              (Math.abs(zoom - current.zoom) > 0.000001 ||
-                Math.abs(center[0] - current.center[0]) > 0.000001 ||
-                Math.abs(center[1] - current.center[1]) > 0.000001)
-            ) {
-              syncView({ center, zoom });
-            }
-          }}
-          attribution={false}
-        >
-          {pins.map((yard) => (
-            <Overlay
-              key={`${yard.source}:${yard.code}`}
-              anchor={[yard.lat, yard.lng]}
-              offset={[12, 12]}
-              className="yard-map-marker"
-            >
-              <YardMapPin
-                yard={yard}
-                tabIndex={YardPath.key(yard) === activeKey ? 0 : -1}
-                buttonRef={(button) => {
-                  const key = YardPath.key(yard);
-                  if (button) pinRefs.current.set(key, button);
-                  else pinRefs.current.delete(key);
-                }}
-                onFocus={() => setFocusedKey(YardPath.key(yard))}
-                selected={selected === yard}
-                onSelect={() => onSelect(yard)}
-              />
-            </Overlay>
-          ))}
-        </Map>
+        <YardMapTilesReady.Provider value={tilesReady}>
+          <Map
+            ref={mapRef}
+            width={size.width}
+            height={size.height}
+            center={current.center}
+            zoom={current.zoom}
+            provider={yardTileProvider}
+            tileComponent={YardMapTile}
+            boxClassname="yard-map-tiles"
+            animate={false}
+            zoomSnap={false}
+            metaWheelZoom
+            metaWheelZoomWarning="Hold Ctrl or ⌘ while scrolling to zoom"
+            twoFingerDrag
+            onBoundsChanged={({ center, zoom, initial }) => {
+              if (
+                !initial &&
+                (Math.abs(zoom - current.zoom) > 0.000001 ||
+                  Math.abs(center[0] - current.center[0]) > 0.000001 ||
+                  Math.abs(center[1] - current.center[1]) > 0.000001)
+              ) {
+                syncView({ center, zoom });
+              }
+            }}
+            attribution={false}
+          >
+            {pins.map((yard) => (
+              <Overlay
+                key={`${yard.source}:${yard.code}`}
+                anchor={[yard.lat, yard.lng]}
+                offset={[12, 12]}
+                className="yard-map-marker"
+              >
+                <YardMapPin
+                  yard={yard}
+                  tabIndex={YardPath.key(yard) === activeKey ? 0 : -1}
+                  buttonRef={(button) => {
+                    const key = YardPath.key(yard);
+                    if (button) pinRefs.current.set(key, button);
+                    else pinRefs.current.delete(key);
+                  }}
+                  onFocus={() => setFocusedKey(YardPath.key(yard))}
+                  selected={selected === yard}
+                  onSelect={() => onSelect(yard)}
+                />
+              </Overlay>
+            ))}
+          </Map>
+        </YardMapTilesReady.Provider>
       </div>
       <a
         href="https://www.openstreetmap.org/copyright"
