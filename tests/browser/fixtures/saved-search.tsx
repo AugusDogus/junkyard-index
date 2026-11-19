@@ -4,12 +4,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { PathnameContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
+import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtime";
+import { formatUrl } from "next/dist/shared/lib/router/utils/format-url";
+import {
+  PathnameContext,
+  SearchParamsContext,
+} from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SaveSearchDialog } from "~/components/search/SaveSearchDialog";
 import { SearchStartPanel } from "~/components/search/SearchStartPanel";
 import { SavedSearchesList } from "~/components/search/SavedSearchesList";
+import { SavedSearchEditorPage } from "~/components/search/editor/SavedSearchEditorPage";
 import { SavedSearchSettingsCard } from "~/components/settings/SavedSearchSettingsCard";
 import { SettingsNav } from "~/components/settings/SettingsNav";
 import { SettingsPageHeader } from "~/components/settings/SettingsPageHeader";
@@ -52,6 +58,21 @@ const search: RouterOutputs["savedSearches"]["list"][number] = {
 };
 
 function Fixture() {
+  const [location, setLocation] = useState(
+    () =>
+      new URL(
+        parameters.has("settings") ? "/settings/searches" : "/search",
+        window.location.origin,
+      ),
+  );
+  const navigate = (href: string) => {
+    const next = new URL(href, window.location.origin);
+    window.history.pushState(null, "", next);
+    setLocation(next);
+  };
+  const editorId = /^\/saved-searches\/([^/]+)\/edit$/.exec(
+    location.pathname,
+  )?.[1];
   const [submission, setSubmission] = useState<unknown>(null);
   const failNext = useRef(parameters.has("fail"));
   const currentSearches = useRef([
@@ -182,12 +203,17 @@ function Fixture() {
                   ? currentSearches.current
                   : op.path === "subscription.getAccountOverview"
                     ? { kind: "active", tier: "full" }
-                    : op.path === "user.getNotificationSettings"
+                    : op.path === "status.searchCapabilities"
                       ? {
-                          hasDiscordLinked: parameters.has("discord"),
-                          discordAppInstalled: parameters.has("discord"),
+                          booleanOrSearchReady: true,
+                          vinPatternSearchReady: true,
                         }
-                      : { id: search.id };
+                      : op.path === "user.getNotificationSettings"
+                        ? {
+                            hasDiscordLinked: parameters.has("discord"),
+                            discordAppInstalled: parameters.has("discord"),
+                          }
+                        : { id: search.id };
               observer.next({ result: { data } });
               observer.complete();
             }),
@@ -201,51 +227,86 @@ function Fixture() {
         back: noOp,
         forward: noOp,
         refresh: noOp,
-        push: noOp,
-        replace: noOp,
+        push: navigate,
+        replace: navigate,
         prefetch: noOp,
       }}
     >
-      <PathnameContext.Provider value="/settings/searches">
-        <QueryClientProvider client={queryClient}>
-          <api.Provider client={client} queryClient={queryClient}>
-            <main className="mx-auto flex max-w-6xl flex-col gap-8 p-5 sm:p-8">
-              {parameters.has("settings") ? (
-                <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
-                  <SettingsNav />
-                  <div className="flex min-w-0 flex-col gap-8">
-                    <SettingsPageHeader
-                      title="Searches"
-                      description="Keep track of the vehicles you’re looking for, including those that haven’t arrived yet."
+      <PathnameContext.Provider value={location.pathname}>
+        {/* Bun resolves next/link to the Pages entrypoint outside a Next build. */}
+        <RouterContext.Provider
+          value={{
+            basePath: "",
+            pathname: location.pathname,
+            route: location.pathname,
+            query: Object.fromEntries(location.searchParams),
+            asPath: location.pathname + location.search,
+            isReady: true,
+            isFallback: false,
+            isPreview: false,
+            isLocaleDomain: false,
+            push: async (href) => {
+              navigate(typeof href === "string" ? href : formatUrl(href));
+              return true;
+            },
+            replace: async (href) => {
+              navigate(typeof href === "string" ? href : formatUrl(href));
+              return true;
+            },
+            back: noOp,
+            forward: noOp,
+            reload: noOp,
+            beforePopState: noOp,
+            prefetch: async () => undefined,
+            events: { on: noOp, off: noOp, emit: noOp },
+          }}
+        >
+          <SearchParamsContext.Provider value={location.searchParams}>
+            <QueryClientProvider client={queryClient}>
+              <api.Provider client={client} queryClient={queryClient}>
+                <main className="mx-auto flex max-w-6xl flex-col gap-8 p-5 sm:p-8">
+                  {editorId ? (
+                    <SavedSearchEditorPage id={decodeURIComponent(editorId)} />
+                  ) : location.pathname === "/settings/searches" ? (
+                    <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
+                      <SettingsNav />
+                      <div className="flex min-w-0 flex-col gap-8">
+                        <SettingsPageHeader
+                          title="Searches"
+                          description="Keep track of the vehicles you’re looking for, including those that haven’t arrived yet."
+                        />
+                        <SavedSearchSettingsCard />
+                      </div>
+                    </div>
+                  ) : parameters.has("scene") ? (
+                    <SearchStartPanel
+                      isLoggedIn
+                      savedSearchesLocked={false}
+                      vinPatternSearchReady
+                      onSearch={noOp}
                     />
-                    <SavedSearchSettingsCard />
-                  </div>
-                </div>
-              ) : parameters.has("scene") ? (
-                <SearchStartPanel
-                  isLoggedIn
-                  savedSearchesLocked={false}
-                  vinPatternSearchReady
-                  onSearch={noOp}
-                />
-              ) : (
-                <SavedSearchesList locked={false} />
-              )}
-              <SaveSearchDialog
-                query=""
-                filters={{ makes: ["Saab"] }}
-                planAccess={{ kind: "resolved", tier: "full" }}
-                isLoggedIn
-              />
-              <output
-                id="submission"
-                className="block max-w-full break-all whitespace-pre-wrap"
-              >
-                {JSON.stringify(submission)}
-              </output>
-            </main>
-          </api.Provider>
-        </QueryClientProvider>
+                  ) : (
+                    <SavedSearchesList locked={false} />
+                  )}
+                  {!editorId && (
+                    <SaveSearchDialog
+                      query=""
+                      filters={{ makes: ["Saab"] }}
+                      planAccess={{ kind: "resolved", tier: "full" }}
+                      isLoggedIn
+                    />
+                  )}
+                  <output
+                    id="submission"
+                    className="block max-w-full break-all whitespace-pre-wrap"
+                  >
+                    {JSON.stringify(submission)}
+                  </output>
+                </main>
+              </api.Provider>
+            </QueryClientProvider>
+          </SearchParamsContext.Provider>
+        </RouterContext.Provider>
       </PathnameContext.Provider>
     </AppRouterContext.Provider>
   );

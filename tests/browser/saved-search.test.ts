@@ -37,6 +37,7 @@ afterAll(async () => {
 });
 
 async function openFixture(page: Page, parameters = "") {
+  page.setDefaultTimeout(5_000);
   await page.route(/algolia/, (route) => route.abort());
   await page.route("http://saved-search.test/**", (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -52,6 +53,57 @@ async function openFixture(page: Page, parameters = "") {
   await page.goto(`http://saved-search.test/${parameters}`);
 }
 
+const workspace = (page: Page) =>
+  page.getByRole("form", { name: "Saved search workspace" });
+
+async function openEditor(page: Page, name = "Future donor") {
+  const link = page.getByRole("link", {
+    name: `Edit saved search ${name}`,
+    exact: true,
+  });
+  expect(await link.getAttribute("href")).toMatch(
+    /^\/saved-searches\/[^/]+\/edit\?from=(search|settings)$/,
+  );
+  await link.click();
+  await workspace(page).waitFor();
+}
+
+async function saveChanges(page: Page) {
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await workspace(page).waitFor({ state: "hidden" });
+}
+
+async function addFilter(page: Page, name: string) {
+  await page.getByRole("button", { name: "Add filter", exact: true }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+  await page.getByRole("menu").waitFor({ state: "hidden" });
+}
+
+async function addColor(page: Page) {
+  await addFilter(page, "Color");
+  await page
+    .getByRole("combobox", { name: "Add Color value", exact: true })
+    .fill("Purple");
+  await page.getByRole("option", { name: "Use “Purple”", exact: true }).click();
+}
+
+async function expectNoOverflow(page: Page) {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+}
+
+async function submission(page: Page): Promise<unknown> {
+  const text = await page.locator("#submission").textContent();
+  if (!text)
+    throw new Error(
+      "The saved-search fixture did not render its submission receipt.",
+    );
+  return JSON.parse(text);
+}
+
 describe("saved search browser flow", () => {
   for (const viewport of [
     { width: 390, height: 844 },
@@ -62,84 +114,45 @@ describe("saved search browser flow", () => {
       const page = await browser.newPage({ viewport });
       try {
         await openFixture(page);
-        await page
-          .getByRole("button", { name: "Edit saved search Future donor" })
-          .click();
-        await page.evaluate(() =>
-          Promise.all(
-            document.getAnimations().map((animation) => animation.finished),
-          ),
+        await openEditor(page);
+        const expression = page.getByRole("textbox", {
+          name: "Search expression",
+          exact: true,
+        });
+        expect(await expression.inputValue()).toBe(
+          'wagon AND "roof rack" AND !diesel AND (volvo OR saab) AND year:>=1980 AND year:<=2000 AND make:Saab',
         );
-        expect(
-          await page
-            .getByRole("dialog")
-            .locator("form")
-            .evaluate((form) => form.scrollHeight <= form.clientHeight + 1),
-        ).toBe(true);
-        expect(
-          await page
-            .getByLabel("All of these words", { exact: true })
-            .inputValue(),
-        ).toBe("wagon");
-        expect(
-          await page
-            .getByLabel("This exact phrase", { exact: true })
-            .inputValue(),
-        ).toBe("roof rack");
-        expect(
-          await page
-            .getByLabel("Any of these words", { exact: true })
-            .inputValue(),
-        ).toBe("Volvo, Saab");
-        expect(
-          await page
-            .getByLabel("None of these words", { exact: true })
-            .inputValue(),
-        ).toBe("diesel");
         await page
           .getByLabel("Search name", { exact: true })
           .fill("Future wagon");
+        await expression.fill(
+          'wagon "roof rack" (Volvo OR Saab) !diesel !damaged make:Qvale year:>=1980 year:<=2000',
+        );
         await page
-          .getByLabel("None of these words", { exact: true })
-          .fill("diesel, damaged");
-        await page
-          .getByRole("button", { name: "Make Saab", exact: true })
+          .getByRole("combobox", { name: "Sort results", exact: true })
           .click();
-        await page
-          .getByRole("checkbox", { name: "Saab", exact: true })
-          .uncheck();
-        expect(
-          await page
-            .getByRole("checkbox", { name: "Saab", exact: true })
-            .count(),
-        ).toBe(1);
-        await page
-          .getByRole("textbox", { name: "Search makes", exact: true })
-          .fill("  Qvale  ");
-        await page
-          .getByRole("textbox", { name: "Search makes", exact: true })
-          .press("Enter");
-        expect(await page.getByRole("dialog").count()).toBe(1);
-        expect(
-          await page
-            .getByRole("checkbox", { name: "Qvale", exact: true })
-            .isChecked(),
-        ).toBe(true);
-        await page.getByRole("combobox", { name: "Order results by" }).click();
         await page
           .getByRole("option", { name: "Oldest First", exact: true })
           .click();
-        await page
-          .getByRole("button", { name: "Save changes", exact: true })
-          .click();
-        await page.getByRole("dialog").waitFor({ state: "hidden" });
-        const submission = await page.locator("#submission").textContent();
-        expect(submission).toContain(
-          JSON.stringify('wagon "roof rack" (Volvo OR Saab) !diesel !damaged'),
+        await expectNoOverflow(page);
+        await saveChanges(page);
+        expect(await submission(page)).toEqual({
+          path: "savedSearches.update",
+          input: {
+            id: "saved-volvo",
+            name: "Future wagon",
+            query: "",
+            filters: {
+              expression:
+                'wagon "roof rack" (Volvo OR Saab) !diesel !damaged make:Qvale year:>=1980 year:<=2000',
+              sortBy: "oldest",
+            },
+          },
+        });
+        await openEditor(page, "Future wagon");
+        expect(await expression.inputValue()).toBe(
+          'wagon "roof rack" (Volvo OR Saab) !diesel !damaged make:Qvale year:>=1980 year:<=2000',
         );
-        expect(submission).toContain('"makes":["Qvale"]');
-        expect(submission).toContain('"sortBy":"oldest"');
-        expect(submission).not.toContain("emailAlertsEnabled");
       } finally {
         await page.close();
       }
@@ -158,13 +171,7 @@ describe("saved search browser flow", () => {
         await page
           .getByRole("button", { name: "Edit criteria", exact: true })
           .click();
-        await page.getByRole("button", { name: "Color", exact: true }).click();
-        await page
-          .getByRole("textbox", { name: "Search colors", exact: true })
-          .fill("Purple");
-        await page
-          .getByRole("button", { name: "Add “Purple”", exact: true })
-          .click();
+        await addColor(page);
         await page
           .getByRole("button", { name: "Save search", exact: true })
           .click();
@@ -177,19 +184,26 @@ describe("saved search browser flow", () => {
         ).toBe("Waiting for a Saab");
         expect(
           await page
-            .getByRole("checkbox", { name: "Purple", exact: true })
-            .isChecked(),
-        ).toBe(true);
+            .getByRole("button", { name: "Remove Purple", exact: true })
+            .count(),
+        ).toBe(1);
         await page
           .getByRole("button", { name: "Save search", exact: true })
           .click();
         await page.getByRole("dialog").waitFor({ state: "hidden" });
-        expect(await page.locator("#submission").textContent()).toContain(
-          '"query":""',
-        );
-        expect(await page.locator("#submission").textContent()).toContain(
-          '"colors":["Purple"]',
-        );
+        expect(await submission(page)).toEqual({
+          path: "savedSearches.create",
+          input: {
+            name: "Waiting for a Saab",
+            query: "",
+            filters: expect.objectContaining({
+              makes: ["Saab"],
+              colors: ["Purple"],
+            }),
+            emailAlertsEnabled: false,
+            discordAlertsEnabled: false,
+          },
+        });
       } finally {
         await page.close();
       }
@@ -201,85 +215,79 @@ describe("saved search browser flow", () => {
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       try {
         await openFixture(page, "?query=volvo&no-suggestions=1");
-        await page
-          .getByRole("button", { name: "Edit saved search Future donor" })
-          .click();
+        await openEditor(page);
         expect(
           await page
-            .getByLabel("All of these words", { exact: true })
+            .getByRole("textbox", { name: "Search terms", exact: true })
             .inputValue(),
         ).toBe("volvo");
         expect(
           await page
-            .getByLabel("This exact phrase", { exact: true })
-            .isVisible(),
-        ).toBe(false);
+            .getByRole("button", { name: "Basic search", exact: true })
+            .getAttribute("aria-pressed"),
+        ).toBe("true");
         expect(
           await page
-            .getByRole("button", { name: "Advanced options", exact: true })
-            .getAttribute("aria-expanded"),
-        ).toBe("false");
-        await page
-          .getByRole("button", { name: "Make Saab", exact: true })
-          .waitFor();
-        await page
-          .getByRole("button", { name: "Year 1980 to 2000", exact: true })
-          .waitFor();
-        expect(
-          await page
-            .getByRole("button", { name: "Color", exact: true })
+            .getByRole("textbox", { name: "Search expression", exact: true })
             .count(),
         ).toBe(0);
         await page
-          .getByRole("button", { name: "Advanced options", exact: true })
+          .getByRole("button", { name: "MakeSaab", exact: true })
           .click();
         await page
-          .getByLabel("None of these words", { exact: true })
-          .fill("diesel");
-        await page
-          .getByRole("button", { name: "Advanced options", exact: true })
+          .getByRole("button", { name: "Remove Saab", exact: true })
           .click();
-        await page
-          .getByRole("button", { name: "Add filter", exact: true })
-          .click();
-        await page
-          .getByRole("menuitem", { name: "Color", exact: true })
-          .click();
-        await page
-          .getByRole("textbox", { name: "Search colors", exact: true })
-          .fill("Purple");
-        await page
-          .getByRole("button", { name: "Add “Purple”", exact: true })
-          .click();
-        await page
-          .getByRole("button", { name: "Save changes", exact: true })
-          .click();
-        await page.getByRole("dialog").waitFor({ state: "hidden" });
-        expect(await page.locator("#submission").textContent()).toContain(
-          '"query":"volvo !diesel"',
-        );
-        expect(await page.locator("#submission").textContent()).toContain(
-          '"colors":["Purple"]',
-        );
-        expect(await page.locator("#submission").textContent()).toContain(
-          '"makes":["Saab"]',
-        );
-        await page
-          .getByRole("button", { name: "Edit saved search Future donor" })
-          .click();
+        const make = page.getByRole("combobox", {
+          name: "Add Make value",
+          exact: true,
+        });
+        await make.fill("  Qvale  ");
+        await make.press("Enter");
+        expect(await workspace(page).count()).toBe(1);
         expect(
           await page
-            .getByLabel("None of these words", { exact: true })
-            .inputValue(),
-        ).toBe("diesel");
+            .getByRole("option", { name: "Use “Qvale”", exact: true })
+            .count(),
+        ).toBe(0);
         expect(
           await page
-            .getByRole("button", { name: "Advanced options", exact: true })
-            .getAttribute("aria-expanded"),
+            .getByRole("button", { name: "Remove Qvale", exact: true })
+            .count(),
+        ).toBe(1);
+        await page.getByRole("button", { name: "Done", exact: true }).click();
+        await addColor(page);
+        await page
+          .getByRole("button", { name: "Advanced search", exact: true })
+          .click();
+        const expression = page.getByRole("textbox", {
+          name: "Search expression",
+          exact: true,
+        });
+        expect(await expression.inputValue()).toBe(
+          "volvo AND year:>=1980 AND year:<=2000 AND make:Qvale AND color:Purple",
+        );
+        await expression.fill(`${await expression.inputValue()} AND !diesel`);
+        await saveChanges(page);
+        expect(await submission(page)).toEqual(
+          expect.objectContaining({
+            input: expect.objectContaining({
+              query: "",
+              filters: expect.objectContaining({
+                expression:
+                  "volvo AND year:>=1980 AND year:<=2000 AND make:Qvale AND color:Purple AND !diesel",
+              }),
+            }),
+          }),
+        );
+        await openEditor(page);
+        expect(await expression.inputValue()).toContain(
+          "color:Purple AND !diesel",
+        );
+        expect(
+          await page
+            .getByRole("button", { name: "Advanced search", exact: true })
+            .getAttribute("aria-pressed"),
         ).toBe("true");
-        await page
-          .getByRole("button", { name: "Color Purple", exact: true })
-          .waitFor();
       } finally {
         await page.close();
       }
@@ -306,97 +314,75 @@ describe("saved search browser flow", () => {
             exact: true,
           });
           await first.waitFor();
-          expect(
-            await first
-              .getByRole("button", {
-                name: "Alerts for Future donor: Email",
-                exact: true,
-              })
-              .count(),
-          ).toBe(1);
-          expect(
-            await second
-              .getByRole("button", {
-                name: "Alerts for Tacoma donor with a particularly long saved search name: Discord",
-                exact: true,
-              })
-              .count(),
-          ).toBe(1);
+          const firstAlerts = first.getByRole("button", {
+            name: "Alerts for Future donor: Email",
+            exact: true,
+          });
+          await firstAlerts.waitFor();
+          await second
+            .getByRole("button", { name: /Alerts for Tacoma.*: Discord/ })
+            .waitFor();
           expect(await page.getByRole("switch").count()).toBe(0);
           expect(
             await page
               .getByRole("button", { name: /Delete saved search/ })
               .count(),
           ).toBe(0);
-          await first
-            .getByRole("button", { name: "Edit saved search Future donor" })
-            .click();
-          await page.getByRole("tab", { name: "Alerts", exact: true }).click();
+          await openEditor(page);
+          expect(new URL(page.url()).searchParams.get("from")).toBe(
+            settings ? "settings" : "search",
+          );
           const email = page.getByRole("switch", {
             name: "Email alerts for Future donor",
+            exact: true,
           });
           const discord = page.getByRole("switch", {
             name: "Discord alerts for Future donor",
+            exact: true,
           });
           expect(await email.isChecked()).toBe(true);
           expect(await discord.isChecked()).toBe(false);
           await email.click();
           await discord.click();
-          expect(await page.locator("#submission").textContent()).toBe("null");
+          expect(await submission(page)).toBeNull();
           await page
             .getByRole("button", { name: "Cancel", exact: true })
             .click();
-          expect(
-            await first
-              .getByRole("button", {
-                name: "Alerts for Future donor: Email",
-                exact: true,
-              })
-              .count(),
-          ).toBe(1);
-          await first
-            .getByRole("button", { name: "Edit saved search Future donor" })
-            .click();
-          await page
-            .getByLabel("Search name", { exact: true })
-            .fill("Updated donor");
-          await page.getByRole("tab", { name: "Alerts", exact: true }).click();
+          await firstAlerts.waitFor();
+          expect(new URL(page.url()).pathname).toBe(
+            settings ? "/settings/searches" : "/search",
+          );
+          await openEditor(page);
           expect(await email.isChecked()).toBe(true);
+          expect(await discord.isChecked()).toBe(false);
           await email.click();
           await discord.click();
           await page
-            .getByRole("button", { name: "Save changes", exact: true })
-            .click();
-          await page.getByRole("dialog").waitFor({ state: "hidden" });
-          const updated = page.getByRole("article", {
-            name: "Updated donor",
-            exact: true,
-          });
-          await updated
+            .getByLabel("Search name", { exact: true })
+            .fill("Updated donor");
+          await expectNoOverflow(page);
+          await saveChanges(page);
+          await page
+            .getByRole("article", { name: "Updated donor", exact: true })
             .getByRole("button", {
               name: "Alerts for Updated donor: Discord",
               exact: true,
             })
             .waitFor();
-          expect(
-            await second
-              .getByRole("button", {
-                name: "Alerts for Tacoma donor with a particularly long saved search name: Discord",
-                exact: true,
-              })
-              .count(),
-          ).toBe(1);
-          expect(await page.locator("#submission").textContent()).toContain(
-            '"path":"savedSearches.update"',
+          await second
+            .getByRole("button", { name: /Alerts for Tacoma.*: Discord/ })
+            .waitFor();
+          expect(await submission(page)).toEqual(
+            expect.objectContaining({
+              path: "savedSearches.update",
+              input: expect.objectContaining({
+                name: "Updated donor",
+                emailAlertsEnabled: false,
+                discordAlertsEnabled: true,
+              }),
+            }),
           );
-          expect(await page.locator("#submission").textContent()).toContain(
-            '"emailAlertsEnabled":false,"discordAlertsEnabled":true',
-          );
-          expect(
-            await page.evaluate(
-              () => document.documentElement.scrollWidth <= window.innerWidth,
-            ),
-          ).toBe(true);
+          await expectNoOverflow(page);
         } finally {
           await page.close();
         }
@@ -412,9 +398,7 @@ describe("saved search browser flow", () => {
           page,
           `?multiple=1${settings ? "&settings=1" : "&scene=1"}`,
         );
-        await page
-          .getByRole("button", { name: "Edit saved search Future donor" })
-          .click();
+        await openEditor(page);
         const deleteButton = page.getByRole("button", {
           name: "Delete saved search Future donor",
         });
@@ -440,24 +424,30 @@ describe("saved search browser flow", () => {
         await confirmation
           .getByRole("button", { name: "Delete search", exact: true })
           .click();
-        await page.getByRole("dialog").waitFor({ state: "hidden" });
+        await workspace(page).waitFor({ state: "hidden" });
         await page
-          .getByRole("article", { name: "Future donor", exact: true })
-          .waitFor({ state: "hidden" });
+          .getByRole("article", {
+            name: "Tacoma donor with a particularly long saved search name",
+            exact: true,
+          })
+          .waitFor();
+        expect(
+          await page
+            .getByRole("article", { name: "Future donor", exact: true })
+            .count(),
+        ).toBe(0);
         expect(await page.getByRole("article").count()).toBe(1);
-        expect(await page.locator("#submission").textContent()).toBe(
-          JSON.stringify({
-            path: "savedSearches.delete",
-            input: { id: "saved-volvo" },
-          }),
-        );
+        expect(await submission(page)).toEqual({
+          path: "savedSearches.delete",
+          input: { id: "saved-volvo" },
+        });
       } finally {
         await page.close();
       }
     }, 20_000);
   }
 
-  test("opens scoped alerts from the inline bell and uses the editor width", async () => {
+  test("opens scoped quick alerts from the inline bell and edits channels independently", async () => {
     const page = await browser.newPage({
       viewport: { width: 1440, height: 900 },
     });
@@ -469,39 +459,58 @@ describe("saved search browser flow", () => {
           exact: true,
         })
         .click();
-      expect(
-        await page.getByRole("tab", { name: "Alerts", selected: true }).count(),
-      ).toBe(1);
-      expect(
-        await page
-          .getByRole("switch", { name: "Email alerts for Future donor" })
-          .isChecked(),
-      ).toBe(true);
-      const panel = page.getByRole("tabpanel", { name: "Alerts", exact: true });
-      const panelBounds = await panel.boundingBox();
-      const controlsBounds = await panel
-        .getByRole("group", { name: "Alerts for Future donor", exact: true })
-        .boundingBox();
-      if (!panelBounds || !controlsBounds)
-        throw new Error("Alert editor is missing");
-      expect(controlsBounds.width).toBeGreaterThanOrEqual(
-        panelBounds.width * 0.95,
-      );
+      const popover = page.getByRole("dialog", {
+        name: "Alerts for this search",
+        exact: true,
+      });
+      await popover.waitFor();
+      const email = popover.getByRole("switch", {
+        name: "Email alerts for Future donor",
+        exact: true,
+      });
+      expect(await email.isChecked()).toBe(true);
+      await email.click();
       await page
-        .getByRole("tab", { name: "Search criteria", exact: true })
+        .getByRole("button", {
+          name: "Alerts for Future donor: Off",
+          exact: true,
+        })
+        .waitFor();
+      expect(await submission(page)).toEqual({
+        path: "savedSearches.toggleEmailAlerts",
+        input: { id: "saved-volvo", enabled: false },
+      });
+      await popover
+        .getByRole("switch", {
+          name: "Discord alerts for Future donor",
+          exact: true,
+        })
         .click();
-      const nameBounds = await page
-        .getByLabel("Search name", { exact: true })
-        .boundingBox();
-      if (!nameBounds) throw new Error("Search name is missing");
-      expect(nameBounds.width).toBeGreaterThanOrEqual(panelBounds.width * 0.95);
-      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "Alerts for Future donor: Discord",
+          exact: true,
+        })
+        .waitFor();
+      expect(await submission(page)).toEqual({
+        path: "savedSearches.toggleDiscordAlerts",
+        input: { id: "saved-volvo", enabled: true },
+      });
+      await page
+        .getByRole("article", {
+          name: "Tacoma donor with a particularly long saved search name",
+          exact: true,
+        })
+        .getByRole("button", { name: /Alerts for Tacoma.*: Discord/ })
+        .waitFor();
+      await page.keyboard.press("Escape");
+      await popover.waitFor({ state: "hidden" });
       await page
         .getByRole("button", { name: "Honda Civic Make + model" })
         .waitFor();
       expect(
         await page
-          .getByRole("button", { name: "Edit saved search Future donor" })
+          .getByRole("link", { name: "Edit saved search Future donor" })
           .locator("svg")
           .count(),
       ).toBe(1);
@@ -519,30 +528,28 @@ describe("saved search browser flow", () => {
       const open = page.getByRole("link", {
         name: "Open saved search Future donor",
       });
-      const bounds = await open.boundingBox();
-      expect(bounds?.height).toBeGreaterThanOrEqual(44);
-      await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
-        .click();
+      await open.waitFor();
+      expect((await open.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await openEditor(page);
       await page
         .getByLabel("Search name", { exact: true })
         .fill("My new donor");
-      await page.getByRole("tab", { name: "Alerts", exact: true }).click();
-      await page
-        .getByRole("switch", { name: "Discord alerts for Future donor" })
-        .click();
+      const discord = page.getByRole("switch", {
+        name: "Discord alerts for My new donor",
+        exact: true,
+      });
+      await discord.click();
       const popupPromise = page.waitForEvent("popup");
       await page
-        .getByRole("link", { name: "Notification setup (opens a new tab)" })
+        .getByRole("link", {
+          name: "Notification setup (new tab)",
+          exact: true,
+        })
         .click();
       const popup = await popupPromise;
       await popup.close();
-      expect(await page.getByRole("dialog").count()).toBe(1);
-      expect(
-        await page
-          .getByRole("switch", { name: "Discord alerts for Future donor" })
-          .isChecked(),
-      ).toBe(true);
+      expect(await workspace(page).count()).toBe(1);
+      expect(await discord.isChecked()).toBe(true);
       await page
         .getByRole("button", { name: "Save changes", exact: true })
         .click();
@@ -550,16 +557,11 @@ describe("saved search browser flow", () => {
         .getByRole("alert")
         .filter({ hasText: "The save failed" })
         .waitFor();
-      await page
-        .getByRole("tab", { name: "Search criteria", exact: true })
-        .click();
       expect(
         await page.getByLabel("Search name", { exact: true }).inputValue(),
       ).toBe("My new donor");
-      await page
-        .getByRole("button", { name: "Save changes", exact: true })
-        .click();
-      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      expect(await discord.isChecked()).toBe(true);
+      await saveChanges(page);
       await page
         .getByRole("article", { name: "My new donor", exact: true })
         .getByRole("button", {
@@ -576,9 +578,7 @@ describe("saved search browser flow", () => {
     const page = await browser.newPage();
     try {
       await openFixture(page, "?fail=1");
-      await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
-        .click();
+      await openEditor(page);
       await page
         .getByRole("button", { name: "Delete saved search Future donor" })
         .click();
@@ -587,19 +587,22 @@ describe("saved search browser flow", () => {
         .getByRole("button", { name: "Delete search", exact: true })
         .click();
       await confirmation.getByRole("alert").waitFor();
-      expect(
-        await page
-          .getByRole("article", {
-            name: "Future donor",
-            exact: true,
-            includeHidden: true,
-          })
-          .count(),
-      ).toBe(1);
+      expect(await submission(page)).toBeNull();
+      await confirmation
+        .getByRole("button", { name: "Cancel", exact: true })
+        .click();
+      await confirmation.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("article", { name: "Future donor", exact: true })
+        .waitFor();
+      await openEditor(page);
+      await page
+        .getByRole("button", { name: "Delete saved search Future donor" })
+        .click();
       await confirmation
         .getByRole("button", { name: "Delete search", exact: true })
         .click();
-      await confirmation.waitFor({ state: "hidden" });
       await page.getByText("No saved searches yet", { exact: true }).waitFor();
     } finally {
       await page.close();
@@ -614,52 +617,55 @@ describe("saved search browser flow", () => {
         page,
         `?query=${encodeURIComponent(query)}&no-suggestions=1`,
       );
-      await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
-        .click();
-      expect(
-        await page.getByLabel("Search query", { exact: true }).inputValue(),
-      ).toBe(query);
-      await page.getByLabel("Search query", { exact: true }).fill("Ford OR");
+      await openEditor(page);
+      const expression = page.getByRole("textbox", {
+        name: "Search expression",
+        exact: true,
+      });
+      const original = await expression.inputValue();
+      expect(original).toBe(
+        '"crew cab" AND (ford OR ram) AND (diesel OR gasoline) AND year:>=1980 AND year:<=2000 AND make:Saab',
+      );
+      await expression.fill("Ford OR");
       await page
         .getByRole("button", { name: "Save changes", exact: true })
         .click();
-      await page
+      await workspace(page)
         .getByRole("alert")
-        .filter({ hasText: "both sides of OR" })
+        .filter({ hasText: "Put a condition on both sides of AND or OR." })
         .waitFor();
+      expect(await expression.getAttribute("aria-invalid")).toBe("true");
+      expect(await submission(page)).toBeNull();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
-        .click();
-      expect(
-        await page.getByLabel("Search query", { exact: true }).inputValue(),
-      ).toBe(query);
-      await page
-        .getByRole("button", { name: "Save changes", exact: true })
-        .click();
-      await page.getByRole("dialog").waitFor({ state: "hidden" });
-      expect(await page.locator("#submission").textContent()).toContain(
-        JSON.stringify(query),
+      await openEditor(page);
+      expect(await expression.inputValue()).toBe(original);
+      await saveChanges(page);
+      expect(await submission(page)).toEqual(
+        expect.objectContaining({ input: expect.objectContaining({ query }) }),
       );
     } finally {
       await page.close();
     }
-  });
+  }, 20_000);
 
   test("keeps mode drafts and rejects an incomplete VIN before saving", async () => {
     const page = await browser.newPage();
     try {
       await openFixture(page, "?fail=1");
+      await openEditor(page);
+      const expression = page.getByRole("textbox", {
+        name: "Search expression",
+        exact: true,
+      });
+      const original = await expression.inputValue();
       await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
+        .getByRole("button", { name: "VIN search", exact: true })
         .click();
-      await page
-        .getByRole("radio", { name: "VIN pattern", exact: true })
-        .click();
-      await page
-        .getByRole("textbox", { name: "VIN pattern", exact: true })
-        .fill("YV4");
+      const vin = page.getByRole("textbox", {
+        name: "VIN pattern",
+        exact: true,
+      });
+      await vin.fill("YV4");
       await page
         .getByRole("button", { name: "Save changes", exact: true })
         .click();
@@ -667,24 +673,16 @@ describe("saved search browser flow", () => {
         .getByRole("alert")
         .filter({ hasText: "complete 17-position VIN" })
         .waitFor();
-      expect(await page.locator("#submission").textContent()).toBe("null");
-      await page.getByRole("radio", { name: "Keywords", exact: true }).click();
-      expect(
-        await page
-          .getByLabel("All of these words", { exact: true })
-          .inputValue(),
-      ).toBe("wagon");
+      expect(await submission(page)).toBeNull();
       await page
-        .getByRole("radio", { name: "VIN pattern", exact: true })
+        .getByRole("button", { name: "Advanced search", exact: true })
         .click();
-      expect(
-        await page
-          .getByRole("textbox", { name: "VIN pattern", exact: true })
-          .inputValue(),
-      ).toBe("YV4");
+      expect(await expression.inputValue()).toBe(original);
       await page
-        .getByRole("textbox", { name: "VIN pattern", exact: true })
-        .fill("YV4C*85**********");
+        .getByRole("button", { name: "VIN search", exact: true })
+        .click();
+      expect(await vin.inputValue()).toBe("YV4");
+      await vin.fill("YV4C*85**********");
       await page
         .getByRole("button", { name: "Save changes", exact: true })
         .click();
@@ -692,24 +690,26 @@ describe("saved search browser flow", () => {
         .getByRole("alert")
         .filter({ hasText: "The save failed" })
         .waitFor();
-      expect(
-        await page
-          .getByRole("textbox", { name: "VIN pattern", exact: true })
-          .inputValue(),
-      ).toBe("YV4C*85**********");
-      await page
-        .getByRole("button", { name: "Save changes", exact: true })
-        .click();
-      await page.getByRole("dialog").waitFor({ state: "hidden" });
-      await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
-        .click();
+      expect(await vin.inputValue()).toBe("YV4C*85**********");
+      await saveChanges(page);
+      expect(await submission(page)).toEqual(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            query: "",
+            filters: expect.objectContaining({
+              vinPattern: "YV4C*85**********",
+            }),
+          }),
+        }),
+      );
+      await openEditor(page);
+      expect(await vin.inputValue()).toBe("YV4C*85**********");
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      await workspace(page).waitFor({ state: "hidden" });
     } finally {
       await page.close();
     }
-  });
+  }, 20_000);
 
   test("edits a VIN search from Settings without replacing the VIN with keywords", async () => {
     const page = await browser.newPage({
@@ -735,27 +735,28 @@ describe("saved search browser flow", () => {
           .getByRole("link", { name: "New search", exact: true })
           .getAttribute("href"),
       ).toBe("/search?advanced=1");
-      await page
-        .getByRole("button", { name: "Edit saved search Future donor" })
-        .click();
+      await openEditor(page);
       expect(
         await page
           .getByRole("textbox", { name: "VIN pattern", exact: true })
           .inputValue(),
       ).toBe("YV4C*85**********");
       await page.getByLabel("Search name", { exact: true }).fill("VIN donor");
-      await page
-        .getByRole("button", { name: "Save changes", exact: true })
-        .click();
-      await page.getByRole("dialog").waitFor({ state: "hidden" });
-      expect(await page.locator("#submission").textContent()).toContain(
-        '"vinPattern":"YV4C*85**********"',
+      await saveChanges(page);
+      expect(await submission(page)).toEqual(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            name: "VIN donor",
+            query: "",
+            filters: expect.objectContaining({
+              vinPattern: "YV4C*85**********",
+            }),
+          }),
+        }),
       );
-      expect(await page.locator("#submission").textContent()).toContain(
-        '"query":""',
-      );
+      expect(new URL(page.url()).pathname).toBe("/settings/searches");
     } finally {
       await page.close();
     }
-  });
+  }, 20_000);
 });
