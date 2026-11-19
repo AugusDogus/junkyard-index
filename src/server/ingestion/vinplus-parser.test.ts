@@ -9,7 +9,11 @@ import {
 import { vinplusSnapshot } from "./vinplus-snapshot";
 import { vinplusPublicDate } from "./vinplus-public-enrichment";
 
-import { vinplusCensus, vinplusQualification } from "./vinplus-test-fixtures";
+import {
+  vinplusCensus,
+  vinplusQualification,
+  vinplusUsAutoSupplyLive,
+} from "./vinplus-test-fixtures";
 const first = () => {
   const tenant = VINPLUS_TENANTS[0];
   if (!tenant) throw new Error("Missing Pocatello configuration");
@@ -256,6 +260,123 @@ describe("frozen public VinPlus protocol", () => {
     );
     expect(vinplusPublicDate("2026-02-30T00:00:00-06:00")).toBeNull();
     expect(vinplusPublicDate("2026-11-14T00:00:00-00:00")).toBeNull();
+  });
+});
+
+describe("US Auto Supply year distribution lagging live search", () => {
+  const tenant = () => {
+    const found = VINPLUS_TENANTS.find(
+      (value) => value.yardId === "us_auto_supply",
+    );
+    if (!found) throw new Error("Missing US Auto Supply configuration");
+    return found;
+  };
+  /** Keeps the live distribution's pre-2000 years, which the single saved
+   * 1960-1999 control covers, then applies a stale-cache edit. */
+  const evidence = (stale: (years: Map<string, number>) => void) => {
+    const live = vinplusUsAutoSupplyLive();
+    const [app, config] = vinplusCensus()[2] ?? [];
+    if (!app || !config) throw new Error("Missing US Auto Supply app/config");
+    const counts = z
+      .object({
+        success: z.literal(true),
+        data: z.object({
+          by_year: z.array(z.object({ year: z.string(), count: z.number() })),
+        }),
+      })
+      .parse(JSON.parse(live.analytics));
+    const years = new Map(
+      counts.data.by_year
+        .filter((row) => Number(row.year) < 2000)
+        .map((row) => [row.year, row.count]),
+    );
+    stale(years);
+    const by_year = [...years].map(([year, count]) => ({ year, count }));
+    const analytics = JSON.stringify({
+      success: true,
+      data: {
+        current_count: by_year.reduce((sum, row) => sum + row.count, 0),
+        by_year,
+      },
+    });
+    return [
+      app,
+      config,
+      analytics,
+      live.search,
+      live.search,
+      analytics,
+      config,
+      app,
+    ];
+  };
+
+  test("live capture reconciles exactly with its own distribution", () => {
+    const result = inspectVinplusEvidence(
+      tenant(),
+      evidence(() => undefined),
+    );
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(result.records).toHaveLength(81);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("accepts a real 1976 vehicle the cached distribution does not list yet", () => {
+    const result = inspectVinplusEvidence(
+      tenant(),
+      evidence((years) => years.delete("1976")),
+    );
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(
+      result.records.filter((record) => record.year === 1976),
+    ).toHaveLength(1);
+    expect(result.records).toHaveLength(81);
+    expect(result.warnings.join(" ")).toContain("1976: 1 of 0 advertised");
+  });
+
+  test("accepts a 1999 surplus over a stale advertised year count", () => {
+    const result = inspectVinplusEvidence(
+      tenant(),
+      evidence((years) => years.set("1999", 17)),
+    );
+    if (result.kind !== "complete") throw new Error("Pending evidence");
+    expect(result.records).toHaveLength(81);
+    expect(result.warnings.join(" ")).toContain("1999: 20 of 17 advertised");
+  });
+
+  test("a surplus cannot offset another year's unreachable deficit", () => {
+    expect(() =>
+      inspectVinplusEvidence(
+        tenant(),
+        evidence((years) => {
+          years.delete("1976");
+          years.set("1998", 13);
+        }),
+      ),
+    ).toThrow("2 unreachable advertised vehicles / 82");
+  });
+
+  test("a stale range that hits the silent 100-record cap fails instead of keeping surplus", () => {
+    const bodies = evidence(() => undefined);
+    const page = z
+      .object({
+        match_count: z.number(),
+        matches: z.array(z.object({ stock: z.string() }).passthrough()),
+      })
+      .passthrough()
+      .parse(JSON.parse(bodies[3] ?? ""));
+    const extra = page.matches
+      .slice(0, 100 - page.matches.length)
+      .map((record, index) => ({
+        ...record,
+        stock: `STK${String(900_000 + index)}`,
+      }));
+    page.matches.push(...extra);
+    page.match_count = page.matches.length;
+    bodies[3] = JSON.stringify(page);
+    expect(() => inspectVinplusEvidence(tenant(), bodies)).toThrow(
+      "silent 100-record cap above its 81 advertised rows",
+    );
   });
 });
 

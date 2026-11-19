@@ -100,7 +100,13 @@ controls, not wildcard strings. A missing selector or saturated make partition
 still fails the source. After exhausting applicable controls, unreachable rows
 may total at most 1% of that physical yard's advertised inventory. Exactly 1%
 passes with a warning; above 1% fails. Complete yards cannot mask another yard's
-deficit. Year overcounts and unadvertised years always fail.
+deficit. The year distribution lags live search by up to about a day: on
+November 18 and 19, 2026 US Auto Supply's searchable 1999 arrivals and a real 1976
+Cadillac Eldorado (added November 18) were missing from it. Year overcounts and
+unadvertised years are therefore kept and reported as a warning. They never
+offset another year's deficit, because unreachable rows sum per-year shortfalls.
+A null-make range that returns 100 rows above its advertised total fails as a
+possible silent cap truncation.
 
 Make searches can return a different published make, as Killeen's Chrysler
 query does for an Oldsmobile record. Response criteria must match the request;

@@ -187,6 +187,20 @@ function* traversal(
   const union = VinplusRecordUnion.create();
   for (const range of ranges) {
     const records = yield* readRange(tenant, range);
+    // The year distribution lags live search, so coverage keeps surplus rows.
+    // A null-make response at the cap above its advertised total may be
+    // silently truncated; only an exact advertised 100 remains admissible.
+    const planned = counts.years
+      .filter((row) => row.year >= range.min && row.year <= range.max)
+      .reduce((sum, row) => sum + row.count, 0);
+    if (
+      range.make === null &&
+      records.length >= 100 &&
+      records.length > planned
+    )
+      throw new Error(
+        `${tenant.yardId} ${range.min}-${range.max}: public query reached the silent 100-record cap above its ${planned} advertised rows because the year distribution is stale; retry after it refreshes or requalify narrower controls`,
+      );
     pages.push(records);
     union.add(records);
   }
