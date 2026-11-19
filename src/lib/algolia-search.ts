@@ -163,10 +163,9 @@ function addAdvancedSyntax(
   if (!params) return params;
   params = {
     ...params,
-    facetFilters:
-      makeAliasesReady && params.facetFilters
-        ? MakeFilter.facets(params.facetFilters)
-        : params.facetFilters,
+    facetFilters: params.facetFilters
+      ? MakeFilter.facets(params.facetFilters, makeAliasesReady)
+      : params.facetFilters,
   };
   if (typeof params.query !== "string") return params;
 

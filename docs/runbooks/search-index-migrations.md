@@ -205,7 +205,12 @@ The migration then acquires the writer, reads only cached decodes, and walks
 existing vehicles in 100-row steps. It updates make/model/source-name/trim,
 rewrites the same object IDs, refreshes snapshots and advances readiness to 12.
 Daily ingestion and index projection never call vPIC. Until readiness is
-confirmed, ingestion and search filters retain the old schema behavior.
+confirmed, ingestion still applies existing string normalization and defers
+VIN enrichment. Search filters bridge the existing make facet with exact
+make tokens in the already-filterable searchTokens field. Each rewritten
+record includes those tokens with its changed make, so saved filters and
+alerts keep matching throughout the in-place migration, even with cached
+pre-readiness capabilities.
 No owner-run step is needed for the initial backfill or outage recovery.
 
 Keys include VIN positions 1-8, 10-11 and the explicit vehicle year. Low-volume
@@ -243,7 +248,8 @@ Existing saved model and make queries and alerts need no user action. The
 original source model remains searchable for ordinary queries and Boolean
 tokens. A searchable/filterable `makeAliases` array retains canonical and
 source makes per record. Saved refinements and alert expressions use it after
-schema readiness; visible make facets remain canonical. Consumer brands such
+schema readiness; before readiness they accept either the old make or exact
+make tokens. Visible make facets remain canonical. Consumer brands such
 as Scion retain their own make, and redirect lookup preserves make aliases,
 case and model identity variants. Recorded regressions cover `SILVRDO15` and
 `F150NEW`. This preserves the matching scope of a yard-specific keyword;

@@ -120,6 +120,8 @@ test("saved make refinements and alerts retain Chevrolet SONOMA after correction
     const record = toAlgoliaRecord(canonical, new Date(1000), null, 0, null);
     expect(record.make).toBe("GMC");
     expect(record.makeAliases).toEqual(["GMC", "Chevrolet"]);
+    expect(record.searchTokens).toContain("make=chevrolet");
+    expect(record.searchTokens).not.toContain("make");
     expect(COMMON_ALGOLIA_INDEX_SETTINGS.attributesForFaceting).toContain(
       "filterOnly(makeAliases)",
     );
@@ -175,6 +177,16 @@ test("saved make refinements and alerts retain Chevrolet SONOMA after correction
       expect(alert.matchedCount).toBe(1);
       expect(alert.vehicles[0]?.make).toBe("GMC");
     }
+    // A model mentioning Chevrolet must not become a Chevrolet make match.
+    const unrelated = toAlgoliaRecord(
+      { ...source, make: "GMC", sourceMake: "GMC", model: "Chevrolet" },
+      new Date(),
+      null,
+      0,
+      null,
+    );
+    expect(unrelated.searchTokens).toContain("chevrolet");
+    expect(unrelated.searchTokens).not.toContain("make=chevrolet");
     // A correctly sourced GMC truck gains no Chevrolet compatibility match.
     expect(
       toAlgoliaRecord(

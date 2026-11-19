@@ -74,6 +74,7 @@ describe("toAlgoliaRecord", () => {
       "2015",
       "red",
       "1fadp3f29fl123456",
+      "make=ford",
     ]);
     expect(record.vinPositionTokens).toEqual([
       "0:1",

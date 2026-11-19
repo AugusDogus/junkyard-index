@@ -109,6 +109,7 @@ export function toAlgoliaRecord(
   observedArrivalAt: Date | null,
 ): AlgoliaVehicleRecord {
   const vehicle = normalizeCanonicalVehicle(rawVehicle);
+  const makeAliases = MakeFilter.aliases(vehicle.make, vehicle.sourceMake);
   const arrivalDate = ArrivalDate.from(
     vehicle.availableDate,
     observedArrivalAt && Number.isFinite(observedArrivalAt.getTime())
@@ -125,20 +126,23 @@ export function toAlgoliaRecord(
     vin: vehicle.vin,
     vinPrefixes: VinPattern.toSearchPrefixes(vehicle.vin),
     vinPositionTokens: VinPattern.toIndexTokens(vehicle.vin),
-    searchTokens: buildAdvancedSearchTokens([
-      vehicle.make,
-      vehicle.model,
-      vehicle.sourceModel,
-      vehicle.sourceMake,
-      vehicle.trim,
-      vehicle.year,
-      vehicle.color,
-      vehicle.vin,
-    ]),
+    searchTokens: [
+      ...buildAdvancedSearchTokens([
+        vehicle.make,
+        vehicle.model,
+        vehicle.sourceModel,
+        vehicle.sourceMake,
+        vehicle.trim,
+        vehicle.year,
+        vehicle.color,
+        vehicle.vin,
+      ]),
+      ...new Set(makeAliases.map(MakeFilter.token)),
+    ],
     source: vehicle.source,
     year: vehicle.year,
     make: vehicle.make,
-    makeAliases: MakeFilter.aliases(vehicle.make, vehicle.sourceMake),
+    makeAliases,
     model: vehicle.model,
     sourceMake: vehicle.sourceMake,
     sourceModel: vehicle.sourceModel,

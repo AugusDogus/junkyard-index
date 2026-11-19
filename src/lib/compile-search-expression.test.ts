@@ -223,3 +223,21 @@ test("a VIN-looking expression remains an advanced text search", () => {
   expect(draft.criteria.queryMode).toBe("keywords");
   expect(draft.expression).toBe("1HGCM82633A004352");
 });
+
+test("rollout make exclusions distribute over OR without dropping either identity", () => {
+  expect(compileSearchExpression("!make:Chevrolet", false)).toMatchObject({
+    success: true,
+    data: {
+      filters: 'NOT make:"Chevrolet" AND NOT searchTokens:"make=chevrolet"',
+    },
+  });
+  expect(
+    compileSearchExpression("!make:Chevrolet OR color:Red", false),
+  ).toMatchObject({
+    success: true,
+    data: {
+      filters:
+        '(NOT make:"Chevrolet" OR color:"Red") AND (NOT searchTokens:"make=chevrolet" OR color:"Red")',
+    },
+  });
+});

@@ -233,10 +233,9 @@ export async function reconcileDurableIngestion(
     batchClient: dbClient,
     snapshotStore,
     searchPublication,
-    canonicalize: (rows) =>
-      makeAliasesReady
-        ? canonicalizeVinVehicles(db, rows)
-        : Promise.resolve(rows),
+    canonicalize: makeAliasesReady
+      ? (rows) => canonicalizeVinVehicles(db, rows)
+      : undefined,
     budgetMs: 60_000,
   });
 }

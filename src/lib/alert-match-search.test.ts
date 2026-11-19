@@ -423,7 +423,7 @@ test("batched arrival windows end at the check's bound, not the wall clock", asy
   ]);
 });
 
-test("pre-migration alerts keep using the existing make facet until alias records are ready", async () => {
+test("pre-migration alerts bridge legacy makes and exact make tokens", async () => {
   const requests: unknown[] = [];
   await getAlertMatchStatsWithClient(
     emptySearchClient((input) => requests.push(input)),
@@ -433,10 +433,31 @@ test("pre-migration alerts keep using the existing make facet until alias record
     false,
   );
   expect(requests[0]).toMatchObject({
-    requests: [{ filters: 'make:"Chevrolet"' }],
+    requests: [
+      { filters: '(make:"Chevrolet" OR searchTokens:"make=chevrolet")' },
+    ],
   });
   expect(compileSearchExpression("make:Chevrolet", false)).toMatchObject({
     success: true,
-    data: { filters: 'make:"Chevrolet"' },
+    data: { filters: '(make:"Chevrolet" OR searchTokens:"make=chevrolet")' },
+  });
+});
+
+test("rollout alerts flatten multiple make alternatives into one supported OR clause", async () => {
+  const requests: unknown[] = [];
+  await getAlertMatchStatsWithClient(
+    emptySearchClient((input) => requests.push(input)),
+    "truck",
+    { makes: ["Chevrolet", "Ford"] },
+    null,
+    false,
+  );
+  expect(requests[0]).toMatchObject({
+    requests: [
+      {
+        filters:
+          '(make:"Chevrolet" OR make:"Ford" OR searchTokens:"make=chevrolet" OR searchTokens:"make=ford")',
+      },
+    ],
   });
 });

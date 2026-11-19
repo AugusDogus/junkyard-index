@@ -259,3 +259,48 @@ test("all recorded consumer families and source aliases avoid duplicated series 
     }
   }
 });
+
+test("recorded Express 4500 Cutaway decode overrides the contradictory EXPRESS35 alias", async () => {
+  const { default: recording } =
+    await import("../server/ingestion/vpic-test-fixtures/express-4500.json");
+  const { VinDecode } = await import("../server/ingestion/vin-decode");
+  const identity = VinDecode.identity("1GB6G5CL3F1161250", 2015);
+  if (!identity) throw new Error("Invalid recorded Express VIN");
+  const decode = VinDecode.parseResponse(recording, [identity]).get(
+    identity.key,
+  );
+  if (!decode) throw new Error("Recorded Express decode was rejected");
+  expect(decode.series).toBe("4500 Cutaway");
+  expect(ConsumerModel.resolve({ ...decode, sourceModel: "EXPRESS35" })).toBe(
+    "Express 4500 Cutaway",
+  );
+});
+
+test("rating aliases never override contradictory numeric series, including unfamiliar series", () => {
+  for (const [sourceModel, alias] of Object.entries(
+    ConsumerModel.sourceAliases.CHEVROLET ?? {},
+  )) {
+    const aliasRating = alias.match(/\b(\d{4})\b/)?.[1];
+    if (!aliasRating) continue;
+    const family = alias.replace(` ${aliasRating}`, "");
+    for (const series of [
+      "1500",
+      "2500",
+      "3500",
+      "4500 Cutaway",
+      "5500 Special Chassis",
+    ]) {
+      if (series.startsWith(aliasRating)) continue;
+      const model = ConsumerModel.resolve({
+        make: "Chevrolet",
+        model: family,
+        sourceModel,
+        series,
+      });
+      expect(model).not.toContain(aliasRating);
+      expect(model === family || model.startsWith(`${family} ${series}`)).toBe(
+        true,
+      );
+    }
+  }
+});
