@@ -1,11 +1,32 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { z } from "zod";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import { chromium, type Browser } from "playwright-core";
+import { chromium, type Browser, type Page } from "playwright-core";
 import {
   bundleSharedSearchFixture,
   renderSharedSearchFixture,
 } from "./fixtures/build-shared-search";
+
+const requestLogSchema = z.array(
+  z.object({
+    indexName: z.string(),
+    params: z.object({
+      query: z.string().optional(),
+      hitsPerPage: z.number().optional(),
+      page: z.number().optional(),
+    }),
+  }),
+);
+async function requestLog(page: Page) {
+  return requestLogSchema.parse(
+    JSON.parse(
+      await page.evaluate(
+        () => document.documentElement.dataset.searchQueryLog ?? "[]",
+      ),
+    ),
+  );
+}
 
 let browser: Browser;
 let script: string;
@@ -52,6 +73,25 @@ async function open(query: string, width = 1440, height = 900) {
     }),
   );
   await page.goto(`http://shared-search.test/search?${query}`);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  // Finish the independent inventory-facet prefetch before measuring scroll requests.
+  if (!query.includes("fixtureGuest=1")) {
+    await page.waitForFunction(() => {
+      const raw = document.documentElement.dataset.searchQueryLog ?? "[]";
+      return raw.includes('"maxValuesPerFacet":1000');
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+  }
   return { page, html };
 }
 
@@ -169,6 +209,107 @@ test("the toolbar scrolls away on short screens with filters open", async () => 
     await page.evaluate(() => window.scrollTo(0, 600));
     const box = await toolbar.boundingBox();
     expect(box?.y).toBeLessThan(0);
+  } finally {
+    await page.close();
+  }
+}, 30_000);
+
+test("signed-in reload restores loaded pages before restoring scroll and visible vehicles", async () => {
+  const { page } = await open("q=pagination");
+  try {
+    for (const count of [48, 72]) {
+      await page.evaluate(() =>
+        window.scrollTo(0, document.body.scrollHeight - innerHeight),
+      );
+      await page
+        .getByText(`Showing ${count} of 96 vehicles`, { exact: true })
+        .waitFor();
+    }
+    await page.evaluate(() => window.scrollTo(0, 6000));
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll("h3")).some((element) => {
+        const box = element.getBoundingClientRect();
+        return box.top >= 0 && box.top < innerHeight;
+      }),
+    );
+    const before = await page.evaluate(() => ({
+      y: scrollY,
+      vehicle: Array.from(document.querySelectorAll("h3")).find((element) => {
+        const box = element.getBoundingClientRect();
+        return box.top >= 0 && box.top < innerHeight;
+      })?.textContent,
+    }));
+    expect(before.vehicle).toBeDefined();
+    await page.reload();
+    await page
+      .getByText("Showing 72 of 96 vehicles", { exact: true })
+      .waitFor();
+    await page.waitForFunction(
+      ({ y, vehicle }) =>
+        Math.abs(scrollY - y) < 2 &&
+        Array.from(document.querySelectorAll("h3")).find((element) => {
+          const box = element.getBoundingClientRect();
+          return box.top >= 0 && box.top < innerHeight;
+        })?.textContent === vehicle,
+      before,
+    );
+    const after = await page.evaluate(
+      () =>
+        Array.from(document.querySelectorAll("h3")).find((element) => {
+          const box = element.getBoundingClientRect();
+          return box.top >= 0 && box.top < innerHeight;
+        })?.textContent,
+    );
+    expect(after).toBe(before.vehicle);
+  } finally {
+    await page.close();
+  }
+}, 45_000);
+
+test("resizing a desktop visitor caps both the new query request and visible mobile results", async () => {
+  const { page } = await open("q=pagination&fixtureGuest=1");
+  try {
+    await page.getByText("Showing 6 of 96 vehicles", { exact: true }).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("searchbox").fill("pagination2");
+    await page.getByRole("searchbox").press("Enter");
+    await page.getByText("Showing 4 of 96 vehicles", { exact: true }).waitFor();
+    const requests = (await requestLog(page))
+      .filter(
+        ({ params }) =>
+          params.query === "pagination2" && (params.hitsPerPage ?? 0) > 0,
+      )
+      .map(({ params }) => params.hitsPerPage);
+    expect(requests).toEqual([4]);
+    expect(
+      await page.locator("h3").filter({ hasText: "Pagination Car" }).count(),
+    ).toBe(3);
+    expect(await page.locator("[inert] a").count()).toBe(0);
+  } finally {
+    await page.close();
+  }
+}, 30_000);
+
+test("each scroll page sends exactly one Algolia search after SSR, including the hint count", async () => {
+  const { page } = await open("q=pagination");
+  try {
+    for (const count of [48, 72]) {
+      await page.evaluate(() => {
+        document.documentElement.dataset.searchQueryLog = "[]";
+      });
+      await page.evaluate(() =>
+        window.scrollTo(0, document.body.scrollHeight - innerHeight),
+      );
+      await page
+        .getByText(`Showing ${count} of 96 vehicles`, { exact: true })
+        .waitFor();
+      const requests = await requestLog(page);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.params).toMatchObject({
+        page: count / 24 - 1,
+        hitsPerPage: 24,
+      });
+    }
   } finally {
     await page.close();
   }

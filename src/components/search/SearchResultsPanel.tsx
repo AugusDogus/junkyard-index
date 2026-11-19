@@ -41,6 +41,7 @@ export type SearchResultsHeaderModel = {
 };
 
 interface SearchResultsListModel {
+  sessionKey?: string;
   isLoading: boolean;
   showMore(): void;
   isLastPage: boolean;
