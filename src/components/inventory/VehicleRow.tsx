@@ -4,8 +4,8 @@ import { cn } from "~/lib/utils";
 import { isIngestionSource } from "~/lib/ingestion-source";
 import { VehicleDestination } from "~/lib/vehicle-destination";
 import { VehicleName } from "~/lib/vehicle-name";
-import wsrvLoader from "~/lib/wsrvLoader";
 import { YardInventory, type YardVehicle } from "~/lib/yard-inventory";
+import { VehicleRowPhoto } from "./VehicleRowPhoto";
 
 const linkClassName =
   "board-step text-ink hover:text-signal active:text-ink focus-visible:outline-focus underline decoration-1 underline-offset-[0.3em] outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid";
@@ -68,26 +68,10 @@ export function VehicleRow({
           : "[contain-intrinsic-size:auto_14rem] lg:[contain-intrinsic-size:auto_10rem]",
       )}
     >
-      <div className="border-ink bg-paper-2 relative aspect-[4/3] w-24 shrink-0 self-start overflow-hidden border-2 sm:w-[8.25rem]">
-        {vehicle.imageUrl ? (
-          <img
-            src={wsrvLoader({ src: vehicle.imageUrl, width: 256 })}
-            alt=""
-            width={128}
-            height={96}
-            loading="lazy"
-            decoding="async"
-            className="size-full object-cover"
-          />
-        ) : (
-          <span className="text-ink-3 absolute inset-0 grid place-items-center px-1 text-center text-xs">
-            No photo
-          </span>
-        )}
-      </div>
+      {vehicle.imageUrl?.trim() && <VehicleRowPhoto src={vehicle.imageUrl} />}
       <div
         className={cn(
-          "grid min-w-0 flex-1 content-start gap-y-2",
+          "grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)] content-start gap-y-2",
           columns &&
             "lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-x-6",
         )}
@@ -111,15 +95,13 @@ export function VehicleRow({
               <span className="block">{yard.place}</span>
             </p>
           )}
-          <div className="mt-2">
-            {location ? (
+          {location && (
+            <div className="mt-2">
               <p className="bg-ink text-paper inline-block px-2 py-0.5 text-sm font-extrabold tabular-nums">
                 {location}
               </p>
-            ) : (
-              <p className="text-ink-3 text-sm">Row not listed by the yard</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
         <ul
           className={cn(
@@ -137,7 +119,7 @@ export function VehicleRow({
             columns && "lg:flex-col lg:items-start",
           )}
         >
-          <span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">
             VIN <span className="text-ink-2 select-all">{vehicle.vin}</span>
           </span>
           {vehicle.stockNumber && <span>Stock #{vehicle.stockNumber}</span>}

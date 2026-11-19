@@ -4,6 +4,7 @@ import { and, inArray, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
 import { cacheInventory } from "~/lib/inventory-cache";
+import { ModelArrivals } from "~/lib/model-arrivals";
 import {
   MakeInventory,
   type MakeEntry,
@@ -69,12 +70,15 @@ async function loadModelArrivals(
   rawMakes: string[],
   rawModels: string[],
 ): Promise<ModelArrival[]> {
-  // Rank by the yard's own set date. Providers write it in different formats,
-  // so SQL can't sort it; read just the dates for the model, then fetch the
-  // newest vehicles in full by VIN.
+  // Providers write dates in different formats, so rank in JS. Read only
+  // selection fields, preferring photos and mixing yards before repeats,
+  // then fetch the selected vehicles in full by VIN.
   const dated = await db
     .select({
       vin: vehicle.vin,
+      source: vehicle.source,
+      code: vehicle.locationCode,
+      imageUrl: vehicle.imageUrl,
       availableDate: vehicle.availableDate,
       firstSeenAt: vehicle.firstSeenAt,
       observedArrivalAt: vehicle.observedArrivalAt,
@@ -87,18 +91,19 @@ async function loadModelArrivals(
         LIVE_BY_MAKE,
       ),
     );
-  const newest = dated
-    .map(({ vin, availableDate, firstSeenAt, observedArrivalAt }) => ({
-      vin,
-      addedAt: YardInventory.addedAt(
-        availableDate,
-        firstSeenAt.getTime(),
-        observedArrivalAt?.getTime() ?? null,
-      ),
-    }))
-    .sort((a, b) => b.addedAt - a.addedAt || a.vin.localeCompare(b.vin))
-    .slice(0, ARRIVALS)
-    .map(({ vin }) => vin);
+  const newest = ModelArrivals.pick(
+    dated.map(
+      ({ availableDate, firstSeenAt, observedArrivalAt, ...candidate }) => ({
+        ...candidate,
+        addedAt: YardInventory.addedAt(
+          availableDate,
+          firstSeenAt.getTime(),
+          observedArrivalAt?.getTime() ?? null,
+        ),
+      }),
+    ),
+    ARRIVALS,
+  ).map(({ vin }) => vin);
   if (newest.length === 0) return [];
   const rows = await db
     .select({
@@ -138,7 +143,7 @@ async function loadModelArrivals(
 
 /** One model's most recently set vehicles, across all yards. */
 const getModelArrivals = cacheInventory(loadModelArrivals, [
-  "model-arrivals-v4",
+  "model-arrivals-v5",
 ]);
 
 function yardsByKey(yards: readonly RoutedYard[]): Map<string, RoutedYard> {
