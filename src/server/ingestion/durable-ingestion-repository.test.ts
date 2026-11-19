@@ -337,7 +337,7 @@ describe("durable ingestion repository", () => {
             rejectedVehicles: 0,
             errors: [],
             vehicles: [makeVehicle(vin)],
-            yards: [{ ...testYard, name: vin }],
+            yards: [{ ...testYard, name: `Race Yard ${vin.at(-1)}` }],
           },
         });
 
@@ -361,7 +361,9 @@ describe("durable ingestion repository", () => {
       }
       expect(["VIN-RACE-A", "VIN-RACE-B"]).toContain(snapshotVin);
       const yards = await client.execute("select name from yard");
-      expect(yards.rows.map((yard) => yard.name)).toEqual([snapshotVin]);
+      expect(yards.rows.map((yard) => yard.name)).toEqual([
+        `Race Yard ${snapshotVin.at(-1)}`,
+      ]);
     } finally {
       testDatabase.cleanup();
     }

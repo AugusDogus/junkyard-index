@@ -46,7 +46,7 @@ describe("Hollander Stores saved complete census", () => {
     expect(value.vehicles).toHaveLength(expected.count);
     expect(
       value.vehicles.find((row) => row.vin === "5GTEN13E788122266")?.make,
-    ).toBe("American Motors");
+    ).toBe("AMC");
     expect(
       value.warnings.some((message) => message.includes("NHTSA HUMMER")),
     ).toBe(true);

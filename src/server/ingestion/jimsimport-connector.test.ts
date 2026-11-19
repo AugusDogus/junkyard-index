@@ -45,7 +45,7 @@ describe("Jim's Import complete census guards", () => {
     expect(snapshot.observedVins).toHaveLength(3655);
     expect(
       snapshot.vehicles.find((vehicle) => vehicle.vin === "11612012020869"),
-    ).toMatchObject({ year: 1980, make: "Mercedes", model: "300D" });
+    ).toMatchObject({ year: 1980, make: "Mercedes-Benz", model: "300D" });
     expect(snapshot.accounting).toEqual({
       recordsProcessed: 4016,
       recordsRejected: 367,

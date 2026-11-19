@@ -34,6 +34,8 @@ describe("Millerstown full binary donor semantics", () => {
   it("matches every raw cell, canonical field, rejection and presence identity", async () => {
     const records = await parseMillerstownPdf(await millerstownPdfFixture());
     const expected = await millerstownOracleFixture();
+    // Only canonical makes changed: the two native Infinity rows use Infiniti.
+    // The PDF cells, rejection accounting and presence oracle stay literal.
     expect(records).toEqual(expected.rawRecords);
     const vehicles = [];
     const rejections = [];

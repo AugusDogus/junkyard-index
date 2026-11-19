@@ -24,7 +24,7 @@ test("River Valley preserves native donor identity and nullable optional fields"
     source: "rivervalley",
     vin: record.vin,
     year: 2014,
-    make: "Ic Corporation",
+    make: "IC Corporation",
     model: "PB105",
     stockNumber: "260645",
     detailsUrl: record.detailsUrl,

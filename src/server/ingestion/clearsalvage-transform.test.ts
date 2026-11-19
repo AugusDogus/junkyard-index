@@ -25,7 +25,7 @@ export function savedClearsalvageRecords() {
   });
 }
 
-test("Clear full saved census preserves 177 unique, six required rejects and manufacturer spelling", () => {
+test("Clear full saved census preserves 177 unique and six required rejects while correcting known make typos", () => {
   const records = savedClearsalvageRecords();
   const snapshot = clearsalvageSnapshot(records);
   expect(snapshot.vehicles).toHaveLength(177);
@@ -36,12 +36,29 @@ test("Clear full saved census preserves 177 unique, six required rejects and man
     duplicateVehicles: 0,
   });
   expect(snapshot.observedVins).toEqual(["5N1AR18B08C603476"]);
+  const misspellings = records.filter((record) =>
+    record.claims.make.some((make) => /^(?:nissian|oldmobile)$/i.test(make)),
+  );
   expect(
-    snapshot.vehicles.some((vehicle) => vehicle.make === "Oldmobile"),
-  ).toBe(true);
-  expect(
-    snapshot.vehicles.filter((vehicle) => vehicle.make === "Nissian"),
+    misspellings.filter((record) =>
+      record.claims.make.some((make) => /^nissian$/i.test(make)),
+    ),
   ).toHaveLength(5);
+  expect(
+    misspellings.some((record) =>
+      record.claims.make.some((make) => /^oldmobile$/i.test(make)),
+    ),
+  ).toBe(true);
+  for (const record of misspellings) {
+    expect(transformClearsalvageRecord(record)).toMatchObject({
+      status: "available",
+      vehicle: {
+        make: record.claims.make.some((make) => /^nissian$/i.test(make))
+          ? "Nissan"
+          : "Oldsmobile",
+      },
+    });
+  }
   expect(
     snapshot.vehicles.every(
       (vehicle) =>
