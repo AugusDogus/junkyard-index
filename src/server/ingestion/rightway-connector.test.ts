@@ -18,7 +18,7 @@ afterEach(() => {
 });
 const gate = <A, E, R>(effect: Effect.Effect<A, E, R>) => effect;
 const scriptPath =
-  "/wp-content/plugins/wp-inventory-manager/js/wpinventory.js?ver=2.5.10";
+  "/wp-content/plugins/wp-inventory-manager/js/wpinventory.js?ver=2.5.11";
 
 function mockInventory(
   options: {

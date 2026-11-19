@@ -24,6 +24,15 @@ export const rightwayTestScript = readFileSync(
   new URL("./rightway-inventory-script.fixture.txt", import.meta.url),
   "utf8",
 );
+// Minimized live /vehicle-search/ capture from 2026-11-19 after the native
+// plugin bumped its script to 2.5.11 with an unchanged body.
+export const rightwayLiveSearchPage = readFileSync(
+  new URL(
+    "./rightway-test-fixtures/vehicle-search-2.5.11.html",
+    import.meta.url,
+  ),
+  "utf8",
+);
 export const rightwayTestColumns = [
   ["inventory_date_added", "Date Added"],
   ["inventory_year", "Year"],
@@ -64,6 +73,6 @@ export function rightwayTestPage(rows = rightwayTestRow()) {
     <thead><tr>${rightwayTestColumns.map(([field, label]) => `<th class="wpinventory_label wpinventory_title ${field}">${label}</th>`).join("")}</tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <script id="wpinventory-common-js" src="https://rightwayautorecycling.com/wp-content/plugins/wp-inventory-manager/js/wpinventory.js?ver=2.5.10"></script>
+  <script id="wpinventory-common-js" src="https://rightwayautorecycling.com/wp-content/plugins/wp-inventory-manager/js/wpinventory.js?ver=2.5.11"></script>
   </body></html>`;
 }
