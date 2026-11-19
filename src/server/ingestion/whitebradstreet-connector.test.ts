@@ -511,6 +511,27 @@ test("White & Bradstreet carries the cooldown count past resumed progress", asyn
   expect("retryAt" in resumed.cursor).toBe(false);
 });
 
+test("White & Bradstreet waits out a wake that starts just before retryAt", async () => {
+  const requests = inventory({ total: 76 });
+  const first = await run();
+  if (first.cursor.phase !== "pages")
+    throw new Error("Expected paused fixture");
+  const sent = requests.length;
+  const since = Date.now() - 20 * MINUTE;
+  const retryAt = Date.now() + 200;
+  const resumed = await run(
+    WhitebradstreetCursorSchema.parse({
+      ...first.cursor,
+      rateLimit: { since, deferrals: 1 },
+      retryAt,
+    }),
+  );
+  expect(Date.now()).toBeGreaterThanOrEqual(retryAt);
+  expect(requests.length).toBeGreaterThan(sent);
+  expect(resumed.cursor).toMatchObject({ phase: "pages", nextPage: 3 });
+  expect("retryAt" in resumed.cursor).toBe(false);
+});
+
 test("White & Bradstreet keeps the input checkpoint when the terminal recheck is rate-limited", async () => {
   let pageReads = 0;
   const requests = inventory({

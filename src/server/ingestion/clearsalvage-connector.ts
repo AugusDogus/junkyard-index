@@ -32,6 +32,9 @@ import {
 } from "./clearsalvage-yard-metadata";
 import type { ProviderRequestGate } from "./provider-http-client";
 
+/** How early a step may start against the Workflow's sleep before it waits. */
+const RETRY_AT_CLOCK_SKEW_MS = 10_000;
+
 interface ClearsalvageOptions<E, R> {
   startCursor?: ClearsalvageCursor;
   /** One serial native catalog, primary donor or closing GET. Default eight. */
@@ -152,9 +155,14 @@ export function streamClearsalvageInventoryWithRequestGate<E, R>(
         cursor.phase === "start"
           ? ClearsalvageCursor.start(Date.now())
           : cursor;
-      // The durable Workflow sleeps until retryAt; never request before it.
-      if (progress.retryAt !== undefined && Date.now() < progress.retryAt)
-        break;
+      // The durable Workflow sleeps until retryAt; never request before it. A
+      // wake within clock skew of retryAt waits out the rest, because pausing
+      // on the unchanged cursor would fail the run as making no progress.
+      if (progress.retryAt !== undefined) {
+        const remainingMs = progress.retryAt - Date.now();
+        if (remainingMs > RETRY_AT_CLOCK_SKEW_MS) break;
+        if (remainingMs > 0) yield* Effect.sleep(remainingMs);
+      }
       const current = ClearsalvageCursor.resume(progress);
       yield* clearsalvageValidated("persisted source bounds", () => {
         if (
