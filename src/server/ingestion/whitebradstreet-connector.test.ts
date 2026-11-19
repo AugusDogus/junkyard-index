@@ -369,18 +369,29 @@ test.each([
   },
 );
 
-test("White & Bradstreet stops after three rate-limited attempts and keeps the checkpoint", async () => {
+const MINUTE = 60_000;
+/** The durable Workflow sleeps until a top-level retryAt before the next chunk. */
+function deferred(cursor: WhitebradstreetCursor) {
+  if (
+    cursor.phase === "complete" ||
+    cursor.retryAt === undefined ||
+    cursor.rateLimit === undefined
+  )
+    throw new Error("Expected a deferred White & Bradstreet checkpoint");
+  return { ...cursor, retryAt: cursor.retryAt, rateLimit: cursor.rateLimit };
+}
+
+test("White & Bradstreet defers exhausted HTTP 429 retries to a durable cooldown", async () => {
   const requests = inventory({ response: () => throttled(null) });
   let emitted = false;
-  const outcome = await underTestClock(
+  const before = Date.now();
+  const result = await underTestClock(
     Effect.gen(function* () {
       const fiber = yield* Effect.fork(
-        Effect.either(
-          chunk(undefined, 1, () =>
-            Effect.sync(() => {
-              emitted = true;
-            }),
-          ),
+        chunk(undefined, 1, () =>
+          Effect.sync(() => {
+            emitted = true;
+          }),
         ),
       );
       yield* settle;
@@ -393,17 +404,247 @@ test("White & Bradstreet stops after three rate-limited attempts and keeps the c
   );
   expect(requests).toHaveLength(3);
   expect(emitted).toBe(false);
-  expect(outcome._tag).toBe("Left");
-  if (outcome._tag === "Left")
-    expect(outcome.left.message).toContain(
-      "Previously published inventory is preserved",
-    );
+  expect(result).toMatchObject({
+    status: "paused",
+    count: 0,
+    pagesProcessed: 0,
+    cursor: { phase: "start", rateLimit: { deferrals: 1 } },
+  });
+  const cursor = deferred(result.cursor);
+  expect(cursor.retryAt).toBeGreaterThanOrEqual(before + 2 * MINUTE);
+  expect(cursor.retryAt).toBeLessThanOrEqual(Date.now() + 2 * MINUTE);
+  expect(result.warnings?.join(" ")).toContain("HTTP 429");
+  expect(
+    WhitebradstreetCursorSchema.parse(JSON.parse(JSON.stringify(cursor))),
+  ).toEqual(cursor);
 });
 
-test("White & Bradstreet fails fast when Retry-After exceeds the in-chunk wait budget", async () => {
-  const requests = inventory({ response: () => throttled("3600") });
-  await expect(run()).rejects.toThrow("asked to wait 3600 seconds");
+test("White & Bradstreet defers a long Retry-After without further requests", async () => {
+  const requests = inventory({ response: () => throttled("900") });
+  const before = Date.now();
+  const result = await run();
   expect(requests).toHaveLength(1);
+  expect(result).toMatchObject({
+    status: "paused",
+    count: 0,
+    cursor: { phase: "start", rateLimit: { deferrals: 1 } },
+  });
+  const cursor = deferred(result.cursor);
+  expect(cursor.retryAt).toBeGreaterThanOrEqual(before + 15 * MINUTE);
+  expect(cursor.retryAt).toBeLessThanOrEqual(Date.now() + 15 * MINUTE);
+  // A chunk started before retryAt never reaches the host.
+  expect(await run(cursor)).toMatchObject({
+    status: "paused",
+    count: 0,
+    pagesProcessed: 0,
+    cursor,
+  });
+  expect(requests).toHaveLength(1);
+});
+
+test("White & Bradstreet checkpoints advanced pages before a rate-limit deferral", async () => {
+  let pageThree = 0;
+  const requests = inventory({
+    total: 76,
+    response: (body) =>
+      body.includes("51-75 of 76") && ++pageThree === 1
+        ? throttled("900")
+        : html(body),
+  });
+  const vehicles: WhitebradstreetCanonicalVehicle[] = [];
+  const onBatch = (batch: WhitebradstreetCanonicalVehicle[]) =>
+    Effect.sync(() => {
+      vehicles.push(...batch);
+    });
+  const first = await run(undefined, 3, onBatch);
+  expect(first).toMatchObject({
+    status: "paused",
+    count: 50,
+    pagesProcessed: 2,
+    accounting: { recordsProcessed: 50 },
+    cursor: { phase: "pages", nextPage: 3, rateLimit: { deferrals: 1 } },
+  });
+  expect(vehicles).toHaveLength(50);
+  const cursor = deferred(first.cursor);
+  const sent = requests.length;
+  expect(await run(cursor, 3, onBatch)).toMatchObject({
+    status: "paused",
+    pagesProcessed: 0,
+    cursor,
+  });
+  expect(requests).toHaveLength(sent);
+  // Once the cooldown has elapsed, the replayed prefix still matches.
+  const since = cursor.rateLimit.since - 20 * MINUTE;
+  const resumed = await run(
+    WhitebradstreetCursorSchema.parse({
+      ...cursor,
+      rateLimit: { ...cursor.rateLimit, since },
+      retryAt: since + 1,
+    }),
+    3,
+    onBatch,
+  );
+  expect(resumed).toMatchObject({ status: "complete", count: 26 });
+  expect(new Set(vehicles.map((vehicle) => vehicle.vin)).size).toBe(76);
+});
+
+test("White & Bradstreet carries the cooldown count past resumed progress", async () => {
+  inventory({ total: 76 });
+  const first = await run();
+  if (first.cursor.phase !== "pages")
+    throw new Error("Expected paused fixture");
+  const since = Date.now() - 20 * MINUTE;
+  const resumed = await run(
+    WhitebradstreetCursorSchema.parse({
+      ...first.cursor,
+      rateLimit: { since, deferrals: 2 },
+      retryAt: since + 5 * MINUTE,
+    }),
+  );
+  expect(resumed.cursor).toEqual(
+    expect.objectContaining({
+      phase: "pages",
+      nextPage: 3,
+      rateLimit: { since, deferrals: 2 },
+    }),
+  );
+  expect("retryAt" in resumed.cursor).toBe(false);
+});
+
+test("White & Bradstreet keeps the input checkpoint when the terminal recheck is rate-limited", async () => {
+  let pageReads = 0;
+  const requests = inventory({
+    response: (body) =>
+      body.includes("of 26") && ++pageReads === 3
+        ? throttled("900")
+        : html(body),
+  });
+  let emitted = false;
+  const result = await run(undefined, 2, () =>
+    Effect.sync(() => {
+      emitted = true;
+    }),
+  );
+  expect(requests).toHaveLength(4);
+  expect(emitted).toBe(false);
+  expect(result).toMatchObject({
+    status: "paused",
+    count: 0,
+    pagesProcessed: 0,
+    accounting: { recordsProcessed: 0 },
+    cursor: { phase: "start", rateLimit: { deferrals: 1 } },
+  });
+});
+
+test.each([
+  ["three cooldowns are spent", 20, 3, "after all 3 cooldowns in this crawl"],
+  [
+    "the wait ends after the one-hour window",
+    50,
+    1,
+    "would end more than an hour after the first one",
+  ],
+] as const)(
+  "White & Bradstreet fails a rate-limited crawl when %s",
+  async (_name, ageMinutes, deferrals, message) => {
+    const requests = inventory({ response: () => throttled("900") });
+    const since = Date.now() - ageMinutes * MINUTE;
+    await expect(
+      run(
+        WhitebradstreetCursorSchema.parse({
+          source: "whitebradstreet",
+          phase: "start",
+          rateLimit: { since, deferrals },
+          retryAt: since + 1,
+        }),
+      ),
+    ).rejects.toThrow(
+      new RegExp(
+        "Retry-After 900s\\).* " +
+          message +
+          ".*stops without publishing\\. Previously published inventory is preserved",
+      ),
+    );
+    expect(requests).toHaveLength(1);
+  },
+);
+
+test("White & Bradstreet defers when in-chunk HTTP 429 waits use up the crawl deadline", async () => {
+  const attempts = new Map<string, number>();
+  const requests = inventory({
+    total: 76,
+    response: (body) => {
+      const url = requests.at(-1) ?? "";
+      const attempt = (attempts.get(url) ?? 0) + 1;
+      attempts.set(url, attempt);
+      // Every read recovers on its third attempt, after two 60-second waits.
+      return attempt % 3 === 0 ? html(body) : throttled("60");
+    },
+  });
+  const vehicles: WhitebradstreetCanonicalVehicle[] = [];
+  const before = Date.now();
+  const result = await underTestClock(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        chunk(undefined, 3, (batch) =>
+          Effect.sync(() => {
+            vehicles.push(...batch);
+          }),
+        ),
+      );
+      for (let step = 0; step < 20; step++) {
+        yield* settle;
+        yield* TestClock.adjust("30 seconds");
+      }
+      return yield* Fiber.join(fiber);
+    }),
+  );
+  // Page 1 and the control each take 120 seconds. Page 2 is refused at 240
+  // seconds and the 270-second crawl deadline ends its first wait, so page 1
+  // is kept and page 2 is not requested again.
+  expect(requests).toHaveLength(7);
+  expect(vehicles).toHaveLength(25);
+  expect(result).toMatchObject({
+    status: "paused",
+    count: 25,
+    pagesProcessed: 1,
+    cursor: { phase: "pages", nextPage: 2, rateLimit: { deferrals: 1 } },
+  });
+  expect(result.warnings?.join(" ")).toContain("used up the crawl deadline");
+  expect(deferred(result.cursor).retryAt).toBeGreaterThanOrEqual(
+    before + 2 * MINUTE,
+  );
+});
+
+test("White & Bradstreet rejects cooldowns outside a recorded rate-limit window", () => {
+  const since = 1_700_000_000_000;
+  for (const invalid of [
+    { source: "whitebradstreet", phase: "start", retryAt: since + 1 },
+    {
+      source: "whitebradstreet",
+      phase: "start",
+      rateLimit: { since, deferrals: 1 },
+    },
+    {
+      source: "whitebradstreet",
+      phase: "start",
+      rateLimit: { since, deferrals: 1 },
+      retryAt: since,
+    },
+    {
+      source: "whitebradstreet",
+      phase: "start",
+      rateLimit: { since, deferrals: 1 },
+      retryAt: since + 60 * MINUTE + 1,
+    },
+    {
+      source: "whitebradstreet",
+      phase: "start",
+      rateLimit: { since, deferrals: 4 },
+      retryAt: since + 1,
+    },
+  ])
+    expect(WhitebradstreetCursorSchema.safeParse(invalid).success).toBe(false);
 });
 
 const httpBoundaries: ResponseInit[] = [

@@ -4,6 +4,32 @@ import { SourceValidationPolicy } from "./source-validation";
 
 export const WHITEBRADSTREET_PAGE_SIZE = 25;
 export const WHITEBRADSTREET_MAX_PAGES = 400;
+/** Durable cooldowns after HTTP 429 outlasts the in-chunk retries. Each one
+ * waits at least this long, or the host's longer Retry-After. */
+export const WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS = [
+  2 * 60 * 1000,
+  5 * 60 * 1000,
+  10 * 60 * 1000,
+] as const;
+/** Every cooldown in one crawl must end within an hour of the first. */
+export const WHITEBRADSTREET_MAX_DEFERRAL_MS = 60 * 60 * 1000;
+const timestamp = z.number().int().nonnegative().safe();
+/** Present once a crawl has deferred a rate limit; carried to later checkpoints. */
+const rateLimit = z
+  .object({
+    since: timestamp,
+    deferrals: z
+      .number()
+      .int()
+      .min(1)
+      .max(WHITEBRADSTREET_RATE_LIMIT_COOLDOWNS_MS.length),
+  })
+  .strict();
+/** The durable Workflow sleeps until retryAt before the next chunk. */
+const deferral = {
+  rateLimit: rateLimit.optional(),
+  retryAt: timestamp.optional(),
+};
 const count = z.number().int().nonnegative().max(10_000);
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const id = z.string().regex(/^[1-9]\d{0,11}$/);
@@ -32,12 +58,14 @@ const seen = z.discriminatedUnion("status", [
     .strict(),
 ]);
 export type WhitebradstreetSeen = z.infer<typeof seen>;
+export type WhitebradstreetRateLimit = z.infer<typeof rateLimit>;
 export const WhitebradstreetCursorSchema = z
   .discriminatedUnion("phase", [
     z
       .object({
         source: z.literal("whitebradstreet"),
         phase: z.literal("start"),
+        ...deferral,
       })
       .strict(),
     z
@@ -52,6 +80,7 @@ export const WhitebradstreetCursorSchema = z
         duplicates: count,
         seen: z.array(seen).min(25).max(10_000),
         hashes: z.array(hash).min(1).max(WHITEBRADSTREET_MAX_PAGES),
+        ...deferral,
       })
       .strict(),
     z
@@ -62,6 +91,20 @@ export const WhitebradstreetCursorSchema = z
       .strict(),
   ])
   .superRefine((cursor, context) => {
+    if (cursor.phase === "complete") return;
+    if (
+      cursor.retryAt === undefined
+        ? cursor.phase === "start" && cursor.rateLimit !== undefined
+        : cursor.rateLimit === undefined ||
+          cursor.retryAt <= cursor.rateLimit.since ||
+          cursor.retryAt >
+            cursor.rateLimit.since + WHITEBRADSTREET_MAX_DEFERRAL_MS
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "White & Bradstreet cooldown is not bound to a recorded rate limit inside its one-hour deferral window; retain the last validated checkpoint",
+      });
     if (cursor.phase !== "pages") return;
     const accepted = new Map<string, string>();
     let identitiesValid = true;
