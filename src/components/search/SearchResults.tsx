@@ -94,7 +94,16 @@ export function SearchResults({
   const isLockedPreview = Boolean(lockedPreview);
   const tailRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
-  const [rowWidth, setRowWidth] = useState(1000);
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+  const restoration = useRef<ReturnType<
+    typeof SearchScroll.prepareRestoration
+  > | null>(null);
+  useLayoutEffect(() => {
+    if (isLockedPreview) return;
+    const pending = SearchScroll.prepareRestoration();
+    restoration.current = pending;
+    return pending.cancel;
+  }, [isLockedPreview]);
   useLayoutEffect(() => {
     const element = tailRef.current;
     if (!element) return;
@@ -129,7 +138,8 @@ export function SearchResults({
 
   const gapHeight = 16;
   const estimatedCardHeight =
-    (((rowWidth - (columns - 1) * gapHeight) / columns) * 9) / 16 + 360;
+    ((((rowWidth ?? 1000) - (columns - 1) * gapHeight) / columns) * 9) / 16 +
+    360;
   const estimatedRowHeight = estimatedCardHeight + gapHeight;
 
   const rowCount = !isLastPage ? rows.length + 1 : rows.length;
@@ -172,22 +182,40 @@ export function SearchResults({
   }, [columns, estimatedRowHeight, rowVirtualizer]);
 
   useLayoutEffect(() => {
-    if (!sessionKey || isLoading || isLockedPreview) return;
+    if (
+      !sessionKey ||
+      isLoading ||
+      isLockedPreview ||
+      rowWidth === null ||
+      isMobile === null ||
+      isMediumScreen === null
+    )
+      return;
+    const pending = restoration.current;
+    if (!pending?.pending()) return;
     const snapshot = SearchScroll.read(sessionKey);
-    let frame = 0;
-    if (snapshot) {
-      snapshot.rowSizes.forEach((size, index) =>
-        rowVirtualizer.resizeItem(index, size),
-      );
-      // Restore the cached pages and row geometry first. The second frame
-      // follows the virtualizer's measured render at the restored offset.
-      frame = requestAnimationFrame(() => {
-        window.scrollTo(0, snapshot.scrollY);
-        frame = requestAnimationFrame(() =>
-          window.scrollTo(0, snapshot.scrollY),
-        );
-      });
+    if (!snapshot || snapshot.rowSizes.length > rowCount) {
+      pending.cancel();
+      return;
     }
+    snapshot.rowSizes.forEach((size, index) =>
+      rowVirtualizer.resizeItem(index, size),
+    );
+    pending.start(snapshot.scrollY);
+    return pending.cancel;
+  }, [
+    sessionKey,
+    isLoading,
+    isLockedPreview,
+    rowWidth,
+    isMobile,
+    isMediumScreen,
+    rowCount,
+    rowVirtualizer,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!sessionKey || isLoading || isLockedPreview) return;
     const save = () =>
       SearchScroll.write(sessionKey, {
         width: window.innerWidth,
@@ -196,16 +224,9 @@ export function SearchResults({
       });
     window.addEventListener("pagehide", save);
     return () => {
-      cancelAnimationFrame(frame);
       window.removeEventListener("pagehide", save);
     };
-  }, [
-    sessionKey,
-    isLoading,
-    isLockedPreview,
-    rowVirtualizer,
-    estimatedRowHeight,
-  ]);
+  }, [sessionKey, isLoading, isLockedPreview, rowVirtualizer]);
 
   const amountOfSkeletons = 6;
 

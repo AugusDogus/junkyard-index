@@ -214,7 +214,7 @@ test("the toolbar scrolls away on short screens with filters open", async () => 
   }
 }, 30_000);
 
-test("signed-in reload restores loaded pages before restoring scroll and visible vehicles", async () => {
+test("signed-in reload restores once and leaves Sort reachable after returning to the top", async () => {
   const { page } = await open("q=pagination");
   try {
     for (const count of [48, 72]) {
@@ -261,6 +261,28 @@ test("signed-in reload restores loaded pages before restoring scroll and visible
         })?.textContent,
     );
     expect(after).toBe(before.vehicle);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole("combobox", { name: /^Sort vehicles:/ }).click();
+    // Reproduce scroll lock changing the content width without a window
+    // resize, which would close Radix Select before its options can be checked.
+    await page.evaluate(() => {
+      document.body.style.width = `${document.body.clientWidth - 15}px`;
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    expect(await page.evaluate(() => scrollY)).toBeLessThan(5);
+    const oldest = page.getByRole("option", {
+      name: "Oldest First",
+      exact: true,
+    });
+    const box = await oldest.boundingBox();
+    expect(box?.y).toBeGreaterThanOrEqual(0);
+    await oldest.click();
+    await page.getByRole("heading", { name: "2000 Pagination Car" }).waitFor();
   } finally {
     await page.close();
   }
@@ -269,7 +291,7 @@ test("signed-in reload restores loaded pages before restoring scroll and visible
 test("resizing a desktop visitor caps both the new query request and visible mobile results", async () => {
   const { page } = await open("q=pagination&fixtureGuest=1");
   try {
-    await page.getByText("Showing 6 of 96 vehicles", { exact: true }).waitFor();
+    await page.getByText("Showing 4 of 96 vehicles", { exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("searchbox").fill("pagination2");
     await page.getByRole("searchbox").press("Enter");
@@ -314,3 +336,48 @@ test("each scroll page sends exactly one Algolia search after SSR, including the
     await page.close();
   }
 }, 30_000);
+
+for (const width of [1440, 390]) {
+  test(`unknown viewport SSR and hydration keep the four-record visitor cap at ${width}px`, async () => {
+    const { page, html } = await open(
+      "q=pagination&fixtureGuest=1",
+      width,
+      844,
+    );
+    try {
+      expect(html).toContain('"hitsPerPage":4');
+      expect(html).not.toContain('"objectID":"pagination-91"');
+      await page
+        .getByText("Showing 4 of 96 vehicles", { exact: true })
+        .waitFor();
+      expect(
+        (await requestLog(page))
+          .filter(({ params }) => (params.hitsPerPage ?? 0) > 0)
+          .every(({ params }) => params.hitsPerPage === 4),
+      ).toBe(true);
+      const serverPage = await browser.newPage({
+        viewport: { width, height: 844 },
+        javaScriptEnabled: false,
+      });
+      try {
+        await serverPage.route("https://wsrv.nl/**", (route) => route.abort());
+        await serverPage.setContent(
+          html.replace("</head>", `<style>${stylesheet}</style></head>`),
+          { waitUntil: "domcontentloaded" },
+        );
+        const serverBox = await serverPage.locator("main").boundingBox();
+        const hydratedBox = await page.locator("main").boundingBox();
+        expect(serverBox).not.toBeNull();
+        expect(hydratedBox).not.toBeNull();
+        if (serverBox && hydratedBox)
+          expect(Math.abs(serverBox.height - hydratedBox.height)).toBeLessThan(
+            1,
+          );
+      } finally {
+        await serverPage.close();
+      }
+    } finally {
+      await page.close();
+    }
+  }, 30_000);
+}
