@@ -1049,6 +1049,7 @@ function AlgoliaSearchInner({
   const handleYardTypesChange = (types: YardType[]) =>
     setIndexUiState((previous) => ({
       ...previous,
+      page: 1,
       refinementList: { ...previous.refinementList, yardTypes: types },
     }));
 
