@@ -311,6 +311,25 @@ for (const width of [390, 1440]) {
             () => document.documentElement.scrollWidth <= window.innerWidth,
           ),
         ).toBe(true);
+        await self.click();
+        await page.waitForFunction(() => {
+          const types = new URL(location.href).searchParams.getAll(
+            "yardTypes[]",
+          );
+          return types.length === 1 && types[0] === "full_service";
+        });
+        await page.reload();
+        await page
+          .getByRole("heading", { name: "1987 Volvo 740" })
+          .first()
+          .waitFor();
+        expect(await self.getAttribute("aria-pressed")).toBe("false");
+        expect(await full.getAttribute("aria-pressed")).toBe("true");
+        expect(
+          await page
+            .getByRole("button", { name: "Show them", exact: true })
+            .count(),
+        ).toBe(0);
       } finally {
         await page.close();
       }
