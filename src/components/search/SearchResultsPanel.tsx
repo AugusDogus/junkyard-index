@@ -3,7 +3,13 @@
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Analytics } from "~/lib/analytics";
-import type { ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import {
   SaveSearchDialog,
   storePendingSaveSearch,
@@ -126,7 +132,13 @@ const LOADING_RESULT: SearchResult = {
   locationsWithErrors: [],
 };
 
-function SearchResultsHeader({ model }: { model: SearchResultsHeaderModel }) {
+function SearchResultsHeader({
+  model,
+  headingRef,
+}: {
+  model: SearchResultsHeaderModel;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+}) {
   return (
     <div className="mb-5 flex min-h-12 items-end justify-between gap-4 border-b pb-4">
       <div className="min-w-0">
@@ -137,7 +149,11 @@ function SearchResultsHeader({ model }: { model: SearchResultsHeaderModel }) {
           </div>
         ) : (
           <div>
-            <h2 className="truncate text-xl font-semibold text-balance">
+            <h2
+              ref={headingRef}
+              tabIndex={-1}
+              className="truncate text-xl font-semibold text-balance"
+            >
               {model.status.totalCount.toLocaleString()} vehicles
             </h2>
             <p className="text-muted-foreground mt-1 text-sm tabular-nums">
@@ -210,13 +226,74 @@ export function SearchResultsPanel({
   model: SearchResultsPanelModel;
   fullServiceSuggestion?: FullServiceSuggestion;
 }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const expansionFromCount = useRef<number | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const readyCount =
+    model.kind === "results" && model.header.status.kind === "ready"
+      ? model.header.status.totalCount
+      : null;
+  useEffect(() => {
+    if (model.kind === "error") expansionFromCount.current = null;
+    // Ignore the previous count while the new selection starts its search.
+    if (
+      expansionFromCount.current === null ||
+      readyCount === null ||
+      readyCount <= expansionFromCount.current
+    )
+      return;
+    expansionFromCount.current = null;
+    headingRef.current?.focus({ preventScroll: true });
+    headingRef.current?.scrollIntoView({ block: "center" });
+    setAnnouncement(
+      `${readyCount.toLocaleString()} vehicles found. Full-service yards included.`,
+    );
+  }, [readyCount, model.kind]);
+  const suggestion = fullServiceSuggestion
+    ? {
+        ...fullServiceSuggestion,
+        showThem() {
+          expansionFromCount.current = fullServiceSuggestion.selfServiceCount;
+          setAnnouncement("");
+          fullServiceSuggestion.showThem();
+        },
+      }
+    : undefined;
+  return (
+    <>
+      <p
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </p>
+      <SearchResultsPanelContent
+        model={model}
+        fullServiceSuggestion={suggestion}
+        headingRef={headingRef}
+      />
+    </>
+  );
+}
+
+function SearchResultsPanelContent({
+  model,
+  fullServiceSuggestion,
+  headingRef,
+}: {
+  model: SearchResultsPanelModel;
+  fullServiceSuggestion?: FullServiceSuggestion;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+}) {
   switch (model.kind) {
     case "inactive":
       return null;
     case "loading":
       return (
         <>
-          <SearchResultsHeader model={model.header} />
+          <SearchResultsHeader model={model.header} headingRef={headingRef} />
           <SearchResults
             searchResult={LOADING_RESULT}
             isLoading
@@ -329,7 +406,7 @@ export function SearchResultsPanel({
           {fullServiceSuggestion?.kind === "fallback" && (
             <FullServiceMessage suggestion={fullServiceSuggestion} />
           )}
-          <SearchResultsHeader model={model.header} />
+          <SearchResultsHeader model={model.header} headingRef={headingRef} />
           <SearchResults searchResult={model.searchResult} {...model.list} />
           <SearchSummary
             searchResult={model.searchResult}

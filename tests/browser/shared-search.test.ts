@@ -281,9 +281,36 @@ for (const width of [390, 1440]) {
               .getByRole("heading", { name: /self-service matches/ })
               .count(),
           ).toBe(0);
-        await page
-          .getByRole("button", { name: "Show them", exact: true })
-          .click();
+        const showThem = page.getByRole("button", {
+          name: "Show them",
+          exact: true,
+        });
+        await showThem.focus();
+        await showThem.press("Enter");
+        const expandedCount = query === "Volvo 740" ? 3 : 6;
+        await page.waitForFunction(
+          (count) =>
+            document.activeElement?.textContent === `${count} vehicles`,
+          expandedCount,
+          { timeout: 3000 },
+        );
+        const focusedHeading = page.getByRole("heading", {
+          name: `${expandedCount} vehicles`,
+          exact: true,
+        });
+        expect(await focusedHeading.getAttribute("tabindex")).toBe("-1");
+        const headingBox = await focusedHeading.boundingBox();
+        expect(headingBox && headingBox.y > 300 && headingBox.y < 900).toBe(
+          true,
+        );
+        expect(
+          await page
+            .getByRole("status")
+            .filter({
+              hasText: `${expandedCount} vehicles found. Full-service yards included.`,
+            })
+            .count(),
+        ).toBe(1);
         await page.waitForFunction(
           () =>
             new URL(location.href).searchParams.getAll("yardTypes[]").length ===
@@ -336,3 +363,117 @@ for (const width of [390, 1440]) {
     }, 15_000);
   }
 }
+
+for (const width of [390, 1440]) {
+  test(`all yards has a distinct visible selection and changes in one tap: ${width}px`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    try {
+      await page.route("http://shared-search.test/**", async (route) => {
+        const url = new URL(route.request().url());
+        const isScript = url.pathname === "/app.js";
+        return route.fulfill({
+          contentType: isScript ? "text/javascript" : "text/html",
+          body: isScript ? script : await renderSharedSearchFixture(url.search),
+        });
+      });
+      await page.goto("http://shared-search.test/search?q=Volvo&yardTypes=all");
+      const all = page.getByRole("button", {
+        name: "All yards, including unclassified",
+        exact: true,
+      });
+      await all.waitFor();
+      expect(await all.getAttribute("aria-pressed")).toBe("true");
+      expect(
+        await page
+          .getByRole("button", { name: "Self-service", exact: true })
+          .getAttribute("aria-pressed"),
+      ).toBe("false");
+      expect(
+        await page
+          .getByRole("button", { name: "Full-service", exact: true })
+          .getAttribute("aria-pressed"),
+      ).toBe("false");
+      await page
+        .getByRole("heading", { name: "7 vehicles", exact: true })
+        .waitFor();
+      await page
+        .getByRole("button", { name: "Self-service", exact: true })
+        .click();
+      await page
+        .getByRole("heading", { name: "3 vehicles", exact: true })
+        .waitFor();
+      expect(await all.getAttribute("aria-pressed")).toBe("false");
+      await page
+        .getByRole("button", { name: "Full-service", exact: true })
+        .click();
+      await page
+        .getByRole("heading", { name: "6 vehicles", exact: true })
+        .waitFor();
+      expect(await all.getAttribute("aria-pressed")).toBe("false");
+      await all.click();
+      await page
+        .getByRole("heading", { name: "7 vehicles", exact: true })
+        .waitFor();
+      expect(await all.getAttribute("aria-pressed")).toBe("true");
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    } finally {
+      await page.close();
+    }
+  }, 15_000);
+}
+
+test("expression-owned yard types are visible without an implicit self-service facet", async () => {
+  const page = await browser.newPage();
+  try {
+    await page.route("http://shared-search.test/**", async (route) => {
+      const url = new URL(route.request().url());
+      const isScript = url.pathname === "/app.js";
+      return route.fulfill({
+        contentType: isScript ? "text/javascript" : "text/html",
+        body: isScript ? script : await renderSharedSearchFixture(url.search),
+      });
+    });
+    await page.goto(
+      "http://shared-search.test/search?syntax=expression&q=yardType%3Afull_service",
+    );
+    await page
+      .getByRole("heading", { name: "4 vehicles", exact: true })
+      .waitFor();
+    expect(
+      await page
+        .getByText("Yard types set in advanced search", { exact: true })
+        .count(),
+    ).toBe(1);
+    expect(
+      await page
+        .getByRole("button", {
+          name: "All yards, including unclassified",
+          exact: true,
+        })
+        .count(),
+    ).toBe(0);
+    expect(
+      await page
+        .getByRole("button", { name: "Self-service", exact: true })
+        .count(),
+    ).toBe(0);
+    await page
+      .getByRole("heading", { name: "1987 Volvo 740", exact: true })
+      .first()
+      .waitFor();
+    expect(
+      await page
+        .getByRole("heading", { name: "1987 Volvo 740", exact: true })
+        .count(),
+    ).toBe(3);
+    expect(
+      new URL(page.url()).searchParams.getAll("yardTypes[]"),
+    ).not.toContain("self_service");
+  } finally {
+    await page.close();
+  }
+}, 15_000);

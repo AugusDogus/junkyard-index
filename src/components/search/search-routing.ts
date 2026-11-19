@@ -163,8 +163,10 @@ function parseAdvancedUrlFilters(
   );
   if (sources.length > 0) filters.sources = sources;
   const selection = SearchYardSelection.fromUrl(params);
-  if (selection.kind === "explicit")
-    filters.yardTypes = selection.types.length ? selection.types : ["all"];
+  if (selection.kind !== "default") {
+    const types = SearchYardSelection.effectiveTypes(selection);
+    filters.yardTypes = types.length ? types : ["all"];
+  }
   for (const key of ["minYear", "maxYear"] as const) {
     const value = params.get(key);
     if (!value) continue;

@@ -43,6 +43,7 @@ const vehicles = [
     "both-940",
     "self-940-1",
     "self-940-2",
+    "unknown-960",
   ].map((id) => ({
     objectID: id,
     year: 1987,
@@ -58,7 +59,9 @@ const vehicles = [
       ? ["self_service", "full_service"]
       : id.startsWith("self")
         ? ["self_service"]
-        : ["full_service"],
+        : id.startsWith("full")
+          ? ["full_service"]
+          : [],
   })),
 ];
 
@@ -99,6 +102,11 @@ const client = {
         const serializedFacets = JSON.stringify(params?.facetFilters ?? []);
         const self = serializedFacets.includes("yardTypes:self_service");
         const full = serializedFacets.includes("yardTypes:full_service");
+        const expressionTypes = [
+          ...(params?.filters ?? "").matchAll(
+            /yardTypes:"(self_service|full_service)"/g,
+          ),
+        ].map((match) => match[1]);
         const extraOnly = params?.filters?.includes(
           "NOT yardTypes:self_service",
         );
@@ -114,6 +122,11 @@ const client = {
             ((!self && !full) ||
               (self && vehicle.yardTypes.includes("self_service")) ||
               (full && vehicle.yardTypes.includes("full_service"))) &&
+            (!expressionTypes.length ||
+              expressionTypes.some(
+                (type) =>
+                  typeof type === "string" && vehicle.yardTypes.includes(type),
+              )) &&
             (!extraOnly ||
               (vehicle.yardTypes.includes("full_service") &&
                 !vehicle.yardTypes.includes("self_service"))),
