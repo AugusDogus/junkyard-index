@@ -75,8 +75,9 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright.outputs.version }}
       # Use the installed Core CLI, so the browser revision always matches.
-      # System libraries must be installed even when the browser cache hits.
-      - run: bun node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
+      # The hosted image includes Chrome and its runtime libraries. Avoid an
+      # unrelated apt repository update on every run. Playwright validates libs.
+      - run: bun node_modules/playwright-core/cli.js install --only-shell chromium
       - name: Run browser fixtures
         run: bun test tests/browser --shard=${{ matrix.shard }}/2 --reporter=junit --reporter-outfile=test-results/browser/junit.xml
       - uses: actions/upload-artifact@v4
