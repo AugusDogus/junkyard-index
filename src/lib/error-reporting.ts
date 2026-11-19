@@ -8,11 +8,21 @@ import { denyUrls, ignoreErrors } from "sentry-ignores";
  * was idle still cost each visit about 200 ms. So it loads on the first
  * uncaught error, rejection, or `capture` call; errors seen until it is
  * ready are reported once it is, and its own handlers take over from then
- * on. The cost: no breadcrumbs from before the first error. Browser only:
- * elsewhere `capture` does nothing, and the server reports through
- * `src/instrumentation.ts`.
+ * on. The cost: no breadcrumbs from before the first error. Live site only:
+ * dev servers, previews, test fixtures, and the server do nothing here (the
+ * server reports through `src/instrumentation.ts`).
  */
 type Sentry = typeof SentrySdk;
+
+// www redirects here, so the apex is the only host that runs the app.
+const PRODUCTION_HOST = "junkyardindex.com";
+
+function onProductionSite(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.location.hostname === PRODUCTION_HOST
+  );
+}
 
 let loading: Promise<Sentry> | null = null;
 let listening = false;
@@ -55,14 +65,14 @@ function load(): Promise<Sentry> {
 export const ErrorReporting = {
   /** Listens for uncaught errors, loading Sentry on the first one. */
   start(): void {
-    if (listening || loading) return;
+    if (listening || loading || !onProductionSite()) return;
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     listening = true;
   },
 
   capture(error: unknown, extra?: Record<string, unknown>): void {
-    if (typeof window === "undefined") return;
+    if (!onProductionSite()) return;
     void load().then((Sentry) => Sentry.captureException(error, { extra }));
   },
 } as const;
