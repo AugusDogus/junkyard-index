@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -69,7 +70,7 @@ async function typeAndSettle(page: Page, value: string) {
 }
 
 test("typing replaces history, submit checkpoints once, and no extra requests are sent", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await openFixture(page);
     const length = await historyLength(page);
@@ -108,7 +109,7 @@ test("typing replaces history, submit checkpoints once, and no extra requests ar
     );
     expect(new URL(page.url()).searchParams.get("sort")).toBe("oldest");
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 15_000);
 
@@ -117,7 +118,7 @@ for (const search of [
   "?q=toyota&yards=RTP+Pick-A-Part+-+Hebron%2C+KY,RTP+Pick-A-Part+-+Lexington%2C+KY",
 ]) {
   test(`typing retains yard URLs and self-service default: ${search}`, async () => {
-    const page = await browser.newPage();
+    const page = await createPage(browser);
     try {
       await openFixture(page, search);
       const length = await historyLength(page);
@@ -130,13 +131,13 @@ for (const search of [
       expect(params.getAll("yardTypes[]")).toEqual(["self_service"]);
       expect(await historyLength(page)).toBe(length);
     } finally {
-      await page.close();
+      await closePage(page);
     }
   }, 10_000);
 }
 
 test("Back cancels pending typing and the next submission still works", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await openFixture(page);
     await page
@@ -159,12 +160,12 @@ test("Back cancels pending typing and the next submission still works", async ()
       () => document.querySelector("input")?.value === "toyota",
     );
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 10_000);
 
 test("immediate submit after a live preview creates one final checkpoint", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await openFixture(page);
     const length = await historyLength(page);
@@ -199,12 +200,12 @@ test("immediate submit after a live preview creates one final checkpoint", async
       () => document.querySelector("input")?.value === "ford",
     );
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 12_000);
 
 test("editing expression-owned yard types still replaces history", async () => {
-  const page = await browser.newPage();
+  const page = await createPage(browser);
   try {
     await openFixture(page, "?q=yardType%3Afull_service&syntax=expression");
     const length = await historyLength(page);
@@ -212,6 +213,6 @@ test("editing expression-owned yard types still replaces history", async () => {
     expect(await historyLength(page)).toBe(length);
     expect(new URL(page.url()).searchParams.get("syntax")).toBe("expression");
   } finally {
-    await page.close();
+    await closePage(page);
   }
 }, 10_000);

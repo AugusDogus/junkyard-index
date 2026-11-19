@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
 import { chromium, type Browser } from "playwright-core";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -36,7 +37,7 @@ describe("advanced search browser interactions", () => {
     { width: 390, height: 844 },
   ]) {
     test(`can choose a sort and combine inventory filters at ${viewport.width}px`, async () => {
-      const page = await browser.newPage({ viewport });
+      const page = await createPage(browser, { viewport });
       page.setDefaultTimeout(5_000);
       try {
         await page.route("http://advanced-search.test/**", (route) => {
@@ -114,7 +115,7 @@ describe("advanced search browser interactions", () => {
           }),
         );
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 20_000);
   }

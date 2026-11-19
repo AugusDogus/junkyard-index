@@ -5,6 +5,7 @@ import { join } from "node:path";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
 import { chromium, type Browser } from "playwright-core";
+import { closePage, createPage } from "./browser-page";
 
 let browser: Browser;
 let directory: string;
@@ -80,7 +81,9 @@ for (const width of [390, 640, 1440]) {
         result.exited,
       ]);
       if (status !== 0) throw new Error(errors);
-      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const page = await createPage(browser, {
+        viewport: { width, height: 900 },
+      });
       const hydrationErrors: string[] = [];
       page.on("pageerror", (error) => hydrationErrors.push(error.message));
       page.on("console", (message) => {
@@ -146,7 +149,7 @@ for (const width of [390, 640, 1440]) {
         ).toBe(true);
         expect(hydrationErrors).toEqual([]);
       } finally {
-        await page.close();
+        await closePage(page);
       }
     }, 20_000);
   }

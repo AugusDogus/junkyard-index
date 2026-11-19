@@ -51,19 +51,55 @@ jobs:
           path: test-results/
           if-no-files-found: error
 
+  browser:
+    name: Browser shard ${{ matrix.shard }}/2
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      BROWSER_TEST_ARTIFACTS: test-results/browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.1"
+      - run: bun install --frozen-lockfile
+      - name: Read installed Playwright version
+        id: playwright
+        run: echo "version=$(bun -p 'require("playwright-core/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright.outputs.version }}
+      # Use the installed Core CLI, so the browser revision always matches.
+      # System libraries must be installed even when the browser cache hits.
+      - run: bun node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
+      - name: Run browser fixtures
+        run: bun test tests/browser --shard=${{ matrix.shard }}/2 --reporter=junit --reporter-outfile=test-results/browser/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-shard-${{ matrix.shard }}
+          path: test-results/browser/
+          if-no-files-found: warn
+          retention-days: 7
+
   check:
     # Preserve the single required branch-protection status, including failures
-    # and cancellations in either the matrix or the independent static checks.
+    # and cancellations in the unit/browser matrices or the independent static checks.
     name: Lint, typecheck, test
     if: always()
-    needs: [static, test]
+    needs: [static, test, browser]
     runs-on: ubuntu-latest
     steps:
       - name: Require all jobs to pass
         env:
           STATIC_RESULT: ${{ needs.static.result }}
           TEST_RESULT: ${{ needs.test.result }}
-        run: test "$STATIC_RESULT" = success && test "$TEST_RESULT" = success
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: test "$STATIC_RESULT" = success && test "$TEST_RESULT" = success && test "$BROWSER_RESULT" = success
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
