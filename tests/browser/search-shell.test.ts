@@ -3,6 +3,7 @@ import { z } from "zod";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
 import type { Browser, Page } from "playwright-core";
+import { closePage, createPage, launchBrowser } from "./browser-page";
 import {
   bundleSharedSearchFixture,
   renderSharedSearchFixture,
@@ -27,7 +28,6 @@ async function requestLog(page: Page) {
     ),
   );
 }
-import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let script: string;
