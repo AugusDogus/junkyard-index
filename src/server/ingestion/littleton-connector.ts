@@ -26,6 +26,7 @@ import {
 import { LITTLETON_YARD, type LittletonYard } from "./littleton-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import { SourceValidationPolicy } from "./source-validation";
 
 interface LittletonOptions<E, R> {
@@ -236,6 +237,7 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
       nextQuery < context.pairs.length &&
       summary.pagesProcessed < maxPages
     ) {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const pair = context.pairs[nextQuery];
       if (!pair)
         return yield* new LittletonProviderError({
@@ -331,7 +333,7 @@ export function streamLittletonInventoryWithRequestGate<E, R>(
       },
     } satisfies LittletonStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new LittletonProviderError({

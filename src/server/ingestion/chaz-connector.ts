@@ -34,6 +34,7 @@ import {
 } from "./chaz-yard-metadata";
 import type { ChazCanonicalVehicle } from "./chaz-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface ChazOptions<E, R> {
   startCursor?: ChazCursor;
@@ -208,6 +209,7 @@ export function streamChazInventoryWithRequestGate<E, R>(
     const started = Date.now();
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       if (Date.now() - started > 150_000) break;
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       if (cursor.requests >= CHAZ_MAX_REQUESTS)
         return yield* new ChazProviderError({
           operation: "run budget",
@@ -254,7 +256,7 @@ export function streamChazInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies ChazStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new ChazProviderError({

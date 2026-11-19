@@ -8,10 +8,12 @@ import {
   transformIdipullRecord,
   type IdipullCanonicalVehicle,
 } from "./idipull-transform";
-import type { IdipullYard } from "./idipull-yard-metadata";
+import { IDIPULL_ORIGIN, type IdipullYard } from "./idipull-yard-metadata";
 import { IdipullCatalog } from "./idipull-catalog";
 import { inventoryVin } from "./inventory-vin";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { sharedProviderHostSession } from "./shared-provider-host";
 import { SourceValidationPolicy } from "./source-validation";
 import { conflictingVins } from "./vin-conflicts";
 
@@ -192,7 +194,8 @@ export function streamIdipullInventoryWithRequestGate<E, R>(
       },
     } satisfies IdipullStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    sharedProviderHostSession(IDIPULL_ORIGIN, "2 minutes"),
+    ProviderChunkClock.deadline({
       duration: "2 minutes",
       onTimeout: () =>
         new IdipullProviderError({

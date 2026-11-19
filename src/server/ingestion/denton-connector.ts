@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   readDentonPage,
   DENTON_MAX_BODY_BYTES,
@@ -154,6 +155,8 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
         cursor = complete;
       } else {
         if (summary.pagesProcessed >= budget) break;
+        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
+          break;
         if (
           cursor.requests >= DENTON_MAX_REQUESTS ||
           cursor.bytes > DENTON_MAX_TOTAL_BYTES - DENTON_MAX_BODY_BYTES
@@ -178,7 +181,7 @@ export function streamDentonInventory<E, R>(options: DentonOptions<E, R>) {
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies DentonStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         DentonError.create(

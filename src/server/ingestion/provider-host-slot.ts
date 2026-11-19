@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
-import { Effect } from "effect";
+import { Duration, Effect, FiberRef } from "effect";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface ProviderHostStore {
   reserve(token: string, leaseMs: number): Promise<boolean>;
@@ -120,6 +121,8 @@ export function withProviderHostSlot<A, E, R>(
               onTimeout: () =>
                 slotError(policy, "reservation", "Host remained busy"),
             }),
+            // Waiting for a turn is not the chunk's provider work.
+            ProviderChunkClock.queued,
           ),
         ),
       );
@@ -151,12 +154,67 @@ export function withProviderHostSlot<A, E, R>(
   );
 }
 
+/** Policy keys whose lease the current fiber holds for a whole session. */
+const HeldHostKeys = FiberRef.unsafeMake<ReadonlySet<string>>(new Set());
+
+/**
+ * Holds one lease for every request `session` makes to the policy's backend,
+ * for crawls that must complete atomically in one chunk. Requests inside keep
+ * the policy gap. `holdFor` bounds the session the way `requestMs` bounds one
+ * request; the lease outlives it by the policy's usual margin.
+ */
+export function withProviderHostSession<A, E, R>(
+  policy: ProviderHostPolicy,
+  store: ProviderHostStore,
+  holdFor: Duration.DurationInput,
+  session: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | Error, R> {
+  const requestMs = Duration.toMillis(holdFor);
+  return withProviderHostSlot(
+    {
+      ...policy,
+      requestMs,
+      leaseMs: requestMs + policy.leaseMs - policy.requestMs,
+    },
+    store,
+    Effect.locallyWith(session, HeldHostKeys, (held) =>
+      new Set(held).add(policy.key),
+    ),
+  );
+}
+
 export function providerHostSlot<A, E, R>(
   policy: ProviderHostPolicy,
   request: Effect.Effect<A, E, R>,
 ) {
   if (process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production")
     return request;
+  return Effect.flatMap(FiberRef.get(HeldHostKeys), (held) =>
+    held.has(policy.key)
+      ? // The enclosing session owns the lease; keep the gap between requests.
+        request.pipe(Effect.ensuring(Effect.sleep(policy.gapMs)))
+      : withRedisProviderHostStore(policy, (store) =>
+          withProviderHostSlot(policy, store, request),
+        ),
+  );
+}
+
+export function providerHostSession<A, E, R>(
+  policy: ProviderHostPolicy,
+  holdFor: Duration.DurationInput,
+  session: Effect.Effect<A, E, R>,
+) {
+  if (process.env.VERCEL !== "1" && process.env.NODE_ENV !== "production")
+    return session;
+  return withRedisProviderHostStore(policy, (store) =>
+    withProviderHostSession(policy, store, holdFor, session),
+  );
+}
+
+function withRedisProviderHostStore<A, E, R>(
+  policy: ProviderHostPolicy,
+  use: (store: ProviderHostStore) => Effect.Effect<A, E, R>,
+) {
   return Effect.try({
     try: () => {
       const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -173,7 +231,5 @@ export function providerHostSlot<A, E, R>(
       );
     },
     catch: (cause) => slotError(policy, "configuration", cause),
-  }).pipe(
-    Effect.flatMap((store) => withProviderHostSlot(policy, store, request)),
-  );
+  }).pipe(Effect.flatMap(use));
 }

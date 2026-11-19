@@ -32,6 +32,7 @@ import {
 } from "./scotts-yard-metadata";
 import type { ScottsCanonicalVehicle } from "./scotts-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface ScottsOptions<E, R> {
   startCursor?: ScottsCursor;
@@ -192,6 +193,7 @@ export function streamScottsInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current: ScottsProgress = cursor;
       if (current.requests >= SCOTTS_MAX_REQUESTS)
         return yield* new ScottsProviderError({
@@ -233,7 +235,7 @@ export function streamScottsInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies ScottsStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new ScottsProviderError({

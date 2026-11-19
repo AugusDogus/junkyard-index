@@ -1,6 +1,7 @@
-import { Effect } from "effect";
+import type { Duration, Effect } from "effect";
 import { URGIIS_TENANTS } from "./urgiis-configuration";
 import {
+  providerHostSession,
   providerHostSlot,
   type ProviderHostPolicy,
 } from "./provider-host-slot";
@@ -66,4 +67,14 @@ export const sharedProviderHostSlot =
   <A, E, R>(request: Effect.Effect<A, E, R>) => {
     const policy = sharedProviderHostPolicy(url);
     return policy ? providerHostSlot(policy, request) : request;
+  };
+
+/** For crawls that must finish atomically in one chunk: wait for one turn and
+ * hold the backend lease through every request inside, each still followed by
+ * the policy gap. Without a shared policy for `url` this is `session`. */
+export const sharedProviderHostSession =
+  (url: string, holdFor: Duration.DurationInput) =>
+  <A, E, R>(session: Effect.Effect<A, E, R>) => {
+    const policy = sharedProviderHostPolicy(url);
+    return policy ? providerHostSession(policy, holdFor, session) : session;
   };

@@ -32,6 +32,7 @@ import {
 } from "./northwest-yard-metadata";
 import type { NorthwestCandidate } from "./northwest-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface NorthwestOptions<E, R> {
   startCursor?: NorthwestCursor;
@@ -196,6 +197,7 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current: NorthwestProgress = cursor;
       if (current.requests >= NORTHWEST_MAX_REQUESTS)
         return yield* new NorthwestProviderError({
@@ -235,7 +237,7 @@ export function streamNorthwestInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies NorthwestStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new NorthwestProviderError({

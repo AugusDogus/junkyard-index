@@ -22,6 +22,7 @@ import {
   indianriverPageUrl,
   type IndianriverYard,
 } from "./indianriver-yard-metadata";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface IndianriverOptions<E, R> {
   previousUniqueInventory: number | null;
@@ -90,6 +91,7 @@ export function streamIndianriverInventory<E, R>(
       },
     };
     while (cursor.phase !== "complete" && summary.pagesProcessed < budget) {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current = cursor;
       const index =
         current.phase === "opening"
@@ -212,7 +214,7 @@ export function streamIndianriverInventory<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies IndianriverStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new IndianriverProviderError(
