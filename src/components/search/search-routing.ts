@@ -1,3 +1,5 @@
+import { ArrivalWindow } from "~/lib/arrival-window";
+import { SearchArea } from "~/lib/search-area";
 import { SearchYardSelection } from "~/lib/search-yard-selection";
 import { SearchRadius } from "~/lib/search-radius";
 import { YardService, type YardType } from "~/lib/yard-service";
@@ -196,6 +198,7 @@ interface AdvancedRouteFilters {
   yardTypes?: (YardType | "all")[];
   minYear?: number;
   maxYear?: number;
+  arrivalWindow?: ArrivalWindow;
 }
 
 interface AdvancedUiFilters {
@@ -208,6 +211,7 @@ function parseAdvancedUrlFilters(
   knownYardNames: readonly string[],
 ): AdvancedRouteFilters {
   const filters: AdvancedRouteFilters = {};
+  filters.arrivalWindow = ArrivalWindow.fromUrl(params);
   for (const key of ["makes", "colors", "states", "yards"] as const) {
     const values = SearchFilterUrl.read(
       params,
@@ -339,7 +343,14 @@ function createAdvancedFilterPolicy(allowed: boolean): AdvancedFilterPolicy {
       }
     : {
         preserveUrlFilters: true,
-        toUiState: () => ({}),
+        toUiState: (state) =>
+          ArrivalWindow.parse(state.arrivalWindow)
+            ? advancedUiStateFromRoute({
+                states: state.states,
+                yards: state.yards,
+                sources: state.sources,
+              })
+            : {},
       };
 }
 
@@ -376,6 +387,14 @@ export function createSearchRouting(
         const baseUrl = location.href.split("?")[0] ?? location.href;
         const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
+        const arrivalWindow = ArrivalWindow.fromUrl(locationParams);
+        if (arrivalWindow)
+          SearchFilterUrl.write(params, "arrivalWindow", [arrivalWindow]);
+        const area = SearchArea.fromUrl(locationParams);
+        if (area) {
+          params.set("lat", String(area.lat));
+          params.set("lng", String(area.lng));
+        }
         const radius = SearchRadius.parse(locationParams.get("radius"));
         if (radius !== null) params.set("radius", String(radius));
         const vinPattern =
@@ -391,10 +410,16 @@ export function createSearchRouting(
         }
         if (params.has("q") && locationParams.get("syntax") === "expression")
           params.set("syntax", "expression");
+        const lockedFallback = new URLSearchParams(locationParams);
+        if (arrivalWindow)
+          for (const key of ["states", "yards", "sources"]) {
+            lockedFallback.delete(key);
+            lockedFallback.delete(`${key}[]`);
+          }
         writeAdvancedUrlFilters(
           params,
           state,
-          advancedFilterPolicy.preserveUrlFilters ? locationParams : undefined,
+          advancedFilterPolicy.preserveUrlFilters ? lockedFallback : undefined,
         );
         for (const key of ["minYear", "maxYear"] as const) {
           if (typeof state[key] === "number")

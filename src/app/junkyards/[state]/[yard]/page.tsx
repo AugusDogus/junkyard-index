@@ -50,9 +50,12 @@ export default async function YardPage({
         total={data.vehicles.length}
         makes={data.makes}
         makeSlugs={await getMakeSlugs()}
-        newCount={YardInventory.newCount(data.vehicles, data.publishedAt)}
+        newCount={YardInventory.newCount(
+          data.vehicles,
+          new Date().toISOString(),
+        )}
         newIsMeaningful={YardInventory.newIsMeaningful(
-          YardInventory.newCount(data.vehicles, data.publishedAt),
+          YardInventory.newCount(data.vehicles, new Date().toISOString()),
           data.vehicles.length,
         )}
         filter={null}

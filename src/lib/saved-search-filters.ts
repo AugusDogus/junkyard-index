@@ -1,3 +1,5 @@
+import { ArrivalWindow } from "./arrival-window";
+import { SearchArea } from "./search-area";
 import { YARD_TYPE_OPTIONS } from "~/lib/yard-service";
 import { compileSearchExpression } from "~/lib/compile-search-expression";
 import { z } from "zod";
@@ -60,6 +62,8 @@ export const filtersSchema = z
       .min(MIN_VEHICLE_YEAR)
       .max(MAX_VEHICLE_YEAR)
       .optional(),
+    arrivalWindow: ArrivalWindow.schema.optional(),
+    near: SearchArea.schema.optional(),
     sortBy: z.string().optional(),
   })
   .superRefine((filters, ctx) => {
@@ -107,6 +111,8 @@ export function savedSearchMatchCriteriaKey(
       : compileSearchExpression(filters.expression);
   return JSON.stringify({
     query: query.trim(),
+    arrivalWindow: filters.arrivalWindow,
+    near: filters.near,
     expression: expression?.success
       ? expression.data
       : filters.expression?.trim(),

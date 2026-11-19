@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrivalWindowChips } from "../ArrivalWindowChips";
 import { useId, useLayoutEffect, useRef, type ChangeEvent } from "react";
 import { hasAdvancedSearchSyntax } from "~/lib/advanced-search-query";
 import { Input } from "~/components/ui/input";
@@ -195,6 +196,30 @@ export function SearchTerms({
             }
           />
         </div>
+      )}
+      <ArrivalWindowChips
+        value={draft.criteria.arrivalWindow}
+        onChange={(arrivalWindow) =>
+          onChange({ ...draft, criteria: { ...draft.criteria, arrivalWindow } })
+        }
+      />
+      {draft.criteria.near && (
+        <p className="se-hint">
+          Within {draft.criteria.near.radiusMiles} miles of{" "}
+          {draft.criteria.near.lat}, {draft.criteria.near.lng}.{" "}
+          <button
+            type="button"
+            className="underline"
+            onClick={() =>
+              onChange({
+                ...draft,
+                criteria: { ...draft.criteria, near: undefined },
+              })
+            }
+          >
+            Remove radius
+          </button>
+        </p>
       )}
       {!canUseBasic && advanced && (
         <p id={`${id}-mode-help`} className="se-hint se-mode-help">

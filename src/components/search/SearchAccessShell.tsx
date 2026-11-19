@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { InstantSearchNext } from "react-instantsearch-nextjs";
+import { useInstantSearchContext } from "react-instantsearch";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
 import { SearchErrorFallback } from "~/components/search/SearchErrorFallback";
@@ -44,12 +45,20 @@ interface SearchAccessShellProps {
 }
 
 function ConsumeSearchHydration() {
+  const search = useInstantSearchContext();
   useEffect(() => {
     // InstantSearchNext 1.x keeps SSR results in this window slot after hydration.
     // Consume them only after the provider mounts, including after error recovery.
     // Later capability/plan remounts must search with their own routed state.
+    const hydrated = Reflect.has(
+      window,
+      Symbol.for("InstantSearchInitialResults"),
+    );
     Reflect.deleteProperty(window, Symbol.for("InstantSearchInitialResults"));
-  }, []);
+    // Cache the hydrated page with the mounted widgets' complete parameters.
+    // This render avoids repeating the server search just to prime pagination.
+    if (hydrated) search.scheduleRender();
+  }, [search]);
   return null;
 }
 
@@ -111,15 +120,38 @@ export function SearchAccessShell({
       { knownYardNames, newestSortReady },
     );
     const sync = createSearchRouteSync(config.router.push);
+    const routeKey = (url: string) =>
+      JSON.stringify(
+        config.stateMapping.routeToState(
+          config.router.parseURL({ location: new URL(url) }),
+        ),
+      );
+    // SSR already used this route. Later capability/plan remounts must replay
+    // it because preserveSharedStateOnUnmount can retain incompatible facets.
+    let lastRouteKey =
+      typeof window !== "undefined" &&
+      Reflect.has(window, Symbol.for("InstantSearchInitialResults"))
+        ? routeKey(window.location.href)
+        : undefined;
     return {
       ...config,
       router: {
         ...config.router,
-        push: sync.push,
+        push(url: string) {
+          lastRouteKey = routeKey(url);
+          sync.push(url);
+        },
         start: sync.start,
         dispose: sync.dispose,
       },
-      onUrlChange: sync.onUrlChange,
+      onUrlChange(url: string) {
+        const key = routeKey(url);
+        // Window and radius already update Configure. Replaying an unchanged
+        // routed search here would issue a second identical results request.
+        if (lastRouteKey === key) return;
+        lastRouteKey = key;
+        sync.onUrlChange(url);
+      },
     };
   }, [
     vinPatternIndexReady,

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { buildSearchUrl } from "~/lib/search-utils";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "~/components/junkyards/Breadcrumbs";
@@ -10,7 +12,11 @@ import { StructuredData } from "~/lib/structured-data";
 import { YardName } from "~/lib/yard-name";
 import { YardPath } from "~/lib/yard-path";
 import { FreshnessBadge } from "~/components/inventory/FreshnessBadge";
-import { findRegionYards, inventoryFreshness } from "~/server/yard-inventory";
+import {
+  findRegionYards,
+  getRegionNewCount,
+  inventoryFreshness,
+} from "~/server/yard-inventory";
 import { InventoryFormat } from "~/lib/inventory-format";
 
 // Rebuilt after each daily ingestion pass; this is the fallback lifetime.
@@ -60,7 +66,10 @@ export default async function RegionPage({
   ];
   // Biggest first: the yards most likely to have what a visitor needs.
   const ranked = [...yards].sort((a, b) => b.vehicleCount - a.vehicleCount);
-  const freshness = await inventoryFreshness(yards);
+  const [freshness, newCount] = await Promise.all([
+    inventoryFreshness(yards),
+    getRegionNewCount(region.abbr),
+  ]);
 
   return (
     <PublicPageShell>
@@ -96,6 +105,18 @@ export default async function RegionPage({
           vehicles.
         </p>
       </header>
+      <p className="mt-4">
+        <Link
+          className="text-signal inline-flex min-h-11 items-center font-bold tabular-nums underline underline-offset-4"
+          href={buildSearchUrl("", {
+            arrivalWindow: "7d",
+            states: [region.name],
+            yardTypes: [],
+          })}
+        >
+          {InventoryFormat.count(newCount)} new this week
+        </Link>
+      </p>
       <div className="mt-5">
         <FreshnessBadge publishedAt={freshness.latest} coverage={freshness} />
       </div>

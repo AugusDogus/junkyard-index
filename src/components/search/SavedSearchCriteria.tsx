@@ -1,3 +1,4 @@
+import { ARRIVAL_WINDOWS } from "~/lib/arrival-window";
 import { YardService } from "~/lib/yard-service";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { INGESTION_SOURCE_DISPLAY_NAMES } from "~/lib/ingestion-source";
@@ -77,6 +78,18 @@ function getSavedSearchCriteria(
         .join(", "),
     });
   }
+  if (filters.arrivalWindow)
+    criteria.push({
+      label: "Arrivals",
+      value:
+        ARRIVAL_WINDOWS.find((option) => option.value === filters.arrivalWindow)
+          ?.label ?? filters.arrivalWindow,
+    });
+  if (filters.near)
+    criteria.push({
+      label: "Within",
+      value: `${filters.near.radiusMiles} miles of ${filters.near.lat}, ${filters.near.lng}`,
+    });
   if (filters.sortBy) {
     const sort = SEARCH_SORT_OPTIONS.find(
       (option) =>

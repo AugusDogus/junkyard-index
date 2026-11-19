@@ -83,6 +83,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <Suspense fallback={<SearchPageSkeleton />}>
             <HydrateClient>
               <SearchPageContent
+                arrivalReferenceTime={Date.now()}
                 isLoggedIn={isLoggedIn}
                 initialIsMobile={/Mobile|Android|iPhone|iPod/i.test(
                   reqHeaders.get("user-agent") ?? "",

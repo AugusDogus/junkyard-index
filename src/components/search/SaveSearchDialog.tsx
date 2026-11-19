@@ -1,5 +1,8 @@
 "use client";
 
+import type { ArrivalWindow } from "~/lib/arrival-window";
+import type { SearchArea } from "~/lib/search-area";
+
 import type { YardType } from "~/lib/yard-service";
 
 import { Bookmark, ChevronDown, ExternalLink, Lock, Mail } from "lucide-react";
@@ -79,6 +82,8 @@ export interface SaveSearchFilters {
   yardTypes?: YardType[];
   minYear?: number;
   maxYear?: number;
+  arrivalWindow?: ArrivalWindow;
+  near?: SearchArea;
   sortBy?: string;
 }
 

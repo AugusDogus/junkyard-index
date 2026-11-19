@@ -350,3 +350,30 @@ test("uses honest relevance sorting until the chronological replica is ready", (
     });
   }
 });
+
+test("free arrival links retain repeated yard scope, year, and window", () => {
+  const routing = createSearchRouting("vehicles", true, false);
+  const url = new URL(
+    "https://example.com/search?arrivalWindow[]=7d&yards[]=RTP%20Pick-A-Part%20-%20Hebron,%20KY&sources[]=rtp&minYear=2000",
+  );
+  const route = routing.router.parseURL({ location: url });
+  const state = routing.stateMapping.routeToState(route);
+  expect(state.vehicles).toMatchObject({
+    refinementList: {
+      locationName: ["RTP Pick-A-Part - Hebron, KY"],
+      source: ["rtp"],
+      yardTypes: ["self_service"],
+    },
+    range: { year: "2000:" },
+  });
+  const written = new URL(
+    routing.router.createURL({
+      routeState: routing.stateMapping.stateToRoute(state),
+      location: url,
+    }),
+  );
+  expect(written.searchParams.getAll("arrivalWindow[]")).toEqual(["7d"]);
+  expect(written.searchParams.getAll("yards[]")).toEqual([
+    "RTP Pick-A-Part - Hebron, KY",
+  ]);
+});

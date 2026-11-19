@@ -132,25 +132,28 @@ export const YardInventory = {
   },
 
   /**
-   * Whether a vehicle arrived in the week before `publishedAt`, the yard's
-   * latest inventory update. Measured from the data, not the clock, so a
-   * cached page says the same thing all day.
+   * Whether a known arrival falls in the week ending at `referenceTime`.
+   * Callers choose the clock or a publication time for cached snapshots.
    */
   isNew(
     vehicle: Pick<YardVehicle, "addedAt" | "addedBy">,
-    publishedAt: string | null,
+    referenceTime: string | null,
   ): boolean {
-    if (publishedAt === null || vehicle.addedBy === "first-seen") return false;
-    return vehicle.addedAt >= Date.parse(publishedAt) - WEEK_MS;
+    if (referenceTime === null || vehicle.addedBy === "first-seen")
+      return false;
+    return (
+      vehicle.addedAt >= Date.parse(referenceTime) - WEEK_MS &&
+      vehicle.addedAt <= Date.parse(referenceTime)
+    );
   },
 
   /** How many of `vehicles` are new, as `isNew` counts them. */
   newCount(
     vehicles: readonly Pick<YardVehicle, "addedAt" | "addedBy">[],
-    publishedAt: string | null,
+    referenceTime: string | null,
   ): number {
     return vehicles.filter((vehicle) =>
-      YardInventory.isNew(vehicle, publishedAt),
+      YardInventory.isNew(vehicle, referenceTime),
     ).length;
   },
 

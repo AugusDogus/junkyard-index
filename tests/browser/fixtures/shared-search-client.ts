@@ -73,6 +73,8 @@ type SearchParams = {
   hitsPerPage?: number;
   filters?: string;
   numericFilters?: unknown;
+  aroundLatLng?: string;
+  aroundRadius?: number | "all";
 };
 type SearchRequest = { indexName: string; params?: SearchParams };
 
@@ -187,25 +189,71 @@ const client = {
         const extraOnly = params?.filters?.includes(
           "NOT yardTypes:self_service",
         );
-        const matchingVehicles = query.startsWith("pagination")
-          ? Array.from({ length: 96 }, (_, index) => ({
-              yardTypes: ["self_service"],
-              source: "pyp",
-              locationName: "Fixture yard",
-              availableDate: "2026-10-01",
-              state: "Alabama",
-              stateAbbr: "AL",
-              objectID: `pagination-${index}`,
-              year: 1900 + index,
-              make: "Pagination",
-              model: "Car",
-              vin: `VIN${index}`,
-              detailsUrl: "https://example.com/vehicle",
-              imageUrl: "https://example.com/car.jpg",
-            }))
-          : vehicles;
+        const arrivalVehicles = [
+          { id: "arrival-yard", age: 3600, kind: "yard", lat: 33.448 },
+          { id: "arrival-seen", age: 3 * 86400, kind: "seen", lat: 33.448 },
+          { id: "arrival-old", age: 10 * 86400, kind: "yard", lat: 33.448 },
+          { id: "arrival-unknown", age: 0, kind: "unknown", lat: 33.448 },
+          { id: "arrival-far", age: 3600, kind: "yard", lat: 40 },
+        ].map((item) => {
+          const date = new Date(Date.now() - item.age * 1000).toISOString();
+          return {
+            objectID: item.id,
+            year: 2010,
+            make: "New",
+            model: "Arrivals",
+            state: "Arizona",
+            stateAbbr: "AZ",
+            source: "pyp",
+            locationName: "Fixture yard",
+            vin: item.id,
+            yardTypes: ["self_service"],
+            _geoloc: { lat: item.lat, lng: -112.074 },
+            availableDate: item.kind === "yard" ? date : null,
+            arrivalDate:
+              item.kind === "unknown"
+                ? { kind: "unknown" }
+                : { kind: item.kind, date },
+            availableDateTs:
+              item.kind === "unknown" ? 0 : Math.floor(Date.parse(date) / 1000),
+          };
+        });
+        const matchingVehicles =
+          query === "arrivals"
+            ? arrivalVehicles
+            : query.startsWith("pagination")
+              ? Array.from({ length: 96 }, (_, index) => ({
+                  yardTypes: ["self_service"],
+                  source: "pyp",
+                  locationName: "Fixture yard",
+                  availableDate: "2026-10-01",
+                  state: "Alabama",
+                  stateAbbr: "AL",
+                  objectID: `pagination-${index}`,
+                  year: 1900 + index,
+                  make: "Pagination",
+                  model: "Car",
+                  vin: `VIN${index}`,
+                  detailsUrl: "https://example.com/vehicle",
+                  imageUrl: "https://example.com/car.jpg",
+                }))
+              : vehicles;
         const matched = matchingVehicles.filter(
           (vehicle) =>
+            (!params?.filters?.includes("availableDateTs >=") ||
+              ("availableDateTs" in vehicle &&
+                typeof vehicle.availableDateTs === "number" &&
+                vehicle.availableDateTs >=
+                  Number(
+                    params.filters.match(/availableDateTs >= (\d+)/)?.[1],
+                  ) &&
+                vehicle.availableDateTs <=
+                  Number(
+                    params.filters.match(/availableDateTs <= (\d+)/)?.[1],
+                  ))) &&
+            (!params?.aroundLatLng ||
+              !("_geoloc" in vehicle) ||
+              vehicle._geoloc.lat === 33.448) &&
             [
               ...`${params?.filters ?? ""} ${JSON.stringify(params?.numericFilters ?? [])}`.matchAll(
                 /year\s*(>=|<=|=|>|<)\s*(\d+)/g,

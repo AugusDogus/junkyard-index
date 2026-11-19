@@ -205,3 +205,15 @@ test("model-scoped yard inventory preserves make and model identities", () => {
     ),
   ).toEqual([civic, repeated]);
 });
+
+test("weekly entry counts include dated and observed arrivals, excluding unknown and future dates", () => {
+  const now = "2026-11-19T12:00:00Z";
+  const rows = [
+    row({ availableDate: "2026-11-18" }),
+    row({ availableDate: null, observedArrivalAt: Date.parse("2026-11-17") }),
+    row({ availableDate: null, observedArrivalAt: null }),
+    row({ availableDate: "2026-11-20" }),
+    row({ availableDate: "2026-11-01" }),
+  ].map(YardInventory.vehicle);
+  expect(YardInventory.newCount(rows, now)).toBe(2);
+});

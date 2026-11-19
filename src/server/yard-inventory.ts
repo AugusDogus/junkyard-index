@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, notInArray } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "~/lib/db";
 import { Region } from "~/lib/region";
@@ -117,6 +117,37 @@ export const getYardPublishedAt = cacheInventory(async (): Promise<
     ),
   );
 }, ["yard-published-at-v1"]);
+
+/** Lightweight dates only, one cached DB query per state, no Algolia searches. */
+export const getRegionNewCount = cacheInventory(
+  async (stateAbbr: string) => {
+    const rows = await db
+      .select({
+        availableDate: vehicle.availableDate,
+        firstSeenAt: vehicle.firstSeenAt,
+        observedArrivalAt: vehicle.observedArrivalAt,
+      })
+      .from(vehicle)
+      .where(
+        and(
+          eq(vehicle.stateAbbr, stateAbbr),
+          isNull(vehicle.missingSinceAt),
+          notInArray(vehicle.source, [...RETIRED_INGESTION_SOURCES]),
+        ),
+      );
+    return YardInventory.newCount(
+      rows.map((row) =>
+        YardInventory.added(
+          row.availableDate,
+          row.firstSeenAt.getTime(),
+          row.observedArrivalAt?.getTime() ?? null,
+        ),
+      ),
+      new Date().toISOString(),
+    );
+  },
+  ["region-new-count-v2"],
+);
 
 /** Every yard with live inventory, with its page path. */
 export const getYardDirectory = cache(async () => {

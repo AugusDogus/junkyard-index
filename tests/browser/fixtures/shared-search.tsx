@@ -8,7 +8,7 @@ import {
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { ServerInsertedHTMLContext } from "next/navigation";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
-import { Suspense, useEffect, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import superjson from "superjson";
@@ -21,6 +21,11 @@ import { serverSearches } from "./shared-search-client";
 const params = new URLSearchParams(
   typeof window === "undefined" ? process.argv[2] : window.location.search,
 );
+const arrivalReferenceTime =
+  typeof document === "undefined"
+    ? Date.now()
+    : Number(document.documentElement.dataset.arrivalReferenceTime);
+const knownYardNames = ["RTP Pick-A-Part - Hebron, KY"];
 const isLoggedIn = params.get("fixtureGuest") !== "1";
 // With fixtureUserAgent, the page's own decision runs on the non-fixture params.
 const fixtureUserAgent = params.get("fixtureUserAgent");
@@ -126,11 +131,26 @@ function HydrationMarker() {
 }
 
 function Fixture() {
+  const [routeParams, setRouteParams] = useState(params);
+  useEffect(() => {
+    const navigate = () =>
+      setRouteParams(new URLSearchParams(window.location.search));
+    window.addEventListener("popstate", navigate);
+    return () => window.removeEventListener("popstate", navigate);
+  }, []);
   return (
     <AppRouterContext.Provider value={router}>
       <PathnameContext.Provider value="/search">
-        <SearchParamsContext.Provider value={params}>
-          <NuqsTestingAdapter searchParams={params}>
+        <SearchParamsContext.Provider value={routeParams}>
+          <NuqsTestingAdapter
+            searchParams={routeParams}
+            onUrlUpdate={({ searchParams, options }) => {
+              window.history[
+                options.history === "push" ? "pushState" : "replaceState"
+              ](window.history.state, "", `/search?${searchParams.toString()}`);
+              setRouteParams(searchParams);
+            }}
+          >
             <QueryClientProvider client={queryClient}>
               <api.Provider client={trpcClient} queryClient={queryClient}>
                 <button
@@ -168,9 +188,10 @@ function Fixture() {
                 </button>
                 <Suspense>
                   <SearchPageContent
+                    arrivalReferenceTime={arrivalReferenceTime}
                     isLoggedIn={isLoggedIn}
                     initialIsMobile={params.get("fixtureMobile") === "1"}
-                    knownYardNames={["RTP Pick-A-Part - Hebron, KY"]}
+                    knownYardNames={knownYardNames}
                     serverSearch={serverSearch}
                     searchKey={searchKey}
                   />
@@ -199,7 +220,7 @@ if (typeof document === "undefined") {
     .map((callback) => renderToStaticMarkup(<>{callback()}</>))
     .join("");
   process.stdout.write(
-    `<!doctype html><html><head><meta charset="utf-8"><meta name="fixture-server-searches" content="${serverSearches.count}"></head><body><div id="root">${markup}</div>${scripts}<script>globalThis.process={env:{NODE_ENV:"production"}}</script><script type="module" src="/app.js"></script></body></html>`,
+    `<!doctype html><html data-arrival-reference-time="${arrivalReferenceTime}"><head><meta charset="utf-8"><meta name="fixture-server-searches" content="${serverSearches.count}"></head><body><div id="root">${markup}</div>${scripts}<script>globalThis.process={env:{NODE_ENV:"production"}}</script><script type="module" src="/app.js"></script></body></html>`,
   );
 } else {
   const root = document.getElementById("root");
