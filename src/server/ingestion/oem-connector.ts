@@ -28,6 +28,7 @@ import {
 } from "./oem-transform";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import { assessOemRecord } from "./oem-record";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface OemOptions<E, R> {
   startCursor?: unknown;
@@ -276,6 +277,7 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
         };
       }
       if (pagesProcessed >= budget) break;
+      if (yield* ProviderChunkClock.shouldYield(pagesProcessed)) break;
       if (
         cursor.requests >= OEM_MAX_REQUESTS ||
         cursor.bytes > OEM_MAX_TOTAL_BYTES - OEM_MAX_BODY_BYTES
@@ -310,7 +312,7 @@ export function streamOemInventory<E, R>(options: OemOptions<E, R>) {
       warnings: [],
     };
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new OemProviderError({

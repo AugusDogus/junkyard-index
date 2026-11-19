@@ -27,6 +27,7 @@ import {
   JIMSIMPORT_YARD,
   type JimsimportYard,
 } from "./jimsimport-yard-metadata";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface JimsimportOptions<E, R> {
   previousUniqueInventory: number | null;
@@ -98,6 +99,7 @@ export function streamJimsimportInventory<E, R>(
       },
     };
     while (cursor.phase !== "complete" && summary.pagesProcessed < budget) {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current = cursor;
       if (
         current.requests >= 1024 ||
@@ -333,7 +335,7 @@ export function streamJimsimportInventory<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies JimsimportStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new JimsimportProviderError(

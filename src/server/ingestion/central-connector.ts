@@ -32,6 +32,7 @@ import {
 } from "./central-yard-metadata";
 import type { CentralCanonicalVehicle } from "./central-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface CentralOptions<E, R> {
   startCursor?: CentralCursor;
@@ -192,6 +193,7 @@ export function streamCentralInventoryWithRequestGate<E, R>(
     if (cursor.phase === "complete")
       return { ...summary, status: "complete" as const };
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const current: CentralProgress = cursor;
       if (current.requests >= CENTRAL_MAX_REQUESTS)
         return yield* new CentralProviderError({
@@ -233,7 +235,7 @@ export function streamCentralInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies CentralStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new CentralProviderError({

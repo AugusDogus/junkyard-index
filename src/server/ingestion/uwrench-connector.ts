@@ -21,6 +21,7 @@ import type { UwrenchCanonicalVehicle } from "./uwrench-transform";
 import { UWRENCH_YARD, type UwrenchYard } from "./uwrench-yard-metadata";
 import type { ConnectorChunkAccounting } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface UwrenchOptions<E, R> {
   startCursor?: UwrenchCursor;
@@ -132,6 +133,8 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
         scanReceipts.length < context.pairs.length &&
         summary.pagesProcessed < maxPages
       ) {
+        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
+          break;
         const index = scanReceipts.length;
         const pair = context.pairs[index];
         if (!pair)
@@ -189,6 +192,7 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
       verificationReceipts.length < context.pairs.length &&
       summary.pagesProcessed < maxPages
     ) {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const index = verificationReceipts.length;
       const pair = context.pairs[index];
       const scan = initial.scanReceipts[index];
@@ -264,7 +268,7 @@ export function streamUwrenchInventoryWithRequestGate<E, R>(
     if (options.onYards) yield* options.onYards([{ ...UWRENCH_YARD }]);
     return result;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new UwrenchProviderError({

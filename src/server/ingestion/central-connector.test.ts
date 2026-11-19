@@ -1,11 +1,15 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import {
   CentralCursor,
   CENTRAL_MAX_CURSOR_BYTES,
   type CentralCursor as Cursor,
 } from "./central-cursor";
-import { streamCentralInventoryWithRequestGate } from "./central-connector";
+import {
+  streamCentralInventoryWithRequestGate,
+  type CentralStreamResult,
+} from "./central-connector";
 import type { CentralCanonicalVehicle } from "./central-transform";
 import {
   centralFixtureDirectory,
@@ -169,4 +173,41 @@ test("Central rejects corrupt or oversized checkpoints before transport", async 
     ),
   ).rejects.toThrow("integrity");
   expect(requested).toEqual([]);
+});
+test("Central keeps advancing when every request waits minutes for a shared host turn", async () => {
+  // Production URG queue on 2026-11-19: about 20 sources shared one lease, so
+  // eight two-minute turns exceeded the old wall-clock three-minute deadline.
+  const { requested } = fixture();
+  const queuedGate = <A, E, R>(request: Effect.Effect<A, E, R>) =>
+    ProviderChunkClock.queued(Effect.sleep("2 minutes")).pipe(
+      Effect.andThen(request),
+    );
+  const chunk = (startCursor: Cursor) =>
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        streamCentralInventoryWithRequestGate(
+          { startCursor, maxPages: 8, onBatch: () => Effect.void },
+          queuedGate,
+        ),
+      );
+      while (fiber.unsafePoll() === null) yield* TestClock.adjust("1 minute");
+      return yield* Fiber.join(fiber);
+    });
+  const chunks = await Effect.runPromise(
+    Effect.gen(function* () {
+      let cursor: Cursor = CentralCursor.initial;
+      const pages: number[] = [];
+      let count = 0;
+      while (cursor.phase !== "complete") {
+        const result: CentralStreamResult = yield* chunk(cursor);
+        pages.push(result.pagesProcessed);
+        count = result.count;
+        cursor = result.cursor;
+      }
+      return { pages, count };
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(chunks.pages).toEqual([3, 3, 3, 3, 1]);
+  expect(chunks.count).toBe(5000);
+  expect(requested).toHaveLength(13);
 });

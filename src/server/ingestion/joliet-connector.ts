@@ -28,6 +28,7 @@ import { vinplusOptionalText, vinplusSourceDate } from "./vinplus-protocol";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { SourceValidationPolicy } from "./source-validation";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface JolietOptions<E, R> {
   startCursor?: JolietCursor;
@@ -225,6 +226,7 @@ export function streamJolietInventoryWithRequestGate<E, R>(
       nextQuery < context.pairs.length &&
       summary.pagesProcessed < maxPages
     ) {
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       const pair = context.pairs[nextQuery];
       if (!pair)
         return yield* new JolietProviderError({
@@ -350,7 +352,7 @@ export function streamJolietInventoryWithRequestGate<E, R>(
       },
     } satisfies JolietStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new JolietProviderError({

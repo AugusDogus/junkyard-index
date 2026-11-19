@@ -35,6 +35,7 @@ import {
 } from "./aviation-yard-metadata";
 import type { AviationCanonicalVehicle } from "./aviation-transform";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 interface AviationOptions<E, R> {
   startCursor?: AviationCursor;
@@ -219,6 +220,7 @@ export function streamAviationInventoryWithRequestGate<E, R>(
     const started = Date.now();
     while (summary.pagesProcessed < budget && cursor.phase !== "complete") {
       if (Date.now() - started > 150_000) break;
+      if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed)) break;
       if (cursor.requests >= AVIATION_MAX_REQUESTS)
         return yield* new AviationProviderError({
           operation: "run budget",
@@ -265,7 +267,7 @@ export function streamAviationInventoryWithRequestGate<E, R>(
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies AviationStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new AviationProviderError({

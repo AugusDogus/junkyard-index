@@ -133,6 +133,20 @@ bypass. URG waits at most 30 minutes and VinPlus ten minutes for a turn. This ca
 increase crawl duration under contention; the qualification time estimates are
 not capacity guarantees with every source running together.
 
+Connector chunk deadlines measure provider work, not queue time. On 2026-11-18
+and 2026-11-19 about 20 sources joined the URG queue at 07:00. Each request then
+waited roughly two to three minutes for a turn (measured 16 to 42 seconds per
+request even after most sources had failed). Every new URG and VinPlus native
+connector failed its first chunk at its wall-clock three-minute deadline, while
+local soaks, which bypass the queue, took under a minute.
+[`provider-chunk-clock.ts`](../../src/server/ingestion/provider-chunk-clock.ts)
+now excludes time spent waiting for a shared turn from those deadlines. A chunk
+that has advanced stops before its next request after five minutes of wall time
+and returns its validated checkpoint. Every chunk still fails at eleven minutes,
+inside the 800-second Vercel step. Pick-A-Part VA and I-Pull must crawl their
+catalogs atomically, so they hold one shared lease for the whole crawl
+(`sharedProviderHostSession`), keeping the gap between their requests.
+
 The production Lua is exercised against an isolated local Redis Unix socket:
 
 ```sh

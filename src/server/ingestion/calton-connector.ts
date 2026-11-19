@@ -13,6 +13,7 @@ import {
 import { CALTON_MAX_BODY_BYTES, readCaltonPage } from "./calton-client";
 import { caltonAdvance, caltonNextUrl } from "./calton-traversal";
 import { CaltonSnapshot } from "./calton-snapshot";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface CaltonOptions<E, R> {
   contract: CaltonContract;
@@ -118,6 +119,8 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
         cursor = complete;
       } else {
         if (summary.pagesProcessed >= budget) break;
+        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
+          break;
         if (
           cursor.requests >= CALTON_MAX_REQUESTS ||
           cursor.bytes > CALTON_MAX_TOTAL_BYTES - CALTON_MAX_BODY_BYTES
@@ -140,7 +143,7 @@ export function streamCaltonInventory<E, R>(options: CaltonOptions<E, R>) {
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies CaltonStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         CaltonError.create(

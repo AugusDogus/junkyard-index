@@ -11,6 +11,7 @@ import { prattNextUrl, prattAdvance } from "./pratt-traversal";
 import { PrattResult, type PrattError } from "./pratt-result";
 import { prattSnapshot, validatePrattSnapshot } from "./pratt-snapshot";
 import type { PrattCanonicalVehicle } from "./pratt-transform";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 
 export interface PrattOptions<E, R> {
   contract: PrattContract;
@@ -115,6 +116,8 @@ export function streamPrattInventory<E, R>(options: PrattOptions<E, R>) {
         );
       } else {
         if (summary.pagesProcessed >= budget) break;
+        if (yield* ProviderChunkClock.shouldYield(summary.pagesProcessed))
+          break;
         if (
           cursor.requests >= PRATT_MAX_REQUESTS ||
           cursor.bytes > PRATT_MAX_TOTAL_BYTES - PRATT_MAX_BODY_BYTES
@@ -137,7 +140,7 @@ export function streamPrattInventory<E, R>(options: PrattOptions<E, R>) {
       status: cursor.phase === "complete" ? "complete" : "paused",
     } satisfies PrattStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         PrattResult.error(

@@ -29,6 +29,7 @@ import {
 } from "./alln1-yard-metadata";
 import type { ConnectorChunkResult } from "./connector-chunk";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import { SourceValidationPolicy } from "./source-validation";
 
 interface Alln1Options<E, R, S extends Alln1Source> {
@@ -157,6 +158,7 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
       processed = 0,
       rejected = 0;
     while (nextUrl && pagesProcessed < maxPages) {
+      if (yield* ProviderChunkClock.shouldYield(pagesProcessed)) break;
       const page: Alln1Page =
         nextPage === 1 ? anchor : yield* fetchAlln1Page(nextUrl, gate, tenant);
       if (
@@ -250,7 +252,7 @@ function streamUpullInventoryWithRequestGate<S extends Alln1Source, E, R>(
       },
     } satisfies UpullStreamResult<S>;
   }).pipe(
-    Effect.timeoutFail({
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         new Alln1ProviderError({

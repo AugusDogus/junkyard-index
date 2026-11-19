@@ -24,7 +24,9 @@ import {
   PICKAPARTVA_YARDS,
   type PickapartvaYard,
 } from "./pickapartva-yard-metadata";
+import { ProviderChunkClock } from "./provider-chunk-clock";
 import type { ProviderRequestGate } from "./provider-http-client";
+import { sharedProviderHostSession } from "./shared-provider-host";
 
 interface PickapartvaOptions<E, R> {
   startCursor?: PickapartvaCursor;
@@ -204,7 +206,8 @@ export function streamPickapartvaInventoryWithRequestGate<E, R>(
           : [],
     } satisfies PickapartvaStreamResult;
   }).pipe(
-    Effect.timeoutFail({
+    sharedProviderHostSession(PICKAPARTVA_CATALOG, "3 minutes"),
+    ProviderChunkClock.deadline({
       duration: "3 minutes",
       onTimeout: () =>
         failure(
