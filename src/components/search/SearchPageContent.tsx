@@ -81,9 +81,11 @@ import {
   type StoredLocationPreference,
 } from "~/lib/location-preferences";
 import {
+  SEARCH_CARD_ATTRIBUTES,
   algoliaHitToSearchVehicle,
   type AlgoliaVehicleHit,
 } from "~/lib/search-vehicles";
+import { SearchHitsCache } from "~/lib/search-hits-cache";
 import { cn } from "~/lib/utils";
 import type { DataSource, SearchResult as SearchResultType } from "~/lib/types";
 import { VinPattern } from "~/lib/vin-pattern";
@@ -103,11 +105,13 @@ function clampRouteYear(
 interface SearchPageContentProps {
   knownYardNames?: readonly string[];
   isLoggedIn: boolean;
+  initialIsMobile?: boolean;
   userLocation?: { lat: number; lng: number };
 }
 
 interface AlgoliaSearchInnerProps {
   isLoggedIn: boolean;
+  initialIsMobile?: boolean;
   planAccess: PlanAccessState;
   userLocation?: { lat: number; lng: number };
   vinPatternIndexReady: boolean;
@@ -193,7 +197,7 @@ function DistancePreferenceDialog({
           <DialogTitle>Distance Location</DialogTitle>
           <DialogDescription className="text-pretty">
             Choose how to determine your location when sorting by distance. You
-            can change this anytime in Settings.
+            can change this anytime using the Distance location button.
           </DialogDescription>
         </DialogHeader>
 
@@ -285,6 +289,7 @@ function DistancePreferenceDialog({
  */
 function AlgoliaSearchInner({
   isLoggedIn,
+  initialIsMobile = false,
   planAccess,
   userLocation: _userLocation,
   vinPatternIndexReady,
@@ -303,7 +308,7 @@ function AlgoliaSearchInner({
   const searchParams = useSearchParams();
   const router = useRouter();
   const expressionMode = searchParams.get("syntax") === "expression";
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile() ?? initialIsMobile;
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
   const [localLocationPreference, setLocalLocationPreference] =
@@ -417,8 +422,11 @@ function AlgoliaSearchInner({
   // Register the complete routed search before suspending in useConfigure below.
   // The input shares this query widget; registering it here includes it in SSR.
   const { query } = useSearchBox({}, { skipSuspense: true });
+  const [hitsCache] = useState(() =>
+    SearchHitsCache.create<AlgoliaVehicleHit>(),
+  );
   const { hits, showMore, isLastPage } = useInfiniteHits<AlgoliaVehicleHit>(
-    {},
+    { cache: hitsCache },
     { skipSuspense: true },
   );
   const { nbHits, processingTimeMS } = useStats({}, { skipSuspense: true });
@@ -771,7 +779,7 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
-  const anonymousVisibleLimit = isMobile
+  const anonymousVisibleLimit = initialIsMobile
     ? 4
     : SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
   const anonymousClearRows = isMobile ? 3 : 1;
@@ -938,7 +946,8 @@ function AlgoliaSearchInner({
       toast.success(
         isLoggedIn
           ? "Distance location saved. You can update it later from Settings."
-          : "Distance location saved for this browser. You can update it later from account settings.",
+          : "Distance location saved for this browser. Use Distance location to change it.",
+        { style: { fontFamily: "var(--font-chivo-mono), monospace" } },
       );
 
       if (pendingDistanceSort) {
@@ -1114,28 +1123,6 @@ function AlgoliaSearchInner({
     error,
     nbHits,
     anonymousVisibleLimit,
-  ]);
-
-  useEffect(() => {
-    if (!locationPreferenceReady) {
-      return;
-    }
-
-    if (sortBy !== "distance" || hasUsableLocationPreference) {
-      return;
-    }
-
-    setSelectedDistanceMode("auto");
-    setManualZipCode("");
-    setPendingDistanceSort(true);
-    setShowDistancePreferenceDialog(true);
-    refineSortBy(getSearchSortIndex(newestSortReady ? "newest" : "relevance"));
-  }, [
-    hasUsableLocationPreference,
-    locationPreferenceReady,
-    newestSortReady,
-    refineSortBy,
-    sortBy,
   ]);
 
   // Keyboard shortcuts: Cmd/Ctrl+K to focus search, F to toggle filters
@@ -1340,12 +1327,10 @@ function AlgoliaSearchInner({
 
   // This final search hook suspends only after query, facets, and sort are registered.
   useConfigure({
-    // Intentionally 1000 (Algolia max). Small page sizes break sorting:
-    // virtual replicas with relevancyStrictness:0 + useInfiniteHits
-    // reset on sort switch, and the virtualizer needs enough rows to
-    // render without the "5 results" bug. 1000 per page means most
-    // queries complete in 1-2 API calls.
-    hitsPerPage: 1000,
+    hitsPerPage: isLoggedIn ? 24 : anonymousVisibleLimit,
+    attributesToRetrieve: [...SEARCH_CARD_ATTRIBUTES],
+    attributesToHighlight: [],
+    attributesToSnippet: [],
     aroundLatLng,
     aroundLatLngViaIP: useAlgoliaIpLocation,
     aroundRadius: isDistanceSort ? "all" : undefined,
@@ -1380,7 +1365,7 @@ function AlgoliaSearchInner({
       })}
       <h1 className="sr-only">Search inventory</h1>
 
-      <div className="bg-background sticky top-[6.375rem] z-40 -mx-(--gutter) px-(--gutter) py-3 sm:top-[4.625rem]">
+      <div className="bg-background sticky top-[6.375rem] z-40 -mx-(--gutter) px-(--gutter) py-3 sm:top-[4.625rem] [@media(max-height:500px)]:static">
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-3">
             <ErrorBoundary>
@@ -1393,49 +1378,73 @@ function AlgoliaSearchInner({
             </ErrorBoundary>
             {workspaceActions}
           </div>
-
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="self-start px-0"
-            onClick={() => setAdvancedSearchOpen(true)}
-          >
-            Advanced search
-          </Button>
-
-          <SearchYardTypeControls
-            types={selectedYardTypes}
-            expression={expressionMode ? query : undefined}
-            onChange={handleYardTypesChange}
-            onEditExpression={() => setAdvancedSearchOpen(true)}
-          />
-          {showFilters && (
-            <div className="hidden md:block">
-              <DesktopFiltersBar
-                activeFilterCount={activeFilterCount}
-                clearAllFilters={clearAllFilters}
-                makes={selectedMakes}
-                colors={selectedColors}
-                states={selectedStates}
-                salvageYards={selectedLocations}
-                sources={selectedSources}
-                yardTypes={selectedYardTypes}
-                yearRange={yearRange}
-                filterOptions={filterOptions}
-                onMakesChange={handleMakesChange}
-                onColorsChange={handleColorsChange}
-                onStatesChange={handleStatesChange}
-                onSalvageYardsChange={handleLocationsChange}
-                onSourcesChange={handleSourcesChange}
-                onYardTypesChange={handleYardTypesChange}
-                onYearRangeChange={handleYearRangeChange}
-                yearRangeLimits={{ min: yearMin, max: yearMax }}
-                canUseAdvancedFilters={canUseAdvancedFilters}
-              />
-            </div>
-          )}
         </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="self-start px-0"
+          onClick={() => setAdvancedSearchOpen(true)}
+        >
+          Advanced search
+        </Button>
+
+        {isDistanceSort && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            {!hasUsableLocationPreference && (
+              <p className="text-muted-foreground">
+                Choose a location to sort nearby vehicles.
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedDistanceMode(
+                  effectiveLocationPreference?.mode ?? "auto",
+                );
+                setManualZipCode(effectiveLocationPreference?.zipCode ?? "");
+                setShowDistancePreferenceDialog(true);
+              }}
+            >
+              Distance location
+            </Button>
+          </div>
+        )}
+        <SearchYardTypeControls
+          types={selectedYardTypes}
+          expression={expressionMode ? query : undefined}
+          onChange={handleYardTypesChange}
+          onEditExpression={() => setAdvancedSearchOpen(true)}
+        />
+        {showFilters && (
+          <div className="hidden md:block">
+            <DesktopFiltersBar
+              activeFilterCount={activeFilterCount}
+              clearAllFilters={clearAllFilters}
+              makes={selectedMakes}
+              colors={selectedColors}
+              states={selectedStates}
+              salvageYards={selectedLocations}
+              sources={selectedSources}
+              yardTypes={selectedYardTypes}
+              yearRange={yearRange}
+              filterOptions={filterOptions}
+              onMakesChange={handleMakesChange}
+              onColorsChange={handleColorsChange}
+              onStatesChange={handleStatesChange}
+              onSalvageYardsChange={handleLocationsChange}
+              onSourcesChange={handleSourcesChange}
+              onYardTypesChange={handleYardTypesChange}
+              onYearRangeChange={handleYearRangeChange}
+              yearRangeLimits={{ min: yearMin, max: yearMax }}
+              canUseAdvancedFilters={canUseAdvancedFilters}
+            />
+          </div>
+        )}
       </div>
 
       <div className="w-full py-6">
@@ -1467,6 +1476,7 @@ function AlgoliaSearchInner({
 
 export function SearchPageContent({
   isLoggedIn,
+  initialIsMobile = false,
   userLocation,
   knownYardNames,
 }: SearchPageContentProps) {
@@ -1480,6 +1490,7 @@ export function SearchPageContent({
       }) => (
         <AlgoliaSearchInner
           isLoggedIn={isLoggedIn}
+          initialIsMobile={initialIsMobile}
           planAccess={planAccess}
           userLocation={userLocation}
           vinPatternIndexReady={vinPatternIndexReady}

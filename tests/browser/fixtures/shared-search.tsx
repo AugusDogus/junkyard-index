@@ -8,7 +8,7 @@ import {
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { ServerInsertedHTMLContext } from "next/navigation";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
-import { Suspense, type ReactNode } from "react";
+import { Suspense, useEffect, type ReactNode } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import superjson from "superjson";
@@ -64,6 +64,17 @@ const router = {
   async prefetch() {},
 };
 
+let signalHydrated = () => {};
+const hydrated = new Promise<void>((resolve) => {
+  signalHydrated = resolve;
+});
+function HydrationMarker() {
+  useEffect(() => {
+    signalHydrated();
+  }, []);
+  return null;
+}
+
 function Fixture() {
   return (
     <AppRouterContext.Provider value={router}>
@@ -108,8 +119,10 @@ function Fixture() {
                 <Suspense>
                   <SearchPageContent
                     isLoggedIn={isLoggedIn}
+                    initialIsMobile={params.get("fixtureMobile") === "1"}
                     knownYardNames={["RTP Pick-A-Part - Hebron, KY"]}
                   />
+                  <HydrationMarker />
                 </Suspense>
               </api.Provider>
             </QueryClientProvider>
@@ -140,4 +153,6 @@ if (typeof document === "undefined") {
   const root = document.getElementById("root");
   if (!root) throw new Error("Missing shared search fixture root.");
   hydrateRoot(root, <Fixture />);
+  // Page load in browser tests means the streamed search has hydrated.
+  await hydrated;
 }

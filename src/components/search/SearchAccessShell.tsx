@@ -6,7 +6,7 @@ import { InstantSearchNext } from "react-instantsearch-nextjs";
 import { ErrorBoundary } from "~/components/ErrorBoundary";
 import { createSearchRouting } from "~/components/search/search-routing";
 import { SearchExpressionFeedback } from "~/components/search/SearchExpressionFeedback";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SearchPageSkeleton } from "./SearchPageSkeleton";
 import { useCheckoutPlanAccess } from "~/hooks/use-checkout-plan-access";
 import {
   ALGOLIA_INDEX_NAME,
@@ -102,16 +102,7 @@ export function SearchAccessShell({
   }, [routing, searchParams]);
 
   if (isSearchPending) {
-    return (
-      <div className="shell" aria-busy="true">
-        <span className="sr-only">Loading search</span>
-        <h1 className="sr-only">Search inventory</h1>
-        <div className="py-3">
-          <Skeleton className="h-11 w-full rounded-md sm:h-10" />
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return <SearchPageSkeleton />;
   }
 
   if (expressionMode) {

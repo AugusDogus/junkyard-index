@@ -66,6 +66,9 @@ export default function RootLayout({
       className={`${chivoMono.variable} bg-background`}
       suppressHydrationWarning
     >
+      <head>
+        <link rel="preconnect" href="https://wsrv.nl" />
+      </head>
       <body>
         {/* App-only state (tRPC, URL state, toasts) lives in the interactive
         routes' layouts via AppProviders, so public pages don't ship it. */}

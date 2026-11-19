@@ -69,6 +69,7 @@ type SearchParams = {
   query?: string;
   facetFilters?: unknown;
   page?: number;
+  hitsPerPage?: number;
   filters?: string;
 };
 type SearchRequest = { indexName: string; params?: SearchParams };
@@ -110,11 +111,30 @@ const client = {
         const extraOnly = params?.filters?.includes(
           "NOT yardTypes:self_service",
         );
-        const hits = vehicles.filter(
+        const matchingVehicles =
+          query === "pagination"
+            ? Array.from({ length: 96 }, (_, index) => ({
+                yardTypes: ["self_service"],
+                source: "pyp",
+                locationName: "Fixture yard",
+                availableDate: "2026-10-01",
+                state: "Alabama",
+                stateAbbr: "AL",
+                objectID: `pagination-${index}`,
+                year: 2000 + index,
+                make: "Pagination",
+                model: "Car",
+                vin: `VIN${index}`,
+                detailsUrl: "https://example.com/vehicle",
+                imageUrl: "https://example.com/car.jpg",
+              }))
+            : vehicles;
+        const matched = matchingVehicles.filter(
           (vehicle) =>
-            `${vehicle.make} ${vehicle.model}`
-              .toLowerCase()
-              .includes(query.toLowerCase()) &&
+            (query === "pagination" ||
+              `${vehicle.make} ${vehicle.model}`
+                .toLowerCase()
+                .includes(query.toLowerCase())) &&
             (!JSON.stringify(params?.facetFilters ?? []).includes(
               "state:Alabama",
             ) ||
@@ -131,23 +151,30 @@ const client = {
               (vehicle.yardTypes.includes("full_service") &&
                 !vehicle.yardTypes.includes("self_service"))),
         );
+        const sorted =
+          query === "pagination" && !indexName.includes("oldest")
+            ? [...matched].reverse()
+            : matched;
+        const pageSize = params?.hitsPerPage ?? 24;
+        const page = params?.page ?? 0;
+        const hits = sorted.slice(page * pageSize, (page + 1) * pageSize);
         return {
           index: indexName,
           query,
           hits,
-          nbHits: hits.length,
+          nbHits: matched.length,
           page: params?.page ?? 0,
-          nbPages: 1,
-          hitsPerPage: 1000,
+          nbPages: pageSize > 0 ? Math.ceil(matched.length / pageSize) : 0,
+          hitsPerPage: pageSize,
           processingTimeMS: 1,
           exhaustiveNbHits: true,
           params: "",
           facets: {
             yardTypes: {
-              self_service: hits.filter((hit) =>
+              self_service: matched.filter((hit) =>
                 hit.yardTypes.includes("self_service"),
               ).length,
-              full_service: hits.filter((hit) =>
+              full_service: matched.filter((hit) =>
                 hit.yardTypes.includes("full_service"),
               ).length,
             },
