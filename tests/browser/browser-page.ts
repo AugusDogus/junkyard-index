@@ -1,10 +1,23 @@
-import { onTestFinished } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { Browser, BrowserContextOptions, Page } from "playwright-core";
+import {
+  chromium,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from "playwright-core";
 
 const recordings = new WeakMap<Page, string>();
+
+export function launchBrowser(): Promise<Browser> {
+  return chromium.launch({
+    headless: true,
+    // Preserve raw traces and frame screenshots even if Bun kills Chromium on
+    // a test timeout, before the test's finally block can export its ZIP.
+    tracesDir: process.env.BROWSER_TEST_ARTIFACTS,
+  });
+}
 
 export async function createPage(
   browser: Browser,
@@ -21,10 +34,6 @@ export async function createPage(
       sources: true,
     });
   }
-  // A Bun timeout can finish the test before its finally block runs.
-  onTestFinished(async () => {
-    if (!page.isClosed()) await closePage(page);
-  });
   return page;
 }
 

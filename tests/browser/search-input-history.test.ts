@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { resolve } from "node:path";
-import { chromium, type Browser, type Page } from "playwright-core";
-import { closePage, createPage } from "./browser-page";
+import type { Browser, Page } from "playwright-core";
+import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -32,7 +32,7 @@ beforeAll(async () => {
       `Could not bundle history fixture: ${build.logs.join("\n")}`,
     );
   script = await output.text();
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser();
 });
 afterAll(async () => {
   await browser?.close();

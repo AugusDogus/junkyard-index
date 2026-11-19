@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import tailwind from "@tailwindcss/postcss";
 import postcss from "postcss";
-import { chromium, type Browser, type Page } from "playwright-core";
+import type { Browser, Page } from "playwright-core";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { VehicleRowPhoto } from "~/components/inventory/VehicleRowPhoto";
-import { closePage, createPage } from "./browser-page";
+import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -27,7 +27,7 @@ beforeAll(async () => {
       { from: "src/styles/globals.css" },
     )
   ).css;
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser();
 }, 30_000);
 
 afterAll(async () => {

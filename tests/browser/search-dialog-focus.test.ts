@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { chromium, type Browser } from "playwright-core";
-import { closePage, createPage } from "./browser-page";
+import type { Browser } from "playwright-core";
+import { closePage, createPage, launchBrowser } from "./browser-page";
 
 let browser: Browser;
 let script: string;
@@ -14,7 +14,7 @@ beforeAll(async () => {
   if (!build.success || !output)
     throw new Error("Could not build focus fixture");
   script = await output.text();
-  browser = await chromium.launch({ headless: true });
+  browser = await launchBrowser();
 });
 afterAll(async () => {
   await browser?.close();
