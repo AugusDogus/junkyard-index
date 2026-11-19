@@ -56,6 +56,14 @@ export const CHESTERFIELD_YARDS = {
   },
 } as const satisfies Record<ChesterfieldYardName, Yard>;
 
+// Makes that /newest-cars lists but the native search form does not offer, so
+// no make/model query can return their donors. Verified 2026-11-19: the form
+// had 73 makes and no AMC, while /newest-cars listed a 1963 AMC RAMBLER
+// (Richmond 000000086897). Add a make only after checking the live form.
+export const CHESTERFIELD_UNSEARCHABLE_MAKES: ReadonlySet<string> = new Set([
+  "AMC",
+]);
+
 export function parseChesterfieldYards(raw: string): Yard[] {
   if (!/<\/html>\s*$/i.test(raw))
     throw new Error("Truncated Chesterfield yard metadata");

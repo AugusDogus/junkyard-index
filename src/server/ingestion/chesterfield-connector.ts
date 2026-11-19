@@ -25,6 +25,7 @@ import {
   type ChesterfieldCanonicalVehicle,
 } from "./chesterfield-transform";
 import {
+  CHESTERFIELD_UNSEARCHABLE_MAKES,
   CHESTERFIELD_YARDS,
   parseChesterfieldYards,
 } from "./chesterfield-yard-metadata";
@@ -107,6 +108,7 @@ export function streamChesterfieldInventoryWithRequestGate<E, R>(
     let pagesProcessed = 0;
     let count = 0;
     const observedVins: string[] = [];
+    const unsearchableNewest: string[] = [];
     const accounting = {
       recordsProcessed: 0,
       recordsExcluded: 0,
@@ -146,11 +148,37 @@ export function streamChesterfieldInventoryWithRequestGate<E, R>(
             "newest controls",
             "Native newest-car years fall outside the published search bounds; complete traversal is unproven",
           );
-        const controls = records.map((record) => ({
-          yard: record.yard,
-          stock: record.stock,
-          identity: chesterfieldIdentity(record),
-        }));
+        // /newest-cars can list donors whose make the native search form does
+        // not offer (live: a 1963 AMC Rambler). No make/model query can return
+        // them, so only pinned unsearchable makes are exempt from controls.
+        // Any other off-directory make means the directory shrank or failed
+        // to parse, so the catalog cannot be proven complete.
+        const searchableMakes = new Set(
+          session.makes.map((make) => make.label.toUpperCase()),
+        );
+        const unsearchable = records.filter(
+          (record) => !searchableMakes.has(record.make.toUpperCase()),
+        );
+        const unknownMakes = [
+          ...new Set(
+            unsearchable
+              .map((record) => record.make.toUpperCase())
+              .filter((make) => !CHESTERFIELD_UNSEARCHABLE_MAKES.has(make)),
+          ),
+        ];
+        if (unknownMakes.length)
+          return yield* failure(
+            "newest controls",
+            `Newest cars of make ${unknownMakes.join(", ")} are absent from the native make directory, so the make/model catalog cannot be proven complete and nothing was published. Check the live search form's make options: fix the directory parser if the make is offered, or add it to CHESTERFIELD_UNSEARCHABLE_MAKES only if the form truly omits it`,
+          );
+        unsearchableNewest.push(...unsearchable.map(chesterfieldDonorKey));
+        const controls = records
+          .filter((record) => searchableMakes.has(record.make.toUpperCase()))
+          .map((record) => ({
+            yard: record.yard,
+            stock: record.stock,
+            identity: chesterfieldIdentity(record),
+          }));
         const next = ChesterfieldCursorSchema.safeParse({
           source: "chesterfield",
           phase: "directories",
@@ -392,11 +420,18 @@ export function streamChesterfieldInventoryWithRequestGate<E, R>(
       accounting,
       observedVins,
       errors: [],
-      warnings: accounting.recordsRejected
-        ? [
-            "Chesterfield rejected incomplete donors; valid VINs supply presence evidence only.",
-          ]
-        : [],
+      warnings: [
+        ...(accounting.recordsRejected
+          ? [
+              "Chesterfield rejected incomplete donors; valid VINs supply presence evidence only.",
+            ]
+          : []),
+        ...(unsearchableNewest.length
+          ? [
+              `Chesterfield newest cars ${unsearchableNewest.join(", ")} have makes absent from the native search directory; they are not catalog controls and are not published.`,
+            ]
+          : []),
+      ],
     } satisfies ChesterfieldStreamResult;
   }).pipe(
     Effect.timeoutFail({
