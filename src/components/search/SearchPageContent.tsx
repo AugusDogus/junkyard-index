@@ -792,9 +792,7 @@ function AlgoliaSearchInner({
   const isSearching =
     hasActiveSearch && (status === "loading" || status === "stalled");
 
-  const anonymousVisibleLimit = isMobile
-    ? 4
-    : SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
+  const anonymousVisibleLimit = SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
   const anonymousClearRows = isMobile ? 3 : 1;
 
   const isAnonymousCapped = !isLoggedIn && nbHits > anonymousVisibleLimit;
