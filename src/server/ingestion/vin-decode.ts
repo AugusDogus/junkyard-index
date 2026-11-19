@@ -8,6 +8,10 @@ export type VinDecode = {
   model: string;
   year: number;
   trim: string | null;
+  series?: string | null;
+  series2?: string | null;
+  driveType?: string | null;
+  electrificationLevel?: string | null;
 };
 
 const YEAR_CODES = "ABCDEFGHJKLMNPRSTVWXY123456789";
@@ -18,6 +22,10 @@ const resultSchema = z.object({
   Model: z.string(),
   ModelYear: z.string(),
   Trim: z.string().nullish(),
+  Series: z.string().nullish(),
+  Series2: z.string().nullish(),
+  DriveType: z.string().nullish(),
+  ElectrificationLevel: z.string().nullish(),
 });
 const responseSchema = z.object({ Results: z.array(z.unknown()) });
 
@@ -35,7 +43,7 @@ function identity(vin: string, year: number): VinIdentity | null {
   // to identify the manufacturer, so those must never share a cache key.
   const manufacturer = normalized[2] === "9" ? normalized.slice(11, 14) : "";
   return {
-    key: `${normalized.slice(0, 8)}${normalized.slice(9, 11)}${manufacturer}:${year}`,
+    key: `v2:${normalized.slice(0, 8)}${normalized.slice(9, 11)}${manufacturer}:${year}`,
     vin: normalized,
     year,
   };
@@ -76,6 +84,10 @@ function parseResponse(
       model: VehicleName.display(VehicleName.modelName(make, row.Model.trim())),
       year: request.year,
       trim: row.Trim?.trim() || null,
+      series: row.Series?.trim() || null,
+      series2: row.Series2?.trim() || null,
+      driveType: row.DriveType?.trim() || null,
+      electrificationLevel: row.ElectrificationLevel?.trim() || null,
     });
   }
   return decodes;

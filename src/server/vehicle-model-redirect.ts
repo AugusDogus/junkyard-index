@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "~/lib/db";
 import { vehicleModelRedirect } from "~/schema";
 import { getMakePageData } from "./vehicle-models";
-import { VehicleName } from "~/lib/vehicle-name";
+import { ModelRedirect } from "~/lib/model-redirect";
 
 /** Called only when the requested make or model has no live page. */
 export async function getVehicleModelRedirect(
@@ -14,15 +14,9 @@ export async function getVehicleModelRedirect(
     .from(vehicleModelRedirect)
     .where(eq(vehicleModelRedirect.fromPath, path))
     .limit(1);
-  if (!redirect?.toPath) return null;
-  const [, prefix, makeSlug, modelSlug] = redirect.toPath.split("/");
-  if (prefix !== "cars" || !makeSlug) return null;
-  const target = await getMakePageData(makeSlug);
-  if (!target) return null;
-  // Redirect only to a live page, preventing chains/cycles after inventory retires.
-  if (!modelSlug) return target.make.href;
-  return (
-    target.models.find((model) => VehicleName.sameSlug(model.slug, modelSlug))
-      ?.href ?? null
-  );
+  if (!redirect) return null;
+  const targetPath = redirect.toPath || ModelRedirect.parent(path);
+  const makeSlug = targetPath.split("/")[2];
+  const target = makeSlug ? await getMakePageData(makeSlug) : null;
+  return ModelRedirect.destination(targetPath, target);
 }

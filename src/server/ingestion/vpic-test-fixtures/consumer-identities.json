@@ -1,0 +1,122 @@
+[
+  {
+    "response": {
+      "VIN": "1GCDK14H2LZ260479",
+      "ErrorCode": "0",
+      "Make": "CHEVROLET",
+      "Model": "GMT-400",
+      "ModelYear": "1990",
+      "Series": "1/2 Ton Nominal",
+      "Series2": "Conventional Cab",
+      "Trim": "",
+      "DriveType": "4WD/4-Wheel Drive/4x4",
+      "ElectrificationLevel": ""
+    },
+    "expected": "K1500"
+  },
+  {
+    "response": {
+      "VIN": "1GCDC14H6NZ142998",
+      "ErrorCode": "0",
+      "Make": "CHEVROLET",
+      "Model": "GMT-400",
+      "ModelYear": "1992",
+      "Series": "1/2 Ton Nominal",
+      "Series2": "Conventional Cab",
+      "Trim": "",
+      "DriveType": "4x2",
+      "ElectrificationLevel": ""
+    },
+    "expected": "C1500"
+  },
+  {
+    "response": {
+      "VIN": "1GCNCNEH0GZ191191",
+      "ErrorCode": "0",
+      "Make": "CHEVROLET",
+      "Model": "Silverado",
+      "ModelYear": "2016",
+      "Series": "1500",
+      "Series2": "",
+      "Trim": "Work Truck/LS/Fleet/Base",
+      "DriveType": "4x2",
+      "ElectrificationLevel": ""
+    },
+    "expected": "Silverado 1500"
+  },
+  {
+    "response": {
+      "VIN": "1GB1KUEG0FF563992",
+      "ErrorCode": "0",
+      "Make": "CHEVROLET",
+      "Model": "Silverado",
+      "ModelYear": "2015",
+      "Series": "2500",
+      "Series2": "",
+      "Trim": "Work Truck/Fleet/Base",
+      "DriveType": "4WD/4-Wheel Drive/4x4",
+      "ElectrificationLevel": ""
+    },
+    "expected": "Silverado 2500"
+  },
+  {
+    "response": {
+      "VIN": "19XFB4F25EE000742",
+      "ErrorCode": "0",
+      "Make": "HONDA",
+      "Model": "Civic",
+      "ModelYear": "2014",
+      "Series": "",
+      "Series2": "",
+      "Trim": "Hybrid",
+      "DriveType": "",
+      "ElectrificationLevel": "HEV (Hybrid Electric Vehicle) - Level Unknown"
+    },
+    "expected": "Civic Hybrid"
+  },
+  {
+    "response": {
+      "VIN": "1FD7X2B60BEA42760",
+      "ErrorCode": "0",
+      "Make": "FORD",
+      "Model": "F-250",
+      "ModelYear": "2011",
+      "Series": "Super Duty - Single Rear Wheel",
+      "Series2": "",
+      "Trim": "",
+      "DriveType": "4WD/4-Wheel Drive/4x4",
+      "ElectrificationLevel": ""
+    },
+    "expected": "F-250 Super Duty"
+  },
+  {
+    "response": {
+      "VIN": "1GCBS14E2G8195335",
+      "ErrorCode": "0",
+      "Make": "CHEVROLET",
+      "Model": "S-10 Pickup",
+      "ModelYear": "1986",
+      "Series": "1/2 Ton Nominal",
+      "Series2": "Small Conventional Cab",
+      "Trim": "",
+      "DriveType": "4x2",
+      "ElectrificationLevel": ""
+    },
+    "expected": "S-10"
+  },
+  {
+    "response": {
+      "VIN": "1GBDL19W9SB205608",
+      "ErrorCode": "0",
+      "Make": "CHEVROLET",
+      "Model": "Astro Van",
+      "ModelYear": "1995",
+      "Series": "1/2 Ton Nominal",
+      "Series2": "Small Van",
+      "Trim": "",
+      "DriveType": "4WD/4-Wheel Drive/4x4",
+      "ElectrificationLevel": ""
+    },
+    "expected": "Astro"
+  }
+]

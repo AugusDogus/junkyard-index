@@ -45,7 +45,7 @@ test("backfill publishes canonical facets while preserving source names, trim, i
     const record = mapDbVehicleToAlgolia(stored);
     expect(record.model).toBe("F-150");
     expect(record.sourceModel).toBe("TFORD150");
-    expect(record.searchTokens).not.toContain("tford150");
+    expect(record.searchTokens).toContain("tford150");
   } finally {
     client.close();
   }

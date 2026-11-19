@@ -20,6 +20,7 @@ export const COMMON_ALGOLIA_INDEX_SETTINGS = {
   searchableAttributes: [
     "make",
     "model",
+    "unordered(sourceModel)",
     "year",
     "unordered(color)",
     "unordered(vin)",

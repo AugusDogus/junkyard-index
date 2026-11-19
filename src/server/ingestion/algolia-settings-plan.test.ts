@@ -45,6 +45,7 @@ describe("Algolia settings plan", () => {
         searchableAttributes: [
           "make",
           "model",
+          "unordered(sourceModel)",
           "year",
           "unordered(color)",
           "unordered(vin)",

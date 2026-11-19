@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { VinDecode } from "./vin-decode";
 
 const request = {
-  key: "1FTPW1456K:2006",
+  key: "v2:1FTPW1456K:2006",
   vin: "1FTPW14506KD19655",
   year: 2006,
 };
@@ -41,7 +41,7 @@ test("only clean identities and check digit warnings with a matching model year 
       VinDecode.parseResponse({ Results: [{ ...ford, ErrorCode }] }, [
         request,
       ]).get(request.key),
-    ).toEqual({ make: "Ford", model: "F-150", year: 2006, trim: "XLT" });
+    ).toMatchObject({ make: "Ford", model: "F-150", year: 2006, trim: "XLT" });
   }
   for (const change of [
     { ErrorCode: "5" },
@@ -84,4 +84,22 @@ test("an incomplete result does not discard clean identities in the same batch",
   expect(
     VinDecode.parseResponse(response, [request]).get(request.key)?.model,
   ).toBe("F-150");
+});
+
+test("recorded series, drive, trim and electrification fields produce consumer identities", async () => {
+  const { ConsumerModel } = await import("~/lib/consumer-model");
+  const { default: fixtures } =
+    await import("./vpic-test-fixtures/consumer-identities.json");
+  for (const fixture of fixtures) {
+    const id = VinDecode.identity(
+      fixture.response.VIN,
+      Number(fixture.response.ModelYear),
+    );
+    if (!id) throw new Error("Invalid recorded VIN");
+    const decoded = VinDecode.parseResponse({ Results: [fixture.response] }, [
+      id,
+    ]).get(id.key);
+    if (!decoded) throw new Error("Recorded decode was rejected");
+    expect(ConsumerModel.resolve(decoded)).toBe(fixture.expected);
+  }
 });

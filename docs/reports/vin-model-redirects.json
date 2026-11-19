@@ -1,0 +1,258 @@
+{
+  "retainedModelUrls": 5306,
+  "indexedModelUrls": 979,
+  "unchangedModelUrls": 5265,
+  "redirectCount": 41,
+  "indexedRedirects": 0,
+  "modelRedirects": 39,
+  "parentRedirects": 2,
+  "unresolved": 0,
+  "redirects": [
+    {
+      "from": "/cars/ford/explorer-2001",
+      "to": "/cars/ford/explorer",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ford/explorer-sport-trac-2003",
+      "to": "/cars/ford/explorer-sport-trac",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ford/f350sd-pickup-xl",
+      "to": "/cars/ford/f-350-super-duty",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ford/fiesta-2012",
+      "to": "/cars/ford/fiesta",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ford/focus-2008",
+      "to": "/cars/ford/focus",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ford/ranger-1999",
+      "to": "/cars/ford/ranger",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ford/taurus-1998",
+      "to": "/cars/ford/taurus",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/luminavan",
+      "to": "/cars/chevrolet",
+      "indexed": false,
+      "kind": "parent"
+    },
+    {
+      "from": "/cars/chevrolet/uplander-2007",
+      "to": "/cars/chevrolet/uplander",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/c10-suburban",
+      "to": "/cars/chevrolet/suburban-1500",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/escaper-rv",
+      "to": "/cars/chevrolet/g-series",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/jimmy",
+      "to": "/cars/gmc/jimmy",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/malibu-2003",
+      "to": "/cars/chevrolet/malibu",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/ram1500",
+      "to": "/cars/chevrolet/trailblazer",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/silverado-2007",
+      "to": "/cars/chevrolet/silverado-1500",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/sonic-2013",
+      "to": "/cars/chevrolet/sonic",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/truck-silverado-3500-2001-up",
+      "to": "/cars/chevrolet/silverado-3500",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/chevrolet/van-express-2500",
+      "to": "/cars/chevrolet/express-3500",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/accord-ex-l",
+      "to": "/cars/honda",
+      "indexed": false,
+      "kind": "parent"
+    },
+    {
+      "from": "/cars/honda/odyssey-2004",
+      "to": "/cars/honda/odyssey",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/accord-2001",
+      "to": "/cars/honda/accord",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/civic-2003",
+      "to": "/cars/honda/civic",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/fit-2010",
+      "to": "/cars/honda/fit",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/gl1200",
+      "to": "/cars/honda/gold-wing-interstate",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/hr",
+      "to": "/cars/honda/hr-v",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/nps50",
+      "to": "/cars/honda/nps50-ruckus",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/odyssey-1998",
+      "to": "/cars/honda/odyssey",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/honda/odyssey-2008",
+      "to": "/cars/honda/odyssey",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/camry-2010",
+      "to": "/cars/toyota/camry",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/4runner-1996",
+      "to": "/cars/toyota/4runner",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/avalon-2007",
+      "to": "/cars/toyota/avalon",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/camry-1989",
+      "to": "/cars/toyota/camry",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/celica-2005",
+      "to": "/cars/toyota/celica",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/corolla-1995",
+      "to": "/cars/toyota/corolla",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/rav4-2007",
+      "to": "/cars/toyota/rav4",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/sienna-2005",
+      "to": "/cars/toyota/sienna",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/toyota/ttoy100",
+      "to": "/cars/toyota/t100",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/acura/camaro",
+      "to": "/cars/chevrolet/camaro",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/scion/tc-scion",
+      "to": "/cars/toyota/scion-tc",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/scion/xa-base",
+      "to": "/cars/toyota/scion-xa",
+      "indexed": false,
+      "kind": "model"
+    },
+    {
+      "from": "/cars/ottawa/kalmar",
+      "to": "/cars/kalmar/ottawa",
+      "indexed": false,
+      "kind": "model"
+    }
+  ]
+}

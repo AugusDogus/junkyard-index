@@ -323,6 +323,10 @@ export const vinDecodeCache = sqliteTable("vin_decode_cache", {
     model: string;
     year: number;
     trim: string | null;
+    series?: string | null;
+    series2?: string | null;
+    driveType?: string | null;
+    electrificationLevel?: string | null;
   }>(),
   retryAfter: integer("retry_after", { mode: "timestamp_ms" }),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),

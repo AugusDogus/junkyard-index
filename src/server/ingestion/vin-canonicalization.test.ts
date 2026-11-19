@@ -158,7 +158,7 @@ test("old model URLs persist and ambiguous mappings cannot become arbitrary redi
     await rememberModelRedirects(database, [canonical]);
     expect(
       (await database.select().from(vehicleModelRedirect))[0]?.toPath,
-    ).toBe("");
+    ).toBe("/cars/ford");
   } finally {
     client.close();
   }

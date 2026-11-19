@@ -5,6 +5,9 @@ const SCRIPT = `
   import { mock } from "bun:test";
   const calls = [];
   mock.module("~/lib/db", () => ({ db: {}, dbClient: {} }));
+  mock.module("~/server/model-url-history", () => ({
+    retainModelUrls: async () => 0,
+  }));
   mock.module("~/lib/algolia", () => ({
     ALGOLIA_INDEX_NAME: "vehicles",
     getAlgoliaAdminClient: () => ({

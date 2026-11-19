@@ -6,10 +6,16 @@ import { createClient } from "@libsql/client/web";
 import { parse } from "dotenv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
+import { ConsumerModel } from "../src/lib/consumer-model";
 import { VinDecode } from "../src/server/ingestion/vin-decode";
 import { createVpicClient } from "../src/server/ingestion/vpic-client";
 import { normalizeCanonicalMake } from "../src/server/ingestion/normalization";
 import { VehicleName } from "../src/lib/vehicle-name";
+import {
+  auditVinModelUrls,
+  modelFacetSchema,
+  storedModelSnapshotSchema,
+} from "./vin-model-url-audit";
 
 const rowSchema = z.object({
   vin: z.string(),
@@ -23,6 +29,10 @@ const decodeSchema = z.object({
   model: z.string(),
   year: z.number(),
   trim: z.string().nullable(),
+  series: z.string().nullable().optional(),
+  series2: z.string().nullable().optional(),
+  driveType: z.string().nullable().optional(),
+  electrificationLevel: z.string().nullable().optional(),
 });
 const makes = ["Ford", "Chevrolet", "Toyota", "Honda"];
 const directory = ".scratchpad/vin-dry-run";
@@ -43,6 +53,8 @@ export async function reportVinCanonicalization() {
   });
   let rows: z.infer<typeof rowSchema>[];
   let census;
+  let storedSnapshots: z.infer<typeof storedModelSnapshotSchema>[];
+  let modelFacets: z.infer<typeof modelFacetSchema>[];
   let boundedBackfillRequests = 0;
   try {
     const result = await database.execute(
@@ -62,10 +74,23 @@ export async function reportVinCanonicalization() {
       `select min(upper(trim(vin))) vin, year, make, model, count(*) count from vehicle where missing_since_at is null group by ${patternSql}, year, make, model`,
     );
     rows = z.array(rowSchema).parse(groups.rows);
+    const snapshots = await database.execute(
+      "select key,data from inventory_snapshot where key like '%:make-%'",
+    );
+    storedSnapshots = z.array(storedModelSnapshotSchema).parse(snapshots.rows);
+    const facets = await database.execute(
+      "select make,model,count(*) count from vehicle where missing_since_at is null group by make,model",
+    );
+    modelFacets = z.array(modelFacetSchema).parse(facets.rows);
   } finally {
     database.close();
   }
   await writeFile(`${directory}/groups.json`, JSON.stringify(rows));
+  await writeFile(
+    `${directory}/snapshots.json`,
+    JSON.stringify(storedSnapshots),
+  );
+  await writeFile(`${directory}/facets.json`, JSON.stringify(modelFacets));
   const selected = new Map<
     string,
     NonNullable<ReturnType<typeof VinDecode.identity>>
@@ -120,6 +145,7 @@ export async function reportVinCanonicalization() {
     samplePatterns: selected.size,
     acceptedPatterns: decoded.size,
     batchesThisRun: requests,
+    modelUrls: auditVinModelUrls(storedSnapshots, modelFacets, rows, decoded),
     ...report,
   };
   await writeFile(`${directory}/report.json`, JSON.stringify(result, null, 2));
@@ -155,7 +181,9 @@ export function summarizeVinSample(
       const sourceMake = normalizeCanonicalMake(row.make);
       const sourceModel = VehicleName.modelName(sourceMake, row.model);
       const targetMake = identity?.make ?? sourceMake;
-      const targetModel = identity?.model ?? sourceModel;
+      const targetModel = identity
+        ? ConsumerModel.resolve({ ...identity, sourceModel: row.model })
+        : sourceModel;
       if (sourceMake === make) inventoryBefore.add(row.model);
       if (targetMake === make) inventoryAfter.add(targetModel);
       if (!inSample) continue;
