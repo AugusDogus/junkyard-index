@@ -1,30 +1,41 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "~/components/ui/card";
+"use client";
+
+import { useEffect } from "react";
+import { Analytics } from "~/lib/analytics";
+import { AnalyticsEvents } from "~/lib/analytics-events";
 
 interface AuthCardProps {
   title: string;
   description: string;
   children: React.ReactNode;
+  view?: "sign-in" | "sign-up";
 }
 
-export function AuthCard({ title, description, children }: AuthCardProps) {
+export function AuthCard({
+  title,
+  description,
+  children,
+  view,
+}: AuthCardProps) {
+  useEffect(() => {
+    if (!view) return;
+    Analytics.capture(
+      view === "sign-in"
+        ? AnalyticsEvents.SIGN_IN_VIEWED
+        : AnalyticsEvents.SIGN_UP_VIEWED,
+      { source_page: "auth" },
+    );
+  }, [view]);
+
   return (
-    <main className="flex min-h-svh flex-col sm:items-center sm:justify-center sm:p-4">
-      <Card className="sm:bg-card w-full flex-1 gap-8 rounded-none border-0 bg-transparent pt-16 pb-8 shadow-none sm:w-sm sm:flex-none sm:gap-6 sm:rounded-xl sm:border sm:py-6 sm:shadow-sm">
-        <CardHeader className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-2xl">
-            {title}
-          </h1>
-          <CardDescription className="text-base sm:text-sm">
-            {description}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-      </Card>
-    </main>
+    <section className="border-ink bg-paper-3 mx-auto w-full max-w-md border-2 p-6 sm:p-8">
+      <div className="mb-8 space-y-3">
+        <h1 className="text-ink text-2xl leading-tight font-extrabold tracking-tight">
+          {title}
+        </h1>
+        <p className="text-ink-2 text-sm leading-relaxed">{description}</p>
+      </div>
+      {children}
+    </section>
   );
 }

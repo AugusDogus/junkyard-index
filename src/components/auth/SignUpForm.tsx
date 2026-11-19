@@ -109,7 +109,7 @@ export function SignUpForm() {
         <Input
           id="name"
           type="text"
-          placeholder="John Doe"
+          placeholder="Your name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -122,7 +122,7 @@ export function SignUpForm() {
         <Input
           id="email"
           type="email"
-          placeholder="john.doe@gmail.com"
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -188,17 +188,6 @@ export function SignUpForm() {
       >
         {isLoading ? "Creating free account..." : "Create Free Account"}
       </Button>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background sm:bg-card text-muted-foreground px-2">
-            Or continue with
-          </span>
-        </div>
-      </div>
 
       <Button
         type="button"
