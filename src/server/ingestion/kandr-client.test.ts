@@ -5,6 +5,7 @@ import { streamKandrInventory } from "./kandr-connector";
 import { KandrCursor } from "./kandr-cursor";
 import { KANDR_CONTROLS, KANDR_MAX_BODY_BYTES } from "./kandr-native";
 import { kandrFixture } from "./kandr-test-fixtures";
+import { findProviderCooldownError } from "./transient-request";
 
 const original = globalThis.fetch;
 afterEach(() => {
@@ -261,4 +262,33 @@ test("K&R replays 56 actual HTTP bodies through client, durable cursor and compl
   }
   expect(calls).toBe(56);
   expect(emitted).toBe(48);
+});
+test("K&R stops at a 503 asking for a long wait and keeps the cooldown behind its KandrError", async () => {
+  let calls = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      calls++;
+      return new Response("maintenance", {
+        status: 503,
+        headers: { "Retry-After": "900" },
+      });
+    },
+    { preconnect: original.preconnect },
+  );
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(readKandrPage(KANDR_CONTROLS, gate));
+      for (const step of ["2 seconds", "4 seconds", "1 minute"] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(calls).toBe(1);
+  if (result._tag !== "Left") throw new Error("expected a cooldown");
+  expect(result.left.tag).toBe("KandrError");
+  expect(findProviderCooldownError(result.left)?.retryAfterMs).toBe(900_000);
 });

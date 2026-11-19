@@ -1,5 +1,6 @@
 import type { CreateSessionParams } from "@hyperbrowser/sdk/types";
-import { Cause, Chunk, Data, Effect, Runtime, Schedule } from "effect";
+import { Data, Effect, Schedule } from "effect";
+import { findCause } from "./error-cause";
 import {
   ProviderHostBusyError,
   providerHostSlot,
@@ -56,33 +57,14 @@ const isSessionLimit = (cause: unknown): cause is Error =>
 const toError = (cause: unknown) =>
   cause instanceof Error ? cause : new Error(String(cause));
 
-/** Finds a capacity failure through Error causes, Effect fiber failures and
- * the wrappers connectors add, so the workflow can defer instead of failing. */
-export function findHyperbrowserCapacityError(
-  error: unknown,
-): HyperbrowserCapacityError | null {
-  const pending = [error];
-  const seen = new Set<unknown>();
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (current === null || typeof current !== "object" || seen.has(current))
-      continue;
-    seen.add(current);
-    if (current instanceof HyperbrowserCapacityError) return current;
-    if (Runtime.isFiberFailure(current)) {
-      const cause = current[Runtime.FiberFailureCauseId];
-      pending.push(
-        ...Chunk.toReadonlyArray(Cause.failures(cause)),
-        ...Chunk.toReadonlyArray(Cause.defects(cause)),
-      );
-    }
-    if (current instanceof AggregateError) pending.push(...current.errors);
-    if ("cause" in current) pending.push(current.cause);
-    // Effect's UnknownException keeps the rejected value in `error`.
-    if (Cause.isUnknownException(current)) pending.push(current.error);
-  }
-  return null;
-}
+/** Finds a capacity failure behind any wrapping, so the workflow can defer
+ * instead of failing. */
+export const findHyperbrowserCapacityError = (error: unknown) =>
+  findCause(
+    error,
+    (cause): cause is HyperbrowserCapacityError =>
+      cause instanceof HyperbrowserCapacityError,
+  );
 
 /** Runs `use` while holding the plan's only browser session lease. A lease
  * still busy after the bounded wait becomes a HyperbrowserCapacityError.

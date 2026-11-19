@@ -4,6 +4,7 @@ import type { ProviderRequestGate } from "./provider-http-client";
 import { RequestTimeoutError } from "./errors";
 import {
   fetchTransportResponse,
+  ProviderCooldownError,
   retryTransientRequest,
   transientStatusCause,
 } from "./transient-request";
@@ -56,7 +57,7 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
   ) {
     const failure = new Error(
       `Expected complete owned HTTP200 ${expected} at ${url}; received HTTP${response.status}`,
-      transientStatusCause("Chase N Cars " + url, response.status),
+      transientStatusCause("Chase N Cars " + url, response),
     );
     try {
       await response.body?.cancel();
@@ -77,7 +78,8 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
 }
 
 /** The gate owns each attempt's request/body lifetime and completion gap.
- * Transport failures, deadlines and 5xx answers get two paced retries. */
+ * Transport failures, deadlines and 5xx answers get two paced retries that
+ * honor Retry-After; past those the chunk ends in a durable cooldown. */
 export function readChasencarsPage(
   url: string,
   gate: ProviderRequestGate = chasencarsRequestGate,
@@ -135,6 +137,12 @@ export function readChasencarsPage(
         );
       }),
     ),
-    { timeouts: true },
+    { context: "Chase N Cars " + url, timeouts: true },
+  ).pipe(
+    Effect.mapError((error) =>
+      error instanceof ProviderCooldownError
+        ? new ChasencarsProviderError("request/body " + url, error)
+        : error,
+    ),
   );
 }

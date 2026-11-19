@@ -3,6 +3,10 @@ import type {
   DurableWorkflowDeferredChunk,
 } from "~/server/ingestion/durable-workflow-cursor";
 import { findHyperbrowserCapacityError } from "~/server/ingestion/hyperbrowser-session";
+import {
+  findProviderCooldownError,
+  MAX_PROVIDER_COOLDOWN_MS,
+} from "~/server/ingestion/transient-request";
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import { revalidateTag } from "next/cache";
 import { resumeHook } from "workflow/api";
@@ -290,9 +294,32 @@ export async function runDurableSourceChunkStep<
       });
       return {
         status: "deferred",
+        wait: "browser-session",
         cursor,
         retryAt: Date.now() + capacity.retryAfterMs,
         reason: capacity.message,
+      };
+    }
+    // A provider failing transiently past its in-chunk retries (or asking for
+    // a long Retry-After) cools down durably; step retries would hit it again
+    // within seconds.
+    const cooldown = findProviderCooldownError(error);
+    if (cooldown) {
+      if (!(cooldown.retryAfterMs <= MAX_PROVIDER_COOLDOWN_MS))
+        throw new FatalError(
+          `${cooldown.message} That wait exceeds the ${MAX_PROVIDER_COOLDOWN_MS / 60_000}-minute cooldown limit, so ${cursor.source} stops for this run without publishing; the next scheduled run starts from its prior inventory.`,
+        );
+      console.info("[Workflow] Cooling down source chunk", {
+        runId,
+        source: cursor.source,
+        reason: cooldown.message,
+      });
+      return {
+        status: "deferred",
+        wait: "provider-cooldown",
+        cursor,
+        retryAt: Date.now() + cooldown.retryAfterMs,
+        reason: cooldown.message,
       };
     }
     try {

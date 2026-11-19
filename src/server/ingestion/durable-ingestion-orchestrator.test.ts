@@ -4,6 +4,7 @@ import {
   executeDurableIngestion,
   ingestDurableSource,
   MAX_CONSECUTIVE_CHUNK_DEFERRALS,
+  MAX_CONSECUTIVE_PROVIDER_COOLDOWNS,
   type DurableIngestionOperations,
 } from "./durable-ingestion-orchestrator";
 import type { DurableIngestionResult } from "./durable-ingestion-types";
@@ -659,6 +660,7 @@ test("a chunk deferred by a busy browser session sleeps durably and reruns the s
         return requested.length === 1
           ? {
               status: "deferred",
+              wait: "browser-session",
               cursor: current,
               retryAt: 1_000,
               reason: "busy",
@@ -702,6 +704,7 @@ test("a source deferred past the consecutive limit fails with the last reason", 
         chunks++;
         return {
           status: "deferred",
+          wait: "browser-session",
           cursor: current,
           retryAt: 0,
           reason: "plan session held",
@@ -722,4 +725,113 @@ test("a source deferred past the consecutive limit fails with the last reason", 
   expect(chunks).toBe(MAX_CONSECUTIVE_CHUNK_DEFERRALS + 1);
   expect(failure).toContain("consecutive deferrals");
   expect(failure).toContain("plan session held");
+});
+
+test("provider cooldowns sleep durably, and a source still failing after the limit stops", async () => {
+  const cursor = {
+    source: "upullitdavie",
+    page: 1,
+    totalPages: null,
+    totalCount: null,
+    pageSize: null,
+    recordsProcessed: 0,
+    recordsRejected: 0,
+  } as const;
+  const waits: number[] = [];
+  let chunks = 0;
+  let failure = "";
+  await ingestDurableSource({
+    runId: "cooling-provider",
+    initialCursor: cursor,
+    operations: {
+      sleepUntil: async (time) => {
+        waits.push(time);
+      },
+      runChunk: async (_runId, current) => {
+        chunks++;
+        // A busy browser session between cooldowns neither resets nor
+        // spends the cooldown allowance.
+        return chunks === 2
+          ? {
+              status: "deferred",
+              wait: "browser-session",
+              cursor: current,
+              retryAt: 50,
+              reason: "plan session held",
+            }
+          : {
+              status: "deferred",
+              wait: "provider-cooldown",
+              cursor: current,
+              retryAt: chunks * 100,
+              reason: "yard returned 503",
+            };
+      },
+      markFailed: async (_runId, _source, message) => {
+        failure = message;
+        return {
+          cursor,
+          status: "failed",
+          count: 0,
+          pagesProcessed: 0,
+          errors: [message],
+        };
+      },
+    },
+  });
+  expect(chunks).toBe(MAX_CONSECUTIVE_PROVIDER_COOLDOWNS + 2);
+  expect(waits).toEqual([100, 50, 300]);
+  expect(failure).toContain("provider cooldowns");
+  expect(failure).toContain("yard returned 503");
+});
+
+test("a chunk that completes after a provider cooldown restores the full allowance", async () => {
+  const cursor = {
+    source: "upullitdavie",
+    page: 1,
+    totalPages: null,
+    totalCount: null,
+    pageSize: null,
+    recordsProcessed: 0,
+    recordsRejected: 0,
+  } as const;
+  const results = [
+    "cooldown",
+    "cooldown",
+    "paused",
+    "cooldown",
+    "cooldown",
+    "complete",
+  ] as const;
+  let chunks = 0;
+  const result = await ingestDurableSource({
+    runId: "recovering-provider",
+    initialCursor: cursor,
+    operations: {
+      sleepUntil: async () => {},
+      runChunk: async (_runId, current) => {
+        const next = results[chunks++];
+        return next === "cooldown"
+          ? {
+              status: "deferred",
+              wait: "provider-cooldown",
+              cursor: current,
+              retryAt: 0,
+              reason: "yard returned 503",
+            }
+          : {
+              cursor: { ...cursor, page: chunks },
+              status: next ?? "complete",
+              count: 0,
+              pagesProcessed: 1,
+              errors: [],
+            };
+      },
+      markFailed: async () => {
+        throw new Error("Recovered cooldowns must not fail the source");
+      },
+    },
+  });
+  expect(result.status).toBe("complete");
+  expect(chunks).toBe(results.length);
 });

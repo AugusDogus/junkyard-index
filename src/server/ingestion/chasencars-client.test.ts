@@ -2,9 +2,11 @@ import { afterEach, expect, test } from "bun:test";
 import { Clock, Effect, Fiber, TestClock, TestContext } from "effect";
 import {
   CHASENCARS_MAX_BODY_BYTES,
+  ChasencarsProviderError,
   chasencarsRequestGate,
   readChasencarsPage,
 } from "./chasencars-client";
+import { findProviderCooldownError } from "./transient-request";
 import type { ProviderRequestGate } from "./provider-http-client";
 
 const originalFetch = globalThis.fetch;
@@ -220,4 +222,30 @@ test("Chase N Cars shared gate serializes chunks with 1600ms padding, including 
   );
   expect(starts).toHaveLength(2);
   expect((starts[1] ?? 0) - (starts[0] ?? 0)).toBe(1600);
+});
+test("Chase N Cars stops at a 503 asking for a long wait and hands the workflow its Retry-After", async () => {
+  let calls = 0;
+  stub(async () => {
+    calls++;
+    return new Response("maintenance", {
+      status: 503,
+      headers: { "Retry-After": "3600" },
+    });
+  });
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(readChasencarsPage(url, direct));
+      for (const step of ["2 seconds", "4 seconds", "1 minute"] as const) {
+        yield* Effect.promise(
+          () => new Promise((resolve) => setTimeout(resolve, 5)),
+        );
+        yield* TestClock.adjust(step);
+      }
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(calls).toBe(1);
+  if (result._tag !== "Left") throw new Error("expected a cooldown");
+  expect(result.left).toBeInstanceOf(ChasencarsProviderError);
+  expect(findProviderCooldownError(result.left)?.retryAfterMs).toBe(3_600_000);
 });

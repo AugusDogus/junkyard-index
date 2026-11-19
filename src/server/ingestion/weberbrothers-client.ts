@@ -45,7 +45,7 @@ async function readDocument(url: string, signal: AbortSignal): Promise<string> {
   ) {
     const failure = new Error(
       `Expected complete, unredirected HTTP 200 HTML from ${url}; received ${response.status}`,
-      transientStatusCause("Weber Brothers " + url, response.status),
+      transientStatusCause("Weber Brothers " + url, response),
     );
     try {
       await response.body?.cancel();
@@ -66,8 +66,9 @@ async function readDocument(url: string, signal: AbortSignal): Promise<string> {
 }
 
 /** The gate owns fetch, complete-body consumption and pending-call cleanup.
- * Transport failures and 5xx answers get two paced retries. Deadlines are not
- * retried: three 25-second attempts would overrun the 90-second chunk. */
+ * Transport failures and 5xx answers get two paced retries that honor
+ * Retry-After; past those the chunk ends in a durable cooldown. Deadlines are
+ * not retried: three 25-second attempts would overrun the 90-second chunk. */
 export function fetchWeberbrothersPage(url: string, gate: ProviderRequestGate) {
   if (weberbrothersListingPage(url) === null && !isWeberbrothersDonorUrl(url))
     return Effect.fail(
@@ -112,7 +113,7 @@ export function fetchWeberbrothersPage(url: string, gate: ProviderRequestGate) {
         );
       }),
     ),
-    { timeouts: false },
+    { context: "Weber Brothers " + url, timeouts: false },
   ).pipe(
     Effect.mapError(
       (cause) => new WeberbrothersProviderError({ operation: url, cause }),

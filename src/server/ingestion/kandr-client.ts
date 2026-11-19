@@ -42,7 +42,7 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
   ) {
     const failure = new Error(
       `Expected complete owned HTTP 200 text/html at ${url}; received HTTP ${response.status}`,
-      transientStatusCause("K&R " + url, response.status),
+      transientStatusCause("K&R " + url, response),
     );
     try {
       await response.body?.cancel();
@@ -64,7 +64,8 @@ async function document(url: string, signal: AbortSignal): Promise<string> {
 
 /** One bounded request/body lifetime per attempt; redirects are never
  * followed. Transport failures, deadlines and 5xx answers get two paced
- * retries before the failure becomes a KandrError. */
+ * retries that honor Retry-After; past those the chunk ends in a durable
+ * cooldown. Every failure becomes a KandrError that keeps its cause. */
 export function readKandrPage(
   url: string,
   gate: ProviderRequestGate = kandrRequestGate,
@@ -114,7 +115,10 @@ export function readKandrPage(
       }),
     );
   });
-  return retryTransientRequest(gate(attempt), { timeouts: true }).pipe(
+  return retryTransientRequest(gate(attempt), {
+    context: "K&R " + url,
+    timeouts: true,
+  }).pipe(
     Effect.mapError((cause) =>
       KandrError.create(
         "request/body " + url,
@@ -123,6 +127,7 @@ export function readKandrPage(
           : cause instanceof Error
             ? cause.message
             : String(cause),
+        cause,
       ),
     ),
   );
