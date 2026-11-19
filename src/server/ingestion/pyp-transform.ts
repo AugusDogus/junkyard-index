@@ -1,5 +1,8 @@
 import type { Location } from "~/lib/types";
-import { normalizeCanonicalColor, normalizeCanonicalMake } from "./normalization";
+import {
+  normalizeCanonicalColor,
+  normalizeCanonicalMake,
+} from "./normalization";
 import type { CanonicalVehicle } from "./types";
 
 /**
@@ -26,6 +29,24 @@ export interface PypVehicleJson {
 }
 
 const PYP_BASE = "https://www.pyp.com";
+
+/** Positions are short provider labels, not descriptions, markup, or URLs. */
+function yardPosition(value: string): string | null {
+  const label = value.trim();
+  if (
+    label.length > 40 ||
+    !/^[\p{L}\p{N} ./&#'()-]+$/u.test(label) ||
+    !/[\p{L}\p{N}]/u.test(label)
+  ) {
+    return null;
+  }
+  const placeholder = label.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return /^(?:na|none|null|undefined|unknown|tbd|tba|pending|unassigned|notassigned|notavailable|notapplicable|unavailable)$/.test(
+    placeholder,
+  )
+    ? null
+    : label;
+}
 
 /**
  * Transform a PYP JSON vehicle to our canonical format.
@@ -90,9 +111,9 @@ export function transformPypVehicle(
     stateAbbr: location.stateAbbr,
     lat: location.lat,
     lng: location.lng,
-    section: v.Section || null,
-    row: v.Row || null,
-    space: v.SpaceNumber || null,
+    section: yardPosition(v.Section),
+    row: yardPosition(v.Row),
+    space: yardPosition(v.SpaceNumber),
     detailsUrl,
     partsUrl,
     pricesUrl,

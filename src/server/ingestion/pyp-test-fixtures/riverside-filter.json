@@ -1,0 +1,170 @@
+{
+  "Success": true,
+  "Errors": [],
+  "ResponseData": {
+    "Request": {
+      "YardCode": ["1290"],
+      "Filter": "",
+      "PageSize": 500,
+      "PageNumber": 1,
+      "FilterDeals": false,
+      "ExcludeOnlineParts": false
+    },
+    "Vehicles": [
+      {
+        "InventoryId": 5927965,
+        "YardCode": "1290",
+        "Section": "LEVEL 1",
+        "Row": "23",
+        "SpaceNumber": "5",
+        "Color": "White",
+        "Year": "2004",
+        "Make": "HONDA",
+        "Model": "CIVIC",
+        "InYardDate": "2026-11-18T06:00:00Z",
+        "StockNumber": "1290-114836",
+        "Vin": "JHMES96644S020762",
+        "OnlineParts": [],
+        "Photos": [
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-FRONT-LEFT_26708767_front_left_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-BACK-LEFT_26708767_rear_left_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-BACK-RIGHT_26708767_rear_right_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-FRONT-RIGHT_26708767_front_right_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/INTERIOR_26708767_interior.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/ENGINE_26708767_hood_open.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-LEFT_26708767_left_side.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-RIGHT_26708767_right_side.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-FRONT_26708767_front.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-BACK_26708767_rear.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          }
+        ],
+        "SearchInfo": "2004 HONDA CIVIC White 1290-114836"
+      },
+      {
+        "InventoryId": 5933296,
+        "YardCode": "1290",
+        "Color": "Silver",
+        "Year": "2003",
+        "Make": "ACURA",
+        "Model": "TL",
+        "InYardDate": "2026-11-19T06:00:00Z",
+        "StockNumber": "1290-114943",
+        "Vin": "19UUA56823A028973",
+        "OnlineParts": [],
+        "Photos": [
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-FRONT-LEFT_26721664_front_left_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-BACK-LEFT_26721664_rear_left_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-BACK-RIGHT_26721664_rear_right_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-FRONT-RIGHT_26721664_front_right_corner.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/INTERIOR_26721664_interior.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/ENGINE_26721664_hood_open.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-LEFT_26721664_left_side.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-RIGHT_26721664_right_side.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-FRONT_26721664_front.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          },
+          {
+            "PhotoPath": "https://cdn.pypapps.com/carbuy/CAR-BACK_26721664_rear.jpg?w=500&h=500",
+            "IsPrimary": false,
+            "IsInternal": false,
+            "InventoryPhoto": false
+          }
+        ],
+        "SearchInfo": "2003 ACURA TL Silver 1290-114943"
+      }
+    ]
+  },
+  "Messages": []
+}

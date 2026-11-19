@@ -1,0 +1,32 @@
+[
+  {
+    "LocationCode": "1290",
+    "LocationPageURL": "/locations/ca/riverside/3760-pyrite-street/",
+    "Name": "Pick Your Part - Riverside",
+    "DisplayName": "Riverside",
+    "Address": "3760 Pyrite St.",
+    "City": "Riverside",
+    "State": "California",
+    "StateAbbr": "CA",
+    "Zip": "92509",
+    "Phone": "(800) 962-2277",
+    "Lat": 34.022324,
+    "Lng": -117.464737,
+    "Distance": 0,
+    "LegacyCode": "290",
+    "Primo": "",
+    "Urls": {
+      "Store": "/locations/ca/riverside/3760-pyrite-street/",
+      "Interchange": "/parts/riverside-1290/",
+      "Inventory": "/inventory/riverside-1290/",
+      "Prices": "/prices/riverside-1290/",
+      "Directions": "https://www.google.com/maps/dir/?api=1&destination=3760+Pyrite+St.+Riverside+California+92509&dir_action=navigate",
+      "SellACar": "/sellacar/riverside-1290/",
+      "Contact": "/contact/riverside-1290/",
+      "CustomerServiceChat": null,
+      "CarbuyChat": null,
+      "Deals": "/deals/riverside-1290/",
+      "Parts": "/parts/riverside-1290/"
+    }
+  }
+]
