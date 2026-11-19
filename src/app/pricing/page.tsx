@@ -10,7 +10,7 @@ import { PLANS } from "~/lib/plans";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: `Search salvage yard inventory free, upgrade to Lite ($${PLANS.lite.monthlyPrice}/mo) for filters and saved searches, or Full ($${PLANS.full.monthlyPrice}/mo) for email and Discord alerts on new matches.`,
+  description: `Search salvage yard inventory free with year range and distance radius filters, upgrade to Lite ($${PLANS.lite.monthlyPrice}/mo) for state, yard and power filters and saved searches, or Full ($${PLANS.full.monthlyPrice}/mo) for email and Discord alerts on new matches.`,
   alternates: {
     canonical: "/pricing",
   },
@@ -34,8 +34,8 @@ export default async function PricingPage() {
               Pricing
             </h1>
             <p className="text-ink-2 text-lead mt-4 text-pretty">
-              Search for free. Add filters, saved searches, or alerts when you
-              need them.
+              Search by year range and distance radius for free. Add power
+              filters, saved searches, or alerts when you need them.
             </p>
           </div>
 
@@ -50,8 +50,8 @@ export default async function PricingPage() {
               Keep searching for free.
             </h2>
             <p className="text-ink-2 text-pretty lg:col-span-7">
-              Every plan includes unlimited searches. Create a free account to
-              see full results.
+              Every plan includes unlimited searches. See 24 results without an
+              account. Create a free account to browse every page.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row lg:col-span-12">
               <TrackedPricingButton

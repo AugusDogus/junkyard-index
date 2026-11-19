@@ -1,6 +1,7 @@
 "use client";
 
 import { SearchYardSelection } from "~/lib/search-yard-selection";
+import { SearchRadius, SEARCH_RADIUS_MILES } from "~/lib/search-radius";
 import { readFullServiceCount } from "~/lib/full-service-search";
 import { SearchYardTypeControls } from "./SearchYardTypeControls";
 
@@ -66,7 +67,6 @@ import {
   sanitizeSearchSources,
   SEARCH_SORT_OPTIONS,
 } from "~/components/search/search-routing";
-import { useIsMobile } from "~/hooks/use-media-query";
 import { AnalyticsEvents, buildSearchContext } from "~/lib/analytics-events";
 import { resolveClientPlanFeatureAccess } from "~/lib/client-plan-feature-access";
 import { SEARCH_CONFIG } from "~/lib/constants";
@@ -290,7 +290,6 @@ function DistancePreferenceDialog({
  */
 function AlgoliaSearchInner({
   isLoggedIn,
-  initialIsMobile = false,
   planAccess,
   userLocation: _userLocation,
   vinPatternIndexReady,
@@ -309,7 +308,6 @@ function AlgoliaSearchInner({
   const searchParams = useSearchParams();
   const router = useRouter();
   const expressionMode = searchParams.get("syntax") === "expression";
-  const isMobile = useIsMobile() ?? initialIsMobile;
   const lastTrackedQuery = useRef("");
   const lastTrackedResultCapQuery = useRef("");
   const [localLocationPreference, setLocalLocationPreference] =
@@ -546,6 +544,8 @@ function AlgoliaSearchInner({
   );
 
   const isDistanceSort = sortBy === "distance";
+  const [radius, setRadius] = useQueryState("radius", parseAsString);
+  const radiusMiles = SearchRadius.parse(radius);
   const shouldUseBrowserFallback =
     isDistanceSort &&
     effectiveLocationPreference?.mode === "auto" &&
@@ -793,7 +793,6 @@ function AlgoliaSearchInner({
     hasActiveSearch && (status === "loading" || status === "stalled");
 
   const anonymousVisibleLimit = SEARCH_CONFIG.ANONYMOUS_VISIBLE_RESULTS_LIMIT;
-  const anonymousClearRows = isMobile ? 3 : 1;
 
   const isAnonymousCapped = !isLoggedIn && nbHits > anonymousVisibleLimit;
 
@@ -830,7 +829,7 @@ function AlgoliaSearchInner({
     isAnonymousCapped,
   ]);
 
-  const anonymousResultsOverlay = useMemo(() => {
+  const anonymousResultsPrompt = useMemo(() => {
     if (!isAnonymousCapped || !searchResult) {
       return null;
     }
@@ -843,9 +842,9 @@ function AlgoliaSearchInner({
         </h3>
         <p className="text-muted-foreground mt-2 max-w-2xl text-sm text-pretty">
           You can keep searching for free, upgrade to Lite for $
-          {PLANS.lite.monthlyPrice}/mo to unlock filters and saved searches, or
-          go Full for ${PLANS.full.monthlyPrice}/mo to get email and Discord
-          alerts when new matches arrive.
+          {PLANS.lite.monthlyPrice}/mo for state, yard and power filters and
+          saved searches, or go Full for ${PLANS.full.monthlyPrice}/mo to get
+          email and Discord alerts when new matches arrive.
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <Button asChild>
@@ -1324,12 +1323,8 @@ function AlgoliaSearchInner({
       isLastPage: isAnonymousCapped || isLastPage,
       isFetchingNextPage:
         !isAnonymousCapped && (status === "loading" || status === "stalled"),
-      lockedPreview: anonymousResultsOverlay
-        ? {
-            clearRows: anonymousClearRows,
-            overlay: anonymousResultsOverlay,
-          }
-        : undefined,
+      endOfResults: anonymousResultsPrompt,
+      staticPage: !isLoggedIn,
       visibleCount: isAnonymousCapped ? anonymousVisibleLimit : undefined,
       sessionKey:
         isLoggedIn && cacheRestored ? hitsCache.activeKey() : undefined,
@@ -1345,7 +1340,7 @@ function AlgoliaSearchInner({
     aroundLatLng,
     aroundLatLngViaIP: useAlgoliaIpLocation,
     getRankingInfo: Boolean(aroundLatLng || useAlgoliaIpLocation),
-    aroundRadius: isDistanceSort ? "all" : undefined,
+    aroundRadius: isDistanceSort ? SearchRadius.meters(radiusMiles) : undefined,
     filters: effectiveVinPatternFilter,
   });
 
@@ -1424,6 +1419,26 @@ function AlgoliaSearchInner({
             >
               Distance location
             </Button>
+            <label className="flex items-center gap-2">
+              Within
+              <select
+                aria-label="Distance radius"
+                className="bg-background border-input min-h-11 rounded-md border px-3 text-sm"
+                value={radiusMiles ?? "all"}
+                onChange={(event) =>
+                  void setRadius(
+                    event.target.value === "all" ? null : event.target.value,
+                  )
+                }
+              >
+                <option value="all">Any distance</option>
+                {SEARCH_RADIUS_MILES.map((miles) => (
+                  <option key={miles} value={miles}>
+                    {miles} miles
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
         <SearchYardTypeControls

@@ -127,35 +127,40 @@ describe("search filter visibility", () => {
       />,
     );
 
+    expect(markup).toContain(">Year<");
+    expect(markup).not.toContain(">State<");
     expect(markup).toContain("upgrade required");
     expect(markup).toContain("Advanced search");
   });
 
-  test("keeps the mobile make filter visible when the current search has no facet values", () => {
-    const markup = renderToStaticMarkup(
-      <MobileFilterContent
-        makes={[]}
-        colors={[]}
-        states={[]}
-        salvageYards={[]}
-        sources={[]}
-        yardTypes={[]}
-        yearRange={[2027, 2027]}
-        filterOptions={emptyFilterOptions}
-        onMakesChange={noOp}
-        onColorsChange={noOp}
-        onStatesChange={noOp}
-        onSalvageYardsChange={noOp}
-        onSourcesChange={noOp}
-        onYardTypesChange={noOp}
-        onYearRangeChange={noOp}
-        yearRangeLimits={{ min: 1900, max: 2027 }}
-        canUseAdvancedFilters
-      />,
-    );
+  for (const canUseAdvancedFilters of [false, true])
+    test(`keeps mobile year filtering free and gates make filtering: paid=${canUseAdvancedFilters}`, () => {
+      const markup = renderToStaticMarkup(
+        <MobileFilterContent
+          makes={[]}
+          colors={[]}
+          states={[]}
+          salvageYards={[]}
+          sources={[]}
+          yardTypes={[]}
+          yearRange={[2027, 2027]}
+          filterOptions={emptyFilterOptions}
+          onMakesChange={noOp}
+          onColorsChange={noOp}
+          onStatesChange={noOp}
+          onSalvageYardsChange={noOp}
+          onSourcesChange={noOp}
+          onYardTypesChange={noOp}
+          onYearRangeChange={noOp}
+          yearRangeLimits={{ min: 1900, max: 2027 }}
+          canUseAdvancedFilters={canUseAdvancedFilters}
+        />,
+      );
 
-    expect(markup).toContain(">Make<");
-  });
+      expect(markup).toContain(">Year<");
+      expect(markup).toContain("Vehicle year range");
+      expect(markup.includes(">Make<")).toBe(canUseAdvancedFilters);
+    });
 
   test("starts every settings filter section closed", () => {
     const markup = renderToStaticMarkup(

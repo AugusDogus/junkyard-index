@@ -13,6 +13,23 @@ const LOCATION = {
 };
 
 describe("search routing", () => {
+  test("retains a free radius when changing a query or sort", () => {
+    const routing = createSearchRouting("vehicles", true, false);
+    const location = {
+      href: "https://example.com/search?radius=50",
+      search: "?radius=50",
+    };
+    const url = new URL(
+      routing.router.createURL({
+        location,
+        routeState: {
+          vehicles: { query: "2010-14 Ford F-150", sort: "oldest" },
+        },
+      }),
+    );
+    expect(url.searchParams.get("radius")).toBe("50");
+    expect(url.searchParams.get("sort")).toBe("oldest");
+  });
   test("round-trips both distance URL forms without conflating distance with newest", () => {
     const routing = createSearchRouting(ALGOLIA_INDEX_NAME, true, true);
     for (const sort of ["distance", "vehicles_distance"]) {
@@ -149,6 +166,7 @@ describe("search routing", () => {
       [ALGOLIA_INDEX_NAME]: {
         query: "civic",
         sortBy: "vehicles_newest",
+        range: { year: "2010:" },
         refinementList: { yardTypes: ["self_service"] },
       },
     });

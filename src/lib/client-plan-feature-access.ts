@@ -12,6 +12,7 @@ export function resolveClientPlanFeatureAccess(input: {
   access: PlanAccessState;
   feature: PlanFeature;
 }): boolean {
+  if (hasPlanFeature("free", input.feature)) return true;
   if (input.access.kind === "resolved") {
     return hasPlanFeature(input.access.tier, input.feature);
   }

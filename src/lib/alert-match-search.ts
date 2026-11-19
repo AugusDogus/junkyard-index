@@ -2,6 +2,7 @@ import {
   compileSearchExpression,
   combineSearchFilters,
 } from "~/lib/compile-search-expression";
+import { SearchYearQuery } from "~/lib/search-year-query";
 import type { SearchResponse } from "algoliasearch/lite";
 import {
   compileAlertFilters,
@@ -65,7 +66,8 @@ async function scanSearch(
       `Cannot match saved search expression: ${expression.error}`,
     );
   const compilation = compileAlertFilters(filters, lastCheckedAt);
-  const parsedQuery = parseAdvancedSearchQuery(query.trim());
+  const yearQuery = SearchYearQuery.parse(query.trim());
+  const parsedQuery = parseAdvancedSearchQuery(yearQuery.query);
   // Algolia compares whole seconds. The commit claim keeps the catalog
   // stable until all of this run's alert checkpoints are written.
   const hasNewVehicles =
@@ -98,7 +100,10 @@ async function scanSearch(
           ? combineSearchFilters(expression.data.filters, compilation.value)
           : buildAdvancedSearchFilters(
               parsedQuery.data.anyWordGroups,
-              compilation.value,
+              combineSearchFilters(
+                compilation.value,
+                SearchYearQuery.filters(yearQuery),
+              ),
             ),
         hitsPerPage,
         page,

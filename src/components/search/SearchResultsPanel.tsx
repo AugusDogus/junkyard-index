@@ -46,7 +46,8 @@ interface SearchResultsListModel {
   showMore(): void;
   isLastPage: boolean;
   isFetchingNextPage: boolean;
-  lockedPreview?: { clearRows: number; overlay: ReactNode };
+  endOfResults?: ReactNode;
+  staticPage?: boolean;
   visibleCount?: number;
 }
 

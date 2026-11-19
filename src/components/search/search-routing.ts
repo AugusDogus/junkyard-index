@@ -1,4 +1,5 @@
 import { SearchYardSelection } from "~/lib/search-yard-selection";
+import { SearchRadius } from "~/lib/search-radius";
 import { YardService, type YardType } from "~/lib/yard-service";
 import {
   ALGOLIA_DISTANCE_SORT_ALIAS,
@@ -184,8 +185,6 @@ const ADVANCED_URL_KEYS = [
   "states",
   "yards",
   "sources",
-  "minYear",
-  "maxYear",
 ] as const;
 
 interface AdvancedRouteFilters {
@@ -377,6 +376,8 @@ export function createSearchRouting(
         const baseUrl = location.href.split("?")[0] ?? location.href;
         const params = new URLSearchParams();
         const locationParams = new URLSearchParams(location.search);
+        const radius = SearchRadius.parse(locationParams.get("radius"));
+        if (radius !== null) params.set("radius", String(radius));
         const vinPattern =
           vinPatternIndexReady && locationParams.get("syntax") !== "expression"
             ? getSearchableVinPattern(locationParams.get("q"))
@@ -395,6 +396,10 @@ export function createSearchRouting(
           state,
           advancedFilterPolicy.preserveUrlFilters ? locationParams : undefined,
         );
+        for (const key of ["minYear", "maxYear"] as const) {
+          if (typeof state[key] === "number")
+            params.set(key, String(state[key]));
+        }
         if (Array.isArray(state.yardTypes) && state.yardTypes.length) {
           SearchFilterUrl.write(
             params,
@@ -461,6 +466,12 @@ export function createSearchRouting(
             : mapped;
 
         Object.assign(uiState, advancedFilterPolicy.toUiState(state));
+        // Year bounds are free even when the other routed refinements are locked.
+        if (state.minYear || state.maxYear) {
+          uiState.range = {
+            year: `${state.minYear ?? ""}:${state.maxYear ?? ""}`,
+          };
+        }
         const types =
           Array.isArray(state.yardTypes) && state.yardTypes.includes("all")
             ? []

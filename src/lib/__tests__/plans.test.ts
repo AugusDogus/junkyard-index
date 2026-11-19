@@ -9,6 +9,12 @@ import {
 } from "~/lib/plans";
 
 describe("plan tiers", () => {
+  test("year and distance filtering are free at every tier", () => {
+    for (const tier of ["free", "lite", "full"] as const) {
+      expect(hasPlanFeature(tier, "year_filter")).toBe(true);
+      expect(hasPlanFeature(tier, "distance_filter")).toBe(true);
+    }
+  });
   test("tier ordering is total", () => {
     expect(tierSatisfies("free", "free")).toBe(true);
     expect(tierSatisfies("lite", "free")).toBe(true);

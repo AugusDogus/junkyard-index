@@ -1,4 +1,5 @@
 import { withFullServiceCount } from "~/lib/full-service-search";
+import { SearchYearQuery } from "~/lib/search-year-query";
 import { withSearchCountsCache } from "~/lib/search-counts-cache";
 import {
   compileSearchExpression,
@@ -102,7 +103,8 @@ function addAdvancedSyntax(
       advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],
     };
   }
-  const parsed = parseAdvancedSearchQuery(params.query);
+  const yearQuery = SearchYearQuery.parse(params.query);
+  const parsed = parseAdvancedSearchQuery(yearQuery.query);
   if (!parsed.success) return params;
   if (parsed.data.anyWordGroups.length > 0 && !booleanOrSearchReady) {
     return params;
@@ -113,7 +115,7 @@ function addAdvancedSyntax(
     query: parsed.data.algoliaQuery,
     filters: buildAdvancedSearchFilters(
       parsed.data.anyWordGroups,
-      params.filters,
+      combineSearchFilters(params.filters, SearchYearQuery.filters(yearQuery)),
     ),
     advancedSyntax: true,
     advancedSyntaxFeatures: ["exactPhrase", "excludeWords"],

@@ -10,6 +10,18 @@ import {
 import { savedSearchMatchCriteriaKey } from "./saved-search-filters";
 
 describe("expression execution", () => {
+  test("switching a typed year query to advanced search preserves the year intersection", () => {
+    const expression = expressionFromCriteria(
+      SearchCriteria.fromSavedSearch("2010-14 Ford F-150", {
+        minYear: 2012,
+        maxYear: 2016,
+      }),
+    );
+    expect(compileSearchExpression(expression)).toMatchObject({
+      success: true,
+      data: { query: 'Ford "F-150"', filters: "year >= 2012 AND year <= 2014" },
+    });
+  });
   test("keeps globally required keywords and phrases in normal text matching", () => {
     expect(
       compileSearchExpression(

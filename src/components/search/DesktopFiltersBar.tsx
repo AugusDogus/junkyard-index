@@ -140,6 +140,21 @@ export function DesktopFiltersBar({
 
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
+          <div className="mb-2">
+            <FilterPopover
+              title="Year"
+              summary={`${yearRange[0]} to ${yearRange[1]}`}
+              active={hasYearFilter}
+              description="Set the earliest and latest model years."
+            >
+              <YearRangeFilter
+                yearRange={yearRange}
+                onYearRangeChange={onYearRangeChange}
+                minimumYear={yearRangeLimits.min}
+                maximumYear={yearRangeLimits.max}
+              />
+            </FilterPopover>
+          </div>
           {canUseAdvancedFilters ? (
             <div className="flex flex-wrap gap-2">
               <FilterPopover
@@ -157,20 +172,6 @@ export function DesktopFiltersBar({
                   searchPlaceholder="Search makes"
                   searchThreshold={10}
                   maxHeight={260}
-                />
-              </FilterPopover>
-
-              <FilterPopover
-                title="Year"
-                summary={`${yearRange[0]} to ${yearRange[1]}`}
-                active={hasYearFilter}
-                description="Set the earliest and latest model years."
-              >
-                <YearRangeFilter
-                  yearRange={yearRange}
-                  onYearRangeChange={onYearRangeChange}
-                  minimumYear={yearRangeLimits.min}
-                  maximumYear={yearRangeLimits.max}
                 />
               </FilterPopover>
 

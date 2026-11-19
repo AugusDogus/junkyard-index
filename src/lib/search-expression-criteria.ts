@@ -1,4 +1,5 @@
 import { YardService } from "~/lib/yard-service";
+import { SearchYearQuery } from "~/lib/search-year-query";
 import type { SearchCriteria } from "~/lib/search-criteria";
 import { SEARCHABLE_VEHICLE_YEAR_RANGE } from "~/lib/saved-search-filters";
 import { INGESTION_SOURCES } from "~/lib/ingestion-source";
@@ -19,24 +20,31 @@ const quote = (value: string) =>
     : JSON.stringify(value);
 
 export function expressionFromCriteria(criteria: SearchCriteria): string {
-  const legacy = parseAdvancedSearchQuery(criteria.query);
+  const yearQuery = SearchYearQuery.parse(criteria.query);
+  const legacy = parseAdvancedSearchQuery(yearQuery.query);
   // Decode the legacy parser's result first: its OR precedence differs from this grammar.
-  const words = getLegacyRequiredSearchTerms(criteria.query);
+  const words = getLegacyRequiredSearchTerms(yearQuery.query);
   const terms = words
     ? words.map(
         (term) =>
           `${term.excluded ? "!" : ""}${term.quoted ? JSON.stringify(term.value) : quote(term.value)}`,
       )
-    : [criteria.query];
+    : [yearQuery.query];
   if (legacy.success)
     for (const group of legacy.data.anyWordGroups)
       terms.push(`(${group.map(quote).join(" OR ")})`);
   const parts = terms;
   const { min, max } = SEARCHABLE_VEHICLE_YEAR_RANGE;
-  if (criteria.yearRange[0] !== min)
-    parts.push(`year:>=${criteria.yearRange[0]}`);
-  if (criteria.yearRange[1] !== max)
-    parts.push(`year:<=${criteria.yearRange[1]}`);
+  const minimum = Math.max(
+    criteria.yearRange[0],
+    yearQuery.range?.[0] ?? criteria.yearRange[0],
+  );
+  const maximum = Math.min(
+    criteria.yearRange[1],
+    yearQuery.range?.[1] ?? criteria.yearRange[1],
+  );
+  if (minimum !== min) parts.push(`year:>=${minimum}`);
+  if (maximum !== max) parts.push(`year:<=${maximum}`);
   const facets = [
     ["make", criteria.makes],
     ["color", criteria.colors],

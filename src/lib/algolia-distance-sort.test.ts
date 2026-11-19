@@ -30,6 +30,29 @@ function searchFixture() {
   return { calls, client };
 }
 
+test("distance aliases preserve the free radius for both request shapes", async () => {
+  const { calls, client } = searchFixture();
+  await client.search([
+    { indexName: "vehicles_distance", params: { aroundRadius: 80467 } },
+  ]);
+  await client.search({
+    requests: [{ indexName: "vehicles_distance", aroundRadius: 80467 }],
+  });
+  expect(calls).toEqual([
+    [
+      {
+        indexName: "vehicles",
+        params: { aroundRadius: 80467, aroundPrecision: 10 },
+      },
+    ],
+    {
+      requests: [
+        { indexName: "vehicles", aroundRadius: 80467, aroundPrecision: 10 },
+      ],
+    },
+  ]);
+});
+
 test("distance searches use the primary with 10-meter buckets and preserve UI identity", async () => {
   const { calls, client } = searchFixture();
   const request = {
