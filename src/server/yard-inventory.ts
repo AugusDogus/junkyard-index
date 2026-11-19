@@ -95,7 +95,12 @@ export const getSourcePublishedAt = cacheInventory(loadSourcePublishedAt, [
   ...RETIRED_INGESTION_SOURCES,
 ]);
 
-/** Last accepted publication per yard. Older untracked inventory stays unknown. */
+/**
+ * Last accepted publication per yard, including stale dates for sitemap lastmod.
+ * Existing yards are filled by their first accepted publication after 0021.
+ * Until then they stay unknown: a source date could describe a partial scrape
+ * that preserved this yard, and summary updated_at also advances on rebuilds.
+ */
 export const getYardPublishedAt = cacheInventory(async (): Promise<
   Readonly<Record<string, string>>
 > => {

@@ -55,7 +55,11 @@ export function yardInventoryRefreshStatements(
   ];
 }
 
-/** Stamp accepted yards in the publication transaction, leaving preserved yards alone. */
+/**
+ * Stamp accepted yards in the publication transaction, leaving preserved yards
+ * alone. This also backfills untracked yards on their first accepted publish;
+ * summary refreshes and other yards' publications cannot establish their date.
+ */
 export function yardPublicationStatement(
   sources: readonly string[],
   preserved: ReadonlyMap<string, ReadonlySet<string>>,

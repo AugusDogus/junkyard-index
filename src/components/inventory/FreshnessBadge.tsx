@@ -3,9 +3,9 @@ import { cn } from "~/lib/utils";
 
 /**
  * When the inventory on a page was last updated. A date when the source
- * refreshed in the last 3 days; otherwise a plain warning, so a stale feed is
- * never shown as current. With `coverage`, a page listing several yards also
- * says how many of them are current, rather than only the newest date.
+ * refreshed in the last 3 days; a warning for a known older publication, and
+ * a neutral label when untracked. With `coverage`, a page listing several
+ * yards also says how many are current, rather than only the newest date.
  *
  * The square is the live state: filled cobalt when every yard is current,
  * outlined cobalt when only some are. A stale feed is Wayfind's late row,
@@ -19,6 +19,9 @@ export function FreshnessBadge({
   coverage?: { current: number; total: number };
 }) {
   if (publishedAt === null) {
+    return <p className="text-ink-2 text-sm">Update time unknown</p>;
+  }
+  if (Date.now() - Date.parse(publishedAt) > 3 * 24 * 60 * 60 * 1000) {
     return (
       <p className="bg-figure text-board inline-block px-2.5 py-1 text-sm font-extrabold text-pretty">
         Not updated in the last 3 days, so some listings may be gone.
@@ -27,7 +30,7 @@ export function FreshnessBadge({
   }
   const partial = coverage && coverage.current < coverage.total;
   return (
-    <p className="text-ink-2 flex flex-wrap items-center gap-x-2.5 text-sm">
+    <p className="text-ink-2 flex items-center gap-x-2.5 text-sm">
       <span
         className={cn(
           "size-2.5 shrink-0",

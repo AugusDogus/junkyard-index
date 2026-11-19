@@ -67,3 +67,30 @@ test("yard-make sitemap counts every raw model and only includes routed yards", 
     ),
   ).toBe(false);
 });
+
+test("sitemap omits unknown publication dates and retains known dates even when stale", () => {
+  const region = Region.fromAbbr("PA");
+  if (!region) throw new Error("Expected fixture region");
+  const yard = {
+    source: "pyp",
+    code: "1",
+    path: { region, slug: "yard", href: "/junkyards/pennsylvania/yard" },
+  };
+  const makes = [{ source: "pyp", code: "1", slug: "honda", count: 5 }];
+  const before = YardSitemap.entries("https://example.com", [yard], {}, makes);
+  expect(before).toHaveLength(3);
+  expect(before.every((entry) => !("lastModified" in entry))).toBe(true);
+
+  const publishedAt = "2026-10-01T12:00:00.000Z";
+  const after = YardSitemap.entries(
+    "https://example.com",
+    [yard],
+    { "pyp:1": publishedAt },
+    makes,
+  );
+  expect(after.map((entry) => entry.lastModified)).toEqual([
+    publishedAt,
+    publishedAt,
+    publishedAt,
+  ]);
+});
