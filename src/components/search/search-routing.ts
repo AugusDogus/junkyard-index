@@ -367,8 +367,9 @@ export function createSearchRouting(
         const state: Record<string, unknown> = {};
 
         if (indexState.query) state.query = indexState.query;
-        if (indexState.sortBy && indexState.sortBy !== defaultSortIndex) {
-          const sortBy = String(indexState.sortBy);
+        // The sort widget omits sortBy for its primary index, which is Relevance.
+        const sortBy = String(indexState.sortBy ?? indexName);
+        if (sortBy !== defaultSortIndex) {
           state.sort = INDEX_TO_KEY[sortBy] ?? sortBy;
         }
 

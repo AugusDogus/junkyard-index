@@ -87,6 +87,7 @@ describe("search routing", () => {
     const maximumYear = new Date().getUTCFullYear() + 1;
     const routeState = routing.stateMapping.stateToRoute({
       [ALGOLIA_INDEX_NAME]: {
+        sortBy: "vehicles_newest",
         range: { year: `1900:${maximumYear}` },
       },
     });
@@ -109,6 +110,7 @@ describe("search routing", () => {
     expect(
       routing.stateMapping.stateToRoute({
         [ALGOLIA_INDEX_NAME]: {
+          sortBy: "vehicles_newest",
           range: { year: `2000:${maximumYear}` },
         },
       }),
@@ -118,6 +120,7 @@ describe("search routing", () => {
     expect(
       routing.stateMapping.stateToRoute({
         [ALGOLIA_INDEX_NAME]: {
+          sortBy: "vehicles_newest",
           range: { year: "1900:2020" },
         },
       }),
@@ -283,6 +286,10 @@ test("default and explicit newest routes select the chronological replica", () =
   expect(
     routing.stateMapping.stateToRoute({ vehicles: { sortBy: "vehicles" } }),
   ).toEqual({ vehicles: { sort: "relevance" } });
+  // InstantSearch omits sortBy when the primary index is selected.
+  expect(routing.stateMapping.stateToRoute({ vehicles: {} })).toEqual({
+    vehicles: { sort: "relevance" },
+  });
 });
 
 test("uses honest relevance sorting until the chronological replica is ready", () => {

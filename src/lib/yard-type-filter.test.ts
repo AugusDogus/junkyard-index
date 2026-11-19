@@ -124,7 +124,10 @@ describe("yard type filters", () => {
       routing.router.createURL({
         location,
         routeState: routing.stateMapping.stateToRoute({
-          vehicles: { refinementList: { yardTypes: [] } },
+          vehicles: {
+            sortBy: "vehicles_newest",
+            refinementList: { yardTypes: [] },
+          },
         }),
       }),
     ).toBe("https://example.com/search");
