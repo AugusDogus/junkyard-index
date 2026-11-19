@@ -1,5 +1,5 @@
 import { sharedProviderHostSlot } from "./shared-provider-host";
-import { Data, Effect } from "effect";
+import { Data, Duration, Effect, Schedule } from "effect";
 import type { ProviderRequestGate } from "./provider-http-client";
 import { readIPullUPullResponseText } from "./ipullupull-response-text";
 import {
@@ -18,6 +18,34 @@ export class AplusProviderError extends Data.TaggedError("AplusProviderError")<{
       this.cause instanceof Error ? this.cause.message : String(this.cause);
     return `Aplus ${this.operation}: ${detail}. No advanced checkpoint was accepted; prior inventory is preserved. Inspect the native source and resume only from the last validated checkpoint.`;
   }
+}
+
+/** Model pages are generated per request on the shared URG backend. Live
+ * measurements on 2026-11-19 saw 2 to 7 seconds before headers, growing with
+ * the card count, and production runs failed on 20 second deadlines. Match the
+ * standard URG tenant deadline instead of aborting healthy slow pages. */
+const APLUS_REQUEST_TIMEOUT_MS = 40_000;
+/** Two more attempts, 4 then 8 seconds apart. Every attempt acquires its own
+ * shared host slot, so the worst case for one page stays below three minutes. */
+const APLUS_REQUEST_ATTEMPTS = 3;
+const retrySchedule = Schedule.exponential("4 seconds").pipe(
+  Schedule.intersect(Schedule.recurs(APLUS_REQUEST_ATTEMPTS - 1)),
+);
+
+class AplusDeadlineError extends Data.TaggedError("AplusDeadlineError") {
+  override get message() {
+    return `Combined request/body deadline exceeded ${APLUS_REQUEST_TIMEOUT_MS / 1000} seconds`;
+  }
+}
+
+/** Retry only a page that missed its deadline. Every HTTP status other than
+ * a complete 200, redirects, partial content, wrong media types and parser
+ * failures stop immediately, as do caller interruptions. */
+function isAplusDeadline(cause: unknown): boolean {
+  return (
+    cause instanceof AplusDeadlineError ||
+    (cause instanceof DOMException && cause.name === "TimeoutError")
+  );
 }
 
 async function readAplusDocument(
@@ -80,7 +108,7 @@ export function fetchAplusPage(url: string, gate: ProviderRequestGate) {
           new Error("Destination is outside the finite Aplus browse graph"),
         );
       const lifetime = new AbortController();
-      const deadline = AbortSignal.timeout(20_000);
+      const deadline = AbortSignal.timeout(APLUS_REQUEST_TIMEOUT_MS);
       let pending: Promise<string> | null = null;
       return Effect.tryPromise({
         try: (interruption) => {
@@ -105,14 +133,14 @@ export function fetchAplusPage(url: string, gate: ProviderRequestGate) {
           }),
         ),
         Effect.timeoutFail({
-          duration: "20 seconds",
-          onTimeout: () =>
-            new Error("Combined request/body deadline exceeded 20 seconds"),
+          duration: Duration.millis(APLUS_REQUEST_TIMEOUT_MS),
+          onTimeout: () => new AplusDeadlineError(),
         }),
       );
     }),
   ).pipe(
     sharedProviderHostSlot(url),
+    Effect.retry({ schedule: retrySchedule, while: isAplusDeadline }),
     Effect.mapError(
       (cause) => new AplusProviderError({ operation: url, cause }),
     ),

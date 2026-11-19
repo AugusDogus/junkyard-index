@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { Effect } from "effect";
+import { Effect, Fiber, TestClock, TestContext } from "effect";
 import { streamAplusInventoryWithRequestGate } from "./aplus-connector";
 import { AplusCursor, AplusCursorSchema } from "./aplus-cursor";
 import type { AplusRecord } from "./aplus-parser";
@@ -130,6 +130,61 @@ test("Aplus resumes serialized chunks and quarantines late required conflicts be
       (url) => !url.includes("/images/") && !/\/ST\d+\//.test(url),
     ),
   ).toBe(true);
+});
+
+test("Aplus keeps a chunk alive when one model page misses its deadline once", async () => {
+  // Production runs failed in the models phase when one dynamic model page
+  // exceeded the old 20 second deadline, discarding the whole chunk.
+  const native = transport();
+  const nativeFetch = globalThis.fetch;
+  const modelUrl = APLUS_ORIGIN + aplusFixtureModel.path;
+  let stalled: AbortSignal | null = null;
+  globalThis.fetch = Object.assign(
+    (input: string | URL | Request, init?: RequestInit) => {
+      const signal = init?.signal;
+      if (input !== modelUrl || stalled || !signal)
+        return nativeFetch(input, init);
+      stalled = signal;
+      native.urls.push(modelUrl);
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  const settle = Effect.promise(
+    () => new Promise((resolve) => setTimeout(resolve, 1)),
+  );
+  const result = await Effect.runPromise(
+    Effect.gen(function* () {
+      const fiber = yield* Effect.fork(
+        streamAplusInventoryWithRequestGate(
+          { maxPages: 8, onBatch: () => Effect.void },
+          gate,
+        ),
+      );
+      while (!stalled) yield* settle;
+      yield* TestClock.adjust("40 seconds");
+      while (!native.urls.slice(5).includes(modelUrl)) {
+        yield* settle;
+        yield* TestClock.adjust("1 second");
+      }
+      return yield* Effect.either(Fiber.join(fiber));
+    }).pipe(Effect.provide(TestContext.TestContext)),
+  );
+  expect(result._tag).toBe("Right");
+  if (result._tag !== "Right") throw new Error("Expected a paused chunk");
+  expect(result.right.status).toBe("paused");
+  expect(result.right.count).toBe(0);
+  // The stalled attempt and its retry; the eight-page chunk pauses before the
+  // closing model control.
+  expect(native.urls.filter((url) => url === modelUrl)).toHaveLength(2);
+  expect(result.right.pagesProcessed).toBe(8);
+  if (result.right.cursor.phase !== "closing")
+    throw new Error("Expected the retried model page to be checkpointed");
+  expect(result.right.cursor.pages[0]?.records).toHaveLength(1000);
 });
 
 test("Aplus rejects checksum, noncontiguous prefix and foreign graph before further fetching", async () => {
