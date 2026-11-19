@@ -2,17 +2,24 @@
 
 import { ArrowUpRight, ChevronDown, MapPin, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { YardLocationFooter } from "./YardLocationFooter";
 import YardMapCanvas from "~/components/home/YardMapCanvas";
 import { YardLinks } from "~/components/home/YardLinks";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type { MapYard } from "./yard-map-data";
 import { YardDirectory } from "./YardDirectory";
-import { useYardLocation } from "~/hooks/use-yard-location";
 import { sortYardsByDistance, type YardLocation } from "~/lib/yard-directory";
 import { cn } from "~/lib/utils";
-import { EnsureAppProviders } from "~/components/AppProviders";
+const YardLocationControls = lazy(() => import("./YardLocationControls"));
 
 type YardMapProps = {
   yards: MapYard[];
@@ -21,16 +28,7 @@ type YardMapProps = {
   compactMap: boolean;
 };
 
-/** The yard map; its saved-location lookup needs the app providers. */
-export function YardMap(props: YardMapProps) {
-  return (
-    <EnsureAppProviders>
-      <YardMapContent {...props} />
-    </EnsureAppProviders>
-  );
-}
-
-function YardMapContent({
+export function YardMap({
   yards,
   vehicleCount,
   approximateLocation,
@@ -39,8 +37,23 @@ function YardMapContent({
   const [filter, setFilter] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [selected, setSelected] = useState<MapYard | null>(null);
-  const { location, requestLocation, locating, locationError } =
-    useYardLocation(approximateLocation);
+  const [location, setLocation] = useState(approximateLocation);
+  const [locationMode, setLocationMode] = useState<
+    "deferred" | "ready" | "request"
+  >("deferred");
+
+  // A closed phone directory does not need account lookup, tRPC, or toasts.
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const loadDesktopLocation = () => {
+      if (media.matches)
+        setLocationMode((mode) => (mode === "deferred" ? "ready" : mode));
+    };
+    loadDesktopLocation();
+    media.addEventListener("change", loadDesktopLocation);
+    return () => media.removeEventListener("change", loadDesktopLocation);
+  }, []);
+
   const deferredFilter = useDeferredValue(filter.trim().toLowerCase());
   const sorted = useMemo(
     () => sortYardsByDistance(yards, location),
@@ -159,7 +172,12 @@ function YardMapContent({
               className="lg:hidden"
               aria-expanded={directoryOpen}
               aria-controls="yard-directory"
-              onClick={() => setDirectoryOpen(!directoryOpen)}
+              onClick={() => {
+                setDirectoryOpen(!directoryOpen);
+                setLocationMode((mode) =>
+                  mode === "deferred" ? "ready" : mode,
+                );
+              }}
             >
               {directoryOpen ? "Hide" : "Browse"}
               <ChevronDown
@@ -199,32 +217,31 @@ function YardMapContent({
               selected={selected}
               onSelect={setSelected}
             />
-            <div className="border-ink text-ink-2 border-t-2 px-4 py-1.5 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <Link
-                  href="/junkyards"
-                  prefetch={false}
-                  className="hover:text-signal underline underline-offset-4"
-                >
-                  {location ? "Nearest first" : "All yards"}
-                </Link>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 px-2"
-                  disabled={locating}
-                  onClick={requestLocation}
-                >
-                  {locating ? "Locating…" : "Use my location"}
-                </Button>
-              </div>
-              {locationError && (
-                <p role="status" className="mt-2 mb-1 text-pretty">
-                  {locationError}
-                </p>
+            <Suspense
+              fallback={
+                <YardLocationFooter
+                  location={location}
+                  requestLocation={() => setLocationMode("request")}
+                  locating={false}
+                  locationError={null}
+                />
+              }
+            >
+              {locationMode === "deferred" ? (
+                <YardLocationFooter
+                  location={location}
+                  requestLocation={() => setLocationMode("request")}
+                  locating={false}
+                  locationError={null}
+                />
+              ) : (
+                <YardLocationControls
+                  approximateLocation={approximateLocation}
+                  onLocation={setLocation}
+                  requestOnMount={locationMode === "request"}
+                />
               )}
-            </div>
+            </Suspense>
           </div>
         </div>
       </div>
