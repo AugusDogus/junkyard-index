@@ -1,10 +1,12 @@
+import { parseExpression, type Expression } from "./search-expression";
 import { SearchFilterUrl } from "./search-filter-url";
 import { YardService, type YardType } from "./yard-service";
 
 /** Missing URL values default to self-service. Missing persisted values are legacy all. */
 export type SearchYardSelection =
   | { kind: "default" }
-  | { kind: "explicit"; types: YardType[] };
+  | { kind: "explicit"; types: YardType[] }
+  | { kind: "expression"; types: YardType[] };
 
 function fromUrl(params: URLSearchParams): SearchYardSelection {
   const values = SearchFilterUrl.read(params, "yardTypes");
@@ -17,11 +19,32 @@ function fromUrl(params: URLSearchParams): SearchYardSelection {
       }),
     ),
   ];
-  return types.length ? { kind: "explicit", types } : { kind: "default" };
+  if (types.length) return { kind: "explicit", types };
+  const terms =
+    params.get("syntax") === "expression"
+      ? expressionTypes(params.get("q") ?? "")
+      : [];
+  return terms.length
+    ? { kind: "expression", types: terms }
+    : { kind: "default" };
 }
 
+function expressionTypes(query: string): YardType[] {
+  const parsed = parseExpression(query);
+  if (!parsed.success) return [];
+  function collect(node: Expression): YardType[] {
+    if (node.kind === "group") return node.children.flatMap(collect);
+    const type =
+      node.field === "yardType" ? YardService.parseType(node.value) : null;
+    return type ? [type] : [];
+  }
+  return [...new Set(collect(parsed.value))];
+}
+
+/** Additional facet restrictions. The expression itself owns its Boolean matching. */
 function effectiveTypes(selection: SearchYardSelection): YardType[] {
-  return selection.kind === "default" ? ["self_service"] : selection.types;
+  if (selection.kind === "default") return ["self_service"];
+  return selection.kind === "expression" ? [] : selection.types;
 }
 
 function fromSaved(types: YardType[] | undefined): SearchYardSelection {
@@ -40,6 +63,7 @@ function suggestion(
 
 export const SearchYardSelection = {
   fromUrl,
+  expressionTypes,
   fromSaved,
   effectiveTypes,
   suggestion,

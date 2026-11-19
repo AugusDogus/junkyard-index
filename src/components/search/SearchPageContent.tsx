@@ -2,7 +2,7 @@
 
 import { SearchYardSelection } from "~/lib/search-yard-selection";
 import { readFullServiceCount } from "~/lib/full-service-search";
-import { YARD_TYPE_OPTIONS } from "~/lib/yard-service";
+import { SearchYardTypeControls } from "./SearchYardTypeControls";
 
 import { sanitizeYardTypes } from "./search-routing";
 import type { YardType } from "~/lib/yard-service";
@@ -1404,35 +1404,12 @@ function AlgoliaSearchInner({
             Advanced search
           </Button>
 
-          <div
-            className="flex flex-wrap items-center gap-2"
-            aria-label="Yard type"
-          >
-            <span className="text-muted-foreground text-xs">Yard type</span>
-            {YARD_TYPE_OPTIONS.map(({ value, label }) => (
-              <Toggle
-                key={value}
-                variant="outline"
-                className="min-h-11 sm:min-h-9"
-                pressed={
-                  selectedYardTypes.length === 0 ||
-                  selectedYardTypes.includes(value)
-                }
-                onPressedChange={(pressed) => {
-                  const current = selectedYardTypes.length
-                    ? selectedYardTypes
-                    : (["self_service", "full_service"] satisfies YardType[]);
-                  handleYardTypesChange(
-                    pressed
-                      ? [...current, value]
-                      : current.filter((type) => type !== value),
-                  );
-                }}
-              >
-                {label}
-              </Toggle>
-            ))}
-          </div>
+          <SearchYardTypeControls
+            types={selectedYardTypes}
+            expression={expressionMode ? query : undefined}
+            onChange={handleYardTypesChange}
+            onEditExpression={() => setAdvancedSearchOpen(true)}
+          />
           {showFilters && (
             <div className="hidden md:block">
               <DesktopFiltersBar
