@@ -1,3 +1,4 @@
+import { SearchYardSelection } from "./search-yard-selection";
 import type { YardType } from "~/lib/yard-service";
 import { SEARCH_SORT_OPTIONS } from "~/components/search/search-routing";
 import { parseAdvancedSearchQuery } from "~/lib/advanced-search-query";
@@ -50,7 +51,9 @@ function fromSavedSearch(
     states: filters.states ?? [],
     salvageYards: filters.salvageYards ?? [],
     sources: filters.sources ?? [],
-    yardTypes: filters.yardTypes ?? [],
+    yardTypes: SearchYardSelection.effectiveTypes(
+      SearchYardSelection.fromSaved(filters.yardTypes),
+    ),
     yearRange: [Math.min(min, max), Math.max(min, max)],
     sortBy: sort?.key ?? "newest",
   };

@@ -1,5 +1,9 @@
 "use client";
 
+import { SearchYardSelection } from "~/lib/search-yard-selection";
+import { readFullServiceCount } from "~/lib/full-service-search";
+import { YARD_TYPE_OPTIONS } from "~/lib/yard-service";
+
 import { sanitizeYardTypes } from "./search-routing";
 import type { YardType } from "~/lib/yard-service";
 import { Filter, LocateFixed, MapPin } from "lucide-react";
@@ -401,9 +405,10 @@ function AlgoliaSearchInner({
 
   // ── Algolia hooks ──────────────────────────────────────────────────────
 
-  const { indexUiState, setIndexUiState, status, error } = useInstantSearch({
-    catchError: true,
-  });
+  const { indexUiState, setIndexUiState, status, error, results } =
+    useInstantSearch({
+      catchError: true,
+    });
   const refinementList = (indexUiState.refinementList ?? {}) as Record<
     string,
     string[]
@@ -454,7 +459,7 @@ function AlgoliaSearchInner({
     { skipSuspense: true },
   );
 
-  const { refine: refineYardType } = useRefinementList(
+  useRefinementList(
     { attribute: "yardTypes", operator: "or" },
     { skipSuspense: true },
   );
@@ -1042,7 +1047,10 @@ function AlgoliaSearchInner({
   );
 
   const handleYardTypesChange = (types: YardType[]) =>
-    applyRefinementDiff(selectedYardTypes, types, refineYardType);
+    setIndexUiState((previous) => ({
+      ...previous,
+      refinementList: { ...previous.refinementList, yardTypes: types },
+    }));
 
   const handleSourcesChange = useCallback(
     (newSources: DataSource[]) =>
@@ -1268,6 +1276,26 @@ function AlgoliaSearchInner({
       </Toggle>
     </div>
   );
+  const extraFullServiceCount = readFullServiceCount(
+    results._rawResults[0]?.userData,
+  );
+  const yardSuggestion =
+    !isSearching &&
+    !error &&
+    selectedYardTypes.length === 1 &&
+    selectedYardTypes[0] === "self_service"
+      ? SearchYardSelection.suggestion(nbHits, extraFullServiceCount)
+      : "none";
+  const fullServiceSuggestion =
+    yardSuggestion === "none"
+      ? undefined
+      : {
+          kind: yardSuggestion,
+          selfServiceCount: nbHits,
+          extraCount: extraFullServiceCount,
+          showThem: () =>
+            handleYardTypesChange(["self_service", "full_service"]),
+        };
   const searchResultsPanelModel = resolveSearchResultsPanelModel({
     lifecycle: {
       hasActiveSearch,
@@ -1375,6 +1403,35 @@ function AlgoliaSearchInner({
             Advanced search
           </Button>
 
+          <div
+            className="flex flex-wrap items-center gap-2"
+            aria-label="Yard type"
+          >
+            <span className="text-muted-foreground text-xs">Yard type</span>
+            {YARD_TYPE_OPTIONS.map(({ value, label }) => (
+              <Toggle
+                key={value}
+                variant="outline"
+                className="min-h-11 sm:min-h-9"
+                pressed={
+                  selectedYardTypes.length === 0 ||
+                  selectedYardTypes.includes(value)
+                }
+                onPressedChange={(pressed) => {
+                  const current = selectedYardTypes.length
+                    ? selectedYardTypes
+                    : (["self_service", "full_service"] satisfies YardType[]);
+                  handleYardTypesChange(
+                    pressed
+                      ? [...current, value]
+                      : current.filter((type) => type !== value),
+                  );
+                }}
+              >
+                {label}
+              </Toggle>
+            ))}
+          </div>
           {showFilters && (
             <div className="hidden md:block">
               <DesktopFiltersBar
@@ -1420,7 +1477,10 @@ function AlgoliaSearchInner({
             />
           )}
 
-          <SearchResultsPanel model={searchResultsPanelModel} />
+          <SearchResultsPanel
+            model={searchResultsPanelModel}
+            fullServiceSuggestion={fullServiceSuggestion}
+          />
         </div>
       </div>
     </main>

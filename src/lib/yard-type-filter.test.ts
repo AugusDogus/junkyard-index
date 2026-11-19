@@ -130,7 +130,7 @@ describe("yard type filters", () => {
           },
         }),
       }),
-    ).toBe("https://example.com/search");
+    ).toBe("https://example.com/search?yardTypes%5B%5D=all");
   });
 
   test("preserves yard type through advanced expression and saved-search editing", () => {

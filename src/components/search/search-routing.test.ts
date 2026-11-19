@@ -22,13 +22,20 @@ describe("search routing", () => {
       };
       const parsed = routing.router.parseURL({ location });
       const state = routing.stateMapping.routeToState(parsed);
-      expect(state).toEqual({ vehicles: { sortBy: "vehicles_distance" } });
+      expect(state).toEqual({
+        vehicles: {
+          sortBy: "vehicles_distance",
+          refinementList: { yardTypes: ["self_service"] },
+        },
+      });
       expect(
         routing.router.createURL({
           location,
           routeState: routing.stateMapping.stateToRoute(state),
         }),
-      ).toBe("https://example.com/search?sort=distance");
+      ).toBe(
+        "https://example.com/search?yardTypes%5B%5D=self_service&sort=distance",
+      );
     }
     expect(getSearchSortIndex("distance")).toBe("vehicles_distance");
     expect(getSearchSortKey("vehicles_distance")).toBe("distance");
@@ -77,7 +84,7 @@ describe("search routing", () => {
     ).toEqual({
       [ALGOLIA_INDEX_NAME]: {
         sortBy: "vehicles_oldest",
-        refinementList: { source: ["pyp"] },
+        refinementList: { source: ["pyp"], yardTypes: ["self_service"] },
       },
     });
   });
@@ -100,7 +107,7 @@ describe("search routing", () => {
           search: "",
         },
       }),
-    ).toBe("https://example.com/search");
+    ).toBe("https://example.com/search?yardTypes%5B%5D=all");
   });
 
   test("keeps only changed year bounds in the URL", () => {
@@ -115,7 +122,7 @@ describe("search routing", () => {
         },
       }),
     ).toEqual({
-      [ALGOLIA_INDEX_NAME]: { minYear: 2000 },
+      [ALGOLIA_INDEX_NAME]: { minYear: 2000, yardTypes: ["all"] },
     });
     expect(
       routing.stateMapping.stateToRoute({
@@ -125,7 +132,7 @@ describe("search routing", () => {
         },
       }),
     ).toEqual({
-      [ALGOLIA_INDEX_NAME]: { maxYear: 2020 },
+      [ALGOLIA_INDEX_NAME]: { maxYear: 2020, yardTypes: ["all"] },
     });
   });
 
@@ -139,7 +146,11 @@ describe("search routing", () => {
     });
 
     expect(routing.stateMapping.routeToState(routeState)).toEqual({
-      [ALGOLIA_INDEX_NAME]: { query: "civic", sortBy: "vehicles_newest" },
+      [ALGOLIA_INDEX_NAME]: {
+        query: "civic",
+        sortBy: "vehicles_newest",
+        refinementList: { yardTypes: ["self_service"] },
+      },
     });
   });
 
@@ -260,7 +271,16 @@ test("preserves every repeated locked filter when editing a guest query", () => 
     params.append("yardTypes[]", type);
   const url = new URL(
     routing.router.createURL({
-      routeState: { vehicles: { query: "Honda" } },
+      routeState: routing.stateMapping.stateToRoute(
+        routing.stateMapping.routeToState(
+          routing.router.parseURL({
+            location: {
+              href: `https://example.com/search?${params}`,
+              search: `?${params}`,
+            },
+          }),
+        ),
+      ),
       location: {
         href: `https://example.com/search?${params}`,
         search: `?${params}`,
@@ -279,16 +299,21 @@ test("default and explicit newest routes select the chronological replica", () =
   for (const sort of [undefined, "newest", "vehicles_newest"]) {
     expect(
       routing.stateMapping.routeToState({ vehicles: sort ? { sort } : {} }),
-    ).toEqual({ vehicles: { sortBy: "vehicles_newest" } });
+    ).toEqual({
+      vehicles: {
+        sortBy: "vehicles_newest",
+        refinementList: { yardTypes: ["self_service"] },
+      },
+    });
   }
   expect(getSearchSortKey("vehicles")).toBe("relevance");
   expect(getSearchSortIndex("relevance")).toBe("vehicles");
   expect(
     routing.stateMapping.stateToRoute({ vehicles: { sortBy: "vehicles" } }),
-  ).toEqual({ vehicles: { sort: "relevance" } });
+  ).toEqual({ vehicles: { sort: "relevance", yardTypes: ["all"] } });
   // InstantSearch omits sortBy when the primary index is selected.
   expect(routing.stateMapping.stateToRoute({ vehicles: {} })).toEqual({
-    vehicles: { sort: "relevance" },
+    vehicles: { sort: "relevance", yardTypes: ["all"] },
   });
 });
 
@@ -299,6 +324,11 @@ test("uses honest relevance sorting until the chronological replica is ready", (
   for (const sort of [undefined, "newest", "vehicles_newest", "relevance"]) {
     expect(
       routing.stateMapping.routeToState({ vehicles: sort ? { sort } : {} }),
-    ).toEqual({ vehicles: { sortBy: "vehicles" } });
+    ).toEqual({
+      vehicles: {
+        sortBy: "vehicles",
+        refinementList: { yardTypes: ["self_service"] },
+      },
+    });
   }
 });

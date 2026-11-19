@@ -1,3 +1,4 @@
+import { SearchYardSelection } from "./search-yard-selection";
 import { SearchFilterUrl } from "~/lib/search-filter-url";
 import type { YardType } from "~/lib/yard-service";
 interface SearchFilters {
@@ -41,8 +42,11 @@ export function buildSearchUrl(
   if (filters.sources && filters.sources.length > 0) {
     SearchFilterUrl.write(params, "sources", filters.sources);
   }
-  if (filters.yardTypes?.length)
-    SearchFilterUrl.write(params, "yardTypes", filters.yardTypes);
+  const yardTypes = SearchYardSelection.effectiveTypes(
+    SearchYardSelection.fromSaved(filters.yardTypes),
+  );
+  if (yardTypes.length) SearchFilterUrl.write(params, "yardTypes", yardTypes);
+  else params.set("yardTypes", "all");
   if (filters.minYear) {
     params.set("minYear", filters.minYear.toString());
   }
