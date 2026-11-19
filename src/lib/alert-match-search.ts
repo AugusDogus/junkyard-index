@@ -69,12 +69,13 @@ export interface AlertMatchBound {
 async function scanSearch(
   searchPage: SearchPage,
   { query, filters, lastCheckedAt }: AlertMatchSearch,
-  bound?: AlertMatchBound,
+  bound: AlertMatchBound | undefined,
+  makeAliasesReady: boolean,
 ): Promise<AlertMatchStats> {
   const expression =
     filters.expression === undefined
       ? null
-      : compileSearchExpression(filters.expression);
+      : compileSearchExpression(filters.expression, makeAliasesReady);
   if (expression && !expression.success)
     throw new Error(
       `Cannot match saved search expression: ${expression.error}`,
@@ -83,6 +84,7 @@ async function scanSearch(
     filters,
     lastCheckedAt,
     bound?.checkedThrough ?? null,
+    makeAliasesReady,
   );
   const yearQuery = SearchYearQuery.parse(query.trim());
   const parsedQuery = parseAdvancedSearchQuery(yearQuery.query);
@@ -138,6 +140,7 @@ export async function getAlertMatchStatsWithClient(
   query: string,
   filters: AlertFilters,
   lastCheckedAt: Date | null,
+  makeAliasesReady = true,
 ): Promise<AlertMatchStats> {
   return scanSearch(
     async (request) => {
@@ -148,6 +151,8 @@ export async function getAlertMatchStatsWithClient(
       return result ? toAlertSearchPage(result) : null;
     },
     { query, filters, lastCheckedAt },
+    undefined,
+    makeAliasesReady,
   );
 }
 
@@ -159,6 +164,7 @@ export async function getAlertMatchStatsBatchWithClient(
   searchClient: AlertSearchClient,
   searches: readonly AlertMatchSearch[],
   bound: AlertMatchBound,
+  makeAliasesReady = true,
 ): Promise<PromiseSettledResult<AlertMatchStats>[]> {
   type Pending = {
     request: AlertSearchRequest;
@@ -193,6 +199,8 @@ export async function getAlertMatchStatsBatchWithClient(
         });
     });
   return Promise.allSettled(
-    searches.map((search) => scanSearch(searchPage, search, bound)),
+    searches.map((search) =>
+      scanSearch(searchPage, search, bound, makeAliasesReady),
+    ),
   );
 }

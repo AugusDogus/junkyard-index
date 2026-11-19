@@ -195,11 +195,18 @@ or a single-character mutation must not match through either VIN field.
 ## Schema 12: VIN make/model identities
 
 Deployment applies `0026_vin_canonical_models` through the normal Drizzle chain.
-The scheduled search-index migration then walks existing vehicles in 100-row
-steps, caches vPIC identities, updates only make/model/source-name/trim fields,
-rewrites the same Algolia object IDs, rebuilds inventory snapshots, revalidates
-inventory pages and advances readiness to 12. No owner-run step is needed for
-the initial backfill. Daily ingestion uses the same cache before reconciliation.
+Before acquiring the shared Algolia writer lock, the scheduled workflow fills
+only the VIN pattern cache in bounded 100-vehicle steps. It stops the decode
+pass when a vPIC batch exhausts its retries, returns an invalid service body
+or requests a long cooldown. No shared publication or ingestion commit lock
+is held during network enrichment. Cache errors also defer the optional phase.
+
+The migration then acquires the writer, reads only cached decodes, and walks
+existing vehicles in 100-row steps. It updates make/model/source-name/trim,
+rewrites the same object IDs, refreshes snapshots and advances readiness to 12.
+Daily ingestion and index projection never call vPIC. Until readiness is
+confirmed, ingestion and search filters retain the old schema behavior.
+No owner-run step is needed for the initial backfill or outage recovery.
 
 Keys include VIN positions 1-8, 10-11 and the explicit vehicle year. Low-volume
 WMIs (position 3 is 9) also retain positions 12-14. Plant codes are always kept.
@@ -208,18 +215,15 @@ vPIC. Only error codes 0 and 1 (check digit), with a matching model year and
 nonempty make/model, produce canonical identity. Source names stay in
 `source_make`/`source_model`; source trim takes precedence over vPIC trim.
 
-Each ingestion batch requests at most 100 new patterns. Requests run serially,
+Each cache-warming step requests at most 100 new patterns. Requests are serial,
 50 VINs per POST, with a one-second minimum delay, eight-second timeout and
-three attempts for network failures, 429 and 5xx. Backoff and Retry-After apply;
-a server cooldown over ten seconds defers the pattern. Requests use a generic
-User-Agent and include no project or owner identity. Failed/untrusted patterns
-keep normalized source strings and retry after 24 hours on later ingestion.
-The search migration publishes fallbacks and can finish during a vPIC outage.
-To revisit every stored fallback after recovery (including observation-only
-sources), the owner can invoke the existing authenticated migration endpoint
-with `?force=true` after the cooldown. This deliberately rewrites the index;
-it is optional and must run in the hosted environment, never from an agent's
-machine against production.
+three attempts for network failures, 429 and 5xx. Backoff and Retry-After apply.
+A failed request batch opens the circuit for the rest of the decode pass.
+Failed/untrusted patterns retain source fallbacks and a 24-hour cooldown.
+The next scheduled pass retries them. Newly accepted identities trigger a
+cache-only re-projection automatically, including observation-only records.
+The authenticated hosted `?force=true` endpoint is an optional explicit replay.
+Requests use a generic User-Agent with no project or owner identity.
 
 Consumer models combine vPIC Model with explicit Series/Series2 ratings,
 DriveType and Civic variants. Silverado 1500/2500, C1500/K1500, Civic Hybrid
@@ -235,9 +239,13 @@ URLs 308 to the canonical model; ambiguous labels 308 to a live make page,
 and retired makes to `/cars`. Known URLs cannot disappear into a 404. The
 migration result reports the final retired-alias count in `redirects`.
 
-Existing saved model queries and alerts need no user action. The original
-source model remains searchable for ordinary queries and Boolean tokens,
-alongside canonical names. Recorded regressions cover `SILVRDO15` and
+Existing saved model and make queries and alerts need no user action. The
+original source model remains searchable for ordinary queries and Boolean
+tokens. A searchable/filterable `makeAliases` array retains canonical and
+source makes per record. Saved refinements and alert expressions use it after
+schema readiness; visible make facets remain canonical. Consumer brands such
+as Scion retain their own make, and redirect lookup preserves make aliases,
+case and model identity variants. Recorded regressions cover `SILVRDO15` and
 `F150NEW`. This preserves the matching scope of a yard-specific keyword;
 it does not globally expand it into every equivalent provider's vehicle.
 

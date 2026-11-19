@@ -1,3 +1,4 @@
+import { getSearchIndexCapabilities } from "~/server/ingestion/search-index-readiness";
 import "server-only";
 
 import type {
@@ -7,13 +8,15 @@ import type {
 import { getAlertMatchStatsBatchWithClient } from "~/lib/alert-match-search";
 import { algoliaSearchClient } from "~/server/algolia-search-client";
 
-export function getAlertMatchStatsBatch(
+export async function getAlertMatchStatsBatch(
   searches: readonly AlertMatchSearch[],
   bound: AlertMatchBound,
 ) {
+  const { makeAliasesReady } = await getSearchIndexCapabilities();
   return getAlertMatchStatsBatchWithClient(
     algoliaSearchClient,
     searches,
     bound,
+    makeAliasesReady,
   );
 }

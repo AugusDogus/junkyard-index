@@ -93,4 +93,9 @@ function parseResponse(
   return decodes;
 }
 
-export const VinDecode = { identity, parseResponse } as const;
+export const VinDecode = {
+  identity,
+  parseResponse,
+  isResponse: (body: unknown): boolean =>
+    responseSchema.safeParse(body).success,
+} as const;

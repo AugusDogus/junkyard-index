@@ -12,3 +12,10 @@ names. It retains Model, Series, Series2, Trim, DriveType and
 ElectrificationLevel for C1500/K1500, Silverado 1500/2500, Civic Hybrid,
 F-250 Super Duty, S-10 and Astro regressions. Omitted vPIC fields are unrelated
 to identity resolution. Tests replay these excerpts without live requests.
+
+`review-identities.json` records the clean Express and Toyota/Scion responses
+from the independent review. `consumer-sample-400.json` keeps five fields from
+each reviewed sample record as tuples: decoded make, decoded model, series,
+source make and source model. Property tests replay all 400 and compose every
+source alias against matching sampled families. These are public identity
+fields; no live calls are made by tests.

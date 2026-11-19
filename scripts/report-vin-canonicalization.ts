@@ -6,7 +6,7 @@ import { createClient } from "@libsql/client/web";
 import { parse } from "dotenv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
-import { ConsumerModel } from "../src/lib/consumer-model";
+import { ConsumerIdentity } from "../src/lib/consumer-identity";
 import { VinDecode } from "../src/server/ingestion/vin-decode";
 import { createVpicClient } from "../src/server/ingestion/vpic-client";
 import { normalizeCanonicalMake } from "../src/server/ingestion/normalization";
@@ -130,8 +130,9 @@ export async function reportVinCanonicalization() {
   for (let start = 0; start < pending.length; start += 50) {
     requests++;
     const batch = await client.decode(pending.slice(start, start + 50));
-    for (const [key, value] of batch) decoded.set(key, value);
+    for (const [key, value] of batch.decodes) decoded.set(key, value);
     await writeFile(`${directory}/decodes.json`, JSON.stringify([...decoded]));
+    if (batch.status === "unavailable") break;
     console.info(
       `[vPIC sample] ${Math.min(start + 50, pending.length)}/${pending.length} attempted; ${decoded.size} accepted`,
     );
@@ -180,10 +181,15 @@ export function summarizeVinSample(
       const identity = inSample ? decoded.get(id.key) : undefined;
       const sourceMake = normalizeCanonicalMake(row.make);
       const sourceModel = VehicleName.modelName(sourceMake, row.model);
-      const targetMake = identity?.make ?? sourceMake;
-      const targetModel = identity
-        ? ConsumerModel.resolve({ ...identity, sourceModel: row.model })
-        : sourceModel;
+      const consumer = identity
+        ? ConsumerIdentity.resolve({
+            ...identity,
+            sourceMake: row.make,
+            sourceModel: row.model,
+          })
+        : null;
+      const targetMake = consumer?.make ?? sourceMake;
+      const targetModel = consumer?.model ?? sourceModel;
       if (sourceMake === make) inventoryBefore.add(row.model);
       if (targetMake === make) inventoryAfter.add(targetModel);
       if (!inSample) continue;

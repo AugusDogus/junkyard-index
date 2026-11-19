@@ -64,6 +64,7 @@ queryClient.setQueryData(
   getQueryKey(api.status.searchCapabilities, undefined, "query"),
   {
     vinPatternSearchReady: true,
+    makeAliasesReady: true,
     newestSortReady: params.get("fixtureNewestReady") !== "0",
     booleanOrSearchReady: params.get("fixtureBooleanReady") !== "0",
   },

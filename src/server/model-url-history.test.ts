@@ -96,3 +96,51 @@ test("captures preferred URLs in every retained snapshot before changes, so inde
     client.close();
   }
 });
+
+test("retired paths keep make aliases, case variants and equivalent model identities", async () => {
+  const { findModelRedirect } = await import("./model-url-history");
+  const client = createClient({ url: ":memory:" });
+  try {
+    await client.executeMultiple(
+      "create table vehicle (vin text primary key);" +
+        readFileSync(
+          new URL(
+            "../../drizzle/0026_vin_canonical_models.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+    );
+    const database = drizzle(client);
+    await rememberModelRedirects(database, [
+      {
+        ...makeVehicle("jimmy"),
+        make: "GMC",
+        model: "Jimmy",
+        sourceMake: "Chevrolet",
+        sourceModel: "JIMMY",
+      },
+    ]);
+    for (const path of [
+      "/cars/chevrolet/jimmy",
+      "/cars/chevy/jimmy",
+      "/cars/Chevrolet/JIMMY",
+      "/cars/CHEVY/chevrolet-jimmy",
+      "/cars/chevy/ji-mmy",
+    ]) {
+      const alias = await findModelRedirect(database, path);
+      expect(alias?.toPath).toBe("/cars/gmc/jimmy");
+      expect(
+        ModelRedirect.destination(alias?.toPath ?? "", {
+          make: { href: "/cars/gmc", name: "GMC" },
+          models: [{ href: "/cars/gmc/jimmy", key: "JIMMY", slug: "jimmy" }],
+        }),
+      ).toBe("/cars/gmc/jimmy");
+    }
+    expect(
+      await findModelRedirect(database, "/cars/chevy/not-a-model"),
+    ).toBeNull();
+  } finally {
+    client.close();
+  }
+});

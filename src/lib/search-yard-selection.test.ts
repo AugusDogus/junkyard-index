@@ -201,5 +201,7 @@ test("a saved full-service expression and its alert retain full-service-only mat
     stored.data,
     null,
   );
-  expect(alertFilters).toEqual(['yardTypes:"full_service" AND make:"Volvo"']);
+  expect(alertFilters).toEqual([
+    'yardTypes:"full_service" AND makeAliases:"Volvo"',
+  ]);
 });

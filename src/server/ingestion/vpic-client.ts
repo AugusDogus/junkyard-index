@@ -1,7 +1,12 @@
 import { VinDecode, type VinIdentity } from "./vin-decode";
 
+export type VpicDecodeResult = {
+  status: "complete" | "unavailable";
+  decodes: Map<string, VinDecode>;
+};
+
 export type VpicClient = {
-  decode(requests: readonly VinIdentity[]): Promise<Map<string, VinDecode>>;
+  decode(requests: readonly VinIdentity[]): Promise<VpicDecodeResult>;
 };
 
 type Transport = (url: string, init: RequestInit) => Promise<Response>;
@@ -20,7 +25,9 @@ export function createVpicClient(
     options.sleep ??
     ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   let queue: Promise<unknown> = Promise.resolve();
-  async function batch(requests: readonly VinIdentity[]) {
+  async function batch(
+    requests: readonly VinIdentity[],
+  ): Promise<VpicDecodeResult> {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       // One request at a time with at least one second between attempts.
       await sleep(1000 * 2 ** attempt);
@@ -47,18 +54,24 @@ export function createVpicClient(
                 ? Number(retryAfter) * 1000
                 : Date.parse(retryAfter) - Date.now();
           // A long server cooldown defers the pattern to a later publication.
-          if (delay > 10_000) return new Map<string, VinDecode>();
+          if (delay > 10_000)
+            return { status: "unavailable", decodes: new Map() };
           if (delay > 0) await sleep(delay);
           continue;
         }
-        if (!response.ok) return new Map<string, VinDecode>();
-        return VinDecode.parseResponse(await response.json(), requests);
+        if (!response.ok) return { status: "unavailable", decodes: new Map() };
+        const body: unknown = await response.json();
+        if (!VinDecode.isResponse(body)) continue;
+        return {
+          status: "complete",
+          decodes: VinDecode.parseResponse(body, requests),
+        };
       } catch {
         // Timeouts, transport failures and malformed responses retry, then
         // return no identities. Publication keeps the source normalization.
       }
     }
-    return new Map<string, VinDecode>();
+    return { status: "unavailable", decodes: new Map() };
   }
   return {
     decode(requests) {
@@ -66,9 +79,12 @@ export function createVpicClient(
         const result = new Map<string, VinDecode>();
         for (let start = 0; start < requests.length; start += 50) {
           const decoded = await batch(requests.slice(start, start + 50));
-          for (const [key, value] of decoded) result.set(key, value);
+          for (const [key, value] of decoded.decodes) result.set(key, value);
+          // Three failed attempts trip the breaker for this decode pass.
+          if (decoded.status === "unavailable")
+            return { status: "unavailable" as const, decodes: result };
         }
-        return result;
+        return { status: "complete" as const, decodes: result };
       };
       const pending = queue.then(run, run);
       queue = pending;

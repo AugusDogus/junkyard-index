@@ -194,3 +194,68 @@ test.each([
 ])("consumer names preserve parts-relevant identity: %j", (input, expected) => {
   expect(ConsumerModel.resolve(input)).toBe(expected);
 });
+
+test("every source alias composes with explicit ratings without inventing suffixes", () => {
+  for (const [make, aliases] of Object.entries(ConsumerModel.sourceAliases)) {
+    for (const [sourceModel, consumer] of Object.entries(aliases)) {
+      const rating = consumer.match(/(?:1500|2500|3500)(?:HD)?/)?.[0];
+      const base = rating ? consumer.replace(` ${rating}`, "") : consumer;
+      for (const series of [
+        undefined,
+        rating,
+        rating === "1500" ? "1500 (1/2 Ton)" : rating,
+      ]) {
+        const input = { make, model: base, sourceModel, series };
+        const model = ConsumerModel.resolve(input);
+        expect(model).toBe(consumer);
+        expect(ConsumerModel.resolve({ ...input, sourceModel: model })).toBe(
+          model,
+        );
+        expect(model).not.toMatch(
+          /\b(1500|2500|3500)\s+(?:15|25|35|1500|2500|3500)\b/,
+        );
+      }
+    }
+  }
+});
+
+test("all recorded consumer families and source aliases avoid duplicated series suffixes", async () => {
+  const { default: sample } =
+    await import("../server/ingestion/vpic-test-fixtures/consumer-sample-400.json");
+  const { ConsumerIdentity } = await import("./consumer-identity");
+  for (const row of sample) {
+    const [make, model, series, sourceMake, sourceModel] = row;
+    if (
+      typeof make !== "string" ||
+      typeof model !== "string" ||
+      typeof sourceMake !== "string" ||
+      typeof sourceModel !== "string"
+    )
+      throw new Error("Invalid recorded sample tuple");
+    const input = { make, model, series, sourceMake, sourceModel };
+    const consumer = ConsumerIdentity.resolve(input);
+    expect(consumer.model).not.toMatch(
+      /\b(1500|2500|3500)\s+(?:15|25|35|1500|2500|3500)\b/,
+    );
+    expect(
+      ConsumerIdentity.resolve({
+        ...input,
+        sourceMake: consumer.make,
+        sourceModel: consumer.model,
+      }),
+    ).toEqual(consumer);
+    for (const [alias, target] of Object.entries(
+      ConsumerModel.sourceAliases[make.toUpperCase()] ?? {},
+    )) {
+      if (!target.toUpperCase().startsWith(model.toUpperCase())) continue;
+      const resolved = ConsumerIdentity.resolve({
+        ...input,
+        sourceModel: alias,
+      });
+      expect(resolved.model).not.toMatch(
+        /\b(1500|2500|3500)\s+(?:15|25|35|1500|2500|3500)\b/,
+      );
+      expect(resolved.model).not.toMatch(/\b(?:15|25|35)$/);
+    }
+  }
+});

@@ -46,6 +46,7 @@ describe("Algolia settings plan", () => {
           "make",
           "model",
           "unordered(sourceModel)",
+          "unordered(makeAliases)",
           "year",
           "unordered(color)",
           "unordered(vin)",

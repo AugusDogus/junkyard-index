@@ -6,19 +6,16 @@ import {
   canonicalizeVinVehicles,
   rememberModelRedirects,
 } from "./vin-canonicalization";
-import { vpicClient, type VpicClient } from "./vpic-client";
 
 /** Taxonomy-only updates, guarded against a concurrent ingestion publication. */
 export async function backfillVinVehicles(
   database: LibSQLDatabase,
   rows: (typeof vehicle.$inferSelect)[],
-  client: VpicClient = vpicClient,
 ) {
   if (!rows.length) return [];
   const canonical = await canonicalizeVinVehicles(
     database,
     rows.map(mapDbVehicleToCanonical),
-    client,
   );
   const updates = rows.flatMap((row, index) => {
     const next = canonical[index];

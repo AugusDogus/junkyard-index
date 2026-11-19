@@ -1,3 +1,4 @@
+import { warmVinDecodeCache } from "./vin-cache-warmer";
 import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
@@ -59,15 +60,16 @@ test("reuses one pattern across serials and calls; keeps raw model and source tr
   const decoder = {
     decode: async (requests: readonly { key: string }[]) => {
       calls++;
-      return new Map(requests.map((r) => [r.key, decoded]));
+      return {
+        status: "complete" as const,
+        decodes: new Map(requests.map((r) => [r.key, decoded])),
+      };
     },
   };
   try {
-    const result = await canonicalizeVinVehicles(
-      database,
-      [row, { ...row, vin: "1FTPW14596K123456", trim: null }],
-      decoder,
-    );
+    const rows = [row, { ...row, vin: "1FTPW14596K123456", trim: null }];
+    await warmVinDecodeCache(database, rows, decoder);
+    const result = await canonicalizeVinVehicles(database, rows);
     expect(result[0]).toMatchObject({
       make: "Ford",
       model: "F-150",
@@ -76,7 +78,7 @@ test("reuses one pattern across serials and calls; keeps raw model and source tr
       trim: "King Ranch",
     });
     expect(result[1]?.trim).toBe("XLT");
-    await canonicalizeVinVehicles(database, [row], decoder);
+    await warmVinDecodeCache(database, [row], decoder);
     expect(calls).toBe(1);
     expect(row.model).toBe("TFORD150");
   } finally {
@@ -90,27 +92,31 @@ test("failed patterns fall back, respect cooldown and retry later; invalid VINs 
   const decoder = {
     decode: async () => {
       calls++;
-      return new Map<string, typeof decoded>();
+      return {
+        status: "unavailable" as const,
+        decodes: new Map<string, typeof decoded>(),
+      };
     },
   };
   try {
-    const fallback = await canonicalizeVinVehicles(
-      database,
-      [row, { ...row, vin: "OLD-SERIAL", year: 1975 }],
-      decoder,
-    );
+    const rows = [row, { ...row, vin: "OLD-SERIAL", year: 1975 }];
+    await warmVinDecodeCache(database, rows, decoder);
+    const fallback = await canonicalizeVinVehicles(database, rows);
     expect(fallback[0]).toMatchObject({
       make: "Ford",
       model: "TFORD150",
       trim: "King Ranch",
     });
-    await canonicalizeVinVehicles(database, [row], decoder);
+    await warmVinDecodeCache(database, [row], decoder);
     expect(calls).toBe(1);
     await database.update(vinDecodeCache).set({ retryAfter: new Date(0) });
-    const retry = await canonicalizeVinVehicles(database, [row], {
-      decode: async (requests) =>
-        new Map(requests.map((r) => [r.key, decoded])),
+    await warmVinDecodeCache(database, [row], {
+      decode: async (requests) => ({
+        status: "complete",
+        decodes: new Map(requests.map((r) => [r.key, decoded])),
+      }),
     });
+    const retry = await canonicalizeVinVehicles(database, [row]);
     expect(retry[0]?.model).toBe("F-150");
     expect(VinDecode.identity("OLD-SERIAL", 1975)).toBeNull();
   } finally {
@@ -126,12 +132,16 @@ test("budget defers new patterns and preserves cached identities", async () => {
       vin: `1FT${String(i).padStart(5, "0")}06K123456`,
     }));
     let requested = 0;
-    const result = await canonicalizeVinVehicles(database, rows, {
+    await warmVinDecodeCache(database, rows, {
       decode: async (requests) => {
         requested = requests.length;
-        return new Map(requests.map((r) => [r.key, decoded]));
+        return {
+          status: "complete" as const,
+          decodes: new Map(requests.map((r) => [r.key, decoded])),
+        };
       },
     });
+    const result = await canonicalizeVinVehicles(database, rows);
     expect(requested).toBe(100);
     expect(result.filter((r) => r.model === "F-150")).toHaveLength(100);
     expect(result[100]?.model).toBe(row.model);

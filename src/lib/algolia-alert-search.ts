@@ -101,6 +101,7 @@ export function compileAlertFilters(
   filters: AlertFilters,
   lastCheckedAt: Date | null,
   checkedThrough: Date | null = null,
+  makeAliasesReady = true,
   now = checkedThrough?.getTime() ?? Date.now(),
 ): AlertFilterCompilation {
   const clauses: string[] = [];
@@ -128,7 +129,10 @@ export function compileAlertFilters(
     clauses.push(`firstSeenAt <= ${checkedThroughSeconds}`);
   }
 
-  const makesClause = buildStringOrFilter("make", filters.makes ?? []);
+  const makesClause = buildStringOrFilter(
+    makeAliasesReady ? "makeAliases" : "make",
+    filters.makes ?? [],
+  );
   if (makesClause) clauses.push(makesClause);
 
   const colorsClause = buildStringOrFilter("color", filters.colors ?? []);

@@ -101,6 +101,7 @@ export function SearchAccessShell({
     searchCapabilities?.vinPatternSearchReady ?? false;
   const booleanOrSearchReady =
     searchCapabilities?.booleanOrSearchReady ?? false;
+  const makeAliasesReady = searchCapabilities?.makeAliasesReady ?? false;
   const newestSortReady = searchCapabilities?.newestSortReady ?? false;
   const searchParams = useSearchParams();
   const expressionMode = searchParams.get("syntax") === "expression";
@@ -110,6 +111,7 @@ export function SearchAccessShell({
     booleanOrSearchReady,
     expressionMode,
     canUseAdvancedFilters,
+    makeAliasesReady,
   );
   // Each keyed InstantSearch instance must own its router's lifecycle state.
   const routing = useMemo(() => {
@@ -196,7 +198,7 @@ export function SearchAccessShell({
 
   return (
     <InstantSearchNext
-      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}`}
+      key={`${vinPatternIndexReady ? "vin-ready" : "vin-disabled"}-${booleanOrSearchReady ? "boolean-ready" : "boolean-disabled"}-${canUseAdvancedFilters ? "filters-enabled" : "filters-disabled"}-${newestSortReady ? "newest-ready" : "newest-disabled"}-${makeAliasesReady ? "make-aliases-ready" : "make-aliases-disabled"}`}
       searchClient={searchClient}
       indexName={ALGOLIA_INDEX_NAME}
       routing={routing}

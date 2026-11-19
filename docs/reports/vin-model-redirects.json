@@ -1,10 +1,10 @@
 {
   "retainedModelUrls": 5306,
   "indexedModelUrls": 979,
-  "unchangedModelUrls": 5265,
-  "redirectCount": 41,
+  "unchangedModelUrls": 5266,
+  "redirectCount": 40,
   "indexedRedirects": 0,
-  "modelRedirects": 39,
+  "modelRedirects": 38,
   "parentRedirects": 2,
   "unresolved": 0,
   "redirects": [
@@ -238,13 +238,7 @@
     },
     {
       "from": "/cars/scion/tc-scion",
-      "to": "/cars/toyota/scion-tc",
-      "indexed": false,
-      "kind": "model"
-    },
-    {
-      "from": "/cars/scion/xa-base",
-      "to": "/cars/toyota/scion-xa",
+      "to": "/cars/scion/tc",
       "indexed": false,
       "kind": "model"
     },

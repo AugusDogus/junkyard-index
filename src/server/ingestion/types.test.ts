@@ -70,6 +70,7 @@ describe("toAlgoliaRecord", () => {
     expect(record.searchTokens).toEqual([
       "ford",
       "focus",
+      "se",
       "2015",
       "red",
       "1fadp3f29fl123456",
@@ -96,6 +97,7 @@ describe("toAlgoliaRecord", () => {
     expect(record.source).toBe("row52");
     expect(record.year).toBe(2015);
     expect(record.make).toBe("Ford");
+    expect(record.makeAliases).toEqual(["Ford"]);
     expect(record.model).toBe("FOCUS");
     expect(record.color).toBe("Red");
     expect(record.locationCity).toBe("Sacramento");
