@@ -98,36 +98,81 @@ if KEYS[2] then redis.call('ZREM', KEYS[2], ARGV[1]) end
 if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end
 `;
 
-export function redisProviderHostStore(
+/**
+ * Which deployment's host gates a process joins, from `VERCEL_ENV`. "local"
+ * is any process outside a Vercel deployment.
+ */
+export type ProviderHostKeyspace =
+  | "production"
+  | "preview"
+  | "development"
+  | "local";
+
+export const ProviderHostKeyspace = {
+  parse(vercelEnv: string | undefined): ProviderHostKeyspace {
+    switch (vercelEnv) {
+      case "production":
+      case "preview":
+      case "development":
+        return vercelEnv;
+      default:
+        return "local";
+    }
+  },
+} as const;
+
+/**
+ * Redis keys for a policy's lane. Production keeps its unprefixed keys:
+ * renaming them would let runs on an older deployment and a newer one queue
+ * apart and reach an origin server at once. Other keyspaces put their name
+ * inside the hash tag, so they never hold or join production's queues and
+ * every key still shares one cluster slot.
+ */
+export function providerHostKeys(
   policy: ProviderHostPolicy,
-  redis: Pick<Redis, "eval">,
-): ProviderHostStore {
+  keyspace: ProviderHostKeyspace,
+) {
+  const base =
+    keyspace === "production" ? "ingestion" : `${keyspace}:ingestion`;
   // Keep the existing HTP lease key during rolling deployments. Hash-tag
   // queue keys with its complete name so all scripts use the same cluster
   // slot. Every lane of a group shares the group's hash tag instead, so one
   // script sees the lane and the group's places.
   const tag = policy.group
-    ? `{ingestion:host-group:${policy.group.key}:v1}`
-    : `{ingestion:host:${policy.key}:v1}`;
+    ? `{${base}:host-group:${policy.group.key}:v1}`
+    : `{${base}:host:${policy.key}:v1}`;
   const lease = policy.group
     ? `${tag}:lane:${policy.key}`
-    : `ingestion:host:${policy.key}:v1`;
+    : `${base}:host:${policy.key}:v1`;
   const prefix = policy.group ? lease : tag;
-  const lane = [
+  return {
     lease,
-    `${prefix}:queue`,
-    `${prefix}:deadlines`,
-    `${prefix}:sequence`,
-  ];
-  const ready = [`${tag}:ready`, `${tag}:ready-deadlines`];
-  const active = `${tag}:active`;
+    lane: [
+      lease,
+      `${prefix}:queue`,
+      `${prefix}:deadlines`,
+      `${prefix}:sequence`,
+    ],
+    ready: [`${tag}:ready`, `${tag}:ready-deadlines`],
+    readySequence: `${tag}:ready-sequence`,
+    active: `${tag}:active`,
+  };
+}
+
+export function redisProviderHostStore(
+  policy: ProviderHostPolicy,
+  redis: Pick<Redis, "eval">,
+  keyspace: ProviderHostKeyspace,
+): ProviderHostStore {
+  const { lease, lane, ready, readySequence, active } = providerHostKeys(
+    policy,
+    keyspace,
+  );
   return {
     reserve: async (owner, ttl) =>
       (await redis.eval(
         RESERVE_HOST_SLOT,
-        policy.group
-          ? [...lane, ...ready, `${tag}:ready-sequence`, active]
-          : lane,
+        policy.group ? [...lane, ...ready, readySequence, active] : lane,
         policy.group ? [owner, ttl, policy.group.activeLanes] : [owner, ttl],
       )) === 1,
     release: async (owner) =>
@@ -423,6 +468,7 @@ function withRedisProviderHostStore<A, E, R>(
           retry: false,
           signal: () => AbortSignal.timeout(5_000),
         }),
+        ProviderHostKeyspace.parse(process.env.VERCEL_ENV),
       );
     },
     catch: (cause) => slotError(policy, "configuration", cause),
