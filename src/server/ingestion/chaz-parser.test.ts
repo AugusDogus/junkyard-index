@@ -62,6 +62,53 @@ test("Chaz accepts explicit empty results and retains every malformed VIN row ab
   expect(parsed.records).toEqual([expected, chazFixtureRecord(2)]);
 });
 
+test("Chaz accepts the native -and heading for every published & model and nothing else", () => {
+  // Nov 18 production failure: the dead `&` route returns an explicit empty
+  // page whose heading spells `&` as `-and`, on any make, not only Chrysler.
+  const lincoln = { path: "/parts/LINCOLN", label: "LINCOLN", count: 1 };
+  const townCar = {
+    path: "/parts/LINCOLN/LINCOLN_-and_TOWN_CAR/",
+    label: "LINCOLN & TOWN CAR",
+    count: 1,
+  };
+  for (const heading of [
+    "Used LINCOLN LINCOLN -and TOWN CAR",
+    "Used LINCOLN -and TOWN CAR",
+    "Used LINCOLN LINCOLN & TOWN CAR",
+  ])
+    expect(
+      parseChazModel(chazFixtureModelPage([], heading), lincoln, townCar)
+        .records,
+    ).toEqual([]);
+  const chrysler = { path: "/parts/CHRYSLER", label: "CHRYSLER", count: 8 };
+  expect(
+    parseChazModel(
+      chazFixtureModelPage([], "Used  CHRYSLER TOWN -and COUNTRY "),
+      chrysler,
+      {
+        path: "/parts/CHRYSLER/TOWN_-and_COUNTRY/",
+        label: "TOWN & COUNTRY",
+        count: 8,
+      },
+    ).records,
+  ).toEqual([]);
+  expect(() =>
+    parseChazModel(
+      chazFixtureModelPage([], "Used LINCOLN LINCOLN -and TOWN TRUCK"),
+      lincoln,
+      townCar,
+    ),
+  ).toThrow("another published model");
+  // The variant only exists for labels that publish `&`.
+  expect(() =>
+    parseChazModel(
+      chazFixtureModelPage([], "Used ACURA -and ILX"),
+      chazFixtureMake,
+      chazFixtureModel,
+    ),
+  ).toThrow("another published model");
+});
+
 test("Chaz rejects missing donor regions, wrong model bodies, continuation and foreign suppliers", () => {
   const record = chazFixtureRecord(1);
   const raw = chazFixtureModelPage([record]);

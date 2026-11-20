@@ -270,10 +270,11 @@ export function parseChazModel(
     const expected = new Set([`Used ${make.label} ${model.label}`]);
     if (model.label.startsWith(make.label + " "))
       expected.add(`Used ${model.label}`);
-    // This captured empty model has an independently published display variant.
-    // It binds the page only and never supplies canonical vehicle metadata.
-    if (model.path === "/parts/CHRYSLER/TOWN_-and_COUNTRY/")
-      expected.add("Used CHRYSLER TOWN -and COUNTRY");
+    // Native routes for labels containing `&` publish the empty heading with
+    // `-and` in its place (captured on CHRYSLER TOWN & COUNTRY). The variant
+    // binds the page only and never supplies canonical vehicle metadata.
+    for (const heading of [...expected])
+      if (heading.includes("&")) expected.add(heading.replaceAll("&", "-and"));
     if (!headings.some((heading) => expected.has(heading)))
       throw new Error(
         "Chaz explicit empty result belongs to another published model",

@@ -30,10 +30,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 const gate = <A, E, R>(request: Effect.Effect<A, E, R>) => request;
-function transport(
-  arrivals: ChazRecord[] = [chazFixtureRecord(1)],
-  closingArrivals = arrivals,
-) {
+function transport(arrivals: ChazRecord[] = [chazFixtureRecord(1)]) {
   const rows = Array.from({ length: 901 }, (_, index) =>
     chazFixtureRecord(index + 1),
   );
@@ -48,7 +45,6 @@ function transport(
     [CHAZ_ORIGIN + chazFixtureModel.path, chazFixtureModelPage(rows)],
   ]);
   const urls: string[] = [];
-  let roots = 0;
   globalThis.fetch = Object.assign(
     async (input: string | URL | Request) => {
       const url =
@@ -58,10 +54,7 @@ function transport(
             ? input.href
             : input.url;
       urls.push(url);
-      const body =
-        url === CHAZ_ROOT && roots++ > 0
-          ? chazFixtureRoot(closingArrivals)
-          : bodies.get(url);
+      const body = bodies.get(url);
       if (body === undefined)
         throw new Error("Unexpected native request " + url);
       return new Response(body, {
@@ -74,11 +67,11 @@ function transport(
   return { bodies, urls, rows };
 }
 
-test("Chaz resumes serialized chunks and quarantines late required conflicts before any callbacks", async () => {
+test("Chaz resumes serialized chunks and quarantines required conflicts before any callbacks", async () => {
   const conflict = chazFixtureRecord(1);
   conflict[2] = "ACURA RDX";
-  const arrivals = [chazFixtureRecord(2), chazFixtureRecord(902)];
-  const native = transport(arrivals, [...arrivals, conflict]);
+  const arrivals = [chazFixtureRecord(2), chazFixtureRecord(902), conflict];
+  const native = transport(arrivals);
   let cursor: ChazCursor = ChazCursor.initial;
   const vehicles: ChazCanonicalVehicle[] = [];
   let yards = 0;
@@ -122,8 +115,10 @@ test("Chaz resumes serialized chunks and quarantines late required conflicts bef
     cursor = ChazCursor.parse(ChazCursor.serialize(result.cursor));
     chunks++;
   }
-  expect(chunks).toBe(5);
-  expect(native.urls).toHaveLength(10);
+  // Opening contact, arrivals, makes, one menu and one model; closing contact
+  // and makes.
+  expect(chunks).toBe(4);
+  expect(native.urls).toHaveLength(7);
   expect(vehicles).toHaveLength(901);
   expect(vehicles.some((vehicle) => vehicle.vin === conflict[0])).toBe(false);
   expect(
@@ -186,20 +181,18 @@ test("Chaz rejects checksum, noncontiguous prefix and foreign graph before furth
   expect(native.urls).toHaveLength(before);
 });
 
-test("Chaz changed closing donor controls fail without callbacks or accepting a new checkpoint", async () => {
+test("Chaz changed closing make directory fails without callbacks or accepting a new checkpoint", async () => {
   const native = transport();
   const first = await Effect.runPromise(
     streamChazInventoryWithRequestGate(
-      { maxPages: 8, onBatch: () => Effect.void },
+      { maxPages: 6, onBatch: () => Effect.void },
       gate,
     ),
   );
   const wire = ChazCursor.serialize(first.cursor);
-  const changed = chazFixtureRecord(1);
-  changed[6] = "2026-10-22";
   native.bodies.set(
-    CHAZ_ORIGIN + chazFixtureModel.path,
-    chazFixtureModelPage([changed, ...native.rows.slice(1)]),
+    CHAZ_MAKES,
+    chazFixtureDirectory([{ ...chazFixtureMake, count: 902 }], "makes"),
   );
   let callbacks = 0;
   const callback = () =>
@@ -213,7 +206,7 @@ test("Chaz changed closing donor controls fail without callbacks or accepting a 
         gate,
       ),
     ),
-  ).rejects.toThrow("Closing Chaz model list");
+  ).rejects.toThrow("Closing Chaz make directory");
   expect(callbacks).toBe(0);
   expect(ChazCursor.serialize(first.cursor)).toBe(wire);
   expect(first.status).toBe("paused");
@@ -277,7 +270,7 @@ test("Chaz completes a full crawl when every request waits two minutes for a sha
     expect(chunk.elapsedMs).toBeLessThanOrEqual(6 * 60_000);
     expect(chunk.turns.every((turn) => turn.releasedAt !== null)).toBe(true);
   }
-  expect(pages).toEqual([2, 2, 2, 2, 2]);
+  expect(pages).toEqual([2, 2, 2, 1]);
   expect(count).toBe(901);
-  expect(urls).toHaveLength(10);
+  expect(urls).toHaveLength(7);
 }, 120_000);
